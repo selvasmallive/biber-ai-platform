@@ -68,7 +68,7 @@ set_env_value "BIBER_HF_MODEL" "$BIBER_MODEL"
 
 if [ "${BIBER_START_AFTER_BOOTSTRAP:-true}" = "true" ]; then
   log "Starting BIBER services"
-  exec "${SCRIPT_DIR}/vast_start_direct.sh"
+  exec bash "${SCRIPT_DIR}/vast_start_direct.sh"
 fi
 
 log "Bootstrap complete"
