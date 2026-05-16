@@ -358,6 +358,14 @@ the current GPU-backed direct vLLM/FastAPI state.
     `/workspace/outputs/evals/biber-dev-core-lora-20260516T192652Z.jsonl`
   - note: this is still a lightweight substring/regex baseline, not a full
     execution-quality guarantee.
+- Started the Rust/XRIQ capability track:
+  - Rust/XRIQ prompt file: `training/eval_prompts_rust_xriq.jsonl`.
+  - Vast wrapper: `scripts/vast_eval_rust_xriq_direct.sh`.
+  - `training/live_model_eval.py` now supports optional code validators.
+  - Rust validators create temporary cargo projects and run
+    `cargo fmt --check`, `cargo check`, and `cargo test`.
+  - Rust/XRIQ evals are separate from `training/eval_prompts.jsonl` so the
+    existing `18/18` broad baseline remains comparable.
 
 ## Live Vast.ai Deployment Status
 
@@ -861,12 +869,13 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-1. Start the Rust/XRIQ future track from `docs/XRIQ_RUST_TRACK.md` by adding
-   Rust eval prompts and `cargo fmt --check`, `cargo check`, and `cargo test`
-   validators before trusting BIBER for serious Rust blockchain code.
-2. Add stronger eval validators beyond substring checks, with Rust/XRIQ first.
-   Keep the existing Python/API baseline maintained, but do not expand other
-   language tracks ahead of Rust unless the user changes priority.
+1. Run the new Rust/XRIQ live eval on Vast:
+   `bash scripts/vast_eval_rust_xriq_direct.sh`. If `cargo` is missing on Vast,
+   install or configure a Rust toolchain under `/workspace` before rerunning.
+2. Review the Rust/XRIQ eval outputs and add targeted Rust training examples
+   only for repeatable failures. Keep the existing Python/API baseline
+   maintained, but do not expand other language tracks ahead of Rust unless the
+   user changes priority.
 3. Use BIBER AI for XRIQ through inference first: spec drafting, Rust module
    scaffolding, tests, review prompts, and private-devnet tooling. Fine-tune
    only after Rust/XRIQ evals show repeatable gaps.

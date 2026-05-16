@@ -33,9 +33,14 @@ Goal: verify whether current `biber-dev-core` can help write correct Rust.
 
 - Treat this as the first capability milestone before spending effort on other
   new language tracks.
-- Add Rust prompts to the live eval set, separate from the existing Python/API
-  prompts.
-- Add validators that can run generated Rust through:
+- Rust/XRIQ eval prompts are kept separate from the existing Python/API broad
+  baseline so the current `18/18` broad baseline remains comparable.
+- Current Rust/XRIQ eval prompt file:
+  `training/eval_prompts_rust_xriq.jsonl`.
+- Current Vast Rust/XRIQ eval wrapper:
+  `scripts/vast_eval_rust_xriq_direct.sh`.
+- The live eval runner supports cargo-backed validators that can run generated
+  Rust through:
   - `cargo fmt --check`
   - `cargo check`
   - `cargo test`
@@ -52,6 +57,16 @@ Goal: verify whether current `biber-dev-core` can help write correct Rust.
 - Only fine-tune on Rust data if the eval baseline shows repeatable gaps.
 - Defer .NET, Spring Boot Java, and broader Python-specific fine-tuning until
   the Rust/XRIQ baseline is useful enough for private XRIQ development.
+
+Run the Rust/XRIQ eval on Vast with:
+
+```bash
+cd /workspace/biber-ai-platform
+bash scripts/vast_eval_rust_xriq_direct.sh
+```
+
+The Rust/XRIQ wrapper writes artifacts under `/workspace/outputs/evals` and
+uses `/workspace/outputs/evals/validator-work` for temporary cargo projects.
 
 ## Phase 2: XRIQ Technical Specification
 
