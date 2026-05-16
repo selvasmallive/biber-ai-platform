@@ -1,0 +1,46 @@
+services:
+  biber-api:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      BIBER_ENV: ${BIBER_ENV:-gpu}
+      BIBER_LOCAL_MODEL_BASE_URL: http://biber-dev-core:8000/v1
+      BIBER_LOCAL_MODEL_NAME: biber-dev-core
+    ports:
+      - "8080:8080"
+    depends_on:
+      - biber-dev-core
+    restart: unless-stopped
+
+  biber-dev-core:
+    image: vllm/vllm-openai:latest
+    command:
+      - --model
+      - ${BIBER_HF_MODEL:-Qwen/Qwen2.5-Coder-7B-Instruct}
+      - --served-model-name
+      - biber-dev-core
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+    ipc: host
+    ports:
+      - "8000:8000"
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities:
+                - gpu
+    restart: unless-stopped
+
+volumes:
+  hf-cache:
