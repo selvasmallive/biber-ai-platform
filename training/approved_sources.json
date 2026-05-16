@@ -52,7 +52,7 @@
       "category": "code",
       "stack": ["python", "sql", "java", "javascript", "css"],
       "quality": "reviewed",
-      "max_records": 200,
+      "max_records": 1000,
       "page_size": 100,
       "max_record_chars": 12000
     },
