@@ -23,6 +23,7 @@ REQUIRED_FILES = [
     "docker-compose.gpu.yml",
     "docs/API_EXAMPLES.md",
     "docs/ARCHITECTURE.md",
+    "docs/CODEX_HANDOFF.md",
     "docs/NEXT_STEPS_ON_GPU.md",
     "docs/PHASE1_GAP_ANALYSIS.md",
     "docs/VAST_DIRECT_DEPLOY.md",
