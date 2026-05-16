@@ -364,7 +364,7 @@ the current GPU-backed direct vLLM/FastAPI state.
   - Vast Rust toolchain helper: `scripts/vast_install_rust_toolchain.sh`.
   - `training/live_model_eval.py` now supports optional code validators.
   - Rust validators create temporary cargo projects and run
-    `cargo fmt --check`, `cargo check`, and `cargo test`.
+    `cargo fmt --check`, `cargo check`, and `cargo test --lib`.
   - Rust/XRIQ evals are separate from `training/eval_prompts.jsonl` so the
     existing `18/18` broad baseline remains comparable.
   - The Rust toolchain helper installs to `/workspace/.cargo` and

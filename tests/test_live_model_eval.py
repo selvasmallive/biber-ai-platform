@@ -91,6 +91,22 @@ pub fn add(a: i32, b: i32) -> i32 {
     assert "print" not in extracted
 
 
+def test_extract_code_for_language_ignores_doc_comment_fences() -> None:
+    content = """/// Example:
+/// ```
+/// let value = 1;
+/// ```
+pub fn value() -> u64 {
+    1
+}
+"""
+
+    extracted = extract_code_for_language(content, "Rust")
+
+    assert "pub fn value" in extracted
+    assert "let value = 1" in extracted
+
+
 def test_build_rust_eval_project_writes_cargo_project(tmp_path: Path) -> None:
     prompt = EvalPrompt(
         id="rust_add",

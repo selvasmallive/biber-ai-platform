@@ -43,7 +43,7 @@ Goal: verify whether current `biber-dev-core` can help write correct Rust.
   Rust through:
   - `cargo fmt --check`
   - `cargo check`
-  - `cargo test`
+  - `cargo test --lib`
   - focused unit tests for serialization, transaction validation, and error
     handling.
 - Add held-out Rust prompts covering:

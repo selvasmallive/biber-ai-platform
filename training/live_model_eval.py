@@ -58,10 +58,13 @@ class EvalResult:
 RUST_VALIDATOR_COMMANDS: dict[str, tuple[str, ...]] = {
     "rust:cargo_fmt": ("cargo", "fmt", "--check"),
     "rust:cargo_check": ("cargo", "check", "--quiet"),
-    "rust:cargo_test": ("cargo", "test", "--quiet"),
+    "rust:cargo_test": ("cargo", "test", "--quiet", "--lib"),
 }
 
-CODE_FENCE_RE = re.compile(r"```(?P<language>[\w+-]*)\s*\n(?P<code>.*?)```", re.DOTALL)
+CODE_FENCE_RE = re.compile(
+    r"^[ \t]*```(?P<language>[\w+-]*)[ \t]*\n(?P<code>.*?)^[ \t]*```[ \t]*$",
+    re.DOTALL | re.MULTILINE,
+)
 
 
 def read_env_file_value(env_file: Path, key: str) -> str | None:
