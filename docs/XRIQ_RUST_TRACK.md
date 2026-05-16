@@ -10,9 +10,9 @@ token launch.
 
 - Rust/XRIQ is the near-term top language/domain priority for BIBER AI because
   the first major inference use case is building the XRIQ cryptocurrency
-  blockchain. Prioritize Rust capability ahead of .NET, Spring Boot Java,
-  broader Python expansion, and other language tracks unless the user explicitly
-  redirects the roadmap.
+  blockchain. Prioritize Rust capability before the broader stack roadmap in
+  `docs/BIBER_CAPABILITY_ROADMAP.md` unless the user explicitly redirects the
+  roadmap.
 - Use Rust as the primary language for XRIQ node, consensus, networking,
   storage, cryptography, wallet, and CLI work.
 - Keep BIBER AI as a coding assistant and evaluator first. Do not assume the
@@ -55,8 +55,9 @@ Goal: verify whether current `biber-dev-core` can help write correct Rust.
   - unit and property-style tests
   - simple cryptographic API usage without inventing custom crypto.
 - Only fine-tune on Rust data if the eval baseline shows repeatable gaps.
-- Defer .NET, Spring Boot Java, and broader Python-specific fine-tuning until
-  the Rust/XRIQ baseline is useful enough for private XRIQ development.
+- Defer post-Rust capability tracks until the Rust/XRIQ baseline is useful
+  enough for private XRIQ development. After Rust/XRIQ, follow the order in
+  `docs/BIBER_CAPABILITY_ROADMAP.md`.
 
 Run the Rust/XRIQ eval on Vast with:
 
@@ -164,4 +165,5 @@ Use this loop only when XRIQ/Rust evals show real gaps:
    baseline.
 
 Do not run new GPU fine-tuning for other language tracks before this Rust/XRIQ
-loop is established, unless the user changes the product priority.
+loop is established, unless the user changes the product priority. After this
+track is stable, use the ordered roadmap in `docs/BIBER_CAPABILITY_ROADMAP.md`.

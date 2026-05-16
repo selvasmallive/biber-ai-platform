@@ -47,6 +47,7 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `14b89fb Fix Rust eval fixture formatting`
   - `fe75bce Harden Rust eval code validation`
   - `ca51c6e Add targeted Rust XRIQ dataset`
+  - `4015d92 Record Rust XRIQ training results`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -939,6 +940,16 @@ tail -f /workspace/biber-logs/vllm.log
   blockchain. Defer .NET, Spring Boot Java, broader Python expansion, and other
   language-specific fine-tuning until Rust/XRIQ evals and private-devnet support
   are established, unless the user explicitly changes priority.
+- Broader post-Rust capability order is now explicit in
+  `docs/BIBER_CAPABILITY_ROADMAP.md`. After Rust/XRIQ, prioritize PostgreSQL,
+  React, TypeScript, JavaScript, jQuery, CSS, HTML, Docker, GitHub Actions
+  CI/CD, WASM, Bash scripts, security engineering, cryptography concepts,
+  Kubernetes, and distributed systems optimization before lower-priority
+  generic SQL, YAML, .NET, Spring Boot Java, Python expansion, or other stacks.
+- Apply the capability roadmap through inference/evals first and targeted GPU
+  fine-tuning only for repeatable gaps. This preserves the cost-saving strategy:
+  Vast.ai does the long GPU work, while Codex is used only where it preserves
+  quality and momentum.
 - Update this handoff at important points so a new Codex session can resume
   accurately from the current Vast.ai state. Important points include:
   - live service restarts or failures
@@ -972,26 +983,28 @@ tail -f /workspace/biber-logs/vllm.log
 5. Use BIBER AI for XRIQ through inference first: spec drafting, Rust module
    scaffolding, tests, review prompts, and private-devnet tooling. Fine-tune
    only after Rust/XRIQ evals show repeatable gaps.
-6. Add new training data only through approved/provenance-tracked sources, then
+6. After the Rust/XRIQ baseline is stable, follow
+   `docs/BIBER_CAPABILITY_ROADMAP.md` in order: PostgreSQL, React, TypeScript,
+   JavaScript, jQuery, CSS, HTML, Docker, GitHub Actions CI/CD, WASM, Bash,
+   security engineering, cryptography concepts, Kubernetes, and distributed
+   systems optimization before lower-priority stacks.
+7. Add new training data only through approved/provenance-tracked sources, then
    validate and promote to `/workspace/data/biber_train.jsonl`.
-7. Train again only when the broader evals reveal real gaps. Keep the
+8. Train again only when the broader evals reveal real gaps. Keep the
    cost-saving pattern: Codex changes the scripts and reviews outputs; Vast.ai
    runs long GPU jobs in `tmux`.
-8. For the next QLoRA run on the current Vast GPU, stop the direct services
+9. For the next QLoRA run on the current Vast GPU, stop the direct services
    first because vLLM occupies most GPU memory:
    `bash scripts/vast_stop_direct.sh`.
-9. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
+10. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
    working after Codex disconnects, then restart serving after the adapter is
    produced and evaluated.
-10. Restart LoRA serving with `bash scripts/vast_start_lora_direct.sh`, rerun
+11. Restart LoRA serving with `bash scripts/vast_start_lora_direct.sh`, rerun
     `bash scripts/vast_eval_lora_direct.sh`, and compare against the current
     `18/18` broad baseline.
-11. Keep the API private over SSH tunnels unless credentials are deliberately
+12. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
-12. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
-13. Add more held-out prompts in lower-priority domains later, such as Spring
-    Boot Java, .NET, Azure, workers/queues, security hardening, and multi-file
-    refactors.
+13. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
 14. Add optional OpenAI mentor credentials if desired.
 15. Add a durable fine-grained GitHub token to Vast `.env` if persistent
    generated-code save should stay enabled.
