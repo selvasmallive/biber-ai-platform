@@ -24,6 +24,7 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `fc6b1ba Record Vast pytest verification`
   - `b3a7456 Record GitHub CLI auth setup`
   - `86129dc Smoke test BIBER GitHub save`
+  - `8ae20ad Prepare Vast QLoRA training path`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -118,6 +119,18 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `bash scripts/vast_test_direct.sh` passed after the normal restart.
   - `/v1/runtime` reports `github_configured=false` again because no GitHub
     token is currently persisted in `.env`.
+- Prepared and verified the custom-model QLoRA training path in `8ae20ad`:
+  - added JSONL dataset validation utilities and tests.
+  - replaced the QLoRA placeholder with a dry-runnable training entrypoint.
+  - added `scripts/vast_train_qlora_tmux.sh` for long GPU jobs on the 500 GB
+    Vast volume.
+  - added `requirements-training.txt` without forcing a Torch/CUDA replacement.
+  - local bundled-Python compile, dataset validation, and QLoRA dry-run passed.
+  - local pytest was not available in the bundled Python runtime, so pytest was
+    verified on the Vast virtualenv instead.
+  - Vast pytest for `tests/test_training_dataset.py` passed with `4 passed`.
+  - Vast compile, sample dataset validation, and QLoRA dry-run also passed.
+  - no real fine-tuning job was started.
 
 ## Live Vast.ai Deployment Status
 
@@ -208,6 +221,9 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
 - No real fine-tuning run has been started yet. The next training milestone is
   to place a real JSONL dataset at `/workspace/data/biber_train.jsonl`, validate
   it, then launch QLoRA in `tmux` if the user approves starting the GPU job.
+- Verified on Vast after pulling `8ae20ad`: compile, sample dataset validation,
+  QLoRA dry-run, and `tests/test_training_dataset.py` all passed under
+  `/workspace/biber-venv`.
 
 ## Important Fixes Made During Deployment
 
