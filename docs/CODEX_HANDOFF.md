@@ -12,23 +12,18 @@ the current GPU-backed direct vLLM/FastAPI state.
 - Local branch: `main`
 - Remote: `origin` points to `https://github.com/selvasmallive/biber-ai-platform.git`
 - GitHub `origin/main` was pushed from this workstation on 2026-05-16 and now
-  includes the live deployment hardening and handoff updates.
-- The push included at least:
+  includes the live deployment hardening, GitHub save hardening, pytest
+  verification, and handoff updates.
+- The pushed history includes at least:
   - `b782c05 Harden Vast direct service binding`
   - `b0462e6 Update Vast handoff state`
   - `73bd171 Refresh Vast deployment handoff`
-- Later local/Vast commits may exist on top of those; verify with Git before
-  acting on branch state.
-- GitHub push of later work was blocked in this Codex session by
-  non-interactive Git Credential Manager credentials:
-  `fatal: Cannot prompt because user interactivity has been disabled.`
-- At the last GitHub check, `origin/main` remained at
-  `c483bb1 Record Vast push state`.
-- The local checkout and Vast.ai checkout were advanced beyond GitHub with:
   - `97094ea Harden GitHub save integration`
   - `0272643 Update Vast handoff after GitHub save deploy`
   - `fae51c2 Record pytest availability in handoff`
-- A later handoff-only commit may exist on top of `fae51c2`.
+  - `fc6b1ba Record Vast pytest verification`
+- Later local/Vast handoff commits may exist on top of those; verify with Git
+  before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
   `git ls-remote origin refs/heads/main` for authoritative current Git state.
 - Keep the Vast.ai checkout at `/workspace/biber-ai-platform` fast-forwarded
@@ -65,7 +60,7 @@ the current GPU-backed direct vLLM/FastAPI state.
 - Restarted the live Vast.ai services after applying explicit loopback values in
   `.env`. Final `ss` output showed both listeners on `127.0.0.1` only.
 - Re-verified the live Vast.ai deployment on 2026-05-16:
-  - Vast checkout: `main...origin/main [ahead 2]`
+  - Vast checkout: `main...origin/main [ahead 2]` at that time
   - vLLM pid: `5634`
   - FastAPI pid: `6039`
   - both services listening only on `127.0.0.1`
@@ -95,6 +90,8 @@ the current GPU-backed direct vLLM/FastAPI state.
   - Python: `/workspace/biber-venv/bin/python`
   - pytest: `8.4.2`
   - result: `5 passed`
+- Verified GitHub caught up through `fc6b1ba`, then fetched `origin/main` on
+  Vast.ai. Vast checkout showed `main...origin/main` with no ahead count.
 
 ## Live Vast.ai Deployment Status
 
@@ -260,14 +257,12 @@ tail -f /workspace/biber-logs/vllm.log
 
 1. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
-2. Authenticate GitHub push from this workstation and push local `main` so
-   `origin/main` includes the GitHub save hardening and this handoff state.
-3. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
-4. Add optional OpenAI mentor credentials if desired.
-5. Add GitHub token and test real generated-code save.
-6. Add Azure Blob connection string and test backups.
-7. Replace demo API key/passcode auth with database-backed credentials.
-8. Add real MySQL persistence and Redis worker integration.
+2. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
+3. Add optional OpenAI mentor credentials if desired.
+4. Add GitHub token and test real generated-code save.
+5. Add Azure Blob connection string and test backups.
+6. Replace demo API key/passcode auth with database-backed credentials.
+7. Add real MySQL persistence and Redis worker integration.
 
 ## Resume Prompt For A New Chat
 
