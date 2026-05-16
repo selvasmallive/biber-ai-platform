@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from training.internet_ingest import IngestError, ingest_manifest
+from training.internet_ingest import IngestError, build_huggingface_rows_url, ingest_manifest
 
 
 def write_json(path: Path, value: object) -> None:
@@ -172,3 +172,81 @@ def test_ingest_filters_duplicates_and_secrets(tmp_path: Path) -> None:
 
     assert len(records) == 1
     assert records[0]["instruction"] == "Say hi."
+
+
+def test_ingest_huggingface_rows_source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self, size: int = -1) -> bytes:
+            return json.dumps(
+                {
+                    "rows": [
+                        {
+                            "row_idx": 0,
+                            "row": {
+                                "question": "Write add().",
+                                "answer": "def add(a, b): return a + b",
+                            },
+                        },
+                        {
+                            "row_idx": 1,
+                            "row": {
+                                "question": "Write sub().",
+                                "answer": "def sub(a, b): return a - b",
+                            },
+                        },
+                    ]
+                }
+            ).encode("utf-8")
+
+    def fake_urlopen(request: object, timeout: int = 60) -> FakeResponse:
+        assert "datasets-server.huggingface.co/rows" in request.full_url
+        return FakeResponse()
+
+    monkeypatch.setattr("training.internet_ingest.urllib.request.urlopen", fake_urlopen)
+    manifest_path = tmp_path / "manifest.json"
+    output_path = tmp_path / "train.jsonl"
+    write_json(
+        manifest_path,
+        {
+            "version": 1,
+            "allowed_licenses": ["cc-by-4.0"],
+            "allowed_domains": ["datasets-server.huggingface.co"],
+            "sources": [
+                {
+                    "name": "hf-smoke",
+                    "enabled": True,
+                    "approved": True,
+                    "type": "huggingface_rows",
+                    "dataset": "Example/CodeData",
+                    "license": "cc-by-4.0",
+                    "attribution": "Example dataset.",
+                    "field_map": {"instruction": "question", "output": "answer"},
+                    "max_records": 2,
+                    "page_size": 2,
+                }
+            ],
+        },
+    )
+
+    ingest_manifest(manifest_path, output_path, tmp_path / "raw", tmp_path / "provenance.json")
+
+    records = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+    assert len(records) == 2
+    assert records[0]["source_dataset"] == "Example/CodeData"
+
+
+def test_build_huggingface_rows_url_encodes_dataset() -> None:
+    url = build_huggingface_rows_url(
+        {"dataset": "Org/Name With Space", "config": "default", "split": "train"},
+        offset=10,
+        length=5,
+    )
+
+    assert "dataset=Org%2FName+With+Space" in url
+    assert "offset=10" in url

@@ -15,6 +15,7 @@
   ],
   "allowed_domains": [
     "raw.githubusercontent.com",
+    "datasets-server.huggingface.co",
     "huggingface.co",
     "cdn-lfs.huggingface.co"
   ],
@@ -33,6 +34,27 @@
       "quality": "verified",
       "max_records": 20,
       "max_bytes": 1048576
+    },
+    {
+      "name": "soymaycol-codeinstruct-20k",
+      "enabled": true,
+      "approved": true,
+      "type": "huggingface_rows",
+      "dataset": "SoyMaycol/CodeInstruct-20K",
+      "config": "default",
+      "split": "train",
+      "license": "cc-by-4.0",
+      "attribution": "SoyMaycol/CodeInstruct-20K, derived from HuggingFaceH4/CodeAlpaca_20K under CC BY 4.0.",
+      "field_map": {
+        "instruction": "question",
+        "output": "answer"
+      },
+      "category": "code",
+      "stack": ["python", "sql", "java", "javascript", "css"],
+      "quality": "reviewed",
+      "max_records": 200,
+      "page_size": 100,
+      "max_record_chars": 12000
     },
     {
       "name": "bigcode-the-stack-v2-template",

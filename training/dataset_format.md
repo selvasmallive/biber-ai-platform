@@ -93,6 +93,16 @@ The ingestion script enforces:
 - JSONL records that validate against the BIBER dataset schema
 - secret filtering and deduplication
 
+Supported enabled source types:
+
+- `jsonl_url`: direct JSONL URL from an allowlisted domain.
+- `huggingface_rows`: bounded pages from the Hugging Face dataset rows API.
+- `local_jsonl`: local smoke-test fixtures only with `--allow-local-sources`.
+
+The current manifest enables a small project-owned smoke source and a bounded
+sample from `SoyMaycol/CodeInstruct-20K`. Increase limits only after reviewing
+license/provenance and storage impact.
+
 Run a bounded ingestion on Vast:
 
 ```bash

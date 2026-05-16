@@ -6,6 +6,7 @@ import json
 import sys
 import urllib.parse
 import urllib.request
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -114,6 +115,14 @@ def require_source_allowed(
         domain = urllib.parse.urlparse(url).netloc.lower()
         if domain not in allowed_domains:
             raise IngestError(f"Source {name!r} URL domain is not allowlisted: {domain}")
+    elif source_type == "huggingface_rows":
+        if "datasets-server.huggingface.co" not in allowed_domains:
+            raise IngestError(
+                "datasets-server.huggingface.co must be allowlisted for Hugging Face rows."
+            )
+        dataset = str(source.get("dataset") or "").strip()
+        if not dataset or "/" not in dataset:
+            raise IngestError(f"Source {name!r} must include a Hugging Face dataset id.")
     elif source_type == "local_jsonl":
         if not allow_local_sources:
             raise IngestError(
@@ -156,6 +165,67 @@ def iter_jsonl(path: Path) -> Any:
             yield line_number, value
 
 
+def build_huggingface_rows_url(source: dict[str, Any], offset: int, length: int) -> str:
+    query = {
+        "dataset": str(source["dataset"]),
+        "config": str(source.get("config") or "default"),
+        "split": str(source.get("split") or "train"),
+        "offset": str(offset),
+        "length": str(length),
+    }
+    return "https://datasets-server.huggingface.co/rows?" + urllib.parse.urlencode(query)
+
+
+def iter_huggingface_rows(
+    source: dict[str, Any],
+    raw_dir: Path,
+    *,
+    max_records: int | None,
+) -> Iterable[tuple[int, Any, bytes]]:
+    page_size = int(source.get("page_size") or 100)
+    if page_size < 1 or page_size > 100:
+        raise IngestError(f"Source {source['name']!r} page_size must be between 1 and 100.")
+
+    max_page_bytes = int(source.get("max_page_bytes") or DEFAULT_MAX_SOURCE_BYTES)
+    offset = 0
+    yielded = 0
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    while max_records is None or yielded < max_records:
+        length = page_size
+        if max_records is not None:
+            length = min(length, max_records - yielded)
+        url = build_huggingface_rows_url(source, offset, length)
+        request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(request, timeout=60) as response:
+            payload = response.read(max_page_bytes + 1)
+        if len(payload) > max_page_bytes:
+            raise IngestError(f"Source {source['name']!r} exceeded max_page_bytes.")
+
+        page_path = raw_dir / f"rows_{offset:08d}.json"
+        page_path.write_bytes(payload)
+        page = json.loads(payload.decode("utf-8"))
+        rows = page.get("rows", [])
+        if not isinstance(rows, list) or not rows:
+            break
+
+        payload_for_hash = payload
+        for item in rows:
+            row_number = offset + 1
+            if isinstance(item, dict) and "row_idx" in item:
+                row_number = int(item["row_idx"]) + 1
+            value = item.get("row") if isinstance(item, dict) else None
+            yield row_number, value, payload_for_hash
+            payload_for_hash = b""
+            yielded += 1
+            if max_records is not None and yielded >= max_records:
+                break
+
+        if len(rows) < length:
+            break
+        offset += len(rows)
+
+
 def normalize_record(source: dict[str, Any], value: Any) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         return None
@@ -189,6 +259,8 @@ def normalize_record(source: dict[str, Any], value: Any) -> dict[str, Any] | Non
     }
     if source.get("url"):
         record["source_url"] = str(source["url"])
+    if source.get("dataset"):
+        record["source_dataset"] = str(source["dataset"])
     return record
 
 
@@ -249,20 +321,36 @@ def ingest_source(
         expected_sha = str(source.get("sha256") or "").strip().lower()
         if expected_sha and source_report.sha256 != expected_sha:
             raise IngestError(f"Source {name!r} SHA-256 mismatch.")
-    else:
+    elif source_type == "local_jsonl":
         raw_path = Path(str(source["path"]))
         source_report.raw_path = str(raw_path)
+    else:
+        raw_path = Path()
 
     source_limit = source.get("max_records")
     source_limit = int(source_limit) if source_limit is not None else None
     max_record_chars = int(source.get("max_record_chars") or DEFAULT_MAX_RECORD_CHARS)
 
-    for line_number, value in iter_jsonl(raw_path):
+    if source_type == "huggingface_rows":
+        raw_dir_for_source = raw_dir / source_raw_path(Path(), name).stem
+        source_report.raw_path = str(raw_dir_for_source)
+        row_iter = iter_huggingface_rows(
+            source,
+            raw_dir_for_source,
+            max_records=source_limit,
+        )
+    else:
+        row_iter = ((line_number, value, b"") for line_number, value in iter_jsonl(raw_path))
+
+    hasher = hashlib.sha256()
+    for line_number, value, payload in row_iter:
         if total_limit is not None and report.records_written >= total_limit:
             break
         if source_limit is not None and source_report.records_written >= source_limit:
             break
 
+        if payload:
+            hasher.update(payload)
         source_report.records_seen += 1
         record = normalize_record(source, value)
         if record is None:
@@ -294,6 +382,8 @@ def ingest_source(
         source_report.records_written += 1
         report.records_written += 1
 
+    if source_type == "huggingface_rows":
+        source_report.sha256 = hasher.hexdigest()
     source_report.status = "ok"
 
 
