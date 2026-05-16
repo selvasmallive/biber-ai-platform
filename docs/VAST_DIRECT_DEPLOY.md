@@ -49,11 +49,15 @@ nano .env
 Minimum values to change:
 
 ```text
+BIBER_ADMIN_PASSWORD=<strong-admin-password>
 BIBER_DEMO_API_KEY=<strong-api-key>
 BIBER_API_KEYS=<strong-api-key>
 BIBER_PASSCODE_FULL_GPU=<owner-passcode>
 BIBER_PASSCODE_20_GPU=<limited-passcode>
 BIBER_PASSCODE_QUEUE_PRIORITY=<queue-passcode>
+BIBER_PRIORITY_PASSCODES=<owner-passcode>:0,<standard-passcode>:3
+MYSQL_ROOT_PASSWORD=<strong-mysql-root-password>
+MYSQL_PASSWORD=<strong-mysql-password>
 ```
 
 To intentionally expose a hardened instance on the Vast.ai host network, set the

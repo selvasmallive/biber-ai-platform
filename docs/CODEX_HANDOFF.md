@@ -11,16 +11,19 @@ the current GPU-backed direct vLLM/FastAPI state.
 
 - Local branch: `main`
 - Remote: `origin` points to `https://github.com/selvasmallive/biber-ai-platform.git`
-- The direct deployment fixes from the previous handoff were committed and
-  pushed in `89ac9ce Document live Vast deployment`.
-- The loopback-binding hardening was committed locally in
-  `b782c05 Harden Vast direct service binding` and applied to the Vast.ai
-  checkout through a Git bundle.
-- GitHub `origin/main` was still at `89ac9ce` at last check. HTTPS push of the
-  hardening commit is blocked in this Codex session because no non-interactive
-  GitHub credentials are available (`fatal: unable to get password from user`).
-- The Vast.ai checkout at `/workspace/biber-ai-platform` is ahead of
-  `origin/main` until the local `main` branch can be pushed to GitHub.
+- Before this handoff refresh, local/Vast HEAD was
+  `b0462e6 Update Vast handoff state`.
+- GitHub `origin/main` was still at `89ac9ce Document live Vast deployment`
+  before the documentation refresh/push step.
+- At the last pre-push check, the local checkout and the Vast.ai checkout were
+  both ahead of `origin/main` by at least these commits:
+  - `b782c05 Harden Vast direct service binding`
+  - `b0462e6 Update Vast handoff state`
+- A later documentation handoff commit may exist on top of those. Use
+  `git status --short --branch`, `git log --oneline -1`, and
+  `git ls-remote origin refs/heads/main` for authoritative current Git state.
+- The Vast.ai checkout at `/workspace/biber-ai-platform` may be ahead of
+  `origin/main` until the local `main` branch is pushed to GitHub.
 - Prefer `git status --short --branch` and `git log --oneline -1` over this
   file for authoritative current Git state.
 
@@ -51,6 +54,13 @@ the current GPU-backed direct vLLM/FastAPI state.
   public binding is intentionally configured.
 - Restarted the live Vast.ai services after applying explicit loopback values in
   `.env`. Final `ss` output showed both listeners on `127.0.0.1` only.
+- Re-verified the live Vast.ai deployment on 2026-05-16:
+  - Vast checkout: `main...origin/main [ahead 2]`
+  - vLLM pid: `5634`
+  - FastAPI pid: `6039`
+  - both services listening only on `127.0.0.1`
+  - `bash scripts/vast_test_direct.sh` passed
+  - `/v1/chat` returned model content `ok` from `biber-dev-core`
 
 ## Live Vast.ai Deployment Status
 
@@ -174,12 +184,19 @@ tail -f /workspace/biber-logs/vllm.log
 - `.env` explicitly contains:
   - `BIBER_API_HOST=127.0.0.1`
   - `BIBER_VLLM_HOST=127.0.0.1`
-- Before public exposure, replace demo credentials in `.env`:
+- A redacted credential audit on 2026-05-16 showed the live `.env` still uses
+  starter values for sensitive placeholders. Live rotation was not performed
+  because changing running API credentials requires explicit user approval.
+- Before public exposure, replace all starter credentials in `.env`:
+  - `BIBER_ADMIN_PASSWORD`
   - `BIBER_DEMO_API_KEY`
   - `BIBER_API_KEYS`
   - `BIBER_PASSCODE_FULL_GPU`
   - `BIBER_PASSCODE_20_GPU`
   - `BIBER_PASSCODE_QUEUE_PRIORITY`
+  - `BIBER_PRIORITY_PASSCODES`
+  - `MYSQL_ROOT_PASSWORD`
+  - `MYSQL_PASSWORD`
 - The direct path starts only:
   - `biber-dev-core` through vLLM
   - BIBER FastAPI
@@ -189,11 +206,28 @@ tail -f /workspace/biber-logs/vllm.log
   - GitHub generated-code save
   - Azure Blob backups
 
+## Operating Notes For Future Codex Sessions
+
+- Do not rotate live credentials routinely. Treat credential rotation as an
+  explicit, infrequent operation that requires user approval and a plan for
+  preserving the new secrets outside chat.
+- Keep the deployment loopback-only while starter credentials remain in place.
+- Update this handoff at important points so a new Codex session can resume
+  accurately from the current Vast.ai state. Important points include:
+  - live service restarts or failures
+  - host, SSH port, key path, runtime path, pid, or log path changes
+  - Git commit/branch/remote state changes
+  - dependency, model, port, bind, or environment changes
+  - smoke test, runtime test, mentor, GitHub save, Azure backup, MySQL, or Redis
+    status changes
+  - credential status changes, without recording secret values
+
 ## Recommended Next Steps
 
-1. Authenticate GitHub push from this workstation and run `git push origin main`
+1. Keep the API private over SSH tunnels unless credentials are deliberately
+   rotated and public binding is intentionally enabled.
+2. Authenticate GitHub push from this workstation and run `git push origin main`
    so `origin/main` includes the local/Vast hardening commits.
-2. Replace demo `.env` credentials before exposing the API publicly.
 3. Add optional OpenAI mentor credentials if desired.
 4. Add GitHub token and test generated-code save.
 5. Add Azure Blob connection string and test backups.
