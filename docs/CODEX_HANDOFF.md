@@ -26,6 +26,8 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `86129dc Smoke test BIBER GitHub save`
   - `8ae20ad Prepare Vast QLoRA training path`
   - `5f10d3f Add approved internet data ingestion`
+  - `7d9446f Add bounded Hugging Face ingestion source`
+  - `0e7fb30 Avoid training requirements transformer downgrade`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -152,6 +154,33 @@ the current GPU-backed direct vLLM/FastAPI state.
     `/workspace/outputs/internet-dataset-validation.json`.
   - QLoRA dry-run accepted the internet-smoke dataset.
   - no real fine-tuning job was started.
+- Added and verified a bounded Hugging Face rows source in `7d9446f`:
+  - enabled `SoyMaycol/CodeInstruct-20K` with `cc-by-4.0` metadata,
+    `question` -> `instruction`, and `answer` -> `output`.
+  - bounded source limit is currently 200 records.
+  - Vast ingestion wrote
+    `/workspace/data/biber_train_internet_codeinstruct_200.jsonl`.
+  - resulting dataset had 200 records: 2 project-owned smoke records and 198
+    CodeInstruct records.
+  - provenance:
+    `/workspace/outputs/dataset-provenance-codeinstruct-200.json`.
+  - validation report:
+    `/workspace/outputs/internet-dataset-validation-codeinstruct-200.json`.
+  - canonical training dataset was promoted to `/workspace/data/biber_train.jsonl`
+    and validated with 0 errors.
+  - QLoRA dry-run accepted `/workspace/data/biber_train.jsonl`.
+- Hardened `requirements-training.txt` in `0e7fb30` so it does not pin or
+  downgrade Transformers. Vast already has `torch 2.11.0+cu130` and
+  `transformers 5.8.1` from the live vLLM environment.
+- Installed QLoRA extras into `/workspace/biber-venv` after a pip dry-run showed
+  no Torch/Transformers downgrade:
+  - `accelerate 1.13.0`
+  - `bitsandbytes 0.49.2`
+  - `peft 0.19.1`
+  - `pip check` reported no broken requirements.
+  - `training.qlora_train_biber_dev_core.require_training_dependencies()`
+    imported all required training objects successfully.
+  - vLLM and FastAPI remained running and healthy after install.
 
 ## Live Vast.ai Deployment Status
 
@@ -163,7 +192,7 @@ the current GPU-backed direct vLLM/FastAPI state.
 - Storage:
   - `/workspace` is mounted from `/dev/md0[/volumes/V.36840046/_data]`
     as XFS.
-  - Size at last check: `499G`, used `26G`, available `474G`.
+  - Size at last check: `499G`, used `27G`, available `473G`.
   - BIBER runtime, model cache, venv, pip cache, logs, pid files, future
     datasets, checkpoints, adapters, and outputs should stay under
     `/workspace` to use the 500 GB Vast volume and avoid the small root
@@ -259,10 +288,21 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
   deduplicates records, filters likely secrets, caps record size, and validates
   the final JSONL before use.
 - The current enabled internet source is only the small project-owned smoke
-  dataset. Add real approved source entries before building a meaningful
-  fine-tuning dataset.
+  dataset plus a bounded 200-record sample from `SoyMaycol/CodeInstruct-20K`.
+  Increase real approved source limits only after reviewing license/provenance
+  and storage impact.
 - Only promote an internet-ingested dataset to `/workspace/data/biber_train.jsonl`
   after reviewing provenance and validation output.
+- Current canonical dataset: `/workspace/data/biber_train.jsonl`
+  - 200 records
+  - 135K
+  - validated with 0 errors
+  - provenance for its internet candidate:
+    `/workspace/outputs/dataset-provenance-codeinstruct-200.json`
+- Actual QLoRA fine-tuning has not been started. The current serving process
+  holds about 14 GB on each 16 GB GPU. Before starting real QLoRA on this
+  instance, stop the direct services with `bash scripts/vast_stop_direct.sh`, or
+  run training on a separate GPU.
 
 ## Important Fixes Made During Deployment
 
@@ -586,16 +626,17 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-1. Build or copy the real custom-model JSONL dataset to the 500 GB Vast volume.
-   If using internet data, use `scripts/vast_ingest_internet_dataset.sh` and
-   review provenance before promoting it to `/workspace/data/biber_train.jsonl`.
-2. Validate the promoted dataset with `training/validate_dataset.py` and save the report
-   under `/workspace/outputs`.
-3. Install `requirements-training.txt` only when ready to start fine-tuning,
-   preserving the current CUDA/Torch stack unless troubleshooting requires a
-   planned change.
+1. Decide whether to grow the approved internet dataset beyond the current
+   200-record starter sample.
+2. If growing it, adjust `training/approved_sources.json` limits, run
+   `scripts/vast_ingest_internet_dataset.sh`, review provenance, then promote
+   the result to `/workspace/data/biber_train.jsonl`.
+3. For actual QLoRA training on the current Vast GPU, stop the direct services
+   first because vLLM already occupies most GPU memory:
+   `bash scripts/vast_stop_direct.sh`.
 4. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
-   working after Codex disconnects.
+   working after Codex disconnects, then restart serving after the adapter is
+   produced and evaluated.
 5. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
 6. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
