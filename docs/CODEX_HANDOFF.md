@@ -22,6 +22,8 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `0272643 Update Vast handoff after GitHub save deploy`
   - `fae51c2 Record pytest availability in handoff`
   - `fc6b1ba Record Vast pytest verification`
+  - `b3a7456 Record GitHub CLI auth setup`
+  - `86129dc Smoke test BIBER GitHub save`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -36,6 +38,10 @@ the current GPU-backed direct vLLM/FastAPI state.
   `gh auth setup-git` was run, and `git push origin main` verified GitHub auth
   with `Everything up-to-date`. In this Codex process, `gh` may not be on
   `PATH` until the app/session is restarted; use the full path if needed.
+- Real GitHub generated-code save was smoke-tested from the live Vast.ai API
+  using a temporary GitHub CLI token from this workstation. The token was not
+  written to the live `.env`, temporary files were removed, and FastAPI was
+  restarted back to normal no-token configuration after the test.
 
 ## Completed
 
@@ -97,6 +103,21 @@ the current GPU-backed direct vLLM/FastAPI state.
   - result: `5 passed`
 - Verified GitHub caught up through `fc6b1ba`, then fetched `origin/main` on
   Vast.ai. Vast checkout showed `main...origin/main` with no ahead count.
+- Verified real `/v1/save/github` from Vast.ai with temporary GitHub credentials:
+  - FastAPI was restarted with transient `GITHUB_TOKEN`,
+    `GITHUB_DEFAULT_OWNER=selvasmallive`, and
+    `GITHUB_DEFAULT_REPO=biber-ai-platform`.
+  - `/v1/save/github` returned `HTTP 200`.
+  - GitHub URL:
+    `https://github.com/selvasmallive/biber-ai-platform/blob/main/generated/github-save-smoke.md`
+  - Resulting Git commit: `86129dc Smoke test BIBER GitHub save`
+  - Local and Vast.ai checkouts were fast-forwarded to include the generated
+    smoke-test file.
+  - FastAPI was restarted back to normal mode after the smoke test:
+    vLLM pid `5634`, FastAPI pid `7818`.
+  - `bash scripts/vast_test_direct.sh` passed after the normal restart.
+  - `/v1/runtime` reports `github_configured=false` again because no GitHub
+    token is currently persisted in `.env`.
 
 ## Live Vast.ai Deployment Status
 
@@ -239,7 +260,7 @@ tail -f /workspace/biber-logs/vllm.log
 - The direct path does not start MySQL, Redis, or Adminer.
 - Optional integrations are currently not configured on the live instance:
   - OpenAI mentor
-  - GitHub generated-code save credentials
+  - durable GitHub generated-code save credentials
   - Azure Blob backups
 
 ## Operating Notes For Future Codex Sessions
@@ -264,7 +285,8 @@ tail -f /workspace/biber-logs/vllm.log
    rotated and public binding is intentionally enabled.
 2. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
 3. Add optional OpenAI mentor credentials if desired.
-4. Add GitHub token and test real generated-code save.
+4. Add a durable fine-grained GitHub token to Vast `.env` if persistent
+   generated-code save should stay enabled.
 5. Add Azure Blob connection string and test backups.
 6. Replace demo API key/passcode auth with database-backed credentials.
 7. Add real MySQL persistence and Redis worker integration.
