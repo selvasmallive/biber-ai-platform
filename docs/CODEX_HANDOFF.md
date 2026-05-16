@@ -25,6 +25,7 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `b3a7456 Record GitHub CLI auth setup`
   - `86129dc Smoke test BIBER GitHub save`
   - `8ae20ad Prepare Vast QLoRA training path`
+  - `5f10d3f Add approved internet data ingestion`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -130,6 +131,26 @@ the current GPU-backed direct vLLM/FastAPI state.
     verified on the Vast virtualenv instead.
   - Vast pytest for `tests/test_training_dataset.py` passed with `4 passed`.
   - Vast compile, sample dataset validation, and QLoRA dry-run also passed.
+  - no real fine-tuning job was started.
+- Added the approved internet dataset ingestion pipeline in `5f10d3f`:
+  - approved-source manifest: `training/approved_sources.json`
+  - ingestion CLI: `training/internet_ingest.py`
+  - Vast helper: `scripts/vast_ingest_internet_dataset.sh`
+  - tests: `tests/test_internet_ingest.py`
+  - generated datasets, raw downloads, provenance, outputs, and adapters are
+    ignored by Git.
+- Verified internet ingestion on Vast after pulling `5f10d3f`:
+  - compile checks for `training`, `scripts`, and `tests` passed.
+  - Vast pytest for `tests/test_internet_ingest.py` and
+    `tests/test_training_dataset.py` passed with `8 passed`.
+  - approved internet-smoke ingestion wrote
+    `/workspace/data/biber_train_internet_smoke.jsonl` with 2 records.
+  - raw source was stored at
+    `/workspace/data/raw/biber-platform-sample-jsonl.jsonl`.
+  - provenance was written to `/workspace/outputs/dataset-provenance.json`.
+  - validation report was written to
+    `/workspace/outputs/internet-dataset-validation.json`.
+  - QLoRA dry-run accepted the internet-smoke dataset.
   - no real fine-tuning job was started.
 
 ## Live Vast.ai Deployment Status
@@ -237,6 +258,9 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
   `approved`, license-allowlisted, domain-allowlisted, and attributed. It also
   deduplicates records, filters likely secrets, caps record size, and validates
   the final JSONL before use.
+- The current enabled internet source is only the small project-owned smoke
+  dataset. Add real approved source entries before building a meaningful
+  fine-tuning dataset.
 - Only promote an internet-ingested dataset to `/workspace/data/biber_train.jsonl`
   after reviewing provenance and validation output.
 
