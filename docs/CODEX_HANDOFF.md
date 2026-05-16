@@ -40,6 +40,13 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `1b6e073 Expand live eval prompt set`
   - `0d6b0b7 Relax rate limit eval heuristic`
   - `045d377 Relax API key eval heuristic`
+  - `5f2e9de Add XRIQ Rust future track`
+  - `d1dc0c5 Prioritize Rust XRIQ capability`
+  - `fb5bb0f Add Rust XRIQ eval harness`
+  - `11c3358 Add Vast Rust toolchain helper`
+  - `14b89fb Fix Rust eval fixture formatting`
+  - `fe75bce Harden Rust eval code validation`
+  - `ca51c6e Add targeted Rust XRIQ dataset`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -369,6 +376,56 @@ the current GPU-backed direct vLLM/FastAPI state.
     existing `18/18` broad baseline remains comparable.
   - The Rust toolchain helper installs to `/workspace/.cargo` and
     `/workspace/.rustup` so toolchain files stay on the 500 GB Vast volume.
+- Completed the first Rust/XRIQ improvement loop:
+  - Rust toolchain installed on Vast under `/workspace/.cargo` and
+    `/workspace/.rustup`.
+  - Pre-training Rust/XRIQ eval against
+    `/workspace/adapters/biber-dev-core-lora-targeted-350`:
+    `6/6` responses, `6/6` substring expectations, `2/6` cargo validators.
+  - Added project-owned targeted Rust/XRIQ data:
+    `training/targeted_rust_xriq_dataset.jsonl`.
+  - Added approved-source manifest entry:
+    `biber-rust-xriq-targeted-jsonl`.
+  - Ingested candidate:
+    `/workspace/data/biber_train_rust_xriq_targeted_codeinstruct_1000.jsonl`.
+  - Candidate mix: 2 project smoke records, 27 Python/API targeted records, 10
+    Rust/XRIQ targeted records, and 961 CodeInstruct records.
+  - Candidate validation: `1000` records, `0` errors, `0` warnings.
+  - Candidate provenance:
+    `/workspace/outputs/dataset-provenance-rust-xriq-targeted-codeinstruct-1000.json`.
+  - Candidate validation report:
+    `/workspace/outputs/internet-dataset-validation-rust-xriq-targeted-codeinstruct-1000.json`.
+  - Promoted candidate to `/workspace/data/biber_train.jsonl` and validated it
+    with `1000` records, `0` errors, `0` warnings.
+  - Stopped services before training to free GPU memory.
+  - Trained Rust/XRIQ-priority adapter in tmux session
+    `biber-qlora-rust-xriq-400`.
+  - Training log:
+    `/workspace/outputs/qlora-rust-xriq-400/qlora-20260516T195917Z.log`.
+  - Output adapter:
+    `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
+  - Training used the canonical 1000-record dataset for validation, then
+    `BIBER_TRAIN_LIMIT_SAMPLES=400` and `BIBER_TRAIN_NUM_EPOCHS=2`.
+  - Steps: `100`.
+  - Runtime: about `290.5` seconds.
+  - Train loss: about `0.7752`.
+  - Saved checkpoints include `checkpoint-50`, `checkpoint-75`, and
+    `checkpoint-100`.
+  - Restarted live serving with the Rust/XRIQ adapter:
+    `biber-dev-core=/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
+  - Last confirmed pids after restart: vLLM `16407`, FastAPI `16748`.
+  - `bash scripts/vast_test_direct.sh` passed after restart.
+  - Post-training Rust/XRIQ eval:
+    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260516T200642Z.summary.json`.
+  - Post-training Rust/XRIQ result: `6/6` responses, `6/6` substring
+    expectations, `5/6` cargo validators.
+  - Remaining Rust/XRIQ weak spot: `rust_xriq_mempool_insert` still omitted
+    `use std::collections::HashSet;`, causing `cargo check` failure.
+  - A broad 18-prompt eval was started afterward, but this Codex session's SSH
+    command timed out after 15 minutes and the result was not confirmed.
+  - After that timeout, SSH to `70.30.158.46:61995` began returning
+    `Permission denied (publickey)` with the known key. Verify the current Vast
+    SSH host/port/key mapping in the Vast UI before continuing.
 
 ## Live Vast.ai Deployment Status
 
@@ -380,7 +437,7 @@ the current GPU-backed direct vLLM/FastAPI state.
 - Storage:
   - `/workspace` is mounted from `/dev/md0[/volumes/V.36840046/_data]`
     as XFS.
-  - Size at last check: `499G`, used `29G`, available `471G`.
+  - Size at last check: `499G`, used `30G`, available `470G`.
   - BIBER runtime, model cache, venv, pip cache, logs, pid files, future
     datasets, checkpoints, adapters, and outputs should stay under
     `/workspace` to use the 500 GB Vast volume and avoid the small root
@@ -398,34 +455,42 @@ the current GPU-backed direct vLLM/FastAPI state.
   - Base served model name: `biber-dev-core-base`
   - LoRA adapter model name: `biber-dev-core`
   - LoRA modules:
-    `biber-dev-core=/workspace/adapters/biber-dev-core-lora-targeted-350`
+    `biber-dev-core=/workspace/adapters/biber-dev-core-lora-rust-xriq-400`
   - Tensor parallel size: `2`
   - Max model length: `8192`
-  - Current pid at last check: `12793`
+  - Current pid at last confirmed check: `16407`
 - BIBER FastAPI:
   - URL: `http://127.0.0.1:8000`
   - Environment: `gpu`
   - Chat mode: `infer`
   - Local model name: `biber-dev-core`
-  - Current pid at last check: `13134`
+  - Current pid at last confirmed check: `16748`
   - Run `bash scripts/vast_status_direct.sh` for current PIDs and bind details.
 - Persistent training/output directories created on the 500 GB volume:
   - `/workspace/data`
   - `/workspace/checkpoints`
   - `/workspace/adapters`
   - `/workspace/outputs`
+  - `/workspace/.cargo`
+  - `/workspace/.rustup`
 - Current generated artifact sizes at last check:
   - `/workspace/data`: `2.6M`
+  - `/workspace/.cargo`: `20M`
+  - `/workspace/.rustup`: `594M`
+  - `/workspace/outputs/evals`: `132K`
+  - `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`: trained and
+    served successfully; size should be rechecked after SSH access is restored.
   - `/workspace/adapters/biber-dev-core-lora-targeted-350`: `896M`
   - `/workspace/adapters/biber-dev-core-lora-codeinstruct-998`: `896M`
   - `/workspace/adapters/biber-dev-core-lora`: `409M`
   - `/workspace/outputs`: `180K`
-- Current main adapter contents include:
+- Current Rust/XRIQ adapter contents should include:
   - `adapter_model.safetensors`: `155M`
   - `adapter_config.json`
   - `tokenizer.json`: `11M`
   - `chat_template.jinja`
-  - `checkpoint-50`, `checkpoint-75`, `checkpoint-88`
+  - checkpoints including `checkpoint-50`, `checkpoint-75`, and
+    `checkpoint-100`
 
 ## Custom Model Training Prep
 
@@ -494,9 +559,10 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
   deduplicates records, filters likely secrets, caps record size, and validates
   the final JSONL before use.
 - The current enabled internet sources are the small project-owned smoke
-  dataset, the project-owned targeted eval dataset, and a bounded 1000-record
-  cap from `SoyMaycol/CodeInstruct-20K`. Increase real approved source limits
-  only after reviewing license/provenance and storage impact.
+  dataset, the project-owned targeted eval dataset, the project-owned
+  Rust/XRIQ targeted dataset, and a bounded 1000-record cap from
+  `SoyMaycol/CodeInstruct-20K`. Increase real approved source limits only after
+  reviewing license/provenance and storage impact.
 - Only promote an internet-ingested dataset to `/workspace/data/biber_train.jsonl`
   after reviewing provenance and validation output.
 - Current canonical dataset: `/workspace/data/biber_train.jsonl`
@@ -504,13 +570,13 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
   - about 2.6M for `/workspace/data` overall
   - validated with 0 errors
   - provenance for its internet candidate:
-    `/workspace/outputs/dataset-provenance-targeted-codeinstruct-1000.json`
+    `/workspace/outputs/dataset-provenance-rust-xriq-targeted-codeinstruct-1000.json`
 - Current trained adapter:
-  `/workspace/adapters/biber-dev-core-lora-targeted-350`
-  - produced by an 88-step, two-epoch QLoRA run over the first 350 records of
-    the targeted 1000-record dataset.
-  - now served live as `biber-dev-core`.
-- Current live eval baseline:
+  `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`
+  - produced by a 100-step, two-epoch QLoRA run over the first 400 records of
+    the Rust/XRIQ-targeted 1000-record dataset.
+  - last confirmed served live as `biber-dev-core`.
+- Current broad live eval baseline before Rust/XRIQ retraining:
   - runner: `bash scripts/vast_eval_lora_direct.sh`
   - result: `18/18` responses, `18/18` simple expectation checks passed.
   - summary:
@@ -520,6 +586,19 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
   - quality caveat: the current runner checks simple expected substrings or
     regexes. Treat the score as a regression signal, then add stronger
     execution/type/lint validators before trusting it as a quality score.
+- Current Rust/XRIQ eval baseline after Rust/XRIQ retraining:
+  - runner: `bash scripts/vast_eval_rust_xriq_direct.sh`
+  - result: `6/6` responses, `6/6` substring expectations, `5/6` cargo
+    validators.
+  - summary:
+    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260516T200642Z.summary.json`
+  - detailed JSONL:
+    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260516T200642Z.jsonl`
+  - remaining failure: missing `use std::collections::HashSet;` in
+    `rust_xriq_mempool_insert`.
+- Broad eval after Rust/XRIQ retraining is not confirmed. It was started from
+  this Codex session, but the SSH command timed out after 15 minutes. After the
+  timeout, SSH began returning `Permission denied (publickey)`.
 - The current serving process holds about 14 GB on each 16 GB GPU. Before
   starting another QLoRA run on this instance, stop the direct services with
   `bash scripts/vast_stop_direct.sh`, or run training on a separate GPU.
@@ -809,7 +888,7 @@ tail -f /workspace/biber-logs/vllm.log
   - `BIBER_VLLM_HOST=127.0.0.1`
   - `BIBER_LOCAL_MODEL_NAME=biber-dev-core`
   - `BIBER_VLLM_SERVED_MODEL_NAME=biber-dev-core-base`
-  - `BIBER_VLLM_LORA_MODULES=biber-dev-core=/workspace/adapters/biber-dev-core-lora-targeted-350`
+  - `BIBER_VLLM_LORA_MODULES=biber-dev-core=/workspace/adapters/biber-dev-core-lora-rust-xriq-400`
 - A redacted credential audit on 2026-05-16 showed the live `.env` still uses
   starter values for sensitive placeholders. Live rotation was not performed
   because changing running API credentials requires explicit user approval.
@@ -872,42 +951,53 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-1. Run the new Rust/XRIQ live eval on Vast:
-   `bash scripts/vast_install_rust_toolchain.sh`, then
-   `bash scripts/vast_eval_rust_xriq_direct.sh`.
-2. Review the Rust/XRIQ eval outputs and add targeted Rust training examples
-   only for repeatable failures. Keep the existing Python/API baseline
-   maintained, but do not expand other language tracks ahead of Rust unless the
-   user changes priority.
-3. Use BIBER AI for XRIQ through inference first: spec drafting, Rust module
+1. Restore/verify SSH access to the Vast instance. The last known connection
+   `70.30.158.46:61995` with key
+   `C:\Users\vselv\.ssh\biber_vast_ed25519` began returning
+   `Permission denied (publickey)` after the broad-eval SSH timeout. Check the
+   Vast UI for the current SSH host/port and whether the instance was restarted
+   or replaced.
+2. Once SSH works, inspect whether the broad eval completed or left partial
+   artifacts under `/workspace/outputs/evals`, then rerun the 18-prompt broad
+   eval in `tmux` or with a longer timeout:
+   `bash scripts/vast_eval_lora_direct.sh`.
+3. Compare the broad eval result for
+   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` against the previous
+   `18/18` broad baseline before declaring the Rust/XRIQ adapter the permanent
+   live winner.
+4. For Rust/XRIQ, the new adapter improved cargo validators from `2/6` to
+   `5/6`. Add or adjust targeted Rust examples for the remaining missing
+   `HashSet` import failure, then train again only if the broad baseline is not
+   regressed or if the user explicitly prioritizes Rust over the broad score.
+5. Use BIBER AI for XRIQ through inference first: spec drafting, Rust module
    scaffolding, tests, review prompts, and private-devnet tooling. Fine-tune
    only after Rust/XRIQ evals show repeatable gaps.
-4. Add new training data only through approved/provenance-tracked sources, then
+6. Add new training data only through approved/provenance-tracked sources, then
    validate and promote to `/workspace/data/biber_train.jsonl`.
-5. Train again only when the broader evals reveal real gaps. Keep the
+7. Train again only when the broader evals reveal real gaps. Keep the
    cost-saving pattern: Codex changes the scripts and reviews outputs; Vast.ai
    runs long GPU jobs in `tmux`.
-6. For the next QLoRA run on the current Vast GPU, stop the direct services
+8. For the next QLoRA run on the current Vast GPU, stop the direct services
    first because vLLM occupies most GPU memory:
    `bash scripts/vast_stop_direct.sh`.
-7. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
+9. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
    working after Codex disconnects, then restart serving after the adapter is
    produced and evaluated.
-8. Restart LoRA serving with `bash scripts/vast_start_lora_direct.sh`, rerun
-   `bash scripts/vast_eval_lora_direct.sh`, and compare against the current
-   `18/18` broad baseline.
-9. Keep the API private over SSH tunnels unless credentials are deliberately
+10. Restart LoRA serving with `bash scripts/vast_start_lora_direct.sh`, rerun
+    `bash scripts/vast_eval_lora_direct.sh`, and compare against the current
+    `18/18` broad baseline.
+11. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
-10. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
-11. Add more held-out prompts in lower-priority domains later, such as Spring
+12. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
+13. Add more held-out prompts in lower-priority domains later, such as Spring
     Boot Java, .NET, Azure, workers/queues, security hardening, and multi-file
     refactors.
-12. Add optional OpenAI mentor credentials if desired.
-13. Add a durable fine-grained GitHub token to Vast `.env` if persistent
+14. Add optional OpenAI mentor credentials if desired.
+15. Add a durable fine-grained GitHub token to Vast `.env` if persistent
    generated-code save should stay enabled.
-14. Add Azure Blob connection string and test backups.
-15. Replace demo API key/passcode auth with database-backed credentials.
-16. Add real MySQL persistence and Redis worker integration.
+16. Add Azure Blob connection string and test backups.
+17. Replace demo API key/passcode auth with database-backed credentials.
+18. Add real MySQL persistence and Redis worker integration.
 
 ## Resume Prompt For A New Chat
 

@@ -71,6 +71,24 @@ uses `/workspace/outputs/evals/validator-work` for temporary cargo projects.
 The Rust toolchain helper installs Rust under `/workspace/.cargo` and
 `/workspace/.rustup` so toolchain files stay on the 500 GB Vast volume.
 
+Current baseline as of 2026-05-16:
+
+- Pre-Rust/XRIQ training adapter:
+  `/workspace/adapters/biber-dev-core-lora-targeted-350`.
+- Pre-training Rust/XRIQ eval: `6/6` responses, `6/6` substring expectations,
+  `2/6` cargo validators.
+- Rust/XRIQ-priority adapter:
+  `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
+- Post-training Rust/XRIQ eval:
+  `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260516T200642Z.summary.json`.
+- Post-training Rust/XRIQ result: `6/6` responses, `6/6` substring
+  expectations, `5/6` cargo validators.
+- Remaining Rust/XRIQ failure: `rust_xriq_mempool_insert` omitted
+  `use std::collections::HashSet;`.
+- Broad 18-prompt eval after Rust/XRIQ retraining was started but not
+  confirmed because the SSH command timed out and subsequent SSH attempts
+  returned `Permission denied (publickey)`.
+
 ## Phase 2: XRIQ Technical Specification
 
 Goal: define what XRIQ is before generating serious code.
