@@ -184,6 +184,182 @@ BIBER_VLLM_HOST=127.0.0.1
 Set either host to `0.0.0.0` only after replacing the starter credentials and
 intentionally exposing the instance.
 
+## Moving To A New Vast GPU
+
+Use this section when replacing the current Vast.ai GPU. The goal is to avoid
+re-downloading or rebuilding large assets when the current GPU or its storage is
+still reachable, while keeping the new instance reproducible from GitHub if the
+current GPU is unavailable.
+
+### If the current GPU is still available
+
+1. First make GitHub authoritative for code:
+
+```bash
+cd /workspace/biber-ai-platform
+git status --short --branch
+git log --oneline -1
+```
+
+From this workstation, push any local commits before moving:
+
+```powershell
+cd C:\Users\vselv\OneDrive\Biber\biber-ai-platform
+git push origin main
+```
+
+2. Rent the new Vast.ai GPU. Prefer the same OS/template family and enough disk
+   space for the existing runtime, model cache, datasets, and checkpoints.
+
+3. Bootstrap code on the new GPU from GitHub:
+
+```bash
+cd /workspace
+git clone https://github.com/selvasmallive/biber-ai-platform.git
+cd biber-ai-platform
+```
+
+4. Copy only state that saves real time or cannot be recreated. Important paths:
+
+```text
+/workspace/biber-ai-platform/.env     # secrets/config; copy carefully
+/workspace/.hf_home                   # Hugging Face/model cache; saves download time
+/workspace/pip-cache                  # optional; saves pip download time
+/workspace/data                       # future datasets, if present
+/workspace/checkpoints                # future training checkpoints, if present
+/workspace/adapters                   # future LoRA/QLoRA adapters, if present
+/workspace/outputs                    # future evaluation/training outputs, if present
+```
+
+Do not copy pid files:
+
+```text
+/workspace/biber-pids
+```
+
+Logs are optional:
+
+```text
+/workspace/biber-logs
+```
+
+5. Prefer Vast.ai's instance/volume copy tools or same-provider local network
+   copy when available, because that can be faster and may avoid routing large
+   transfers through this workstation.
+
+If both old and new instances are reachable to Vast's copy service, use command
+shapes like these with the actual Vast instance IDs:
+
+```bash
+vastai copy C.<OLD_INSTANCE_ID>:/workspace/.hf_home/ C.<NEW_INSTANCE_ID>:/workspace/.hf_home/
+vastai copy C.<OLD_INSTANCE_ID>:/workspace/pip-cache/ C.<NEW_INSTANCE_ID>:/workspace/pip-cache/
+vastai copy C.<OLD_INSTANCE_ID>:/workspace/data/ C.<NEW_INSTANCE_ID>:/workspace/data/
+vastai copy C.<OLD_INSTANCE_ID>:/workspace/checkpoints/ C.<NEW_INSTANCE_ID>:/workspace/checkpoints/
+vastai copy C.<OLD_INSTANCE_ID>:/workspace/adapters/ C.<NEW_INSTANCE_ID>:/workspace/adapters/
+```
+
+For a Vast 500 GB volume, remember that Vast volumes are local to the machine
+where they were created. If the same machine can still be used, rent the new
+instance using the existing volume. If moving to a different machine, create a
+new destination volume/instance and copy data instead of assuming the old volume
+can be attached directly:
+
+```bash
+vastai copy V.<OLD_VOLUME_ID>:/data/ V.<NEW_VOLUME_ID>:/data/
+vastai copy V.<OLD_VOLUME_ID>:/data/ C.<NEW_INSTANCE_ID>:/workspace/
+vastai copy C.<OLD_INSTANCE_ID>:/workspace/ V.<NEW_VOLUME_ID>:/data/
+```
+
+If using manual SSH copy, run it from a Linux shell that can reach both
+instances. Example shape:
+
+```bash
+rsync -aH --info=progress2 \
+  -e "ssh -p <OLD_SSH_PORT> -i <SSH_KEY>" \
+  root@<OLD_HOST>:/workspace/.hf_home/ /workspace/.hf_home/
+
+rsync -aH --info=progress2 \
+  -e "ssh -p <OLD_SSH_PORT> -i <SSH_KEY>" \
+  root@<OLD_HOST>:/workspace/pip-cache/ /workspace/pip-cache/
+
+rsync -aH --info=progress2 \
+  -e "ssh -p <OLD_SSH_PORT> -i <SSH_KEY>" \
+  root@<OLD_HOST>:/workspace/biber-ai-platform/.env /workspace/biber-ai-platform/.env
+```
+
+For training datasets/checkpoints, copy the relevant directories only if they
+exist:
+
+```bash
+rsync -aH --info=progress2 \
+  -e "ssh -p <OLD_SSH_PORT> -i <SSH_KEY>" \
+  root@<OLD_HOST>:/workspace/data/ /workspace/data/
+
+rsync -aH --info=progress2 \
+  -e "ssh -p <OLD_SSH_PORT> -i <SSH_KEY>" \
+  root@<OLD_HOST>:/workspace/checkpoints/ /workspace/checkpoints/
+
+rsync -aH --info=progress2 \
+  -e "ssh -p <OLD_SSH_PORT> -i <SSH_KEY>" \
+  root@<OLD_HOST>:/workspace/adapters/ /workspace/adapters/
+```
+
+If a training job is actively writing checkpoints, stop or pause the job first,
+or run `rsync` twice so the second pass catches changed files.
+
+6. Start the new GPU direct deployment:
+
+```bash
+cd /workspace/biber-ai-platform
+bash scripts/vast_bootstrap_direct.sh
+bash scripts/vast_test_direct.sh
+bash scripts/vast_status_direct.sh
+```
+
+7. Update this handoff immediately with the new host, SSH port, runtime paths,
+PIDs, bind status, test result, and whether caches/datasets/checkpoints were
+copied or rebuilt.
+
+8. Keep the old GPU only until the new GPU is verified. After verification,
+stop or destroy the old instance according to the user's cost/risk preference.
+Remember: stopped storage can still cost money; destroyed instance storage is
+not recoverable unless copied/backed up first.
+
+### If the current GPU is not available
+
+1. Treat the new GPU as a clean rebuild from GitHub:
+
+```bash
+cd /workspace
+git clone https://github.com/selvasmallive/biber-ai-platform.git
+cd biber-ai-platform
+cp .env.example .env
+```
+
+2. Recreate `.env` from the user's secure password manager or prior private
+backup. Do not paste secrets into chat or docs. Keep loopback values unless
+public exposure is intentionally configured:
+
+```text
+BIBER_API_HOST=127.0.0.1
+BIBER_VLLM_HOST=127.0.0.1
+```
+
+3. Rebuild runtime and re-download model cache:
+
+```bash
+bash scripts/vast_bootstrap_direct.sh
+bash scripts/vast_test_direct.sh
+bash scripts/vast_status_direct.sh
+```
+
+4. Restore datasets/checkpoints/adapters from whatever backup exists. If no
+backup exists, assume training data/checkpoints on the unavailable GPU are lost
+and continue from GitHub plus any local/cloud copies.
+
+5. Update this handoff with the new state and explicitly mark which assets were
+rebuilt, restored, or lost.
+
 ## Reconnect And Test
 
 From Windows PowerShell:
