@@ -158,6 +158,57 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `/workspace/adapters`
   - `/workspace/outputs`
 
+## Custom Model Training Prep
+
+- A conservative QLoRA training path is now scaffolded for the user's own GPU.
+  It is meant to keep Codex usage low: Codex prepares and verifies scripts, then
+  long fine-tuning runs happen inside `tmux` on Vast.ai.
+- Real training data should live on the 500 GB Vast volume at:
+  - `/workspace/data/biber_train.jsonl`
+- Do not commit real datasets, checkpoints, adapters, or evaluation outputs to
+  Git. Keep generated model artifacts under:
+  - `/workspace/checkpoints`
+  - `/workspace/adapters`
+  - `/workspace/outputs`
+- Dataset format and validation notes are in `training/dataset_format.md`.
+- The tiny `training/sample_dataset.jsonl` file is only for smoke tests.
+- Dataset validation entrypoint:
+
+```bash
+cd /workspace/biber-ai-platform
+/workspace/biber-venv/bin/python training/validate_dataset.py \
+  --dataset /workspace/data/biber_train.jsonl \
+  --min-records 10 \
+  --report /workspace/outputs/dataset-validation.json \
+  --print-sample
+```
+
+- QLoRA dry-run entrypoint for script/dataset plumbing:
+
+```bash
+cd /workspace/biber-ai-platform
+/workspace/biber-venv/bin/python training/qlora_train_biber_dev_core.py \
+  --dataset training/sample_dataset.jsonl \
+  --output-dir /workspace/adapters/dry-run \
+  --logging-dir /workspace/outputs/dry-run \
+  --dry-run
+```
+
+- Long training launcher:
+
+```bash
+cd /workspace/biber-ai-platform
+bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
+```
+
+- Install `requirements-training.txt` only when preparing an actual training
+  run. It intentionally avoids replacing Torch/CUDA by default; preserve the
+  working vLLM CUDA stack unless a compatibility issue requires a planned
+  change.
+- No real fine-tuning run has been started yet. The next training milestone is
+  to place a real JSONL dataset at `/workspace/data/biber_train.jsonl`, validate
+  it, then launch QLoRA in `tmux` if the user approves starting the GPU job.
+
 ## Important Fixes Made During Deployment
 
 ### Bootstrap script execution
@@ -480,15 +531,24 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-1. Keep the API private over SSH tunnels unless credentials are deliberately
+1. Build or copy the real custom-model JSONL dataset to
+   `/workspace/data/biber_train.jsonl` on the 500 GB Vast volume.
+2. Validate the dataset with `training/validate_dataset.py` and save the report
+   under `/workspace/outputs`.
+3. Install `requirements-training.txt` only when ready to start fine-tuning,
+   preserving the current CUDA/Torch stack unless troubleshooting requires a
+   planned change.
+4. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
+   working after Codex disconnects.
+5. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
-2. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
-3. Add optional OpenAI mentor credentials if desired.
-4. Add a durable fine-grained GitHub token to Vast `.env` if persistent
+6. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
+7. Add optional OpenAI mentor credentials if desired.
+8. Add a durable fine-grained GitHub token to Vast `.env` if persistent
    generated-code save should stay enabled.
-5. Add Azure Blob connection string and test backups.
-6. Replace demo API key/passcode auth with database-backed credentials.
-7. Add real MySQL persistence and Redis worker integration.
+9. Add Azure Blob connection string and test backups.
+10. Replace demo API key/passcode auth with database-backed credentials.
+11. Add real MySQL persistence and Redis worker integration.
 
 ## Resume Prompt For A New Chat
 

@@ -1,0 +1,7 @@
+# Install these only when preparing to run fine-tuning on the Vast GPU.
+# Keep the existing CUDA/Torch stack from the vLLM environment unless there is
+# a specific compatibility problem to solve.
+accelerate>=0.34,<2
+bitsandbytes>=0.43,<1
+peft>=0.12,<1
+transformers>=4.45,<5
