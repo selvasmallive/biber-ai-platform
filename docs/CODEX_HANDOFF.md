@@ -11,19 +11,19 @@ the current GPU-backed direct vLLM/FastAPI state.
 
 - Local branch: `main`
 - Remote: `origin` points to `https://github.com/selvasmallive/biber-ai-platform.git`
-- Before this handoff refresh, local/Vast HEAD was
-  `b0462e6 Update Vast handoff state`.
-- GitHub `origin/main` was still at `89ac9ce Document live Vast deployment`
-  before the documentation refresh/push step.
-- At the last pre-push check, the local checkout and the Vast.ai checkout were
-  both ahead of `origin/main` by at least these commits:
+- GitHub `origin/main` was pushed from this workstation on 2026-05-16 and now
+  includes the live deployment hardening and handoff updates.
+- The push included at least:
   - `b782c05 Harden Vast direct service binding`
   - `b0462e6 Update Vast handoff state`
-- A later documentation handoff commit may exist on top of those. Use
-  `git status --short --branch`, `git log --oneline -1`, and
+  - `73bd171 Refresh Vast deployment handoff`
+- Later handoff-only sync commits may exist on top of those; verify with Git
+  before acting on branch state.
+- Use `git status --short --branch`, `git log --oneline -1`, and
   `git ls-remote origin refs/heads/main` for authoritative current Git state.
-- The Vast.ai checkout at `/workspace/biber-ai-platform` may be ahead of
-  `origin/main` until the local `main` branch is pushed to GitHub.
+- Keep the Vast.ai checkout at `/workspace/biber-ai-platform` fast-forwarded
+  with `git pull --ff-only origin main` after documentation or deployment
+  commits are pushed.
 - Prefer `git status --short --branch` and `git log --oneline -1` over this
   file for authoritative current Git state.
 
@@ -226,8 +226,7 @@ tail -f /workspace/biber-logs/vllm.log
 
 1. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
-2. Authenticate GitHub push from this workstation and run `git push origin main`
-   so `origin/main` includes the local/Vast hardening commits.
+2. Keep the Vast.ai checkout fast-forwarded to `origin/main`.
 3. Add optional OpenAI mentor credentials if desired.
 4. Add GitHub token and test generated-code save.
 5. Add Azure Blob connection string and test backups.
