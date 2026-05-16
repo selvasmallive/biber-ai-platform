@@ -838,6 +838,12 @@ tail -f /workspace/biber-logs/vllm.log
 - Future custom-model phases should prefer the user's own GPU and eventual
   fine-tuned `biber-dev-core` model over paid external model APIs. Keep optional
   mentor APIs disabled unless the user explicitly wants them for quality review.
+- Future Rust/XRIQ work is now an explicit project track documented in
+  `docs/XRIQ_RUST_TRACK.md`. Treat it as a phased path: first prove BIBER's
+  Rust capability with `cargo`-backed evals, then design XRIQ, then build a
+  private Rust devnet, then wallet/explorer tools, and only later consider any
+  public network or cryptocurrency launch after separate security and
+  legal/compliance review.
 - Update this handoff at important points so a new Codex session can resume
   accurately from the current Vast.ai state. Important points include:
   - live service restarts or failures
@@ -853,32 +859,35 @@ tail -f /workspace/biber-logs/vllm.log
 1. Add stronger eval validators beyond substring checks: Python syntax/compile
    checks, pytest execution for generated-test prompts, SQL parse/lint checks
    where practical, and TypeScript/React type checks when tooling is available.
-2. Add more held-out prompts in domains not yet represented, such as Rust,
+2. Start the Rust/XRIQ future track from `docs/XRIQ_RUST_TRACK.md` by adding
+   Rust eval prompts and `cargo fmt --check`, `cargo check`, and `cargo test`
+   validators before trusting BIBER for serious Rust blockchain code.
+3. Add more held-out prompts in other domains not yet represented, such as
    Java, .NET, Azure, workers/queues, security hardening, and multi-file
    refactors.
-3. Add new training data only through approved/provenance-tracked sources, then
+4. Add new training data only through approved/provenance-tracked sources, then
    validate and promote to `/workspace/data/biber_train.jsonl`.
-4. Train again only when the broader evals reveal real gaps. Keep the
+5. Train again only when the broader evals reveal real gaps. Keep the
    cost-saving pattern: Codex changes the scripts and reviews outputs; Vast.ai
    runs long GPU jobs in `tmux`.
-5. For the next QLoRA run on the current Vast GPU, stop the direct services
+6. For the next QLoRA run on the current Vast GPU, stop the direct services
    first because vLLM occupies most GPU memory:
    `bash scripts/vast_stop_direct.sh`.
-6. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
+7. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
    working after Codex disconnects, then restart serving after the adapter is
    produced and evaluated.
-7. Restart LoRA serving with `bash scripts/vast_start_lora_direct.sh`, rerun
+8. Restart LoRA serving with `bash scripts/vast_start_lora_direct.sh`, rerun
    `bash scripts/vast_eval_lora_direct.sh`, and compare against the current
    `18/18` broad baseline.
-8. Keep the API private over SSH tunnels unless credentials are deliberately
+9. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
-9. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
-10. Add optional OpenAI mentor credentials if desired.
-11. Add a durable fine-grained GitHub token to Vast `.env` if persistent
+10. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
+11. Add optional OpenAI mentor credentials if desired.
+12. Add a durable fine-grained GitHub token to Vast `.env` if persistent
    generated-code save should stay enabled.
-12. Add Azure Blob connection string and test backups.
-13. Replace demo API key/passcode auth with database-backed credentials.
-14. Add real MySQL persistence and Redis worker integration.
+13. Add Azure Blob connection string and test backups.
+14. Replace demo API key/passcode auth with database-backed credentials.
+15. Add real MySQL persistence and Redis worker integration.
 
 ## Resume Prompt For A New Chat
 
