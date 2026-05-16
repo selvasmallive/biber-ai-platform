@@ -224,6 +224,21 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
 - Verified on Vast after pulling `8ae20ad`: compile, sample dataset validation,
   QLoRA dry-run, and `tests/test_training_dataset.py` all passed under
   `/workspace/biber-venv`.
+- Internet-sourced training data must use the approved-source ingestion
+  pipeline, not broad scraping:
+  - manifest: `training/approved_sources.json`
+  - script: `training/internet_ingest.py`
+  - Vast helper: `scripts/vast_ingest_internet_dataset.sh`
+  - raw downloads: `/workspace/data/raw`
+  - processed JSONL: `/workspace/data/biber_train_internet.jsonl`
+  - provenance: `/workspace/outputs/dataset-provenance.json`
+  - validation report: `/workspace/outputs/internet-dataset-validation.json`
+- The ingestion pipeline requires each enabled source to be explicitly
+  `approved`, license-allowlisted, domain-allowlisted, and attributed. It also
+  deduplicates records, filters likely secrets, caps record size, and validates
+  the final JSONL before use.
+- Only promote an internet-ingested dataset to `/workspace/data/biber_train.jsonl`
+  after reviewing provenance and validation output.
 
 ## Important Fixes Made During Deployment
 
@@ -547,9 +562,10 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-1. Build or copy the real custom-model JSONL dataset to
-   `/workspace/data/biber_train.jsonl` on the 500 GB Vast volume.
-2. Validate the dataset with `training/validate_dataset.py` and save the report
+1. Build or copy the real custom-model JSONL dataset to the 500 GB Vast volume.
+   If using internet data, use `scripts/vast_ingest_internet_dataset.sh` and
+   review provenance before promoting it to `/workspace/data/biber_train.jsonl`.
+2. Validate the promoted dataset with `training/validate_dataset.py` and save the report
    under `/workspace/outputs`.
 3. Install `requirements-training.txt` only when ready to start fine-tuning,
    preserving the current CUDA/Torch stack unless troubleshooting requires a

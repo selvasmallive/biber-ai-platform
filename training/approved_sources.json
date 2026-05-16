@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "description": "Approved internet sources for BIBER training-data ingestion. Keep this file conservative: no source is downloaded unless enabled, approved, license-allowlisted, and domain-allowlisted.",
+  "allowed_licenses": [
+    "apache-2.0",
+    "bsd-2-clause",
+    "bsd-3-clause",
+    "cc-by-4.0",
+    "cc0-1.0",
+    "mit",
+    "python-2.0",
+    "project-owned",
+    "unlicense",
+    "various-permissive"
+  ],
+  "allowed_domains": [
+    "raw.githubusercontent.com",
+    "huggingface.co",
+    "cdn-lfs.huggingface.co"
+  ],
+  "sources": [
+    {
+      "name": "biber-platform-sample-jsonl",
+      "enabled": true,
+      "approved": true,
+      "type": "jsonl_url",
+      "url": "https://raw.githubusercontent.com/selvasmallive/biber-ai-platform/main/training/sample_dataset.jsonl",
+      "license": "project-owned",
+      "attribution": "BIBER AI Platform sample dataset, owned by the project user.",
+      "record_format": "biber_jsonl",
+      "category": "python",
+      "stack": ["python"],
+      "quality": "verified",
+      "max_records": 20,
+      "max_bytes": 1048576
+    },
+    {
+      "name": "bigcode-the-stack-v2-template",
+      "enabled": false,
+      "approved": true,
+      "type": "huggingface_dataset",
+      "dataset": "bigcode/the-stack-v2",
+      "license": "various-permissive",
+      "attribution": "BigCode The Stack v2; follow original source-code licenses and attribution requirements.",
+      "notes": "Template only. Enable later only after selecting specific language/split/shard URLs and preserving per-record license/provenance."
+    }
+  ]
+}

@@ -18,6 +18,9 @@ models/
 checkpoints/
 datasets/
 backups/
+data/
+outputs/
+adapters/
 .biber-runtime/
 .biber-logs/
 .biber-pids/
