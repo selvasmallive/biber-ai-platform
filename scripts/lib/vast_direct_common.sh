@@ -52,9 +52,9 @@ PIP_CACHE_DIR="$(env_or_file PIP_CACHE_DIR "${BIBER_RUNTIME_ROOT}/pip-cache")"
 
 BIBER_MODEL="$(env_or_file BIBER_HF_MODEL Qwen/Qwen2.5-Coder-7B-Instruct)"
 BIBER_SERVED_MODEL_NAME="$(env_or_file BIBER_LOCAL_MODEL_NAME biber-dev-core)"
-BIBER_API_HOST="$(env_or_file BIBER_API_HOST 0.0.0.0)"
+BIBER_API_HOST="$(env_or_file BIBER_API_HOST 127.0.0.1)"
 BIBER_API_PORT="$(env_or_file BIBER_API_PORT 8000)"
-BIBER_VLLM_HOST="$(env_or_file BIBER_VLLM_HOST 0.0.0.0)"
+BIBER_VLLM_HOST="$(env_or_file BIBER_VLLM_HOST 127.0.0.1)"
 BIBER_VLLM_PORT="$(env_or_file BIBER_VLLM_PORT 8001)"
 BIBER_HF_TOKEN="$(env_or_file HF_TOKEN)"
 BIBER_API_LOG="${BIBER_API_LOG:-${LOG_DIR}/api.log}"
@@ -255,6 +255,8 @@ Logs:         ${LOG_DIR}
 HF cache:     ${HF_HOME}
 API URL:      http://127.0.0.1:${BIBER_API_PORT}
 vLLM URL:     http://127.0.0.1:${BIBER_VLLM_PORT}/v1
+API bind:     ${BIBER_API_HOST}:${BIBER_API_PORT}
+vLLM bind:    ${BIBER_VLLM_HOST}:${BIBER_VLLM_PORT}
 Model:        ${BIBER_MODEL}
 Served name:  ${BIBER_SERVED_MODEL_NAME}
 EOF

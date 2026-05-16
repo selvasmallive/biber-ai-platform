@@ -10,17 +10,13 @@ the current GPU-backed direct vLLM/FastAPI state.
 ## Repo State
 
 - Local branch: `main`
-- Local last known base commit: `5798c7f Avoid stale handoff commit hash`
 - Remote: `origin` points to `https://github.com/selvasmallive/biber-ai-platform.git`
-- Local working tree is intentionally dirty with deployment fixes:
-  - `requirements-api.txt`
-  - `scripts/vast_bootstrap_direct.sh`
-  - `docs/CODEX_HANDOFF.md`
-- The Vast.ai checkout at `/workspace/biber-ai-platform` also has the same
-  uncommitted changes to `requirements-api.txt` and
-  `scripts/vast_bootstrap_direct.sh`.
-- Commit and push these changes before doing a future `git pull` on the Vast.ai
-  instance, or copy them up again if the instance is replaced.
+- The direct deployment fixes from the previous handoff were committed and
+  pushed in `89ac9ce Document live Vast deployment`.
+- The Vast.ai checkout at `/workspace/biber-ai-platform` was confirmed clean and
+  aligned with `origin/main` before the loopback-binding hardening work.
+- Prefer `git status --short --branch` and `git log --oneline -1` over this
+  file for authoritative current Git state.
 
 ## Completed
 
@@ -42,6 +38,11 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `GET /v1/models`
   - `POST /v1/chat`
 - `/v1/chat` returned model content `ok` from `biber-dev-core`.
+- Verified a richer live `/v1/chat` prompt through FastAPI produced a real
+  Python `fib(n)` implementation from `biber-dev-core`.
+- Hardened the direct deployment so FastAPI and vLLM bind to `127.0.0.1` by
+  default. Use SSH tunnels unless the `.env` credentials have been replaced and
+  public binding is intentionally configured.
 
 ## Live Vast.ai Deployment Status
 
@@ -59,16 +60,15 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `/workspace/biber-pids/api.pid`
 - vLLM:
   - URL: `http://127.0.0.1:8001/v1`
-  - Current pid at last check: `2524`
   - Model: `Qwen/Qwen2.5-Coder-7B-Instruct`
   - Served model name: `biber-dev-core`
   - Tensor parallel size: `2`
   - Max model length: `8192`
 - BIBER FastAPI:
   - URL: `http://127.0.0.1:8000`
-  - Current pid at last check: `5015`
   - Environment: `gpu`
   - Chat mode: `infer`
+  - Run `bash scripts/vast_status_direct.sh` for current PIDs and bind details.
 
 ## Important Fixes Made During Deployment
 
@@ -96,6 +96,18 @@ pydantic==2.13.4
 ```
 
 Remote `pip check` passed after applying these pins.
+
+### Loopback bind defaults
+
+`scripts/lib/vast_direct_common.sh` defaults both services to loopback:
+
+```text
+BIBER_API_HOST=127.0.0.1
+BIBER_VLLM_HOST=127.0.0.1
+```
+
+Set either host to `0.0.0.0` only after replacing the starter credentials and
+intentionally exposing the instance.
 
 ## Reconnect And Test
 
@@ -168,16 +180,12 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-1. Commit the local deployment fixes and handoff update.
-2. Push the commit to `origin/main`.
-3. Pull the commit on the Vast.ai instance once the remote dirty state is handled.
-4. Replace demo `.env` credentials before exposing the API publicly.
-5. Test richer `/v1/chat` prompts against the live GPU model.
-6. Add optional OpenAI mentor credentials if desired.
-7. Add GitHub token and test generated-code save.
-8. Add Azure Blob connection string and test backups.
-9. Replace demo API key/passcode auth with database-backed credentials.
-10. Add real MySQL persistence and Redis worker integration.
+1. Replace demo `.env` credentials before exposing the API publicly.
+2. Add optional OpenAI mentor credentials if desired.
+3. Add GitHub token and test generated-code save.
+4. Add Azure Blob connection string and test backups.
+5. Replace demo API key/passcode auth with database-backed credentials.
+6. Add real MySQL persistence and Redis worker integration.
 
 ## Resume Prompt For A New Chat
 

@@ -6,6 +6,9 @@ This is the repeatable path for Vast.ai templates that expose GPUs but do not pr
 - BIBER FastAPI on port `8000`
 - runtime files under `/workspace` so the small root filesystem stays clean
 
+Both services bind to `127.0.0.1` by default. Use an SSH tunnel for access while
+the starter credentials are present.
+
 Use this path when `docker --version` returns `command not found`.
 
 ---
@@ -51,6 +54,14 @@ BIBER_API_KEYS=<strong-api-key>
 BIBER_PASSCODE_FULL_GPU=<owner-passcode>
 BIBER_PASSCODE_20_GPU=<limited-passcode>
 BIBER_PASSCODE_QUEUE_PRIORITY=<queue-passcode>
+```
+
+To intentionally expose a hardened instance on the Vast.ai host network, set the
+bind hosts after replacing the starter credentials:
+
+```text
+BIBER_API_HOST=0.0.0.0
+BIBER_VLLM_HOST=0.0.0.0
 ```
 
 Optional integrations:
