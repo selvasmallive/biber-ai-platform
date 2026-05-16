@@ -20,6 +20,10 @@ set_env_value "BIBER_CHAT_MODE" "infer"
 set_env_value "BIBER_LOCAL_MODEL_BASE_URL" "http://127.0.0.1:${BIBER_VLLM_PORT}/v1"
 set_env_value "BIBER_LOCAL_MODEL_NAME" "$BIBER_SERVED_MODEL_NAME"
 set_env_value "BIBER_HF_MODEL" "$BIBER_MODEL"
+set_env_value "BIBER_VLLM_SERVED_MODEL_NAME" "$BIBER_VLLM_SERVED_MODEL_NAME"
+if [ -n "$BIBER_VLLM_LORA_MODULES" ]; then
+  set_env_value "BIBER_VLLM_LORA_MODULES" "$BIBER_VLLM_LORA_MODULES"
+fi
 
 remove_stale_pid_file "$BIBER_VLLM_PID_FILE"
 remove_stale_pid_file "$BIBER_API_PID_FILE"
@@ -29,6 +33,12 @@ CUDA_DEVICES="$(default_cuda_visible_devices)"
 MAX_MODEL_LEN="$(default_max_model_len)"
 GPU_MEMORY_UTILIZATION="${BIBER_GPU_MEMORY_UTILIZATION:-0.85}"
 START_TIMEOUT_SECONDS="${BIBER_START_TIMEOUT_SECONDS:-900}"
+VLLM_LORA_ARGS=()
+if [ -n "$BIBER_VLLM_LORA_MODULES" ]; then
+  # shellcheck disable=SC2206
+  VLLM_LORA_MODULE_ARRAY=($BIBER_VLLM_LORA_MODULES)
+  VLLM_LORA_ARGS=(--enable-lora --lora-modules "${VLLM_LORA_MODULE_ARRAY[@]}")
+fi
 
 log "Starting biber-dev-core through vLLM"
 if pid_file_alive "$BIBER_VLLM_PID_FILE"; then
@@ -45,7 +55,7 @@ else
       VLLM_USAGE_SOURCE=production \
       CUDA_VISIBLE_DEVICES="$CUDA_DEVICES" \
       "${VENV_DIR}/bin/vllm" serve "$BIBER_MODEL" \
-        --served-model-name "$BIBER_SERVED_MODEL_NAME" \
+        --served-model-name "$BIBER_VLLM_SERVED_MODEL_NAME" \
         --host "$BIBER_VLLM_HOST" \
         --port "$BIBER_VLLM_PORT" \
         --tensor-parallel-size "$VLLM_TP" \
@@ -53,6 +63,7 @@ else
         --gpu-memory-utilization "$GPU_MEMORY_UTILIZATION" \
         --disable-custom-all-reduce \
         --generation-config vllm \
+        "${VLLM_LORA_ARGS[@]}" \
         ${BIBER_VLLM_EXTRA_ARGS:-} \
       > "$BIBER_VLLM_LOG" 2>&1 < /dev/null &
     echo $! > "$BIBER_VLLM_PID_FILE"
