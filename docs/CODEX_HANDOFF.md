@@ -33,6 +33,8 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `fb97271 Add Vast LoRA serving start path`
   - `89ecb0b Record Vast LoRA training deploy`
   - `46f66c8 Add live LoRA eval runner`
+  - `b25e68e Increase approved CodeInstruct ingest cap`
+  - `4d76cf6 Relax React live eval heuristic`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -236,6 +238,52 @@ the current GPU-backed direct vLLM/FastAPI state.
   - weak spots: pytest generation returned an implementation instead of tests,
     React component used `interface` while the simple check expected `type`, and
     the API error-shape answer omitted `status`.
+- Increased the approved `SoyMaycol/CodeInstruct-20K` ingest cap to 1000 in
+  `b25e68e`; the Vast wrapper still keeps an explicit total cap and the source
+  remains approved, license-allowlisted, and domain-allowlisted.
+- Ingested and promoted a larger approved internet dataset:
+  - candidate:
+    `/workspace/data/biber_train_internet_codeinstruct_1000.jsonl`
+  - canonical dataset:
+    `/workspace/data/biber_train.jsonl`
+  - result: `998` clean records, `0` validation errors.
+  - provenance:
+    `/workspace/outputs/dataset-provenance-codeinstruct-1000.json`
+  - validation:
+    `/workspace/outputs/internet-dataset-validation-codeinstruct-1000.json`
+    and `/workspace/outputs/dataset-validation.json`.
+  - first strict `min-records=1000` attempt failed because filtering left 998
+    valid records; rerun accepted the dataset with `min-records=990`.
+- Trained a new one-epoch LoRA adapter from the 998-record dataset:
+  - services were stopped first to free GPU memory.
+  - tmux session: `biber-qlora-codeinstruct-998`.
+  - log: `/workspace/outputs/qlora-codeinstruct-998/qlora-20260516T185433Z.log`
+  - output adapter:
+    `/workspace/adapters/biber-dev-core-lora-codeinstruct-998`
+  - steps: `125`
+  - runtime: about `360.7` seconds.
+  - train loss: about `0.7911`.
+  - saved checkpoints: `checkpoint-50`, `checkpoint-100`, `checkpoint-125`.
+- Restarted the live Vast.ai direct deployment with the 998-record LoRA adapter:
+  - vLLM pid: `11462`
+  - FastAPI pid: `11958`
+  - both services listen only on `127.0.0.1`.
+  - `bash scripts/vast_test_direct.sh` passed.
+  - `/v1/models` reports `biber-dev-core` rooted at
+    `/workspace/adapters/biber-dev-core-lora-codeinstruct-998`.
+- Corrected the React eval heuristic in `4d76cf6` to accept `ButtonProps`
+  rather than requiring the literal word `type`.
+- Latest corrected live eval against the 998-record adapter:
+  - summary:
+    `/workspace/outputs/evals/biber-dev-core-lora-20260516T190402Z.summary.json`
+  - detailed JSONL:
+    `/workspace/outputs/evals/biber-dev-core-lora-20260516T190402Z.jsonl`
+  - result: `6/6` prompts returned responses, `4/6` simple expectation checks
+    passed.
+  - passed: Python add function, subtract-bug fix, iterative Fibonacci, and
+    TypeScript React Button component.
+  - remaining weak spots: pytest generation still returned an implementation
+    instead of tests, and the API error-shape answer still omitted `status`.
 
 ## Live Vast.ai Deployment Status
 
@@ -247,7 +295,7 @@ the current GPU-backed direct vLLM/FastAPI state.
 - Storage:
   - `/workspace` is mounted from `/dev/md0[/volumes/V.36840046/_data]`
     as XFS.
-  - Size at last check: `499G`, used `27G`, available `473G`.
+  - Size at last check: `499G`, used `28G`, available `472G`.
   - BIBER runtime, model cache, venv, pip cache, logs, pid files, future
     datasets, checkpoints, adapters, and outputs should stay under
     `/workspace` to use the 500 GB Vast volume and avoid the small root
@@ -264,16 +312,17 @@ the current GPU-backed direct vLLM/FastAPI state.
   - Model: `Qwen/Qwen2.5-Coder-7B-Instruct`
   - Base served model name: `biber-dev-core-base`
   - LoRA adapter model name: `biber-dev-core`
-  - LoRA modules: `biber-dev-core=/workspace/adapters/biber-dev-core-lora`
+  - LoRA modules:
+    `biber-dev-core=/workspace/adapters/biber-dev-core-lora-codeinstruct-998`
   - Tensor parallel size: `2`
   - Max model length: `8192`
-  - Current pid at last check: `9923`
+  - Current pid at last check: `11462`
 - BIBER FastAPI:
   - URL: `http://127.0.0.1:8000`
   - Environment: `gpu`
   - Chat mode: `infer`
   - Local model name: `biber-dev-core`
-  - Current pid at last check: `10535`
+  - Current pid at last check: `11958`
   - Run `bash scripts/vast_status_direct.sh` for current PIDs and bind details.
 - Persistent training/output directories created on the 500 GB volume:
   - `/workspace/data`
@@ -281,16 +330,16 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `/workspace/adapters`
   - `/workspace/outputs`
 - Current generated artifact sizes at last check:
-  - `/workspace/data`: `360K`
+  - `/workspace/data`: `1.9M`
+  - `/workspace/adapters/biber-dev-core-lora-codeinstruct-998`: `896M`
   - `/workspace/adapters/biber-dev-core-lora`: `409M`
-  - `/workspace/adapters/biber-dev-core-lora-smoke`: `409M`
-  - `/workspace/outputs`: small text/JSON reports plus eval artifacts.
+  - `/workspace/outputs`: `100K`
 - Current main adapter contents include:
   - `adapter_model.safetensors`: `155M`
   - `adapter_config.json`
   - `tokenizer.json`: `11M`
   - `chat_template.jinja`
-  - `checkpoint-25`
+  - `checkpoint-50`, `checkpoint-100`, `checkpoint-125`
 
 ## Custom Model Training Prep
 
@@ -358,26 +407,27 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
   `approved`, license-allowlisted, domain-allowlisted, and attributed. It also
   deduplicates records, filters likely secrets, caps record size, and validates
   the final JSONL before use.
-- The current enabled internet source is only the small project-owned smoke
-  dataset plus a bounded 200-record sample from `SoyMaycol/CodeInstruct-20K`.
-  Increase real approved source limits only after reviewing license/provenance
-  and storage impact.
+- The current enabled internet source is the small project-owned smoke dataset
+  plus a bounded 1000-record cap from `SoyMaycol/CodeInstruct-20K`. Increase real
+  approved source limits only after reviewing license/provenance and storage
+  impact.
 - Only promote an internet-ingested dataset to `/workspace/data/biber_train.jsonl`
   after reviewing provenance and validation output.
 - Current canonical dataset: `/workspace/data/biber_train.jsonl`
-  - 200 records
-  - 135K
+  - 998 records
+  - about 1.9M for `/workspace/data` overall
   - validated with 0 errors
   - provenance for its internet candidate:
-    `/workspace/outputs/dataset-provenance-codeinstruct-200.json`
-- Current trained starter adapter: `/workspace/adapters/biber-dev-core-lora`
-  - produced by a 25-step QLoRA starter run.
+    `/workspace/outputs/dataset-provenance-codeinstruct-1000.json`
+- Current trained adapter:
+  `/workspace/adapters/biber-dev-core-lora-codeinstruct-998`
+  - produced by a 125-step, one-epoch QLoRA run over the 998-record dataset.
   - now served live as `biber-dev-core`.
 - Current live eval baseline:
   - runner: `bash scripts/vast_eval_lora_direct.sh`
-  - result: `6/6` responses, `3/6` simple expectation checks passed.
+  - result: `6/6` responses, `4/6` simple expectation checks passed.
   - summary:
-    `/workspace/outputs/evals/biber-dev-core-lora-20260516T184927Z.summary.json`
+    `/workspace/outputs/evals/biber-dev-core-lora-20260516T190402Z.summary.json`
 - The current serving process holds about 14 GB on each 16 GB GPU. Before
   starting another QLoRA run on this instance, stop the direct services with
   `bash scripts/vast_stop_direct.sh`, or run training on a separate GPU.
@@ -667,7 +717,7 @@ tail -f /workspace/biber-logs/vllm.log
   - `BIBER_VLLM_HOST=127.0.0.1`
   - `BIBER_LOCAL_MODEL_NAME=biber-dev-core`
   - `BIBER_VLLM_SERVED_MODEL_NAME=biber-dev-core-base`
-  - `BIBER_VLLM_LORA_MODULES=biber-dev-core=/workspace/adapters/biber-dev-core-lora`
+  - `BIBER_VLLM_LORA_MODULES=biber-dev-core=/workspace/adapters/biber-dev-core-lora-codeinstruct-998`
 - A redacted credential audit on 2026-05-16 showed the live `.env` still uses
   starter values for sensitive placeholders. Live rotation was not performed
   because changing running API credentials requires explicit user approval.
@@ -719,12 +769,11 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-1. Grow the approved internet dataset beyond the current 200-record starter
-   sample, focusing especially on test generation, TypeScript/React, and API
-   design/error-response examples.
-2. If growing it, adjust `training/approved_sources.json` limits, run
-   `scripts/vast_ingest_internet_dataset.sh`, review provenance, then promote
-   the result to `/workspace/data/biber_train.jsonl`.
+1. Improve training data specifically for the two remaining live-eval weak
+   spots: pytest/test-generation examples and API error-response shapes that
+   include a clear `status` field.
+2. Add or ingest those examples only through approved/provenance-tracked
+   sources, then validate and promote to `/workspace/data/biber_train.jsonl`.
 3. For the next QLoRA run on the current Vast GPU, stop the direct services
    first because vLLM occupies most GPU memory:
    `bash scripts/vast_stop_direct.sh`.
@@ -733,7 +782,7 @@ tail -f /workspace/biber-logs/vllm.log
    produced and evaluated.
 5. Restart LoRA serving with `bash scripts/vast_start_lora_direct.sh`, rerun
    `bash scripts/vast_eval_lora_direct.sh`, and compare against the current
-   `3/6` baseline.
+   `4/6` baseline.
 6. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
 7. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.

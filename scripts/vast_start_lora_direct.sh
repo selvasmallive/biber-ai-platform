@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-ADAPTER_DIR="${BIBER_LORA_ADAPTER_DIR:-/workspace/adapters/biber-dev-core-lora}"
+ADAPTER_DIR="${BIBER_LORA_ADAPTER_DIR:-/workspace/adapters/biber-dev-core-lora-codeinstruct-998}"
 LORA_MODEL_NAME="${BIBER_LORA_MODEL_NAME:-biber-dev-core}"
 BASE_SERVED_MODEL_NAME="${BIBER_VLLM_BASE_MODEL_NAME:-biber-dev-core-base}"
 
