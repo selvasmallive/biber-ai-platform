@@ -56,22 +56,22 @@ Keep `BIBER_MENTOR_ENABLED=false` if you want all prompts to stay on the GPU-onl
 ## 4. Run
 
 ```bash
-docker compose -f docker-compose.gpu.yml up -d --build
-docker compose -f docker-compose.gpu.yml logs -f biber-dev-core
+docker compose up -d --build
+docker compose logs -f biber-dev-core
 ```
 
 Once vLLM finishes loading the model, test:
 
 ```bash
-curl -H "x-api-key: <strong-api-key>" http://localhost:8080/health
+curl -H "Authorization: Bearer <strong-api-key>" http://localhost:8000/health
 ```
 
 ## 5. Chat
 
 ```bash
-curl -X POST http://localhost:8080/v1/chat \
+curl -X POST http://localhost:8000/v1/chat \
   -H "content-type: application/json" \
-  -H "x-api-key: <strong-api-key>" \
+  -H "Authorization: Bearer <strong-api-key>" \
   -d '{
     "language": "TypeScript",
     "task_type": "code_generation",
@@ -89,8 +89,8 @@ curl -X POST http://localhost:8080/v1/chat \
 ```bash
 nvidia-smi
 docker ps
-docker compose -f docker-compose.gpu.yml logs --tail=100 biber-api
-docker compose -f docker-compose.gpu.yml logs --tail=100 biber-dev-core
+docker compose logs --tail=100 api
+docker compose logs --tail=100 biber-dev-core
 ```
 
 ## Information Needed From Vast
