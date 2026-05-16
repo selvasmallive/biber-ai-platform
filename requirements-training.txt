@@ -4,4 +4,5 @@
 accelerate>=0.34,<2
 bitsandbytes>=0.43,<1
 peft>=0.12,<1
-transformers>=4.45,<5
+# Transformers is supplied by the live vLLM environment. Do not pin or
+# downgrade it here; change it only during planned compatibility work.
