@@ -269,6 +269,16 @@ tail -f /workspace/biber-logs/vllm.log
   explicit, infrequent operation that requires user approval and a plan for
   preserving the new secrets outside chat.
 - Keep the deployment loopback-only while starter credentials remain in place.
+- Cost-saving strategy: use Codex minimally for engineering setup, script
+  changes, error diagnosis, evaluation/deployment glue, and handoff updates.
+  Run long model work directly on the user's Vast.ai GPU instead of keeping a
+  Codex session active. Start training, fine-tuning, batch evaluation, and other
+  multi-hour jobs in `tmux`/`screen` on the GPU; disconnect while they run; bring
+  Codex back only for failures, log review, result interpretation, or the next
+  code/deployment change.
+- Future custom-model phases should prefer the user's own GPU and eventual
+  fine-tuned `biber-dev-core` model over paid external model APIs. Keep optional
+  mentor APIs disabled unless the user explicitly wants them for quality review.
 - Update this handoff at important points so a new Codex session can resume
   accurately from the current Vast.ai state. Important points include:
   - live service restarts or failures
