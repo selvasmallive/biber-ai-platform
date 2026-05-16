@@ -844,6 +844,11 @@ tail -f /workspace/biber-logs/vllm.log
   private Rust devnet, then wallet/explorer tools, and only later consider any
   public network or cryptocurrency launch after separate security and
   legal/compliance review.
+- Near-term language priority is Rust/XRIQ first because the user's first major
+  inference use case for BIBER AI is developing the XRIQ cryptocurrency
+  blockchain. Defer .NET, Spring Boot Java, broader Python expansion, and other
+  language-specific fine-tuning until Rust/XRIQ evals and private-devnet support
+  are established, unless the user explicitly changes priority.
 - Update this handoff at important points so a new Codex session can resume
   accurately from the current Vast.ai state. Important points include:
   - live service restarts or failures
@@ -856,15 +861,15 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-1. Add stronger eval validators beyond substring checks: Python syntax/compile
-   checks, pytest execution for generated-test prompts, SQL parse/lint checks
-   where practical, and TypeScript/React type checks when tooling is available.
-2. Start the Rust/XRIQ future track from `docs/XRIQ_RUST_TRACK.md` by adding
+1. Start the Rust/XRIQ future track from `docs/XRIQ_RUST_TRACK.md` by adding
    Rust eval prompts and `cargo fmt --check`, `cargo check`, and `cargo test`
    validators before trusting BIBER for serious Rust blockchain code.
-3. Add more held-out prompts in other domains not yet represented, such as
-   Java, .NET, Azure, workers/queues, security hardening, and multi-file
-   refactors.
+2. Add stronger eval validators beyond substring checks, with Rust/XRIQ first.
+   Keep the existing Python/API baseline maintained, but do not expand other
+   language tracks ahead of Rust unless the user changes priority.
+3. Use BIBER AI for XRIQ through inference first: spec drafting, Rust module
+   scaffolding, tests, review prompts, and private-devnet tooling. Fine-tune
+   only after Rust/XRIQ evals show repeatable gaps.
 4. Add new training data only through approved/provenance-tracked sources, then
    validate and promote to `/workspace/data/biber_train.jsonl`.
 5. Train again only when the broader evals reveal real gaps. Keep the
@@ -882,12 +887,15 @@ tail -f /workspace/biber-logs/vllm.log
 9. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
 10. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
-11. Add optional OpenAI mentor credentials if desired.
-12. Add a durable fine-grained GitHub token to Vast `.env` if persistent
+11. Add more held-out prompts in lower-priority domains later, such as Spring
+    Boot Java, .NET, Azure, workers/queues, security hardening, and multi-file
+    refactors.
+12. Add optional OpenAI mentor credentials if desired.
+13. Add a durable fine-grained GitHub token to Vast `.env` if persistent
    generated-code save should stay enabled.
-13. Add Azure Blob connection string and test backups.
-14. Replace demo API key/passcode auth with database-backed credentials.
-15. Add real MySQL persistence and Redis worker integration.
+14. Add Azure Blob connection string and test backups.
+15. Replace demo API key/passcode auth with database-backed credentials.
+16. Add real MySQL persistence and Redis worker integration.
 
 ## Resume Prompt For A New Chat
 
