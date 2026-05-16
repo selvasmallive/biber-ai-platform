@@ -36,6 +36,21 @@
       "max_bytes": 1048576
     },
     {
+      "name": "biber-targeted-eval-jsonl",
+      "enabled": true,
+      "approved": true,
+      "type": "jsonl_url",
+      "url": "https://raw.githubusercontent.com/selvasmallive/biber-ai-platform/main/training/targeted_eval_dataset.jsonl",
+      "license": "project-owned",
+      "attribution": "BIBER AI Platform targeted eval-improvement dataset, owned by the project user.",
+      "record_format": "biber_jsonl",
+      "category": "targeted",
+      "stack": ["python", "pytest", "fastapi", "json"],
+      "quality": "verified",
+      "max_records": 100,
+      "max_bytes": 1048576
+    },
+    {
       "name": "soymaycol-codeinstruct-20k",
       "enabled": true,
       "approved": true,
