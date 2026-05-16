@@ -10,7 +10,7 @@ direct vLLM/FastAPI path.
 ## Repo State
 
 - Branch: `main`
-- Last known commit: `f5c3a24 Add Codex handoff checkpoint`
+- Last known checkpoint commit: run `git log -1 --oneline` after cloning or pulling.
 - Working tree after this handoff file was added: clean
 - Remote: `origin` points to `https://github.com/selvasmallive/biber-ai-platform.git`
 
