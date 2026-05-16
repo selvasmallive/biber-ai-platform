@@ -10,8 +10,8 @@ direct vLLM/FastAPI path.
 ## Repo State
 
 - Branch: `main`
-- Last known commit: `6de36ad Add repeatable Vast GPU direct deployment`
-- Working tree before this handoff file was added: clean
+- Last known commit: `f5c3a24 Add Codex handoff checkpoint`
+- Working tree after this handoff file was added: clean
 - Remote: `origin` points to `https://github.com/selvasmallive/biber-ai-platform.git`
 
 ## Completed
