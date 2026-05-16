@@ -26,7 +26,9 @@ the current GPU-backed direct vLLM/FastAPI state.
   `c483bb1 Record Vast push state`.
 - The local checkout and Vast.ai checkout were advanced beyond GitHub with:
   - `97094ea Harden GitHub save integration`
-- A later handoff-only commit may exist on top of `97094ea`.
+  - `0272643 Update Vast handoff after GitHub save deploy`
+  - `fae51c2 Record pytest availability in handoff`
+- A later handoff-only commit may exist on top of `fae51c2`.
 - Use `git status --short --branch`, `git log --oneline -1`, and
   `git ls-remote origin refs/heads/main` for authoritative current Git state.
 - Keep the Vast.ai checkout at `/workspace/biber-ai-platform` fast-forwarded
@@ -85,11 +87,14 @@ the current GPU-backed direct vLLM/FastAPI state.
 - Verified on Vast.ai after the FastAPI restart:
   - `/workspace/biber-venv/bin/python -m compileall app src tests` passed.
   - mocked GitHub client checks passed against the Vast virtualenv.
-  - full `pytest tests/test_github_client.py` was not run because `pytest` is
-    not installed in the bundled local Python runtime or the Vast virtualenv.
   - `bash scripts/vast_test_direct.sh` passed.
   - `/v1/save/github` without `GITHUB_TOKEN` returns
     `HTTP 503 {"detail":"GitHub saving is not configured."}`.
+- Installed `pytest>=8,<9` into the Vast.ai virtualenv and verified
+  `tests/test_github_client.py` passes:
+  - Python: `/workspace/biber-venv/bin/python`
+  - pytest: `8.4.2`
+  - result: `5 passed`
 
 ## Live Vast.ai Deployment Status
 
@@ -258,13 +263,11 @@ tail -f /workspace/biber-logs/vllm.log
 2. Authenticate GitHub push from this workstation and push local `main` so
    `origin/main` includes the GitHub save hardening and this handoff state.
 3. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
-4. Install dev test dependencies where needed and run
-   `pytest tests/test_github_client.py`.
-5. Add optional OpenAI mentor credentials if desired.
-6. Add GitHub token and test real generated-code save.
-7. Add Azure Blob connection string and test backups.
-8. Replace demo API key/passcode auth with database-backed credentials.
-9. Add real MySQL persistence and Redis worker integration.
+4. Add optional OpenAI mentor credentials if desired.
+5. Add GitHub token and test real generated-code save.
+6. Add Azure Blob connection string and test backups.
+7. Replace demo API key/passcode auth with database-backed credentials.
+8. Add real MySQL persistence and Redis worker integration.
 
 ## Resume Prompt For A New Chat
 
