@@ -31,6 +31,11 @@ the current GPU-backed direct vLLM/FastAPI state.
   commits are pushed.
 - Prefer `git status --short --branch` and `git log --oneline -1` over this
   file for authoritative current Git state.
+- GitHub CLI was installed on this workstation at
+  `C:\Program Files\GitHub CLI\gh.exe` and authenticated as `selvasmallive`.
+  `gh auth setup-git` was run, and `git push origin main` verified GitHub auth
+  with `Everything up-to-date`. In this Codex process, `gh` may not be on
+  `PATH` until the app/session is restarted; use the full path if needed.
 
 ## Completed
 
