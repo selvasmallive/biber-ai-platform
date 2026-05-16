@@ -28,6 +28,9 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `5f10d3f Add approved internet data ingestion`
   - `7d9446f Add bounded Hugging Face ingestion source`
   - `0e7fb30 Avoid training requirements transformer downgrade`
+  - `e6a6339 Record Vast CodeInstruct dataset prep`
+  - `1623c50 Harden Vast QLoRA launcher`
+  - `fb97271 Add Vast LoRA serving start path`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -181,6 +184,36 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `training.qlora_train_biber_dev_core.require_training_dependencies()`
     imported all required training objects successfully.
   - vLLM and FastAPI remained running and healthy after install.
+- Hardened the Vast QLoRA launcher in `1623c50`:
+  - training jobs default Hugging Face and pip caches to `/workspace`.
+  - `scripts/vast_train_qlora_tmux.sh` supports bounded smoke runs with
+    `BIBER_TRAIN_MAX_STEPS`, `BIBER_TRAIN_LIMIT_SAMPLES`, `BIBER_TRAIN_SAVE_STEPS`,
+    and related environment knobs.
+  - long training jobs still run in `tmux` on the Vast GPU so Codex does not need
+    to stay active while the GPU works.
+- Added the LoRA serving start path in `fb97271`:
+  - `scripts/vast_start_lora_direct.sh` serves `/workspace/adapters/biber-dev-core-lora`
+    as `biber-dev-core`.
+  - vLLM serves the base model separately as `biber-dev-core-base`.
+  - `scripts/vast_start_direct.sh` accepts `BIBER_VLLM_LORA_MODULES` and passes
+    `--enable-lora --lora-modules` to vLLM.
+- Completed real starter QLoRA training on Vast.ai:
+  - stopped direct services first to free GPU memory.
+  - one-step smoke run completed and wrote
+    `/workspace/adapters/biber-dev-core-lora-smoke`.
+  - full starter run completed 25 steps in about 73.18 seconds with train loss
+    about `0.8886`.
+  - saved the trained adapter at `/workspace/adapters/biber-dev-core-lora`.
+  - direct PEFT/Transformers adapter-load smoke generated a correct Python
+    `add(a, b)` function.
+- Restarted the live Vast.ai direct deployment with the trained LoRA adapter:
+  - vLLM pid: `9923`
+  - FastAPI pid: `10535`
+  - both services listen only on `127.0.0.1`.
+  - `bash scripts/vast_test_direct.sh` passed.
+  - `/v1/models` reports both `biber-dev-core-base` and the LoRA adapter model
+    `biber-dev-core`.
+  - `/v1/chat` returned model content `ok` from `biber-dev-core`.
 
 ## Live Vast.ai Deployment Status
 
@@ -207,23 +240,39 @@ the current GPU-backed direct vLLM/FastAPI state.
 - vLLM:
   - URL: `http://127.0.0.1:8001/v1`
   - Model: `Qwen/Qwen2.5-Coder-7B-Instruct`
-  - Served model name: `biber-dev-core`
+  - Base served model name: `biber-dev-core-base`
+  - LoRA adapter model name: `biber-dev-core`
+  - LoRA modules: `biber-dev-core=/workspace/adapters/biber-dev-core-lora`
   - Tensor parallel size: `2`
   - Max model length: `8192`
+  - Current pid at last check: `9923`
 - BIBER FastAPI:
   - URL: `http://127.0.0.1:8000`
   - Environment: `gpu`
   - Chat mode: `infer`
+  - Local model name: `biber-dev-core`
+  - Current pid at last check: `10535`
   - Run `bash scripts/vast_status_direct.sh` for current PIDs and bind details.
 - Persistent training/output directories created on the 500 GB volume:
   - `/workspace/data`
   - `/workspace/checkpoints`
   - `/workspace/adapters`
   - `/workspace/outputs`
+- Current generated artifact sizes at last check:
+  - `/workspace/data`: `360K`
+  - `/workspace/adapters/biber-dev-core-lora`: `409M`
+  - `/workspace/adapters/biber-dev-core-lora-smoke`: `409M`
+  - `/workspace/outputs`: `44K`
+- Current main adapter contents include:
+  - `adapter_model.safetensors`: `155M`
+  - `adapter_config.json`
+  - `tokenizer.json`: `11M`
+  - `chat_template.jinja`
+  - `checkpoint-25`
 
 ## Custom Model Training Prep
 
-- A conservative QLoRA training path is now scaffolded for the user's own GPU.
+- A conservative QLoRA training path is now working on the user's own GPU.
   It is meant to keep Codex usage low: Codex prepares and verifies scripts, then
   long fine-tuning runs happen inside `tmux` on Vast.ai.
 - Real training data should live on the 500 GB Vast volume at:
@@ -268,9 +317,9 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
   run. It intentionally avoids replacing Torch/CUDA by default; preserve the
   working vLLM CUDA stack unless a compatibility issue requires a planned
   change.
-- No real fine-tuning run has been started yet. The next training milestone is
-  to place a real JSONL dataset at `/workspace/data/biber_train.jsonl`, validate
-  it, then launch QLoRA in `tmux` if the user approves starting the GPU job.
+- Real starter fine-tuning has completed once. The next training milestone is to
+  grow or improve the approved dataset, validate it, then launch a longer QLoRA
+  run in `tmux` when the user is ready to spend the GPU time.
 - Verified on Vast after pulling `8ae20ad`: compile, sample dataset validation,
   QLoRA dry-run, and `tests/test_training_dataset.py` all passed under
   `/workspace/biber-venv`.
@@ -299,10 +348,12 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
   - validated with 0 errors
   - provenance for its internet candidate:
     `/workspace/outputs/dataset-provenance-codeinstruct-200.json`
-- Actual QLoRA fine-tuning has not been started. The current serving process
-  holds about 14 GB on each 16 GB GPU. Before starting real QLoRA on this
-  instance, stop the direct services with `bash scripts/vast_stop_direct.sh`, or
-  run training on a separate GPU.
+- Current trained starter adapter: `/workspace/adapters/biber-dev-core-lora`
+  - produced by a 25-step QLoRA starter run.
+  - now served live as `biber-dev-core`.
+- The current serving process holds about 14 GB on each 16 GB GPU. Before
+  starting another QLoRA run on this instance, stop the direct services with
+  `bash scripts/vast_stop_direct.sh`, or run training on a separate GPU.
 
 ## Important Fixes Made During Deployment
 
@@ -553,7 +604,17 @@ Restart only the BIBER direct services:
 ```bash
 cd /workspace/biber-ai-platform
 bash scripts/vast_stop_direct.sh
-bash scripts/vast_start_direct.sh
+bash scripts/vast_start_lora_direct.sh
+```
+
+Start base-model-only serving, if adapter serving must be bypassed. The LoRA
+start path persists `BIBER_VLLM_LORA_MODULES` in `.env`, so remove that line
+before using the plain direct start:
+
+```bash
+cd /workspace/biber-ai-platform
+sed -i '/^BIBER_VLLM_LORA_MODULES=/d' .env
+BIBER_VLLM_SERVED_MODEL_NAME=biber-dev-core bash scripts/vast_start_direct.sh
 ```
 
 Rerun bootstrap if the environment is partially missing:
@@ -576,6 +637,9 @@ tail -f /workspace/biber-logs/vllm.log
 - `.env` explicitly contains:
   - `BIBER_API_HOST=127.0.0.1`
   - `BIBER_VLLM_HOST=127.0.0.1`
+  - `BIBER_LOCAL_MODEL_NAME=biber-dev-core`
+  - `BIBER_VLLM_SERVED_MODEL_NAME=biber-dev-core-base`
+  - `BIBER_VLLM_LORA_MODULES=biber-dev-core=/workspace/adapters/biber-dev-core-lora`
 - A redacted credential audit on 2026-05-16 showed the live `.env` still uses
   starter values for sensitive placeholders. Live rotation was not performed
   because changing running API credentials requires explicit user approval.
@@ -589,9 +653,10 @@ tail -f /workspace/biber-logs/vllm.log
   - `BIBER_PRIORITY_PASSCODES`
   - `MYSQL_ROOT_PASSWORD`
   - `MYSQL_PASSWORD`
-- The direct path starts only:
-  - `biber-dev-core` through vLLM
-  - BIBER FastAPI
+- The direct path currently starts:
+  - `biber-dev-core-base` through vLLM as the base model.
+  - `biber-dev-core` through vLLM as the LoRA adapter model.
+  - BIBER FastAPI, configured to use `biber-dev-core`.
 - The direct path does not start MySQL, Redis, or Adminer.
 - Optional integrations are currently not configured on the live instance:
   - OpenAI mentor
@@ -626,26 +691,28 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-1. Decide whether to grow the approved internet dataset beyond the current
+1. Evaluate the live LoRA adapter with a small fixed prompt set and record
+   baseline quality before spending more GPU time.
+2. Decide whether to grow the approved internet dataset beyond the current
    200-record starter sample.
-2. If growing it, adjust `training/approved_sources.json` limits, run
+3. If growing it, adjust `training/approved_sources.json` limits, run
    `scripts/vast_ingest_internet_dataset.sh`, review provenance, then promote
    the result to `/workspace/data/biber_train.jsonl`.
-3. For actual QLoRA training on the current Vast GPU, stop the direct services
-   first because vLLM already occupies most GPU memory:
+4. For the next QLoRA run on the current Vast GPU, stop the direct services
+   first because vLLM occupies most GPU memory:
    `bash scripts/vast_stop_direct.sh`.
-4. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
+5. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
    working after Codex disconnects, then restart serving after the adapter is
    produced and evaluated.
-5. Keep the API private over SSH tunnels unless credentials are deliberately
+6. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
-6. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
-7. Add optional OpenAI mentor credentials if desired.
-8. Add a durable fine-grained GitHub token to Vast `.env` if persistent
+7. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
+8. Add optional OpenAI mentor credentials if desired.
+9. Add a durable fine-grained GitHub token to Vast `.env` if persistent
    generated-code save should stay enabled.
-9. Add Azure Blob connection string and test backups.
-10. Replace demo API key/passcode auth with database-backed credentials.
-11. Add real MySQL persistence and Redis worker integration.
+10. Add Azure Blob connection string and test backups.
+11. Replace demo API key/passcode auth with database-backed credentials.
+12. Add real MySQL persistence and Redis worker integration.
 
 ## Resume Prompt For A New Chat
 
