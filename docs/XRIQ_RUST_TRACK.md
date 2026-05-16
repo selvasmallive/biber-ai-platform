@@ -62,11 +62,14 @@ Run the Rust/XRIQ eval on Vast with:
 
 ```bash
 cd /workspace/biber-ai-platform
+bash scripts/vast_install_rust_toolchain.sh
 bash scripts/vast_eval_rust_xriq_direct.sh
 ```
 
 The Rust/XRIQ wrapper writes artifacts under `/workspace/outputs/evals` and
 uses `/workspace/outputs/evals/validator-work` for temporary cargo projects.
+The Rust toolchain helper installs Rust under `/workspace/.cargo` and
+`/workspace/.rustup` so toolchain files stay on the 500 GB Vast volume.
 
 ## Phase 2: XRIQ Technical Specification
 

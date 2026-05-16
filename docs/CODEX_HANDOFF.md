@@ -361,11 +361,14 @@ the current GPU-backed direct vLLM/FastAPI state.
 - Started the Rust/XRIQ capability track:
   - Rust/XRIQ prompt file: `training/eval_prompts_rust_xriq.jsonl`.
   - Vast wrapper: `scripts/vast_eval_rust_xriq_direct.sh`.
+  - Vast Rust toolchain helper: `scripts/vast_install_rust_toolchain.sh`.
   - `training/live_model_eval.py` now supports optional code validators.
   - Rust validators create temporary cargo projects and run
     `cargo fmt --check`, `cargo check`, and `cargo test`.
   - Rust/XRIQ evals are separate from `training/eval_prompts.jsonl` so the
     existing `18/18` broad baseline remains comparable.
+  - The Rust toolchain helper installs to `/workspace/.cargo` and
+    `/workspace/.rustup` so toolchain files stay on the 500 GB Vast volume.
 
 ## Live Vast.ai Deployment Status
 
@@ -870,8 +873,8 @@ tail -f /workspace/biber-logs/vllm.log
 ## Recommended Next Steps
 
 1. Run the new Rust/XRIQ live eval on Vast:
-   `bash scripts/vast_eval_rust_xriq_direct.sh`. If `cargo` is missing on Vast,
-   install or configure a Rust toolchain under `/workspace` before rerunning.
+   `bash scripts/vast_install_rust_toolchain.sh`, then
+   `bash scripts/vast_eval_rust_xriq_direct.sh`.
 2. Review the Rust/XRIQ eval outputs and add targeted Rust training examples
    only for repeatable failures. Keep the existing Python/API baseline
    maintained, but do not expand other language tracks ahead of Rust unless the

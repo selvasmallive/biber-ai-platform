@@ -9,6 +9,10 @@ ensure_runtime_dirs
 
 [ -x "${VENV_DIR}/bin/python" ] || die "Virtualenv not found at ${VENV_DIR}. Run scripts/vast_bootstrap_direct.sh first."
 
+export CARGO_HOME="${CARGO_HOME:-${BIBER_RUNTIME_ROOT}/.cargo}"
+export RUSTUP_HOME="${RUSTUP_HOME:-${BIBER_RUNTIME_ROOT}/.rustup}"
+export PATH="${CARGO_HOME}/bin:${PATH}"
+
 PROMPTS="${BIBER_RUST_XRIQ_EVAL_PROMPTS:-training/eval_prompts_rust_xriq.jsonl}"
 EVAL_OUTPUT_DIR="${BIBER_EVAL_OUTPUT_DIR:-${BIBER_RUNTIME_ROOT}/outputs/evals}"
 VALIDATOR_WORK_DIR="${BIBER_EVAL_VALIDATOR_WORK_DIR:-${EVAL_OUTPUT_DIR}/validator-work}"
