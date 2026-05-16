@@ -31,6 +31,8 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `e6a6339 Record Vast CodeInstruct dataset prep`
   - `1623c50 Harden Vast QLoRA launcher`
   - `fb97271 Add Vast LoRA serving start path`
+  - `89ecb0b Record Vast LoRA training deploy`
+  - `46f66c8 Add live LoRA eval runner`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -214,6 +216,26 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `/v1/models` reports both `biber-dev-core-base` and the LoRA adapter model
     `biber-dev-core`.
   - `/v1/chat` returned model content `ok` from `biber-dev-core`.
+- Added a fixed live LoRA evaluation runner in `46f66c8`:
+  - prompt set: `training/eval_prompts.jsonl`
+  - Python runner: `training/live_model_eval.py`
+  - Vast wrapper: `scripts/vast_eval_lora_direct.sh`
+  - outputs stay on the 500 GB Vast volume under `/workspace/outputs/evals`.
+  - Vast verification passed:
+    `/workspace/biber-venv/bin/python -m compileall training scripts tests`,
+    `bash -n scripts/vast_eval_lora_direct.sh`, and
+    `tests/test_live_model_eval.py` with `4 passed`.
+- Ran the first live LoRA baseline eval against `biber-dev-core`:
+  - summary:
+    `/workspace/outputs/evals/biber-dev-core-lora-20260516T184927Z.summary.json`
+  - detailed JSONL:
+    `/workspace/outputs/evals/biber-dev-core-lora-20260516T184927Z.jsonl`
+  - result: `6/6` prompts returned responses, `3/6` simple expectation checks
+    passed.
+  - passed: Python add function, subtract-bug fix, iterative Fibonacci.
+  - weak spots: pytest generation returned an implementation instead of tests,
+    React component used `interface` while the simple check expected `type`, and
+    the API error-shape answer omitted `status`.
 
 ## Live Vast.ai Deployment Status
 
@@ -262,7 +284,7 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `/workspace/data`: `360K`
   - `/workspace/adapters/biber-dev-core-lora`: `409M`
   - `/workspace/adapters/biber-dev-core-lora-smoke`: `409M`
-  - `/workspace/outputs`: `44K`
+  - `/workspace/outputs`: small text/JSON reports plus eval artifacts.
 - Current main adapter contents include:
   - `adapter_model.safetensors`: `155M`
   - `adapter_config.json`
@@ -351,6 +373,11 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
 - Current trained starter adapter: `/workspace/adapters/biber-dev-core-lora`
   - produced by a 25-step QLoRA starter run.
   - now served live as `biber-dev-core`.
+- Current live eval baseline:
+  - runner: `bash scripts/vast_eval_lora_direct.sh`
+  - result: `6/6` responses, `3/6` simple expectation checks passed.
+  - summary:
+    `/workspace/outputs/evals/biber-dev-core-lora-20260516T184927Z.summary.json`
 - The current serving process holds about 14 GB on each 16 GB GPU. Before
   starting another QLoRA run on this instance, stop the direct services with
   `bash scripts/vast_stop_direct.sh`, or run training on a separate GPU.
@@ -597,6 +624,7 @@ After SSH:
 cd /workspace/biber-ai-platform
 bash scripts/vast_status_direct.sh
 bash scripts/vast_test_direct.sh
+bash scripts/vast_eval_lora_direct.sh
 ```
 
 Restart only the BIBER direct services:
@@ -691,19 +719,21 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-1. Evaluate the live LoRA adapter with a small fixed prompt set and record
-   baseline quality before spending more GPU time.
-2. Decide whether to grow the approved internet dataset beyond the current
-   200-record starter sample.
-3. If growing it, adjust `training/approved_sources.json` limits, run
+1. Grow the approved internet dataset beyond the current 200-record starter
+   sample, focusing especially on test generation, TypeScript/React, and API
+   design/error-response examples.
+2. If growing it, adjust `training/approved_sources.json` limits, run
    `scripts/vast_ingest_internet_dataset.sh`, review provenance, then promote
    the result to `/workspace/data/biber_train.jsonl`.
-4. For the next QLoRA run on the current Vast GPU, stop the direct services
+3. For the next QLoRA run on the current Vast GPU, stop the direct services
    first because vLLM occupies most GPU memory:
    `bash scripts/vast_stop_direct.sh`.
-5. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
+4. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
    working after Codex disconnects, then restart serving after the adapter is
    produced and evaluated.
+5. Restart LoRA serving with `bash scripts/vast_start_lora_direct.sh`, rerun
+   `bash scripts/vast_eval_lora_direct.sh`, and compare against the current
+   `3/6` baseline.
 6. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
 7. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
