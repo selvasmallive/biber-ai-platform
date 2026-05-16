@@ -13,8 +13,14 @@ the current GPU-backed direct vLLM/FastAPI state.
 - Remote: `origin` points to `https://github.com/selvasmallive/biber-ai-platform.git`
 - The direct deployment fixes from the previous handoff were committed and
   pushed in `89ac9ce Document live Vast deployment`.
-- The Vast.ai checkout at `/workspace/biber-ai-platform` was confirmed clean and
-  aligned with `origin/main` before the loopback-binding hardening work.
+- The loopback-binding hardening was committed locally in
+  `b782c05 Harden Vast direct service binding` and applied to the Vast.ai
+  checkout through a Git bundle.
+- GitHub `origin/main` was still at `89ac9ce` at last check. HTTPS push of the
+  hardening commit is blocked in this Codex session because no non-interactive
+  GitHub credentials are available (`fatal: unable to get password from user`).
+- The Vast.ai checkout at `/workspace/biber-ai-platform` is ahead of
+  `origin/main` until the local `main` branch can be pushed to GitHub.
 - Prefer `git status --short --branch` and `git log --oneline -1` over this
   file for authoritative current Git state.
 
@@ -43,6 +49,8 @@ the current GPU-backed direct vLLM/FastAPI state.
 - Hardened the direct deployment so FastAPI and vLLM bind to `127.0.0.1` by
   default. Use SSH tunnels unless the `.env` credentials have been replaced and
   public binding is intentionally configured.
+- Restarted the live Vast.ai services after applying explicit loopback values in
+  `.env`. Final `ss` output showed both listeners on `127.0.0.1` only.
 
 ## Live Vast.ai Deployment Status
 
@@ -163,6 +171,9 @@ tail -f /workspace/biber-logs/vllm.log
 ## Important Config Notes
 
 - `.env` exists on the Vast.ai instance.
+- `.env` explicitly contains:
+  - `BIBER_API_HOST=127.0.0.1`
+  - `BIBER_VLLM_HOST=127.0.0.1`
 - Before public exposure, replace demo credentials in `.env`:
   - `BIBER_DEMO_API_KEY`
   - `BIBER_API_KEYS`
@@ -180,12 +191,14 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-1. Replace demo `.env` credentials before exposing the API publicly.
-2. Add optional OpenAI mentor credentials if desired.
-3. Add GitHub token and test generated-code save.
-4. Add Azure Blob connection string and test backups.
-5. Replace demo API key/passcode auth with database-backed credentials.
-6. Add real MySQL persistence and Redis worker integration.
+1. Authenticate GitHub push from this workstation and run `git push origin main`
+   so `origin/main` includes the local/Vast hardening commits.
+2. Replace demo `.env` credentials before exposing the API publicly.
+3. Add optional OpenAI mentor credentials if desired.
+4. Add GitHub token and test generated-code save.
+5. Add Azure Blob connection string and test backups.
+6. Replace demo API key/passcode auth with database-backed credentials.
+7. Add real MySQL persistence and Redis worker integration.
 
 ## Resume Prompt For A New Chat
 
