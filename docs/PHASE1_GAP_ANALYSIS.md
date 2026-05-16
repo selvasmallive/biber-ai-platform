@@ -40,7 +40,7 @@ This repo now combines the existing GitHub starter with the Phase 1 BIBER roadma
 ## Remaining Phase 1 Work On Vast.ai
 
 - Provide the Vast.ai SSH command so the stack can be deployed.
-- Start Docker Compose on the GPU instance.
+- Start either the direct vLLM/FastAPI path or Docker Compose on the GPU instance.
 - Wait for vLLM to load `BIBER_HF_MODEL`.
 - Test `/v1/chat` against the live GPU model.
 - Add real GitHub and Azure credentials if generated-code saving and backups should be enabled.

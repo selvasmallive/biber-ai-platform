@@ -1,6 +1,11 @@
 # Phase 1 Vast.ai Deploy Notes
 
-This deploy path assumes the Vast.ai instance has Docker, the NVIDIA container runtime, and a CUDA-capable GPU image.
+There are two supported Vast.ai deployment paths:
+
+- Direct vLLM/FastAPI path for templates without Docker inside the instance.
+- Docker Compose path for templates with Docker and the NVIDIA container runtime.
+
+Use the direct path first unless `docker --version` and `docker compose version` both work.
 
 ## 1. Connect
 
@@ -43,7 +48,7 @@ Edit `.env` on the instance and set:
 
 ```text
 BIBER_API_KEYS=<strong-api-key>
-BIBER_PRIORITY_PASSCODES=<owner-passcode>:100
+BIBER_PRIORITY_PASSCODES=<owner-passcode>:0
 BIBER_MENTOR_ENABLED=true
 OPENAI_API_KEY=<optional-openai-key>
 OPENAI_MODEL=<mentor-model-name>
@@ -53,7 +58,27 @@ AZURE_STORAGE_CONNECTION_STRING=<optional-azure-blob-connection-string>
 
 Keep `BIBER_MENTOR_ENABLED=false` if you want all prompts to stay on the GPU-only path.
 
-## 4. Run
+## 4. Run Directly Without Docker
+
+This is the repeatable path for the current Vast.ai style of container:
+
+```bash
+bash scripts/vast_bootstrap_direct.sh
+```
+
+It installs a venv under `/workspace/biber-venv`, installs vLLM, downloads the model into `/workspace/.hf_home`, starts vLLM on port `8001`, and starts the API on port `8000`.
+
+Useful follow-up commands:
+
+```bash
+bash scripts/vast_status_direct.sh
+bash scripts/vast_test_direct.sh
+bash scripts/vast_stop_direct.sh
+```
+
+See `docs/VAST_DIRECT_DEPLOY.md` for the full fresh-GPU runbook.
+
+## 5. Run With Docker Compose
 
 ```bash
 docker compose up -d --build
@@ -66,7 +91,7 @@ Once vLLM finishes loading the model, test:
 curl -H "Authorization: Bearer <strong-api-key>" http://localhost:8000/health
 ```
 
-## 5. Chat
+## 6. Chat
 
 ```bash
 curl -X POST http://localhost:8000/v1/chat \
@@ -84,10 +109,11 @@ curl -X POST http://localhost:8000/v1/chat \
   }'
 ```
 
-## 6. Useful Checks
+## 7. Useful Checks
 
 ```bash
 nvidia-smi
+bash scripts/vast_status_direct.sh
 docker ps
 docker compose logs --tail=100 api
 docker compose logs --tail=100 biber-dev-core

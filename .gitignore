@@ -18,6 +18,9 @@ models/
 checkpoints/
 datasets/
 backups/
+.biber-runtime/
+.biber-logs/
+.biber-pids/
 
 .DS_Store
 Thumbs.db

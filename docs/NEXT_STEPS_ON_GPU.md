@@ -44,6 +44,21 @@ cd /root/biber-ai-platform
 
 ## 4. Start the stack
 
+### Preferred on Vast.ai no-Docker templates
+
+If `docker --version` says `command not found`, use the direct vLLM/FastAPI path:
+
+```bash
+cp .env.example .env
+bash scripts/vast_bootstrap_direct.sh
+```
+
+This installs into `/workspace`, starts vLLM on `8001`, starts the BIBER API on `8000`, and can be rerun on a replacement GPU.
+
+### Docker-capable templates
+
+If Docker and the NVIDIA container runtime are available:
+
 ```bash
 cp .env.example .env
 bash scripts/01_check_gpu.sh
@@ -60,7 +75,7 @@ The first model startup can take time while vLLM pulls `BIBER_HF_MODEL`.
 bash scripts/03_test_api.sh
 ```
 
-For immediate `/v1/chat` inference, wait until `docker compose logs -f biber-dev-core` shows the model is ready.
+For direct deploys, wait until `bash scripts/vast_status_direct.sh` shows both HTTP checks responding. For Docker deploys, wait until `docker compose logs -f biber-dev-core` shows the model is ready.
 
 ---
 
@@ -71,6 +86,14 @@ http://<GPU_PUBLIC_IP>:8000/docs
 ```
 
 If Vast.ai does not expose port 8000 directly, add port mapping/expose port in Vast.ai instance settings.
+
+For SSH tunneling from your local machine:
+
+```bash
+ssh -i <path-to-key> -p <port> root@<host> -L 8000:127.0.0.1:8000 -L 8001:127.0.0.1:8001
+```
+
+Then open `http://127.0.0.1:8000/docs`.
 
 ---
 

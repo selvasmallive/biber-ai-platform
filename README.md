@@ -25,22 +25,29 @@ apt update
 apt install -y git curl nano htop tmux unzip mysql-client
 ```
 
-Upload or clone this repo, then run:
+Upload or clone this repo, then run the direct Vast.ai path:
 
 ```bash
 cd biber-ai-platform
 cp .env.example .env
-bash scripts/01_check_gpu.sh
-bash scripts/02_start.sh
+bash scripts/vast_bootstrap_direct.sh
 ```
+
+If your GPU template has Docker and the NVIDIA container runtime available, the older Compose path is still available with `bash scripts/02_start.sh`.
 
 Open API docs:
 
 ```text
-http://<YOUR_SERVER_IP>:8000/docs
+http://127.0.0.1:8000/docs
 ```
 
-If you are using Vast.ai SSH port forwarding, expose port `8000`.
+Use SSH port forwarding for local access:
+
+```bash
+ssh -i <path-to-key> -p <port> root@<host> -L 8000:127.0.0.1:8000 -L 8001:127.0.0.1:8001
+```
+
+See `docs/VAST_DIRECT_DEPLOY.md` for the repeatable fresh-GPU deployment runbook.
 
 ---
 
@@ -54,6 +61,8 @@ If you are using Vast.ai SSH port forwarding, expose port `8000`.
 | `mysql` | MySQL database |
 | `redis` | Queue/cache |
 | `adminer` | Web DB viewer |
+
+On no-Docker Vast.ai templates, `scripts/vast_bootstrap_direct.sh` starts only `api` and `biber-dev-core`. MySQL, Redis, and Adminer remain Docker-only until a managed database/queue path is added.
 
 ---
 
