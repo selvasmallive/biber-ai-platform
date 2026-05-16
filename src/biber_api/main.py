@@ -8,7 +8,12 @@ from fastapi import Depends, FastAPI, HTTPException
 
 from .azure_backup import AzureBackupDisabled, AzureBlobBackup
 from .config import BiberSettings, get_settings
-from .github import GitHubClient, GitHubDisabled
+from .github import (
+    GitHubClient,
+    GitHubConfigurationError,
+    GitHubDisabled,
+    GitHubSaveError,
+)
 from .llm import BiberChatService
 from .schemas import (
     AzureBackupRequest,
@@ -82,6 +87,10 @@ async def chat_completion(
             github_url = await github.save_text(request_body.save_to_github, content)
         except GitHubDisabled as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except GitHubConfigurationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except GitHubSaveError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     azure_blob_url = None
     if request_body.backup_to_azure:
@@ -122,6 +131,10 @@ async def save_to_github(
         url = await GitHubClient(settings).save_text(request_body.target, request_body.content)
     except GitHubDisabled as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except GitHubConfigurationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except GitHubSaveError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return SaveToGitHubResponse(url=url)
 
 
@@ -132,7 +145,10 @@ async def backup_to_azure(
     settings: BiberSettings = Depends(get_settings),
 ) -> AzureBackupResponse:
     try:
-        url = await AzureBlobBackup(settings).upload_json(request_body.blob_name, request_body.payload)
+        url = await AzureBlobBackup(settings).upload_json(
+            request_body.blob_name,
+            request_body.payload,
+        )
     except AzureBackupDisabled as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return AzureBackupResponse(url=url)

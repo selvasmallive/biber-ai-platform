@@ -10,7 +10,13 @@ from pydantic import BaseModel, Field
 from app.azure_backup import AzureBackupDisabled, AzureBlobBackup
 from app.auth import require_api_key, get_priority_from_passcode
 from app.config import settings
-from app.github_client import GitHubClient, GitHubDisabled, GitHubSaveTarget
+from app.github_client import (
+    GitHubClient,
+    GitHubConfigurationError,
+    GitHubDisabled,
+    GitHubSaveError,
+    GitHubSaveTarget,
+)
 from app.llm import BiberChatService
 from app.scheduler import scheduler
 
@@ -194,6 +200,10 @@ async def chat(
             github_url = await GitHubClient().save_text(target, content)
         except GitHubDisabled as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except GitHubConfigurationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except GitHubSaveError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     azure_blob_url = None
     if req.backup_to_azure:
@@ -273,6 +283,10 @@ async def save_to_github(req: SaveToGitHubRequest, auth=Depends(require_api_key)
         )
     except GitHubDisabled as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except GitHubConfigurationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except GitHubSaveError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return SaveToGitHubResponse(url=url)
 
 
