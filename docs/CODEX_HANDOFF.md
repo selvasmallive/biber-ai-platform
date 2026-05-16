@@ -17,8 +17,16 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `b782c05 Harden Vast direct service binding`
   - `b0462e6 Update Vast handoff state`
   - `73bd171 Refresh Vast deployment handoff`
-- Later handoff-only sync commits may exist on top of those; verify with Git
-  before acting on branch state.
+- Later local/Vast commits may exist on top of those; verify with Git before
+  acting on branch state.
+- GitHub push of later work was blocked in this Codex session by
+  non-interactive Git Credential Manager credentials:
+  `fatal: Cannot prompt because user interactivity has been disabled.`
+- At the last GitHub check, `origin/main` remained at
+  `c483bb1 Record Vast push state`.
+- The local checkout and Vast.ai checkout were advanced beyond GitHub with:
+  - `97094ea Harden GitHub save integration`
+- A later handoff-only commit may exist on top of `97094ea`.
 - Use `git status --short --branch`, `git log --oneline -1`, and
   `git ls-remote origin refs/heads/main` for authoritative current Git state.
 - Keep the Vast.ai checkout at `/workspace/biber-ai-platform` fast-forwarded
@@ -61,6 +69,25 @@ the current GPU-backed direct vLLM/FastAPI state.
   - both services listening only on `127.0.0.1`
   - `bash scripts/vast_test_direct.sh` passed
   - `/v1/chat` returned model content `ok` from `biber-dev-core`
+- Hardened the GitHub generated-code save integration in `97094ea`:
+  - GitHub target paths are normalized and reject empty/parent-directory paths.
+  - missing GitHub owner/repo now returns a controlled configuration error
+    instead of an unhandled exception.
+  - GitHub API and network failures are wrapped as controlled save errors.
+  - `/v1/chat` save-to-GitHub and `/v1/save/github` map disabled/config/API
+    failures to clear HTTP responses.
+  - added mocked client tests in `tests/test_github_client.py`.
+- Deployed `97094ea` to the Vast.ai checkout through a Git bundle because
+  GitHub push was blocked by credentials. Vast is now ahead of `origin/main`.
+- Restarted only FastAPI after deploying `97094ea`; vLLM stayed warm.
+  - vLLM pid: `5634`
+  - FastAPI pid: `6759`
+- Verified on Vast.ai after the FastAPI restart:
+  - `/workspace/biber-venv/bin/python -m compileall app src tests` passed.
+  - mocked GitHub client checks passed against the Vast virtualenv.
+  - `bash scripts/vast_test_direct.sh` passed.
+  - `/v1/save/github` without `GITHUB_TOKEN` returns
+    `HTTP 503 {"detail":"GitHub saving is not configured."}`.
 
 ## Live Vast.ai Deployment Status
 
@@ -203,7 +230,7 @@ tail -f /workspace/biber-logs/vllm.log
 - The direct path does not start MySQL, Redis, or Adminer.
 - Optional integrations are currently not configured on the live instance:
   - OpenAI mentor
-  - GitHub generated-code save
+  - GitHub generated-code save credentials
   - Azure Blob backups
 
 ## Operating Notes For Future Codex Sessions
@@ -226,12 +253,14 @@ tail -f /workspace/biber-logs/vllm.log
 
 1. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
-2. Keep the Vast.ai checkout fast-forwarded to `origin/main`.
-3. Add optional OpenAI mentor credentials if desired.
-4. Add GitHub token and test generated-code save.
-5. Add Azure Blob connection string and test backups.
-6. Replace demo API key/passcode auth with database-backed credentials.
-7. Add real MySQL persistence and Redis worker integration.
+2. Authenticate GitHub push from this workstation and push local `main` so
+   `origin/main` includes the GitHub save hardening and this handoff state.
+3. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
+4. Add optional OpenAI mentor credentials if desired.
+5. Add GitHub token and test real generated-code save.
+6. Add Azure Blob connection string and test backups.
+7. Replace demo API key/passcode auth with database-backed credentials.
+8. Add real MySQL persistence and Redis worker integration.
 
 ## Resume Prompt For A New Chat
 
