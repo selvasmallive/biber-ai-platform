@@ -126,6 +126,14 @@ the current GPU-backed direct vLLM/FastAPI state.
 - SSH key path on this workstation: `C:\Users\vselv\.ssh\biber_vast_ed25519`
 - Remote repo path: `/workspace/biber-ai-platform`
 - Runtime root: `/workspace`
+- Storage:
+  - `/workspace` is mounted from `/dev/md0[/volumes/V.36840046/_data]`
+    as XFS.
+  - Size at last check: `499G`, used `26G`, available `474G`.
+  - BIBER runtime, model cache, venv, pip cache, logs, pid files, future
+    datasets, checkpoints, adapters, and outputs should stay under
+    `/workspace` to use the 500 GB Vast volume and avoid the small root
+    filesystem.
 - Virtualenv: `/workspace/biber-venv`
 - Logs:
   - `/workspace/biber-logs/vllm.log`
@@ -144,6 +152,11 @@ the current GPU-backed direct vLLM/FastAPI state.
   - Environment: `gpu`
   - Chat mode: `infer`
   - Run `bash scripts/vast_status_direct.sh` for current PIDs and bind details.
+- Persistent training/output directories created on the 500 GB volume:
+  - `/workspace/data`
+  - `/workspace/checkpoints`
+  - `/workspace/adapters`
+  - `/workspace/outputs`
 
 ## Important Fixes Made During Deployment
 
