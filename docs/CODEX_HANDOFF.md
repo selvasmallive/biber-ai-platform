@@ -36,6 +36,10 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `b25e68e Increase approved CodeInstruct ingest cap`
   - `4d76cf6 Relax React live eval heuristic`
   - `aa1f8d6 Add targeted eval training source`
+  - `4c77e23 Record targeted LoRA improvement`
+  - `1b6e073 Expand live eval prompt set`
+  - `0d6b0b7 Relax rate limit eval heuristic`
+  - `045d377 Relax API key eval heuristic`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -335,6 +339,25 @@ the current GPU-backed direct vLLM/FastAPI state.
     passed.
   - the previously weak pytest-generation and API error-shape prompts now pass
     the fixed baseline checks.
+- Expanded the live eval prompt set in `1b6e073` from 6 to 18 prompts across
+  Python, pytest, FastAPI, API error shapes, React, TypeScript, SQL, JSONL, and
+  retry-helper tasks. This gives the next improvement loop broader coverage than
+  the targeted 6-prompt smoke baseline.
+- Ran the expanded live eval against the targeted-priority adapter:
+  - first broad run produced `18/18` responses and `17/18` simple expectation
+    checks because the rate-limit prompt used `rate_limit_exceeded`, which was
+    acceptable but too strict for the old literal check.
+  - after `0d6b0b7`, a second broad run produced `18/18` responses and `17/18`
+    checks because the missing-API-key prompt used `api_key_missing`, again
+    acceptable but too strict for the old literal check.
+  - after `045d377`, the latest broad run produced `18/18` responses and
+    `18/18` simple expectation checks.
+  - latest summary:
+    `/workspace/outputs/evals/biber-dev-core-lora-20260516T192652Z.summary.json`
+  - latest detailed JSONL:
+    `/workspace/outputs/evals/biber-dev-core-lora-20260516T192652Z.jsonl`
+  - note: this is still a lightweight substring/regex baseline, not a full
+    execution-quality guarantee.
 
 ## Live Vast.ai Deployment Status
 
@@ -385,7 +408,7 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `/workspace/adapters/biber-dev-core-lora-targeted-350`: `896M`
   - `/workspace/adapters/biber-dev-core-lora-codeinstruct-998`: `896M`
   - `/workspace/adapters/biber-dev-core-lora`: `409M`
-  - `/workspace/outputs`: `132K`
+  - `/workspace/outputs`: `180K`
 - Current main adapter contents include:
   - `adapter_model.safetensors`: `155M`
   - `adapter_config.json`
@@ -478,9 +501,14 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
   - now served live as `biber-dev-core`.
 - Current live eval baseline:
   - runner: `bash scripts/vast_eval_lora_direct.sh`
-  - result: `6/6` responses, `6/6` simple expectation checks passed.
+  - result: `18/18` responses, `18/18` simple expectation checks passed.
   - summary:
-    `/workspace/outputs/evals/biber-dev-core-lora-20260516T191829Z.summary.json`
+    `/workspace/outputs/evals/biber-dev-core-lora-20260516T192652Z.summary.json`
+  - detailed JSONL:
+    `/workspace/outputs/evals/biber-dev-core-lora-20260516T192652Z.jsonl`
+  - quality caveat: the current runner checks simple expected substrings or
+    regexes. Treat the score as a regression signal, then add stronger
+    execution/type/lint validators before trusting it as a quality score.
 - The current serving process holds about 14 GB on each 16 GB GPU. Before
   starting another QLoRA run on this instance, stop the direct services with
   `bash scripts/vast_stop_direct.sh`, or run training on a separate GPU.
@@ -822,29 +850,35 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-1. Expand the live eval prompt set beyond the current 6-smoke baseline so the
-   next improvement loop checks broader coding behavior, not only the examples
-   just targeted.
-2. Add new training data only through approved/provenance-tracked sources, then
+1. Add stronger eval validators beyond substring checks: Python syntax/compile
+   checks, pytest execution for generated-test prompts, SQL parse/lint checks
+   where practical, and TypeScript/React type checks when tooling is available.
+2. Add more held-out prompts in domains not yet represented, such as Rust,
+   Java, .NET, Azure, workers/queues, security hardening, and multi-file
+   refactors.
+3. Add new training data only through approved/provenance-tracked sources, then
    validate and promote to `/workspace/data/biber_train.jsonl`.
-3. For the next QLoRA run on the current Vast GPU, stop the direct services
+4. Train again only when the broader evals reveal real gaps. Keep the
+   cost-saving pattern: Codex changes the scripts and reviews outputs; Vast.ai
+   runs long GPU jobs in `tmux`.
+5. For the next QLoRA run on the current Vast GPU, stop the direct services
    first because vLLM occupies most GPU memory:
    `bash scripts/vast_stop_direct.sh`.
-4. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
+6. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
    working after Codex disconnects, then restart serving after the adapter is
    produced and evaluated.
-5. Restart LoRA serving with `bash scripts/vast_start_lora_direct.sh`, rerun
+7. Restart LoRA serving with `bash scripts/vast_start_lora_direct.sh`, rerun
    `bash scripts/vast_eval_lora_direct.sh`, and compare against the current
-   `6/6` baseline.
-6. Keep the API private over SSH tunnels unless credentials are deliberately
+   `18/18` broad baseline.
+8. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
-7. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
-8. Add optional OpenAI mentor credentials if desired.
-9. Add a durable fine-grained GitHub token to Vast `.env` if persistent
+9. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
+10. Add optional OpenAI mentor credentials if desired.
+11. Add a durable fine-grained GitHub token to Vast `.env` if persistent
    generated-code save should stay enabled.
-10. Add Azure Blob connection string and test backups.
-11. Replace demo API key/passcode auth with database-backed credentials.
-12. Add real MySQL persistence and Redis worker integration.
+12. Add Azure Blob connection string and test backups.
+13. Replace demo API key/passcode auth with database-backed credentials.
+14. Add real MySQL persistence and Redis worker integration.
 
 ## Resume Prompt For A New Chat
 
