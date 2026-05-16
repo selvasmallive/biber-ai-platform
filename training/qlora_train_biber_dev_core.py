@@ -21,6 +21,13 @@ def workspace_path(*parts: str) -> Path:
     return root.joinpath(*parts)
 
 
+def configure_workspace_environment() -> None:
+    if Path("/workspace").exists():
+        os.environ.setdefault("HF_HOME", str(workspace_path(".hf_home")))
+        os.environ.setdefault("PIP_CACHE_DIR", str(workspace_path("pip-cache")))
+        os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "0")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="QLoRA fine-tune biber-dev-core.")
     parser.add_argument(
@@ -137,6 +144,7 @@ def build_dataset_class(
 
 
 def main() -> int:
+    configure_workspace_environment()
     args = parse_args()
     result = validate_dataset(args.dataset, min_records=args.min_records)
     if not result.ok:
