@@ -116,11 +116,18 @@ BIBER_QUEUE_PRIORITY_DEMO
 
 ## 6. Chat Example
 
+`/v1/models` exposes logical BIBER model IDs separately from the served vLLM
+model name. The stable model is `biber-dev-core-v1`, currently backed by the
+local `biber-dev-core` Qwen2.5-Coder runtime. The disabled candidate slot
+`biber-dev-core-v2-candidate` is reserved for Qwen3-Coder or a newer model after
+benchmarks justify promoting it.
+
 ```bash
 curl -X POST http://localhost:8000/v1/chat \
   -H "Authorization: Bearer dev-api-key-change-me" \
   -H "Content-Type: application/json" \
   -d '{
+    "model": "biber-dev-core-v1",
     "language": "TypeScript",
     "messages": [
       {

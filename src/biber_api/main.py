@@ -15,6 +15,7 @@ from .github import (
     GitHubSaveError,
 )
 from .llm import BiberChatService, MENTOR_TRIGGER_PHRASE
+from .model_registry import ModelRegistryError, build_model_registry
 from .schemas import (
     AzureBackupRequest,
     AzureBackupResponse,
@@ -61,6 +62,11 @@ async def runtime_status(settings: BiberSettings = Depends(get_settings)) -> Run
     )
 
 
+@app.get("/v1/models")
+async def models(settings: BiberSettings = Depends(get_settings)) -> dict[str, object]:
+    return build_model_registry(settings).as_response()
+
+
 @app.post("/v1/chat", response_model=ChatResponse)
 async def chat_completion(
     request_body: ChatRequest,
@@ -73,7 +79,9 @@ async def chat_completion(
     created_at = datetime.now(UTC).isoformat()
 
     try:
-        content, mentor_notes, raw = await service.generate(request_body)
+        content, mentor_notes, raw, model_id = await service.generate(request_body)
+    except ModelRegistryError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except httpx.HTTPStatusError as exc:
         raise HTTPException(
             status_code=502,
@@ -112,7 +120,7 @@ async def chat_completion(
     return ChatResponse(
         id=str(uuid4()),
         created_at=created_at,
-        model=settings.local_model_name,
+        model=model_id,
         content=content,
         mentor_used=mentor_notes is not None,
         mentor_notes=mentor_notes,

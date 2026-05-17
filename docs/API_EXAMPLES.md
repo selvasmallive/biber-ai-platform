@@ -7,6 +7,11 @@ curl http://localhost:8000/v1/models \
   -H "Authorization: Bearer dev-api-key-change-me"
 ```
 
+The response includes stable/candidate model metadata. By default
+`biber-dev-core-v1` is enabled and backed by the current local Qwen2.5-Coder
+runtime, while `biber-dev-core-v2-candidate` is disabled until a Qwen3 or newer
+candidate endpoint is configured and benchmarked.
+
 ## Runtime Status
 
 ```bash
@@ -23,6 +28,7 @@ curl -X POST http://localhost:8000/v1/chat \
   -H "Content-Type: application/json" \
   -d '{
     "language": "TypeScript",
+    "model": "biber-dev-core-v1",
     "task_type": "code_generation",
     "messages": [
       {

@@ -23,6 +23,7 @@ class GitHubSaveTarget(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1)
+    model: str | None = None
     language: str | None = None
     task_type: str = "code_generation"
     temperature: float = Field(default=0.2, ge=0, le=2)

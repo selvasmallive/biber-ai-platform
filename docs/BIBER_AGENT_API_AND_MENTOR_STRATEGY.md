@@ -25,6 +25,10 @@ The current platform already has the beginnings of this architecture:
 - `/v1/chat` for BIBER code generation and reasoning.
 - `/v1/models` and `/v1/runtime` for model/runtime discovery.
 - vLLM serving `biber-dev-core` through an OpenAI-compatible local runtime.
+- A config-driven model registry maps logical BIBER model IDs such as
+  `biber-dev-core-v1` to concrete provider endpoints and served model names.
+  Keep `biber-dev-core-v2-candidate` for Qwen3/newer model evals until it beats
+  the stable model on BIBER's own tasks.
 - Optional mentor plumbing controlled by `BIBER_MENTOR_ENABLED`,
   `OPENAI_API_KEY`, and `OPENAI_MODEL`.
 - Mentor is currently disabled on the live Vast instance to save cost.

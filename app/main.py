@@ -18,6 +18,7 @@ from app.github_client import (
     GitHubSaveTarget,
 )
 from app.llm import BiberChatService, MENTOR_TRIGGER_PHRASE
+from app.model_registry import ModelRegistryError, build_model_registry
 from app.scheduler import scheduler
 
 app = FastAPI(
@@ -141,19 +142,7 @@ def runtime_status(auth=Depends(require_api_key)):
 
 @app.get("/v1/models")
 def models(auth=Depends(require_api_key)):
-    return {
-        "models": [
-            "biber-dev-core",
-            "biber-code-python",
-            "biber-code-react",
-            "biber-code-dotnet",
-            "biber-code-java",
-            "biber-code-rust",
-            "biber-video-core",
-            "biber-audio-core",
-            "biber-proctor-core"
-        ]
-    }
+    return build_model_registry(settings).as_response()
 
 @app.post("/v1/chat")
 async def chat(
@@ -178,14 +167,17 @@ async def chat(
 
     created_at = datetime.now(UTC).isoformat()
     try:
-        content, mentor_notes, raw = await BiberChatService().generate(
+        content, mentor_notes, raw, model_id = await BiberChatService().generate(
             messages=messages,
             language=req.language,
             task_type=req.task_type,
             use_mentor=req.use_mentor,
+            model=req.model,
             temperature=req.temperature,
             max_tokens=req.max_tokens,
         )
+    except ModelRegistryError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except httpx.HTTPStatusError as exc:
         raise HTTPException(
             status_code=502,
@@ -225,7 +217,7 @@ async def chat(
     return ChatResponse(
         id=str(uuid4()),
         created_at=created_at,
-        model=req.model or settings.local_model_name,
+        model=model_id,
         content=content,
         mentor_used=mentor_notes is not None,
         mentor_notes=mentor_notes,

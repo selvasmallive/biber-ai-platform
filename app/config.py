@@ -43,7 +43,7 @@ class Settings:
     passcode_queue_priority: str = os.getenv("BIBER_PASSCODE_QUEUE_PRIORITY", "BIBER_QUEUE_PRIORITY_DEMO")
     priority_passcodes: dict[str, int] = None
 
-    default_model: str = os.getenv("BIBER_DEFAULT_MODEL", "biber-dev-core")
+    default_model: str = os.getenv("BIBER_DEFAULT_MODEL", "biber-dev-core-v1")
     chat_mode: str = os.getenv("BIBER_CHAT_MODE", "infer")
 
     local_model_base_url: str = os.getenv("BIBER_LOCAL_MODEL_BASE_URL", "http://localhost:8000/v1")

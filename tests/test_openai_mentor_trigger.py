@@ -74,9 +74,12 @@ def service_with_fakes() -> tuple[BiberChatService, FakeClient, FakeClient]:
 def test_mentor_not_called_without_trigger_phrase() -> None:
     service, local, mentor = service_with_fakes()
 
-    content, mentor_notes, _ = asyncio.run(service.generate(request("Write a Rust module.")))
+    content, mentor_notes, _, model_id = asyncio.run(
+        service.generate(request("Write a Rust module."))
+    )
 
     assert content == "local answer"
+    assert model_id == "biber-dev-core-v1"
     assert mentor_notes is None
     assert len(mentor.calls) == 0
     assert "Mentor guidance" not in local.calls[0]["messages"][0]["content"]
@@ -85,11 +88,12 @@ def test_mentor_not_called_without_trigger_phrase() -> None:
 def test_mentor_called_when_prompt_contains_trigger_phrase() -> None:
     service, local, mentor = service_with_fakes()
 
-    content, mentor_notes, _ = asyncio.run(
+    content, mentor_notes, _, model_id = asyncio.run(
         service.generate(request(f"{MENTOR_TRIGGER_PHRASE}: review this wallet design."))
     )
 
     assert content == "local answer"
+    assert model_id == "biber-dev-core-v1"
     assert mentor_notes == "mentor notes"
     assert len(mentor.calls) == 1
     assert "Mentor guidance to consider:\nmentor notes" in local.calls[0]["messages"][0]["content"]
@@ -98,12 +102,13 @@ def test_mentor_called_when_prompt_contains_trigger_phrase() -> None:
 def test_use_mentor_false_disables_trigger_phrase() -> None:
     service, _, mentor = service_with_fakes()
 
-    _, mentor_notes, _ = asyncio.run(
+    _, mentor_notes, _, model_id = asyncio.run(
         service.generate(
             request(f"{MENTOR_TRIGGER_PHRASE}: review this consensus change.", use_mentor=False)
         )
     )
 
+    assert model_id == "biber-dev-core-v1"
     assert mentor_notes is None
     assert len(mentor.calls) == 0
 

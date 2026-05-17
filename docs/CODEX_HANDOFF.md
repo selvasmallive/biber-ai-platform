@@ -760,6 +760,22 @@ last broad-safe Rust/XRIQ adapter.
     `mentor_trigger_phrase="Review with OpenAI mentor"`, with
     `mentor_enabled=false` and `mentor_configured=false` until server-side
     OpenAI credentials are deliberately added.
+- Added the first BIBER model registry/provider abstraction checkpoint:
+  - `app/model_registry.py` and `src/biber_api/model_registry.py` define a
+    config-driven registry for logical BIBER model IDs.
+  - Default stable logical model: `biber-dev-core-v1`, backed by the existing
+    local vLLM served model `biber-dev-core` and upstream
+    `Qwen/Qwen2.5-Coder-7B-Instruct`.
+  - Default candidate logical model: `biber-dev-core-v2-candidate`, disabled
+    until a Qwen3-Coder/Qwen3-Coder-Next or newer endpoint is configured and
+    benchmarked.
+  - `/v1/models` now returns stable/candidate model metadata instead of only
+    static model-name strings.
+  - `/v1/chat` resolves requested logical model IDs through the registry and
+    returns the resolved logical model ID in the response.
+  - Backward-compatible alias: requests for `biber-dev-core` resolve to
+    `biber-dev-core-v1`.
+  - Local Python verification passed with `pytest`: `31` tests.
 - Started and expanded the Rust private-devnet prototype workspace:
   - workspace path: `xriq/`.
   - implemented crates:

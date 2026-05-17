@@ -6,6 +6,12 @@ from typing import Any
 import httpx
 
 from .config import BiberSettings
+from .model_registry import (
+    ModelRegistryError,
+    ModelSpec,
+    build_model_registry,
+    OPENAI_COMPATIBLE_CHAT,
+)
 from .schemas import ChatMessage, ChatRequest
 
 
@@ -153,11 +159,14 @@ class OpenAIResponsesClient:
 class BiberChatService:
     def __init__(self, settings: BiberSettings) -> None:
         self._settings = settings
-        self._local = OpenAICompatibleClient(
-            base_url=settings.local_model_base_url,
-            model=settings.local_model_name,
-            timeout_seconds=settings.local_model_timeout_seconds,
-        )
+        self._registry = build_model_registry(settings)
+        self._providers = {
+            model.id: self._build_provider(model)
+            for model in self._registry.models
+            if model.enabled
+        }
+        stable_model = self._registry.resolve(self._registry.stable_model)
+        self._local = self._providers[stable_model.id]
         self._mentor = None
         if settings.mentor_enabled and settings.openai_api_key and settings.openai_model:
             self._mentor = OpenAIResponsesClient(
@@ -171,7 +180,9 @@ class BiberChatService:
     def mentor_connected(self) -> bool:
         return self._mentor is not None
 
-    async def generate(self, request: ChatRequest) -> tuple[str, str | None, dict[str, Any]]:
+    async def generate(self, request: ChatRequest) -> tuple[str, str | None, dict[str, Any], str]:
+        selected_model = self._registry.resolve(request.model)
+        provider = self._provider_for(selected_model)
         mentor_notes = None
         messages = self._build_local_messages(request, mentor_notes=None)
 
@@ -179,12 +190,26 @@ class BiberChatService:
             mentor_notes = await self._get_mentor_notes(request)
             messages = self._build_local_messages(request, mentor_notes=mentor_notes)
 
-        result = await self._local.chat(
+        result = await provider.chat(
             messages,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
         )
-        return result.content, mentor_notes, result.raw
+        return result.content, mentor_notes, result.raw, selected_model.id
+
+    def _build_provider(self, model: ModelSpec) -> OpenAICompatibleClient:
+        if model.provider_type != OPENAI_COMPATIBLE_CHAT:
+            raise ModelRegistryError(f"Unsupported provider type: {model.provider_type}")
+        return OpenAICompatibleClient(
+            base_url=model.base_url,
+            model=model.provider_model,
+            timeout_seconds=self._settings.local_model_timeout_seconds,
+        )
+
+    def _provider_for(self, model: ModelSpec) -> OpenAICompatibleClient:
+        if model.id == self._registry.stable_model:
+            return self._local
+        return self._providers[model.id]
 
     async def _get_mentor_notes(self, request: ChatRequest) -> str:
         assert self._mentor is not None

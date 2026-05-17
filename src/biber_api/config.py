@@ -47,6 +47,7 @@ class BiberSettings:
     github_default_repo: str | None
     azure_storage_connection_string: str | None
     azure_blob_container: str
+    default_model: str = "biber-dev-core-v1"
 
 
 @lru_cache(maxsize=1)
@@ -67,4 +68,5 @@ def get_settings() -> BiberSettings:
         github_default_repo=os.getenv("GITHUB_DEFAULT_REPO") or None,
         azure_storage_connection_string=os.getenv("AZURE_STORAGE_CONNECTION_STRING") or None,
         azure_blob_container=os.getenv("AZURE_BLOB_CONTAINER", "biber-backups"),
+        default_model=os.getenv("BIBER_DEFAULT_MODEL", "biber-dev-core-v1"),
     )
