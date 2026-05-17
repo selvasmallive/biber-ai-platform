@@ -144,8 +144,9 @@ last broad-safe Rust/XRIQ adapter.
     `cargo run -p xriq-wallet -- key generate --label alice`.
   - Local transfer CLI smoke passed:
     `cargo run -p xriq-wallet -- transfer --chain-id xriq-devnet --from xriqdev1alice00000000000 --to xriqdev1bobbb00000000000 --amount 25 --fee 2 --nonce 7 --expires-at-height 100`.
-  - Vast has not yet been re-verified with `xriq-wallet` unless a later entry in
-    this handoff says so.
+  - Vast checkout was fast-forwarded to include `xriq-wallet`; Vast Rust
+    verification also passed with `cargo fmt --check`, `cargo test` with `56`
+    passing tests, `cargo clippy -- -D warnings`, and both wallet CLI smokes.
 
 ## Repo State
 
@@ -639,9 +640,10 @@ last broad-safe Rust/XRIQ adapter.
   - latest local Rust test result: `56` passed.
   - latest local clippy validation passed:
     `cd xriq && cargo clippy -- -D warnings`.
-  - latest Vast Rust validation before `xriq-wallet` passed with the toolchain
-    stored under `/workspace`: `cargo fmt --check`, `cargo test` with `50`
-    passing tests, and `cargo clippy -- -D warnings`.
+  - latest Vast Rust validation passed with the toolchain stored under
+    `/workspace`: `cargo fmt --check`, `cargo test` with `56` passing tests,
+    `cargo clippy -- -D warnings`, and wallet CLI `key generate`/`transfer`
+    smokes.
   - Installed the `clippy` Rust component into `/workspace/.rustup` and updated
     `scripts/vast_install_rust_toolchain.sh` so future Rust setup includes it.
   - No Vast GPU/model training was needed for this step.

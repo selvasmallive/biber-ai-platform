@@ -520,10 +520,11 @@ As of 2026-05-17:
   - `cargo fmt --check`
   - `cargo test` with `56` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification before `xriq-wallet`:
+- Latest Vast verification:
   - `cargo fmt --check`
-  - `cargo test` with `50` passing tests.
+  - `cargo test` with `56` passing tests.
   - `cargo clippy -- -D warnings`.
+  - wallet CLI `key generate` and `transfer` smokes passed.
 
 Next implementation target: add explorer API/UI for private-devnet inspection.
 
