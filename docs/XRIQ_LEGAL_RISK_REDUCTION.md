@@ -91,6 +91,9 @@ exchange activity.
 - Do not let XRIQ project services take possession of user assets.
 - Do not operate liquidity pools, route orders, guarantee execution, set market
   prices, custody paired assets, or run a hosted market-making service.
+- Do not claim centralized-exchange listing readiness or submit listing
+  applications until public-network, security, tokenomics, legal, AML/CFT,
+  sanctions, market-quality, custody, and integration reviews are complete.
 - Do not integrate sanctioned addresses, mixers, ransomware-linked services, or
   known illicit-finance infrastructure.
 - Any public DEX interface, aggregator, relayer, bridge, or liquidity program is

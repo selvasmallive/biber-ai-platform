@@ -68,6 +68,12 @@ clone Ethereum feature-for-feature:
 - DEX and BTC-swap friendliness: prefer non-custodial atomic-swap and
   interoperability designs before bridges, wrapped assets, or custodial
   services.
+- future centralized-exchange compatibility: keep the protocol directionally
+  compatible with later exchange review by preserving transparent MVP
+  accounting, stable node/RPC behavior, deposit/withdrawal integration paths,
+  clear tokenomics, no default mandatory privacy, auditability, and legal/security
+  review gates. This is a design posture only; XRIQ is not exchange-listing
+  ready.
 - selective privacy roadmap: keep the base devnet transparent now, but reserve
   future protocol space for Zcash-like shielded transfers, viewing keys, and
   payment/audit disclosure. Do not make Monero-style mandatory privacy the
@@ -154,6 +160,28 @@ Monero-style ideas are useful as research inspiration for strong fungibility and
 default user privacy, but XRIQ should not adopt mandatory opaque transfers as
 the default public design while DEX use, future listings, and lower legal-risk
 posture are goals.
+
+## Future Centralized Exchange Compatibility
+
+XRIQ does not currently meet centralized exchange listing requirements. The
+private devnet has no production mainnet, no public tokenomics, no audited
+wallet/custody path, no real signature scheme, no public liquidity, and no legal
+listing opinion.
+
+Keep the architecture directionally compatible with future review by preserving:
+
+- transparent MVP state, transaction, mempool, block, and explorer visibility
+- stable node software that can later support reliable deposit and withdrawal
+  infrastructure
+- deterministic chain replay, storage validation, and clear error handling
+- versioned/crypto-agile address, signature, and proof metadata
+- optional/selective privacy only after review, never default mandatory opacity
+- clear supply, fee, and governance documents before any public network
+- security policy, open-source license, reproducible tests, and external audits
+  before public exposure
+- service-layer AML/KYC/sanctions/Travel Rule integration points for wallets,
+  exchanges, bridges, custodians, and frontends, without claiming the base chain
+  is AML compliant by itself
 
 ## Native Asset
 
@@ -563,8 +591,12 @@ Before any public network, require:
     dependency-free explorer detail output.
 23. Add a compact local private-devnet smoke script. Current status: done for
     `bash scripts/xriq_private_devnet_smoke.sh`, which chains wallet draft
-    generation, draft-block production, explorer overview, block detail, and
-    account detail over one persisted chain file.
+    generation, mempool detail preview, draft-block production, explorer
+    overview, block detail, and account detail over one persisted chain file.
+24. Add read-only mempool inspection to the local runner. Current status: done
+    for `xriq-node mempool-detail --chain-file <path> [--draft-file <path>]`,
+    which replays a private-devnet chain file and can preview a wallet draft as
+    a pending transaction without producing or persisting a block.
 
 ## Current Prototype Status
 
@@ -662,9 +694,12 @@ As of 2026-05-17:
     file and renders one block by height, including transfer summaries
   - local private-devnet account detail command that replays the persisted
     chain file and renders one account balance and nonce by address
+  - local private-devnet mempool detail command that replays the persisted
+    chain file and can preview a wallet draft in the pending-transaction view
+    without mutating storage
   - one-command private-devnet smoke script that validates wallet draft,
-    draft-block, explorer overview, block detail, and account detail behavior
-    against one persisted chain file
+    mempool detail preview, draft-block, explorer overview, block detail, and
+    account detail behavior against one persisted chain file
   - node transaction submission
   - node transaction submission rejects invalid hash-bound test-only signatures
     before mempool insert
@@ -697,8 +732,8 @@ As of 2026-05-17:
   - dependency-free text rendering for private-devnet inspection
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `114` passing tests. On Windows, this was run with
-    `CARGO_TARGET_DIR=target-codex-detail` to avoid default target binary
+  - `cargo test -j 1` with `115` passing tests. On Windows, this was run with
+    `CARGO_TARGET_DIR=target-codex-mempool` to avoid default target binary
     locks.
   - `cargo clippy -- -D warnings`.
   - `cargo run -p xriq-wallet -- transfer --chain-id xriq-devnet --from xriqdev1alice00000000000 --to xriqdev1bobbb00000000000 --amount 25 --fee 2 --nonce 0 --expires-at-height 100` captured to `target/xriq-wallet-transfer-draft-20260517-codex.txt`.
@@ -706,6 +741,7 @@ As of 2026-05-17:
   - `cargo run -p xriq-node -- explorer-overview --chain-file target/xriq-node-draft-smoke-chain-20260517-codex.bin --alice-balance 100 --limit 5`.
   - `cargo run -p xriq-node -- block-detail --chain-file target/xriq-node-detail-smoke-chain-20260517-codex.bin --alice-balance 100 --height 1`.
   - `cargo run -p xriq-node -- account-detail --chain-file target/xriq-node-detail-smoke-chain-20260517-codex.bin --alice-balance 100 --address xriqdev1alice00000000000`.
+  - `cargo run -p xriq-node -- mempool-detail --chain-file target/xriq-node-mempool-smoke-chain-20260517-codex.bin --draft-file target/xriq-wallet-transfer-draft-20260517-codex.txt --alice-balance 100`.
   - Local Windows Bash execution is unavailable on this workstation because
     `bash.exe` maps to WSL and no WSL distribution is installed; Bash script
     verification is therefore recorded under Vast verification.
@@ -722,10 +758,10 @@ As of 2026-05-17:
   - `bash scripts/xriq_private_devnet_smoke.sh`, which wrote artifacts under
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T142125Z-19189`.
 
-Next implementation target: add a read-only pending/mempool detail runner over
-file-backed or local in-process private-devnet state only if it directly helps
-the MVP workflow. Keep HTTP/RPC serving deferred until the local file-backed
-workflow is comfortable.
+Next implementation target: add a concise exchange-readiness checklist document
+or section that future sessions can use without treating XRIQ as listing-ready.
+Keep HTTP/RPC serving deferred until the local file-backed workflow is
+comfortable.
 
 ## Open Decisions
 

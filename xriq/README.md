@@ -66,6 +66,11 @@ cargo run -p xriq-node -- account-detail \
   --chain-file target/xriq-devnet-chain.bin \
   --alice-balance 100 \
   --address xriqdev1alice00000000000
+
+cargo run -p xriq-node -- mempool-detail \
+  --chain-file target/xriq-devnet-chain.bin \
+  --draft-file target/xriq-wallet-transfer-draft.txt \
+  --alice-balance 100
 ```
 
 Private-devnet wallet-draft-to-block smoke:

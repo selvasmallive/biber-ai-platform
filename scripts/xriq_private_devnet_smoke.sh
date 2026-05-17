@@ -47,6 +47,17 @@ require_contains "wallet draft" "$wallet_output" "warning=private-devnet-test-id
 require_contains "wallet draft" "$wallet_output" "chain_id=xriq-devnet"
 require_contains "wallet draft" "$wallet_output" "signature_bytes="
 
+mempool_output="$(
+  run_xriq -p xriq-node -- mempool-detail \
+    --chain-file "$CHAIN_FILE" \
+    --draft-file "$DRAFT_FILE" \
+    --alice-balance 100
+)"
+require_contains "mempool-detail" "$mempool_output" "mempool pending: 1"
+require_contains "mempool-detail" "$mempool_output" "xriqdev1alice00000000000 -> xriqdev1bobbb00000000000"
+require_contains "mempool-detail" "$mempool_output" "amount=25"
+require_contains "mempool-detail" "$mempool_output" "fee=2"
+
 produce_output="$(
   run_xriq -p xriq-node -- produce-draft-block \
     --chain-file "$CHAIN_FILE" \

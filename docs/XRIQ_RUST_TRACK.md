@@ -145,6 +145,9 @@ Goal: define what XRIQ is before generating serious code.
   - future privacy track should be Zcash-like selective disclosure, not
     Monero-style mandatory opacity, while DEX usability and lower legal-risk
     posture remain goals
+  - centralized-exchange compatibility is directional only: keep transparent
+    MVP accounting, stable node/wallet behavior, and review gates, but do not
+    claim listing readiness
   - public launch deferred until security and legal/compliance review.
 - Keep this phase design-only until the user approves the first prototype
   scope.
@@ -208,6 +211,10 @@ Goal: decide whether XRIQ should move beyond private testing.
 - Add monitoring, incident response, backup/restore, release signing, and
   upgrade procedures.
 - Keep public launch as an explicit separate decision, not a default next step.
+- Keep future centralized exchange compatibility as a design constraint only:
+  production listing would require security audits, legal opinions, tokenomics,
+  liquidity/market quality, custody/deposit/withdrawal integration, monitoring,
+  and exchange-specific review.
 
 ## Later Privacy Track: Selective Disclosure
 

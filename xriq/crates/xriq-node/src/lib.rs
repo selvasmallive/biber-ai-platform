@@ -13,7 +13,9 @@ use xriq_crypto::{
     transaction_signing_hash, transactions_root as canonical_transactions_root,
     SignatureVerificationError, TestOnlySignatureVerifier,
 };
-use xriq_explorer::{render_account_detail, render_block_detail, ExplorerError, ExplorerService};
+use xriq_explorer::{
+    render_account_detail, render_block_detail, render_mempool, ExplorerError, ExplorerService,
+};
 use xriq_ledger::{LedgerError, LedgerState};
 use xriq_mempool::{Mempool, MempoolConfig, MempoolError};
 use xriq_rpc::RpcService;
@@ -89,6 +91,7 @@ pub enum NodeRunnerOutput {
     ExplorerOverview(String),
     BlockDetail(String),
     AccountDetail(String),
+    MempoolDetail(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -198,7 +201,9 @@ impl fmt::Display for NodeRunnerOutput {
             Self::Status(status) => write!(formatter, "{status}"),
             Self::ProducedTransferBlock(status) => write!(formatter, "{status}"),
             Self::ExplorerOverview(overview) => formatter.write_str(overview),
-            Self::BlockDetail(detail) | Self::AccountDetail(detail) => formatter.write_str(detail),
+            Self::BlockDetail(detail)
+            | Self::AccountDetail(detail)
+            | Self::MempoolDetail(detail) => formatter.write_str(detail),
         }
     }
 }
@@ -250,6 +255,7 @@ pub fn node_help_text() -> String {
         "  xriq-node explorer-overview --chain-file <path> [--alice-balance <base-units>] [--limit <count>]",
         "  xriq-node block-detail --chain-file <path> --height <height> [--alice-balance <base-units>]",
         "  xriq-node account-detail --chain-file <path> --address <address> [--alice-balance <base-units>]",
+        "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--alice-balance <base-units>]",
         "",
         "Warning: this runner is for private devnet tests only. It does not start a public network.",
     ]
@@ -274,6 +280,7 @@ where
         Some("explorer-overview") => run_explorer_overview_command(&args[1..]),
         Some("block-detail") => run_block_detail_command(&args[1..]),
         Some("account-detail") => run_account_detail_command(&args[1..]),
+        Some("mempool-detail") => run_mempool_detail_command(&args[1..]),
         Some(command) => Err(NodeRunnerError::UnknownCommand(command.to_string())),
     }
 }
@@ -317,14 +324,8 @@ pub fn private_devnet_file_produce_draft_block(
     timestamp_ms: u64,
     consensus_round: u64,
 ) -> Result<ProducedTransferBlockStatus, NodeRunnerError> {
-    let draft_path = draft_file.as_ref();
-    let draft_text =
-        fs::read_to_string(draft_path).map_err(|error| NodeRunnerError::DraftFileRead {
-            path: draft_path.to_string_lossy().to_string(),
-            error: error.to_string(),
-        })?;
     let genesis = private_devnet_runner_genesis(alice_balance);
-    let mut transfer = parse_private_devnet_transfer_draft(&draft_text, &genesis.chain_id)?;
+    let mut transfer = read_private_devnet_transfer_draft(draft_file, &genesis.chain_id)?;
     transfer.timestamp_ms = timestamp_ms;
     transfer.consensus_round = consensus_round;
     private_devnet_file_produce_transfer_block(chain_file, alice_balance, transfer)
@@ -375,6 +376,26 @@ pub fn private_devnet_file_account_detail(
         .account(&address)
         .map(|detail| render_account_detail(&detail))
         .map_err(NodeRunnerError::Explorer)
+}
+
+pub fn private_devnet_file_mempool_detail(
+    chain_file: impl AsRef<Path>,
+    draft_file: Option<impl AsRef<Path>>,
+    alice_balance: Option<XriqAmount>,
+) -> Result<String, NodeRunnerError> {
+    let store = FileChainStore::open(chain_file)
+        .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
+    let genesis = private_devnet_runner_genesis(alice_balance);
+    let mut node =
+        XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?;
+    if let Some(draft_file) = draft_file {
+        let transfer = read_private_devnet_transfer_draft(draft_file, &genesis.chain_id)?;
+        let transaction = private_devnet_runner_transaction(&node, &transfer);
+        node.submit_transaction_with_canonical_hash(transaction)
+            .map_err(NodeRunnerError::Node)?;
+    }
+    let explorer = ExplorerService::new(node.rpc_service(), node.store());
+    Ok(render_mempool(&explorer.mempool()))
 }
 
 fn run_status_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
@@ -432,6 +453,19 @@ fn run_account_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeR
     let address = parse_address("--address", flags.required("--address")?)?;
     private_devnet_file_account_detail(chain_file, alice_balance, address)
         .map(NodeRunnerOutput::AccountDetail)
+}
+
+fn run_mempool_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&["--chain-file", "--draft-file", "--alice-balance"])?;
+    let chain_file = flags.required("--chain-file")?;
+    let draft_file = flags.optional("--draft-file");
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    private_devnet_file_mempool_detail(chain_file, draft_file, alice_balance)
+        .map(NodeRunnerOutput::MempoolDetail)
 }
 
 fn run_produce_draft_block_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
@@ -546,6 +580,19 @@ fn private_devnet_runner_transaction<S: ChainStore>(
     };
     transaction.signature = test_only_signature_for_hash(transaction_signing_hash(&transaction));
     transaction
+}
+
+fn read_private_devnet_transfer_draft(
+    draft_file: impl AsRef<Path>,
+    expected_chain_id: &str,
+) -> Result<PrivateDevnetTransferInput, NodeRunnerError> {
+    let draft_path = draft_file.as_ref();
+    let draft_text =
+        fs::read_to_string(draft_path).map_err(|error| NodeRunnerError::DraftFileRead {
+            path: draft_path.to_string_lossy().to_string(),
+            error: error.to_string(),
+        })?;
+    parse_private_devnet_transfer_draft(&draft_text, expected_chain_id)
 }
 
 fn parse_private_devnet_transfer_draft(
@@ -1933,6 +1980,63 @@ mod tests {
         assert!(bob.contains("nonce: 0"));
 
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn node_runner_mempool_detail_previews_wallet_draft_without_persisting_block() {
+        let path = temp_store_path();
+        let draft_path = path.with_extension("draft");
+        let path_text = path.to_string_lossy().to_string();
+        let draft_text = draft_path.to_string_lossy().to_string();
+        fs::write(
+            &draft_path,
+            [
+                "\u{feff}warning=private-devnet-test-identity-only",
+                "version=1",
+                "chain_id=xriq-devnet",
+                "from=xriqdev1alice00000000000",
+                "to=xriqdev1bobbb00000000000",
+                "amount=25",
+                "fee=2",
+                "nonce=0",
+                "expires_at_height=100",
+                "signature_bytes=48",
+            ]
+            .join("\n"),
+        )
+        .unwrap();
+
+        let detail = run_node_command([
+            "mempool-detail",
+            "--chain-file",
+            path_text.as_str(),
+            "--draft-file",
+            draft_text.as_str(),
+            "--alice-balance",
+            "100",
+        ])
+        .unwrap()
+        .to_string();
+
+        assert!(detail.contains("mempool pending: 1"));
+        assert!(detail.contains("xriqdev1alice00000000000 -> xriqdev1bobbb00000000000"));
+        assert!(detail.contains("amount=25"));
+        assert!(detail.contains("fee=2"));
+        assert!(detail.contains("nonce=0"));
+        assert_eq!(
+            private_devnet_file_status(&path, Some(XriqAmount::from_base_units(100))).unwrap(),
+            NodeStatus {
+                warning: PRIVATE_DEVNET_RUNNER_WARNING,
+                chain_id: "xriq-devnet".to_string(),
+                current_height: 0,
+                latest_block_hash: hash(0),
+                pending_transactions: 0,
+                stored_blocks: 0,
+            }
+        );
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(draft_path);
     }
 
     #[test]

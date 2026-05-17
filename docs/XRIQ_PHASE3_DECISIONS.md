@@ -30,6 +30,7 @@ They do not approve:
 | Supply | Use deterministic test allocation only. | Local genesis/test balances and fee accounting. | Public supply, emissions, burns, treasury, sale, airdrop, reward schedule. |
 | Governance | Use project-owner engineering governance for the private prototype. | Git-reviewed specs, tests, and explicit decision records. | Token governance, treasury rights, revenue rights, or public upgrade promises. |
 | Privacy | Keep the MVP transparent; reserve a later Zcash-like selective privacy track. | Transparent devnet, explorer, DEX-accounting research, and roadmap docs. | Monero-style mandatory privacy, unreviewed shielded pools, custom cryptography, or privacy claims. |
+| Exchange compatibility | Stay directionally compatible only. | Transparent MVP, deposit/withdrawal-friendly node work, docs, and future review checklists. | CEX listing claims, market-making, liquidity programs, listing applications, or public-trading readiness. |
 | Public readiness | Treat public launch as blocked. | Private tests, security hardening, model/eval work, local tooling. | Mainnet, public explorer/API, public wallet, exchange/DEX activity, production custody. |
 
 ## Consensus Decision
@@ -137,6 +138,36 @@ use, and AML-friendly review than making every transfer opaque by default.
 Do not implement Monero-style mandatory privacy, mixers, tumblers, default
 privacy pools, custom zero-knowledge cryptography, custom ring signatures, or
 stealth-transfer systems during the current private-devnet MVP.
+
+## Exchange Compatibility Decision
+
+For Phase 3, XRIQ should remain directionally compatible with future
+centralized exchange review, but it is not listing-ready.
+
+Current allowed path:
+
+- transparent private-devnet state, transaction, mempool, block, and explorer
+  inspection
+- stable node and wallet runner behavior that could later support deposit and
+  withdrawal integration tests
+- clear documentation that public tokenomics, supply, governance, privacy,
+  security, and legal review remain incomplete
+- avoidance of default mandatory privacy and market-facing listing claims
+
+Deferred decisions:
+
+- public listing strategy
+- legal listing opinion
+- market maker or liquidity provider relationships
+- exchange deposit/withdrawal API design
+- custody/key-management integration
+- blockchain analytics and monitoring integration
+- public liquidity, market depth, spread, and volume requirements
+
+Do not claim XRIQ meets centralized exchange requirements until a public
+network, audited production wallet/node stack, tokenomics, legal review,
+liquidity plan, compliance controls, and exchange-specific integration work are
+actually complete.
 
 ## Public-Readiness Decision
 
