@@ -107,6 +107,8 @@ Current baseline as of 2026-05-17:
 
 Goal: define what XRIQ is before generating serious code.
 
+- Current draft spec:
+  `docs/XRIQ_TECHNICAL_SPEC.md`.
 - Write an XRIQ technical spec covering:
   - chain purpose and non-goals
   - account or UTXO model
@@ -123,6 +125,13 @@ Goal: define what XRIQ is before generating serious code.
   - wallet/key model
   - RPC API
   - governance and upgrade process.
+- Current draft direction:
+  - private-devnet first
+  - account-based model for the first prototype
+  - Rust workspace split into small crates
+  - deterministic authority consensus for the initial private devnet
+  - wallet CLI and explorer scoped to private-devnet data
+  - public launch deferred until security and legal/compliance review.
 - Keep this phase design-only until the user approves the first prototype
   scope.
 

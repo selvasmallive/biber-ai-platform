@@ -9,6 +9,8 @@ changes, review, and handoff updates.
 ## Cost-Saving Operating Model
 
 - Use BIBER AI through inference first.
+- Treat `docs/BIBER_AGENT_API_AND_MENTOR_STRATEGY.md` as the source of truth
+  for the future BIBER API-key agent-client path and OpenAI/Codex mentor usage.
 - Add eval prompts and executable validators before adding new training data.
 - Use the Vast.ai GPU for batch evals, QLoRA fine-tuning, and adapter serving.
 - Run long jobs in `tmux` under `/workspace` so Codex does not need to stay
