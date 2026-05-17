@@ -631,8 +631,9 @@ As of 2026-05-17:
   - `cargo run -p xriq-node -- status --chain-file target/xriq-node-smoke-chain.bin`.
 - Latest Vast verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `105` passing tests.
+  - `cargo test -j 1` with `107` passing tests.
   - `cargo clippy -- -D warnings`.
+  - `cargo run -p xriq-node -- status --chain-file target/xriq-node-smoke-chain.bin`.
 
 Next implementation target: add a minimal local transaction-submit or
 block-produce runner command so wallet drafts can move through node state

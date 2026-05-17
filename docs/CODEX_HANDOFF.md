@@ -26,8 +26,8 @@ prototype from the current GPU-backed direct vLLM/FastAPI state.
 As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
-- Last code/training-data commit pushed: `3e3e69c Add XRIQ chain replay startup`.
-- Vast checkout was fast-forwarded to `3e3e69c`.
+- Last code/training-data commit pushed: `066933f Add XRIQ private devnet runner`.
+- Vast checkout was fast-forwarded through `066933f`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -315,6 +315,24 @@ serving the last broad-safe Rust/XRIQ adapter.
     tests, and `cargo clippy -- -D warnings`.
   - Vast noninteractive shells need the workspace Rust toolchain on PATH:
     `export CARGO_HOME=/workspace/.cargo RUSTUP_HOME=/workspace/.rustup PATH=/workspace/.cargo/bin:$PATH`.
+- Local XRIQ prototype progress after the replay-startup checkpoint:
+  - Added `xriq-node` as a real binary runner for private-devnet status checks.
+  - New command:
+    `cargo run -p xriq-node -- status --chain-file target/xriq-node-smoke-chain.bin`.
+  - The status command opens the append-only file store, replays persisted
+    canonical blocks through `XriqNode::from_genesis_replaying_store`, and
+    prints private-devnet-only chain status including chain id, height, latest
+    block hash, pending transaction count, and stored block count.
+  - Added an optional `--alice-balance <base-units>` flag for local
+    private-devnet test fixtures; this is not public-token economics.
+  - Reaffirmed the narrowed project goal: finish BIBER MVP plus XRIQ
+    private-devnet now, keep public XRIQ as a later guarded plan only.
+  - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `107` passing tests,
+    `cargo clippy -- -D warnings`, and the new `xriq-node status` smoke.
+  - Vast checkout was fast-forwarded to `066933f`; Vast Rust verification also
+    passed with `cargo fmt --check`, `cargo test -j 1` with `107` passing
+    tests, `cargo clippy -- -D warnings`, and the new `xriq-node status` smoke.
 
 ## Repo State
 
@@ -1505,9 +1523,11 @@ cargo clippy -- -D warnings
    after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`,
    `xriq-rpc`, `xriq-storage`, `xriq-node`, `xriq-wallet`, and
    `xriq-explorer`, canonical hash API wiring, genesis/root strategy, and
-   deterministic replay startup is to wire replay startup into a future local
-   node runner or RPC-server start path. Snapshot checkpointing can wait until
-   replayed startup has been exercised through tooling.
+   deterministic replay startup, and the first local `xriq-node status` runner
+   is to add a minimal local transaction-submit or block-produce runner command
+   so wallet drafts can move through node state without a full HTTP server yet.
+   Snapshot checkpointing can wait until replayed startup has been exercised
+   through tooling.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
