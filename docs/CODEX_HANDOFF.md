@@ -63,8 +63,8 @@ As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Last XRIQ implementation commit pushed and Vast-verified:
-  `8969b08 Add XRIQ node JSON error responses`.
-- Vast checkout was fast-forwarded and Rust/script-verified through `8969b08`.
+  `1a7218f Add command names to XRIQ JSON output`.
+- Vast checkout was fast-forwarded and Rust/script-verified through `1a7218f`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -572,6 +572,26 @@ serving the last broad-safe Rust/XRIQ adapter.
     `bash scripts/xriq_private_devnet_smoke.sh`.
   - Latest smoke artifacts on Vast:
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T153320Z-21369`.
+- Local XRIQ prototype progress after the JSON success-command checkpoint:
+  - Added `command` to every successful `xriq-node --format json` response.
+  - Success and error JSON responses now both identify the command, making the
+    file-backed runner easier for future BIBER agents and HTTP/RPC wrappers to
+    consume.
+  - Updated `docs/XRIQ_NODE_JSON_SCHEMA.md` and
+    `scripts/xriq_private_devnet_smoke.sh` to require command names in selected
+    success JSON responses.
+  - Local Windows Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `117` passing tests, and
+    `cargo clippy -- -D warnings`, using
+    `CARGO_TARGET_DIR=target-codex-json-command` to avoid default target binary
+    locks.
+  - Vast checkout was fast-forwarded to `1a7218f`; Vast verification passed
+    with `bash -n scripts/xriq_private_devnet_smoke.sh`,
+    `cargo fmt --check`, `cargo test -j 1` with `117` passing tests,
+    `cargo clippy -- -D warnings`, and
+    `bash scripts/xriq_private_devnet_smoke.sh`.
+  - Latest smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T154848Z-22177`.
 
 ## Repo State
 
@@ -1775,8 +1795,8 @@ cargo clippy -- -D warnings
    `xriq-node account-detail`, and `xriq-node mempool-detail` runner commands,
    `scripts/xriq_private_devnet_smoke.sh`, and
    `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`, is to keep the local
-   file-backed workflow small and deterministic. Add command names to success
-   JSON responses, minimal HTTP/RPC serving, or snapshot/replay improvements
+   file-backed workflow small and deterministic. Add response examples from
+   smoke artifacts, minimal HTTP/RPC serving, or snapshot/replay improvements
    only when they directly help the private-devnet MVP. Public XRIQ launch,
    exchange listing, custody, liquidity, bridges, and market-facing work remain
    blocked.

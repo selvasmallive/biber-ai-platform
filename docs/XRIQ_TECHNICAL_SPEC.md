@@ -706,7 +706,8 @@ As of 2026-05-17:
     without mutating storage
   - stable `--format json` output for status, block production, explorer
     overview, block detail, account detail, and mempool detail runner commands,
-    while preserving text output as the default
+    while preserving text output as the default; successful JSON responses
+    include `command` names
   - structured JSON error responses for failed `xriq-node` commands when
     `--format json` is requested, while preserving human-readable text errors
     as the default
@@ -762,7 +763,8 @@ As of 2026-05-17:
   - `cargo run -p xriq-node -- mempool-detail --chain-file target/xriq-node-mempool-smoke-chain-20260517-codex.bin --draft-file target/xriq-wallet-transfer-draft-20260517-codex.txt --alice-balance 100`.
   - JSON output coverage for `status`, `produce-draft-block`,
     `explorer-overview`, `block-detail`, `account-detail`, and
-    `mempool-detail` through the Rust test suite.
+    `mempool-detail` through the Rust test suite, including successful
+    response command names.
   - JSON error-response coverage for a missing required flag through the Rust
     test suite.
   - Local Windows Bash execution is unavailable on this workstation because
@@ -777,16 +779,17 @@ As of 2026-05-17:
     wallet draft can be previewed in the local mempool before block production.
   - `xriq-node mempool-detail --format json`,
     `explorer-overview --format json`, and `account-detail --format json`
-    through the one-command smoke path.
+    through the one-command smoke path, including successful response command
+    names.
   - `xriq-node status --format json` error output for a missing `--chain-file`
     through the one-command smoke path.
   - `xriq-node produce-draft-block`, `explorer-overview`, `block-detail`, and
     `account-detail` text output through the same smoke path.
   - `bash scripts/xriq_private_devnet_smoke.sh`, which wrote artifacts under
-    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T153320Z-21369`.
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T154848Z-22177`.
 
 Next implementation target: keep the local file-backed workflow small and
-deterministic. Add command names to success JSON responses, minimal HTTP/RPC
+deterministic. Add response examples from smoke artifacts, minimal HTTP/RPC
 serving, or snapshot/replay improvements only when they directly help the
 private-devnet MVP, and keep public XRIQ launch or listing work blocked.
 Keep HTTP/RPC serving deferred until the local file-backed workflow is
