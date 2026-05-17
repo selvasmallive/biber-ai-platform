@@ -611,12 +611,9 @@ As of 2026-05-17:
   - `cargo test -j 1` with `99` passing tests.
   - `cargo clippy -- -D warnings`.
 - Latest Vast verification:
-  - Previous genesis/config checkpoint passed with:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `96` passing tests.
+  - `cargo test -j 1` with `99` passing tests.
   - `cargo clippy -- -D warnings`.
-  - The imported-block root/signature validation checkpoint is pending Vast
-    verification.
 
 Next implementation target: wire hash-bound test-only transaction signature
 verification into RPC/node submission and imported-block transaction execution.
