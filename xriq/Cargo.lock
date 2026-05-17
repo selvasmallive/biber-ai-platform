@@ -29,10 +29,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "xriq-node"
+version = "0.1.0"
+dependencies = [
+ "xriq-consensus",
+ "xriq-core",
+ "xriq-ledger",
+ "xriq-mempool",
+ "xriq-rpc",
+ "xriq-storage",
+]
+
+[[package]]
 name = "xriq-rpc"
 version = "0.1.0"
 dependencies = [
  "xriq-core",
  "xriq-ledger",
  "xriq-mempool",
+]
+
+[[package]]
+name = "xriq-storage"
+version = "0.1.0"
+dependencies = [
+ "xriq-core",
 ]

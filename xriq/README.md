@@ -9,7 +9,9 @@ only until security and legal/compliance review says otherwise.
 - `xriq-consensus`: deterministic private-devnet block production.
 - `xriq-ledger`: deterministic private-devnet account state transitions.
 - `xriq-mempool`: deterministic pending-transaction checks and ordering.
+- `xriq-node`: minimal local private-devnet node loop.
 - `xriq-rpc`: local private-devnet RPC endpoint behavior.
+- `xriq-storage`: local block storage for private-devnet tests.
 
 ## Commands
 

@@ -4,7 +4,9 @@ members = [
     "crates/xriq-consensus",
     "crates/xriq-ledger",
     "crates/xriq-mempool",
+    "crates/xriq-node",
     "crates/xriq-rpc",
+    "crates/xriq-storage",
 ]
 resolver = "2"
 

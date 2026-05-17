@@ -453,7 +453,8 @@ Before any public network, require:
    for the single-authority private-devnet baseline.
 8. Add local RPC endpoints. Current status: done for the dependency-free local
    service baseline.
-9. Add durable local storage and a node loop.
+9. Add durable local storage and a node loop. Current status: done for the
+   dependency-free local private-devnet baseline.
 10. Add wallet CLI for test transfers.
 11. Add explorer API/UI for private-devnet inspection.
 12. Add local multi-node tests.
@@ -469,7 +470,9 @@ As of 2026-05-17:
   - `xriq/crates/xriq-consensus`
   - `xriq/crates/xriq-ledger`
   - `xriq/crates/xriq-mempool`
+  - `xriq/crates/xriq-node`
   - `xriq/crates/xriq-rpc`
+  - `xriq/crates/xriq-storage`
 - Implemented dependency-free private-devnet core primitives:
   - checked `XriqAmount`
   - validated devnet `Address`
@@ -499,16 +502,23 @@ As of 2026-05-17:
   - mempool listing
   - pending transaction lookup
   - transaction submission with ledger-backed validation before mempool insert
+- Implemented local storage and node loop:
+  - in-memory block index by hash and height
+  - append-only local file store for block persistence and reload
+  - node transaction submission
+  - pending transaction application into produced blocks
+  - block persistence before node-state commit
+  - RPC-visible node state after block production
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test` with `40` passing tests.
+  - `cargo test` with `50` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification:
+- Latest Vast verification before `xriq-storage` and `xriq-node`:
   - `cargo fmt --check`
   - `cargo test` with `40` passing tests.
   - `cargo clippy -- -D warnings`.
 
-Next implementation target: add durable local storage and a node loop.
+Next implementation target: add wallet CLI for test transfers.
 
 ## Open Decisions
 
