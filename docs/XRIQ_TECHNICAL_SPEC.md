@@ -529,14 +529,12 @@ As of 2026-05-17:
   - `cargo fmt --check`
   - `cargo test -j 1` with `64` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification before the explorer checkpoint:
+- Latest Vast verification:
   - `cargo fmt --check`
-  - `cargo test` with `56` passing tests.
+  - `cargo test -j 1` with `64` passing tests.
   - `cargo clippy -- -D warnings`.
-  - wallet CLI `key generate` and `transfer` smokes passed.
 
-Next implementation target: fast-forward the Vast checkout and verify
-`xriq-explorer`, then add local multi-node tests.
+Next implementation target: add local multi-node private-devnet tests.
 
 ## Open Decisions
 

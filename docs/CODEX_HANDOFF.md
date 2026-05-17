@@ -158,8 +158,9 @@ last broad-safe Rust/XRIQ adapter.
   - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
     `cargo test -j 1` with `64` passing tests, and
     `cargo clippy -- -D warnings`.
-  - Vast verification is the next checkpoint after this code is committed,
-    pushed, and fast-forwarded on `/workspace/biber-ai-platform`.
+  - Vast checkout was fast-forwarded to include `xriq-explorer`; Vast Rust
+    verification also passed with `cargo fmt --check`, `cargo test -j 1` with
+    `64` passing tests, and `cargo clippy -- -D warnings`.
 
 ## Repo State
 
