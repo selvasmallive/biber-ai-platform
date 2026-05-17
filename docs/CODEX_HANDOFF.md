@@ -18,6 +18,11 @@ prototype from the current GPU-backed direct vLLM/FastAPI state.
     public token economics, DEX/liquidity, validator rewards, public governance,
     bridges, custody, listings, or launch-facing claims during this near-term
     phase.
+  - Future XRIQ privacy should follow a Zcash-like selective-disclosure
+    roadmap: optional shielded transfers, viewing keys, payment/audit
+    disclosure, and crypto agility after review. Do not make Monero-style
+    mandatory privacy or default opaque transfers part of the MVP or default
+    public design while DEX usability and AML-friendly posture remain goals.
   - Keep `docs/XRIQ_LEGAL_RISK_REDUCTION.md` as a hard guardrail for any future
     public XRIQ work.
 
@@ -84,8 +89,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - XRIQ prototype progress made after the last model eval:
   - `docs/XRIQ_TECHNICAL_SPEC.md` now makes the intended XRIQ advantages
     explicit: no mining, predictable fees, Rust-first implementation, clean
-    token issuance, DEX/BTC-swap friendliness, crypto agility, cautious
-    compliance posture, and BIBER-assisted vertical tooling.
+    token issuance, DEX/BTC-swap friendliness, Zcash-like selective privacy as
+    a future roadmap track, crypto agility, cautious compliance posture, and
+    BIBER-assisted vertical tooling.
   - Added `xriq/crates/xriq-mempool` to the Rust workspace for deterministic
     private-devnet pending-transaction rules.
   - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
@@ -1525,6 +1531,12 @@ tail -f /workspace/biber-logs/vllm.log
   market-facing public token, DEX, custody, bridge, stablecoin, payment,
   airdrop, liquidity, listing, validator-yield, or investment-promotion features
   unless the required review status is explicitly recorded in docs.
+- XRIQ privacy direction is now explicit in `docs/XRIQ_TECHNICAL_SPEC.md`,
+  `docs/XRIQ_PHASE3_DECISIONS.md`, `docs/XRIQ_LEGAL_RISK_REDUCTION.md`, and
+  `docs/XRIQ_RUST_TRACK.md`: keep the MVP transparent, reserve future
+  Zcash-like selective privacy with viewing keys/payment disclosure/audit
+  receipts, and avoid Monero-style mandatory privacy while DEX usability and
+  AML-friendly posture remain goals.
 - Near-term language priority is Rust/XRIQ first because the user's first major
   inference use case for BIBER AI is developing the XRIQ cryptocurrency
   blockchain. Defer .NET, Spring Boot Java, broader Python expansion, and other

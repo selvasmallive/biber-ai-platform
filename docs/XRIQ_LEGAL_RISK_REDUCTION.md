@@ -57,8 +57,9 @@ separate written review:
   flow, or stablecoin issuance
 - bridge, wrapped asset, synthetic asset, cross-chain custody, or BTC reserve
   product
-- mixer, tumbler, stealth transfer, default privacy pool, sanctions-evasion
-  feature, or tool primarily useful for hiding source/destination of funds
+- unreviewed mixer, tumbler, Monero-style mandatory privacy, default privacy
+  pool, sanctions-evasion feature, or tool primarily useful for hiding
+  source/destination of funds
 - public DEX launch, liquidity-pool launch, token listing, or market-liquidity
   support
 - governance that gives token holders rights to revenue, profits, dividends,
@@ -94,6 +95,28 @@ exchange activity.
   known illicit-finance infrastructure.
 - Any public DEX interface, aggregator, relayer, bridge, or liquidity program is
   a separate regulated-product review item, not a default protocol feature.
+
+## Privacy And Selective Disclosure Principles
+
+XRIQ may keep a future privacy roadmap, but privacy must be designed for
+selective disclosure and reviewability rather than regulatory evasion.
+
+- Keep the current private-devnet MVP transparent.
+- Prefer a future Zcash-like selective privacy model over Monero-style
+  mandatory privacy if DEX usability, future listings, and AML-friendly posture
+  remain project goals.
+- Any shielded/private transfer design must include a way for users or regulated
+  services to disclose relevant activity through viewing keys, payment
+  disclosure, audit receipts, or similar read-only proofs without sharing spend
+  authority.
+- Do not implement custom zero-knowledge proofs, ring signatures, stealth
+  address systems, or privacy pools without external cryptography review.
+- Do not describe XRIQ as AML compliant because of protocol design alone. AML,
+  sanctions, KYC, recordkeeping, and Travel Rule workflows belong at the wallet,
+  frontend, exchange, bridge, custodian, payment, or other VASP/service layer as
+  applicable.
+- Treat any public privacy feature as a separate legal, AML/CFT, sanctions,
+  privacy, and cybersecurity review item.
 
 ## Decentralization And Open-Source Principles
 

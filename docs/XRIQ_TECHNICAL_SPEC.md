@@ -31,6 +31,7 @@ completed.
 - Do not create a public mainnet in the first implementation phase.
 - Do not market or sell tokens from the prototype.
 - Do not implement custom cryptography.
+- Do not implement privacy cryptography in the first private-devnet phase.
 - Do not promise monetary value, returns, yield, rewards, or investment utility.
 - Do not add custody, exchange, bridge, stablecoin, or payment features before
   independent review.
@@ -67,6 +68,11 @@ clone Ethereum feature-for-feature:
 - DEX and BTC-swap friendliness: prefer non-custodial atomic-swap and
   interoperability designs before bridges, wrapped assets, or custodial
   services.
+- selective privacy roadmap: keep the base devnet transparent now, but reserve
+  future protocol space for Zcash-like shielded transfers, viewing keys, and
+  payment/audit disclosure. Do not make Monero-style mandatory privacy the
+  default XRIQ design if DEX usability and AML-friendly posture remain project
+  goals.
 - crypto agility: make key, address, and signature formats versioned so the
   network can migrate algorithms and later support hybrid or post-quantum
   signatures without redesigning the whole chain.
@@ -118,6 +124,36 @@ Each account has:
 
 Account state must be modified only by validated transactions applied through
 the ledger state transition function.
+
+## Future Selective Privacy Roadmap
+
+The initial XRIQ private devnet remains transparent: accounts, balances,
+transfers, blocks, and explorer output should stay inspectable while the core
+ledger, wallet, storage, and node behavior mature.
+
+If XRIQ later adds privacy, prefer a Zcash-like selective-disclosure design over
+a Monero-like mandatory-privacy design:
+
+- shielded/private transfer support is a later protocol module, not part of the
+  current MVP
+- transparent DEX pools, liquidity accounting, bridges, reserves, and explorer
+  data should remain possible
+- users or regulated services should be able to disclose activity through
+  viewing keys, payment disclosure, audit receipts, or similar read-only proofs
+  without exposing spend authority
+- privacy features must be crypto-agile and versioned so proof systems and key
+  formats can evolve
+- privacy code must use reviewed libraries and external cryptography review;
+  do not invent custom zero-knowledge, ring-signature, or stealth-address
+  primitives in BIBER/Codex-generated code
+- wallet, frontend, bridge, exchange, and business-service layers remain the
+  right place for AML/KYC/sanctions controls; the base chain should not claim to
+  be AML compliant by itself
+
+Monero-style ideas are useful as research inspiration for strong fungibility and
+default user privacy, but XRIQ should not adopt mandatory opaque transfers as
+the default public design while DEX use, future listings, and lower legal-risk
+posture are goals.
 
 ## Native Asset
 

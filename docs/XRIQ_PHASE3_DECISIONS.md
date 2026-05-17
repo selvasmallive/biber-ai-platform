@@ -29,6 +29,7 @@ They do not approve:
 | Consensus | Keep deterministic authority consensus for private devnet. | Single-authority and in-process multi-node tests. | Public proof of stake, validator rewards, slashing, public validator admission. |
 | Supply | Use deterministic test allocation only. | Local genesis/test balances and fee accounting. | Public supply, emissions, burns, treasury, sale, airdrop, reward schedule. |
 | Governance | Use project-owner engineering governance for the private prototype. | Git-reviewed specs, tests, and explicit decision records. | Token governance, treasury rights, revenue rights, or public upgrade promises. |
+| Privacy | Keep the MVP transparent; reserve a later Zcash-like selective privacy track. | Transparent devnet, explorer, DEX-accounting research, and roadmap docs. | Monero-style mandatory privacy, unreviewed shielded pools, custom cryptography, or privacy claims. |
 | Public readiness | Treat public launch as blocked. | Private tests, security hardening, model/eval work, local tooling. | Mainnet, public explorer/API, public wallet, exchange/DEX activity, production custody. |
 
 ## Consensus Decision
@@ -104,6 +105,39 @@ Blocked until review:
 Before any community devnet, add a public-governance design document that
 separates technical upgrade control from token economics and public messaging.
 
+## Privacy Decision
+
+For Phase 3, XRIQ stays transparent.
+
+Current allowed path:
+
+- transparent account balances, nonces, blocks, transaction summaries, and
+  explorer output for private-devnet engineering
+- roadmap-level design notes for future selective privacy
+- crypto-agile address, key, and proof metadata that can support later privacy
+  modules without forcing them into the MVP
+
+Deferred decisions:
+
+- shielded address format
+- viewing-key format
+- payment-disclosure or audit-receipt format
+- zero-knowledge proof system
+- privacy pool accounting model
+- DEX behavior for private assets
+- compliance workflow for deposits, withdrawals, exchanges, bridges, and wallet
+  frontends
+
+If privacy is added later, prefer a Zcash-like selective-disclosure model:
+shielded transfers can exist, but users and regulated services should be able to
+share viewing keys, payment disclosures, or audit receipts without giving up
+spend authority. This is more compatible with DEX accounting, institutional
+use, and AML-friendly review than making every transfer opaque by default.
+
+Do not implement Monero-style mandatory privacy, mixers, tumblers, default
+privacy pools, custom zero-knowledge cryptography, custom ring signatures, or
+stealth-transfer systems during the current private-devnet MVP.
+
 ## Public-Readiness Decision
 
 XRIQ is not public-ready.
@@ -127,6 +161,8 @@ mainnet work, the project needs at least:
 - open-source license, security policy, and contribution policy
 - legal, tax, AML/CFT, sanctions, securities, commodities, consumer-protection,
   privacy, and cybersecurity review
+- dedicated selective-privacy threat model and compliance review before any
+  shielded/private transfer feature is exposed outside private research
 
 ## Current Crypto/Hashing Checkpoint
 

@@ -142,6 +142,9 @@ Goal: define what XRIQ is before generating serious code.
   - Rust workspace split into small crates
   - deterministic authority consensus for the initial private devnet
   - wallet CLI and explorer scoped to private-devnet data
+  - future privacy track should be Zcash-like selective disclosure, not
+    Monero-style mandatory opacity, while DEX usability and lower legal-risk
+    posture remain goals
   - public launch deferred until security and legal/compliance review.
 - Keep this phase design-only until the user approves the first prototype
   scope.
@@ -205,6 +208,25 @@ Goal: decide whether XRIQ should move beyond private testing.
 - Add monitoring, incident response, backup/restore, release signing, and
   upgrade procedures.
 - Keep public launch as an explicit separate decision, not a default next step.
+
+## Later Privacy Track: Selective Disclosure
+
+Goal: preserve a future privacy path without pulling complex cryptography into
+the MVP.
+
+- Keep the private-devnet MVP transparent and easy to inspect.
+- Prefer a Zcash-like model for future privacy: optional shielded transfers,
+  viewing keys, payment disclosure, and audit receipts.
+- Keep DEX pools, bridge accounting, reserves, and public explorer views
+  technically possible for transparent assets.
+- Do not implement Monero-style mandatory privacy or default opaque transfers
+  while DEX usability and AML-friendly posture remain goals.
+- Do not create custom privacy cryptography with BIBER/Codex-generated code.
+  Use reviewed libraries, formal specs, threat models, and external
+  cryptography/security review before any public privacy feature.
+- Treat AML/KYC/sanctions workflows as service-layer responsibilities for
+  wallets, frontends, exchanges, bridges, custodians, and payment providers, not
+  as something the base chain can guarantee by itself.
 
 ## BIBER Model Improvement Loop For XRIQ
 
