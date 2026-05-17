@@ -617,11 +617,10 @@ As of 2026-05-17:
   - `cargo fmt --check`
   - `cargo test -j 1` with `102` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification for the previous checkpoint:
+- Latest Vast verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `99` passing tests.
+  - `cargo test -j 1` with `102` passing tests.
   - `cargo clippy -- -D warnings`.
-- Vast verification for the transaction-signature checkpoint is pending.
 
 Next implementation target: add deterministic private-devnet chain replay or
 snapshot startup so a node can rebuild trusted ledger/tip state from persisted

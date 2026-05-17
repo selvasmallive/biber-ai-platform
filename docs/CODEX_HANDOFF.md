@@ -280,8 +280,9 @@ last broad-safe Rust/XRIQ adapter.
   - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
     `cargo test -j 1` with `102` passing tests, and
     `cargo clippy -- -D warnings`.
-  - Vast verification for this checkpoint is pending; the previous Vast Rust
-    verification passed at `543057c` with `99` tests.
+  - Vast checkout was fast-forwarded to `3aca387`; Vast Rust verification also
+    passed with `cargo fmt --check`, `cargo test -j 1` with `102` passing tests,
+    and `cargo clippy -- -D warnings`.
 
 ## Repo State
 
