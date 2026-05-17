@@ -11,6 +11,8 @@ DRAFT_FILE="${ARTIFACT_DIR}/wallet-transfer-draft.txt"
 WALLET_JSON_FILE="${ARTIFACT_DIR}/wallet-transfer-submit.json"
 CHAIN_FILE="${ARTIFACT_DIR}/chain.bin"
 HTTP_JSON_CHAIN_FILE="${ARTIFACT_DIR}/http-json-chain.bin"
+HTTP_PENDING_CHAIN_FILE="${ARTIFACT_DIR}/http-pending-chain.bin"
+HTTP_PENDING_FILE="${ARTIFACT_DIR}/http-pending-mempool.tsv"
 MEMPOOL_JSON_FILE="${ARTIFACT_DIR}/mempool-detail.json"
 PENDING_TRANSACTION_JSON_FILE="${ARTIFACT_DIR}/pending-transaction-detail.json"
 CONFIRMED_TRANSACTION_JSON_FILE="${ARTIFACT_DIR}/confirmed-transaction-detail.json"
@@ -20,6 +22,9 @@ STATUS_ERROR_JSON_FILE="${ARTIFACT_DIR}/status-error.json"
 HTTP_JSON_SUBMIT_FILE="${ARTIFACT_DIR}/http-json-submit.json"
 HTTP_JSON_TRANSACTION_FILE="${ARTIFACT_DIR}/http-json-transaction.json"
 HTTP_JSON_ACCOUNT_FILE="${ARTIFACT_DIR}/http-json-account.json"
+HTTP_PENDING_SUBMIT_FILE="${ARTIFACT_DIR}/http-pending-submit.json"
+HTTP_PENDING_MEMPOOL_FILE="${ARTIFACT_DIR}/http-pending-mempool.json"
+HTTP_PENDING_TRANSACTION_FILE="${ARTIFACT_DIR}/http-pending-transaction.json"
 
 require_contains() {
   local label="$1"
@@ -42,13 +47,22 @@ start_http_server() {
   local chain_file="$1"
   local port="$2"
   local log_file="$3"
+  local pending_file="${4:-}"
 
   (
     cd "$XRIQ_DIR"
-    cargo run -q -p xriq-node -- serve-private \
-      --chain-file "$chain_file" \
-      --alice-balance 100 \
-      --bind "127.0.0.1:${port}"
+    if [ -n "$pending_file" ]; then
+      cargo run -q -p xriq-node -- serve-private \
+        --chain-file "$chain_file" \
+        --pending-file "$pending_file" \
+        --alice-balance 100 \
+        --bind "127.0.0.1:${port}"
+    else
+      cargo run -q -p xriq-node -- serve-private \
+        --chain-file "$chain_file" \
+        --alice-balance 100 \
+        --bind "127.0.0.1:${port}"
+    fi
   ) > "$log_file" 2>&1 &
   HTTP_SERVER_PID=$!
 }
@@ -287,6 +301,41 @@ require_contains "http json account detail" "$http_account_output" '"balance_bas
 
 stop_http_server
 
+HTTP_PENDING_LOG_FILE="${ARTIFACT_DIR}/http-pending-server.log"
+start_http_server "$HTTP_PENDING_CHAIN_FILE" "$HTTP_PORT" "$HTTP_PENDING_LOG_FILE" "$HTTP_PENDING_FILE"
+wait_for_http_server "$HTTP_PORT"
+
+http_pending_submit_output="$(
+  curl -fsS \
+    -X POST \
+    -H 'Content-Type: application/json' \
+    --data-binary "@${WALLET_JSON_FILE}" \
+    "http://127.0.0.1:${HTTP_PORT}/v1/mempool"
+)"
+printf '%s\n' "$http_pending_submit_output" > "$HTTP_PENDING_SUBMIT_FILE"
+require_contains "http pending submit" "$http_pending_submit_output" '"command": "transaction-detail"'
+require_contains "http pending submit" "$http_pending_submit_output" '"status": "pending"'
+require_contains "http pending submit" "$http_pending_submit_output" '"amount_base_units": "25"'
+
+http_pending_hash="$(printf '%s\n' "$http_pending_submit_output" | grep -m1 '"tx_hash"' | cut -d '"' -f4)"
+http_pending_mempool_output="$(
+  curl -fsS "http://127.0.0.1:${HTTP_PORT}/v1/mempool"
+)"
+printf '%s\n' "$http_pending_mempool_output" > "$HTTP_PENDING_MEMPOOL_FILE"
+require_contains "http pending mempool" "$http_pending_mempool_output" '"command": "mempool-detail"'
+require_contains "http pending mempool" "$http_pending_mempool_output" '"pending_count": 1'
+require_contains "http pending mempool" "$http_pending_mempool_output" '"amount_base_units": "25"'
+
+http_pending_transaction_output="$(
+  curl -fsS "http://127.0.0.1:${HTTP_PORT}/v1/transactions/${http_pending_hash}"
+)"
+printf '%s\n' "$http_pending_transaction_output" > "$HTTP_PENDING_TRANSACTION_FILE"
+require_contains "http pending transaction" "$http_pending_transaction_output" '"command": "transaction-detail"'
+require_contains "http pending transaction" "$http_pending_transaction_output" '"status": "pending"'
+require_contains "http pending transaction" "$http_pending_transaction_output" '"amount_base_units": "25"'
+
+stop_http_server
+
 echo "ok=xriq-private-devnet-smoke"
 echo "draft=${DRAFT_FILE}"
 echo "wallet_json=${WALLET_JSON_FILE}"
@@ -301,3 +350,8 @@ echo "http_json_chain=${HTTP_JSON_CHAIN_FILE}"
 echo "http_json_submit=${HTTP_JSON_SUBMIT_FILE}"
 echo "http_json_transaction=${HTTP_JSON_TRANSACTION_FILE}"
 echo "http_json_account=${HTTP_JSON_ACCOUNT_FILE}"
+echo "http_pending_chain=${HTTP_PENDING_CHAIN_FILE}"
+echo "http_pending_store=${HTTP_PENDING_FILE}"
+echo "http_pending_submit=${HTTP_PENDING_SUBMIT_FILE}"
+echo "http_pending_mempool=${HTTP_PENDING_MEMPOOL_FILE}"
+echo "http_pending_transaction=${HTTP_PENDING_TRANSACTION_FILE}"

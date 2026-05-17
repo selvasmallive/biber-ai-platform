@@ -154,6 +154,7 @@ Private-devnet submit-capable HTTP wrapper:
 ```bash
 cargo run -p xriq-node -- serve-private \
   --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
   --alice-balance 100 \
   --bind 127.0.0.1:8787
 ```
@@ -168,6 +169,7 @@ GET /v1/blocks/{height}
 GET /v1/transactions/{hash}
 GET /v1/accounts/{address}
 GET /v1/mempool
+POST /v1/mempool
 ```
 
 `GET /v1/transactions/{hash}` scans confirmed transactions in persisted blocks.
@@ -175,6 +177,12 @@ It does not report a durable pending status yet because the file-backed HTTP
 wrapper does not persist a mempool across requests. The local runner can preview
 a pending transaction from a wallet draft with
 `xriq-node transaction-detail --draft-file <path> --tx-hash <hash>`.
+
+When `serve-private` is started with `--pending-file <path>`,
+`POST /v1/mempool` accepts the same wallet draft text or JSON transfer body and
+persists it as private-devnet pending state. `GET /v1/mempool`,
+`GET /v1/chain/status`, and `GET /v1/transactions/{hash}` then include that
+durable pending state across requests and server restarts.
 
 `POST /v1/transactions` is available only through `serve-private`. It accepts
 either the existing wallet transfer draft text or a private-devnet JSON transfer

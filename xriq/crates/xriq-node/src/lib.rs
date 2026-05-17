@@ -88,6 +88,7 @@ pub struct NodeStatus {
 pub struct PrivateDevnetHttpServerConfig {
     pub bind: String,
     pub chain_file: String,
+    pub pending_file: Option<String>,
     pub alice_balance: Option<XriqAmount>,
     pub allow_transaction_submission: bool,
 }
@@ -165,6 +166,8 @@ pub enum NodeRunnerError {
     DuplicateFlag(String),
     UnexpectedArgument(String),
     DraftFileRead { path: String, error: String },
+    PendingFileRead { path: String, error: String },
+    InvalidPendingRecord(String),
     InvalidDraftLine(String),
     UnknownDraftField(String),
     DuplicateDraftField(String),
@@ -298,6 +301,12 @@ impl fmt::Display for NodeRunnerError {
             Self::DraftFileRead { path, error } => {
                 write!(formatter, "could not read draft file {path}: {error}")
             }
+            Self::PendingFileRead { path, error } => {
+                write!(formatter, "could not read pending file {path}: {error}")
+            }
+            Self::InvalidPendingRecord(record) => {
+                write!(formatter, "invalid pending transaction record: {record}")
+            }
             Self::InvalidDraftLine(line) => write!(formatter, "invalid draft line: {line}"),
             Self::UnknownDraftField(field) => write!(formatter, "unknown draft field: {field}"),
             Self::DuplicateDraftField(field) => {
@@ -355,6 +364,8 @@ impl NodeRunnerError {
             Self::DuplicateFlag(_) => "duplicate_flag",
             Self::UnexpectedArgument(_) => "unexpected_argument",
             Self::DraftFileRead { .. } => "draft_file_read",
+            Self::PendingFileRead { .. } => "pending_file_read",
+            Self::InvalidPendingRecord(_) => "invalid_pending_record",
             Self::InvalidDraftLine(_) => "invalid_draft_line",
             Self::UnknownDraftField(_) => "unknown_draft_field",
             Self::DuplicateDraftField(_) => "duplicate_draft_field",
@@ -386,8 +397,8 @@ pub fn node_help_text() -> String {
         "  xriq-node account-detail --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
-        "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>]",
-        "  xriq-node serve-private --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>]",
+        "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>]",
+        "  xriq-node serve-private --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>]",
         "",
         "Warning: this runner is for private devnet tests only. It does not start a public network.",
     ]
@@ -468,12 +479,18 @@ pub fn parse_private_devnet_http_server_config(
     allow_transaction_submission: bool,
 ) -> Result<PrivateDevnetHttpServerConfig, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
-    flags.reject_unknown(&["--bind", "--chain-file", "--alice-balance"])?;
+    flags.reject_unknown(&[
+        "--bind",
+        "--chain-file",
+        "--pending-file",
+        "--alice-balance",
+    ])?;
     let bind = flags
         .optional("--bind")
         .unwrap_or("127.0.0.1:8787")
         .to_string();
     let chain_file = flags.required("--chain-file")?.to_string();
+    let pending_file = flags.optional("--pending-file").map(str::to_string);
     let alice_balance = flags
         .optional("--alice-balance")
         .map(|value| parse_amount("--alice-balance", value))
@@ -481,6 +498,7 @@ pub fn parse_private_devnet_http_server_config(
     Ok(PrivateDevnetHttpServerConfig {
         bind,
         chain_file,
+        pending_file,
         alice_balance,
         allow_transaction_submission,
     })
@@ -526,6 +544,9 @@ pub fn private_devnet_http_response_with_body(
     if method == "POST" && path == "/v1/transactions" {
         return submit_transaction_http_response(config, body);
     }
+    if method == "POST" && path == "/v1/mempool" {
+        return submit_pending_transaction_http_response(config, body);
+    }
 
     if method != "GET" {
         return http_error_response(
@@ -538,10 +559,18 @@ pub fn private_devnet_http_response_with_body(
     match path {
         "/health" => http_json_response(200, render_private_devnet_http_health_json()),
         "/v1/chain/status" => {
-            runner_json_http_response(private_devnet_http_runner_args("status", config))
+            if let Some(pending_file) = &config.pending_file {
+                pending_status_http_response(config, pending_file)
+            } else {
+                runner_json_http_response(private_devnet_http_runner_args("status", config))
+            }
         }
         "/v1/mempool" => {
-            runner_json_http_response(private_devnet_http_runner_args("mempool-detail", config))
+            if let Some(pending_file) = &config.pending_file {
+                pending_mempool_http_response(config, pending_file)
+            } else {
+                runner_json_http_response(private_devnet_http_runner_args("mempool-detail", config))
+            }
         }
         "/v1/explorer/overview" => {
             let mut args = private_devnet_http_runner_args("explorer-overview", config);
@@ -583,7 +612,7 @@ pub fn private_devnet_http_response_with_body(
                         "transaction hash must be 64 lowercase hexadecimal characters",
                     );
                 };
-                return confirmed_transaction_http_response(config, tx_hash);
+                return transaction_detail_http_response(config, tx_hash);
             }
 
             http_error_response(404, "not_found", "private-devnet HTTP endpoint not found")
@@ -729,18 +758,140 @@ fn submit_transaction_http_response(
     }
 }
 
-fn confirmed_transaction_http_response(
+fn submit_pending_transaction_http_response(
+    config: &PrivateDevnetHttpServerConfig,
+    body: &str,
+) -> PrivateDevnetHttpResponse {
+    if !config.allow_transaction_submission {
+        return http_error_response(
+            501,
+            "not_implemented",
+            "pending transaction submission requires xriq-node serve-private",
+        );
+    }
+    if body.trim().is_empty() {
+        return http_error_response(
+            400,
+            "missing_request_body",
+            "POST /v1/mempool expects a wallet transfer draft body or private-devnet JSON transfer body",
+        );
+    }
+    let Some(pending_file) = &config.pending_file else {
+        return http_error_response(
+            501,
+            "not_implemented",
+            "durable pending transactions require --pending-file",
+        );
+    };
+
+    match private_devnet_file_submit_pending_transfer_body(
+        &config.chain_file,
+        pending_file,
+        config.alice_balance,
+        body,
+    ) {
+        Ok(detail) => http_json_response(
+            202,
+            render_transaction_detail_json(&PrivateDevnetTransactionDetail::Pending(detail)),
+        ),
+        Err(error) => {
+            let args = vec![
+                "submit-pending-transaction".to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ];
+            http_json_response(
+                node_runner_error_http_status(&error),
+                render_node_runner_error_json(&args, &error),
+            )
+        }
+    }
+}
+
+fn pending_status_http_response(
+    config: &PrivateDevnetHttpServerConfig,
+    pending_file: &str,
+) -> PrivateDevnetHttpResponse {
+    match private_devnet_file_status_with_pending_file(
+        &config.chain_file,
+        pending_file,
+        config.alice_balance,
+    ) {
+        Ok(status) => http_json_response(200, render_node_status_json("status", &status)),
+        Err(error) => {
+            let args = private_devnet_http_runner_args("status", config);
+            http_json_response(
+                node_runner_error_http_status(&error),
+                render_node_runner_error_json(&args, &error),
+            )
+        }
+    }
+}
+
+fn pending_mempool_http_response(
+    config: &PrivateDevnetHttpServerConfig,
+    pending_file: &str,
+) -> PrivateDevnetHttpResponse {
+    match private_devnet_file_mempool_detail_with_pending_file_data(
+        &config.chain_file,
+        pending_file,
+        config.alice_balance,
+    ) {
+        Ok(detail) => {
+            http_json_response(200, render_mempool_detail_json("mempool-detail", &detail))
+        }
+        Err(error) => {
+            let args = private_devnet_http_runner_args("mempool-detail", config);
+            http_json_response(
+                node_runner_error_http_status(&error),
+                render_node_runner_error_json(&args, &error),
+            )
+        }
+    }
+}
+
+fn transaction_detail_http_response(
     config: &PrivateDevnetHttpServerConfig,
     tx_hash: Hash32,
 ) -> PrivateDevnetHttpResponse {
+    if let Some(pending_file) = &config.pending_file {
+        return match private_devnet_file_transaction_detail_with_pending_file_data(
+            &config.chain_file,
+            pending_file,
+            config.alice_balance,
+            tx_hash,
+        ) {
+            Ok(detail) => http_json_response(200, render_transaction_detail_json(&detail)),
+            Err(NodeRunnerError::Explorer(ExplorerError::TransactionNotFound)) => {
+                http_error_response(
+                    404,
+                    "transaction_not_found",
+                    "transaction was not found in confirmed or pending private-devnet state",
+                )
+            }
+            Err(error) => http_json_response(
+                node_runner_error_http_status(&error),
+                render_node_runner_error_json(
+                    &[
+                        "transaction-detail".to_string(),
+                        "--format".to_string(),
+                        "json".to_string(),
+                    ],
+                    &error,
+                ),
+            ),
+        };
+    }
+
     match private_devnet_file_confirmed_transaction_detail(
         &config.chain_file,
         config.alice_balance,
         tx_hash,
     ) {
-        Ok(Some(detail)) => {
-            http_json_response(200, render_confirmed_transaction_detail_json(&detail))
-        }
+        Ok(Some(detail)) => http_json_response(
+            200,
+            render_transaction_detail_json(&PrivateDevnetTransactionDetail::Confirmed(detail)),
+        ),
         Ok(None) => http_error_response(
             404,
             "transaction_not_found",
@@ -818,6 +969,7 @@ fn http_error_response(status_code: u16, code: &str, message: &str) -> PrivateDe
 fn http_reason(status_code: u16) -> &'static str {
     match status_code {
         200 => "OK",
+        202 => "Accepted",
         400 => "Bad Request",
         404 => "Not Found",
         405 => "Method Not Allowed",
@@ -903,6 +1055,112 @@ pub fn private_devnet_file_confirmed_transaction_detail(
         }
     }
     Ok(None)
+}
+
+pub fn private_devnet_file_status_with_pending_file(
+    chain_file: impl AsRef<Path>,
+    pending_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+) -> Result<NodeStatus, NodeRunnerError> {
+    let node = private_devnet_node_with_pending_file(chain_file, pending_file, alice_balance)?;
+    Ok(node_status(&node))
+}
+
+pub fn private_devnet_file_mempool_detail_with_pending_file_data(
+    chain_file: impl AsRef<Path>,
+    pending_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+) -> Result<ExplorerMempoolDetail, NodeRunnerError> {
+    let node = private_devnet_node_with_pending_file(chain_file, pending_file, alice_balance)?;
+    let explorer = ExplorerService::new(node.rpc_service(), node.store());
+    Ok(explorer.mempool())
+}
+
+pub fn private_devnet_file_transaction_detail_with_pending_file_data(
+    chain_file: impl AsRef<Path>,
+    pending_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    tx_hash: Hash32,
+) -> Result<PrivateDevnetTransactionDetail, NodeRunnerError> {
+    if let Some(detail) = private_devnet_file_confirmed_transaction_detail(
+        chain_file.as_ref(),
+        alice_balance,
+        tx_hash,
+    )
+    .map_err(NodeRunnerError::Node)?
+    {
+        return Ok(PrivateDevnetTransactionDetail::Confirmed(detail));
+    }
+
+    let node = private_devnet_node_with_pending_file(chain_file, pending_file, alice_balance)?;
+    if let Some(entry) = node.mempool().entry(&tx_hash) {
+        return Ok(PrivateDevnetTransactionDetail::Pending(
+            PrivateDevnetPendingTransactionDetail {
+                tx_hash: entry.tx_hash,
+                status: "pending",
+                received_order: entry.received_order,
+                transaction: entry.tx.clone(),
+            },
+        ));
+    }
+
+    Err(NodeRunnerError::Explorer(
+        ExplorerError::TransactionNotFound,
+    ))
+}
+
+pub fn private_devnet_file_submit_pending_transfer_body(
+    chain_file: impl AsRef<Path>,
+    pending_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    body: &str,
+) -> Result<PrivateDevnetPendingTransactionDetail, NodeRunnerError> {
+    let genesis = private_devnet_runner_genesis(alice_balance);
+    let transfer = parse_private_devnet_transfer_body(body, &genesis.chain_id)?;
+    let mut node =
+        private_devnet_node_with_pending_file(chain_file, pending_file.as_ref(), alice_balance)?;
+    let transaction = private_devnet_runner_transaction(&node, &transfer);
+    let tx_hash = transaction_hash(&transaction);
+    node.submit_transaction(tx_hash, transaction.clone())
+        .map_err(NodeRunnerError::Node)?;
+    append_pending_transaction_record(pending_file.as_ref(), tx_hash, &transaction)?;
+    let entry = node
+        .mempool()
+        .entry(&tx_hash)
+        .expect("validated pending transaction was inserted");
+    Ok(PrivateDevnetPendingTransactionDetail {
+        tx_hash: entry.tx_hash,
+        status: "pending",
+        received_order: entry.received_order,
+        transaction: entry.tx.clone(),
+    })
+}
+
+fn private_devnet_node_with_pending_file(
+    chain_file: impl AsRef<Path>,
+    pending_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+) -> Result<XriqNode<FileChainStore>, NodeRunnerError> {
+    let store = FileChainStore::open(chain_file)
+        .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
+    let genesis = private_devnet_runner_genesis(alice_balance);
+    let mut node =
+        XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?;
+    for (tx_hash, transaction) in read_pending_transaction_records(pending_file.as_ref())? {
+        if private_devnet_file_confirmed_transaction_detail(
+            node.store().path(),
+            alice_balance,
+            tx_hash,
+        )
+        .map_err(NodeRunnerError::Node)?
+        .is_some()
+        {
+            continue;
+        }
+        node.submit_transaction(tx_hash, transaction)
+            .map_err(NodeRunnerError::Node)?;
+    }
+    Ok(node)
 }
 
 pub fn private_devnet_file_transaction_detail_data<P, D>(
@@ -1416,6 +1674,131 @@ fn parse_private_devnet_transfer_body(
     } else {
         parse_private_devnet_transfer_draft(trimmed, expected_chain_id)
     }
+}
+
+fn read_pending_transaction_records(
+    pending_file: &Path,
+) -> Result<Vec<(Hash32, Transaction)>, NodeRunnerError> {
+    if !pending_file.exists() {
+        return Ok(Vec::new());
+    }
+    let text =
+        fs::read_to_string(pending_file).map_err(|error| NodeRunnerError::PendingFileRead {
+            path: pending_file.to_string_lossy().to_string(),
+            error: error.to_string(),
+        })?;
+    let mut records = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        records.push(parse_pending_transaction_record(line)?);
+    }
+    Ok(records)
+}
+
+fn append_pending_transaction_record(
+    pending_file: &Path,
+    tx_hash: Hash32,
+    transaction: &Transaction,
+) -> Result<(), NodeRunnerError> {
+    if let Some(parent) = pending_file
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent).map_err(|error| NodeRunnerError::PendingFileRead {
+            path: pending_file.to_string_lossy().to_string(),
+            error: error.to_string(),
+        })?;
+    }
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(pending_file)
+        .map_err(|error| NodeRunnerError::PendingFileRead {
+            path: pending_file.to_string_lossy().to_string(),
+            error: error.to_string(),
+        })?;
+    writeln!(
+        file,
+        "{}",
+        render_pending_transaction_record(tx_hash, transaction)
+    )
+    .map_err(|error| NodeRunnerError::PendingFileRead {
+        path: pending_file.to_string_lossy().to_string(),
+        error: error.to_string(),
+    })
+}
+
+fn render_pending_transaction_record(tx_hash: Hash32, transaction: &Transaction) -> String {
+    [
+        "xriq-pending-transaction-v1".to_string(),
+        hash_hex(tx_hash),
+        transaction.version.to_string(),
+        transaction.chain_id.clone(),
+        transaction.from.as_str().to_string(),
+        transaction.to.as_str().to_string(),
+        transaction.amount.base_units().to_string(),
+        transaction.fee.base_units().to_string(),
+        transaction.nonce.to_string(),
+        transaction
+            .expires_at_height
+            .map(|height| height.to_string())
+            .unwrap_or_else(|| "null".to_string()),
+        bytes_hex(transaction.signature.as_slice()),
+    ]
+    .join("\t")
+}
+
+fn parse_pending_transaction_record(line: &str) -> Result<(Hash32, Transaction), NodeRunnerError> {
+    let parts: Vec<&str> = line.split('\t').collect();
+    if parts.len() != 11 {
+        return Err(NodeRunnerError::InvalidPendingRecord(line.to_string()));
+    }
+    if parts[0] != "xriq-pending-transaction-v1" {
+        return Err(NodeRunnerError::InvalidPendingRecord(line.to_string()));
+    }
+    let tx_hash = parse_hash("--pending-file", parts[1])?;
+    let version = parts[2]
+        .parse::<u16>()
+        .map_err(|_| NodeRunnerError::InvalidPendingRecord(line.to_string()))?;
+    let expires_at_height = match parts[9] {
+        "null" => None,
+        value => Some(
+            value
+                .parse::<u64>()
+                .map_err(|_| NodeRunnerError::InvalidPendingRecord(line.to_string()))?,
+        ),
+    };
+    let signature = parse_hex_bytes(parts[10])
+        .map(SignatureBytes::new)
+        .map_err(|_| NodeRunnerError::InvalidPendingRecord(line.to_string()))?;
+    let transaction = Transaction {
+        version,
+        chain_id: parts[3].to_string(),
+        from: Address::parse(parts[4])
+            .map_err(|_| NodeRunnerError::InvalidPendingRecord(line.to_string()))?,
+        to: Address::parse(parts[5])
+            .map_err(|_| NodeRunnerError::InvalidPendingRecord(line.to_string()))?,
+        amount: XriqAmount::from_base_units(
+            parts[6]
+                .parse::<u128>()
+                .map_err(|_| NodeRunnerError::InvalidPendingRecord(line.to_string()))?,
+        ),
+        fee: XriqAmount::from_base_units(
+            parts[7]
+                .parse::<u128>()
+                .map_err(|_| NodeRunnerError::InvalidPendingRecord(line.to_string()))?,
+        ),
+        nonce: parts[8]
+            .parse::<u64>()
+            .map_err(|_| NodeRunnerError::InvalidPendingRecord(line.to_string()))?,
+        memo_hash: None,
+        expires_at_height,
+        signature,
+    };
+    Ok((tx_hash, transaction))
 }
 
 fn parse_private_devnet_transfer_draft(
@@ -2206,44 +2589,6 @@ fn render_transaction_detail_json(detail: &PrivateDevnetTransactionDetail) -> St
     output
 }
 
-fn render_confirmed_transaction_detail_json(
-    detail: &PrivateDevnetConfirmedTransactionDetail,
-) -> String {
-    let mut output = String::new();
-    writeln!(&mut output, "{{").expect("write to String");
-    push_success_json_preamble(&mut output, "transaction-detail");
-    writeln!(
-        &mut output,
-        "  \"warning\": {},",
-        json_string(PRIVATE_DEVNET_RUNNER_WARNING)
-    )
-    .expect("write to String");
-    writeln!(
-        &mut output,
-        "  \"tx_hash\": {},",
-        json_string(&hash_hex(detail.tx_hash))
-    )
-    .expect("write to String");
-    writeln!(&mut output, "  \"status\": {},", json_string(detail.status))
-        .expect("write to String");
-    writeln!(&mut output, "  \"block_height\": {},", detail.block_height).expect("write to String");
-    writeln!(
-        &mut output,
-        "  \"block_hash\": {},",
-        json_string(&hash_hex(detail.block_hash))
-    )
-    .expect("write to String");
-    writeln!(
-        &mut output,
-        "  \"transaction_index\": {},",
-        detail.transaction_index
-    )
-    .expect("write to String");
-    push_transaction_json_fields(&mut output, &detail.transaction, "  ", false);
-    output.push_str("\n}");
-    output
-}
-
 fn push_transaction_text_fields(output: &mut String, transaction: &Transaction) {
     writeln!(output, "from: {}", transaction.from).expect("write to String");
     writeln!(output, "to: {}", transaction.to).expect("write to String");
@@ -2550,6 +2895,26 @@ fn parse_hash(flag: &'static str, value: &str) -> Result<Hash32, NodeRunnerError
     })
 }
 
+fn bytes_hex(bytes: &[u8]) -> String {
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        use fmt::Write;
+        write!(&mut output, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    output
+}
+
+fn parse_hex_bytes(value: &str) -> Result<Vec<u8>, ()> {
+    if !value.len().is_multiple_of(2) {
+        return Err(());
+    }
+    let mut bytes = Vec::with_capacity(value.len() / 2);
+    for chunk in value.as_bytes().chunks_exact(2) {
+        bytes.push((hex_nibble(chunk[0])? << 4) | hex_nibble(chunk[1])?);
+    }
+    Ok(bytes)
+}
+
 fn parse_amount(flag: &'static str, value: &str) -> Result<XriqAmount, NodeRunnerError> {
     Ok(XriqAmount::from_base_units(value.parse().map_err(
         |_| NodeRunnerError::InvalidNumber {
@@ -2614,6 +2979,7 @@ fn flag_to_static(flag: &str) -> &'static str {
     match flag {
         "--chain-file" => "--chain-file",
         "--draft-file" => "--draft-file",
+        "--pending-file" => "--pending-file",
         "--alice-balance" => "--alice-balance",
         "--limit" => "--limit",
         "--height" => "--height",
@@ -4327,6 +4693,7 @@ mod tests {
         let config = PrivateDevnetHttpServerConfig {
             bind: "127.0.0.1:8787".to_string(),
             chain_file: path_text,
+            pending_file: None,
             alice_balance: Some(XriqAmount::from_base_units(100)),
             allow_transaction_submission: false,
         };
@@ -4498,6 +4865,89 @@ mod tests {
         assert!(parsed.body.contains("\"command\": \"status\""));
 
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn private_devnet_http_routes_persist_pending_transactions() {
+        let path = temp_store_path();
+        let pending_path = path.with_extension("pending");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let config = PrivateDevnetHttpServerConfig {
+            bind: "127.0.0.1:8787".to_string(),
+            chain_file: path_text,
+            pending_file: Some(pending_text),
+            alice_balance: Some(XriqAmount::from_base_units(100)),
+            allow_transaction_submission: true,
+        };
+        let submit_draft = [
+            "warning=private-devnet-test-identity-only",
+            "version=1",
+            "chain_id=xriq-devnet",
+            "from=xriqdev1alice00000000000",
+            "to=xriqdev1bobbb00000000000",
+            "amount=25",
+            "fee=2",
+            "nonce=0",
+            "expires_at_height=100",
+            "signature_bytes=48",
+        ]
+        .join("\n");
+
+        let submit =
+            private_devnet_http_response_with_body(&config, "POST", "/v1/mempool", &submit_draft);
+        assert_eq!(submit.status_code, 202);
+        assert!(submit.body.contains("\"command\": \"transaction-detail\""));
+        assert!(submit.body.contains("\"status\": \"pending\""));
+        assert!(submit.body.contains("\"received_order\": 0"));
+        assert!(submit.body.contains("\"amount_base_units\": \"25\""));
+
+        let status = private_devnet_http_response(&config, "GET", "/v1/chain/status");
+        assert_eq!(status.status_code, 200);
+        assert!(status.body.contains("\"pending_transactions\": 1"));
+        assert!(status.body.contains("\"current_height\": 0"));
+
+        let mempool = private_devnet_http_response(&config, "GET", "/v1/mempool");
+        assert_eq!(mempool.status_code, 200);
+        assert!(mempool.body.contains("\"pending_count\": 1"));
+        let pending = private_devnet_file_mempool_detail_with_pending_file_data(
+            &config.chain_file,
+            config.pending_file.as_ref().unwrap(),
+            config.alice_balance,
+        )
+        .unwrap();
+        let tx_hash = pending.transactions[0].tx_hash;
+        let transaction_path = format!("/v1/transactions/{}", hash_hex(tx_hash));
+        let transaction = private_devnet_http_response(&config, "GET", &transaction_path);
+        assert_eq!(transaction.status_code, 200);
+        assert!(transaction.body.contains("\"status\": \"pending\""));
+        assert!(transaction.body.contains("\"amount_base_units\": \"25\""));
+
+        let reloaded_config = config.clone();
+        let reloaded_transaction =
+            private_devnet_http_response(&reloaded_config, "GET", &transaction_path);
+        assert_eq!(reloaded_transaction.status_code, 200);
+        assert!(reloaded_transaction
+            .body
+            .contains("\"status\": \"pending\""));
+
+        let config_without_pending = PrivateDevnetHttpServerConfig {
+            pending_file: None,
+            ..config.clone()
+        };
+        let missing_pending_file = private_devnet_http_response_with_body(
+            &config_without_pending,
+            "POST",
+            "/v1/mempool",
+            &submit_draft,
+        );
+        assert_eq!(missing_pending_file.status_code, 501);
+        assert!(missing_pending_file
+            .body
+            .contains("\"code\": \"not_implemented\""));
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
     }
 
     #[test]

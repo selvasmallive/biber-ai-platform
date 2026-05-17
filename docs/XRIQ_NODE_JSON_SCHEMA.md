@@ -313,6 +313,46 @@ Shape:
 }
 ```
 
+## Submit Durable Pending Transaction
+
+HTTP endpoint:
+
+```bash
+POST /v1/mempool
+```
+
+This endpoint is enabled only by `xriq-node serve-private` when the server is
+started with `--pending-file <path>`. It accepts the same wallet draft text or
+`xriq-node-transfer-submit-v1` JSON body as `POST /v1/transactions`, validates
+it against the replayed chain plus existing pending file contents, and appends a
+private-devnet pending record to the pending file. It does not produce a block.
+
+Success status: `202 Accepted`.
+
+The success body uses the pending transaction-detail shape:
+
+```json
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "transaction-detail",
+  "warning": "private-devnet-only-no-public-token",
+  "tx_hash": "64-hex-character-transaction-hash",
+  "status": "pending",
+  "received_order": 0,
+  "from": "xriqdev1alice00000000000",
+  "to": "xriqdev1bobbb00000000000",
+  "amount_base_units": "25",
+  "fee_base_units": "2",
+  "nonce": 0,
+  "expires_at_height": 100
+}
+```
+
+When `--pending-file` is configured, `GET /v1/mempool`,
+`GET /v1/chain/status`, and `GET /v1/transactions/{hash}` include durable
+pending state from that file. Confirmed blocks are still checked before pending
+records.
+
 ## Account Detail
 
 Command:
@@ -410,6 +450,8 @@ Current stable error codes:
 - `duplicate_flag`
 - `unexpected_argument`
 - `draft_file_read`
+- `pending_file_read`
+- `invalid_pending_record`
 - `invalid_draft_line`
 - `unknown_draft_field`
 - `duplicate_draft_field`
@@ -448,6 +490,9 @@ The script prints the artifact directory and writes these files:
 - `http-json-submit.json`
 - `http-json-transaction.json`
 - `http-json-account.json`
+- `http-pending-submit.json`
+- `http-pending-mempool.json`
+- `http-pending-transaction.json`
 
 Use these generated files as concrete examples for BIBER agents, future
 contract tests, and later HTTP/RPC adapters. They are private-devnet examples,
@@ -483,13 +528,15 @@ Implemented read-only endpoints:
 - `GET /v1/transactions/{hash}`
 - `GET /v1/accounts/{address}`
 - `GET /v1/mempool`
+- `POST /v1/mempool` when `serve-private --pending-file <path>` is used
 
 The read-only endpoints reuse the JSON bodies documented above where possible.
 HTTP-only health and wrapper errors use
 `format_version: xriq-node-http-v1`. `POST /v1/transactions` uses the success
 body documented above only when the server is started with `serve-private`;
-`serve-readonly` returns `501`. Submit-capable POST bodies may be wallet draft
-text or `xriq-node-transfer-submit-v1` JSON.
+`POST /v1/mempool` additionally requires `--pending-file`. `serve-readonly`
+returns `501` for both POST paths. Submit-capable POST bodies may be wallet
+draft text or `xriq-node-transfer-submit-v1` JSON.
 
 ## Next Schema Work
 

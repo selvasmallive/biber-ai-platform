@@ -732,12 +732,18 @@ As of 2026-05-17:
   - local private-devnet read-only HTTP wrapper through
     `xriq-node serve-readonly`, defaulting to `127.0.0.1:8787` and reusing the
     file-backed JSON runner responses for health/status/explorer/block/account
-    transaction/mempool inspection; transaction lookup covers confirmed
-    transactions in persisted blocks only
+    transaction/mempool inspection; without `--pending-file`, transaction lookup
+    covers confirmed transactions in persisted blocks only
   - local private-devnet submit-capable HTTP wrapper through
     `xriq-node serve-private`; `POST /v1/transactions` accepts either the
     wallet draft text body or a flat JSON transfer body, validates it,
     immediately produces one block, and persists it to the file-backed chain
+  - optional durable private-devnet pending HTTP state through
+    `serve-private --pending-file <path>`; `POST /v1/mempool` validates a
+    wallet draft or JSON transfer body, appends it to the pending file, and
+    lets `GET /v1/chain/status`, `GET /v1/mempool`, and
+    `GET /v1/transactions/{hash}` report pending state across requests and
+    server restarts
   - stable `--format json` output for status, block production, explorer
     overview, block detail, account detail, mempool detail, and transaction
     detail runner commands, while preserving text output as the default;
@@ -751,8 +757,8 @@ As of 2026-05-17:
     for selected wallet and node schema-drift tests
   - one-command private-devnet smoke script that validates wallet draft,
     mempool detail preview, pending and confirmed transaction detail, selected
-    JSON outputs, draft-block, explorer overview, block detail, and account
-    detail behavior against one persisted chain file, and persists
+    JSON outputs, draft-block, durable HTTP pending state, explorer overview,
+    block detail, and account detail behavior against persisted chain files, and persists
     representative JSON response examples beside the smoke artifacts for future
     BIBER agents and HTTP/RPC adapters
   - node transaction submission
