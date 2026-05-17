@@ -197,6 +197,23 @@ last broad-safe Rust/XRIQ adapter.
   - Next implementation target is `xriq-crypto` plus canonical transaction and
     block hashing, with fake wallet signatures kept test-only until the crypto
     boundary is reviewed.
+- Local XRIQ prototype progress after the Phase 3 decision checkpoint:
+  - Added `xriq/crates/xriq-crypto`.
+  - Added SHA-256 canonical transaction signing hashes, transaction hashes,
+    block-header signing hashes, block/header hashes, and transaction-list
+    roots using the RustCrypto `sha2` crate.
+  - Added explicit signature algorithm identifiers for crypto agility and a
+    `TestOnlySignatureVerifier` that accepts only hash-bound private-devnet
+    test signatures.
+  - Updated `xriq-wallet` so private-devnet transfer drafts produce
+    hash-bound test-only signatures instead of arbitrary nonempty fake bytes.
+  - This is still not production key custody or production signature
+    verification.
+  - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `78` passing tests, and
+    `cargo clippy -- -D warnings`.
+  - Vast verification is the next checkpoint after this code is committed,
+    pushed, and fast-forwarded on `/workspace/biber-ai-platform`.
 
 ## Repo State
 
@@ -1318,7 +1335,8 @@ cargo clippy -- -D warnings
    project later needs independent release/versioning. The next protocol target
    after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`,
    `xriq-rpc`, `xriq-storage`, `xriq-node`, `xriq-wallet`, and
-   `xriq-explorer` is `xriq-crypto` plus canonical transaction/block hashing.
+   `xriq-explorer` is to verify `xriq-crypto` on Vast, then wire canonical
+   hashes into node/RPC/storage APIs.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.

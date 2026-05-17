@@ -128,17 +128,34 @@ mainnet work, the project needs at least:
 - legal, tax, AML/CFT, sanctions, securities, commodities, consumer-protection,
   privacy, and cybersecurity review
 
+## Current Crypto/Hashing Checkpoint
+
+`xriq-crypto` now exists as the Phase 3 crypto boundary. It provides:
+
+- SHA-256 canonical transaction signing hashes
+- SHA-256 canonical transaction hashes
+- SHA-256 canonical block-header signing hashes
+- SHA-256 canonical block/header hashes
+- deterministic transaction-list roots over transaction hashes
+- explicit signature algorithm identifiers for crypto agility
+- a hash-bound `TestOnlySignatureVerifier` for private-devnet tests
+
+This is not production signature verification or wallet custody. The only
+accepted verifier currently implemented is test-only, and wallet drafts remain
+private-devnet-only.
+
 ## Next Engineering Step
 
-The next implementation target should be `xriq-crypto` and canonical hashing:
+The next implementation target should wire canonical hashes into the existing
+node/RPC/storage path:
 
-- add approved crypto wrapper types without custom primitives
-- keep algorithm identifiers explicit for crypto agility
-- define canonical transaction signing bytes
-- define transaction hash derivation
-- define block/header hash derivation
-- replace fake test signatures in protocol validation with a clear test-only
-  verifier boundary
+- derive transaction hashes from `xriq-crypto` instead of accepting caller
+  supplied transaction hashes in higher-level APIs where possible
+- derive block/header hashes from `xriq-crypto` when producing and importing
+  blocks
+- keep manual hash inputs only where tests need explicit fixture control
+- keep test-only signature verification separate from production crypto
+  verification
 
 Wallet private-key custody should remain test-only until the crypto and
 key-management boundary is reviewed.

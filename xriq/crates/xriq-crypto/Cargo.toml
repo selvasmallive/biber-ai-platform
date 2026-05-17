@@ -1,11 +1,11 @@
 [package]
-name = "xriq-wallet"
+name = "xriq-crypto"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "XRIQ private-devnet wallet CLI."
+description = "XRIQ canonical hashing and crypto-agility boundaries."
 
 [dependencies]
-xriq-crypto = { path = "../xriq-crypto" }
+sha2 = "0.10.8"
 xriq-core = { path = "../xriq-core" }

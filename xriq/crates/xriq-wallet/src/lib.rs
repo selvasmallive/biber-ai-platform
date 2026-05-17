@@ -6,9 +6,9 @@
 use std::fmt;
 
 use xriq_core::{Address, AddressError, SignatureBytes, Transaction, XriqAmount};
+use xriq_crypto::{test_only_signature_for_hash, transaction_signing_hash};
 
 const TEST_IDENTITY_WARNING: &str = "private-devnet-test-identity-only";
-const TEST_SIGNATURE_PREFIX: &[u8] = b"xriq-devnet-test-signature:";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TestIdentity {
@@ -155,20 +155,21 @@ pub fn generate_test_identity(label: &str) -> Result<TestIdentity, WalletError> 
 }
 
 pub fn build_test_transfer(request: TransferRequest) -> TransferDraft {
-    let signature = test_signature(&request.from, request.nonce);
+    let mut transaction = Transaction {
+        version: Transaction::SUPPORTED_VERSION,
+        chain_id: request.chain_id,
+        from: request.from,
+        to: request.to,
+        amount: request.amount,
+        fee: request.fee,
+        nonce: request.nonce,
+        memo_hash: None,
+        expires_at_height: request.expires_at_height,
+        signature: SignatureBytes::new(Vec::new()),
+    };
+    transaction.signature = test_only_signature_for_hash(transaction_signing_hash(&transaction));
     TransferDraft {
-        transaction: Transaction {
-            version: Transaction::SUPPORTED_VERSION,
-            chain_id: request.chain_id,
-            from: request.from,
-            to: request.to,
-            amount: request.amount,
-            fee: request.fee,
-            nonce: request.nonce,
-            memo_hash: None,
-            expires_at_height: request.expires_at_height,
-            signature,
-        },
+        transaction,
         warning: TEST_IDENTITY_WARNING,
     }
 }
@@ -248,14 +249,6 @@ fn is_valid_label(label: &str) -> bool {
         && label
             .chars()
             .all(|character| character.is_ascii_lowercase() || character.is_ascii_digit())
-}
-
-fn test_signature(from: &Address, nonce: u64) -> SignatureBytes {
-    let mut bytes = TEST_SIGNATURE_PREFIX.to_vec();
-    bytes.extend_from_slice(from.as_str().as_bytes());
-    bytes.extend_from_slice(b":");
-    bytes.extend_from_slice(nonce.to_string().as_bytes());
-    SignatureBytes::new(bytes)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -376,6 +369,10 @@ mod tests {
         assert_eq!(draft.transaction.nonce, 7);
         assert_eq!(draft.transaction.expires_at_height, Some(100));
         assert!(!draft.transaction.signature.is_empty());
+        assert_eq!(
+            draft.transaction.signature,
+            test_only_signature_for_hash(transaction_signing_hash(&draft.transaction))
+        );
     }
 
     #[test]
@@ -471,6 +468,6 @@ mod tests {
         assert!(output.contains("signature_bytes="));
         assert!(!output.contains("private_key"));
         assert!(!output.contains("seed"));
-        assert!(!output.contains("xriq-devnet-test-signature"));
+        assert!(!output.contains("xriq-test-only-signature"));
     }
 }

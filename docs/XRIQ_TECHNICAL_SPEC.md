@@ -489,7 +489,9 @@ Before any public network, require:
     private-devnet block import and follower validation.
 13. Revisit consensus, supply, governance, and public-readiness decisions.
     Current status: done in `docs/XRIQ_PHASE3_DECISIONS.md`.
-14. Add `xriq-crypto` and canonical transaction/block hashing.
+14. Add `xriq-crypto` and canonical transaction/block hashing. Current status:
+    done for SHA-256 canonical hashes and a test-only verifier boundary.
+15. Wire canonical hashes into node/RPC/storage APIs.
 
 ## Current Prototype Status
 
@@ -499,6 +501,7 @@ As of 2026-05-17:
 - Implemented crates:
   - `xriq/crates/xriq-core`
   - `xriq/crates/xriq-consensus`
+  - `xriq/crates/xriq-crypto`
   - `xriq/crates/xriq-explorer`
   - `xriq/crates/xriq-ledger`
   - `xriq/crates/xriq-mempool`
@@ -528,6 +531,14 @@ As of 2026-05-17:
   - producer identity from private-devnet config
   - mempool transaction selection by deterministic ordering
   - per-block transaction cap enforcement
+- Implemented crypto/hash boundary:
+  - SHA-256 canonical transaction signing hashes
+  - SHA-256 canonical transaction hashes
+  - SHA-256 canonical block-header signing hashes
+  - SHA-256 canonical block/header hashes
+  - deterministic transaction-list roots over transaction hashes
+  - explicit signature algorithm identifiers for crypto agility
+  - hash-bound `TestOnlySignatureVerifier` for private-devnet tests
 - Implemented local RPC endpoint behavior:
   - health response
   - chain status response
@@ -549,7 +560,7 @@ As of 2026-05-17:
 - Implemented private-devnet wallet CLI baseline:
   - deterministic test identity generation from labels
   - transfer draft construction
-  - fake nonempty test signatures only
+  - hash-bound test-only signatures through `xriq-crypto`
   - no real private-key, seed-phrase, or production custody support
 - Implemented private-devnet explorer baseline:
   - read-only chain overview from local RPC snapshots
@@ -560,15 +571,14 @@ As of 2026-05-17:
   - dependency-free text rendering for private-devnet inspection
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `69` passing tests.
+  - `cargo test -j 1` with `78` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification before the Phase 3 decision record:
+- Latest Vast verification before the `xriq-crypto` checkpoint:
   - `cargo fmt --check`
   - `cargo test -j 1` with `69` passing tests.
   - `cargo clippy -- -D warnings`.
 
-Next implementation target: add `xriq-crypto` and canonical transaction/block
-hashing.
+Next implementation target: wire canonical hashes into node/RPC/storage APIs.
 
 ## Open Decisions
 
@@ -578,6 +588,7 @@ hashing.
 - validator admission rules after private-devnet config
 - governance and upgrade process for any public network
 - final wallet key format
+- production signature verification algorithms and key formats
 - explorer technology stack
 - public API authentication and rate-limit model
 - legal/compliance path for any public token use
