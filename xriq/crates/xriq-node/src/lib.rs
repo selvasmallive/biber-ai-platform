@@ -4,12 +4,13 @@ use std::{fmt, path::Path};
 
 use xriq_consensus::{BlockProductionError, BlockProductionInput, SingleAuthorityProducer};
 use xriq_core::{
-    Address, AddressError, Block, BlockValidationError, GenesisConfig, GenesisConfigError, Hash32,
-    ParentHeaderView, SignatureBytes, Transaction, TransactionValidationContext,
-    TransactionValidationError, XriqAmount,
+    Address, AddressError, Block, BlockHeader, BlockValidationError, GenesisConfig,
+    GenesisConfigError, Hash32, ParentHeaderView, SignatureBytes, Transaction,
+    TransactionValidationContext, TransactionValidationError, XriqAmount,
 };
 use xriq_crypto::{
-    account_state_root, transaction_hash, transactions_root as canonical_transactions_root,
+    account_state_root, block_header_signing_hash, test_only_signature_for_hash, transaction_hash,
+    transaction_signing_hash, transactions_root as canonical_transactions_root,
     SignatureVerificationError, TestOnlySignatureVerifier,
 };
 use xriq_ledger::{LedgerError, LedgerState};
@@ -72,9 +73,18 @@ pub struct NodeStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProducedTransferBlockStatus {
+    pub transaction_hash: Hash32,
+    pub block_hash: Hash32,
+    pub applied_transactions: usize,
+    pub status: NodeStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeRunnerOutput {
     Help(String),
     Status(NodeStatus),
+    ProducedTransferBlock(ProducedTransferBlockStatus),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,11 +149,42 @@ impl fmt::Display for NodeStatus {
     }
 }
 
+impl fmt::Display for ProducedTransferBlockStatus {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(formatter, "warning={}", self.status.warning)?;
+        writeln!(
+            formatter,
+            "transaction_hash={}",
+            hash_hex(self.transaction_hash)
+        )?;
+        writeln!(formatter, "block_hash={}", hash_hex(self.block_hash))?;
+        writeln!(
+            formatter,
+            "applied_transactions={}",
+            self.applied_transactions
+        )?;
+        writeln!(formatter, "chain_id={}", self.status.chain_id)?;
+        writeln!(formatter, "current_height={}", self.status.current_height)?;
+        writeln!(
+            formatter,
+            "latest_block_hash={}",
+            hash_hex(self.status.latest_block_hash)
+        )?;
+        writeln!(
+            formatter,
+            "pending_transactions={}",
+            self.status.pending_transactions
+        )?;
+        write!(formatter, "stored_blocks={}", self.status.stored_blocks)
+    }
+}
+
 impl fmt::Display for NodeRunnerOutput {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Help(help) => formatter.write_str(help),
             Self::Status(status) => write!(formatter, "{status}"),
+            Self::ProducedTransferBlock(status) => write!(formatter, "{status}"),
         }
     }
 }
@@ -172,6 +213,7 @@ pub fn node_help_text() -> String {
     [
         "xriq-node private-devnet commands:",
         "  xriq-node status --chain-file <path> [--alice-balance <base-units>]",
+        "  xriq-node produce-transfer-block --chain-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>]",
         "",
         "Warning: this runner is for private devnet tests only. It does not start a public network.",
     ]
@@ -191,6 +233,7 @@ where
         None => Err(NodeRunnerError::MissingCommand),
         Some("help" | "--help" | "-h") => Ok(NodeRunnerOutput::Help(node_help_text())),
         Some("status") => run_status_command(&args[1..]),
+        Some("produce-transfer-block") => run_produce_transfer_block_command(&args[1..]),
         Some(command) => Err(NodeRunnerError::UnknownCommand(command.to_string())),
     }
 }
@@ -205,6 +248,28 @@ pub fn private_devnet_file_status(
     Ok(node_status(&node))
 }
 
+pub fn private_devnet_file_produce_transfer_block(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    transfer: PrivateDevnetTransferInput,
+) -> Result<ProducedTransferBlockStatus, NodeError> {
+    let store = FileChainStore::open(chain_file).map_err(NodeError::Storage)?;
+    let genesis = private_devnet_runner_genesis(alice_balance);
+    let mut node = XriqNode::from_genesis_replaying_store(&genesis, store)?;
+    let transaction = private_devnet_runner_transaction(&node, &transfer);
+    let transaction_hash = node.submit_transaction_with_canonical_hash(transaction)?;
+    let produced = node.produce_next_block_with_private_devnet_signature(
+        transfer.timestamp_ms,
+        transfer.consensus_round,
+    )?;
+    Ok(ProducedTransferBlockStatus {
+        transaction_hash,
+        block_hash: produced.block_hash,
+        applied_transactions: produced.applied_transactions,
+        status: node_status(&node),
+    })
+}
+
 fn run_status_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
     flags.reject_unknown(&["--chain-file", "--alice-balance"])?;
@@ -216,6 +281,85 @@ fn run_status_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerErr
     private_devnet_file_status(chain_file, alice_balance)
         .map(NodeRunnerOutput::Status)
         .map_err(NodeRunnerError::Node)
+}
+
+fn run_produce_transfer_block_command(
+    args: &[String],
+) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--alice-balance",
+        "--from",
+        "--to",
+        "--amount",
+        "--fee",
+        "--nonce",
+        "--expires-at-height",
+        "--timestamp-ms",
+        "--consensus-round",
+    ])?;
+    let chain_file = flags.required("--chain-file")?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let transfer = PrivateDevnetTransferInput {
+        from: parse_address("--from", flags.required("--from")?)?,
+        to: parse_address("--to", flags.required("--to")?)?,
+        amount: parse_amount("--amount", flags.required("--amount")?)?,
+        fee: parse_amount("--fee", flags.required("--fee")?)?,
+        nonce: parse_u64("--nonce", flags.required("--nonce")?)?,
+        expires_at_height: flags
+            .optional("--expires-at-height")
+            .map(|value| parse_u64("--expires-at-height", value))
+            .transpose()?,
+        timestamp_ms: flags
+            .optional("--timestamp-ms")
+            .map(|value| parse_u64("--timestamp-ms", value))
+            .transpose()?
+            .unwrap_or(1_000),
+        consensus_round: flags
+            .optional("--consensus-round")
+            .map(|value| parse_u64("--consensus-round", value))
+            .transpose()?
+            .unwrap_or(0),
+    };
+    private_devnet_file_produce_transfer_block(chain_file, alice_balance, transfer)
+        .map(NodeRunnerOutput::ProducedTransferBlock)
+        .map_err(NodeRunnerError::Node)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateDevnetTransferInput {
+    pub from: Address,
+    pub to: Address,
+    pub amount: XriqAmount,
+    pub fee: XriqAmount,
+    pub nonce: u64,
+    pub expires_at_height: Option<u64>,
+    pub timestamp_ms: u64,
+    pub consensus_round: u64,
+}
+
+fn private_devnet_runner_transaction<S: ChainStore>(
+    node: &XriqNode<S>,
+    transfer: &PrivateDevnetTransferInput,
+) -> Transaction {
+    let mut transaction = Transaction {
+        version: Transaction::SUPPORTED_VERSION,
+        chain_id: node.ledger().config().chain_id.clone(),
+        from: transfer.from.clone(),
+        to: transfer.to.clone(),
+        amount: transfer.amount,
+        fee: transfer.fee,
+        nonce: transfer.nonce,
+        memo_hash: None,
+        expires_at_height: transfer.expires_at_height,
+        signature: SignatureBytes::new(Vec::new()),
+    };
+    transaction.signature = test_only_signature_for_hash(transaction_signing_hash(&transaction));
+    transaction
 }
 
 fn private_devnet_runner_genesis(alice_balance: Option<XriqAmount>) -> GenesisConfig {
@@ -241,6 +385,17 @@ fn node_status<S: ChainStore>(node: &XriqNode<S>) -> NodeStatus {
         pending_transactions: chain_status.pending_transactions,
         stored_blocks: node.store().len(),
     }
+}
+
+fn parse_address(_flag: &'static str, value: &str) -> Result<Address, NodeRunnerError> {
+    Address::parse(value).map_err(NodeRunnerError::InvalidAddress)
+}
+
+fn parse_u64(flag: &'static str, value: &str) -> Result<u64, NodeRunnerError> {
+    value.parse().map_err(|_| NodeRunnerError::InvalidNumber {
+        flag,
+        value: value.to_string(),
+    })
 }
 
 fn parse_amount(flag: &'static str, value: &str) -> Result<XriqAmount, NodeRunnerError> {
@@ -307,6 +462,14 @@ fn flag_to_static(flag: &str) -> &'static str {
     match flag {
         "--chain-file" => "--chain-file",
         "--alice-balance" => "--alice-balance",
+        "--from" => "--from",
+        "--to" => "--to",
+        "--amount" => "--amount",
+        "--fee" => "--fee",
+        "--nonce" => "--nonce",
+        "--expires-at-height" => "--expires-at-height",
+        "--timestamp-ms" => "--timestamp-ms",
+        "--consensus-round" => "--consensus-round",
         _ => "--flag",
     }
 }
@@ -476,6 +639,57 @@ impl<S: ChainStore> XriqNode<S> {
             consensus_round: input.consensus_round,
             signature: input.signature,
         })
+    }
+
+    pub fn produce_next_block_with_private_devnet_signature(
+        &mut self,
+        timestamp_ms: u64,
+        consensus_round: u64,
+    ) -> Result<ProducedBlock, NodeError> {
+        let (state_root, transactions_root) = self.next_canonical_roots()?;
+        let height = self
+            .ledger
+            .current_height()
+            .checked_add(1)
+            .ok_or(NodeError::Header(BlockValidationError::HeightOverflow))?;
+        let header = BlockHeader {
+            version: BlockHeader::SUPPORTED_VERSION,
+            chain_id: self.ledger.config().chain_id.clone(),
+            height,
+            previous_block_hash: self.latest_block_hash,
+            state_root,
+            transactions_root,
+            timestamp_ms,
+            producer: self.producer.config().producer.clone(),
+            consensus_round,
+            signature: SignatureBytes::new(Vec::new()),
+        };
+        let signature = test_only_signature_for_hash(block_header_signing_hash(&header));
+        self.produce_next_block_with_canonical_roots(ProduceNextBlockCanonicalRootsInput {
+            timestamp_ms,
+            consensus_round,
+            signature,
+        })
+    }
+
+    fn next_canonical_roots(&self) -> Result<(Hash32, Hash32), NodeError> {
+        let transactions: Vec<Transaction> = self
+            .mempool
+            .ordered_entries()
+            .into_iter()
+            .take(self.producer.config().max_transactions_per_block)
+            .map(|entry| entry.tx.clone())
+            .collect();
+        let mut next_ledger = self.ledger.clone();
+        for transaction in &transactions {
+            next_ledger
+                .apply_transaction(transaction)
+                .map_err(NodeError::Ledger)?;
+        }
+        Ok((
+            account_state_root(&next_ledger.state_root_entries()),
+            canonical_transactions_root(&transactions),
+        ))
     }
 
     fn produce_next_block_inner(
@@ -1144,6 +1358,135 @@ mod tests {
         assert!(output.contains("warning=private-devnet-only-no-public-token"));
         assert!(output.contains("current_height=1"));
         assert!(output.contains("stored_blocks=1"));
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn node_runner_produces_transfer_block_and_replays_file_store() {
+        let path = temp_store_path();
+        let path_text = path.to_string_lossy().to_string();
+
+        let output = run_node_command([
+            "produce-transfer-block",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1bobbb00000000000",
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--expires-at-height",
+            "100",
+            "--timestamp-ms",
+            "1000",
+        ])
+        .unwrap();
+        let produced = match output {
+            NodeRunnerOutput::ProducedTransferBlock(produced) => produced,
+            other => panic!("unexpected output: {other:?}"),
+        };
+
+        assert_eq!(produced.applied_transactions, 1);
+        assert_eq!(produced.status.current_height, 1);
+        assert_eq!(produced.status.latest_block_hash, produced.block_hash);
+        assert_eq!(produced.status.pending_transactions, 0);
+        assert_eq!(produced.status.stored_blocks, 1);
+
+        let reloaded = XriqNode::from_genesis_replaying_store(
+            &genesis(),
+            FileChainStore::open(&path).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(reloaded.latest_block_hash(), produced.block_hash);
+        assert_eq!(
+            reloaded
+                .ledger()
+                .account(&address("alice"))
+                .unwrap()
+                .balance,
+            XriqAmount::from_base_units(73)
+        );
+        assert_eq!(
+            reloaded
+                .ledger()
+                .account(&address("bobbb"))
+                .unwrap()
+                .balance,
+            XriqAmount::from_base_units(25)
+        );
+
+        let status_output = run_node_command([
+            "status",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+        ])
+        .unwrap();
+        assert_eq!(
+            status_output,
+            NodeRunnerOutput::Status(NodeStatus {
+                warning: PRIVATE_DEVNET_RUNNER_WARNING,
+                chain_id: "xriq-devnet".to_string(),
+                current_height: 1,
+                latest_block_hash: produced.block_hash,
+                pending_transactions: 0,
+                stored_blocks: 1,
+            })
+        );
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn node_runner_rejects_bad_transfer_without_persisting_block() {
+        let path = temp_store_path();
+        let path_text = path.to_string_lossy().to_string();
+
+        assert_eq!(
+            run_node_command([
+                "produce-transfer-block",
+                "--chain-file",
+                path_text.as_str(),
+                "--alice-balance",
+                "100",
+                "--from",
+                "xriqdev1alice00000000000",
+                "--to",
+                "xriqdev1bobbb00000000000",
+                "--amount",
+                "25",
+                "--fee",
+                "2",
+                "--nonce",
+                "7",
+            ]),
+            Err(NodeRunnerError::Node(NodeError::Transaction(
+                TransactionValidationError::InvalidNonce {
+                    expected: 0,
+                    actual: 7,
+                }
+            )))
+        );
+        assert_eq!(
+            private_devnet_file_status(&path, Some(XriqAmount::from_base_units(100))).unwrap(),
+            NodeStatus {
+                warning: PRIVATE_DEVNET_RUNNER_WARNING,
+                chain_id: "xriq-devnet".to_string(),
+                current_height: 0,
+                latest_block_hash: hash(0),
+                pending_transactions: 0,
+                stored_blocks: 0,
+            }
+        );
 
         let _ = fs::remove_file(path);
     }

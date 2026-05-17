@@ -510,8 +510,9 @@ Before any public network, require:
     for rebuilding ledger height, account state, and latest tip from persisted
     canonical blocks. Snapshot checkpointing remains deferred.
 20. Wire replay startup into a local node runner path. Current status: done for
-    a private-devnet `xriq-node status --chain-file <path>` command. HTTP/RPC
-    serving remains deferred.
+    private-devnet `xriq-node status --chain-file <path>` and
+    `xriq-node produce-transfer-block --chain-file <path> ...` commands.
+    HTTP/RPC serving remains deferred.
 
 ## Current Prototype Status
 
@@ -594,6 +595,10 @@ As of 2026-05-17:
   - append-only local file store for block persistence and reload
   - deterministic startup replay through `XriqNode::from_genesis_replaying_store`
   - local private-devnet runner status command backed by replay startup
+  - local private-devnet runner transfer/block command that creates a
+    hash-bound test transaction, submits it through node validation, produces a
+    canonical-root block with a hash-bound test block signature, persists it,
+    and makes the result replayable from the chain file
   - node transaction submission
   - node transaction submission rejects invalid hash-bound test-only signatures
     before mempool insert
@@ -626,18 +631,21 @@ As of 2026-05-17:
   - dependency-free text rendering for private-devnet inspection
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `107` passing tests.
+  - `cargo test -j 1` with `109` passing tests.
   - `cargo clippy -- -D warnings`.
   - `cargo run -p xriq-node -- status --chain-file target/xriq-node-smoke-chain.bin`.
+  - `cargo run -p xriq-node -- produce-transfer-block --chain-file target/xriq-node-transfer-smoke-chain-20260517-codex.bin --alice-balance 100 --from xriqdev1alice00000000000 --to xriqdev1bobbb00000000000 --amount 25 --fee 2 --nonce 0 --expires-at-height 100 --timestamp-ms 1000`.
+  - `cargo run -p xriq-node -- status --chain-file target/xriq-node-transfer-smoke-chain-20260517-codex.bin --alice-balance 100`.
 - Latest Vast verification:
   - `cargo fmt --check`
   - `cargo test -j 1` with `107` passing tests.
   - `cargo clippy -- -D warnings`.
   - `cargo run -p xriq-node -- status --chain-file target/xriq-node-smoke-chain.bin`.
 
-Next implementation target: add a minimal local transaction-submit or
-block-produce runner command so wallet drafts can move through node state
-without a full HTTP server yet.
+Next implementation target: add a small local explorer/status runner over the
+persisted chain file, or wire wallet transfer drafts into the node runner with
+a structured draft-file input. Keep HTTP/RPC serving deferred until the local
+file-backed workflow is comfortable.
 
 ## Open Decisions
 
