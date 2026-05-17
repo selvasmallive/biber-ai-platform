@@ -111,8 +111,9 @@ last broad-safe Rust/XRIQ adapter.
   - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
     `cargo test` with `40` passing tests, and
     `cargo clippy -- -D warnings`.
-  - Vast has not yet been re-verified with `xriq-rpc` unless a later entry in
-    this handoff says so.
+  - Vast checkout was fast-forwarded to include `xriq-rpc`; Vast Rust
+    verification also passed with `cargo fmt --check`, `cargo test` with `40`
+    passing tests, and `cargo clippy -- -D warnings`.
 
 ## Repo State
 
@@ -598,9 +599,9 @@ last broad-safe Rust/XRIQ adapter.
   - latest local Rust test result: `40` passed.
   - latest local clippy validation passed:
     `cd xriq && cargo clippy -- -D warnings`.
-  - latest Vast Rust validation before `xriq-rpc` passed with the toolchain
-    stored under `/workspace`: `cargo fmt --check`, `cargo test` with `34`
-    passing tests, and `cargo clippy -- -D warnings`.
+  - latest Vast Rust validation passed with the toolchain stored under
+    `/workspace`: `cargo fmt --check`, `cargo test` with `40` passing tests,
+    and `cargo clippy -- -D warnings`.
   - Installed the `clippy` Rust component into `/workspace/.rustup` and updated
     `scripts/vast_install_rust_toolchain.sh` so future Rust setup includes it.
   - No Vast GPU/model training was needed for this step.
