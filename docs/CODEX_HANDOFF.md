@@ -63,9 +63,9 @@ As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Last XRIQ implementation commit pushed and Vast-verified:
-  `b2080a2 Add XRIQ confirmed transaction HTTP lookup`.
+  `f9f4c6b Add XRIQ wallet draft HTTP submission`.
 - Vast checkout was fast-forwarded and Rust/script/HTTP-smoke verified through
-  `b2080a2`.
+  `f9f4c6b`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -677,6 +677,43 @@ serving the last broad-safe Rust/XRIQ adapter.
     `400`.
   - Latest smoke artifacts on Vast:
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T161332Z-24264`.
+- Local XRIQ prototype progress after the wallet-draft HTTP submission
+  checkpoint:
+  - Added `xriq-node serve-private` as the submit-capable private-devnet HTTP
+    mode while preserving `xriq-node serve-readonly` as read-only.
+  - `POST /v1/transactions` in `serve-private` accepts the existing wallet
+    transfer draft text body emitted by `xriq-wallet transfer`, validates it
+    against the replayed chain state, immediately produces one block, and
+    persists that block to the configured chain file.
+  - `serve-readonly` still returns `501 not_implemented` for
+    `POST /v1/transactions`.
+  - This is an MVP submit-and-block helper, not a production mempool API.
+    Durable pending transaction status and JSON transaction submission remain
+    future work.
+  - Updated `xriq/README.md`, `docs/XRIQ_NODE_JSON_SCHEMA.md`, and
+    `docs/XRIQ_TECHNICAL_SPEC.md` with the `serve-private` command and wallet
+    draft POST contract.
+  - Local Windows verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -p xriq-node -j 1` with `35` passing node tests,
+    `cargo test -j 1` with `117` passing workspace tests using
+    `CARGO_TARGET_DIR=target-codex-submit`, and
+    `cargo clippy -- -D warnings`.
+  - Vast checkout was fast-forwarded to `f9f4c6b`; Vast verification passed
+    with `cargo fmt --check`, `cargo test -j 1` with `117` passing tests,
+    `cargo clippy -- -D warnings`, a live `serve-private` wallet-draft POST
+    smoke against `127.0.0.1:18795`, and
+    `bash scripts/xriq_private_devnet_smoke.sh`.
+  - Live Vast HTTP submit smoke used:
+    `/workspace/biber-ai-platform/xriq/target/xriq-http-submit-smoke-chain-20260517T162821Z-25111.bin`
+    and draft:
+    `/workspace/biber-ai-platform/xriq/target/xriq-http-submit-smoke-draft-20260517T162821Z-25111.txt`.
+    It verified `POST /v1/transactions` returned `submit-transaction` and
+    `current_height: 1`, the returned transaction hash
+    `fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565`
+    was retrievable through `GET /v1/transactions/{hash}` as `confirmed`, and
+    Alice's account balance became `73`.
+  - Latest smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T162821Z-25143`.
 
 ## Repo State
 
@@ -1879,13 +1916,13 @@ cargo clippy -- -D warnings
    `xriq-node explorer-overview`, `xriq-node block-detail`,
    `xriq-node account-detail`, and `xriq-node mempool-detail` runner commands,
    `scripts/xriq_private_devnet_smoke.sh`,
-   `xriq-node serve-readonly`, and
+   `xriq-node serve-readonly`, `xriq-node serve-private`, and
    `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`, is to keep the local
-   file-backed workflow small and deterministic. Add transaction submission
-   over HTTP, durable pending transaction status, snapshot/replay improvements,
-   or checked schema fixtures only when they directly help the private-devnet
-   MVP. Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
-   market-facing work remain blocked.
+   file-backed workflow small and deterministic. Add durable pending
+   transaction status, JSON transaction submission, snapshot/replay
+   improvements, or checked schema fixtures only when they directly help the
+   private-devnet MVP. Public XRIQ launch, exchange listing, custody,
+   liquidity, bridges, and market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
