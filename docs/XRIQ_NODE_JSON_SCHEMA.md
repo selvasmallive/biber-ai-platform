@@ -267,9 +267,29 @@ Current stable error codes:
 - `explorer_error`
 - `node_error`
 
+## Smoke Artifact Examples
+
+The private-devnet smoke script persists representative JSON responses under
+its artifact directory:
+
+```bash
+bash scripts/xriq_private_devnet_smoke.sh
+```
+
+The script prints the artifact directory and writes these files:
+
+- `mempool-detail.json`
+- `explorer-overview.json`
+- `account-detail.json`
+- `status-error.json`
+
+Use these generated files as concrete examples for BIBER agents, future
+contract tests, and later HTTP/RPC adapters. They are private-devnet examples,
+not public API fixtures.
+
 ## Next Schema Work
 
 Before exposing these shapes through HTTP/RPC, add:
 
 - explicit schema tests if the JSON surface grows beyond this small contract
-- response examples generated from the smoke script artifacts
+- optional checked-in fixtures only if consumers need stable golden files

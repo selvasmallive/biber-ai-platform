@@ -9,6 +9,10 @@ SMOKE_ID="${XRIQ_SMOKE_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 ARTIFACT_DIR="${XRIQ_SMOKE_ARTIFACT_DIR:-${XRIQ_DIR}/target/xriq-private-devnet-smoke-${SMOKE_ID}}"
 DRAFT_FILE="${ARTIFACT_DIR}/wallet-transfer-draft.txt"
 CHAIN_FILE="${ARTIFACT_DIR}/chain.bin"
+MEMPOOL_JSON_FILE="${ARTIFACT_DIR}/mempool-detail.json"
+OVERVIEW_JSON_FILE="${ARTIFACT_DIR}/explorer-overview.json"
+ACCOUNT_JSON_FILE="${ARTIFACT_DIR}/account-detail.json"
+STATUS_ERROR_JSON_FILE="${ARTIFACT_DIR}/status-error.json"
 
 require_contains() {
   local label="$1"
@@ -65,6 +69,7 @@ mempool_json_output="$(
     --alice-balance 100 \
     --format json
 )"
+printf '%s\n' "$mempool_json_output" > "$MEMPOOL_JSON_FILE"
 require_contains "mempool-detail json" "$mempool_json_output" '"format_version": "xriq-node-json-v1"'
 require_contains "mempool-detail json" "$mempool_json_output" '"command": "mempool-detail"'
 require_contains "mempool-detail json" "$mempool_json_output" '"pending_count": 1'
@@ -99,6 +104,7 @@ overview_json_output="$(
     --limit 5 \
     --format json
 )"
+printf '%s\n' "$overview_json_output" > "$OVERVIEW_JSON_FILE"
 require_contains "explorer-overview json" "$overview_json_output" '"command": "explorer-overview"'
 require_contains "explorer-overview json" "$overview_json_output" '"latest_blocks": ['
 require_contains "explorer-overview json" "$overview_json_output" '"height": 1'
@@ -133,6 +139,7 @@ account_json_output="$(
     --address xriqdev1alice00000000000 \
     --format json
 )"
+printf '%s\n' "$account_json_output" > "$ACCOUNT_JSON_FILE"
 require_contains "account-detail json" "$account_json_output" '"command": "account-detail"'
 require_contains "account-detail json" "$account_json_output" '"address": "xriqdev1alice00000000000"'
 require_contains "account-detail json" "$account_json_output" '"balance_base_units": "73"'
@@ -142,6 +149,7 @@ set +e
 json_error_output="$(run_xriq -p xriq-node -- status --format json 2>&1)"
 json_error_status=$?
 set -e
+printf '%s\n' "$json_error_output" > "$STATUS_ERROR_JSON_FILE"
 if [ "$json_error_status" -eq 0 ]; then
   echo "error=status json error unexpectedly succeeded" >&2
   printf '%s\n' "$json_error_output" >&2
@@ -155,3 +163,7 @@ require_contains "status json error" "$json_error_output" '"message": "missing r
 echo "ok=xriq-private-devnet-smoke"
 echo "draft=${DRAFT_FILE}"
 echo "chain=${CHAIN_FILE}"
+echo "mempool_json=${MEMPOOL_JSON_FILE}"
+echo "overview_json=${OVERVIEW_JSON_FILE}"
+echo "account_json=${ACCOUNT_JSON_FILE}"
+echo "status_error_json=${STATUS_ERROR_JSON_FILE}"

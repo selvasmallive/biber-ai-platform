@@ -716,7 +716,8 @@ As of 2026-05-17:
   - one-command private-devnet smoke script that validates wallet draft,
     mempool detail preview, selected JSON outputs, draft-block, explorer
     overview, block detail, and account detail behavior against one persisted
-    chain file
+    chain file, and persists representative JSON response examples beside the
+    smoke artifacts for future BIBER agents and HTTP/RPC adapters
   - node transaction submission
   - node transaction submission rejects invalid hash-bound test-only signatures
     before mempool insert
@@ -787,6 +788,9 @@ As of 2026-05-17:
     `account-detail` text output through the same smoke path.
   - `bash scripts/xriq_private_devnet_smoke.sh`, which wrote artifacts under
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T154848Z-22177`.
+  - The smoke artifact directory includes generated JSON examples for
+    mempool detail, explorer overview, account detail, and the status error
+    response.
 
 Next implementation target: keep the local file-backed workflow small and
 deterministic. Add response examples from smoke artifacts, minimal HTTP/RPC
