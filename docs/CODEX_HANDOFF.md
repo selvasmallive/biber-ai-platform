@@ -473,6 +473,11 @@ the current GPU-backed direct vLLM/FastAPI state.
     validation, and block-header validation.
   - local validation passed: `cd xriq && cargo fmt --check && cargo test`.
   - Rust test result: `15` passed.
+  - local clippy validation passed: `cd xriq && cargo clippy -- -D warnings`.
+  - Vast Rust validation passed with the toolchain stored under `/workspace`:
+    `cargo fmt --check`, `cargo test`, and `cargo clippy -- -D warnings`.
+  - Installed the `clippy` Rust component into `/workspace/.rustup` and updated
+    `scripts/vast_install_rust_toolchain.sh` so future Rust setup includes it.
   - No Vast GPU/model training was needed for this step.
 
 ## Live Vast.ai Deployment Status

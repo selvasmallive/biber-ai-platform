@@ -18,6 +18,11 @@ if command -v cargo >/dev/null 2>&1 && command -v rustfmt >/dev/null 2>&1; then
   cargo --version
   rustc --version
   rustfmt --version
+  if ! cargo clippy --version >/dev/null 2>&1; then
+    log "Installing Rust clippy component"
+    rustup component add clippy
+  fi
+  cargo clippy --version
   exit 0
 fi
 
@@ -29,9 +34,10 @@ trap 'rm -f "$RUSTUP_INIT"' EXIT
 
 log "Installing Rust toolchain '${RUST_TOOLCHAIN}' under ${BIBER_RUNTIME_ROOT}"
 curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs -o "$RUSTUP_INIT"
-sh "$RUSTUP_INIT" -y --profile minimal --default-toolchain "$RUST_TOOLCHAIN" --component rustfmt
+sh "$RUSTUP_INIT" -y --profile minimal --default-toolchain "$RUST_TOOLCHAIN" --component rustfmt --component clippy
 
 log "Rust toolchain installed"
 cargo --version
 rustc --version
 rustfmt --version
+cargo clippy --version

@@ -148,7 +148,11 @@ Goal: build a local-only XRIQ node prototype.
   validation, and block-header validation.
 - Local validation command:
   `cd xriq && cargo fmt --check && cargo test`.
-- Latest local result: `15` Rust unit tests passed.
+- Latest local result: `15` Rust unit tests passed and
+  `cargo clippy -- -D warnings` passed.
+- Latest Vast result: `cargo fmt --check`, `cargo test`, and
+  `cargo clippy -- -D warnings` passed using the Rust toolchain under
+  `/workspace/.cargo` and `/workspace/.rustup`.
 - Build minimal crates for:
   - core types
   - transaction validation

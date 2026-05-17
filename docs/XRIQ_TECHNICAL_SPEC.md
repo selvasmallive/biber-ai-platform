@@ -419,6 +419,11 @@ As of 2026-05-17:
 - Local verification:
   - `cargo fmt --check`
   - `cargo test` with `15` passing tests.
+  - `cargo clippy -- -D warnings`.
+- Vast verification:
+  - `cargo fmt --check`
+  - `cargo test` with `15` passing tests.
+  - `cargo clippy -- -D warnings`.
 
 Next implementation target: add `xriq-ledger` for account balances, nonces, and
 deterministic transaction application.
