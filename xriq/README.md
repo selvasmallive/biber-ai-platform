@@ -94,5 +94,8 @@ One-command private-devnet smoke from the repo root:
 bash scripts/xriq_private_devnet_smoke.sh
 ```
 
+This is a Bash script. On Windows workstations without Git Bash or a WSL
+distribution, run it on the Vast workspace after `git pull`.
+
 Keep generated chain data, node databases, wallets, and testnet artifacts out of
 Git.

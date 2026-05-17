@@ -670,9 +670,11 @@ As of 2026-05-17:
   - `cargo run -p xriq-node -- explorer-overview --chain-file target/xriq-node-draft-smoke-chain-20260517-codex.bin --alice-balance 100 --limit 5`.
   - `cargo run -p xriq-node -- block-detail --chain-file target/xriq-node-detail-smoke-chain-20260517-codex.bin --alice-balance 100 --height 1`.
   - `cargo run -p xriq-node -- account-detail --chain-file target/xriq-node-detail-smoke-chain-20260517-codex.bin --alice-balance 100 --address xriqdev1alice00000000000`.
-  - `bash -n scripts/xriq_private_devnet_smoke.sh`.
-  - `CARGO_TARGET_DIR=target-codex-smoke bash scripts/xriq_private_devnet_smoke.sh`.
+  - Local Windows Bash execution is unavailable on this workstation because
+    `bash.exe` maps to WSL and no WSL distribution is installed; Bash script
+    verification is therefore recorded under Vast verification.
 - Latest Vast verification:
+  - `bash -n scripts/xriq_private_devnet_smoke.sh`.
   - `cargo fmt --check`
   - `cargo test -j 1` with `114` passing tests.
   - `cargo clippy -- -D warnings`.
@@ -681,6 +683,8 @@ As of 2026-05-17:
   - `cargo run -p xriq-node -- explorer-overview --chain-file target/xriq-node-detail-smoke-chain-1779009178.bin --alice-balance 100 --limit 5`.
   - `cargo run -p xriq-node -- block-detail --chain-file target/xriq-node-detail-smoke-chain-1779009178.bin --alice-balance 100 --height 1`.
   - `cargo run -p xriq-node -- account-detail --chain-file target/xriq-node-detail-smoke-chain-1779009178.bin --alice-balance 100 --address xriqdev1alice00000000000`.
+  - `bash scripts/xriq_private_devnet_smoke.sh`, which wrote artifacts under
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T142125Z-19189`.
 
 Next implementation target: add a read-only pending/mempool detail runner over
 file-backed or local in-process private-devnet state only if it directly helps

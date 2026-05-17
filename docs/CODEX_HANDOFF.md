@@ -27,8 +27,8 @@ As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Last XRIQ implementation commit pushed and Vast-verified:
-  `f00e881 Add XRIQ file detail runners`.
-- Vast checkout was fast-forwarded and Rust-verified through `f00e881`.
+  `0789724 Add XRIQ private devnet smoke script`.
+- Vast checkout was fast-forwarded and Rust/script-verified through `0789724`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -408,6 +408,28 @@ serving the last broad-safe Rust/XRIQ adapter.
     tests, `cargo clippy -- -D warnings`, wallet draft generation,
     draft-block production, explorer overview replay, block detail, and account
     detail.
+- Local XRIQ prototype progress after the file-detail runner checkpoint:
+  - Added `scripts/xriq_private_devnet_smoke.sh` as the compact one-command
+    private-devnet smoke path.
+  - The script chains wallet draft generation, draft-block production, explorer
+    overview, block detail, and account detail against one persisted chain file
+    under `xriq/target/`.
+  - Added `.gitattributes` so Bash scripts keep LF line endings across Windows
+    and Vast checkouts.
+  - Local Windows Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `114` passing tests, and
+    `cargo clippy -- -D warnings`, using `CARGO_TARGET_DIR=target-codex-smoke`
+    to avoid default target binary locks.
+  - Local Windows Bash execution is unavailable because `bash.exe` maps to WSL
+    and no WSL distribution is installed, so Bash script verification happened
+    on Vast.
+  - Vast checkout was fast-forwarded to `0789724`; Vast verification passed
+    with `bash -n scripts/xriq_private_devnet_smoke.sh`,
+    `cargo fmt --check`, `cargo test -j 1` with `114` passing tests,
+    `cargo clippy -- -D warnings`, and
+    `bash scripts/xriq_private_devnet_smoke.sh`.
+  - Latest smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T142125Z-19189`.
 
 ## Repo State
 
@@ -1598,14 +1620,14 @@ cargo clippy -- -D warnings
    after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`,
    `xriq-rpc`, `xriq-storage`, `xriq-node`, `xriq-wallet`, and
    `xriq-explorer`, canonical hash API wiring, genesis/root strategy,
-   deterministic replay startup, and the local `xriq-node status`,
+   deterministic replay startup, the local `xriq-node status`,
    `xriq-node produce-transfer-block`, `xriq-node produce-draft-block`,
    `xriq-node explorer-overview`, `xriq-node block-detail`, and
-   `xriq-node account-detail` runner commands is to add a compact local smoke
-   script that chains wallet draft generation, draft-block production, explorer
-   overview, block detail, and account detail over one persisted chain file.
-   HTTP/RPC serving and snapshot checkpointing can wait until the local
-   file-backed workflow is comfortable.
+   `xriq-node account-detail` runner commands, and
+   `scripts/xriq_private_devnet_smoke.sh`, is to add read-only pending/mempool
+   detail runner coverage only if it directly helps the MVP workflow. HTTP/RPC
+   serving and snapshot checkpointing can wait until the local file-backed
+   workflow is comfortable.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
