@@ -131,6 +131,25 @@ curl -X POST http://localhost:8000/v1/chat \
   }'
 ```
 
+OpenAI mentor review is optional and costed. Configure `BIBER_MENTOR_ENABLED`,
+`OPENAI_API_KEY`, and `OPENAI_MODEL` on the server, then opt in per prompt with
+the phrase `Review with OpenAI mentor`:
+
+```bash
+curl -X POST http://localhost:8000/v1/chat \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "language": "Rust",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Review with OpenAI mentor: Review this XRIQ wallet signing plan."
+      }
+    ]
+  }'
+```
+
 To use the older queue-only starter behavior:
 
 ```bash

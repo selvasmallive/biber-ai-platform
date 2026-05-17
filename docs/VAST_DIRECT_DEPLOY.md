@@ -81,6 +81,10 @@ HF_TOKEN=<optional-huggingface-token>
 
 Keep `.env` out of git.
 
+When mentor credentials are configured, BIBER still calls OpenAI only for
+prompts that include `Review with OpenAI mentor`; routine prompts stay on the
+local Vast GPU path.
+
 ---
 
 ## 3. Useful Commands

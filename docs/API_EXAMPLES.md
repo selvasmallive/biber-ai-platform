@@ -42,6 +42,28 @@ curl -X POST http://localhost:8000/v1/chat \
   -d '{
     "message": "Create a FastAPI endpoint for health check",
     "queue_only": true
+}'
+```
+
+## Request OpenAI Mentor Review
+
+Set `BIBER_MENTOR_ENABLED=true`, `OPENAI_API_KEY`, and `OPENAI_MODEL` on the
+server first. BIBER calls OpenAI only when the prompt includes the explicit
+trigger phrase `Review with OpenAI mentor`.
+
+```bash
+curl -X POST http://localhost:8000/v1/chat \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "language": "Rust",
+    "task_type": "security_review",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Review with OpenAI mentor: Review this XRIQ transaction validation design."
+      }
+    ]
   }'
 ```
 

@@ -742,6 +742,15 @@ last broad-safe Rust/XRIQ adapter.
   - Future agent-client work should move toward database-backed API keys,
     repo-agent sessions, patch-oriented responses, streaming, usage logging, and
     explicit mentor review gates.
+- Added explicit OpenAI mentor trigger plumbing:
+  - `OPENAI_API_KEY` must stay server-side in `.env` or a secret manager; do
+    not commit it, train on it, or send it to the local model.
+  - When `BIBER_MENTOR_ENABLED=true`, `OPENAI_API_KEY` is present, and
+    `OPENAI_MODEL` is set, BIBER calls the OpenAI Responses API only if a user
+    prompt includes `Review with OpenAI mentor`.
+  - Routine inference still stays on the local Vast GPU-backed model, and
+    `use_mentor=false` disables the mentor call even if the phrase appears.
+  - Local Python verification passed with `pytest`: `27` tests.
 - Started and expanded the Rust private-devnet prototype workspace:
   - workspace path: `xriq/`.
   - implemented crates:
@@ -1425,7 +1434,10 @@ cargo clippy -- -D warnings
 18. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
 19. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
-20. Add optional OpenAI mentor credentials if desired and cost-approved.
+20. Add optional OpenAI mentor credentials to the server-side `.env` only if
+    desired and cost-approved. The code path is already gated by
+    `BIBER_MENTOR_ENABLED=true`, `OPENAI_API_KEY`, `OPENAI_MODEL`, and the
+    prompt phrase `Review with OpenAI mentor`.
 21. Add database-backed API keys and agent-client sessions per
     `docs/BIBER_AGENT_API_AND_MENTOR_STRATEGY.md`.
 22. Add a durable fine-grained GitHub token to Vast `.env` if persistent

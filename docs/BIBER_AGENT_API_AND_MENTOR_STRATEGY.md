@@ -163,6 +163,19 @@ BIBER_MENTOR_ENABLED=false
 ```
 
 Enable it only when the user explicitly chooses the extra quality/cost tradeoff.
+Even when `BIBER_MENTOR_ENABLED=true`, `OPENAI_API_KEY` is configured, and
+`OPENAI_MODEL` is set, BIBER should call OpenAI only when a user prompt includes
+the exact opt-in phrase:
+
+```text
+Review with OpenAI mentor
+```
+
+This keeps routine inference on the local Vast GPU while preserving an explicit
+quality-review path for high-value architecture, security, cryptography, and
+XRIQ design checkpoints. Store `OPENAI_API_KEY` only in the server-side
+environment or secret manager; never commit it, send it to the local model, or
+place it in training data.
 
 ## Training Improvement Loop
 

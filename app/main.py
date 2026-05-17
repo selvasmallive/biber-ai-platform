@@ -17,7 +17,7 @@ from app.github_client import (
     GitHubSaveError,
     GitHubSaveTarget,
 )
-from app.llm import BiberChatService
+from app.llm import BiberChatService, MENTOR_TRIGGER_PHRASE
 from app.scheduler import scheduler
 
 app = FastAPI(
@@ -134,6 +134,7 @@ def runtime_status(auth=Depends(require_api_key)):
         "chat_mode": settings.chat_mode,
         "mentor_enabled": settings.mentor_enabled,
         "mentor_configured": bool(settings.openai_api_key and settings.openai_model),
+        "mentor_trigger_phrase": MENTOR_TRIGGER_PHRASE,
         "github_configured": bool(settings.github_token),
         "azure_backup_configured": bool(settings.azure_storage_connection_string),
     }

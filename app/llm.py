@@ -12,6 +12,8 @@ BIBER_SYSTEM_PROMPT = """You are biber-dev-core, BIBER's private software develo
 Produce practical, secure, maintainable code. Prefer clear file names, concise explanations,
 and tests when the task changes behavior. Do not claim production readiness without evidence."""
 
+MENTOR_TRIGGER_PHRASE = "Review with OpenAI mentor"
+
 
 @dataclass(frozen=True)
 class ModelResult:
@@ -65,6 +67,88 @@ class OpenAICompatibleClient:
         return ModelResult(content=content, raw=data)
 
 
+class OpenAIResponsesClient:
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        model: str,
+        api_key: str,
+        timeout_seconds: float = 90,
+    ) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._model = model
+        self._api_key = api_key
+        self._timeout_seconds = timeout_seconds
+
+    async def chat(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float,
+        max_tokens: int | None,
+    ) -> ModelResult:
+        headers = {
+            "authorization": f"Bearer {self._api_key}",
+            "content-type": "application/json",
+        }
+        instructions, input_text = self._split_messages(messages)
+        payload: dict[str, Any] = {
+            "model": self._model,
+            "input": input_text,
+            "store": False,
+            "temperature": temperature,
+        }
+        if instructions:
+            payload["instructions"] = instructions
+        if max_tokens:
+            payload["max_output_tokens"] = max_tokens
+
+        async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
+            response = await client.post(
+                f"{self._base_url}/responses",
+                headers=headers,
+                json=payload,
+            )
+            response.raise_for_status()
+
+        data = response.json()
+        return ModelResult(content=self._extract_response_text(data), raw=data)
+
+    @staticmethod
+    def _split_messages(messages: list[dict[str, str]]) -> tuple[str, str]:
+        instructions: list[str] = []
+        inputs: list[str] = []
+        for message in messages:
+            role = message.get("role", "user")
+            content = message.get("content", "")
+            if role in {"system", "developer"}:
+                instructions.append(content)
+            else:
+                inputs.append(f"{role}: {content}")
+        return "\n\n".join(instructions), "\n\n".join(inputs)
+
+    @staticmethod
+    def _extract_response_text(data: dict[str, Any]) -> str:
+        output_text = data.get("output_text")
+        if isinstance(output_text, str) and output_text:
+            return output_text
+
+        parts: list[str] = []
+        for item in data.get("output", []):
+            if not isinstance(item, dict):
+                continue
+            for content in item.get("content", []):
+                if not isinstance(content, dict):
+                    continue
+                text = content.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+        if parts:
+            return "\n".join(parts)
+        raise KeyError("OpenAI Responses API response did not include output text")
+
+
 class BiberChatService:
     def __init__(self) -> None:
         self._local = OpenAICompatibleClient(
@@ -74,7 +158,7 @@ class BiberChatService:
         )
         self._mentor = None
         if settings.mentor_enabled and settings.openai_api_key and settings.openai_model:
-            self._mentor = OpenAICompatibleClient(
+            self._mentor = OpenAIResponsesClient(
                 base_url=settings.openai_base_url,
                 model=settings.openai_model,
                 api_key=settings.openai_api_key,
@@ -103,7 +187,7 @@ class BiberChatService:
             mentor_notes=None,
         )
 
-        if use_mentor and self._mentor:
+        if use_mentor and self._mentor and self._has_mentor_trigger(messages):
             mentor_notes = await self._get_mentor_notes(messages, language, task_type)
             local_messages = self._build_local_messages(
                 messages=messages,
@@ -174,3 +258,11 @@ class BiberChatService:
             if message.get("role") == "user":
                 return message.get("content", "")
         return messages[-1].get("content", "") if messages else ""
+
+    @staticmethod
+    def _has_mentor_trigger(messages: list[dict[str, str]]) -> bool:
+        trigger = MENTOR_TRIGGER_PHRASE.casefold()
+        return any(
+            message.get("role") == "user" and trigger in message.get("content", "").casefold()
+            for message in messages
+        )

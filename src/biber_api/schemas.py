@@ -68,5 +68,6 @@ class RuntimeStatus(BaseModel):
     local_model_base_url: str
     mentor_enabled: bool
     mentor_configured: bool
+    mentor_trigger_phrase: str
     github_configured: bool
     azure_backup_configured: bool

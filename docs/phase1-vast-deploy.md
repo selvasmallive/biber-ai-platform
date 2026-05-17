@@ -56,7 +56,9 @@ GITHUB_TOKEN=<optional-github-token>
 AZURE_STORAGE_CONNECTION_STRING=<optional-azure-blob-connection-string>
 ```
 
-Keep `BIBER_MENTOR_ENABLED=false` if you want all prompts to stay on the GPU-only path.
+Keep `BIBER_MENTOR_ENABLED=false` if you want all prompts to stay on the
+GPU-only path. When mentor credentials are configured, BIBER still calls OpenAI
+only for prompts that include `Review with OpenAI mentor`.
 
 ## 4. Run Directly Without Docker
 

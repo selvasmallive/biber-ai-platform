@@ -14,7 +14,7 @@ from .github import (
     GitHubDisabled,
     GitHubSaveError,
 )
-from .llm import BiberChatService
+from .llm import BiberChatService, MENTOR_TRIGGER_PHRASE
 from .schemas import (
     AzureBackupRequest,
     AzureBackupResponse,
@@ -55,6 +55,7 @@ async def runtime_status(settings: BiberSettings = Depends(get_settings)) -> Run
         local_model_base_url=settings.local_model_base_url,
         mentor_enabled=settings.mentor_enabled,
         mentor_configured=bool(settings.openai_api_key and settings.openai_model),
+        mentor_trigger_phrase=MENTOR_TRIGGER_PHRASE,
         github_configured=bool(settings.github_token),
         azure_backup_configured=bool(settings.azure_storage_connection_string),
     )
