@@ -86,9 +86,13 @@ Current baseline as of 2026-05-16:
   expectations, `5/6` cargo validators.
 - Remaining Rust/XRIQ failure: `rust_xriq_mempool_insert` omitted
   `use std::collections::HashSet;`.
-- Broad 18-prompt eval after Rust/XRIQ retraining was started but not
-  confirmed because the SSH command timed out and subsequent SSH attempts
-  returned `Permission denied (publickey)`.
+- Broad 18-prompt eval after Rust/XRIQ retraining:
+  `/workspace/outputs/evals/biber-dev-core-lora-20260517T000637Z.summary.json`.
+- Broad post-training result: `18/18` responses and `18/18` simple expectation
+  checks.
+- The Rust/XRIQ adapter is the current confirmed live candidate because it
+  improved the Rust/XRIQ cargo baseline while preserving the broad regression
+  baseline.
 
 ## Phase 2: XRIQ Technical Specification
 

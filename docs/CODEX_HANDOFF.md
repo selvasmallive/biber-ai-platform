@@ -422,11 +422,18 @@ the current GPU-backed direct vLLM/FastAPI state.
     expectations, `5/6` cargo validators.
   - Remaining Rust/XRIQ weak spot: `rust_xriq_mempool_insert` still omitted
     `use std::collections::HashSet;`, causing `cargo check` failure.
-  - A broad 18-prompt eval was started afterward, but this Codex session's SSH
-    command timed out after 15 minutes and the result was not confirmed.
-  - After that timeout, SSH to `70.30.158.46:61995` began returning
-    `Permission denied (publickey)` with the known key. Verify the current Vast
-    SSH host/port/key mapping in the Vast UI before continuing.
+  - A first broad 18-prompt eval attempt after Rust/XRIQ retraining wrote
+    `/workspace/outputs/evals/biber-dev-core-lora-20260517T000202Z.summary.json`
+    with `0/18` responses because FastAPI was not listening yet
+    (`Connection refused`). Treat that as an infrastructure failure, not a
+    model-quality result.
+  - After restarting services with the Rust/XRIQ adapter, the confirmed broad
+    18-prompt eval passed:
+    `/workspace/outputs/evals/biber-dev-core-lora-20260517T000637Z.summary.json`.
+  - Confirmed broad result after Rust/XRIQ retraining: `18/18` responses and
+    `18/18` simple expectation checks.
+  - Confirmed detailed broad JSONL:
+    `/workspace/outputs/evals/biber-dev-core-lora-20260517T000637Z.jsonl`.
 
 ## Live Vast.ai Deployment Status
 
@@ -577,13 +584,13 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
   - produced by a 100-step, two-epoch QLoRA run over the first 400 records of
     the Rust/XRIQ-targeted 1000-record dataset.
   - last confirmed served live as `biber-dev-core`.
-- Current broad live eval baseline before Rust/XRIQ retraining:
+- Current broad live eval baseline after Rust/XRIQ retraining:
   - runner: `bash scripts/vast_eval_lora_direct.sh`
   - result: `18/18` responses, `18/18` simple expectation checks passed.
   - summary:
-    `/workspace/outputs/evals/biber-dev-core-lora-20260516T192652Z.summary.json`
+    `/workspace/outputs/evals/biber-dev-core-lora-20260517T000637Z.summary.json`
   - detailed JSONL:
-    `/workspace/outputs/evals/biber-dev-core-lora-20260516T192652Z.jsonl`
+    `/workspace/outputs/evals/biber-dev-core-lora-20260517T000637Z.jsonl`
   - quality caveat: the current runner checks simple expected substrings or
     regexes. Treat the score as a regression signal, then add stronger
     execution/type/lint validators before trusting it as a quality score.
@@ -597,9 +604,9 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
     `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260516T200642Z.jsonl`
   - remaining failure: missing `use std::collections::HashSet;` in
     `rust_xriq_mempool_insert`.
-- Broad eval after Rust/XRIQ retraining is not confirmed. It was started from
-  this Codex session, but the SSH command timed out after 15 minutes. After the
-  timeout, SSH began returning `Permission denied (publickey)`.
+- The Rust/XRIQ adapter is the current confirmed live candidate: it improved the
+  Rust/XRIQ cargo baseline from `2/6` to `5/6` while preserving the broad
+  `18/18` regression baseline.
 - The current serving process holds about 14 GB on each 16 GB GPU. Before
   starting another QLoRA run on this instance, stop the direct services with
   `bash scripts/vast_stop_direct.sh`, or run training on a separate GPU.
@@ -962,24 +969,17 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-1. Restore/verify SSH access to the Vast instance. The last known connection
-   `70.30.158.46:61995` with key
-   `C:\Users\vselv\.ssh\biber_vast_ed25519` began returning
-   `Permission denied (publickey)` after the broad-eval SSH timeout. Check the
-   Vast UI for the current SSH host/port and whether the instance was restarted
-   or replaced.
-2. Once SSH works, inspect whether the broad eval completed or left partial
-   artifacts under `/workspace/outputs/evals`, then rerun the 18-prompt broad
-   eval in `tmux` or with a longer timeout:
-   `bash scripts/vast_eval_lora_direct.sh`.
-3. Compare the broad eval result for
-   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` against the previous
-   `18/18` broad baseline before declaring the Rust/XRIQ adapter the permanent
-   live winner.
-4. For Rust/XRIQ, the new adapter improved cargo validators from `2/6` to
-   `5/6`. Add or adjust targeted Rust examples for the remaining missing
-   `HashSet` import failure, then train again only if the broad baseline is not
-   regressed or if the user explicitly prioritizes Rust over the broad score.
+1. Fast-forward the Vast checkout to GitHub `main` after this handoff update is
+   pushed:
+   `cd /workspace/biber-ai-platform && git pull --ff-only origin main`.
+2. Treat `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` as the current
+   confirmed live candidate. It improved Rust/XRIQ cargo validators from `2/6`
+   to `5/6` and preserved the broad `18/18` baseline.
+3. Add or adjust targeted Rust examples for the remaining missing
+   `use std::collections::HashSet;` failure in `rust_xriq_mempool_insert`.
+4. Train again only if the next Rust/XRIQ eval still shows repeatable Rust gaps
+   or if the user explicitly prioritizes Rust improvement over spending time on
+   the next capability domain.
 5. Use BIBER AI for XRIQ through inference first: spec drafting, Rust module
    scaffolding, tests, review prompts, and private-devnet tooling. Fine-tune
    only after Rust/XRIQ evals show repeatable gaps.
