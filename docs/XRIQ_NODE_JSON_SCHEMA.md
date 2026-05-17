@@ -399,6 +399,57 @@ Shape:
 }
 ```
 
+## Preflight Transfer Flow
+
+Command:
+
+```bash
+cargo run -p xriq-node -- preflight-transfer \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --alice-balance 100 \
+  --from xriqdev1alice00000000000 \
+  --to xriqdev1bobbb00000000000 \
+  --amount 25 \
+  --fee 2 \
+  --expires-at-height 100 \
+  --timestamp-ms 1000 \
+  --format json
+```
+
+This is a private-devnet client/wallet preflight helper. It checks the sender
+account balance and nonce, builds a deterministic test-only transfer with the
+current account nonce, submits it to the durable pending file, produces one
+block, compacts the pending file, and verifies the transaction is confirmed.
+It is not production key management or a public transaction API.
+
+Shape:
+
+```json
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "preflight-transfer",
+  "warning": "private-devnet-only-no-public-token",
+  "from": "xriqdev1alice00000000000",
+  "to": "xriqdev1bobbb00000000000",
+  "amount_base_units": "25",
+  "fee_base_units": "2",
+  "preflight_balance_base_units": "100",
+  "preflight_nonce": 0,
+  "transaction_hash": "64-hex-character-transaction-hash",
+  "block_hash": "64-hex-character-block-hash",
+  "confirmed_block_height": 1,
+  "confirmed_transaction_index": 0,
+  "final_balance_base_units": "73",
+  "final_nonce": 1,
+  "chain_id": "xriq-devnet",
+  "current_height": 1,
+  "latest_block_hash": "64-hex-character-block-hash",
+  "pending_transactions": 0,
+  "stored_blocks": 1
+}
+```
+
 ## Account Detail
 
 Command:
@@ -542,6 +593,8 @@ The script prints the artifact directory and writes these files:
 - `http-pending-produce.json`
 - `http-pending-mempool-after-produce.json`
 - `http-pending-confirmed-transaction.json`
+- `preflight-transfer.json`
+- `preflight-transaction.json`
 
 Use these generated files as concrete examples for BIBER agents, future
 contract tests, and later HTTP/RPC adapters. They are private-devnet examples,

@@ -117,6 +117,22 @@ cargo run -p xriq-node -- produce-pending-block \
   --timestamp-ms 1000
 ```
 
+Private-devnet client preflight transfer smoke:
+
+```bash
+cargo run -p xriq-node -- preflight-transfer \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --alice-balance 100 \
+  --from xriqdev1alice00000000000 \
+  --to xriqdev1bobbb00000000000 \
+  --amount 25 \
+  --fee 2 \
+  --expires-at-height 100 \
+  --timestamp-ms 1000 \
+  --format json
+```
+
 Private-devnet wallet JSON submit body:
 
 ```bash

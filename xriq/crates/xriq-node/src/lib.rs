@@ -129,6 +129,23 @@ pub struct ProducedPendingBlockStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateDevnetPreflightTransferStatus {
+    pub from: Address,
+    pub to: Address,
+    pub amount: XriqAmount,
+    pub fee: XriqAmount,
+    pub preflight_balance: XriqAmount,
+    pub preflight_nonce: u64,
+    pub transaction_hash: Hash32,
+    pub block_hash: Hash32,
+    pub confirmed_block_height: u64,
+    pub confirmed_transaction_index: usize,
+    pub final_balance: XriqAmount,
+    pub final_nonce: u64,
+    pub status: NodeStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateDevnetConfirmedTransactionDetail {
     pub tx_hash: Hash32,
     pub status: &'static str,
@@ -158,6 +175,7 @@ pub enum NodeRunnerOutput {
     Status(NodeStatus),
     ProducedTransferBlock(ProducedTransferBlockStatus),
     ProducedPendingBlock(ProducedPendingBlockStatus),
+    PreflightTransfer(PrivateDevnetPreflightTransferStatus),
     ExplorerOverview(String),
     BlockDetail(String),
     AccountDetail(String),
@@ -314,6 +332,57 @@ impl fmt::Display for ProducedPendingBlockStatus {
     }
 }
 
+impl fmt::Display for PrivateDevnetPreflightTransferStatus {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(formatter, "warning={}", self.status.warning)?;
+        writeln!(formatter, "from={}", self.from)?;
+        writeln!(formatter, "to={}", self.to)?;
+        writeln!(formatter, "amount={}", self.amount.base_units())?;
+        writeln!(formatter, "fee={}", self.fee.base_units())?;
+        writeln!(
+            formatter,
+            "preflight_balance={}",
+            self.preflight_balance.base_units()
+        )?;
+        writeln!(formatter, "preflight_nonce={}", self.preflight_nonce)?;
+        writeln!(
+            formatter,
+            "transaction_hash={}",
+            hash_hex(self.transaction_hash)
+        )?;
+        writeln!(formatter, "block_hash={}", hash_hex(self.block_hash))?;
+        writeln!(
+            formatter,
+            "confirmed_block_height={}",
+            self.confirmed_block_height
+        )?;
+        writeln!(
+            formatter,
+            "confirmed_transaction_index={}",
+            self.confirmed_transaction_index
+        )?;
+        writeln!(
+            formatter,
+            "final_balance={}",
+            self.final_balance.base_units()
+        )?;
+        writeln!(formatter, "final_nonce={}", self.final_nonce)?;
+        writeln!(formatter, "chain_id={}", self.status.chain_id)?;
+        writeln!(formatter, "current_height={}", self.status.current_height)?;
+        writeln!(
+            formatter,
+            "latest_block_hash={}",
+            hash_hex(self.status.latest_block_hash)
+        )?;
+        writeln!(
+            formatter,
+            "pending_transactions={}",
+            self.status.pending_transactions
+        )?;
+        write!(formatter, "stored_blocks={}", self.status.stored_blocks)
+    }
+}
+
 impl fmt::Display for NodeRunnerOutput {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -321,6 +390,7 @@ impl fmt::Display for NodeRunnerOutput {
             Self::Status(status) => write!(formatter, "{status}"),
             Self::ProducedTransferBlock(status) => write!(formatter, "{status}"),
             Self::ProducedPendingBlock(status) => write!(formatter, "{status}"),
+            Self::PreflightTransfer(status) => write!(formatter, "{status}"),
             Self::ExplorerOverview(overview) => formatter.write_str(overview),
             Self::BlockDetail(detail)
             | Self::AccountDetail(detail)
@@ -437,6 +507,7 @@ pub fn node_help_text() -> String {
         "  xriq-node produce-transfer-block --chain-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node produce-draft-block --chain-file <path> --draft-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node produce-pending-block --chain-file <path> --pending-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
+        "  xriq-node preflight-transfer --chain-file <path> --pending-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node explorer-overview --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node block-detail --chain-file <path> --height <height> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node account-detail --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
@@ -511,6 +582,7 @@ where
         Some("produce-transfer-block") => run_produce_transfer_block_command(&args[1..]),
         Some("produce-draft-block") => run_produce_draft_block_command(&args[1..]),
         Some("produce-pending-block") => run_produce_pending_block_command(&args[1..]),
+        Some("preflight-transfer") => run_preflight_transfer_command(&args[1..]),
         Some("explorer-overview") => run_explorer_overview_command(&args[1..]),
         Some("block-detail") => run_block_detail_command(&args[1..]),
         Some("account-detail") => run_account_detail_command(&args[1..]),
@@ -1414,6 +1486,105 @@ pub fn private_devnet_file_produce_pending_block(
     })
 }
 
+pub fn private_devnet_file_preflight_transfer(
+    chain_file: impl AsRef<Path>,
+    pending_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    input: PrivateDevnetPreflightTransferInput,
+) -> Result<PrivateDevnetPreflightTransferStatus, NodeRunnerError> {
+    let (preflight_account, transaction_hash, transfer_body) = {
+        let node = private_devnet_node_with_pending_file(
+            chain_file.as_ref(),
+            pending_file.as_ref(),
+            alice_balance,
+        )?;
+        let preflight_account = node
+            .ledger()
+            .account(&input.from)
+            .ok_or(NodeRunnerError::Node(NodeError::MissingSender))?;
+        let transfer = PrivateDevnetTransferInput {
+            from: input.from.clone(),
+            to: input.to.clone(),
+            amount: input.amount,
+            fee: input.fee,
+            nonce: preflight_account.nonce,
+            expires_at_height: input.expires_at_height,
+            timestamp_ms: input.timestamp_ms,
+            consensus_round: input.consensus_round,
+        };
+        let transaction = private_devnet_runner_transaction(&node, &transfer);
+        let transaction_hash = transaction_hash(&transaction);
+        (
+            preflight_account,
+            transaction_hash,
+            render_pending_preflight_transfer_body(&transaction),
+        )
+    };
+
+    let pending_detail = private_devnet_file_submit_pending_transfer_body(
+        chain_file.as_ref(),
+        pending_file.as_ref(),
+        alice_balance,
+        &transfer_body,
+    )?;
+    if pending_detail.tx_hash != transaction_hash {
+        return Err(NodeRunnerError::Explorer(
+            ExplorerError::TransactionNotFound,
+        ));
+    }
+
+    let produced = private_devnet_file_produce_pending_block(
+        chain_file.as_ref(),
+        pending_file.as_ref(),
+        alice_balance,
+        input.timestamp_ms,
+        input.consensus_round,
+    )?;
+    if !produced
+        .included_transaction_hashes
+        .contains(&transaction_hash)
+    {
+        return Err(NodeRunnerError::Explorer(
+            ExplorerError::TransactionNotFound,
+        ));
+    }
+
+    let confirmed = match private_devnet_file_transaction_detail_with_pending_file_data(
+        chain_file.as_ref(),
+        pending_file.as_ref(),
+        alice_balance,
+        transaction_hash,
+    )? {
+        PrivateDevnetTransactionDetail::Confirmed(detail) => detail,
+        PrivateDevnetTransactionDetail::Pending(_) => {
+            return Err(NodeRunnerError::Explorer(
+                ExplorerError::TransactionNotFound,
+            ));
+        }
+    };
+    let final_account = private_devnet_file_account_detail_data(
+        chain_file.as_ref(),
+        alice_balance,
+        input.from.clone(),
+    )?;
+
+    Ok(PrivateDevnetPreflightTransferStatus {
+        from: input.from,
+        to: input.to,
+        amount: input.amount,
+        fee: input.fee,
+        preflight_balance: preflight_account.balance,
+        preflight_nonce: preflight_account.nonce,
+        transaction_hash,
+        block_hash: produced.block_hash,
+        confirmed_block_height: confirmed.block_height,
+        confirmed_transaction_index: confirmed.transaction_index,
+        final_balance: final_account.balance,
+        final_nonce: final_account.nonce,
+        status: produced.status,
+    })
+}
+
 pub fn private_devnet_file_submit_transfer_body(
     chain_file: impl AsRef<Path>,
     alice_balance: Option<XriqAmount>,
@@ -1690,6 +1861,68 @@ fn run_transaction_detail_command(args: &[String]) -> Result<NodeRunnerOutput, N
     })
 }
 
+fn run_preflight_transfer_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--pending-file",
+        "--alice-balance",
+        "--from",
+        "--to",
+        "--amount",
+        "--fee",
+        "--expires-at-height",
+        "--timestamp-ms",
+        "--consensus-round",
+        "--format",
+    ])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let chain_file = flags.required("--chain-file")?;
+    let pending_file = flags.required("--pending-file")?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let from = parse_address("--from", flags.required("--from")?)?;
+    let to = parse_address("--to", flags.required("--to")?)?;
+    let amount = parse_amount("--amount", flags.required("--amount")?)?;
+    let fee = parse_amount("--fee", flags.required("--fee")?)?;
+    let expires_at_height = flags
+        .optional("--expires-at-height")
+        .map(|value| parse_u64("--expires-at-height", value))
+        .transpose()?;
+    let timestamp_ms = flags
+        .optional("--timestamp-ms")
+        .map(|value| parse_u64("--timestamp-ms", value))
+        .transpose()?
+        .unwrap_or(1_000);
+    let consensus_round = flags
+        .optional("--consensus-round")
+        .map(|value| parse_u64("--consensus-round", value))
+        .transpose()?
+        .unwrap_or(0);
+    private_devnet_file_preflight_transfer(
+        chain_file,
+        pending_file,
+        alice_balance,
+        PrivateDevnetPreflightTransferInput {
+            from,
+            to,
+            amount,
+            fee,
+            expires_at_height,
+            timestamp_ms,
+            consensus_round,
+        },
+    )
+    .map(|status| match output_format {
+        RunnerOutputFormat::Text => NodeRunnerOutput::PreflightTransfer(status),
+        RunnerOutputFormat::Json => {
+            NodeRunnerOutput::Json(render_preflight_transfer_status_json(&status))
+        }
+    })
+}
+
 fn run_produce_pending_block_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
     flags.reject_unknown(&[
@@ -1840,6 +2073,17 @@ pub struct PrivateDevnetTransferInput {
     pub consensus_round: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateDevnetPreflightTransferInput {
+    pub from: Address,
+    pub to: Address,
+    pub amount: XriqAmount,
+    pub fee: XriqAmount,
+    pub expires_at_height: Option<u64>,
+    pub timestamp_ms: u64,
+    pub consensus_round: u64,
+}
+
 fn private_devnet_runner_transaction<S: ChainStore>(
     node: &XriqNode<S>,
     transfer: &PrivateDevnetTransferInput,
@@ -1858,6 +2102,28 @@ fn private_devnet_runner_transaction<S: ChainStore>(
     };
     transaction.signature = test_only_signature_for_hash(transaction_signing_hash(&transaction));
     transaction
+}
+
+fn render_pending_preflight_transfer_body(transaction: &Transaction) -> String {
+    [
+        "warning=private-devnet-test-identity-only".to_string(),
+        format!("version={}", transaction.version),
+        format!("chain_id={}", transaction.chain_id),
+        format!("from={}", transaction.from),
+        format!("to={}", transaction.to),
+        format!("amount={}", transaction.amount.base_units()),
+        format!("fee={}", transaction.fee.base_units()),
+        format!("nonce={}", transaction.nonce),
+        format!(
+            "expires_at_height={}",
+            transaction
+                .expires_at_height
+                .map(|height| height.to_string())
+                .unwrap_or_default()
+        ),
+        format!("signature_bytes={}", transaction.signature.as_slice().len()),
+    ]
+    .join("\n")
 }
 
 fn read_private_devnet_transfer_draft(
@@ -2607,6 +2873,88 @@ fn render_produced_pending_block_status_json(
         status.applied_transactions
     )
     .expect("write to String");
+    push_node_status_json_fields_without_warning(&mut output, &status.status, "  ", false);
+    output.push_str("\n}");
+    output
+}
+
+fn render_preflight_transfer_status_json(status: &PrivateDevnetPreflightTransferStatus) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_success_json_preamble(&mut output, "preflight-transfer");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(status.status.warning)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"from\": {},",
+        json_string(status.from.as_str())
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"to\": {},",
+        json_string(status.to.as_str())
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"amount_base_units\": {},",
+        json_string(&status.amount.base_units().to_string())
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"fee_base_units\": {},",
+        json_string(&status.fee.base_units().to_string())
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"preflight_balance_base_units\": {},",
+        json_string(&status.preflight_balance.base_units().to_string())
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"preflight_nonce\": {},",
+        status.preflight_nonce
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"transaction_hash\": {},",
+        json_string(&hash_hex(status.transaction_hash))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"block_hash\": {},",
+        json_string(&hash_hex(status.block_hash))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"confirmed_block_height\": {},",
+        status.confirmed_block_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"confirmed_transaction_index\": {},",
+        status.confirmed_transaction_index
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"final_balance_base_units\": {},",
+        json_string(&status.final_balance.base_units().to_string())
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"final_nonce\": {},", status.final_nonce).expect("write to String");
     push_node_status_json_fields_without_warning(&mut output, &status.status, "  ", false);
     output.push_str("\n}");
     output
@@ -3897,6 +4245,16 @@ mod tests {
         .unwrap();
     }
 
+    fn hash_hex_from_json_field(json: &str, field: &str) -> Hash32 {
+        let needle = format!("\"{field}\": \"");
+        let value_start = json.find(&needle).expect("json field exists") + needle.len();
+        let value_end = json[value_start..]
+            .find('"')
+            .map(|offset| value_start + offset)
+            .expect("json string field closes");
+        parse_hash_hex(&json[value_start..value_end]).expect("json field is hash hex")
+    }
+
     #[test]
     fn builds_node_from_genesis_config() {
         let node = node();
@@ -4365,6 +4723,66 @@ mod tests {
             }
             other => panic!("unexpected transaction detail: {other:?}"),
         }
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn node_runner_preflight_transfer_submits_produces_and_confirms() {
+        let path = temp_store_path();
+        let pending_path = path.with_extension("pending");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+
+        let output = run_node_command([
+            "preflight-transfer",
+            "--chain-file",
+            path_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1bobbb00000000000",
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--expires-at-height",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+        let json = output.to_string();
+        assert!(json.contains("\"command\": \"preflight-transfer\""));
+        assert!(json.contains("\"preflight_balance_base_units\": \"100\""));
+        assert!(json.contains("\"preflight_nonce\": 0"));
+        assert!(json.contains("\"transaction_hash\":"));
+        assert!(json.contains("\"confirmed_block_height\": 1"));
+        assert!(json.contains("\"confirmed_transaction_index\": 0"));
+        assert!(json.contains("\"final_balance_base_units\": \"73\""));
+        assert!(json.contains("\"final_nonce\": 1"));
+        assert!(json.contains("\"current_height\": 1"));
+        assert!(json.contains("\"pending_transactions\": 0"));
+        assert_eq!(fs::read_to_string(&pending_path).unwrap(), "");
+
+        let detail = private_devnet_file_transaction_detail_data(
+            &path_text,
+            Option::<&str>::None,
+            Some(XriqAmount::from_base_units(100)),
+            hash_hex_from_json_field(&json, "transaction_hash"),
+        )
+        .unwrap();
+        assert!(matches!(
+            detail,
+            PrivateDevnetTransactionDetail::Confirmed(_)
+        ));
 
         let _ = fs::remove_file(path);
         let _ = fs::remove_file(pending_path);

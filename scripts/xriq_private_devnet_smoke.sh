@@ -28,6 +28,10 @@ HTTP_PENDING_TRANSACTION_FILE="${ARTIFACT_DIR}/http-pending-transaction.json"
 HTTP_PENDING_PRODUCE_FILE="${ARTIFACT_DIR}/http-pending-produce.json"
 HTTP_PENDING_MEMPOOL_AFTER_PRODUCE_FILE="${ARTIFACT_DIR}/http-pending-mempool-after-produce.json"
 HTTP_PENDING_CONFIRMED_TRANSACTION_FILE="${ARTIFACT_DIR}/http-pending-confirmed-transaction.json"
+PREFLIGHT_CHAIN_FILE="${ARTIFACT_DIR}/preflight-chain.bin"
+PREFLIGHT_PENDING_FILE="${ARTIFACT_DIR}/preflight-pending.tsv"
+PREFLIGHT_JSON_FILE="${ARTIFACT_DIR}/preflight-transfer.json"
+PREFLIGHT_TRANSACTION_JSON_FILE="${ARTIFACT_DIR}/preflight-transaction.json"
 
 require_contains() {
   local label="$1"
@@ -409,6 +413,48 @@ require_contains "http pending confirmed transaction" "$http_pending_confirmed_t
 
 stop_http_server
 
+preflight_output="$(
+  run_xriq -p xriq-node -- preflight-transfer \
+    --chain-file "$PREFLIGHT_CHAIN_FILE" \
+    --pending-file "$PREFLIGHT_PENDING_FILE" \
+    --alice-balance 100 \
+    --from xriqdev1alice00000000000 \
+    --to xriqdev1bobbb00000000000 \
+    --amount 25 \
+    --fee 2 \
+    --expires-at-height 100 \
+    --timestamp-ms 1000 \
+    --format json
+)"
+printf '%s\n' "$preflight_output" > "$PREFLIGHT_JSON_FILE"
+require_contains "preflight transfer" "$preflight_output" '"command": "preflight-transfer"'
+require_contains "preflight transfer" "$preflight_output" '"preflight_balance_base_units": "100"'
+require_contains "preflight transfer" "$preflight_output" '"preflight_nonce": 0'
+require_contains "preflight transfer" "$preflight_output" '"confirmed_block_height": 1'
+require_contains "preflight transfer" "$preflight_output" '"confirmed_transaction_index": 0'
+require_contains "preflight transfer" "$preflight_output" '"final_balance_base_units": "73"'
+require_contains "preflight transfer" "$preflight_output" '"final_nonce": 1'
+require_contains "preflight transfer" "$preflight_output" '"pending_transactions": 0'
+
+if [ -s "$PREFLIGHT_PENDING_FILE" ]; then
+  echo "error=preflight pending file was not compacted after block production" >&2
+  cat "$PREFLIGHT_PENDING_FILE" >&2
+  exit 1
+fi
+
+preflight_tx_hash="$(printf '%s\n' "$preflight_output" | grep -m1 '"transaction_hash"' | cut -d '"' -f4)"
+preflight_transaction_output="$(
+  run_xriq -p xriq-node -- transaction-detail \
+    --chain-file "$PREFLIGHT_CHAIN_FILE" \
+    --alice-balance 100 \
+    --tx-hash "$preflight_tx_hash" \
+    --format json
+)"
+printf '%s\n' "$preflight_transaction_output" > "$PREFLIGHT_TRANSACTION_JSON_FILE"
+require_contains "preflight transaction" "$preflight_transaction_output" '"command": "transaction-detail"'
+require_contains "preflight transaction" "$preflight_transaction_output" '"status": "confirmed"'
+require_contains "preflight transaction" "$preflight_transaction_output" '"block_height": 1'
+
 echo "ok=xriq-private-devnet-smoke"
 echo "draft=${DRAFT_FILE}"
 echo "wallet_json=${WALLET_JSON_FILE}"
@@ -431,3 +477,7 @@ echo "http_pending_transaction=${HTTP_PENDING_TRANSACTION_FILE}"
 echo "http_pending_produce=${HTTP_PENDING_PRODUCE_FILE}"
 echo "http_pending_mempool_after_produce=${HTTP_PENDING_MEMPOOL_AFTER_PRODUCE_FILE}"
 echo "http_pending_confirmed_transaction=${HTTP_PENDING_CONFIRMED_TRANSACTION_FILE}"
+echo "preflight_chain=${PREFLIGHT_CHAIN_FILE}"
+echo "preflight_pending=${PREFLIGHT_PENDING_FILE}"
+echo "preflight_json=${PREFLIGHT_JSON_FILE}"
+echo "preflight_transaction=${PREFLIGHT_TRANSACTION_JSON_FILE}"

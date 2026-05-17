@@ -757,6 +757,10 @@ As of 2026-05-17:
     `xriq-node produce-pending-block --pending-file <path>` and
     `POST /v1/blocks`, including pending-file compaction after included
     transactions are persisted to the chain file
+  - private-devnet client preflight transfer flow through
+    `xriq-node preflight-transfer`, checking sender balance/nonce, submitting
+    to durable pending state, producing a block, compacting pending state, and
+    verifying confirmed transaction lookup
   - stable `--format json` output for status, block production, explorer
     overview, block detail, account detail, mempool detail, and transaction
     detail runner commands, while preserving text output as the default;
@@ -772,10 +776,10 @@ As of 2026-05-17:
   - one-command private-devnet smoke script that validates wallet draft,
     mempool detail preview, pending and confirmed transaction detail, selected
     JSON outputs, draft-block, durable HTTP pending state, durable
-    pending-block production, explorer overview, block detail, and account
-    detail behavior against persisted chain files, and persists representative
-    JSON response examples beside the smoke artifacts for future BIBER agents
-    and HTTP/RPC adapters
+    pending-block production, client preflight transfer flow, explorer
+    overview, block detail, and account detail behavior against persisted chain
+    files, and persists representative JSON response examples beside the smoke
+    artifacts for future BIBER agents and HTTP/RPC adapters
   - node transaction submission
   - node transaction submission rejects invalid hash-bound test-only signatures
     before mempool insert
