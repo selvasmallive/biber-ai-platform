@@ -9,16 +9,16 @@ the current GPU-backed direct vLLM/FastAPI state.
 
 ## Immediate Resume State
 
-As of 2026-05-17 02:11 UTC, the Vast.ai deployment is healthy and serving the
-last broad-safe Rust/XRIQ adapter.
+As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
+serving the last broad-safe Rust/XRIQ adapter.
 
-- Last code/training-data commit pushed: `3c8b7c2 Add Rust XRIQ fee regression data`.
-- Vast checkout was fast-forwarded to `3c8b7c2`.
+- Last code/training-data commit pushed: `3e3e69c Add XRIQ chain replay startup`.
+- Vast checkout was fast-forwarded to `3e3e69c`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `6124`
+  - FastAPI pid: `15053`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - `bash scripts/vast_test_direct.sh` passed with chat content `ok`.
@@ -283,6 +283,24 @@ last broad-safe Rust/XRIQ adapter.
   - Vast checkout was fast-forwarded to `3aca387`; Vast Rust verification also
     passed with `cargo fmt --check`, `cargo test -j 1` with `102` passing tests,
     and `cargo clippy -- -D warnings`.
+- Local XRIQ prototype progress after the signature-bound import checkpoint:
+  - Added deterministic private-devnet replay startup through
+    `XriqNode::from_genesis_replaying_store`.
+  - Replay starts from genesis, walks persisted store heights contiguously,
+    rejects missing heights, rejects noncanonical stored block hashes, and uses
+    the same parent/proposer/signature/transaction-root/state-root validation
+    path as peer-block import before restoring ledger height, account state, and
+    latest tip.
+  - Added tests for file-store replay into node state, noncanonical stored hash
+    rejection, and height-gap rejection.
+  - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `105` passing tests, and
+    `cargo clippy -- -D warnings`.
+  - Vast checkout was fast-forwarded to `3e3e69c`; Vast Rust verification also
+    passed with `cargo fmt --check`, `cargo test -j 1` with `105` passing
+    tests, and `cargo clippy -- -D warnings`.
+  - Vast noninteractive shells need the workspace Rust toolchain on PATH:
+    `export CARGO_HOME=/workspace/.cargo RUSTUP_HOME=/workspace/.rustup PATH=/workspace/.cargo/bin:$PATH`.
 
 ## Repo State
 
@@ -836,7 +854,8 @@ last broad-safe Rust/XRIQ adapter.
     transaction submission.
   - implemented local block storage and a minimal node loop for transaction
     submission, block production, ledger application, mempool cleanup, block
-    persistence, and RPC-visible state.
+    persistence, replay startup from persisted canonical blocks, and
+    RPC-visible state.
   - implemented private-devnet wallet CLI baseline for deterministic test
     identity generation and transfer draft construction.
   - latest local validation passed: `cd xriq && cargo fmt --check && cargo test`.
@@ -1471,9 +1490,10 @@ cargo clippy -- -D warnings
    project later needs independent release/versioning. The next protocol target
    after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`,
    `xriq-rpc`, `xriq-storage`, `xriq-node`, `xriq-wallet`, and
-   `xriq-explorer`, canonical hash API wiring, and genesis/root strategy is
-   deterministic private-devnet chain replay or snapshot startup, so a node can
-   rebuild trusted ledger/tip state from persisted blocks before serving RPC.
+   `xriq-explorer`, canonical hash API wiring, genesis/root strategy, and
+   deterministic replay startup is to wire replay startup into a future local
+   node runner or RPC-server start path. Snapshot checkpointing can wait until
+   replayed startup has been exercised through tooling.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.

@@ -626,7 +626,7 @@ As of 2026-05-17:
   - `cargo clippy -- -D warnings`.
 - Latest Vast verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `102` passing tests.
+  - `cargo test -j 1` with `105` passing tests.
   - `cargo clippy -- -D warnings`.
 
 Next implementation target: wire replay startup into a future node runner or
