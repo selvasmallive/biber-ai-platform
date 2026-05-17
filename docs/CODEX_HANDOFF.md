@@ -776,6 +776,16 @@ last broad-safe Rust/XRIQ adapter.
   - Backward-compatible alias: requests for `biber-dev-core` resolve to
     `biber-dev-core-v1`.
   - Local Python verification passed with `pytest`: `31` tests.
+  - Vast checkout was fast-forwarded to `328ab3f`.
+  - Vast syntax verification passed with `/venv/main/bin/python -m compileall
+    app src tests training`.
+  - Restarted only the FastAPI process; vLLM stayed running with pid `5802`.
+    New FastAPI pid: `14815`.
+  - `bash scripts/vast_test_direct.sh` passed. `/v1/chat` returned
+    `model="biber-dev-core-v1"` and `mentor_used=false`.
+  - Live `/v1/models` now reports `biber-dev-core-v1` as stable/enabled backed
+    by provider model `biber-dev-core`, and `biber-dev-core-v2-candidate` as a
+    disabled candidate for future Qwen3/newer-model evaluation.
 - Started and expanded the Rust private-devnet prototype workspace:
   - workspace path: `xriq/`.
   - implemented crates:
