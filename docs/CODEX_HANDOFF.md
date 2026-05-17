@@ -751,6 +751,15 @@ last broad-safe Rust/XRIQ adapter.
   - Routine inference still stays on the local Vast GPU-backed model, and
     `use_mentor=false` disables the mentor call even if the phrase appears.
   - Local Python verification passed with `pytest`: `27` tests.
+  - Vast checkout was fast-forwarded to `859df96`.
+  - Vast syntax verification passed with `/venv/main/bin/python -m compileall
+    app src tests training`.
+  - Restarted only the FastAPI process; vLLM stayed running with pid `5802`.
+    New FastAPI pid: `14596`.
+  - `bash scripts/vast_test_direct.sh` passed. Runtime now reports
+    `mentor_trigger_phrase="Review with OpenAI mentor"`, with
+    `mentor_enabled=false` and `mentor_configured=false` until server-side
+    OpenAI credentials are deliberately added.
 - Started and expanded the Rust private-devnet prototype workspace:
   - workspace path: `xriq/`.
   - implemented crates:
