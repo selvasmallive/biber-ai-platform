@@ -139,7 +139,16 @@ Goal: define what XRIQ is before generating serious code.
 
 Goal: build a local-only XRIQ node prototype.
 
-- Create a Rust workspace for the XRIQ prototype.
+- Current Rust workspace:
+  `xriq/`.
+- Current implemented crate:
+  `xriq/crates/xriq-core`.
+- `xriq-core` currently covers dependency-free private-devnet primitives:
+  checked `XriqAmount`, validated devnet `Address`, `Hash32`, basic transaction
+  validation, and block-header validation.
+- Local validation command:
+  `cd xriq && cargo fmt --check && cargo test`.
+- Latest local result: `15` Rust unit tests passed.
 - Build minimal crates for:
   - core types
   - transaction validation
@@ -152,6 +161,8 @@ Goal: build a local-only XRIQ node prototype.
 - Start with deterministic local tests before any networked behavior.
 - Keep generated code in Git, but keep chain data, node databases, and testnet
   artifacts out of Git.
+- Next implementation target: add `xriq-ledger` account state transitions and
+  nonce/balance tests before mempool or networking work.
 
 ## Phase 4: Wallet, Explorer, And Developer Tools
 

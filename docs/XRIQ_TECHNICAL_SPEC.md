@@ -388,10 +388,13 @@ Before any public network, require:
 
 ## Prototype Milestones
 
-1. Approve this technical spec direction.
-2. Create the Rust workspace skeleton.
+1. Approve this technical spec direction. Current status: started.
+2. Create the Rust workspace skeleton. Current status: done in `xriq/`.
 3. Implement `xriq-core` amount, address, hash, and serialization types.
-4. Implement transaction validation with unit tests.
+   Current status: started with dependency-free amount, devnet address, and
+   `Hash32` types.
+4. Implement transaction validation with unit tests. Current status: started
+   with basic transfer validation and unit tests.
 5. Implement account ledger state transitions.
 6. Implement mempool duplicate and fee checks.
 7. Implement deterministic single-node block production.
@@ -400,6 +403,25 @@ Before any public network, require:
 10. Add explorer API/UI for private-devnet inspection.
 11. Add local multi-node tests.
 12. Revisit consensus, supply, governance, and public-readiness decisions.
+
+## Current Prototype Status
+
+As of 2026-05-17:
+
+- Rust workspace path: `xriq/`.
+- First crate: `xriq/crates/xriq-core`.
+- Implemented dependency-free private-devnet core primitives:
+  - checked `XriqAmount`
+  - validated devnet `Address`
+  - fixed-size `Hash32`
+  - basic signed-transfer shape and validation context
+  - block-header validation against a parent header view
+- Local verification:
+  - `cargo fmt --check`
+  - `cargo test` with `15` passing tests.
+
+Next implementation target: add `xriq-ledger` for account balances, nonces, and
+deterministic transaction application.
 
 ## Open Decisions
 

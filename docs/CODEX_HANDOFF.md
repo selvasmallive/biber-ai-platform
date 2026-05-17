@@ -51,6 +51,7 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `9e5099c Confirm Rust XRIQ broad eval`
   - `17eebc9 Add HashSet Rust XRIQ examples`
   - `457155c Record Rust HashSet eval success`
+  - `6482059 Add XRIQ spec and mentor strategy`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -464,6 +465,15 @@ the current GPU-backed direct vLLM/FastAPI state.
   - Future agent-client work should move toward database-backed API keys,
     repo-agent sessions, patch-oriented responses, streaming, usage logging, and
     explicit mentor review gates.
+- Started the Rust private-devnet prototype workspace:
+  - workspace path: `xriq/`.
+  - first crate: `xriq/crates/xriq-core`.
+  - implemented dependency-free private-devnet primitives for checked
+    `XriqAmount`, validated devnet `Address`, `Hash32`, basic transaction
+    validation, and block-header validation.
+  - local validation passed: `cd xriq && cargo fmt --check && cargo test`.
+  - Rust test result: `15` passed.
+  - No Vast GPU/model training was needed for this step.
 
 ## Live Vast.ai Deployment Status
 
@@ -1027,41 +1037,45 @@ tail -f /workspace/biber-logs/vllm.log
 4. Train again only if future Rust/XRIQ evals show repeatable gaps or if the
    user explicitly prioritizes Rust improvement over spending time on the next
    capability domain.
-5. Review and refine `docs/XRIQ_TECHNICAL_SPEC.md`. Keep Phase 2 design-only
-   until the user approves the first Rust private-devnet prototype scope.
-6. Use BIBER AI for XRIQ through inference first: spec drafting, Rust module
+5. Continue the XRIQ private-devnet prototype by adding `xriq-ledger` account
+   state transitions, nonce checks, balance updates, and deterministic unit
+   tests.
+6. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
+   clarifies open decisions. Do not treat the private devnet as public launch
+   readiness.
+7. Use BIBER AI for XRIQ through inference first: spec drafting, Rust module
    scaffolding, tests, review prompts, and private-devnet tooling. Fine-tune
    only after Rust/XRIQ evals show repeatable gaps.
-7. After the Rust/XRIQ baseline is stable, follow
+8. After the Rust/XRIQ baseline is stable, follow
    `docs/BIBER_CAPABILITY_ROADMAP.md` in order: PostgreSQL, React, TypeScript,
    JavaScript, jQuery, CSS, HTML, Docker, GitHub Actions CI/CD, WASM, Bash,
    security engineering, cryptography concepts, Kubernetes, and distributed
    systems optimization before lower-priority stacks.
-8. Add new training data only through approved/provenance-tracked sources, then
+9. Add new training data only through approved/provenance-tracked sources, then
    validate and promote to `/workspace/data/biber_train.jsonl`.
-9. Train again only when the broader evals reveal real gaps. Keep the
+10. Train again only when the broader evals reveal real gaps. Keep the
    cost-saving pattern: Codex changes the scripts and reviews outputs; Vast.ai
    runs long GPU jobs in `tmux`.
-10. For the next QLoRA run on the current Vast GPU, stop the direct services
+11. For the next QLoRA run on the current Vast GPU, stop the direct services
    first because vLLM occupies most GPU memory:
    `bash scripts/vast_stop_direct.sh`.
-11. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
+12. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
    working after Codex disconnects, then restart serving after the adapter is
    produced and evaluated.
-12. Restart LoRA serving with `bash scripts/vast_start_lora_direct.sh`, rerun
+13. Restart LoRA serving with `bash scripts/vast_start_lora_direct.sh`, rerun
     `bash scripts/vast_eval_lora_direct.sh`, and compare against the current
     `18/18` broad baseline.
-13. Keep the API private over SSH tunnels unless credentials are deliberately
+14. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
-14. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
-15. Add optional OpenAI mentor credentials if desired and cost-approved.
-16. Add database-backed API keys and agent-client sessions per
+15. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
+16. Add optional OpenAI mentor credentials if desired and cost-approved.
+17. Add database-backed API keys and agent-client sessions per
     `docs/BIBER_AGENT_API_AND_MENTOR_STRATEGY.md`.
-17. Add a durable fine-grained GitHub token to Vast `.env` if persistent
+18. Add a durable fine-grained GitHub token to Vast `.env` if persistent
    generated-code save should stay enabled.
-18. Add Azure Blob connection string and test backups.
-19. Replace demo API key/passcode auth with database-backed credentials.
-20. Add real MySQL persistence and Redis worker integration.
+19. Add Azure Blob connection string and test backups.
+20. Replace demo API key/passcode auth with database-backed credentials.
+21. Add real MySQL persistence and Redis worker integration.
 
 ## Resume Prompt For A New Chat
 
