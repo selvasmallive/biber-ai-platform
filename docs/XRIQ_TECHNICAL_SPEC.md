@@ -824,10 +824,9 @@ As of 2026-05-17:
     response.
 
 Next implementation target: keep the local file-backed workflow small and
-deterministic. Add durable pending transaction status, wallet JSON output,
-snapshot/replay improvements, or checked schema fixtures only when they
-directly help the private-devnet MVP, and keep public XRIQ launch or listing
-work blocked.
+deterministic. Add durable pending transaction status, snapshot/replay
+improvements, or checked schema fixtures only when they directly help the
+private-devnet MVP, and keep public XRIQ launch or listing work blocked.
 
 ## Open Decisions
 
