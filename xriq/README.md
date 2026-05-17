@@ -15,7 +15,7 @@ only until security and legal/compliance review says otherwise.
   startup from persisted canonical blocks, a private-devnet status runner, a
   local transfer-to-block runner, wallet draft-file block production, and a
   file-backed explorer overview plus block/account/mempool detail runners with
-  optional stable JSON output.
+  optional stable JSON output and a read-only local HTTP wrapper.
 - `xriq-rpc`: local private-devnet RPC endpoint behavior.
 - `xriq-storage`: local block storage for private-devnet tests.
 - `xriq-wallet`: private-devnet wallet CLI for test identities and transfers.
@@ -111,6 +111,29 @@ distribution, run it on the Vast workspace after `git pull`.
 
 The current machine-readable runner contract is documented in
 `../docs/XRIQ_NODE_JSON_SCHEMA.md`.
+
+Private-devnet read-only HTTP wrapper:
+
+```bash
+cargo run -p xriq-node -- serve-readonly \
+  --chain-file target/xriq-devnet-chain.bin \
+  --alice-balance 100 \
+  --bind 127.0.0.1:8787
+```
+
+Initial read-only endpoints:
+
+```text
+GET /health
+GET /v1/chain/status
+GET /v1/explorer/overview?limit=5
+GET /v1/blocks/{height}
+GET /v1/accounts/{address}
+GET /v1/mempool
+```
+
+`POST /v1/transactions` and `GET /v1/transactions/{hash}` intentionally return
+`501` until a real persisted transaction index/submission path is added.
 
 Keep generated chain data, node databases, wallets, and testnet artifacts out of
 Git.

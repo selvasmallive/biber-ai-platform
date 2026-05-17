@@ -287,9 +287,31 @@ Use these generated files as concrete examples for BIBER agents, future
 contract tests, and later HTTP/RPC adapters. They are private-devnet examples,
 not public API fixtures.
 
+## Read-Only HTTP Wrapper
+
+`xriq-node serve-readonly` exposes selected private-devnet JSON runner outputs
+over local HTTP. The wrapper defaults to loopback binding and is still
+private-devnet tooling.
+
+Implemented read-only endpoints:
+
+- `GET /health`
+- `GET /v1/chain/status`
+- `GET /v1/explorer/overview?limit=5`
+- `GET /v1/blocks/{height}`
+- `GET /v1/accounts/{address}`
+- `GET /v1/mempool`
+
+The read-only endpoints reuse the JSON bodies documented above where possible.
+HTTP-only health and wrapper errors use `format_version:
+xriq-node-http-v1`. `POST /v1/transactions` and `GET
+/v1/transactions/{hash}` intentionally return `501` until a persisted
+transaction index/submission path exists.
+
 ## Next Schema Work
 
-Before exposing these shapes through HTTP/RPC, add:
+Before making the HTTP/RPC surface broader than the current private-devnet
+read-only wrapper, add:
 
 - explicit schema tests if the JSON surface grows beyond this small contract
 - optional checked-in fixtures only if consumers need stable golden files

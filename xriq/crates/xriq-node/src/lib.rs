@@ -3,7 +3,10 @@
 use std::{
     fmt::{self, Write as _},
     fs,
+    io::{self, Read, Write},
+    net::{TcpListener, TcpStream},
     path::Path,
+    time::Duration,
 };
 
 use xriq_consensus::{BlockProductionError, BlockProductionInput, SingleAuthorityProducer};
@@ -79,6 +82,32 @@ pub struct NodeStatus {
     pub latest_block_hash: Hash32,
     pub pending_transactions: usize,
     pub stored_blocks: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateDevnetHttpServerConfig {
+    pub bind: String,
+    pub chain_file: String,
+    pub alice_balance: Option<XriqAmount>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateDevnetHttpResponse {
+    pub status_code: u16,
+    pub reason: &'static str,
+    pub body: String,
+}
+
+impl PrivateDevnetHttpResponse {
+    pub fn to_http_response(&self) -> String {
+        format!(
+            "HTTP/1.1 {} {}\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            self.status_code,
+            self.reason,
+            self.body.len(),
+            self.body
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -309,6 +338,7 @@ pub fn node_help_text() -> String {
         "  xriq-node block-detail --chain-file <path> --height <height> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node account-detail --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>]",
         "",
         "Warning: this runner is for private devnet tests only. It does not start a public network.",
     ]
@@ -381,6 +411,285 @@ where
         Some("mempool-detail") => run_mempool_detail_command(&args[1..]),
         Some(command) => Err(NodeRunnerError::UnknownCommand(command.to_string())),
     }
+}
+
+pub fn parse_private_devnet_http_server_config(
+    args: &[String],
+) -> Result<PrivateDevnetHttpServerConfig, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&["--bind", "--chain-file", "--alice-balance"])?;
+    let bind = flags
+        .optional("--bind")
+        .unwrap_or("127.0.0.1:8787")
+        .to_string();
+    let chain_file = flags.required("--chain-file")?.to_string();
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    Ok(PrivateDevnetHttpServerConfig {
+        bind,
+        chain_file,
+        alice_balance,
+    })
+}
+
+pub fn run_private_devnet_readonly_http_server(
+    config: PrivateDevnetHttpServerConfig,
+) -> io::Result<()> {
+    let listener = TcpListener::bind(&config.bind)?;
+    eprintln!(
+        "xriq private-devnet read-only HTTP listening on http://{}",
+        listener.local_addr()?
+    );
+    for stream in listener.incoming() {
+        match stream {
+            Ok(stream) => {
+                if let Err(error) = handle_private_devnet_http_stream(stream, &config) {
+                    eprintln!("xriq private-devnet HTTP request failed: {error}");
+                }
+            }
+            Err(error) => eprintln!("xriq private-devnet HTTP accept failed: {error}"),
+        }
+    }
+    Ok(())
+}
+
+pub fn private_devnet_http_response(
+    config: &PrivateDevnetHttpServerConfig,
+    method: &str,
+    target: &str,
+) -> PrivateDevnetHttpResponse {
+    let (path, query) = split_http_target(target);
+
+    if method == "POST" && path == "/v1/transactions" {
+        return http_error_response(
+            501,
+            "not_implemented",
+            "transaction submission is not implemented in the file-backed private-devnet HTTP server yet",
+        );
+    }
+
+    if method != "GET" {
+        return http_error_response(
+            405,
+            "method_not_allowed",
+            "only GET read-only endpoints are currently supported",
+        );
+    }
+
+    match path {
+        "/health" => http_json_response(200, render_private_devnet_http_health_json()),
+        "/v1/chain/status" => {
+            runner_json_http_response(private_devnet_http_runner_args("status", config))
+        }
+        "/v1/mempool" => {
+            runner_json_http_response(private_devnet_http_runner_args("mempool-detail", config))
+        }
+        "/v1/explorer/overview" => {
+            let mut args = private_devnet_http_runner_args("explorer-overview", config);
+            if let Some(limit) = query_value(query, "limit") {
+                args.push("--limit".to_string());
+                args.push(limit.to_string());
+            }
+            runner_json_http_response(args)
+        }
+        _ => {
+            if let Some(address) = path
+                .strip_prefix("/v1/accounts/")
+                .filter(|address| !address.is_empty())
+            {
+                let mut args = private_devnet_http_runner_args("account-detail", config);
+                args.push("--address".to_string());
+                args.push(address.to_string());
+                return runner_json_http_response(args);
+            }
+
+            if let Some(height) = path
+                .strip_prefix("/v1/blocks/")
+                .filter(|height| !height.is_empty())
+            {
+                let mut args = private_devnet_http_runner_args("block-detail", config);
+                args.push("--height".to_string());
+                args.push(height.to_string());
+                return runner_json_http_response(args);
+            }
+
+            if path.starts_with("/v1/transactions/") {
+                return http_error_response(
+                    501,
+                    "not_implemented",
+                    "transaction status is not implemented in the file-backed private-devnet HTTP server yet",
+                );
+            }
+
+            http_error_response(404, "not_found", "private-devnet HTTP endpoint not found")
+        }
+    }
+}
+
+fn handle_private_devnet_http_stream(
+    mut stream: TcpStream,
+    config: &PrivateDevnetHttpServerConfig,
+) -> io::Result<()> {
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+    let mut buffer = [0_u8; 8192];
+    let bytes_read = stream.read(&mut buffer)?;
+    let request = String::from_utf8_lossy(&buffer[..bytes_read]);
+    let response = private_devnet_http_response_from_request(config, &request);
+    stream.write_all(response.to_http_response().as_bytes())?;
+    stream.flush()
+}
+
+fn private_devnet_http_response_from_request(
+    config: &PrivateDevnetHttpServerConfig,
+    request: &str,
+) -> PrivateDevnetHttpResponse {
+    let Some(request_line) = request.lines().next() else {
+        return http_error_response(400, "bad_request", "missing HTTP request line");
+    };
+    let mut parts = request_line.split_whitespace();
+    let Some(method) = parts.next() else {
+        return http_error_response(400, "bad_request", "missing HTTP method");
+    };
+    let Some(target) = parts.next() else {
+        return http_error_response(400, "bad_request", "missing HTTP target");
+    };
+    if parts.next().is_none() {
+        return http_error_response(400, "bad_request", "missing HTTP version");
+    }
+    private_devnet_http_response(config, method, target)
+}
+
+fn private_devnet_http_runner_args(
+    command: &str,
+    config: &PrivateDevnetHttpServerConfig,
+) -> Vec<String> {
+    let mut args = vec![
+        command.to_string(),
+        "--chain-file".to_string(),
+        config.chain_file.clone(),
+    ];
+    if let Some(balance) = config.alice_balance {
+        args.push("--alice-balance".to_string());
+        args.push(balance.base_units().to_string());
+    }
+    args.push("--format".to_string());
+    args.push("json".to_string());
+    args
+}
+
+fn runner_json_http_response(args: Vec<String>) -> PrivateDevnetHttpResponse {
+    match run_node_command(args.iter().map(String::as_str)) {
+        Ok(output) => http_json_response(200, output.to_string()),
+        Err(error) => {
+            let status_code = node_runner_error_http_status(&error);
+            http_json_response(status_code, render_node_runner_error_json(&args, &error))
+        }
+    }
+}
+
+fn node_runner_error_http_status(error: &NodeRunnerError) -> u16 {
+    match error {
+        NodeRunnerError::InvalidAddress(_)
+        | NodeRunnerError::InvalidFormat(_)
+        | NodeRunnerError::InvalidNumber { .. }
+        | NodeRunnerError::MissingFlag(_)
+        | NodeRunnerError::UnexpectedArgument(_)
+        | NodeRunnerError::UnknownFlag(_) => 400,
+        NodeRunnerError::Explorer(
+            ExplorerError::AccountNotFound
+            | ExplorerError::BlockNotFound
+            | ExplorerError::TransactionNotFound,
+        ) => 404,
+        _ => 500,
+    }
+}
+
+fn split_http_target(target: &str) -> (&str, Option<&str>) {
+    match target.split_once('?') {
+        Some((path, query)) => (path, Some(query)),
+        None => (target, None),
+    }
+}
+
+fn query_value<'a>(query: Option<&'a str>, key: &str) -> Option<&'a str> {
+    query.and_then(|query| {
+        query.split('&').find_map(|pair| {
+            let (candidate, value) = pair.split_once('=')?;
+            (candidate == key).then_some(value)
+        })
+    })
+}
+
+fn http_json_response(status_code: u16, body: String) -> PrivateDevnetHttpResponse {
+    PrivateDevnetHttpResponse {
+        status_code,
+        reason: http_reason(status_code),
+        body,
+    }
+}
+
+fn http_error_response(status_code: u16, code: &str, message: &str) -> PrivateDevnetHttpResponse {
+    http_json_response(
+        status_code,
+        render_private_devnet_http_error_json(code, message),
+    )
+}
+
+fn http_reason(status_code: u16) -> &'static str {
+    match status_code {
+        200 => "OK",
+        400 => "Bad Request",
+        404 => "Not Found",
+        405 => "Method Not Allowed",
+        500 => "Internal Server Error",
+        501 => "Not Implemented",
+        _ => "Unknown",
+    }
+}
+
+fn render_private_devnet_http_health_json() -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"format_version\": {},",
+        json_string("xriq-node-http-v1")
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(PRIVATE_DEVNET_RUNNER_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"status\": {}", json_string("ok")).expect("write to String");
+    output.push('}');
+    output
+}
+
+fn render_private_devnet_http_error_json(code: &str, message: &str) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"format_version\": {},",
+        json_string("xriq-node-http-v1")
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(PRIVATE_DEVNET_RUNNER_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"ok\": false,").expect("write to String");
+    writeln!(&mut output, "  \"error\": {{").expect("write to String");
+    writeln!(&mut output, "    \"code\": {},", json_string(code)).expect("write to String");
+    writeln!(&mut output, "    \"message\": {}", json_string(message)).expect("write to String");
+    output.push_str("  }\n}");
+    output
 }
 
 pub fn private_devnet_file_status(
@@ -1453,6 +1762,7 @@ fn flag_to_static(flag: &str) -> &'static str {
         "--timestamp-ms" => "--timestamp-ms",
         "--consensus-round" => "--consensus-round",
         "--format" => "--format",
+        "--bind" => "--bind",
         _ => "--flag",
     }
 }
@@ -2831,6 +3141,98 @@ mod tests {
 
         let _ = fs::remove_file(path);
         let _ = fs::remove_file(draft_path);
+    }
+
+    #[test]
+    fn private_devnet_http_routes_wrap_file_backed_json_outputs() {
+        let path = temp_store_path();
+        let path_text = path.to_string_lossy().to_string();
+        run_node_command([
+            "produce-transfer-block",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1bobbb00000000000",
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--expires-at-height",
+            "100",
+        ])
+        .unwrap();
+        let config = PrivateDevnetHttpServerConfig {
+            bind: "127.0.0.1:8787".to_string(),
+            chain_file: path_text,
+            alice_balance: Some(XriqAmount::from_base_units(100)),
+        };
+
+        let health = private_devnet_http_response(&config, "GET", "/health");
+        assert_eq!(health.status_code, 200);
+        assert!(health
+            .body
+            .contains("\"format_version\": \"xriq-node-http-v1\""));
+        assert!(health.body.contains("\"status\": \"ok\""));
+
+        let status = private_devnet_http_response(&config, "GET", "/v1/chain/status");
+        assert_eq!(status.status_code, 200);
+        assert!(status.body.contains("\"command\": \"status\""));
+        assert!(status.body.contains("\"current_height\": 1"));
+
+        let overview =
+            private_devnet_http_response(&config, "GET", "/v1/explorer/overview?limit=5");
+        assert_eq!(overview.status_code, 200);
+        assert!(overview.body.contains("\"command\": \"explorer-overview\""));
+        assert!(overview.body.contains("\"latest_blocks\": ["));
+
+        let block = private_devnet_http_response(&config, "GET", "/v1/blocks/1");
+        assert_eq!(block.status_code, 200);
+        assert!(block.body.contains("\"command\": \"block-detail\""));
+        assert!(block.body.contains("\"transaction_count\": 1"));
+
+        let account =
+            private_devnet_http_response(&config, "GET", "/v1/accounts/xriqdev1alice00000000000");
+        assert_eq!(account.status_code, 200);
+        assert!(account.body.contains("\"command\": \"account-detail\""));
+        assert!(account.body.contains("\"balance_base_units\": \"73\""));
+
+        let mempool = private_devnet_http_response(&config, "GET", "/v1/mempool");
+        assert_eq!(mempool.status_code, 200);
+        assert!(mempool.body.contains("\"command\": \"mempool-detail\""));
+        assert!(mempool.body.contains("\"pending_count\": 0"));
+
+        let missing_block = private_devnet_http_response(&config, "GET", "/v1/blocks/99");
+        assert_eq!(missing_block.status_code, 404);
+        assert!(missing_block.body.contains("\"code\": \"explorer_error\""));
+
+        let bad_limit =
+            private_devnet_http_response(&config, "GET", "/v1/explorer/overview?limit=bad");
+        assert_eq!(bad_limit.status_code, 400);
+        assert!(bad_limit.body.contains("\"code\": \"invalid_number\""));
+
+        let submit = private_devnet_http_response(&config, "POST", "/v1/transactions");
+        assert_eq!(submit.status_code, 501);
+        assert!(submit.body.contains("\"code\": \"not_implemented\""));
+
+        let raw = status.to_http_response();
+        assert!(raw.starts_with("HTTP/1.1 200 OK\r\n"));
+        assert!(raw.contains("Content-Type: application/json; charset=utf-8\r\n"));
+        assert!(raw.contains("Connection: close\r\n"));
+
+        let parsed = private_devnet_http_response_from_request(
+            &config,
+            "GET /v1/chain/status HTTP/1.1\r\nHost: localhost\r\n\r\n",
+        );
+        assert_eq!(parsed.status_code, 200);
+        assert!(parsed.body.contains("\"command\": \"status\""));
+
+        let _ = fs::remove_file(path);
     }
 
     #[test]
