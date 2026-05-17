@@ -456,6 +456,8 @@ GET  /v1/transactions/{hash}
 GET  /v1/accounts/{address}
 GET  /v1/mempool
 POST /v1/transactions
+POST /v1/mempool
+POST /v1/blocks
 ```
 
 Current private-devnet implementation: `xriq-node serve-readonly` exposes a
@@ -464,18 +466,25 @@ file-backed JSON runner outputs. The current implemented endpoints are
 `/health`, `/v1/chain/status`, `/v1/explorer/overview?limit=5`,
 `/v1/blocks/{height}`, `/v1/transactions/{hash}`,
 `/v1/accounts/{address}`, and `/v1/mempool`. Transaction lookup scans
-confirmed transactions in persisted blocks only; durable pending status is not
-implemented yet.
+confirmed transactions in persisted blocks. When `--pending-file` is
+configured, transaction lookup checks confirmed blocks first and then durable
+pending state.
 
 `xriq-node serve-private` enables the same private-devnet HTTP surface plus
-`POST /v1/transactions`. The POST body may be either the existing wallet
-transfer draft text emitted by `xriq-wallet transfer` or the flat
+`POST /v1/transactions`, `POST /v1/mempool`, and `POST /v1/blocks`. The
+transaction POST body may be either the existing wallet transfer draft text
+emitted by `xriq-wallet transfer` or the flat
 `xriq-node-transfer-submit-v1` JSON transfer body emitted by
 `xriq-wallet transfer --format json`; the server validates it against the
 replayed chain state, immediately produces one block, and persists that block to
 the configured chain file. This is an MVP submit-and-block helper, not a
 production mempool API or production signed-transaction format. This is still
 private-devnet tooling, not a public API.
+
+When `serve-private --pending-file <path>` is used, `POST /v1/mempool`
+validates a wallet draft or JSON transfer body and appends it to durable
+private-devnet pending state. `POST /v1/blocks` produces one block from that
+pending file and compacts the file so included transactions are removed.
 
 Minimum wallet-facing RPC behavior:
 
@@ -744,6 +753,10 @@ As of 2026-05-17:
     lets `GET /v1/chain/status`, `GET /v1/mempool`, and
     `GET /v1/transactions/{hash}` report pending state across requests and
     server restarts
+  - durable pending block production through
+    `xriq-node produce-pending-block --pending-file <path>` and
+    `POST /v1/blocks`, including pending-file compaction after included
+    transactions are persisted to the chain file
   - stable `--format json` output for status, block production, explorer
     overview, block detail, account detail, mempool detail, and transaction
     detail runner commands, while preserving text output as the default;
@@ -757,10 +770,11 @@ As of 2026-05-17:
     for selected wallet and node schema-drift tests
   - one-command private-devnet smoke script that validates wallet draft,
     mempool detail preview, pending and confirmed transaction detail, selected
-    JSON outputs, draft-block, durable HTTP pending state, explorer overview,
-    block detail, and account detail behavior against persisted chain files, and persists
-    representative JSON response examples beside the smoke artifacts for future
-    BIBER agents and HTTP/RPC adapters
+    JSON outputs, draft-block, durable HTTP pending state, durable
+    pending-block production, explorer overview, block detail, and account
+    detail behavior against persisted chain files, and persists representative
+    JSON response examples beside the smoke artifacts for future BIBER agents
+    and HTTP/RPC adapters
   - node transaction submission
   - node transaction submission rejects invalid hash-bound test-only signatures
     before mempool insert
@@ -836,10 +850,9 @@ As of 2026-05-17:
     response.
 
 Next implementation target: keep the local file-backed workflow small and
-deterministic. Add durable pending transaction status, snapshot/replay
-improvements, or additional checked schema fixtures only when they directly
-help the private-devnet MVP, and keep public XRIQ launch or listing work
-blocked.
+deterministic. Add snapshot/replay improvements or additional checked schema
+fixtures only when they directly help the private-devnet MVP, and keep public
+XRIQ launch or listing work blocked.
 
 ## Open Decisions
 

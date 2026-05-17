@@ -107,6 +107,16 @@ cargo run -p xriq-node -- produce-draft-block \
   --timestamp-ms 1000
 ```
 
+Private-devnet durable pending-file block smoke:
+
+```bash
+cargo run -p xriq-node -- produce-pending-block \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --alice-balance 100 \
+  --timestamp-ms 1000
+```
+
 Private-devnet wallet JSON submit body:
 
 ```bash
@@ -170,12 +180,13 @@ GET /v1/transactions/{hash}
 GET /v1/accounts/{address}
 GET /v1/mempool
 POST /v1/mempool
+POST /v1/blocks
 ```
 
 `GET /v1/transactions/{hash}` scans confirmed transactions in persisted blocks.
-It does not report a durable pending status yet because the file-backed HTTP
-wrapper does not persist a mempool across requests. The local runner can preview
-a pending transaction from a wallet draft with
+When `serve-private --pending-file <path>` is used, it checks confirmed blocks
+first, then durable pending state. The local runner can also preview a pending
+transaction from a wallet draft with
 `xriq-node transaction-detail --draft-file <path> --tx-hash <hash>`.
 
 When `serve-private` is started with `--pending-file <path>`,
@@ -183,6 +194,11 @@ When `serve-private` is started with `--pending-file <path>`,
 persists it as private-devnet pending state. `GET /v1/mempool`,
 `GET /v1/chain/status`, and `GET /v1/transactions/{hash}` then include that
 durable pending state across requests and server restarts.
+
+`POST /v1/blocks` is available only through `serve-private --pending-file
+<path>`. It produces one private-devnet block from the durable pending file,
+persists the block to the configured chain file, and compacts the pending file
+so included transactions are removed.
 
 `POST /v1/transactions` is available only through `serve-private`. It accepts
 either the existing wallet transfer draft text or a private-devnet JSON transfer

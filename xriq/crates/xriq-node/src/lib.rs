@@ -121,6 +121,14 @@ pub struct ProducedTransferBlockStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProducedPendingBlockStatus {
+    pub block_hash: Hash32,
+    pub included_transaction_hashes: Vec<Hash32>,
+    pub applied_transactions: usize,
+    pub status: NodeStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateDevnetConfirmedTransactionDetail {
     pub tx_hash: Hash32,
     pub status: &'static str,
@@ -149,6 +157,7 @@ pub enum NodeRunnerOutput {
     Help(String),
     Status(NodeStatus),
     ProducedTransferBlock(ProducedTransferBlockStatus),
+    ProducedPendingBlock(ProducedPendingBlockStatus),
     ExplorerOverview(String),
     BlockDetail(String),
     AccountDetail(String),
@@ -271,12 +280,47 @@ impl fmt::Display for ProducedTransferBlockStatus {
     }
 }
 
+impl fmt::Display for ProducedPendingBlockStatus {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(formatter, "warning={}", self.status.warning)?;
+        writeln!(formatter, "block_hash={}", hash_hex(self.block_hash))?;
+        writeln!(
+            formatter,
+            "included_transaction_hashes={}",
+            self.included_transaction_hashes
+                .iter()
+                .map(|tx_hash| hash_hex(*tx_hash))
+                .collect::<Vec<_>>()
+                .join(",")
+        )?;
+        writeln!(
+            formatter,
+            "applied_transactions={}",
+            self.applied_transactions
+        )?;
+        writeln!(formatter, "chain_id={}", self.status.chain_id)?;
+        writeln!(formatter, "current_height={}", self.status.current_height)?;
+        writeln!(
+            formatter,
+            "latest_block_hash={}",
+            hash_hex(self.status.latest_block_hash)
+        )?;
+        writeln!(
+            formatter,
+            "pending_transactions={}",
+            self.status.pending_transactions
+        )?;
+        write!(formatter, "stored_blocks={}", self.status.stored_blocks)
+    }
+}
+
 impl fmt::Display for NodeRunnerOutput {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Help(help) => formatter.write_str(help),
             Self::Status(status) => write!(formatter, "{status}"),
             Self::ProducedTransferBlock(status) => write!(formatter, "{status}"),
+            Self::ProducedPendingBlock(status) => write!(formatter, "{status}"),
             Self::ExplorerOverview(overview) => formatter.write_str(overview),
             Self::BlockDetail(detail)
             | Self::AccountDetail(detail)
@@ -392,6 +436,7 @@ pub fn node_help_text() -> String {
         "  xriq-node status --chain-file <path> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node produce-transfer-block --chain-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node produce-draft-block --chain-file <path> --draft-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
+        "  xriq-node produce-pending-block --chain-file <path> --pending-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node explorer-overview --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node block-detail --chain-file <path> --height <height> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node account-detail --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
@@ -465,6 +510,7 @@ where
         Some("status") => run_status_command(&args[1..]),
         Some("produce-transfer-block") => run_produce_transfer_block_command(&args[1..]),
         Some("produce-draft-block") => run_produce_draft_block_command(&args[1..]),
+        Some("produce-pending-block") => run_produce_pending_block_command(&args[1..]),
         Some("explorer-overview") => run_explorer_overview_command(&args[1..]),
         Some("block-detail") => run_block_detail_command(&args[1..]),
         Some("account-detail") => run_account_detail_command(&args[1..]),
@@ -546,6 +592,9 @@ pub fn private_devnet_http_response_with_body(
     }
     if method == "POST" && path == "/v1/mempool" {
         return submit_pending_transaction_http_response(config, body);
+    }
+    if method == "POST" && path == "/v1/blocks" {
+        return produce_pending_block_http_response(config, query);
     }
 
     if method != "GET" {
@@ -808,6 +857,89 @@ fn submit_pending_transaction_http_response(
     }
 }
 
+fn produce_pending_block_http_response(
+    config: &PrivateDevnetHttpServerConfig,
+    query: Option<&str>,
+) -> PrivateDevnetHttpResponse {
+    if !config.allow_transaction_submission {
+        return http_error_response(
+            501,
+            "not_implemented",
+            "pending block production requires xriq-node serve-private",
+        );
+    }
+    let Some(pending_file) = &config.pending_file else {
+        return http_error_response(
+            501,
+            "not_implemented",
+            "durable pending block production requires --pending-file",
+        );
+    };
+
+    let timestamp_ms = match query_value(query, "timestamp_ms") {
+        Some(value) => match parse_u64("--timestamp-ms", value) {
+            Ok(value) => value,
+            Err(error) => {
+                return http_json_response(
+                    node_runner_error_http_status(&error),
+                    render_node_runner_error_json(
+                        &[
+                            "produce-pending-block".to_string(),
+                            "--format".to_string(),
+                            "json".to_string(),
+                        ],
+                        &error,
+                    ),
+                );
+            }
+        },
+        None => 1_000,
+    };
+    let consensus_round = match query_value(query, "consensus_round") {
+        Some(value) => match parse_u64("--consensus-round", value) {
+            Ok(value) => value,
+            Err(error) => {
+                return http_json_response(
+                    node_runner_error_http_status(&error),
+                    render_node_runner_error_json(
+                        &[
+                            "produce-pending-block".to_string(),
+                            "--format".to_string(),
+                            "json".to_string(),
+                        ],
+                        &error,
+                    ),
+                );
+            }
+        },
+        None => 0,
+    };
+
+    match private_devnet_file_produce_pending_block(
+        &config.chain_file,
+        pending_file,
+        config.alice_balance,
+        timestamp_ms,
+        consensus_round,
+    ) {
+        Ok(status) => http_json_response(
+            201,
+            render_produced_pending_block_status_json("produce-pending-block", &status),
+        ),
+        Err(error) => {
+            let args = vec![
+                "produce-pending-block".to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ];
+            http_json_response(
+                node_runner_error_http_status(&error),
+                render_node_runner_error_json(&args, &error),
+            )
+        }
+    }
+}
+
 fn pending_status_http_response(
     config: &PrivateDevnetHttpServerConfig,
     pending_file: &str,
@@ -969,6 +1101,7 @@ fn http_error_response(status_code: u16, code: &str, message: &str) -> PrivateDe
 fn http_reason(status_code: u16) -> &'static str {
     match status_code {
         200 => "OK",
+        201 => "Created",
         202 => "Accepted",
         400 => "Bad Request",
         404 => "Not Found",
@@ -1247,6 +1380,40 @@ pub fn private_devnet_file_produce_draft_block(
         .map_err(NodeRunnerError::Node)
 }
 
+pub fn private_devnet_file_produce_pending_block(
+    chain_file: impl AsRef<Path>,
+    pending_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    timestamp_ms: u64,
+    consensus_round: u64,
+) -> Result<ProducedPendingBlockStatus, NodeRunnerError> {
+    let mut node =
+        private_devnet_node_with_pending_file(chain_file, pending_file.as_ref(), alice_balance)?;
+    let produced = node
+        .produce_next_block_with_private_devnet_signature(timestamp_ms, consensus_round)
+        .map_err(NodeRunnerError::Node)?;
+    let included_transaction_hashes = produced
+        .block
+        .transactions
+        .iter()
+        .map(transaction_hash)
+        .collect::<Vec<_>>();
+    let remaining_records = node
+        .mempool()
+        .ordered_entries()
+        .into_iter()
+        .map(|entry| (entry.tx_hash, entry.tx.clone()))
+        .collect::<Vec<_>>();
+    write_pending_transaction_records(pending_file.as_ref(), &remaining_records)?;
+
+    Ok(ProducedPendingBlockStatus {
+        block_hash: produced.block_hash,
+        included_transaction_hashes,
+        applied_transactions: produced.applied_transactions,
+        status: node_status(&node),
+    })
+}
+
 pub fn private_devnet_file_submit_transfer_body(
     chain_file: impl AsRef<Path>,
     alice_balance: Option<XriqAmount>,
@@ -1523,6 +1690,48 @@ fn run_transaction_detail_command(args: &[String]) -> Result<NodeRunnerOutput, N
     })
 }
 
+fn run_produce_pending_block_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--pending-file",
+        "--alice-balance",
+        "--timestamp-ms",
+        "--consensus-round",
+        "--format",
+    ])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let chain_file = flags.required("--chain-file")?;
+    let pending_file = flags.required("--pending-file")?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let timestamp_ms = flags
+        .optional("--timestamp-ms")
+        .map(|value| parse_u64("--timestamp-ms", value))
+        .transpose()?
+        .unwrap_or(1_000);
+    let consensus_round = flags
+        .optional("--consensus-round")
+        .map(|value| parse_u64("--consensus-round", value))
+        .transpose()?
+        .unwrap_or(0);
+    private_devnet_file_produce_pending_block(
+        chain_file,
+        pending_file,
+        alice_balance,
+        timestamp_ms,
+        consensus_round,
+    )
+    .map(|status| match output_format {
+        RunnerOutputFormat::Text => NodeRunnerOutput::ProducedPendingBlock(status),
+        RunnerOutputFormat::Json => NodeRunnerOutput::Json(
+            render_produced_pending_block_status_json("produce-pending-block", &status),
+        ),
+    })
+}
+
 fn run_produce_draft_block_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
     flags.reject_unknown(&[
@@ -1731,6 +1940,36 @@ fn append_pending_transaction_record(
     })
 }
 
+fn write_pending_transaction_records(
+    pending_file: &Path,
+    records: &[(Hash32, Transaction)],
+) -> Result<(), NodeRunnerError> {
+    if let Some(parent) = pending_file
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent).map_err(|error| NodeRunnerError::PendingFileRead {
+            path: pending_file.to_string_lossy().to_string(),
+            error: error.to_string(),
+        })?;
+    }
+
+    let mut text = String::new();
+    for (tx_hash, transaction) in records {
+        writeln!(
+            &mut text,
+            "{}",
+            render_pending_transaction_record(*tx_hash, transaction)
+        )
+        .expect("write to String");
+    }
+
+    fs::write(pending_file, text).map_err(|error| NodeRunnerError::PendingFileRead {
+        path: pending_file.to_string_lossy().to_string(),
+        error: error.to_string(),
+    })
+}
+
 fn render_pending_transaction_record(tx_hash: Hash32, transaction: &Transaction) -> String {
     [
         "xriq-pending-transaction-v1".to_string(),
@@ -1798,6 +2037,9 @@ fn parse_pending_transaction_record(line: &str) -> Result<(Hash32, Transaction),
         expires_at_height,
         signature,
     };
+    if transaction_hash(&transaction) != tx_hash {
+        return Err(NodeRunnerError::InvalidPendingRecord(line.to_string()));
+    }
     Ok((tx_hash, transaction))
 }
 
@@ -2313,6 +2555,52 @@ fn render_produced_transfer_block_status_json(
         json_string(&hash_hex(status.block_hash))
     )
     .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"applied_transactions\": {},",
+        status.applied_transactions
+    )
+    .expect("write to String");
+    push_node_status_json_fields_without_warning(&mut output, &status.status, "  ", false);
+    output.push_str("\n}");
+    output
+}
+
+fn render_produced_pending_block_status_json(
+    command: &str,
+    status: &ProducedPendingBlockStatus,
+) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_success_json_preamble(&mut output, command);
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(status.status.warning)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"block_hash\": {},",
+        json_string(&hash_hex(status.block_hash))
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"included_transaction_hashes\": [").expect("write to String");
+    for (index, tx_hash) in status.included_transaction_hashes.iter().enumerate() {
+        let trailing = if index + 1 == status.included_transaction_hashes.len() {
+            ""
+        } else {
+            ","
+        };
+        writeln!(
+            &mut output,
+            "    {}{}",
+            json_string(&hash_hex(*tx_hash)),
+            trailing
+        )
+        .expect("write to String");
+    }
+    writeln!(&mut output, "  ],").expect("write to String");
     writeln!(
         &mut output,
         "  \"applied_transactions\": {},",
@@ -4011,6 +4299,78 @@ mod tests {
     }
 
     #[test]
+    fn node_runner_produces_block_from_pending_file_and_compacts() {
+        let path = temp_store_path();
+        let pending_path = path.with_extension("pending");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let submit_draft = [
+            "warning=private-devnet-test-identity-only",
+            "version=1",
+            "chain_id=xriq-devnet",
+            "from=xriqdev1alice00000000000",
+            "to=xriqdev1bobbb00000000000",
+            "amount=25",
+            "fee=2",
+            "nonce=0",
+            "expires_at_height=100",
+            "signature_bytes=48",
+        ]
+        .join("\n");
+        let pending_detail = private_devnet_file_submit_pending_transfer_body(
+            &path_text,
+            &pending_text,
+            Some(XriqAmount::from_base_units(100)),
+            &submit_draft,
+        )
+        .unwrap();
+        assert!(fs::read_to_string(&pending_path)
+            .unwrap()
+            .contains(&hash_hex(pending_detail.tx_hash)));
+
+        let output = run_node_command([
+            "produce-pending-block",
+            "--chain-file",
+            path_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+        let produced_json = output.to_string();
+        assert!(produced_json.contains("\"command\": \"produce-pending-block\""));
+        assert!(produced_json.contains("\"included_transaction_hashes\": ["));
+        assert!(produced_json.contains(&hash_hex(pending_detail.tx_hash)));
+        assert!(produced_json.contains("\"applied_transactions\": 1"));
+        assert!(produced_json.contains("\"current_height\": 1"));
+        assert!(produced_json.contains("\"pending_transactions\": 0"));
+        assert_eq!(fs::read_to_string(&pending_path).unwrap(), "");
+
+        let transaction_detail = private_devnet_file_transaction_detail_with_pending_file_data(
+            &path_text,
+            &pending_text,
+            Some(XriqAmount::from_base_units(100)),
+            pending_detail.tx_hash,
+        )
+        .unwrap();
+        match transaction_detail {
+            PrivateDevnetTransactionDetail::Confirmed(detail) => {
+                assert_eq!(detail.block_height, 1);
+                assert_eq!(detail.transaction_index, 0);
+            }
+            other => panic!("unexpected transaction detail: {other:?}"),
+        }
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
     fn node_runner_explorer_overview_renders_replayed_chain_file() {
         let path = temp_store_path();
         let path_text = path.to_string_lossy().to_string();
@@ -4931,6 +5291,29 @@ mod tests {
             .body
             .contains("\"status\": \"pending\""));
 
+        let produce = private_devnet_http_response_with_body(&config, "POST", "/v1/blocks", "");
+        assert_eq!(produce.status_code, 201);
+        assert!(produce
+            .body
+            .contains("\"command\": \"produce-pending-block\""));
+        assert!(produce.body.contains("\"included_transaction_hashes\": ["));
+        assert!(produce.body.contains(&hash_hex(tx_hash)));
+        assert!(produce.body.contains("\"applied_transactions\": 1"));
+        assert!(produce.body.contains("\"current_height\": 1"));
+        assert!(produce.body.contains("\"pending_transactions\": 0"));
+        assert_eq!(fs::read_to_string(&pending_path).unwrap(), "");
+
+        let mempool_after_produce = private_devnet_http_response(&config, "GET", "/v1/mempool");
+        assert_eq!(mempool_after_produce.status_code, 200);
+        assert!(mempool_after_produce.body.contains("\"pending_count\": 0"));
+
+        let confirmed_transaction = private_devnet_http_response(&config, "GET", &transaction_path);
+        assert_eq!(confirmed_transaction.status_code, 200);
+        assert!(confirmed_transaction
+            .body
+            .contains("\"status\": \"confirmed\""));
+        assert!(confirmed_transaction.body.contains("\"block_height\": 1"));
+
         let config_without_pending = PrivateDevnetHttpServerConfig {
             pending_file: None,
             ..config.clone()
@@ -4943,6 +5326,17 @@ mod tests {
         );
         assert_eq!(missing_pending_file.status_code, 501);
         assert!(missing_pending_file
+            .body
+            .contains("\"code\": \"not_implemented\""));
+
+        let missing_pending_file_produce = private_devnet_http_response_with_body(
+            &config_without_pending,
+            "POST",
+            "/v1/blocks",
+            "",
+        );
+        assert_eq!(missing_pending_file_produce.status_code, 501);
+        assert!(missing_pending_file_produce
             .body
             .contains("\"code\": \"not_implemented\""));
 
