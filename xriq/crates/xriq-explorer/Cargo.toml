@@ -1,0 +1,15 @@
+[package]
+name = "xriq-explorer"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+xriq-core = { path = "../xriq-core" }
+xriq-rpc = { path = "../xriq-rpc" }
+xriq-storage = { path = "../xriq-storage" }
+
+[dev-dependencies]
+xriq-ledger = { path = "../xriq-ledger" }
+xriq-mempool = { path = "../xriq-mempool" }

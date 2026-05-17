@@ -15,6 +15,17 @@ name = "xriq-core"
 version = "0.1.0"
 
 [[package]]
+name = "xriq-explorer"
+version = "0.1.0"
+dependencies = [
+ "xriq-core",
+ "xriq-ledger",
+ "xriq-mempool",
+ "xriq-rpc",
+ "xriq-storage",
+]
+
+[[package]]
 name = "xriq-ledger"
 version = "0.1.0"
 dependencies = [

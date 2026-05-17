@@ -7,6 +7,7 @@ only until security and legal/compliance review says otherwise.
 
 - `xriq-core`: dependency-free protocol types and validation helpers.
 - `xriq-consensus`: deterministic private-devnet block production.
+- `xriq-explorer`: read-only private-devnet explorer view models and text UI.
 - `xriq-ledger`: deterministic private-devnet account state transitions.
 - `xriq-mempool`: deterministic pending-transaction checks and ordering.
 - `xriq-node`: minimal local private-devnet node loop.

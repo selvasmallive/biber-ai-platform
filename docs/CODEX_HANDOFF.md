@@ -147,6 +147,19 @@ last broad-safe Rust/XRIQ adapter.
   - Vast checkout was fast-forwarded to include `xriq-wallet`; Vast Rust
     verification also passed with `cargo fmt --check`, `cargo test` with `56`
     passing tests, `cargo clippy -- -D warnings`, and both wallet CLI smokes.
+- Local XRIQ prototype progress after the wallet checkpoint:
+  - Added `xriq/crates/xriq-explorer` for private-devnet explorer view models
+    and dependency-free text rendering.
+  - Added `ChainStore::blocks_by_height_desc` so explorer views can list recent
+    blocks without depending on a public web explorer or external database.
+  - Current explorer scope is read-only and private-devnet-only: chain overview,
+    latest blocks, block detail, account detail, mempool detail, and pending
+    transaction detail.
+  - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `64` passing tests, and
+    `cargo clippy -- -D warnings`.
+  - Vast verification is the next checkpoint after this code is committed,
+    pushed, and fast-forwarded on `/workspace/biber-ai-platform`.
 
 ## Repo State
 
@@ -1267,8 +1280,8 @@ cargo clippy -- -D warnings
    it is preferred over creating a second top-level Rust workspace unless the
    project later needs independent release/versioning. The next protocol target
    after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`,
-   `xriq-rpc`, `xriq-storage`, `xriq-node`, and `xriq-wallet` is explorer
-   API/UI for private-devnet inspection.
+   `xriq-rpc`, `xriq-storage`, `xriq-node`, `xriq-wallet`, and
+   `xriq-explorer` is local multi-node private-devnet tests.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.

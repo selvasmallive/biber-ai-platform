@@ -457,7 +457,8 @@ Before any public network, require:
    dependency-free local private-devnet baseline.
 10. Add wallet CLI for test transfers. Current status: done for deterministic
     private-devnet test identities and transfer drafts.
-11. Add explorer API/UI for private-devnet inspection.
+11. Add explorer API/UI for private-devnet inspection. Current status: done for
+    dependency-free private-devnet view models and text rendering.
 12. Add local multi-node tests.
 13. Revisit consensus, supply, governance, and public-readiness decisions.
 
@@ -469,6 +470,7 @@ As of 2026-05-17:
 - Implemented crates:
   - `xriq/crates/xriq-core`
   - `xriq/crates/xriq-consensus`
+  - `xriq/crates/xriq-explorer`
   - `xriq/crates/xriq-ledger`
   - `xriq/crates/xriq-mempool`
   - `xriq/crates/xriq-node`
@@ -516,17 +518,25 @@ As of 2026-05-17:
   - transfer draft construction
   - fake nonempty test signatures only
   - no real private-key, seed-phrase, or production custody support
+- Implemented private-devnet explorer baseline:
+  - read-only chain overview from local RPC snapshots
+  - latest block listing from storage by descending height
+  - block detail and transfer summaries
+  - account balance and nonce lookup
+  - pending mempool transaction detail and deterministic order
+  - dependency-free text rendering for private-devnet inspection
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test` with `56` passing tests.
+  - `cargo test -j 1` with `64` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification:
+- Latest Vast verification before the explorer checkpoint:
   - `cargo fmt --check`
   - `cargo test` with `56` passing tests.
   - `cargo clippy -- -D warnings`.
   - wallet CLI `key generate` and `transfer` smokes passed.
 
-Next implementation target: add explorer API/UI for private-devnet inspection.
+Next implementation target: fast-forward the Vast checkout and verify
+`xriq-explorer`, then add local multi-node tests.
 
 ## Open Decisions
 

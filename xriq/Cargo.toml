@@ -2,6 +2,7 @@
 members = [
     "crates/xriq-core",
     "crates/xriq-consensus",
+    "crates/xriq-explorer",
     "crates/xriq-ledger",
     "crates/xriq-mempool",
     "crates/xriq-node",

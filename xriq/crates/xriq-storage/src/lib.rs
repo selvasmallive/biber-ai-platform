@@ -31,6 +31,7 @@ pub trait ChainStore {
     fn block_by_hash(&self, block_hash: &Hash32) -> Option<&StoredBlock>;
     fn block_by_height(&self, height: u64) -> Option<&StoredBlock>;
     fn latest_block(&self) -> Option<&StoredBlock>;
+    fn blocks_by_height_desc(&self, limit: usize) -> Vec<&StoredBlock>;
     fn len(&self) -> usize;
 
     fn is_empty(&self) -> bool {
@@ -89,6 +90,15 @@ impl ChainStore for InMemoryChainStore {
     fn latest_block(&self) -> Option<&StoredBlock> {
         self.latest_height
             .and_then(|height| self.block_by_height(height))
+    }
+
+    fn blocks_by_height_desc(&self, limit: usize) -> Vec<&StoredBlock> {
+        self.hashes_by_height
+            .iter()
+            .rev()
+            .take(limit)
+            .filter_map(|(_, block_hash)| self.blocks_by_hash.get(block_hash))
+            .collect()
     }
 
     fn len(&self) -> usize {
@@ -162,6 +172,10 @@ impl ChainStore for FileChainStore {
 
     fn latest_block(&self) -> Option<&StoredBlock> {
         self.inner.latest_block()
+    }
+
+    fn blocks_by_height_desc(&self, limit: usize) -> Vec<&StoredBlock> {
+        self.inner.blocks_by_height_desc(limit)
     }
 
     fn len(&self) -> usize {
@@ -495,6 +509,23 @@ mod tests {
             store.latest_block().map(|record| record.block_hash),
             Some(block_hash)
         );
+    }
+
+    #[test]
+    fn memory_store_lists_recent_blocks_by_descending_height() {
+        let mut store = InMemoryChainStore::new();
+        store.append_block(hash(1), block(1, hash(0))).unwrap();
+        store.append_block(hash(2), block(2, hash(1))).unwrap();
+        store.append_block(hash(3), block(3, hash(2))).unwrap();
+
+        let heights: Vec<u64> = store
+            .blocks_by_height_desc(2)
+            .into_iter()
+            .map(|record| record.block.header.height)
+            .collect();
+
+        assert_eq!(heights, vec![3, 2]);
+        assert!(store.blocks_by_height_desc(0).is_empty());
     }
 
     #[test]
