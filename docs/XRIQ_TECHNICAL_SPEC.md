@@ -509,6 +509,9 @@ Before any public network, require:
 19. Add deterministic private-devnet chain replay startup. Current status: done
     for rebuilding ledger height, account state, and latest tip from persisted
     canonical blocks. Snapshot checkpointing remains deferred.
+20. Wire replay startup into a local node runner path. Current status: done for
+    a private-devnet `xriq-node status --chain-file <path>` command. HTTP/RPC
+    serving remains deferred.
 
 ## Current Prototype Status
 
@@ -590,6 +593,7 @@ As of 2026-05-17:
   - in-memory block index by hash and height
   - append-only local file store for block persistence and reload
   - deterministic startup replay through `XriqNode::from_genesis_replaying_store`
+  - local private-devnet runner status command backed by replay startup
   - node transaction submission
   - node transaction submission rejects invalid hash-bound test-only signatures
     before mempool insert
@@ -622,16 +626,17 @@ As of 2026-05-17:
   - dependency-free text rendering for private-devnet inspection
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test` with `105` passing tests.
+  - `cargo test -j 1` with `107` passing tests.
   - `cargo clippy -- -D warnings`.
+  - `cargo run -p xriq-node -- status --chain-file target/xriq-node-smoke-chain.bin`.
 - Latest Vast verification:
   - `cargo fmt --check`
   - `cargo test -j 1` with `105` passing tests.
   - `cargo clippy -- -D warnings`.
 
-Next implementation target: wire replay startup into a future node runner or
-local RPC-server start path, then consider snapshot checkpointing once replayed
-startup is exercised through tooling.
+Next implementation target: add a minimal local transaction-submit or
+block-produce runner command so wallet drafts can move through node state
+without a full HTTP server yet.
 
 ## Open Decisions
 

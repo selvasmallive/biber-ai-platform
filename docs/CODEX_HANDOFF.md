@@ -4,8 +4,22 @@ Last updated: 2026-05-17
 
 ## Current Goal
 
-Continue the live Vast.ai deployment and development of the BIBER AI Platform from
-the current GPU-backed direct vLLM/FastAPI state.
+Near-term goal: finish the cost-conscious BIBER MVP and the XRIQ private-devnet
+prototype from the current GPU-backed direct vLLM/FastAPI state.
+
+- Current focus:
+  - BIBER MVP: local model API, model registry, repo context, file-edit/test
+    workflows, GitHub save/PR path, and optional OpenAI mentor review only when
+    it is worth the cost.
+  - XRIQ private devnet: Rust-only private-devnet chain, replay startup, local
+    runner/RPC tooling, wallet flow, explorer flow, and integration tests.
+- Delayed scope:
+  - Public XRIQ remains part of the later project plan, but do not implement
+    public token economics, DEX/liquidity, validator rewards, public governance,
+    bridges, custody, listings, or launch-facing claims during this near-term
+    phase.
+  - Keep `docs/XRIQ_LEGAL_RISK_REDUCTION.md` as a hard guardrail for any future
+    public XRIQ work.
 
 ## Immediate Resume State
 

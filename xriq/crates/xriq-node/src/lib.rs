@@ -1,9 +1,12 @@
 //! Minimal local node loop for the XRIQ private devnet.
 
+use std::{fmt, path::Path};
+
 use xriq_consensus::{BlockProductionError, BlockProductionInput, SingleAuthorityProducer};
 use xriq_core::{
-    Block, BlockValidationError, GenesisConfig, GenesisConfigError, Hash32, ParentHeaderView,
-    SignatureBytes, Transaction, TransactionValidationContext, TransactionValidationError,
+    Address, AddressError, Block, BlockValidationError, GenesisConfig, GenesisConfigError, Hash32,
+    ParentHeaderView, SignatureBytes, Transaction, TransactionValidationContext,
+    TransactionValidationError, XriqAmount,
 };
 use xriq_crypto::{
     account_state_root, transaction_hash, transactions_root as canonical_transactions_root,
@@ -12,7 +15,9 @@ use xriq_crypto::{
 use xriq_ledger::{LedgerError, LedgerState};
 use xriq_mempool::{Mempool, MempoolConfig, MempoolError};
 use xriq_rpc::RpcService;
-use xriq_storage::{ChainStore, StorageError, StoredBlock};
+use xriq_storage::{ChainStore, FileChainStore, StorageError, StoredBlock};
+
+pub const PRIVATE_DEVNET_RUNNER_WARNING: &str = "private-devnet-only-no-public-token";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProduceNextBlockInput {
@@ -57,6 +62,35 @@ pub struct ProducedBlock {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NodeStatus {
+    pub warning: &'static str,
+    pub chain_id: String,
+    pub current_height: u64,
+    pub latest_block_hash: Hash32,
+    pub pending_transactions: usize,
+    pub stored_blocks: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NodeRunnerOutput {
+    Help(String),
+    Status(NodeStatus),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NodeRunnerError {
+    MissingCommand,
+    UnknownCommand(String),
+    UnknownFlag(String),
+    MissingFlag(&'static str),
+    DuplicateFlag(String),
+    UnexpectedArgument(String),
+    InvalidNumber { flag: &'static str, value: String },
+    InvalidAddress(AddressError),
+    Node(NodeError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeError {
     Genesis(GenesisConfigError),
     MissingSender,
@@ -84,6 +118,206 @@ pub struct XriqNode<S: ChainStore> {
     producer: SingleAuthorityProducer,
     store: S,
     latest_block_hash: Hash32,
+}
+
+impl fmt::Display for NodeStatus {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(formatter, "warning={}", self.warning)?;
+        writeln!(formatter, "chain_id={}", self.chain_id)?;
+        writeln!(formatter, "current_height={}", self.current_height)?;
+        writeln!(
+            formatter,
+            "latest_block_hash={}",
+            hash_hex(self.latest_block_hash)
+        )?;
+        writeln!(
+            formatter,
+            "pending_transactions={}",
+            self.pending_transactions
+        )?;
+        write!(formatter, "stored_blocks={}", self.stored_blocks)
+    }
+}
+
+impl fmt::Display for NodeRunnerOutput {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Help(help) => formatter.write_str(help),
+            Self::Status(status) => write!(formatter, "{status}"),
+        }
+    }
+}
+
+impl fmt::Display for NodeRunnerError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingCommand => formatter.write_str("missing command"),
+            Self::UnknownCommand(command) => write!(formatter, "unknown command: {command}"),
+            Self::UnknownFlag(flag) => write!(formatter, "unknown flag: {flag}"),
+            Self::MissingFlag(flag) => write!(formatter, "missing required flag: {flag}"),
+            Self::DuplicateFlag(flag) => write!(formatter, "duplicate flag: {flag}"),
+            Self::UnexpectedArgument(argument) => {
+                write!(formatter, "unexpected argument: {argument}")
+            }
+            Self::InvalidNumber { flag, value } => {
+                write!(formatter, "invalid number for {flag}: {value}")
+            }
+            Self::InvalidAddress(error) => write!(formatter, "invalid address: {error:?}"),
+            Self::Node(error) => write!(formatter, "node error: {error:?}"),
+        }
+    }
+}
+
+pub fn node_help_text() -> String {
+    [
+        "xriq-node private-devnet commands:",
+        "  xriq-node status --chain-file <path> [--alice-balance <base-units>]",
+        "",
+        "Warning: this runner is for private devnet tests only. It does not start a public network.",
+    ]
+    .join("\n")
+}
+
+pub fn run_node_command<I, S>(args: I) -> Result<NodeRunnerOutput, NodeRunnerError>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let args: Vec<String> = args
+        .into_iter()
+        .map(|argument| argument.as_ref().to_string())
+        .collect();
+    match args.first().map(String::as_str) {
+        None => Err(NodeRunnerError::MissingCommand),
+        Some("help" | "--help" | "-h") => Ok(NodeRunnerOutput::Help(node_help_text())),
+        Some("status") => run_status_command(&args[1..]),
+        Some(command) => Err(NodeRunnerError::UnknownCommand(command.to_string())),
+    }
+}
+
+pub fn private_devnet_file_status(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+) -> Result<NodeStatus, NodeError> {
+    let store = FileChainStore::open(chain_file).map_err(NodeError::Storage)?;
+    let genesis = private_devnet_runner_genesis(alice_balance);
+    let node = XriqNode::from_genesis_replaying_store(&genesis, store)?;
+    Ok(node_status(&node))
+}
+
+fn run_status_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&["--chain-file", "--alice-balance"])?;
+    let chain_file = flags.required("--chain-file")?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    private_devnet_file_status(chain_file, alice_balance)
+        .map(NodeRunnerOutput::Status)
+        .map_err(NodeRunnerError::Node)
+}
+
+fn private_devnet_runner_genesis(alice_balance: Option<XriqAmount>) -> GenesisConfig {
+    let genesis = GenesisConfig::private_devnet();
+    match alice_balance {
+        Some(balance) => genesis.with_account(
+            Address::parse("xriqdev1alice00000000000")
+                .expect("private devnet Alice address is valid"),
+            balance,
+            0,
+        ),
+        None => genesis,
+    }
+}
+
+fn node_status<S: ChainStore>(node: &XriqNode<S>) -> NodeStatus {
+    let chain_status = node.rpc_service().chain_status();
+    NodeStatus {
+        warning: PRIVATE_DEVNET_RUNNER_WARNING,
+        chain_id: chain_status.chain_id,
+        current_height: chain_status.current_height,
+        latest_block_hash: chain_status.latest_block_hash,
+        pending_transactions: chain_status.pending_transactions,
+        stored_blocks: node.store().len(),
+    }
+}
+
+fn parse_amount(flag: &'static str, value: &str) -> Result<XriqAmount, NodeRunnerError> {
+    Ok(XriqAmount::from_base_units(value.parse().map_err(
+        |_| NodeRunnerError::InvalidNumber {
+            flag,
+            value: value.to_string(),
+        },
+    )?))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RunnerFlagParser {
+    pairs: Vec<(String, String)>,
+}
+
+impl RunnerFlagParser {
+    fn parse(args: &[String]) -> Result<Self, NodeRunnerError> {
+        let mut pairs = Vec::new();
+        let mut index = 0;
+        while index < args.len() {
+            let flag = &args[index];
+            if !flag.starts_with("--") {
+                return Err(NodeRunnerError::UnexpectedArgument(flag.clone()));
+            }
+            let value = args
+                .get(index + 1)
+                .ok_or_else(|| NodeRunnerError::MissingFlag(flag_to_static(flag)))?;
+            if value.starts_with("--") {
+                return Err(NodeRunnerError::MissingFlag(flag_to_static(flag)));
+            }
+            if pairs.iter().any(|(existing_flag, _)| existing_flag == flag) {
+                return Err(NodeRunnerError::DuplicateFlag(flag.clone()));
+            }
+            pairs.push((flag.clone(), value.clone()));
+            index += 2;
+        }
+        Ok(Self { pairs })
+    }
+
+    fn required(&self, flag: &'static str) -> Result<&str, NodeRunnerError> {
+        self.optional(flag)
+            .ok_or(NodeRunnerError::MissingFlag(flag))
+    }
+
+    fn optional(&self, flag: &str) -> Option<&str> {
+        self.pairs
+            .iter()
+            .find(|(candidate, _)| candidate == flag)
+            .map(|(_, value)| value.as_str())
+    }
+
+    fn reject_unknown(&self, allowed: &[&str]) -> Result<(), NodeRunnerError> {
+        for (flag, _) in &self.pairs {
+            if !allowed.iter().any(|allowed_flag| allowed_flag == flag) {
+                return Err(NodeRunnerError::UnknownFlag(flag.clone()));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn flag_to_static(flag: &str) -> &'static str {
+    match flag {
+        "--chain-file" => "--chain-file",
+        "--alice-balance" => "--alice-balance",
+        _ => "--flag",
+    }
+}
+
+fn hash_hex(hash: Hash32) -> String {
+    let mut output = String::with_capacity(64);
+    for byte in hash.as_bytes() {
+        use fmt::Write;
+        write!(&mut output, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    output
 }
 
 impl<S: ChainStore> XriqNode<S> {
@@ -860,6 +1094,66 @@ mod tests {
         );
 
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn node_runner_status_replays_file_store() {
+        let path = temp_store_path();
+        let path_text = path.to_string_lossy().to_string();
+        let genesis = genesis();
+        let latest_hash;
+
+        {
+            let mut node =
+                XriqNode::from_genesis(&genesis, FileChainStore::open(&path).unwrap()).unwrap();
+            node.submit_transaction_with_canonical_hash(transaction(address("alice"), 0, 25, 2))
+                .unwrap();
+            let produced = node
+                .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&node))
+                .unwrap();
+            latest_hash = produced.block_hash;
+        }
+
+        assert_eq!(
+            run_node_command([
+                "status",
+                "--chain-file",
+                path_text.as_str(),
+                "--alice-balance",
+                "100",
+            ]),
+            Ok(NodeRunnerOutput::Status(NodeStatus {
+                warning: PRIVATE_DEVNET_RUNNER_WARNING,
+                chain_id: "xriq-devnet".to_string(),
+                current_height: 1,
+                latest_block_hash: latest_hash,
+                pending_transactions: 0,
+                stored_blocks: 1,
+            }))
+        );
+
+        let output = run_node_command([
+            "status",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(output.contains("warning=private-devnet-only-no-public-token"));
+        assert!(output.contains("current_height=1"));
+        assert!(output.contains("stored_blocks=1"));
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn node_runner_rejects_missing_chain_file_flag() {
+        assert_eq!(
+            run_node_command(["status"]),
+            Err(NodeRunnerError::MissingFlag("--chain-file"))
+        );
     }
 
     #[test]
