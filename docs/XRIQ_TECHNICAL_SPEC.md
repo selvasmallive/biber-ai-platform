@@ -573,9 +573,9 @@ As of 2026-05-17:
   - `cargo fmt --check`
   - `cargo test -j 1` with `78` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification before the `xriq-crypto` checkpoint:
+- Latest Vast verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `69` passing tests.
+  - `cargo test -j 1` with `78` passing tests.
   - `cargo clippy -- -D warnings`.
 
 Next implementation target: wire canonical hashes into node/RPC/storage APIs.

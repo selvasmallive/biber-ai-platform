@@ -212,8 +212,9 @@ last broad-safe Rust/XRIQ adapter.
   - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
     `cargo test -j 1` with `78` passing tests, and
     `cargo clippy -- -D warnings`.
-  - Vast verification is the next checkpoint after this code is committed,
-    pushed, and fast-forwarded on `/workspace/biber-ai-platform`.
+  - Vast checkout was fast-forwarded to include `xriq-crypto`; Vast Rust
+    verification also passed with `cargo fmt --check`, `cargo test -j 1` with
+    `78` passing tests, and `cargo clippy -- -D warnings`.
 
 ## Repo State
 
@@ -1335,8 +1336,7 @@ cargo clippy -- -D warnings
    project later needs independent release/versioning. The next protocol target
    after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`,
    `xriq-rpc`, `xriq-storage`, `xriq-node`, `xriq-wallet`, and
-   `xriq-explorer` is to verify `xriq-crypto` on Vast, then wire canonical
-   hashes into node/RPC/storage APIs.
+   `xriq-explorer` is to wire canonical hashes into node/RPC/storage APIs.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
