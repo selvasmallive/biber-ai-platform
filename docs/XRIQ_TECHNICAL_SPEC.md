@@ -606,12 +606,9 @@ As of 2026-05-17:
   - `cargo test -j 1` with `96` passing tests.
   - `cargo clippy -- -D warnings`.
 - Latest Vast verification:
-  - Previous canonical-hash API checkpoint passed with:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `84` passing tests.
+  - `cargo test -j 1` with `96` passing tests.
   - `cargo clippy -- -D warnings`.
-  - The genesis/config and account-state-root checkpoint is pending Vast
-    verification.
 
 Next implementation target: enforce deterministic transaction-root and
 state-root validation on imported blocks, then wire the test-only block

@@ -249,9 +249,9 @@ last broad-safe Rust/XRIQ adapter.
   - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
     `cargo test -j 1` with `96` passing tests, and
     `cargo clippy -- -D warnings`.
-  - Vast verification for this genesis/config checkpoint is pending. The
-    previous Vast checkpoint remains the canonical-hash API pass with `84`
-    tests.
+  - Vast checkout was fast-forwarded to `a5a8c08`; Vast Rust verification also
+    passed with `cargo fmt --check`, `cargo test -j 1` with `96` passing tests,
+    and `cargo clippy -- -D warnings`.
 
 ## Repo State
 
