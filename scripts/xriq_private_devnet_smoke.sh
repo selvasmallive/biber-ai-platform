@@ -65,13 +65,13 @@ start_http_server() {
   (
     cd "$XRIQ_DIR"
     if [ -n "$pending_file" ]; then
-      "$node_bin" serve-private \
+      exec "$node_bin" serve-private \
         --chain-file "$chain_file" \
         --pending-file "$pending_file" \
         --alice-balance 100 \
         --bind "127.0.0.1:${port}"
     else
-      "$node_bin" serve-private \
+      exec "$node_bin" serve-private \
         --chain-file "$chain_file" \
         --alice-balance 100 \
         --bind "127.0.0.1:${port}"
