@@ -590,11 +590,9 @@ As of 2026-05-17:
   - `cargo test -j 1` with `84` passing tests.
   - `cargo clippy -- -D warnings`.
 - Latest Vast verification:
-  - Previous crypto checkpoint passed with:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `78` passing tests.
+  - `cargo test -j 1` with `84` passing tests.
   - `cargo clippy -- -D warnings`.
-  - The canonical-hash API checkpoint is pending Vast verification.
 
 Next implementation target: add private-devnet genesis/chain configuration and
 start replacing ad hoc fixture roots with deterministic root calculation
