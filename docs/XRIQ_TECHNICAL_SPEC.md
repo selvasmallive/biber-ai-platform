@@ -654,11 +654,11 @@ As of 2026-05-17:
   - `cargo run -p xriq-node -- explorer-overview --chain-file target/xriq-node-draft-smoke-chain-20260517-codex.bin --alice-balance 100 --limit 5`.
 - Latest Vast verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `110` passing tests.
+  - `cargo test -j 1` with `112` passing tests.
   - `cargo clippy -- -D warnings`.
-  - `cargo run -p xriq-node -- produce-transfer-block --chain-file target/xriq-node-explorer-smoke-chain-1779007859.bin --alice-balance 100 --from xriqdev1alice00000000000 --to xriqdev1bobbb00000000000 --amount 25 --fee 2 --nonce 0 --expires-at-height 100 --timestamp-ms 1000`.
-  - `cargo run -p xriq-node -- produce-transfer-block --chain-file target/xriq-node-explorer-smoke-chain-1779007859.bin --alice-balance 100 --from xriqdev1alice00000000000 --to xriqdev1carol00000000000 --amount 10 --fee 2 --nonce 1 --expires-at-height 100 --timestamp-ms 2000`.
-  - `cargo run -p xriq-node -- explorer-overview --chain-file target/xriq-node-explorer-smoke-chain-1779007859.bin --alice-balance 100 --limit 5`.
+  - `cargo run -p xriq-wallet -- transfer --chain-id xriq-devnet --from xriqdev1alice00000000000 --to xriqdev1bobbb00000000000 --amount 25 --fee 2 --nonce 0 --expires-at-height 100` captured to `target/xriq-wallet-draft-1779008675.txt`.
+  - `cargo run -p xriq-node -- produce-draft-block --chain-file target/xriq-node-draft-smoke-chain-1779008675.bin --draft-file target/xriq-wallet-draft-1779008675.txt --alice-balance 100 --timestamp-ms 1000`.
+  - `cargo run -p xriq-node -- explorer-overview --chain-file target/xriq-node-draft-smoke-chain-1779008675.bin --alice-balance 100 --limit 5`.
 
 Next implementation target: add focused account and block detail inspection
 commands over persisted chain files. Keep HTTP/RPC serving deferred until the
