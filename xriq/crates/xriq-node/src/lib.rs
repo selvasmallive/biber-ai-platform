@@ -274,6 +274,31 @@ impl RunnerOutputFormat {
     }
 }
 
+impl NodeRunnerError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::MissingCommand => "missing_command",
+            Self::UnknownCommand(_) => "unknown_command",
+            Self::UnknownFlag(_) => "unknown_flag",
+            Self::MissingFlag(_) => "missing_flag",
+            Self::DuplicateFlag(_) => "duplicate_flag",
+            Self::UnexpectedArgument(_) => "unexpected_argument",
+            Self::DraftFileRead { .. } => "draft_file_read",
+            Self::InvalidDraftLine(_) => "invalid_draft_line",
+            Self::UnknownDraftField(_) => "unknown_draft_field",
+            Self::DuplicateDraftField(_) => "duplicate_draft_field",
+            Self::MissingDraftField(_) => "missing_draft_field",
+            Self::UnsupportedDraftVersion { .. } => "unsupported_draft_version",
+            Self::WrongDraftChainId { .. } => "wrong_draft_chain_id",
+            Self::InvalidNumber { .. } => "invalid_number",
+            Self::InvalidFormat(_) => "invalid_format",
+            Self::InvalidAddress(_) => "invalid_address",
+            Self::Explorer(_) => "explorer_error",
+            Self::Node(_) => "node_error",
+        }
+    }
+}
+
 pub fn node_help_text() -> String {
     [
         "xriq-node private-devnet commands:",
@@ -288,6 +313,51 @@ pub fn node_help_text() -> String {
         "Warning: this runner is for private devnet tests only. It does not start a public network.",
     ]
     .join("\n")
+}
+
+pub fn node_runner_args_request_json(args: &[String]) -> bool {
+    args.windows(2)
+        .any(|window| window[0] == "--format" && window[1] == "json")
+}
+
+pub fn render_node_runner_error_json(args: &[String], error: &NodeRunnerError) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"format_version\": {},",
+        json_string("xriq-node-json-v1")
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(PRIVATE_DEVNET_RUNNER_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"ok\": false,").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"command\": {},",
+        json_optional_string(node_runner_command_name(args))
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"error\": {{").expect("write to String");
+    writeln!(&mut output, "    \"code\": {},", json_string(error.code())).expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"message\": {}",
+        json_string(&error.to_string())
+    )
+    .expect("write to String");
+    output.push_str("  }\n}");
+    output
+}
+
+fn node_runner_command_name(args: &[String]) -> Option<&str> {
+    args.first()
+        .map(String::as_str)
+        .filter(|command| !command.starts_with('-'))
 }
 
 pub fn run_node_command<I, S>(args: I) -> Result<NodeRunnerOutput, NodeRunnerError>
@@ -1270,6 +1340,10 @@ fn json_optional_u64(value: Option<u64>) -> String {
     value
         .map(|number| number.to_string())
         .unwrap_or_else(|| "null".to_string())
+}
+
+fn json_optional_string(value: Option<&str>) -> String {
+    value.map(json_string).unwrap_or_else(|| "null".to_string())
 }
 
 fn json_string(value: &str) -> String {
@@ -2761,6 +2835,40 @@ mod tests {
 
         let _ = fs::remove_file(path);
         let _ = fs::remove_file(draft_path);
+    }
+
+    #[test]
+    fn node_runner_json_error_output_has_stable_error_shape() {
+        let args = vec![
+            "status".to_string(),
+            "--format".to_string(),
+            "json".to_string(),
+        ];
+        let error = run_node_command(args.iter().map(String::as_str)).unwrap_err();
+
+        assert_eq!(error, NodeRunnerError::MissingFlag("--chain-file"));
+        assert!(node_runner_args_request_json(&args));
+        assert_eq!(error.code(), "missing_flag");
+
+        let json = render_node_runner_error_json(&args, &error);
+        assert!(json.contains("\"format_version\": \"xriq-node-json-v1\""));
+        assert!(json.contains("\"warning\": \"private-devnet-only-no-public-token\""));
+        assert!(json.contains("\"ok\": false"));
+        assert!(json.contains("\"command\": \"status\""));
+        assert!(json.contains("\"code\": \"missing_flag\""));
+        assert!(json.contains("\"message\": \"missing required flag: --chain-file\""));
+
+        let leading_format_args = vec![
+            "--format".to_string(),
+            "json".to_string(),
+            "status".to_string(),
+        ];
+        assert!(node_runner_args_request_json(&leading_format_args));
+        assert!(render_node_runner_error_json(
+            &leading_format_args,
+            &NodeRunnerError::MissingCommand
+        )
+        .contains("\"command\": null"));
     }
 
     #[test]

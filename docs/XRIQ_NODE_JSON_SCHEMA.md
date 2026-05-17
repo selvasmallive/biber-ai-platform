@@ -28,8 +28,9 @@ Current format version: `xriq-node-json-v1`.
 - Unknown fields may be added in a later format version. Consumers should ignore
   fields they do not understand and should branch on `format_version` before
   relying on changed semantics.
-- Error output is not JSON yet. On errors, the current CLI prints `error=...`
-  and help text to stderr and exits nonzero.
+- When `--format json` is present and the runner fails, the CLI prints a JSON
+  error response to stderr and exits nonzero. Without `--format json`, errors
+  remain human-readable text plus help output.
 
 ## Status
 
@@ -211,12 +212,59 @@ Shape:
 }
 ```
 
+## Error Response
+
+Errors are written to stderr and exit nonzero when `--format json` is present.
+The response is intentionally small so scripts can branch on `error.code`.
+
+Example command:
+
+```bash
+cargo run -p xriq-node -- status --format json
+```
+
+Shape:
+
+```json
+{
+  "format_version": "xriq-node-json-v1",
+  "warning": "private-devnet-only-no-public-token",
+  "ok": false,
+  "command": "status",
+  "error": {
+    "code": "missing_flag",
+    "message": "missing required flag: --chain-file"
+  }
+}
+```
+
+When the runner cannot identify a command, `command` is `null`.
+
+Current stable error codes:
+
+- `missing_command`
+- `unknown_command`
+- `unknown_flag`
+- `missing_flag`
+- `duplicate_flag`
+- `unexpected_argument`
+- `draft_file_read`
+- `invalid_draft_line`
+- `unknown_draft_field`
+- `duplicate_draft_field`
+- `missing_draft_field`
+- `unsupported_draft_version`
+- `wrong_draft_chain_id`
+- `invalid_number`
+- `invalid_format`
+- `invalid_address`
+- `explorer_error`
+- `node_error`
+
 ## Next Schema Work
 
 Before exposing these shapes through HTTP/RPC, add:
 
-- JSON error responses for runner/API failures
 - machine-readable command names in each response
 - explicit schema tests if the JSON surface grows beyond this small contract
 - response examples generated from the smoke script artifacts
-

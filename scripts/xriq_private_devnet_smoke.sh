@@ -135,6 +135,20 @@ require_contains "account-detail json" "$account_json_output" '"address": "xriqd
 require_contains "account-detail json" "$account_json_output" '"balance_base_units": "73"'
 require_contains "account-detail json" "$account_json_output" '"nonce": 1'
 
+set +e
+json_error_output="$(run_xriq -p xriq-node -- status --format json 2>&1)"
+json_error_status=$?
+set -e
+if [ "$json_error_status" -eq 0 ]; then
+  echo "error=status json error unexpectedly succeeded" >&2
+  printf '%s\n' "$json_error_output" >&2
+  exit 1
+fi
+require_contains "status json error" "$json_error_output" '"ok": false'
+require_contains "status json error" "$json_error_output" '"command": "status"'
+require_contains "status json error" "$json_error_output" '"code": "missing_flag"'
+require_contains "status json error" "$json_error_output" '"message": "missing required flag: --chain-file"'
+
 echo "ok=xriq-private-devnet-smoke"
 echo "draft=${DRAFT_FILE}"
 echo "chain=${CHAIN_FILE}"
