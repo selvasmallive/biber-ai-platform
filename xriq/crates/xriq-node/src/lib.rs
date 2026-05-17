@@ -156,6 +156,10 @@ pub enum NodeRunnerError {
     MissingDraftField(&'static str),
     UnsupportedDraftVersion { expected: u16, actual: String },
     WrongDraftChainId { expected: String, actual: String },
+    InvalidJson(String),
+    UnknownJsonField(String),
+    DuplicateJsonField(String),
+    MissingJsonField(&'static str),
     InvalidNumber { flag: &'static str, value: String },
     InvalidFormat(String),
     InvalidAddress(AddressError),
@@ -291,6 +295,12 @@ impl fmt::Display for NodeRunnerError {
                 formatter,
                 "wrong draft chain id: expected {expected}, got {actual}"
             ),
+            Self::InvalidJson(message) => write!(formatter, "invalid json: {message}"),
+            Self::UnknownJsonField(field) => write!(formatter, "unknown json field: {field}"),
+            Self::DuplicateJsonField(field) => {
+                write!(formatter, "duplicate json field: {field}")
+            }
+            Self::MissingJsonField(field) => write!(formatter, "missing json field: {field}"),
             Self::InvalidNumber { flag, value } => {
                 write!(formatter, "invalid number for {flag}: {value}")
             }
@@ -330,6 +340,10 @@ impl NodeRunnerError {
             Self::MissingDraftField(_) => "missing_draft_field",
             Self::UnsupportedDraftVersion { .. } => "unsupported_draft_version",
             Self::WrongDraftChainId { .. } => "wrong_draft_chain_id",
+            Self::InvalidJson(_) => "invalid_json",
+            Self::UnknownJsonField(_) => "unknown_json_field",
+            Self::DuplicateJsonField(_) => "duplicate_json_field",
+            Self::MissingJsonField(_) => "missing_json_field",
             Self::InvalidNumber { .. } => "invalid_number",
             Self::InvalidFormat(_) => "invalid_format",
             Self::InvalidAddress(_) => "invalid_address",
@@ -668,15 +682,11 @@ fn submit_transaction_http_response(
         return http_error_response(
             400,
             "missing_request_body",
-            "POST /v1/transactions expects a wallet transfer draft body",
+            "POST /v1/transactions expects a wallet transfer draft body or private-devnet JSON transfer body",
         );
     }
 
-    match private_devnet_file_submit_transfer_draft_body(
-        &config.chain_file,
-        config.alice_balance,
-        body,
-    ) {
+    match private_devnet_file_submit_transfer_body(&config.chain_file, config.alice_balance, body) {
         Ok(status) => http_json_response(
             201,
             render_produced_transfer_block_status_json("submit-transaction", &status),
@@ -721,13 +731,17 @@ fn node_runner_error_http_status(error: &NodeRunnerError) -> u16 {
         NodeRunnerError::InvalidAddress(_)
         | NodeRunnerError::InvalidDraftLine(_)
         | NodeRunnerError::InvalidFormat(_)
+        | NodeRunnerError::InvalidJson(_)
         | NodeRunnerError::InvalidNumber { .. }
         | NodeRunnerError::MissingDraftField(_)
+        | NodeRunnerError::MissingJsonField(_)
         | NodeRunnerError::MissingFlag(_)
         | NodeRunnerError::DuplicateDraftField(_)
+        | NodeRunnerError::DuplicateJsonField(_)
         | NodeRunnerError::UnsupportedDraftVersion { .. }
         | NodeRunnerError::UnexpectedArgument(_)
         | NodeRunnerError::UnknownDraftField(_)
+        | NodeRunnerError::UnknownJsonField(_)
         | NodeRunnerError::UnknownFlag(_)
         | NodeRunnerError::WrongDraftChainId { .. } => 400,
         NodeRunnerError::Node(
@@ -903,15 +917,23 @@ pub fn private_devnet_file_produce_draft_block(
         .map_err(NodeRunnerError::Node)
 }
 
+pub fn private_devnet_file_submit_transfer_body(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    body: &str,
+) -> Result<ProducedTransferBlockStatus, NodeRunnerError> {
+    let genesis = private_devnet_runner_genesis(alice_balance);
+    let transfer = parse_private_devnet_transfer_body(body, &genesis.chain_id)?;
+    private_devnet_file_produce_transfer_block(chain_file, alice_balance, transfer)
+        .map_err(NodeRunnerError::Node)
+}
+
 pub fn private_devnet_file_submit_transfer_draft_body(
     chain_file: impl AsRef<Path>,
     alice_balance: Option<XriqAmount>,
     draft_text: &str,
 ) -> Result<ProducedTransferBlockStatus, NodeRunnerError> {
-    let genesis = private_devnet_runner_genesis(alice_balance);
-    let transfer = parse_private_devnet_transfer_draft(draft_text, &genesis.chain_id)?;
-    private_devnet_file_produce_transfer_block(chain_file, alice_balance, transfer)
-        .map_err(NodeRunnerError::Node)
+    private_devnet_file_submit_transfer_body(chain_file, alice_balance, draft_text)
 }
 
 pub fn private_devnet_file_explorer_overview(
@@ -1281,6 +1303,18 @@ fn read_private_devnet_transfer_draft(
     parse_private_devnet_transfer_draft(&draft_text, expected_chain_id)
 }
 
+fn parse_private_devnet_transfer_body(
+    body: &str,
+    expected_chain_id: &str,
+) -> Result<PrivateDevnetTransferInput, NodeRunnerError> {
+    let trimmed = body.trim().trim_start_matches('\u{feff}').trim();
+    if trimmed.starts_with('{') {
+        parse_private_devnet_transfer_json(trimmed, expected_chain_id)
+    } else {
+        parse_private_devnet_transfer_draft(trimmed, expected_chain_id)
+    }
+}
+
 fn parse_private_devnet_transfer_draft(
     draft_text: &str,
     expected_chain_id: &str,
@@ -1316,6 +1350,57 @@ fn parse_private_devnet_transfer_draft(
             .transpose()?,
         timestamp_ms: 1_000,
         consensus_round: 0,
+    })
+}
+
+fn parse_private_devnet_transfer_json(
+    json_text: &str,
+    expected_chain_id: &str,
+) -> Result<PrivateDevnetTransferInput, NodeRunnerError> {
+    let fields = JsonFields::parse(json_text)?;
+    let version = fields.required_scalar("version")?;
+    let expected_version = Transaction::SUPPORTED_VERSION;
+    if version != expected_version.to_string() {
+        return Err(NodeRunnerError::UnsupportedDraftVersion {
+            expected: expected_version,
+            actual: version.to_string(),
+        });
+    }
+
+    let chain_id = fields.required_scalar("chain_id")?;
+    if chain_id != expected_chain_id {
+        return Err(NodeRunnerError::WrongDraftChainId {
+            expected: expected_chain_id.to_string(),
+            actual: chain_id.to_string(),
+        });
+    }
+
+    Ok(PrivateDevnetTransferInput {
+        from: parse_address("from", fields.required_scalar("from")?)?,
+        to: parse_address("to", fields.required_scalar("to")?)?,
+        amount: parse_amount(
+            "amount_base_units",
+            fields.required_scalar_any(&["amount_base_units", "amount"])?,
+        )?,
+        fee: parse_amount(
+            "fee_base_units",
+            fields.required_scalar_any(&["fee_base_units", "fee"])?,
+        )?,
+        nonce: parse_u64("nonce", fields.required_scalar("nonce")?)?,
+        expires_at_height: fields
+            .optional_scalar("expires_at_height")?
+            .map(|value| parse_u64("expires_at_height", value))
+            .transpose()?,
+        timestamp_ms: fields
+            .optional_scalar("timestamp_ms")?
+            .map(|value| parse_u64("timestamp_ms", value))
+            .transpose()?
+            .unwrap_or(1_000),
+        consensus_round: fields
+            .optional_scalar("consensus_round")?
+            .map(|value| parse_u64("consensus_round", value))
+            .transpose()?
+            .unwrap_or(0),
     })
 }
 
@@ -1377,6 +1462,310 @@ fn is_allowed_draft_field(field: &str) -> bool {
             | "expires_at_height"
             | "signature_bytes"
     )
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct JsonFields {
+    pairs: Vec<(String, JsonFieldValue)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum JsonFieldValue {
+    String(String),
+    Number(String),
+    Null,
+}
+
+impl JsonFields {
+    fn parse(json_text: &str) -> Result<Self, NodeRunnerError> {
+        let mut parser = FlatJsonObjectParser::new(json_text);
+        let pairs = parser.parse_object()?;
+        Ok(Self { pairs })
+    }
+
+    fn required_scalar(&self, field: &'static str) -> Result<&str, NodeRunnerError> {
+        self.optional_scalar(field)?
+            .ok_or(NodeRunnerError::MissingJsonField(field))
+    }
+
+    fn required_scalar_any(&self, fields: &[&'static str]) -> Result<&str, NodeRunnerError> {
+        for field in fields {
+            if let Some(value) = self.optional_scalar(field)? {
+                return Ok(value);
+            }
+        }
+        Err(NodeRunnerError::MissingJsonField(fields[0]))
+    }
+
+    fn optional_scalar(&self, field: &'static str) -> Result<Option<&str>, NodeRunnerError> {
+        match self.value(field) {
+            Some(JsonFieldValue::String(value) | JsonFieldValue::Number(value)) => {
+                Ok(Some(value.as_str()))
+            }
+            Some(JsonFieldValue::Null) => Ok(None),
+            None => Ok(None),
+        }
+    }
+
+    fn value(&self, field: &str) -> Option<&JsonFieldValue> {
+        self.pairs
+            .iter()
+            .find(|(candidate, _)| candidate == field)
+            .map(|(_, value)| value)
+    }
+}
+
+struct FlatJsonObjectParser<'a> {
+    input: &'a str,
+    position: usize,
+}
+
+impl<'a> FlatJsonObjectParser<'a> {
+    fn new(input: &'a str) -> Self {
+        Self { input, position: 0 }
+    }
+
+    fn parse_object(&mut self) -> Result<Vec<(String, JsonFieldValue)>, NodeRunnerError> {
+        self.skip_whitespace();
+        self.expect_byte(b'{')?;
+        self.skip_whitespace();
+
+        let mut pairs = Vec::new();
+        if self.consume_byte(b'}') {
+            self.skip_whitespace();
+            self.expect_end()?;
+            return Ok(pairs);
+        }
+
+        loop {
+            self.skip_whitespace();
+            let field = self.parse_string()?;
+            if !is_allowed_transaction_json_field(&field) {
+                return Err(NodeRunnerError::UnknownJsonField(field));
+            }
+            if pairs
+                .iter()
+                .any(|(existing_field, _)| existing_field == &field)
+            {
+                return Err(NodeRunnerError::DuplicateJsonField(field));
+            }
+
+            self.skip_whitespace();
+            self.expect_byte(b':')?;
+            self.skip_whitespace();
+            let value = self.parse_value()?;
+            pairs.push((field, value));
+            self.skip_whitespace();
+
+            if self.consume_byte(b',') {
+                continue;
+            }
+            if self.consume_byte(b'}') {
+                break;
+            }
+            return Err(NodeRunnerError::InvalidJson(
+                "expected comma or closing brace".to_string(),
+            ));
+        }
+
+        self.skip_whitespace();
+        self.expect_end()?;
+        Ok(pairs)
+    }
+
+    fn parse_value(&mut self) -> Result<JsonFieldValue, NodeRunnerError> {
+        match self.peek_byte() {
+            Some(b'"') => self.parse_string().map(JsonFieldValue::String),
+            Some(b'n') => {
+                self.expect_keyword("null")?;
+                Ok(JsonFieldValue::Null)
+            }
+            Some(b'-' | b'0'..=b'9') => self.parse_number().map(JsonFieldValue::Number),
+            Some(_) => Err(NodeRunnerError::InvalidJson(
+                "expected string, number, or null value".to_string(),
+            )),
+            None => Err(NodeRunnerError::InvalidJson(
+                "missing json value".to_string(),
+            )),
+        }
+    }
+
+    fn parse_string(&mut self) -> Result<String, NodeRunnerError> {
+        self.expect_byte(b'"')?;
+        let mut output = String::new();
+        while let Some(byte) = self.next_byte() {
+            match byte {
+                b'"' => return Ok(output),
+                b'\\' => output.push(self.parse_escape()?),
+                byte if byte < 0x20 => {
+                    return Err(NodeRunnerError::InvalidJson(
+                        "unescaped control character in string".to_string(),
+                    ));
+                }
+                _ => {
+                    let remaining = &self.input[self.position - 1..];
+                    let Some(character) = remaining.chars().next() else {
+                        return Err(NodeRunnerError::InvalidJson(
+                            "invalid string character".to_string(),
+                        ));
+                    };
+                    self.position = self.position - 1 + character.len_utf8();
+                    output.push(character);
+                }
+            }
+        }
+        Err(NodeRunnerError::InvalidJson(
+            "unterminated string".to_string(),
+        ))
+    }
+
+    fn parse_escape(&mut self) -> Result<char, NodeRunnerError> {
+        match self.next_byte() {
+            Some(b'"') => Ok('"'),
+            Some(b'\\') => Ok('\\'),
+            Some(b'/') => Ok('/'),
+            Some(b'b') => Ok('\u{08}'),
+            Some(b'f') => Ok('\u{0c}'),
+            Some(b'n') => Ok('\n'),
+            Some(b'r') => Ok('\r'),
+            Some(b't') => Ok('\t'),
+            Some(b'u') => self.parse_unicode_escape(),
+            Some(_) => Err(NodeRunnerError::InvalidJson(
+                "invalid string escape".to_string(),
+            )),
+            None => Err(NodeRunnerError::InvalidJson(
+                "unterminated string escape".to_string(),
+            )),
+        }
+    }
+
+    fn parse_unicode_escape(&mut self) -> Result<char, NodeRunnerError> {
+        let mut value = 0_u32;
+        for _ in 0..4 {
+            let Some(byte) = self.next_byte() else {
+                return Err(NodeRunnerError::InvalidJson(
+                    "unterminated unicode escape".to_string(),
+                ));
+            };
+            value = (value << 4)
+                | u32::from(json_hex_nibble(byte).map_err(|_| {
+                    NodeRunnerError::InvalidJson("invalid unicode escape".to_string())
+                })?);
+        }
+        char::from_u32(value)
+            .ok_or_else(|| NodeRunnerError::InvalidJson("invalid unicode scalar value".to_string()))
+    }
+
+    fn parse_number(&mut self) -> Result<String, NodeRunnerError> {
+        let start = self.position;
+        if self.consume_byte(b'-') {
+            return Err(NodeRunnerError::InvalidJson(
+                "negative numbers are not accepted for transfer fields".to_string(),
+            ));
+        }
+
+        let mut digits = 0_usize;
+        while matches!(self.peek_byte(), Some(b'0'..=b'9')) {
+            self.position += 1;
+            digits += 1;
+        }
+        if digits == 0 {
+            return Err(NodeRunnerError::InvalidJson(
+                "expected digits in number".to_string(),
+            ));
+        }
+        if matches!(self.peek_byte(), Some(b'.' | b'e' | b'E')) {
+            return Err(NodeRunnerError::InvalidJson(
+                "only integer numbers are accepted for transfer fields".to_string(),
+            ));
+        }
+        Ok(self.input[start..self.position].to_string())
+    }
+
+    fn skip_whitespace(&mut self) {
+        while matches!(self.peek_byte(), Some(b' ' | b'\n' | b'\r' | b'\t')) {
+            self.position += 1;
+        }
+    }
+
+    fn expect_byte(&mut self, expected: u8) -> Result<(), NodeRunnerError> {
+        if self.consume_byte(expected) {
+            Ok(())
+        } else {
+            Err(NodeRunnerError::InvalidJson(format!(
+                "expected '{}'",
+                char::from(expected)
+            )))
+        }
+    }
+
+    fn expect_keyword(&mut self, keyword: &str) -> Result<(), NodeRunnerError> {
+        if self.input[self.position..].starts_with(keyword) {
+            self.position += keyword.len();
+            Ok(())
+        } else {
+            Err(NodeRunnerError::InvalidJson(format!("expected {keyword}")))
+        }
+    }
+
+    fn expect_end(&self) -> Result<(), NodeRunnerError> {
+        if self.position == self.input.len() {
+            Ok(())
+        } else {
+            Err(NodeRunnerError::InvalidJson(
+                "unexpected trailing input".to_string(),
+            ))
+        }
+    }
+
+    fn consume_byte(&mut self, expected: u8) -> bool {
+        if self.peek_byte() == Some(expected) {
+            self.position += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn next_byte(&mut self) -> Option<u8> {
+        let byte = self.peek_byte()?;
+        self.position += 1;
+        Some(byte)
+    }
+
+    fn peek_byte(&self) -> Option<u8> {
+        self.input.as_bytes().get(self.position).copied()
+    }
+}
+
+fn is_allowed_transaction_json_field(field: &str) -> bool {
+    matches!(
+        field,
+        "format_version"
+            | "warning"
+            | "version"
+            | "chain_id"
+            | "from"
+            | "to"
+            | "amount_base_units"
+            | "amount"
+            | "fee_base_units"
+            | "fee"
+            | "nonce"
+            | "expires_at_height"
+            | "timestamp_ms"
+            | "consensus_round"
+            | "signature_bytes"
+    )
+}
+
+fn json_hex_nibble(byte: u8) -> Result<u8, ()> {
+    match byte {
+        b'0'..=b'9' => Ok(byte - b'0'),
+        b'a'..=b'f' => Ok(byte - b'a' + 10),
+        b'A'..=b'F' => Ok(byte - b'A' + 10),
+        _ => Err(()),
+    }
 }
 
 fn private_devnet_runner_genesis(alice_balance: Option<XriqAmount>) -> GenesisConfig {
@@ -3563,10 +3952,48 @@ mod tests {
         assert!(submit.body.contains("\"current_height\": 2"));
         assert!(submit.body.contains("\"applied_transactions\": 1"));
 
+        let submit_json = [
+            "{",
+            "  \"format_version\": \"xriq-node-transfer-submit-v1\",",
+            "  \"version\": 1,",
+            "  \"chain_id\": \"xriq-devnet\",",
+            "  \"from\": \"xriqdev1alice00000000000\",",
+            "  \"to\": \"xriqdev1davee00000000000\",",
+            "  \"amount_base_units\": \"5\",",
+            "  \"fee_base_units\": 2,",
+            "  \"nonce\": 2,",
+            "  \"expires_at_height\": null",
+            "}",
+        ]
+        .join("\n");
+        let json_submit = private_devnet_http_response_with_body(
+            &submit_config,
+            "POST",
+            "/v1/transactions",
+            &submit_json,
+        );
+        assert_eq!(json_submit.status_code, 201);
+        assert!(json_submit
+            .body
+            .contains("\"command\": \"submit-transaction\""));
+        assert!(json_submit.body.contains("\"current_height\": 3"));
+        assert!(json_submit.body.contains("\"applied_transactions\": 1"));
+
+        let bad_json_submit = private_devnet_http_response_with_body(
+            &submit_config,
+            "POST",
+            "/v1/transactions",
+            "{\"version\": 1, \"chain_id\": \"xriq-devnet\", \"amount_base_units\": 5}",
+        );
+        assert_eq!(bad_json_submit.status_code, 400);
+        assert!(bad_json_submit
+            .body
+            .contains("\"code\": \"missing_json_field\""));
+
         let status_after_submit =
             private_devnet_http_response(&submit_config, "GET", "/v1/chain/status");
         assert_eq!(status_after_submit.status_code, 200);
-        assert!(status_after_submit.body.contains("\"current_height\": 2"));
+        assert!(status_after_submit.body.contains("\"current_height\": 3"));
 
         let raw = status.to_http_response();
         assert!(raw.starts_with("HTTP/1.1 200 OK\r\n"));

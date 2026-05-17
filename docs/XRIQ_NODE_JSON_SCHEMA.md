@@ -192,7 +192,7 @@ Shape:
 }
 ```
 
-## Submit Wallet Draft Transaction
+## Submit Private-Devnet Transaction
 
 HTTP endpoint:
 
@@ -203,13 +203,13 @@ POST /v1/transactions
 This endpoint is enabled only by `xriq-node serve-private`. `serve-readonly`
 returns `501`.
 
-The request body is the existing wallet transfer draft text emitted by
-`xriq-wallet transfer`. The file-backed private-devnet helper immediately
-validates the draft against the replayed chain state, produces one block, and
-persists it to the configured chain file. It does not create a durable pending
-mempool entry.
+The request body can be either the existing wallet transfer draft text emitted
+by `xriq-wallet transfer` or the flat JSON transfer body shown below. The
+file-backed private-devnet helper immediately validates the transfer against
+the replayed chain state, produces one block, and persists it to the configured
+chain file. It does not create a durable pending mempool entry.
 
-Example request body:
+Example wallet draft request body:
 
 ```text
 warning=private-devnet-test-identity-only
@@ -223,6 +223,31 @@ nonce=0
 expires_at_height=100
 signature_bytes=48
 ```
+
+Example JSON request body:
+
+```json
+{
+  "format_version": "xriq-node-transfer-submit-v1",
+  "version": 1,
+  "chain_id": "xriq-devnet",
+  "from": "xriqdev1alice00000000000",
+  "to": "xriqdev1bobbb00000000000",
+  "amount_base_units": "25",
+  "fee_base_units": "2",
+  "nonce": 0,
+  "expires_at_height": 100
+}
+```
+
+JSON notes:
+
+- `amount_base_units` and `fee_base_units` may be strings or integer numbers.
+- `expires_at_height` may be an integer, string, `null`, or omitted.
+- `timestamp_ms` and `consensus_round` are optional private-devnet block
+  production helpers and default to `1000` and `0`.
+- The server reconstructs the current test-only private-devnet signature path;
+  this is not production custody or a public signed-transaction format.
 
 Success status: `201 Created`.
 
@@ -347,6 +372,10 @@ Current stable error codes:
 - `missing_draft_field`
 - `unsupported_draft_version`
 - `wrong_draft_chain_id`
+- `invalid_json`
+- `unknown_json_field`
+- `duplicate_json_field`
+- `missing_json_field`
 - `invalid_number`
 - `invalid_format`
 - `invalid_address`
@@ -393,7 +422,8 @@ The read-only endpoints reuse the JSON bodies documented above where possible.
 HTTP-only health and wrapper errors use
 `format_version: xriq-node-http-v1`. `POST /v1/transactions` uses the success
 body documented above only when the server is started with `serve-private`;
-`serve-readonly` returns `501`.
+`serve-readonly` returns `501`. Submit-capable POST bodies may be wallet draft
+text or `xriq-node-transfer-submit-v1` JSON.
 
 ## Next Schema Work
 

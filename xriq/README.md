@@ -147,9 +147,24 @@ It does not report a durable pending status yet because the file-backed HTTP
 wrapper does not persist a mempool across requests.
 
 `POST /v1/transactions` is available only through `serve-private`. It accepts
-the existing wallet transfer draft text as the request body and immediately
-produces a private-devnet block against the configured chain file. This is an
-MVP submit-and-block helper, not a production mempool API.
+either the existing wallet transfer draft text or a private-devnet JSON transfer
+body, then immediately produces a private-devnet block against the configured
+chain file. This is an MVP submit-and-block helper, not a production mempool
+API.
+
+```json
+{
+  "format_version": "xriq-node-transfer-submit-v1",
+  "version": 1,
+  "chain_id": "xriq-devnet",
+  "from": "xriqdev1alice00000000000",
+  "to": "xriqdev1bobbb00000000000",
+  "amount_base_units": "25",
+  "fee_base_units": "2",
+  "nonce": 0,
+  "expires_at_height": 100
+}
+```
 
 Keep generated chain data, node databases, wallets, and testnet artifacts out of
 Git.
