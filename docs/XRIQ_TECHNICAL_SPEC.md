@@ -764,14 +764,17 @@ As of 2026-05-17:
 - Latest Vast verification:
   - `bash -n scripts/xriq_private_devnet_smoke.sh`.
   - `cargo fmt --check`
-  - `cargo test -j 1` with `115` passing tests.
+  - `cargo test -j 1` with `116` passing tests.
   - `cargo clippy -- -D warnings`.
   - `xriq-node mempool-detail` through the one-command smoke path, verifying a
     wallet draft can be previewed in the local mempool before block production.
+  - `xriq-node mempool-detail --format json`,
+    `explorer-overview --format json`, and `account-detail --format json`
+    through the one-command smoke path.
   - `xriq-node produce-draft-block`, `explorer-overview`, `block-detail`, and
-    `account-detail` through the same smoke path.
+    `account-detail` text output through the same smoke path.
   - `bash scripts/xriq_private_devnet_smoke.sh`, which wrote artifacts under
-    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T144421Z-19849`.
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T150315Z-20580`.
 
 Next implementation target: keep the local file-backed workflow small and
 deterministic. Add stable JSON schema documentation or minimal HTTP/RPC serving

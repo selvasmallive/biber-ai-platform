@@ -32,8 +32,8 @@ As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Last XRIQ implementation commit pushed and Vast-verified:
-  `7e9d99f Add XRIQ mempool detail runner`.
-- Vast checkout was fast-forwarded and Rust/script-verified through `7e9d99f`.
+  `266daf3 Add XRIQ node JSON output`.
+- Vast checkout was fast-forwarded and Rust/script-verified through `266daf3`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -476,6 +476,33 @@ serving the last broad-safe Rust/XRIQ adapter.
   - Linked the checklist from `docs/XRIQ_TECHNICAL_SPEC.md`,
     `docs/XRIQ_PHASE3_DECISIONS.md`, `docs/XRIQ_LEGAL_RISK_REDUCTION.md`, and
     `docs/XRIQ_RUST_TRACK.md`.
+- Local XRIQ prototype progress after the JSON runner checkpoint:
+  - Added `--format text|json` to the file-backed `xriq-node` runner commands:
+    `status`, `produce-transfer-block`, `produce-draft-block`,
+    `explorer-overview`, `block-detail`, `account-detail`, and
+    `mempool-detail`.
+  - Text output remains the default. JSON output uses
+    `format_version: xriq-node-json-v1`, keeps private-devnet warnings in the
+    payload, emits hashes and addresses as strings, and emits XRIQ amounts as
+    decimal `*_base_units` strings so future JS/TS clients do not lose `u128`
+    precision.
+  - Added Rust coverage for JSON output across status, block production,
+    overview, block detail, account detail, and mempool detail.
+  - Updated `scripts/xriq_private_devnet_smoke.sh` so the one-command Vast
+    smoke path verifies selected JSON outputs for mempool detail, explorer
+    overview, and account detail.
+  - Local Windows Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `116` passing tests, and
+    `cargo clippy -- -D warnings`, using `CARGO_TARGET_DIR=target-codex-json2`
+    to avoid default target binary locks. A first rerun under
+    `target-codex-json` hit a Windows linker lock on an old test executable.
+  - Vast checkout was fast-forwarded to `266daf3`; Vast verification passed
+    with `bash -n scripts/xriq_private_devnet_smoke.sh`,
+    `cargo fmt --check`, `cargo test -j 1` with `116` passing tests,
+    `cargo clippy -- -D warnings`, and
+    `bash scripts/xriq_private_devnet_smoke.sh`.
+  - Latest smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T150315Z-20580`.
 
 ## Repo State
 
@@ -1678,10 +1705,10 @@ cargo clippy -- -D warnings
    `xriq-node account-detail`, and `xriq-node mempool-detail` runner commands,
    `scripts/xriq_private_devnet_smoke.sh`, and
    `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`, is to keep the local
-   file-backed workflow small and deterministic. Add minimal HTTP/RPC serving,
-   stable JSON output, or snapshot/replay improvements only when they directly
-   help the private-devnet MVP. Public XRIQ launch, exchange listing, custody,
-   liquidity, bridges, and market-facing work remain blocked.
+   file-backed workflow small and deterministic. Add stable JSON schema docs,
+   minimal HTTP/RPC serving, or snapshot/replay improvements only when they
+   directly help the private-devnet MVP. Public XRIQ launch, exchange listing,
+   custody, liquidity, bridges, and market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
