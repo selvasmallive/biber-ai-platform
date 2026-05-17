@@ -192,6 +192,58 @@ Shape:
 }
 ```
 
+## Submit Wallet Draft Transaction
+
+HTTP endpoint:
+
+```bash
+POST /v1/transactions
+```
+
+This endpoint is enabled only by `xriq-node serve-private`. `serve-readonly`
+returns `501`.
+
+The request body is the existing wallet transfer draft text emitted by
+`xriq-wallet transfer`. The file-backed private-devnet helper immediately
+validates the draft against the replayed chain state, produces one block, and
+persists it to the configured chain file. It does not create a durable pending
+mempool entry.
+
+Example request body:
+
+```text
+warning=private-devnet-test-identity-only
+version=1
+chain_id=xriq-devnet
+from=xriqdev1alice00000000000
+to=xriqdev1bobbb00000000000
+amount=25
+fee=2
+nonce=0
+expires_at_height=100
+signature_bytes=48
+```
+
+Success status: `201 Created`.
+
+Shape:
+
+```json
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "submit-transaction",
+  "warning": "private-devnet-only-no-public-token",
+  "transaction_hash": "64-hex-character-transaction-hash",
+  "block_hash": "64-hex-character-block-hash",
+  "applied_transactions": 1,
+  "chain_id": "xriq-devnet",
+  "current_height": 1,
+  "latest_block_hash": "64-hex-character-block-hash",
+  "pending_transactions": 0,
+  "stored_blocks": 1
+}
+```
+
 ## Account Detail
 
 Command:
@@ -339,8 +391,9 @@ Implemented read-only endpoints:
 
 The read-only endpoints reuse the JSON bodies documented above where possible.
 HTTP-only health and wrapper errors use
-`format_version: xriq-node-http-v1`. `POST /v1/transactions` intentionally
-returns `501` until a persisted submission path exists.
+`format_version: xriq-node-http-v1`. `POST /v1/transactions` uses the success
+body documented above only when the server is started with `serve-private`;
+`serve-readonly` returns `501`.
 
 ## Next Schema Work
 

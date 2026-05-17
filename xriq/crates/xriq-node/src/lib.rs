@@ -89,6 +89,7 @@ pub struct PrivateDevnetHttpServerConfig {
     pub bind: String,
     pub chain_file: String,
     pub alice_balance: Option<XriqAmount>,
+    pub allow_transaction_submission: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -349,6 +350,7 @@ pub fn node_help_text() -> String {
         "  xriq-node account-detail --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>]",
+        "  xriq-node serve-private --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>]",
         "",
         "Warning: this runner is for private devnet tests only. It does not start a public network.",
     ]
@@ -425,6 +427,7 @@ where
 
 pub fn parse_private_devnet_http_server_config(
     args: &[String],
+    allow_transaction_submission: bool,
 ) -> Result<PrivateDevnetHttpServerConfig, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
     flags.reject_unknown(&["--bind", "--chain-file", "--alice-balance"])?;
@@ -441,6 +444,7 @@ pub fn parse_private_devnet_http_server_config(
         bind,
         chain_file,
         alice_balance,
+        allow_transaction_submission,
     })
 }
 
@@ -470,14 +474,19 @@ pub fn private_devnet_http_response(
     method: &str,
     target: &str,
 ) -> PrivateDevnetHttpResponse {
+    private_devnet_http_response_with_body(config, method, target, "")
+}
+
+pub fn private_devnet_http_response_with_body(
+    config: &PrivateDevnetHttpServerConfig,
+    method: &str,
+    target: &str,
+    body: &str,
+) -> PrivateDevnetHttpResponse {
     let (path, query) = split_http_target(target);
 
     if method == "POST" && path == "/v1/transactions" {
-        return http_error_response(
-            501,
-            "not_implemented",
-            "transaction submission is not implemented in the file-backed private-devnet HTTP server yet",
-        );
+        return submit_transaction_http_response(config, body);
     }
 
     if method != "GET" {
@@ -551,7 +560,21 @@ fn handle_private_devnet_http_stream(
     let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
     let mut buffer = [0_u8; 8192];
     let bytes_read = stream.read(&mut buffer)?;
-    let request = String::from_utf8_lossy(&buffer[..bytes_read]);
+    let mut request_bytes = buffer[..bytes_read].to_vec();
+    while let Some((body_start, content_length)) =
+        http_content_length_from_request_bytes(&request_bytes)
+    {
+        let body_bytes_read = request_bytes.len().saturating_sub(body_start);
+        if body_bytes_read >= content_length {
+            break;
+        }
+        let bytes_read = stream.read(&mut buffer)?;
+        if bytes_read == 0 {
+            break;
+        }
+        request_bytes.extend_from_slice(&buffer[..bytes_read]);
+    }
+    let request = String::from_utf8_lossy(&request_bytes);
     let response = private_devnet_http_response_from_request(config, &request);
     stream.write_all(response.to_http_response().as_bytes())?;
     stream.flush()
@@ -574,7 +597,32 @@ fn private_devnet_http_response_from_request(
     if parts.next().is_none() {
         return http_error_response(400, "bad_request", "missing HTTP version");
     }
-    private_devnet_http_response(config, method, target)
+    let body = http_request_body(request);
+    private_devnet_http_response_with_body(config, method, target, body)
+}
+
+fn http_request_body(request: &str) -> &str {
+    request
+        .split_once("\r\n\r\n")
+        .map(|(_, body)| body)
+        .or_else(|| request.split_once("\n\n").map(|(_, body)| body))
+        .unwrap_or("")
+}
+
+fn http_content_length_from_request_bytes(request: &[u8]) -> Option<(usize, usize)> {
+    let body_start = request
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .map(|index| index + 4)?;
+    let headers = String::from_utf8_lossy(&request[..body_start]);
+    let content_length = headers.lines().find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        name.trim()
+            .eq_ignore_ascii_case("content-length")
+            .then(|| value.trim().parse::<usize>().ok())
+            .flatten()
+    })?;
+    Some((body_start, content_length))
 }
 
 fn private_devnet_http_runner_args(
@@ -605,6 +653,48 @@ fn runner_json_http_response(args: Vec<String>) -> PrivateDevnetHttpResponse {
     }
 }
 
+fn submit_transaction_http_response(
+    config: &PrivateDevnetHttpServerConfig,
+    body: &str,
+) -> PrivateDevnetHttpResponse {
+    if !config.allow_transaction_submission {
+        return http_error_response(
+            501,
+            "not_implemented",
+            "transaction submission requires xriq-node serve-private",
+        );
+    }
+    if body.trim().is_empty() {
+        return http_error_response(
+            400,
+            "missing_request_body",
+            "POST /v1/transactions expects a wallet transfer draft body",
+        );
+    }
+
+    match private_devnet_file_submit_transfer_draft_body(
+        &config.chain_file,
+        config.alice_balance,
+        body,
+    ) {
+        Ok(status) => http_json_response(
+            201,
+            render_produced_transfer_block_status_json("submit-transaction", &status),
+        ),
+        Err(error) => {
+            let args = vec![
+                "submit-transaction".to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ];
+            http_json_response(
+                node_runner_error_http_status(&error),
+                render_node_runner_error_json(&args, &error),
+            )
+        }
+    }
+}
+
 fn confirmed_transaction_http_response(
     config: &PrivateDevnetHttpServerConfig,
     tx_hash: Hash32,
@@ -629,11 +719,23 @@ fn confirmed_transaction_http_response(
 fn node_runner_error_http_status(error: &NodeRunnerError) -> u16 {
     match error {
         NodeRunnerError::InvalidAddress(_)
+        | NodeRunnerError::InvalidDraftLine(_)
         | NodeRunnerError::InvalidFormat(_)
         | NodeRunnerError::InvalidNumber { .. }
+        | NodeRunnerError::MissingDraftField(_)
         | NodeRunnerError::MissingFlag(_)
+        | NodeRunnerError::DuplicateDraftField(_)
+        | NodeRunnerError::UnsupportedDraftVersion { .. }
         | NodeRunnerError::UnexpectedArgument(_)
-        | NodeRunnerError::UnknownFlag(_) => 400,
+        | NodeRunnerError::UnknownDraftField(_)
+        | NodeRunnerError::UnknownFlag(_)
+        | NodeRunnerError::WrongDraftChainId { .. } => 400,
+        NodeRunnerError::Node(
+            NodeError::MissingSender
+            | NodeError::Transaction(_)
+            | NodeError::TransactionSignature(_)
+            | NodeError::Mempool(_),
+        ) => 400,
         NodeRunnerError::Explorer(
             ExplorerError::AccountNotFound
             | ExplorerError::BlockNotFound
@@ -797,6 +899,17 @@ pub fn private_devnet_file_produce_draft_block(
     let mut transfer = read_private_devnet_transfer_draft(draft_file, &genesis.chain_id)?;
     transfer.timestamp_ms = timestamp_ms;
     transfer.consensus_round = consensus_round;
+    private_devnet_file_produce_transfer_block(chain_file, alice_balance, transfer)
+        .map_err(NodeRunnerError::Node)
+}
+
+pub fn private_devnet_file_submit_transfer_draft_body(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    draft_text: &str,
+) -> Result<ProducedTransferBlockStatus, NodeRunnerError> {
+    let genesis = private_devnet_runner_genesis(alice_balance);
+    let transfer = parse_private_devnet_transfer_draft(draft_text, &genesis.chain_id)?;
     private_devnet_file_produce_transfer_block(chain_file, alice_balance, transfer)
         .map_err(NodeRunnerError::Node)
 }
@@ -3336,6 +3449,7 @@ mod tests {
             bind: "127.0.0.1:8787".to_string(),
             chain_file: path_text,
             alice_balance: Some(XriqAmount::from_base_units(100)),
+            allow_transaction_submission: false,
         };
 
         let health = private_devnet_http_response(&config, "GET", "/health");
@@ -3409,9 +3523,50 @@ mod tests {
         assert_eq!(bad_limit.status_code, 400);
         assert!(bad_limit.body.contains("\"code\": \"invalid_number\""));
 
-        let submit = private_devnet_http_response(&config, "POST", "/v1/transactions");
-        assert_eq!(submit.status_code, 501);
-        assert!(submit.body.contains("\"code\": \"not_implemented\""));
+        let submit_draft = [
+            "warning=private-devnet-test-identity-only",
+            "version=1",
+            "chain_id=xriq-devnet",
+            "from=xriqdev1alice00000000000",
+            "to=xriqdev1carol00000000000",
+            "amount=10",
+            "fee=2",
+            "nonce=1",
+            "expires_at_height=100",
+            "signature_bytes=48",
+        ]
+        .join("\n");
+        let readonly_submit = private_devnet_http_response_with_body(
+            &config,
+            "POST",
+            "/v1/transactions",
+            &submit_draft,
+        );
+        assert_eq!(readonly_submit.status_code, 501);
+        assert!(readonly_submit
+            .body
+            .contains("\"code\": \"not_implemented\""));
+
+        let submit_config = PrivateDevnetHttpServerConfig {
+            allow_transaction_submission: true,
+            ..config.clone()
+        };
+        let submit = private_devnet_http_response_with_body(
+            &submit_config,
+            "POST",
+            "/v1/transactions",
+            &submit_draft,
+        );
+        assert_eq!(submit.status_code, 201);
+        assert!(submit.body.contains("\"command\": \"submit-transaction\""));
+        assert!(submit.body.contains("\"transaction_hash\":"));
+        assert!(submit.body.contains("\"current_height\": 2"));
+        assert!(submit.body.contains("\"applied_transactions\": 1"));
+
+        let status_after_submit =
+            private_devnet_http_response(&submit_config, "GET", "/v1/chain/status");
+        assert_eq!(status_after_submit.status_code, 200);
+        assert!(status_after_submit.body.contains("\"current_height\": 2"));
 
         let raw = status.to_http_response();
         assert!(raw.starts_with("HTTP/1.1 200 OK\r\n"));

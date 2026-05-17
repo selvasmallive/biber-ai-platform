@@ -121,6 +121,15 @@ cargo run -p xriq-node -- serve-readonly \
   --bind 127.0.0.1:8787
 ```
 
+Private-devnet submit-capable HTTP wrapper:
+
+```bash
+cargo run -p xriq-node -- serve-private \
+  --chain-file target/xriq-devnet-chain.bin \
+  --alice-balance 100 \
+  --bind 127.0.0.1:8787
+```
+
 Initial read-only endpoints:
 
 ```text
@@ -135,8 +144,12 @@ GET /v1/mempool
 
 `GET /v1/transactions/{hash}` scans confirmed transactions in persisted blocks.
 It does not report a durable pending status yet because the file-backed HTTP
-wrapper does not persist a mempool across requests. `POST /v1/transactions`
-intentionally returns `501` until a real persisted submission path is added.
+wrapper does not persist a mempool across requests.
+
+`POST /v1/transactions` is available only through `serve-private`. It accepts
+the existing wallet transfer draft text as the request body and immediately
+produces a private-devnet block against the configured chain file. This is an
+MVP submit-and-block helper, not a production mempool API.
 
 Keep generated chain data, node databases, wallets, and testnet artifacts out of
 Git.

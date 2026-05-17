@@ -465,9 +465,14 @@ file-backed JSON runner outputs. The current implemented endpoints are
 `/v1/blocks/{height}`, `/v1/transactions/{hash}`,
 `/v1/accounts/{address}`, and `/v1/mempool`. Transaction lookup scans
 confirmed transactions in persisted blocks only; durable pending status is not
-implemented yet. `POST /v1/transactions` intentionally returns `501` until a
-persisted transaction submission path exists. This is still private-devnet
-tooling, not a public API.
+implemented yet.
+
+`xriq-node serve-private` enables the same private-devnet HTTP surface plus
+`POST /v1/transactions`. The POST body is the existing wallet transfer draft
+text emitted by `xriq-wallet transfer`; the server validates it against the
+replayed chain state, immediately produces one block, and persists that block to
+the configured chain file. This is an MVP submit-and-block helper, not a
+production mempool API. This is still private-devnet tooling, not a public API.
 
 Minimum wallet-facing RPC behavior:
 
@@ -720,6 +725,10 @@ As of 2026-05-17:
     file-backed JSON runner responses for health/status/explorer/block/account
     transaction/mempool inspection; transaction lookup covers confirmed
     transactions in persisted blocks only
+  - local private-devnet submit-capable HTTP wrapper through
+    `xriq-node serve-private`; `POST /v1/transactions` accepts the wallet draft
+    text body, validates it, immediately produces one block, and persists it to
+    the file-backed chain
   - stable `--format json` output for status, block production, explorer
     overview, block detail, account detail, and mempool detail runner commands,
     while preserving text output as the default; successful JSON responses
@@ -809,10 +818,10 @@ As of 2026-05-17:
     response.
 
 Next implementation target: keep the local file-backed workflow small and
-deterministic. Add transaction submission over HTTP, durable pending
-transaction status, snapshot/replay improvements, or checked schema fixtures
-only when they directly help the private-devnet MVP, and keep public XRIQ
-launch or listing work blocked.
+deterministic. Add durable pending transaction status, JSON transaction
+submission, snapshot/replay improvements, or checked schema fixtures only when
+they directly help the private-devnet MVP, and keep public XRIQ launch or
+listing work blocked.
 
 ## Open Decisions
 

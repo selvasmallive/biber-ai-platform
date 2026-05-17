@@ -2,8 +2,16 @@ use std::{env, process};
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
-    if args.first().map(String::as_str) == Some("serve-readonly") {
-        match xriq_node::parse_private_devnet_http_server_config(&args[1..]) {
+    if matches!(
+        args.first().map(String::as_str),
+        Some("serve-readonly" | "serve-private")
+    ) {
+        let allow_transaction_submission =
+            args.first().map(String::as_str) == Some("serve-private");
+        match xriq_node::parse_private_devnet_http_server_config(
+            &args[1..],
+            allow_transaction_submission,
+        ) {
             Ok(config) => {
                 if let Err(error) = xriq_node::run_private_devnet_readonly_http_server(config) {
                     eprintln!("error=http server failed: {error}");
