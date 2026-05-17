@@ -63,9 +63,9 @@ As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Last XRIQ implementation commit pushed and Vast-verified:
-  `f9f4c6b Add XRIQ wallet draft HTTP submission`.
+  `120654b Add XRIQ JSON transaction submission`.
 - Vast checkout was fast-forwarded and Rust/script/HTTP-smoke verified through
-  `f9f4c6b`.
+  `120654b`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -714,6 +714,51 @@ serving the last broad-safe Rust/XRIQ adapter.
     Alice's account balance became `73`.
   - Latest smoke artifacts on Vast:
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T162821Z-25143`.
+- Local XRIQ prototype progress after the JSON transaction submission
+  checkpoint:
+  - Added dependency-free flat JSON parsing for `POST /v1/transactions` under
+    `xriq-node serve-private`, while preserving the existing wallet transfer
+    draft text body and preserving `serve-readonly` as read-only with `501` for
+    POST.
+  - Accepted JSON body shape is `xriq-node-transfer-submit-v1` with
+    `version`, `chain_id`, `from`, `to`, `amount_base_units`,
+    `fee_base_units`, `nonce`, and optional `expires_at_height`,
+    `timestamp_ms`, and `consensus_round`. This remains a private-devnet
+    submit-and-block helper, not a production mempool or signed-transaction
+    format.
+  - Added stable JSON error codes for malformed or unsupported JSON bodies:
+    `invalid_json`, `unknown_json_field`, `duplicate_json_field`, and
+    `missing_json_field`.
+  - Updated `xriq/README.md`, `docs/XRIQ_NODE_JSON_SCHEMA.md`, and
+    `docs/XRIQ_TECHNICAL_SPEC.md` so future clients and BIBER agents can use
+    the JSON submit body without treating it as a public API.
+  - Local Windows verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -p xriq-node -j 1` with `35` passing node tests,
+    `cargo test -j 1` with `117` passing workspace tests, and
+    `cargo clippy -- -D warnings`.
+  - Vast checkout was fast-forwarded to `120654b`; Vast verification passed
+    with the workspace-volume Rust toolchain:
+    `RUSTUP_HOME=/workspace/.rustup`,
+    `CARGO_HOME=/workspace/.cargo`, and
+    `PATH=/workspace/.cargo/bin:...`. Use that environment in future
+    non-interactive SSH sessions because plain `cargo` is not on the default
+    SSH `PATH`.
+  - Vast Rust verification passed with `cargo fmt --check`,
+    `cargo test -j 1` with `117` passing tests, and
+    `cargo clippy -- -D warnings`.
+  - Live Vast HTTP JSON submit smoke against `127.0.0.1:18796` passed. It
+    verified JSON `POST /v1/transactions` returned `submit-transaction` and
+    `current_height: 1`, the returned transaction hash
+    `fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565`
+    was retrievable through `GET /v1/transactions/{hash}` as `confirmed`, and
+    Alice's account balance became `73`.
+  - Live Vast JSON submit artifacts:
+    `/workspace/biber-ai-platform/xriq/target/xriq-http-json-submit-smoke-chain-20260517T193409Z-26165.bin`,
+    `/workspace/biber-ai-platform/xriq/target/xriq-http-json-submit-smoke-body-20260517T193409Z-26165.json`,
+    and
+    `/workspace/biber-ai-platform/xriq/target/xriq-http-json-submit-smoke-response-20260517T193409Z-26165.json`.
+  - Latest standard smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T193410Z-26244`.
 
 ## Repo State
 
@@ -1899,6 +1944,9 @@ bash scripts/vast_eval_lora_direct.sh
 cd /workspace/biber-ai-platform
 git pull --ff-only origin main
 cd xriq
+export RUSTUP_HOME=/workspace/.rustup
+export CARGO_HOME=/workspace/.cargo
+export PATH=/workspace/.cargo/bin:$PATH
 cargo fmt --check
 cargo test -j 1
 cargo clippy -- -D warnings
@@ -1919,10 +1967,10 @@ cargo clippy -- -D warnings
    `xriq-node serve-readonly`, `xriq-node serve-private`, and
    `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`, is to keep the local
    file-backed workflow small and deterministic. Add durable pending
-   transaction status, JSON transaction submission, snapshot/replay
-   improvements, or checked schema fixtures only when they directly help the
-   private-devnet MVP. Public XRIQ launch, exchange listing, custody,
-   liquidity, bridges, and market-facing work remain blocked.
+   transaction status, wallet JSON output, snapshot/replay improvements, or
+   checked schema fixtures only when they directly help the private-devnet MVP.
+   Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
+   market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
