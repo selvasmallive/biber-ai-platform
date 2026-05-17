@@ -1,5 +1,10 @@
 [workspace]
-members = ["crates/xriq-core", "crates/xriq-ledger", "crates/xriq-mempool"]
+members = [
+    "crates/xriq-core",
+    "crates/xriq-consensus",
+    "crates/xriq-ledger",
+    "crates/xriq-mempool",
+]
 resolver = "2"
 
 [workspace.package]

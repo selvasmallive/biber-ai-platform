@@ -441,7 +441,8 @@ Before any public network, require:
    transfer, nonce, fee, and atomic-state checks.
 6. Implement mempool duplicate and fee checks. Current status: done for the
    dependency-free private-devnet baseline.
-7. Implement deterministic single-node block production.
+7. Implement deterministic single-node block production. Current status: done
+   for the single-authority private-devnet baseline.
 8. Add local RPC endpoints.
 9. Add wallet CLI for test transfers.
 10. Add explorer API/UI for private-devnet inspection.
@@ -455,6 +456,7 @@ As of 2026-05-17:
 - Rust workspace path: `xriq/`.
 - Implemented crates:
   - `xriq/crates/xriq-core`
+  - `xriq/crates/xriq-consensus`
   - `xriq/crates/xriq-ledger`
   - `xriq/crates/xriq-mempool`
 - Implemented dependency-free private-devnet core primitives:
@@ -473,16 +475,22 @@ As of 2026-05-17:
   - one pending transaction per account nonce
   - minimum fee and zero-amount rejection
   - deterministic fee/order/hash transaction ordering
+- Implemented single-authority block production:
+  - parent-height and parent-chain checks
+  - explicit state-root and transactions-root inputs
+  - producer identity from private-devnet config
+  - mempool transaction selection by deterministic ordering
+  - per-block transaction cap enforcement
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test` with `27` passing tests.
+  - `cargo test` with `34` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification:
+- Latest Vast verification before `xriq-consensus`:
   - `cargo fmt --check`
   - `cargo test` with `27` passing tests.
   - `cargo clippy -- -D warnings`.
 
-Next implementation target: add deterministic single-node block production.
+Next implementation target: add local RPC endpoints.
 
 ## Open Decisions
 

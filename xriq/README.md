@@ -6,6 +6,7 @@ only until security and legal/compliance review says otherwise.
 ## Current Scope
 
 - `xriq-core`: dependency-free protocol types and validation helpers.
+- `xriq-consensus`: deterministic private-devnet block production.
 - `xriq-ledger`: deterministic private-devnet account state transitions.
 - `xriq-mempool`: deterministic pending-transaction checks and ordering.
 

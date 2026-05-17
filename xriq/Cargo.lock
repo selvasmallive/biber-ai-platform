@@ -3,6 +3,14 @@
 version = 4
 
 [[package]]
+name = "xriq-consensus"
+version = "0.1.0"
+dependencies = [
+ "xriq-core",
+ "xriq-mempool",
+]
+
+[[package]]
 name = "xriq-core"
 version = "0.1.0"
 
