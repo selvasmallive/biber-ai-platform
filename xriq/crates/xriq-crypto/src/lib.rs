@@ -6,13 +6,14 @@
 //! verification yet.
 
 use sha2::{Digest, Sha256};
-use xriq_core::{Block, BlockHeader, Hash32, SignatureBytes, Transaction};
+use xriq_core::{AccountStateEntry, Block, BlockHeader, Hash32, SignatureBytes, Transaction};
 
 const DOMAIN_TRANSACTION_SIGNING: &[u8] = b"xriq:v1:transaction:signing";
 const DOMAIN_TRANSACTION_HASH: &[u8] = b"xriq:v1:transaction:hash";
 const DOMAIN_BLOCK_HEADER_SIGNING: &[u8] = b"xriq:v1:block-header:signing";
 const DOMAIN_BLOCK_HEADER_HASH: &[u8] = b"xriq:v1:block-header:hash";
 const DOMAIN_TRANSACTIONS_ROOT: &[u8] = b"xriq:v1:transactions-root";
+const DOMAIN_ACCOUNT_STATE_ROOT: &[u8] = b"xriq:v1:account-state-root";
 
 pub const TEST_ONLY_SIGNATURE_PREFIX: &[u8] = b"xriq-test-only-signature-v1:";
 
@@ -148,6 +149,20 @@ pub fn transactions_root(transactions: &[Transaction]) -> Hash32 {
     sha256_hash(&output)
 }
 
+pub fn account_state_root(accounts: &[AccountStateEntry]) -> Hash32 {
+    let mut sorted_accounts = accounts.to_vec();
+    sorted_accounts.sort_by(|left, right| left.address.cmp(&right.address));
+
+    let mut output = canonical_preamble(DOMAIN_ACCOUNT_STATE_ROOT);
+    encode_u32(checked_len(sorted_accounts.len()), &mut output);
+    for account in sorted_accounts {
+        encode_string(account.address.as_str(), &mut output);
+        encode_u128(account.balance.base_units(), &mut output);
+        encode_u64(account.nonce, &mut output);
+    }
+    sha256_hash(&output)
+}
+
 pub fn block_header_signing_bytes(header: &BlockHeader) -> Vec<u8> {
     let mut output = canonical_preamble(DOMAIN_BLOCK_HEADER_SIGNING);
     encode_header_without_signature(header, &mut output);
@@ -270,7 +285,9 @@ fn sha256_hash(bytes: &[u8]) -> Hash32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use xriq_core::{Address, Block, BlockHeader, SignatureBytes, Transaction, XriqAmount};
+    use xriq_core::{
+        AccountStateEntry, Address, Block, BlockHeader, SignatureBytes, Transaction, XriqAmount,
+    };
 
     fn address(label: &str) -> Address {
         Address::parse(&format!("xriqdev1{label}00000000000")).unwrap()
@@ -372,6 +389,27 @@ mod tests {
             transactions_root(&[second, first])
         );
         assert_ne!(transactions_root(&[]), Hash32::ZERO);
+    }
+
+    #[test]
+    fn account_state_root_is_account_order_insensitive() {
+        let first = AccountStateEntry::new(address("alice"), XriqAmount::from_base_units(100), 0);
+        let second = AccountStateEntry::new(address("bobbb"), XriqAmount::from_base_units(25), 2);
+
+        assert_eq!(
+            account_state_root(&[first.clone(), second.clone()]),
+            account_state_root(&[second, first])
+        );
+        assert_ne!(account_state_root(&[]), Hash32::ZERO);
+    }
+
+    #[test]
+    fn account_state_root_changes_when_state_changes() {
+        let first = AccountStateEntry::new(address("alice"), XriqAmount::from_base_units(100), 0);
+        let mut second = first.clone();
+        second.nonce = 1;
+
+        assert_ne!(account_state_root(&[first]), account_state_root(&[second]));
     }
 
     #[test]

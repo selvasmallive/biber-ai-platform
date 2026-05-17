@@ -496,7 +496,13 @@ Before any public network, require:
     transaction submission, node block production, and node peer-block import
     helper paths.
 16. Add private-devnet genesis/chain configuration and a deterministic root
-    calculation strategy.
+    calculation strategy. Current status: done for shared private-devnet
+    `GenesisConfig`, deterministic test allocations, genesis-derived ledger,
+    mempool, consensus, and node constructors, account-state root entries, and
+    SHA-256 account-state root calculation.
+17. Enforce deterministic transaction-root and state-root validation on
+    imported blocks, then wire the test-only block signature verifier at the
+    node boundary.
 
 ## Current Prototype Status
 
@@ -520,28 +526,36 @@ As of 2026-05-17:
   - fixed-size `Hash32`
   - basic signed-transfer shape and validation context
   - block-header validation against a parent header view
+  - shared private-devnet `GenesisConfig` with explicit chain id, genesis
+    block hash, fee policy, authority, mempool limits, block limits, and
+    deterministic test allocations
 - Implemented ledger state transitions:
   - account balances and nonces
   - minimum fee validation through transaction context
   - fee-sink crediting
   - atomic mutation by cloning state before commit
+  - genesis-derived ledger construction
+  - deterministic account-state entries for state-root calculation
 - Implemented mempool rules:
   - duplicate transaction-hash rejection
   - one pending transaction per account nonce
   - minimum fee and zero-amount rejection
   - deterministic fee/order/hash transaction ordering
+  - genesis-derived private-devnet mempool policy
 - Implemented single-authority block production:
   - parent-height and parent-chain checks
   - explicit state-root and transactions-root inputs
   - producer identity from private-devnet config
   - mempool transaction selection by deterministic ordering
   - per-block transaction cap enforcement
+  - genesis-derived private-devnet authority policy
 - Implemented crypto/hash boundary:
   - SHA-256 canonical transaction signing hashes
   - SHA-256 canonical transaction hashes
   - SHA-256 canonical block-header signing hashes
   - SHA-256 canonical block/header hashes
   - deterministic transaction-list roots over transaction hashes
+  - deterministic account-state roots over sorted account state
   - explicit signature algorithm identifiers for crypto agility
   - hash-bound `TestOnlySignatureVerifier` for private-devnet tests
 - Canonical hashes are wired into higher-level local APIs:
@@ -551,6 +565,8 @@ As of 2026-05-17:
   - node transaction submission can derive canonical transaction hashes
   - node block production can derive the transaction-list root and block hash
     for the produced block
+  - node block production can derive the account-state root from the post-block
+    ledger state
   - node peer-block import can derive the canonical block hash before storage
     commit
   - explicit manual hash APIs remain available for fixture control and
@@ -587,16 +603,19 @@ As of 2026-05-17:
   - dependency-free text rendering for private-devnet inspection
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `84` passing tests.
+  - `cargo test -j 1` with `96` passing tests.
   - `cargo clippy -- -D warnings`.
 - Latest Vast verification:
+  - Previous canonical-hash API checkpoint passed with:
   - `cargo fmt --check`
   - `cargo test -j 1` with `84` passing tests.
   - `cargo clippy -- -D warnings`.
+  - The genesis/config and account-state-root checkpoint is pending Vast
+    verification.
 
-Next implementation target: add private-devnet genesis/chain configuration and
-start replacing ad hoc fixture roots with deterministic root calculation
-strategy.
+Next implementation target: enforce deterministic transaction-root and
+state-root validation on imported blocks, then wire the test-only block
+signature verifier at the node boundary.
 
 ## Open Decisions
 

@@ -231,6 +231,27 @@ last broad-safe Rust/XRIQ adapter.
   - Vast checkout was fast-forwarded to `b77da59`; Vast Rust verification also
     passed with `cargo fmt --check`, `cargo test -j 1` with `84` passing tests,
     and `cargo clippy -- -D warnings`.
+- Local XRIQ prototype progress after the canonical-hash API checkpoint:
+  - Added shared private-devnet `GenesisConfig` in `xriq-core` with explicit
+    chain id, genesis block hash, minimum fee, fee sink, authority,
+    mempool/block limits, and deterministic test allocations.
+  - Added genesis-derived constructors for ledger, mempool, consensus, and
+    node setup so future tests and tooling do not need scattered fixture
+    policy values.
+  - Added deterministic account-state entries and SHA-256 account-state root
+    calculation in `xriq-crypto`.
+  - Added node canonical-root block production that derives transaction root,
+    account-state root, and block hash from selected transactions and resulting
+    ledger state.
+  - This remains private-devnet-only. Public supply, emissions, validator
+    rewards, token sale, airdrop, treasury, and public economics remain unset
+    and blocked.
+  - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `96` passing tests, and
+    `cargo clippy -- -D warnings`.
+  - Vast verification for this genesis/config checkpoint is pending. The
+    previous Vast checkpoint remains the canonical-hash API pass with `84`
+    tests.
 
 ## Repo State
 
@@ -1352,8 +1373,9 @@ cargo clippy -- -D warnings
    project later needs independent release/versioning. The next protocol target
    after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`,
    `xriq-rpc`, `xriq-storage`, `xriq-node`, `xriq-wallet`, and
-   `xriq-explorer`, and canonical hash API wiring is private-devnet
-   genesis/chain configuration plus deterministic root calculation strategy.
+   `xriq-explorer`, canonical hash API wiring, and genesis/root strategy is
+   deterministic transaction-root and state-root validation on imported blocks,
+   followed by private-devnet test-only block signature verification.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.

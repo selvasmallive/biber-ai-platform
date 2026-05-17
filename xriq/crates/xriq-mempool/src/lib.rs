@@ -2,12 +2,22 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use xriq_core::{Address, Hash32, Transaction, XriqAmount};
+use xriq_core::{Address, GenesisConfig, GenesisConfigError, Hash32, Transaction, XriqAmount};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MempoolConfig {
     pub max_transactions: usize,
     pub min_fee: XriqAmount,
+}
+
+impl MempoolConfig {
+    pub fn from_genesis(genesis: &GenesisConfig) -> Result<Self, GenesisConfigError> {
+        genesis.validate()?;
+        Ok(Self {
+            max_transactions: genesis.mempool_max_transactions,
+            min_fee: genesis.min_fee,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -169,6 +179,15 @@ mod tests {
         assert_eq!(mempool.len(), 1);
         assert!(mempool.contains(&tx_hash));
         assert!(!mempool.is_empty());
+    }
+
+    #[test]
+    fn builds_config_from_genesis_policy() {
+        let genesis = GenesisConfig::private_devnet();
+        let config = MempoolConfig::from_genesis(&genesis).unwrap();
+
+        assert_eq!(config.max_transactions, genesis.mempool_max_transactions);
+        assert_eq!(config.min_fee, genesis.min_fee);
     }
 
     #[test]

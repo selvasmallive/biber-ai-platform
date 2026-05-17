@@ -3,13 +3,21 @@
 pub mod address;
 pub mod amount;
 pub mod block;
+pub mod config;
 pub mod hash;
+pub mod state;
 pub mod transaction;
 
 pub use address::{Address, AddressError, DEVNET_ADDRESS_PREFIX};
 pub use amount::{XriqAmount, BASE_UNITS_PER_XRIQ};
 pub use block::{Block, BlockHeader, BlockValidationError, ParentHeaderView};
+pub use config::{
+    GenesisAccount, GenesisConfig, GenesisConfigError, PRIVATE_DEVNET_CHAIN_ID,
+    PRIVATE_DEVNET_MAX_TRANSACTIONS_PER_BLOCK, PRIVATE_DEVNET_MEMPOOL_MAX_TRANSACTIONS,
+    PRIVATE_DEVNET_MIN_FEE_BASE_UNITS,
+};
 pub use hash::Hash32;
+pub use state::AccountStateEntry;
 pub use transaction::{
     AccountView, SignatureBytes, Transaction, TransactionValidationContext,
     TransactionValidationError,

@@ -156,20 +156,39 @@ Canonical-hash wiring now exists in the higher-level local APIs:
 - manual hash inputs remain available where fixtures and negative tests need
   explicit control
 
+## Current Genesis And Root Checkpoint
+
+Private-devnet genesis and root strategy now exists for the local prototype:
+
+- `xriq-core` defines a shared private-devnet `GenesisConfig`
+- genesis config records chain id, genesis block hash, minimum fee, fee sink,
+  authority, mempool limit, block transaction limit, and deterministic test
+  allocations
+- ledger, mempool, consensus, and node constructors can now derive local
+  private-devnet state from genesis config
+- `xriq-core` exposes deterministic account-state entries
+- `xriq-crypto` can calculate SHA-256 account-state roots from sorted account
+  state
+- node block production has a canonical-roots path that derives transaction
+  root, account-state root, and block hash
+
+This remains private-devnet-only. The config does not set public supply,
+emissions, validator rewards, token sale, airdrop, treasury, or public
+economics.
+
 ## Next Engineering Step
 
-The next implementation target should add private-devnet genesis/chain
-configuration and begin replacing ad hoc fixture roots with deterministic root
-calculation strategy:
+The next implementation target should enforce deterministic roots and test-only
+block signature checks on imported blocks:
 
-- define explicit private-devnet chain configuration instead of scattered
-  fixture values
-- define deterministic test allocations and fee policy in a `GenesisConfig` or
-  equivalent
-- keep public supply, emissions, validator rewards, sale, airdrop, and treasury
-  choices unset and blocked
-- start replacing manual transaction-root and state-root fixture inputs where a
-  deterministic implementation exists
+- reject imported blocks whose transaction root does not match the canonical
+  root of the block body
+- reject imported blocks whose state root does not match deterministic ledger
+  execution
+- wire the existing hash-bound `TestOnlySignatureVerifier` into private-devnet
+  block-header validation
+- keep public supply, emissions, validator rewards, sale, airdrop, treasury,
+  and public validator economics unset and blocked
 - keep test-only signature verification separate from production crypto review
 
 Wallet private-key custody should remain test-only until the crypto and

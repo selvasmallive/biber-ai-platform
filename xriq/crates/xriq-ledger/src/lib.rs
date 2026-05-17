@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 
 use xriq_core::{
-    AccountView, Address, Transaction, TransactionValidationContext, TransactionValidationError,
-    XriqAmount,
+    AccountStateEntry, AccountView, Address, GenesisConfig, GenesisConfigError, Transaction,
+    TransactionValidationContext, TransactionValidationError, XriqAmount,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,6 +56,23 @@ impl LedgerState {
         Self { config, accounts }
     }
 
+    pub fn from_genesis(genesis: &GenesisConfig) -> Result<Self, GenesisConfigError> {
+        genesis.validate()?;
+        let mut ledger = Self::new(LedgerConfig {
+            chain_id: genesis.chain_id.clone(),
+            current_height: genesis.initial_height,
+            min_fee: genesis.min_fee,
+            fee_sink: genesis.fee_sink.clone(),
+        });
+        for account in &genesis.accounts {
+            ledger.set_account(
+                account.address.clone(),
+                Account::new(account.balance, account.nonce),
+            );
+        }
+        Ok(ledger)
+    }
+
     pub fn config(&self) -> &LedgerConfig {
         &self.config
     }
@@ -78,6 +95,15 @@ impl LedgerState {
 
     pub fn accounts(&self) -> &BTreeMap<Address, Account> {
         &self.accounts
+    }
+
+    pub fn state_root_entries(&self) -> Vec<AccountStateEntry> {
+        self.accounts
+            .iter()
+            .map(|(address, account)| {
+                AccountStateEntry::new(address.clone(), account.balance, account.nonce)
+            })
+            .collect()
     }
 
     pub fn apply_transaction(&mut self, tx: &Transaction) -> Result<(), LedgerError> {
@@ -194,6 +220,54 @@ mod tests {
         assert_eq!(
             ledger.account(&fees),
             Some(Account::new(XriqAmount::from_base_units(2), 0))
+        );
+    }
+
+    #[test]
+    fn creates_ledger_from_genesis_allocations() {
+        let alice = address("alice");
+        let genesis = GenesisConfig::private_devnet().with_account(
+            alice.clone(),
+            XriqAmount::from_base_units(100),
+            7,
+        );
+
+        let ledger = LedgerState::from_genesis(&genesis).unwrap();
+
+        assert_eq!(ledger.config().chain_id, "xriq-devnet");
+        assert_eq!(ledger.current_height(), 0);
+        assert_eq!(
+            ledger.account(&alice),
+            Some(Account::new(XriqAmount::from_base_units(100), 7))
+        );
+        assert_eq!(
+            ledger.account(&genesis.fee_sink),
+            Some(Account::new(XriqAmount::ZERO, 0))
+        );
+    }
+
+    #[test]
+    fn exposes_sorted_account_state_entries_for_rooting() {
+        let mut ledger = ledger();
+        ledger.set_account(
+            address("bobbb"),
+            Account::new(XriqAmount::from_base_units(25), 1),
+        );
+        ledger.set_account(
+            address("alice"),
+            Account::new(XriqAmount::from_base_units(100), 0),
+        );
+
+        let entries = ledger.state_root_entries();
+        let addresses: Vec<&str> = entries.iter().map(|entry| entry.address.as_str()).collect();
+
+        assert_eq!(
+            addresses,
+            vec![
+                "xriqdev1alice00000000000",
+                "xriqdev1bobbb00000000000",
+                "xriqdev1fees000000000000",
+            ]
         );
     }
 

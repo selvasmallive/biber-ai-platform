@@ -1,7 +1,8 @@
 //! Deterministic single-authority block production for the XRIQ private devnet.
 
 use xriq_core::{
-    Address, Block, BlockHeader, Hash32, ParentHeaderView, SignatureBytes, Transaction,
+    Address, Block, BlockHeader, GenesisConfig, GenesisConfigError, Hash32, ParentHeaderView,
+    SignatureBytes, Transaction,
 };
 use xriq_mempool::Mempool;
 
@@ -38,6 +39,15 @@ pub struct SingleAuthorityProducer {
 impl SingleAuthorityProducer {
     pub fn new(config: SingleAuthorityConfig) -> Self {
         Self { config }
+    }
+
+    pub fn from_genesis(genesis: &GenesisConfig) -> Result<Self, GenesisConfigError> {
+        genesis.validate()?;
+        Ok(Self::new(SingleAuthorityConfig {
+            chain_id: genesis.chain_id.clone(),
+            producer: genesis.authority.clone(),
+            max_transactions_per_block: genesis.max_transactions_per_block,
+        }))
     }
 
     pub fn config(&self) -> &SingleAuthorityConfig {
@@ -165,6 +175,19 @@ mod tests {
         assert_eq!(block.header.transactions_root, hash(2));
         assert_eq!(block.header.producer, address("author"));
         assert_eq!(block.transactions, vec![]);
+    }
+
+    #[test]
+    fn builds_single_authority_config_from_genesis() {
+        let genesis = xriq_core::GenesisConfig::private_devnet();
+        let producer = SingleAuthorityProducer::from_genesis(&genesis).unwrap();
+
+        assert_eq!(producer.config().chain_id, genesis.chain_id);
+        assert_eq!(producer.config().producer, genesis.authority);
+        assert_eq!(
+            producer.config().max_transactions_per_block,
+            genesis.max_transactions_per_block
+        );
     }
 
     #[test]

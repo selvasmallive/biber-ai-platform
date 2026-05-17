@@ -2,12 +2,14 @@
 
 use xriq_consensus::{BlockProductionError, BlockProductionInput, SingleAuthorityProducer};
 use xriq_core::{
-    Block, BlockValidationError, Hash32, ParentHeaderView, SignatureBytes, Transaction,
-    TransactionValidationContext, TransactionValidationError,
+    Block, BlockValidationError, GenesisConfig, GenesisConfigError, Hash32, ParentHeaderView,
+    SignatureBytes, Transaction, TransactionValidationContext, TransactionValidationError,
 };
-use xriq_crypto::{transaction_hash, transactions_root as canonical_transactions_root};
+use xriq_crypto::{
+    account_state_root, transaction_hash, transactions_root as canonical_transactions_root,
+};
 use xriq_ledger::{LedgerError, LedgerState};
-use xriq_mempool::{Mempool, MempoolError};
+use xriq_mempool::{Mempool, MempoolConfig, MempoolError};
 use xriq_rpc::RpcService;
 use xriq_storage::{ChainStore, StorageError};
 
@@ -27,6 +29,23 @@ pub struct ProduceNextBlockCanonicalInput {
     pub timestamp_ms: u64,
     pub consensus_round: u64,
     pub signature: SignatureBytes,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProduceNextBlockCanonicalRootsInput {
+    pub timestamp_ms: u64,
+    pub consensus_round: u64,
+    pub signature: SignatureBytes,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ProduceNextBlockInnerInput {
+    state_root_override: Option<Hash32>,
+    transactions_root_override: Option<Hash32>,
+    block_hash_override: Option<Hash32>,
+    timestamp_ms: u64,
+    consensus_round: u64,
+    signature: SignatureBytes,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,6 +92,17 @@ impl<S: ChainStore> XriqNode<S> {
             store,
             latest_block_hash,
         }
+    }
+
+    pub fn from_genesis(genesis: &GenesisConfig, store: S) -> Result<Self, GenesisConfigError> {
+        genesis.validate()?;
+        Ok(Self::new(
+            LedgerState::from_genesis(genesis)?,
+            Mempool::new(MempoolConfig::from_genesis(genesis)?),
+            SingleAuthorityProducer::from_genesis(genesis)?,
+            store,
+            genesis.genesis_block_hash,
+        ))
     }
 
     pub fn submit_transaction(
@@ -124,30 +154,47 @@ impl<S: ChainStore> XriqNode<S> {
             signature,
         } = input;
 
-        self.produce_next_block_inner(
-            ProduceNextBlockCanonicalInput {
-                state_root,
-                timestamp_ms,
-                consensus_round,
-                signature,
-            },
-            Some(transactions_root),
-            Some(block_hash),
-        )
+        self.produce_next_block_inner(ProduceNextBlockInnerInput {
+            state_root_override: Some(state_root),
+            transactions_root_override: Some(transactions_root),
+            block_hash_override: Some(block_hash),
+            timestamp_ms,
+            consensus_round,
+            signature,
+        })
     }
 
     pub fn produce_next_block_with_canonical_hash(
         &mut self,
         input: ProduceNextBlockCanonicalInput,
     ) -> Result<ProducedBlock, NodeError> {
-        self.produce_next_block_inner(input, None, None)
+        self.produce_next_block_inner(ProduceNextBlockInnerInput {
+            state_root_override: Some(input.state_root),
+            transactions_root_override: None,
+            block_hash_override: None,
+            timestamp_ms: input.timestamp_ms,
+            consensus_round: input.consensus_round,
+            signature: input.signature,
+        })
+    }
+
+    pub fn produce_next_block_with_canonical_roots(
+        &mut self,
+        input: ProduceNextBlockCanonicalRootsInput,
+    ) -> Result<ProducedBlock, NodeError> {
+        self.produce_next_block_inner(ProduceNextBlockInnerInput {
+            state_root_override: None,
+            transactions_root_override: None,
+            block_hash_override: None,
+            timestamp_ms: input.timestamp_ms,
+            consensus_round: input.consensus_round,
+            signature: input.signature,
+        })
     }
 
     fn produce_next_block_inner(
         &mut self,
-        input: ProduceNextBlockCanonicalInput,
-        transactions_root_override: Option<Hash32>,
-        block_hash_override: Option<Hash32>,
+        input: ProduceNextBlockInnerInput,
     ) -> Result<ProducedBlock, NodeError> {
         let selected_transactions: Vec<(Hash32, Transaction)> = self
             .mempool
@@ -160,7 +207,8 @@ impl<S: ChainStore> XriqNode<S> {
             .iter()
             .map(|(_, transaction)| transaction.clone())
             .collect();
-        let transactions_root = transactions_root_override
+        let transactions_root = input
+            .transactions_root_override
             .unwrap_or_else(|| canonical_transactions_root(&transactions));
 
         let mut next_ledger = self.ledger.clone();
@@ -169,6 +217,9 @@ impl<S: ChainStore> XriqNode<S> {
                 .apply_transaction(transaction)
                 .map_err(NodeError::Ledger)?;
         }
+        let state_root = input
+            .state_root_override
+            .unwrap_or_else(|| account_state_root(&next_ledger.state_root_entries()));
 
         let parent = ParentHeaderView {
             chain_id: self.ledger.config().chain_id.clone(),
@@ -177,7 +228,7 @@ impl<S: ChainStore> XriqNode<S> {
         };
         let block_input = BlockProductionInput {
             parent,
-            state_root: input.state_root,
+            state_root,
             transactions_root,
             timestamp_ms: input.timestamp_ms,
             consensus_round: input.consensus_round,
@@ -188,7 +239,7 @@ impl<S: ChainStore> XriqNode<S> {
             .produce_block(block_input, transactions)
             .map_err(NodeError::Block)?;
         next_ledger.set_current_height(block.header.height);
-        let block_hash = self.append_block_to_store(block_hash_override, block.clone())?;
+        let block_hash = self.append_block_to_store(input.block_hash_override, block.clone())?;
 
         for (tx_hash, _) in &selected_transactions {
             self.mempool.remove(tx_hash);
@@ -315,18 +366,11 @@ impl<S: ChainStore> XriqNode<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use xriq_consensus::SingleAuthorityConfig;
     use xriq_core::{Address, XriqAmount};
-    use xriq_ledger::{Account, LedgerConfig};
-    use xriq_mempool::MempoolConfig;
     use xriq_storage::InMemoryChainStore;
 
     fn address(label: &str) -> Address {
         Address::parse(&format!("xriqdev1{label}00000000000")).unwrap()
-    }
-
-    fn fee_sink() -> Address {
-        Address::parse("xriqdev1fees000000000000").unwrap()
     }
 
     fn hash(byte: u8) -> Hash32 {
@@ -368,6 +412,14 @@ mod tests {
         }
     }
 
+    fn produce_canonical_roots_input() -> ProduceNextBlockCanonicalRootsInput {
+        ProduceNextBlockCanonicalRootsInput {
+            timestamp_ms: 1_000,
+            consensus_round: 0,
+            signature: SignatureBytes::new(vec![9]),
+        }
+    }
+
     fn produce_input_with_roots(
         block_hash: Hash32,
         state_root: Hash32,
@@ -384,32 +436,25 @@ mod tests {
     }
 
     fn node() -> XriqNode<InMemoryChainStore> {
-        let mut ledger = LedgerState::new(LedgerConfig {
-            chain_id: "xriq-devnet".to_string(),
-            current_height: 0,
-            min_fee: XriqAmount::from_base_units(2),
-            fee_sink: fee_sink(),
-        });
-        ledger.set_account(
+        let genesis = GenesisConfig::private_devnet().with_account(
             address("alice"),
-            Account::new(XriqAmount::from_base_units(100), 0),
+            XriqAmount::from_base_units(100),
+            0,
         );
-        let mempool = Mempool::new(MempoolConfig {
-            max_transactions: 8,
-            min_fee: XriqAmount::from_base_units(2),
-        });
-        let producer = SingleAuthorityProducer::new(SingleAuthorityConfig {
-            chain_id: "xriq-devnet".to_string(),
-            producer: address("author"),
-            max_transactions_per_block: 4,
-        });
-        XriqNode::new(
-            ledger,
-            mempool,
-            producer,
-            InMemoryChainStore::new(),
-            hash(0),
-        )
+        XriqNode::from_genesis(&genesis, InMemoryChainStore::new()).unwrap()
+    }
+
+    #[test]
+    fn builds_node_from_genesis_config() {
+        let node = node();
+
+        assert_eq!(node.ledger().config().chain_id, "xriq-devnet");
+        assert_eq!(node.latest_block_hash(), Hash32::ZERO);
+        assert_eq!(node.mempool().config().max_transactions, 8);
+        assert_eq!(
+            node.ledger().account(&address("alice")).unwrap().balance,
+            XriqAmount::from_base_units(100)
+        );
     }
 
     #[test]
@@ -471,6 +516,30 @@ mod tests {
         assert_eq!(
             node.store().latest_block().map(|record| record.block_hash),
             Some(produced.block_hash)
+        );
+    }
+
+    #[test]
+    fn canonical_root_block_production_uses_derived_roots() {
+        let mut node = node();
+        let tx = transaction(address("alice"), 0, 25, 2);
+        node.submit_transaction_with_canonical_hash(tx).unwrap();
+
+        let produced = node
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input())
+            .unwrap();
+
+        assert_eq!(
+            produced.block.header.transactions_root,
+            xriq_crypto::transactions_root(&produced.block.transactions)
+        );
+        assert_eq!(
+            produced.block.header.state_root,
+            xriq_crypto::account_state_root(&node.ledger().state_root_entries())
+        );
+        assert_eq!(
+            produced.block_hash,
+            xriq_crypto::block_hash(&produced.block)
         );
     }
 
