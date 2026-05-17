@@ -62,11 +62,10 @@ Future Codex sessions must default to a low-OpenAI-cost operating mode.
 As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
-- Last XRIQ implementation commit pushed and Vast Rust-verified:
-  `3c50394 Add XRIQ read-only JSON fixtures`.
-- Vast checkout was fast-forwarded and Rust verified through `3c50394`. The
-  latest full script/HTTP smoke remains the `dafc5f0` checkpoint because the
-  latest change only added checked read-only JSON fixtures and tests.
+- Last XRIQ implementation commit pushed and Vast-verified:
+  `824816e Add XRIQ transaction detail runner`.
+- Vast checkout was fast-forwarded and Rust/script/HTTP-smoke verified through
+  `824816e`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -851,6 +850,42 @@ serving the last broad-safe Rust/XRIQ adapter.
     `125` passing tests, and `cargo clippy -- -D warnings`. Full
     `scripts/xriq_private_devnet_smoke.sh` was intentionally not rerun for
     this fixture-only Rust checkpoint to keep cost/time low.
+- Local XRIQ prototype progress after the transaction-detail runner checkpoint:
+  - Added `xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex>`
+    with text and JSON output.
+  - The command scans confirmed transactions in persisted blocks first. When
+    `--draft-file <path>` is also supplied, it previews that wallet draft as an
+    in-memory pending transaction and returns `status: "pending"` when the hash
+    matches, without mutating the chain file or creating durable mempool state.
+  - Added explicit `invalid_hash` JSON error support for malformed
+    `--tx-hash` values.
+  - Expanded `scripts/xriq_private_devnet_smoke.sh` so it now writes and checks
+    `pending-transaction-detail.json` before block production and
+    `confirmed-transaction-detail.json` after block production.
+  - Updated `xriq/README.md`, `docs/XRIQ_NODE_JSON_SCHEMA.md`, and
+    `docs/XRIQ_TECHNICAL_SPEC.md` with the transaction-detail runner contract
+    and the new smoke artifacts.
+  - Local Windows verification passed from `xriq/` with
+    `CARGO_TARGET_DIR=target-codex-tx-detail`: `cargo fmt --check`, focused
+    `cargo test -p xriq-node transaction_detail -j 1` with `2` passing tests,
+    `cargo test -j 1` with `127` passing workspace tests, and
+    `cargo clippy -- -D warnings`. Generated local target files were removed
+    afterward. Local `bash -n scripts/xriq_private_devnet_smoke.sh` could not
+    run because Windows routed `bash` to WSL and no WSL distribution is
+    installed, so Bash verification was done on Vast.
+  - Pushed implementation commit:
+    `824816e Add XRIQ transaction detail runner`.
+  - Vast checkout was fast-forwarded to `824816e`; Vast verification passed
+    with the workspace-volume Rust toolchain env:
+    `RUSTUP_HOME=/workspace/.rustup`,
+    `CARGO_HOME=/workspace/.cargo`, and
+    `PATH=/workspace/.cargo/bin:...`.
+  - Vast verification passed with `cargo fmt --check`, `cargo test -j 1` with
+    `127` passing tests, `cargo clippy -- -D warnings`,
+    `bash -n scripts/xriq_private_devnet_smoke.sh`, and
+    `bash scripts/xriq_private_devnet_smoke.sh`.
+  - Latest expanded smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T202943Z-29119`.
 
 ## Repo State
 
@@ -2054,7 +2089,8 @@ cargo clippy -- -D warnings
    deterministic replay startup, the local `xriq-node status`,
    `xriq-node produce-transfer-block`, `xriq-node produce-draft-block`,
    `xriq-node explorer-overview`, `xriq-node block-detail`,
-   `xriq-node account-detail`, and `xriq-node mempool-detail` runner commands,
+   `xriq-node account-detail`, `xriq-node mempool-detail`, and
+   `xriq-node transaction-detail` runner commands,
    `scripts/xriq_private_devnet_smoke.sh`,
    `xriq-node serve-readonly`, `xriq-node serve-private`, and
    `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`, is to keep the local
