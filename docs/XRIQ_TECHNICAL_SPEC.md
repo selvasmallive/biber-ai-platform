@@ -642,10 +642,11 @@ As of 2026-05-17:
   - `cargo run -p xriq-node -- explorer-overview --chain-file target/xriq-node-explorer-smoke-chain-20260517-codex.bin --alice-balance 100 --limit 5`.
 - Latest Vast verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `109` passing tests.
+  - `cargo test -j 1` with `110` passing tests.
   - `cargo clippy -- -D warnings`.
-  - `cargo run -p xriq-node -- produce-transfer-block --chain-file target/xriq-node-transfer-smoke-chain-1779007525.bin --alice-balance 100 --from xriqdev1alice00000000000 --to xriqdev1bobbb00000000000 --amount 25 --fee 2 --nonce 0 --expires-at-height 100 --timestamp-ms 1000`.
-  - `cargo run -p xriq-node -- status --chain-file target/xriq-node-transfer-smoke-chain-1779007525.bin --alice-balance 100`.
+  - `cargo run -p xriq-node -- produce-transfer-block --chain-file target/xriq-node-explorer-smoke-chain-1779007859.bin --alice-balance 100 --from xriqdev1alice00000000000 --to xriqdev1bobbb00000000000 --amount 25 --fee 2 --nonce 0 --expires-at-height 100 --timestamp-ms 1000`.
+  - `cargo run -p xriq-node -- produce-transfer-block --chain-file target/xriq-node-explorer-smoke-chain-1779007859.bin --alice-balance 100 --from xriqdev1alice00000000000 --to xriqdev1carol00000000000 --amount 10 --fee 2 --nonce 1 --expires-at-height 100 --timestamp-ms 2000`.
+  - `cargo run -p xriq-node -- explorer-overview --chain-file target/xriq-node-explorer-smoke-chain-1779007859.bin --alice-balance 100 --limit 5`.
 
 Next implementation target: wire wallet transfer drafts into the node runner
 with a structured draft-file input, then add focused account/block detail

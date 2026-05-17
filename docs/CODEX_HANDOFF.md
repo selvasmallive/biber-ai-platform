@@ -27,8 +27,8 @@ As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Last XRIQ implementation commit pushed:
-  `4f0cb38 Add XRIQ transfer block runner`.
-- Vast checkout was fast-forwarded through `4f0cb38`.
+  `9b098f2 Add XRIQ explorer overview runner`.
+- Vast checkout was fast-forwarded and Rust-verified through `9b098f2`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -352,6 +352,23 @@ serving the last broad-safe Rust/XRIQ adapter.
     passed with `cargo fmt --check`, `cargo test -j 1` with `109` passing
     tests, `cargo clippy -- -D warnings`, the transfer/block smoke, and a
     replay status smoke against the same chain file.
+- Local XRIQ prototype progress after the transfer-runner checkpoint:
+  - Added `xriq-node explorer-overview` as the first file-backed local explorer
+    runner over persisted private-devnet chain files.
+  - The command opens the append-only chain file, replays persisted canonical
+    blocks through `XriqNode::from_genesis_replaying_store`, and renders chain
+    id, height, latest block hash, stored block count, pending count, and recent
+    block summaries using `xriq-explorer`.
+  - Added runner coverage for producing two persisted blocks and then rendering
+    the replayed explorer overview from the same chain file.
+  - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `110` passing tests,
+    `cargo clippy -- -D warnings`, two transfer/block smokes, and the new
+    explorer overview smoke.
+  - Vast checkout was fast-forwarded to `9b098f2`; Vast Rust verification also
+    passed with `cargo fmt --check`, `cargo test -j 1` with `110` passing
+    tests, `cargo clippy -- -D warnings`, two transfer/block smokes, and the
+    explorer overview smoke.
 
 ## Repo State
 
@@ -1542,12 +1559,12 @@ cargo clippy -- -D warnings
    after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`,
    `xriq-rpc`, `xriq-storage`, `xriq-node`, `xriq-wallet`, and
    `xriq-explorer`, canonical hash API wiring, genesis/root strategy, and
-   deterministic replay startup, and the local `xriq-node status` plus
-   `xriq-node produce-transfer-block` runner commands is to add a small local
-   explorer/status runner over persisted chain files, or wire wallet transfer
-   drafts into the node runner with a structured draft-file input. HTTP/RPC
-   serving and snapshot checkpointing can wait until the local file-backed
-   workflow is comfortable.
+   deterministic replay startup, and the local `xriq-node status`,
+   `xriq-node produce-transfer-block`, and `xriq-node explorer-overview` runner
+   commands is to wire wallet transfer drafts into the node runner with a
+   structured draft-file input, then add focused account/block detail inspection
+   commands. HTTP/RPC serving and snapshot checkpointing can wait until the
+   local file-backed workflow is comfortable.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
