@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-05-16
+Last updated: 2026-05-17
 
 ## Current Goal
 
@@ -48,6 +48,8 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `fe75bce Harden Rust eval code validation`
   - `ca51c6e Add targeted Rust XRIQ dataset`
   - `4015d92 Record Rust XRIQ training results`
+  - `9e5099c Confirm Rust XRIQ broad eval`
+  - `17eebc9 Add HashSet Rust XRIQ examples`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -422,6 +424,17 @@ the current GPU-backed direct vLLM/FastAPI state.
     expectations, `5/6` cargo validators.
   - Remaining Rust/XRIQ weak spot: `rust_xriq_mempool_insert` still omitted
     `use std::collections::HashSet;`, causing `cargo check` failure.
+  - Added six extra project-owned HashSet-focused Rust/XRIQ source examples and
+    tightened the held-out `rust_xriq_mempool_insert` eval prompt so it
+    explicitly requires `use std::collections::HashSet;`.
+  - Verified the updated Rust/XRIQ targeted source locally and on Vast:
+    `16` records, `0` errors, `0` warnings.
+  - Reran the Rust/XRIQ eval against the existing live adapter without
+    retraining:
+    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260517T001354Z.summary.json`.
+  - HashSet follow-up result: `6/6` responses, `6/6` substring expectations,
+    and `6/6` cargo validators. No new adapter was trained because the current
+    live adapter passed the tightened Rust/XRIQ eval.
   - A first broad 18-prompt eval attempt after Rust/XRIQ retraining wrote
     `/workspace/outputs/evals/biber-dev-core-lora-20260517T000202Z.summary.json`
     with `0/18` responses because FastAPI was not listening yet
@@ -445,7 +458,7 @@ the current GPU-backed direct vLLM/FastAPI state.
 - Storage:
   - `/workspace` is mounted from `/dev/md0[/volumes/V.36840046/_data]`
     as XFS.
-  - Size at last check: `499G`, used `30G`, available `470G`.
+  - Size at last check: `499G`, used `31G`, available `469G`.
   - BIBER runtime, model cache, venv, pip cache, logs, pid files, future
     datasets, checkpoints, adapters, and outputs should stay under
     `/workspace` to use the 500 GB Vast volume and avoid the small root
@@ -466,13 +479,13 @@ the current GPU-backed direct vLLM/FastAPI state.
     `biber-dev-core=/workspace/adapters/biber-dev-core-lora-rust-xriq-400`
   - Tensor parallel size: `2`
   - Max model length: `8192`
-  - Current pid at last confirmed check: `16407`
+  - Current pid at last confirmed check: `1558`
 - BIBER FastAPI:
   - URL: `http://127.0.0.1:8000`
   - Environment: `gpu`
   - Chat mode: `infer`
   - Local model name: `biber-dev-core`
-  - Current pid at last confirmed check: `16748`
+  - Current pid at last confirmed check: `1914`
   - Run `bash scripts/vast_status_direct.sh` for current PIDs and bind details.
 - Persistent training/output directories created on the 500 GB volume:
   - `/workspace/data`
@@ -482,16 +495,18 @@ the current GPU-backed direct vLLM/FastAPI state.
   - `/workspace/.cargo`
   - `/workspace/.rustup`
 - Current generated artifact sizes at last check:
-  - `/workspace/data`: `2.6M`
+  - `/workspace/data`: `3.2M`
   - `/workspace/.cargo`: `20M`
   - `/workspace/.rustup`: `594M`
-  - `/workspace/outputs/evals`: `132K`
-  - `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`: trained and
-    served successfully; size should be rechecked after SSH access is restored.
+  - `/workspace/.hf_home`: `15G`
+  - `/workspace/outputs`: `304K`
+  - `/workspace/adapters`: `3.5G`
+  - `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`: `896M`, trained
+    and served successfully.
   - `/workspace/adapters/biber-dev-core-lora-targeted-350`: `896M`
   - `/workspace/adapters/biber-dev-core-lora-codeinstruct-998`: `896M`
   - `/workspace/adapters/biber-dev-core-lora`: `409M`
-  - `/workspace/outputs`: `180K`
+  - `/workspace/adapters/biber-dev-core-lora-smoke`: `409M`
 - Current Rust/XRIQ adapter contents should include:
   - `adapter_model.safetensors`: `155M`
   - `adapter_config.json`
@@ -571,6 +586,11 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
   Rust/XRIQ targeted dataset, and a bounded 1000-record cap from
   `SoyMaycol/CodeInstruct-20K`. Increase real approved source limits only after
   reviewing license/provenance and storage impact.
+- The tracked source file `training/targeted_rust_xriq_dataset.jsonl` now has
+  `16` validated project-owned Rust/XRIQ records after adding HashSet-focused
+  examples. The canonical `/workspace/data/biber_train.jsonl` was not
+  regenerated for this follow-up because the existing live adapter passed the
+  tightened Rust/XRIQ eval without another training run.
 - Only promote an internet-ingested dataset to `/workspace/data/biber_train.jsonl`
   after reviewing provenance and validation output.
 - Current canonical dataset: `/workspace/data/biber_train.jsonl`
@@ -594,19 +614,21 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
   - quality caveat: the current runner checks simple expected substrings or
     regexes. Treat the score as a regression signal, then add stronger
     execution/type/lint validators before trusting it as a quality score.
-- Current Rust/XRIQ eval baseline after Rust/XRIQ retraining:
+- Current Rust/XRIQ eval baseline after the HashSet follow-up:
   - runner: `bash scripts/vast_eval_rust_xriq_direct.sh`
-  - result: `6/6` responses, `6/6` substring expectations, `5/6` cargo
+  - result: `6/6` responses, `6/6` substring expectations, `6/6` cargo
     validators.
   - summary:
-    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260516T200642Z.summary.json`
+    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260517T001354Z.summary.json`
   - detailed JSONL:
-    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260516T200642Z.jsonl`
-  - remaining failure: missing `use std::collections::HashSet;` in
-    `rust_xriq_mempool_insert`.
-- The Rust/XRIQ adapter is the current confirmed live candidate: it improved the
-  Rust/XRIQ cargo baseline from `2/6` to `5/6` while preserving the broad
-  `18/18` regression baseline.
+    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260517T001354Z.jsonl`
+  - prior remaining failure, missing `use std::collections::HashSet;` in
+    `rust_xriq_mempool_insert`, is resolved for the current held-out eval.
+- The Rust/XRIQ adapter is the current confirmed live candidate: the adapter
+  training improved the Rust/XRIQ cargo baseline from `2/6` to `5/6` while
+  preserving the broad `18/18` regression baseline. After the HashSet source and
+  eval-prompt follow-up, the current live path reaches `6/6` cargo validators.
+  The HashSet follow-up did not change model weights.
 - The current serving process holds about 14 GB on each 16 GB GPU. Before
   starting another QLoRA run on this instance, stop the direct services with
   `bash scripts/vast_stop_direct.sh`, or run training on a separate GPU.
@@ -973,13 +995,16 @@ tail -f /workspace/biber-logs/vllm.log
    pushed:
    `cd /workspace/biber-ai-platform && git pull --ff-only origin main`.
 2. Treat `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` as the current
-   confirmed live candidate. It improved Rust/XRIQ cargo validators from `2/6`
-   to `5/6` and preserved the broad `18/18` baseline.
-3. Add or adjust targeted Rust examples for the remaining missing
-   `use std::collections::HashSet;` failure in `rust_xriq_mempool_insert`.
-4. Train again only if the next Rust/XRIQ eval still shows repeatable Rust gaps
-   or if the user explicitly prioritizes Rust improvement over spending time on
-   the next capability domain.
+   confirmed live candidate. The adapter training improved Rust/XRIQ cargo
+   validators from `2/6` to `5/6`, and the HashSet source/eval follow-up now
+   reaches `6/6` on the current eval without changing weights. It preserved the
+   broad `18/18` baseline.
+3. Do not train immediately for the prior HashSet failure. The current adapter
+   passed the tightened Rust/XRIQ eval, so the cost-saving next step is XRIQ
+   inference usage and stronger Rust eval coverage, not another GPU run.
+4. Train again only if future Rust/XRIQ evals show repeatable gaps or if the
+   user explicitly prioritizes Rust improvement over spending time on the next
+   capability domain.
 5. Use BIBER AI for XRIQ through inference first: spec drafting, Rust module
    scaffolding, tests, review prompts, and private-devnet tooling. Fine-tune
    only after Rust/XRIQ evals show repeatable gaps.

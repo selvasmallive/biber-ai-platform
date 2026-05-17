@@ -72,7 +72,7 @@ uses `/workspace/outputs/evals/validator-work` for temporary cargo projects.
 The Rust toolchain helper installs Rust under `/workspace/.cargo` and
 `/workspace/.rustup` so toolchain files stay on the 500 GB Vast volume.
 
-Current baseline as of 2026-05-16:
+Current baseline as of 2026-05-17:
 
 - Pre-Rust/XRIQ training adapter:
   `/workspace/adapters/biber-dev-core-lora-targeted-350`.
@@ -84,15 +84,24 @@ Current baseline as of 2026-05-16:
   `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260516T200642Z.summary.json`.
 - Post-training Rust/XRIQ result: `6/6` responses, `6/6` substring
   expectations, `5/6` cargo validators.
-- Remaining Rust/XRIQ failure: `rust_xriq_mempool_insert` omitted
-  `use std::collections::HashSet;`.
+- HashSet follow-up source update:
+  `training/targeted_rust_xriq_dataset.jsonl` now has `16` validated
+  project-owned Rust/XRIQ records, including six extra HashSet-focused examples.
+- HashSet follow-up eval:
+  `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260517T001354Z.summary.json`.
+- HashSet follow-up result: `6/6` responses, `6/6` substring expectations,
+  `6/6` cargo validators.
+- The prior `rust_xriq_mempool_insert` missing-import failure is resolved for
+  the current held-out eval without another training run. Keep the same live
+  adapter unless future evals reveal repeatable Rust gaps.
 - Broad 18-prompt eval after Rust/XRIQ retraining:
   `/workspace/outputs/evals/biber-dev-core-lora-20260517T000637Z.summary.json`.
 - Broad post-training result: `18/18` responses and `18/18` simple expectation
   checks.
-- The Rust/XRIQ adapter is the current confirmed live candidate because it
-  improved the Rust/XRIQ cargo baseline while preserving the broad regression
-  baseline.
+- The Rust/XRIQ adapter is the current confirmed live candidate because adapter
+  training improved the Rust/XRIQ cargo baseline from `2/6` to `5/6`, the
+  HashSet follow-up reaches `6/6` without changing weights, and the broad
+  `18/18` regression baseline remains intact.
 
 ## Phase 2: XRIQ Technical Specification
 
