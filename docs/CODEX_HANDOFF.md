@@ -63,8 +63,9 @@ As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Last XRIQ implementation commit pushed and Vast-verified:
-  `1a7218f Add command names to XRIQ JSON output`.
-- Vast checkout was fast-forwarded and Rust/script-verified through `1a7218f`.
+  `f222b01 Persist XRIQ smoke JSON artifacts`.
+- Vast checkout was fast-forwarded and script-verified through `f222b01`.
+  Previous full Rust suite verification remains through `1a7218f`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -592,6 +593,24 @@ serving the last broad-safe Rust/XRIQ adapter.
     `bash scripts/xriq_private_devnet_smoke.sh`.
   - Latest smoke artifacts on Vast:
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T154848Z-22177`.
+- Local XRIQ prototype progress after the smoke JSON artifact checkpoint:
+  - Updated `scripts/xriq_private_devnet_smoke.sh` so the one-command smoke
+    path persists representative JSON response artifacts beside the draft and
+    chain file.
+  - Generated files are `mempool-detail.json`, `explorer-overview.json`,
+    `account-detail.json`, and `status-error.json`.
+  - Updated `docs/XRIQ_NODE_JSON_SCHEMA.md` and `docs/XRIQ_TECHNICAL_SPEC.md`
+    so future BIBER/Codex sessions know to use those generated files as
+    private-devnet examples, not public API fixtures.
+  - Vast checkout was fast-forwarded to `f222b01`; focused verification passed
+    with `bash -n scripts/xriq_private_devnet_smoke.sh`,
+    `bash scripts/xriq_private_devnet_smoke.sh`, and `test -s` checks on all
+    four generated JSON artifact files.
+  - Latest smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T155325Z-22475`.
+  - Full Rust tests were intentionally not rerun for this script/docs-only
+    checkpoint; previous full Rust and Vast verification remains through
+    `1a7218f`.
 
 ## Repo State
 

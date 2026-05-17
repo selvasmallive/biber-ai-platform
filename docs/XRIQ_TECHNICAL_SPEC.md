@@ -793,11 +793,10 @@ As of 2026-05-17:
     response.
 
 Next implementation target: keep the local file-backed workflow small and
-deterministic. Add response examples from smoke artifacts, minimal HTTP/RPC
-serving, or snapshot/replay improvements only when they directly help the
-private-devnet MVP, and keep public XRIQ launch or listing work blocked.
-Keep HTTP/RPC serving deferred until the local file-backed workflow is
-comfortable.
+deterministic. Add minimal HTTP/RPC serving or snapshot/replay improvements
+only when they directly help the private-devnet MVP, and keep public XRIQ
+launch or listing work blocked. Keep HTTP/RPC serving deferred until the local
+file-backed workflow is comfortable.
 
 ## Open Decisions
 
