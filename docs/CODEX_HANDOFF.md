@@ -66,7 +66,7 @@ last broad-safe Rust/XRIQ adapter.
   validator score at `6/7`. Do not chase more blind QLoRA runs for the ledger
   prompt without first improving the eval design, prompt scaffolding, or
   training-data strategy.
-- Local XRIQ prototype progress made after the last Vast check:
+- XRIQ prototype progress made after the last model eval:
   - `docs/XRIQ_TECHNICAL_SPEC.md` now makes the intended XRIQ advantages
     explicit: no mining, predictable fees, Rust-first implementation, clean
     token issuance, DEX/BTC-swap friendliness, crypto agility, cautious
@@ -76,8 +76,9 @@ last broad-safe Rust/XRIQ adapter.
   - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
     `cargo test` with `27` passing tests, and
     `cargo clippy -- -D warnings`.
-  - Vast has not yet been re-verified with `xriq-mempool` unless a later entry
-    in this handoff says so.
+  - Vast checkout was fast-forwarded to include `xriq-mempool`; Vast Rust
+    verification also passed with `cargo fmt --check`, `cargo test` with `27`
+    passing tests, and `cargo clippy -- -D warnings`.
 
 ## Repo State
 
@@ -555,9 +556,9 @@ last broad-safe Rust/XRIQ adapter.
   - latest local Rust test result: `27` passed.
   - latest local clippy validation passed:
     `cd xriq && cargo clippy -- -D warnings`.
-  - prior Vast Rust validation passed with the toolchain stored under
-    `/workspace` before `xriq-mempool` was added:
-    `cargo fmt --check`, `cargo test`, and `cargo clippy -- -D warnings`.
+  - latest Vast Rust validation passed with the toolchain stored under
+    `/workspace`: `cargo fmt --check`, `cargo test` with `27` passing tests,
+    and `cargo clippy -- -D warnings`.
   - Installed the `clippy` Rust component into `/workspace/.rustup` and updated
     `scripts/vast_install_rust_toolchain.sh` so future Rust setup includes it.
   - No Vast GPU/model training was needed for this step.
@@ -1159,7 +1160,7 @@ bash scripts/vast_eval_lora_direct.sh
    and regenerate datasets from the approved sources.
 10. Update this handoff immediately after SSH is restored, training finishes,
    serving restarts, evals complete, or the instance is moved.
-11. After pushing local XRIQ prototype changes, fast-forward the Vast checkout
+11. After future local XRIQ prototype changes, fast-forward the Vast checkout
    and rerun Rust validation there:
 
 ```bash
