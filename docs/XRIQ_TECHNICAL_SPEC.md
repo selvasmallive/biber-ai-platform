@@ -665,11 +665,13 @@ As of 2026-05-17:
   - `cargo run -p xriq-node -- account-detail --chain-file target/xriq-node-detail-smoke-chain-20260517-codex.bin --alice-balance 100 --address xriqdev1alice00000000000`.
 - Latest Vast verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `112` passing tests.
+  - `cargo test -j 1` with `114` passing tests.
   - `cargo clippy -- -D warnings`.
-  - `cargo run -p xriq-wallet -- transfer --chain-id xriq-devnet --from xriqdev1alice00000000000 --to xriqdev1bobbb00000000000 --amount 25 --fee 2 --nonce 0 --expires-at-height 100` captured to `target/xriq-wallet-draft-1779008675.txt`.
-  - `cargo run -p xriq-node -- produce-draft-block --chain-file target/xriq-node-draft-smoke-chain-1779008675.bin --draft-file target/xriq-wallet-draft-1779008675.txt --alice-balance 100 --timestamp-ms 1000`.
-  - `cargo run -p xriq-node -- explorer-overview --chain-file target/xriq-node-draft-smoke-chain-1779008675.bin --alice-balance 100 --limit 5`.
+  - `cargo run -p xriq-wallet -- transfer --chain-id xriq-devnet --from xriqdev1alice00000000000 --to xriqdev1bobbb00000000000 --amount 25 --fee 2 --nonce 0 --expires-at-height 100` captured to `target/xriq-wallet-detail-draft-1779009178.txt`.
+  - `cargo run -p xriq-node -- produce-draft-block --chain-file target/xriq-node-detail-smoke-chain-1779009178.bin --draft-file target/xriq-wallet-detail-draft-1779009178.txt --alice-balance 100 --timestamp-ms 1000`.
+  - `cargo run -p xriq-node -- explorer-overview --chain-file target/xriq-node-detail-smoke-chain-1779009178.bin --alice-balance 100 --limit 5`.
+  - `cargo run -p xriq-node -- block-detail --chain-file target/xriq-node-detail-smoke-chain-1779009178.bin --alice-balance 100 --height 1`.
+  - `cargo run -p xriq-node -- account-detail --chain-file target/xriq-node-detail-smoke-chain-1779009178.bin --alice-balance 100 --address xriqdev1alice00000000000`.
 
 Next implementation target: add a compact local private-devnet smoke script
 that chains wallet draft generation, draft-block production, explorer overview,

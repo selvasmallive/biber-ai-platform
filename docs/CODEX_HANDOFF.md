@@ -26,9 +26,9 @@ prototype from the current GPU-backed direct vLLM/FastAPI state.
 As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
-- Last XRIQ implementation commit pushed:
-  `00f363f Add XRIQ wallet draft block runner`.
-- Vast checkout was fast-forwarded and Rust-verified through `00f363f`.
+- Last XRIQ implementation commit pushed and Vast-verified:
+  `f00e881 Add XRIQ file detail runners`.
+- Vast checkout was fast-forwarded and Rust-verified through `f00e881`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -389,6 +389,25 @@ serving the last broad-safe Rust/XRIQ adapter.
     passed with `cargo fmt --check`, `cargo test -j 1` with `112` passing
     tests, `cargo clippy -- -D warnings`, wallet draft generation,
     draft-block production, and explorer overview replay.
+- Local XRIQ prototype progress after the wallet-draft runner checkpoint:
+  - Added `xriq-node block-detail` for focused block inspection by height over
+    persisted private-devnet chain files.
+  - Added `xriq-node account-detail` for focused account inspection by address
+    over persisted private-devnet chain files.
+  - Added dependency-free account detail text rendering in `xriq-explorer`.
+  - Added runner coverage for replaying a chain file before rendering block and
+    account detail output.
+  - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `114` passing tests,
+    `cargo clippy -- -D warnings`, wallet draft generation, draft-block
+    production, explorer overview replay, block detail, and account detail.
+    The local Windows test run used `CARGO_TARGET_DIR=target-codex-detail` to
+    avoid default target binary locks.
+  - Vast checkout was fast-forwarded to `f00e881`; Vast Rust verification also
+    passed with `cargo fmt --check`, `cargo test -j 1` with `114` passing
+    tests, `cargo clippy -- -D warnings`, wallet draft generation,
+    draft-block production, explorer overview replay, block detail, and account
+    detail.
 
 ## Repo State
 
@@ -1578,13 +1597,15 @@ cargo clippy -- -D warnings
    project later needs independent release/versioning. The next protocol target
    after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`,
    `xriq-rpc`, `xriq-storage`, `xriq-node`, `xriq-wallet`, and
-   `xriq-explorer`, canonical hash API wiring, genesis/root strategy, and
+   `xriq-explorer`, canonical hash API wiring, genesis/root strategy,
    deterministic replay startup, and the local `xriq-node status`,
-   `xriq-node produce-transfer-block`, `xriq-node produce-draft-block`, and
-   `xriq-node explorer-overview` runner commands is to add focused account and
-   block detail inspection commands over persisted chain files. HTTP/RPC
-   serving and snapshot checkpointing can wait until the local file-backed
-   workflow is comfortable.
+   `xriq-node produce-transfer-block`, `xriq-node produce-draft-block`,
+   `xriq-node explorer-overview`, `xriq-node block-detail`, and
+   `xriq-node account-detail` runner commands is to add a compact local smoke
+   script that chains wallet draft generation, draft-block production, explorer
+   overview, block detail, and account detail over one persisted chain file.
+   HTTP/RPC serving and snapshot checkpointing can wait until the local
+   file-backed workflow is comfortable.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
