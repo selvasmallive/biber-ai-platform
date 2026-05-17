@@ -7,6 +7,66 @@ Last updated: 2026-05-17
 Continue the live Vast.ai deployment and development of the BIBER AI Platform from
 the current GPU-backed direct vLLM/FastAPI state.
 
+## Immediate Resume State
+
+As of 2026-05-17 02:11 UTC, the Vast.ai deployment is healthy and serving the
+last broad-safe Rust/XRIQ adapter.
+
+- Last code/training-data commit pushed: `3c8b7c2 Add Rust XRIQ fee regression data`.
+- Vast checkout was fast-forwarded to `3c8b7c2`.
+- Current served adapter:
+  `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
+- Current serving state:
+  - vLLM pid: `5802`
+  - FastAPI pid: `6124`
+  - API bind: `127.0.0.1:8000`
+  - vLLM bind: `127.0.0.1:8001`
+  - `bash scripts/vast_test_direct.sh` passed with chat content `ok`.
+- Latest current Rust/XRIQ eval:
+  - summary:
+    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260517T021032Z.summary.json`
+  - result: `7/7` responses, `7/7` substring expectations,
+    `6/7` cargo validators.
+  - remaining failure: `rust_xriq_apply_ledger_transaction` failed
+    `cargo fmt --check`. The generated code also used an external
+    `thiserror::Error` derive that is not available in the eval crate, so treat
+    the ledger prompt as not solved by the model yet.
+- Latest current broad eval:
+  - summary:
+    `/workspace/outputs/evals/biber-dev-core-lora-20260517T021053Z.summary.json`
+  - result: `18/18` responses and `18/18` simple expectation checks.
+- Current canonical training dataset:
+  - path: `/workspace/data/biber_train.jsonl`
+  - candidate source:
+    `/workspace/data/biber_train_rust_xriq_fee_codeinstruct_1000.jsonl`
+  - records: `1000`
+  - mix: `2` smoke, `27` Python/API targeted, `21` Rust/XRIQ targeted,
+    `3` Rust/XRIQ validation-regression, `2` Rust/XRIQ ledger-regression,
+    `2` Rust/XRIQ fee-regression, and `943` CodeInstruct records.
+  - provenance:
+    `/workspace/outputs/dataset-provenance-rust-xriq-fee-codeinstruct-1000.json`
+  - validation:
+    `/workspace/outputs/internet-dataset-validation-rust-xriq-fee-codeinstruct-1000.json`
+    and `/workspace/outputs/dataset-validation-rust-xriq-fee-current.json`
+- QLoRA attempts made after adding the ledger eval:
+  - `/workspace/adapters/biber-dev-core-lora-rust-xriq-ledger-validation-560`
+    failed early and left an empty adapter directory. Log:
+    `/workspace/outputs/qlora-rust-xriq-ledger-validation-560/qlora-20260517T013913Z.log`.
+  - `/workspace/adapters/biber-dev-core-lora-rust-xriq-ledger-validation-280`
+    completed, train loss about `0.7749`, reached `6/7` Rust/XRIQ validators,
+    but broad eval regressed to `17/18`; not promoted.
+  - `/workspace/adapters/biber-dev-core-lora-rust-xriq-fee-validation-280`
+    completed, train loss about `0.7728`, but reached only `5/7` Rust/XRIQ
+    validators; not promoted.
+  - `/workspace/adapters/biber-dev-core-lora-rust-xriq-focused-120e4`
+    completed, train loss about `0.6196`, reached `6/7` Rust/XRIQ validators,
+    but still failed the ledger prompt; not promoted.
+- Conclusion: keep serving `biber-dev-core-lora-rust-xriq-400` for now because
+  it preserves the broad `18/18` baseline and ties the best current Rust/XRIQ
+  validator score at `6/7`. Do not chase more blind QLoRA runs for the ledger
+  prompt without first improving the eval design, prompt scaffolding, or
+  training-data strategy.
+
 ## Repo State
 
 - Local branch: `main`
@@ -1028,59 +1088,85 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-1. Fast-forward the Vast checkout to GitHub `main` after this handoff update is
-   pushed:
-   `cd /workspace/biber-ai-platform && git pull --ff-only origin main`.
-2. Treat `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` as the current
-   confirmed live candidate. The adapter training improved Rust/XRIQ cargo
-   validators from `2/6` to `5/6`, and the HashSet source/eval follow-up now
-   reaches `6/6` on the current eval without changing weights. It preserved the
-   broad `18/18` baseline.
-3. Do not train immediately for the prior HashSet failure. The current adapter
-   passed the tightened Rust/XRIQ eval, so the cost-saving next step is XRIQ
-   inference usage and stronger Rust eval coverage, not another GPU run.
-4. Train again only if future Rust/XRIQ evals show repeatable gaps or if the
-   user explicitly prioritizes Rust improvement over spending time on the next
-   capability domain.
-5. Continue the XRIQ private-devnet prototype by adding `xriq-ledger` account
-   state transitions, nonce checks, balance updates, and deterministic unit
-   tests.
-6. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
+1. Keep `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` served unless a
+   future adapter beats both gates: current Rust/XRIQ cargo validators and the
+   broad regression eval.
+2. Reconnect and verify current service state with:
+
+```bash
+cd /workspace/biber-ai-platform
+bash scripts/vast_status_direct.sh
+bash scripts/vast_test_direct.sh
+```
+
+3. If serving is not on the broad-safe adapter, restore it:
+
+```bash
+cd /workspace/biber-ai-platform
+BIBER_LORA_ADAPTER_DIR=/workspace/adapters/biber-dev-core-lora-rust-xriq-400 \
+  bash scripts/vast_start_lora_direct.sh
+bash scripts/vast_test_direct.sh
+```
+
+4. Before any more GPU training, improve the Rust/XRIQ ledger evaluation and
+   prompt strategy. The current remaining failure is
+   `rust_xriq_apply_ledger_transaction`; the model needs stronger guidance for
+   rustfmt-clean output, no external crates in standalone evals, cloned-map
+   atomic commits, and checked nonce/fee/balance arithmetic.
+5. Consider adding a structured "BIBER codegen profile" prompt for Rust/XRIQ:
+   "standard library only, cargo fmt clean, no external crates unless listed,
+   compile before final answer, prefer cloned state for atomic ledger updates."
+   Test this through inference before another fine-tune.
+6. Run the two current evals after any serving change:
+
+```bash
+cd /workspace/biber-ai-platform
+BIBER_EVAL_FAIL_ON_VALIDATORS=0 bash scripts/vast_eval_rust_xriq_direct.sh
+bash scripts/vast_eval_lora_direct.sh
+```
+
+7. Promote a new adapter only if it improves beyond the current served baseline:
+   at least `7/7` current Rust/XRIQ cargo validators and `18/18` broad
+   expectation checks.
+8. If a future training run fails, inspect the QLoRA log and do not leave an
+   unverified adapter served. Restore `biber-dev-core-lora-rust-xriq-400` unless
+   a better verified candidate exists.
+9. If the current Vast instance is unavailable, follow the
+   `Moving To A New Vast GPU` section. Prefer attaching or copying the existing
+   500 GB volume/state if it is still available; otherwise rebuild from GitHub
+   and regenerate datasets from the approved sources.
+10. Update this handoff immediately after SSH is restored, training finishes,
+   serving restarts, evals complete, or the instance is moved.
+11. Continue the XRIQ private-devnet prototype after the Rust/XRIQ model loop is
+   stable. `xriq/` is already the separate Rust workspace inside this repo, and
+   it is preferred over creating a second top-level Rust workspace unless the
+   project later needs independent release/versioning.
+12. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
-7. Use BIBER AI for XRIQ through inference first: spec drafting, Rust module
+13. Use BIBER AI for XRIQ through inference first: spec drafting, Rust module
    scaffolding, tests, review prompts, and private-devnet tooling. Fine-tune
    only after Rust/XRIQ evals show repeatable gaps.
-8. After the Rust/XRIQ baseline is stable, follow
+14. After the Rust/XRIQ baseline is stable, follow
    `docs/BIBER_CAPABILITY_ROADMAP.md` in order: PostgreSQL, React, TypeScript,
    JavaScript, jQuery, CSS, HTML, Docker, GitHub Actions CI/CD, WASM, Bash,
    security engineering, cryptography concepts, Kubernetes, and distributed
    systems optimization before lower-priority stacks.
-9. Add new training data only through approved/provenance-tracked sources, then
+15. Add new training data only through approved/provenance-tracked sources, then
    validate and promote to `/workspace/data/biber_train.jsonl`.
-10. Train again only when the broader evals reveal real gaps. Keep the
-   cost-saving pattern: Codex changes the scripts and reviews outputs; Vast.ai
-   runs long GPU jobs in `tmux`.
-11. For the next QLoRA run on the current Vast GPU, stop the direct services
-   first because vLLM occupies most GPU memory:
-   `bash scripts/vast_stop_direct.sh`.
-12. Launch the QLoRA job with `scripts/vast_train_qlora_tmux.sh` so the GPU keeps
-   working after Codex disconnects, then restart serving after the adapter is
-   produced and evaluated.
-13. Restart LoRA serving with `bash scripts/vast_start_lora_direct.sh`, rerun
-    `bash scripts/vast_eval_lora_direct.sh`, and compare against the current
-    `18/18` broad baseline.
-14. Keep the API private over SSH tunnels unless credentials are deliberately
+16. Keep the cost-saving pattern: Codex changes scripts, docs, evals, and
+   diagnoses failures; Vast.ai runs long GPU jobs in `tmux`.
+17. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
-15. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
-16. Add optional OpenAI mentor credentials if desired and cost-approved.
-17. Add database-backed API keys and agent-client sessions per
+18. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
+19. Add optional OpenAI mentor credentials if desired and cost-approved.
+20. Add database-backed API keys and agent-client sessions per
     `docs/BIBER_AGENT_API_AND_MENTOR_STRATEGY.md`.
-18. Add a durable fine-grained GitHub token to Vast `.env` if persistent
+21. Add a durable fine-grained GitHub token to Vast `.env` if persistent
    generated-code save should stay enabled.
-19. Add Azure Blob connection string and test backups.
-20. Replace demo API key/passcode auth with database-backed credentials.
-21. Add real MySQL persistence and Redis worker integration.
+22. Add Azure Blob connection string and test backups.
+23. Replace demo API key/passcode auth with database-backed credentials.
+24. Add real MySQL persistence and Redis worker integration.
 
 ## Resume Prompt For A New Chat
 

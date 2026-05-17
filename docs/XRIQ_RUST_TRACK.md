@@ -102,6 +102,13 @@ Current baseline as of 2026-05-17:
   training improved the Rust/XRIQ cargo baseline from `2/6` to `5/6`, the
   HashSet follow-up reaches `6/6` without changing weights, and the broad
   `18/18` regression baseline remains intact.
+- A later ledger-focused eval expanded the Rust/XRIQ set to 7 prompts. Several
+  follow-up adapters improved pieces of the failure, but none beat both gates.
+  The broad-safe `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`
+  adapter is serving again as of 2026-05-17, with `6/7` current Rust/XRIQ cargo
+  validators and `18/18` broad expectation checks. The remaining Rust/XRIQ gap
+  is `rust_xriq_apply_ledger_transaction`, especially standalone rustfmt-clean
+  ledger code with no external crates and safe atomic account-map updates.
 
 ## Phase 2: XRIQ Technical Specification
 
@@ -140,15 +147,21 @@ Goal: define what XRIQ is before generating serious code.
 Goal: build a local-only XRIQ node prototype.
 
 - Current Rust workspace:
-  `xriq/`.
-- Current implemented crate:
-  `xriq/crates/xriq-core`.
+  `xriq/`. This is already the separate Rust workspace inside the repo; prefer
+  continuing here instead of creating another top-level Rust workspace unless
+  XRIQ later needs independent release/versioning.
+- Current implemented crates:
+  - `xriq/crates/xriq-core`
+  - `xriq/crates/xriq-ledger`
 - `xriq-core` currently covers dependency-free private-devnet primitives:
   checked `XriqAmount`, validated devnet `Address`, `Hash32`, basic transaction
   validation, and block-header validation.
+- `xriq-ledger` currently covers deterministic account state transitions:
+  missing-sender checks, nonce checks, checked balance/fee arithmetic, recipient
+  creation, and rollback-on-error tests.
 - Local validation command:
   `cd xriq && cargo fmt --check && cargo test`.
-- Latest local result: `15` Rust unit tests passed and
+- Latest local result: `20` Rust unit tests passed and
   `cargo clippy -- -D warnings` passed.
 - Latest Vast result: `cargo fmt --check`, `cargo test`, and
   `cargo clippy -- -D warnings` passed using the Rust toolchain under
@@ -165,8 +178,9 @@ Goal: build a local-only XRIQ node prototype.
 - Start with deterministic local tests before any networked behavior.
 - Keep generated code in Git, but keep chain data, node databases, and testnet
   artifacts out of Git.
-- Next implementation target: add `xriq-ledger` account state transitions and
-  nonce/balance tests before mempool or networking work.
+- Next implementation target after the current model-training loop is stable:
+  add mempool rules or chain-storage scaffolding, with deterministic unit tests
+  before any networked behavior.
 
 ## Phase 4: Wallet, Explorer, And Developer Tools
 
