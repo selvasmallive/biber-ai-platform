@@ -63,9 +63,9 @@ As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Last XRIQ implementation commit pushed and Vast-verified:
-  `3c0f0c1 Add XRIQ wallet JSON submit output`.
+  `dafc5f0 Add XRIQ private devnet JSON fixtures`.
 - Vast checkout was fast-forwarded and Rust/script/HTTP-smoke verified through
-  `3c0f0c1`.
+  `dafc5f0`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -796,6 +796,32 @@ serving the last broad-safe Rust/XRIQ adapter.
     `wallet-transfer-submit.json`, `http-json-submit.json`,
     `http-json-transaction.json`, and `http-json-account.json` in that
     directory.
+- Local XRIQ prototype progress after the checked JSON fixture checkpoint:
+  - Added checked private-devnet golden fixtures under
+    `xriq/fixtures/private-devnet/`:
+    `wallet-transfer-submit.json` and `node-produce-transfer-block.json`.
+  - Added exact-match Rust tests so `xriq-wallet transfer --format json` and
+    `xriq-node produce-transfer-block --format json` must continue matching
+    those private-devnet schema examples.
+  - Updated `xriq/README.md`, `docs/XRIQ_NODE_JSON_SCHEMA.md`, and
+    `docs/XRIQ_TECHNICAL_SPEC.md` to describe these fixtures as private-devnet
+    schema drift checks, not public-mainnet API guarantees.
+  - Local Windows verification passed from `xriq/`: `cargo fmt --check`,
+    focused wallet fixture tests with `13` passing wallet tests, focused node
+    fixture test, `cargo test -j 1` with `122` passing workspace tests, and
+    `cargo clippy -- -D warnings`, using
+    `CARGO_TARGET_DIR=target-codex-fixtures` to avoid default target binary
+    locks. Generated local target directories were removed afterward.
+  - Vast checkout was fast-forwarded to `dafc5f0`; Vast verification passed
+    with the workspace-volume Rust toolchain env:
+    `RUSTUP_HOME=/workspace/.rustup`,
+    `CARGO_HOME=/workspace/.cargo`, and
+    `PATH=/workspace/.cargo/bin:...`.
+  - Vast verification passed with `cargo fmt --check`, `cargo test -j 1` with
+    `122` passing tests, `cargo clippy -- -D warnings`, and
+    `bash scripts/xriq_private_devnet_smoke.sh`.
+  - Latest expanded smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T195504Z-28133`.
 
 ## Repo State
 
@@ -2004,10 +2030,10 @@ cargo clippy -- -D warnings
    `xriq-node serve-readonly`, `xriq-node serve-private`, and
    `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`, is to keep the local
    file-backed workflow small and deterministic. Add durable pending
-   transaction status, snapshot/replay improvements, or checked schema
-   fixtures only when they directly help the private-devnet MVP. Public XRIQ
-   launch, exchange listing, custody, liquidity, bridges, and market-facing
-   work remain blocked.
+   transaction status, snapshot/replay improvements, or additional checked
+   schema fixtures only when they directly help the private-devnet MVP. Public
+   XRIQ launch, exchange listing, custody, liquidity, bridges, and
+   market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
