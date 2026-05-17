@@ -462,10 +462,12 @@ Current private-devnet implementation: `xriq-node serve-readonly` exposes a
 loopback-first, dependency-free, read-only HTTP wrapper over the existing
 file-backed JSON runner outputs. The current implemented endpoints are
 `/health`, `/v1/chain/status`, `/v1/explorer/overview?limit=5`,
-`/v1/blocks/{height}`, `/v1/accounts/{address}`, and `/v1/mempool`.
-`POST /v1/transactions` and `GET /v1/transactions/{hash}` intentionally return
-`501` until a persisted transaction index/submission path exists. This is still
-private-devnet tooling, not a public API.
+`/v1/blocks/{height}`, `/v1/transactions/{hash}`,
+`/v1/accounts/{address}`, and `/v1/mempool`. Transaction lookup scans
+confirmed transactions in persisted blocks only; durable pending status is not
+implemented yet. `POST /v1/transactions` intentionally returns `501` until a
+persisted transaction submission path exists. This is still private-devnet
+tooling, not a public API.
 
 Minimum wallet-facing RPC behavior:
 
@@ -716,7 +718,8 @@ As of 2026-05-17:
   - local private-devnet read-only HTTP wrapper through
     `xriq-node serve-readonly`, defaulting to `127.0.0.1:8787` and reusing the
     file-backed JSON runner responses for health/status/explorer/block/account
-    and mempool inspection
+    transaction/mempool inspection; transaction lookup covers confirmed
+    transactions in persisted blocks only
   - stable `--format json` output for status, block production, explorer
     overview, block detail, account detail, and mempool detail runner commands,
     while preserving text output as the default; successful JSON responses
@@ -806,9 +809,10 @@ As of 2026-05-17:
     response.
 
 Next implementation target: keep the local file-backed workflow small and
-deterministic. Add transaction status/submission over HTTP, snapshot/replay
-improvements, or checked schema fixtures only when they directly help the
-private-devnet MVP, and keep public XRIQ launch or listing work blocked.
+deterministic. Add transaction submission over HTTP, durable pending
+transaction status, snapshot/replay improvements, or checked schema fixtures
+only when they directly help the private-devnet MVP, and keep public XRIQ
+launch or listing work blocked.
 
 ## Open Decisions
 

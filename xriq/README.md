@@ -128,12 +128,15 @@ GET /health
 GET /v1/chain/status
 GET /v1/explorer/overview?limit=5
 GET /v1/blocks/{height}
+GET /v1/transactions/{hash}
 GET /v1/accounts/{address}
 GET /v1/mempool
 ```
 
-`POST /v1/transactions` and `GET /v1/transactions/{hash}` intentionally return
-`501` until a real persisted transaction index/submission path is added.
+`GET /v1/transactions/{hash}` scans confirmed transactions in persisted blocks.
+It does not report a durable pending status yet because the file-backed HTTP
+wrapper does not persist a mempool across requests. `POST /v1/transactions`
+intentionally returns `501` until a real persisted submission path is added.
 
 Keep generated chain data, node databases, wallets, and testnet artifacts out of
 Git.

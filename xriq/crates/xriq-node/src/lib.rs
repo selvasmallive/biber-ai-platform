@@ -119,6 +119,16 @@ pub struct ProducedTransferBlockStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateDevnetConfirmedTransactionDetail {
+    pub tx_hash: Hash32,
+    pub status: &'static str,
+    pub block_height: u64,
+    pub block_hash: Hash32,
+    pub transaction_index: usize,
+    pub transaction: Transaction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeRunnerOutput {
     Help(String),
     Status(NodeStatus),
@@ -515,12 +525,18 @@ pub fn private_devnet_http_response(
                 return runner_json_http_response(args);
             }
 
-            if path.starts_with("/v1/transactions/") {
-                return http_error_response(
-                    501,
-                    "not_implemented",
-                    "transaction status is not implemented in the file-backed private-devnet HTTP server yet",
-                );
+            if let Some(tx_hash) = path
+                .strip_prefix("/v1/transactions/")
+                .filter(|tx_hash| !tx_hash.is_empty())
+            {
+                let Ok(tx_hash) = parse_hash_hex(tx_hash) else {
+                    return http_error_response(
+                        400,
+                        "invalid_hash",
+                        "transaction hash must be 64 lowercase hexadecimal characters",
+                    );
+                };
+                return confirmed_transaction_http_response(config, tx_hash);
             }
 
             http_error_response(404, "not_found", "private-devnet HTTP endpoint not found")
@@ -586,6 +602,27 @@ fn runner_json_http_response(args: Vec<String>) -> PrivateDevnetHttpResponse {
             let status_code = node_runner_error_http_status(&error);
             http_json_response(status_code, render_node_runner_error_json(&args, &error))
         }
+    }
+}
+
+fn confirmed_transaction_http_response(
+    config: &PrivateDevnetHttpServerConfig,
+    tx_hash: Hash32,
+) -> PrivateDevnetHttpResponse {
+    match private_devnet_file_confirmed_transaction_detail(
+        &config.chain_file,
+        config.alice_balance,
+        tx_hash,
+    ) {
+        Ok(Some(detail)) => {
+            http_json_response(200, render_confirmed_transaction_detail_json(&detail))
+        }
+        Ok(None) => http_error_response(
+            404,
+            "transaction_not_found",
+            "transaction was not found in confirmed private-devnet blocks",
+        ),
+        Err(error) => http_error_response(500, "node_error", &format!("node error: {error:?}")),
     }
 }
 
@@ -700,6 +737,31 @@ pub fn private_devnet_file_status(
     let genesis = private_devnet_runner_genesis(alice_balance);
     let node = XriqNode::from_genesis_replaying_store(&genesis, store)?;
     Ok(node_status(&node))
+}
+
+pub fn private_devnet_file_confirmed_transaction_detail(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    tx_hash: Hash32,
+) -> Result<Option<PrivateDevnetConfirmedTransactionDetail>, NodeError> {
+    let store = FileChainStore::open(chain_file).map_err(NodeError::Storage)?;
+    let genesis = private_devnet_runner_genesis(alice_balance);
+    let node = XriqNode::from_genesis_replaying_store(&genesis, store)?;
+    for record in node.store().blocks_by_height_desc(node.store().len()) {
+        for (transaction_index, transaction) in record.block.transactions.iter().enumerate() {
+            if transaction_hash(transaction) == tx_hash {
+                return Ok(Some(PrivateDevnetConfirmedTransactionDetail {
+                    tx_hash,
+                    status: "confirmed",
+                    block_height: record.block.header.height,
+                    block_hash: record.block_hash,
+                    transaction_index,
+                    transaction: transaction.clone(),
+                }));
+            }
+        }
+    }
+    Ok(None)
 }
 
 pub fn private_devnet_file_produce_transfer_block(
@@ -1450,6 +1512,44 @@ fn render_mempool_detail_json(command: &str, detail: &ExplorerMempoolDetail) -> 
     output
 }
 
+fn render_confirmed_transaction_detail_json(
+    detail: &PrivateDevnetConfirmedTransactionDetail,
+) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_success_json_preamble(&mut output, "transaction-detail");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(PRIVATE_DEVNET_RUNNER_WARNING)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"tx_hash\": {},",
+        json_string(&hash_hex(detail.tx_hash))
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"status\": {},", json_string(detail.status))
+        .expect("write to String");
+    writeln!(&mut output, "  \"block_height\": {},", detail.block_height).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"block_hash\": {},",
+        json_string(&hash_hex(detail.block_hash))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"transaction_index\": {},",
+        detail.transaction_index
+    )
+    .expect("write to String");
+    push_transaction_json_fields(&mut output, &detail.transaction, "  ", false);
+    output.push_str("\n}");
+    output
+}
+
 fn push_success_json_preamble(output: &mut String, command: &str) {
     writeln!(
         output,
@@ -1581,6 +1681,48 @@ fn push_transaction_summary_json(
     )
     .expect("write to String");
     write!(output, "{indent}}}").expect("write to String");
+}
+
+fn push_transaction_json_fields(
+    output: &mut String,
+    transaction: &Transaction,
+    indent: &str,
+    trailing_comma: bool,
+) {
+    writeln!(
+        output,
+        "{indent}\"from\": {},",
+        json_string(transaction.from.as_str())
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}\"to\": {},",
+        json_string(transaction.to.as_str())
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}\"amount_base_units\": {},",
+        json_string(&transaction.amount.base_units().to_string())
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}\"fee_base_units\": {},",
+        json_string(&transaction.fee.base_units().to_string())
+    )
+    .expect("write to String");
+    writeln!(output, "{indent}\"nonce\": {},", transaction.nonce).expect("write to String");
+    write!(
+        output,
+        "{indent}\"expires_at_height\": {}",
+        json_optional_u64(transaction.expires_at_height)
+    )
+    .expect("write to String");
+    if trailing_comma {
+        output.push(',');
+    }
 }
 
 fn push_pending_transaction_json(
@@ -1764,6 +1906,25 @@ fn flag_to_static(flag: &str) -> &'static str {
         "--format" => "--format",
         "--bind" => "--bind",
         _ => "--flag",
+    }
+}
+
+fn parse_hash_hex(value: &str) -> Result<Hash32, ()> {
+    if value.len() != 64 {
+        return Err(());
+    }
+    let mut bytes = [0_u8; 32];
+    for (index, chunk) in value.as_bytes().chunks_exact(2).enumerate() {
+        bytes[index] = (hex_nibble(chunk[0])? << 4) | hex_nibble(chunk[1])?;
+    }
+    Ok(Hash32::from_bytes(bytes))
+}
+
+fn hex_nibble(byte: u8) -> Result<u8, ()> {
+    match byte {
+        b'0'..=b'9' => Ok(byte - b'0'),
+        b'a'..=b'f' => Ok(byte - b'a' + 10),
+        _ => Err(()),
     }
 }
 
@@ -3147,7 +3308,7 @@ mod tests {
     fn private_devnet_http_routes_wrap_file_backed_json_outputs() {
         let path = temp_store_path();
         let path_text = path.to_string_lossy().to_string();
-        run_node_command([
+        let produced = match run_node_command([
             "produce-transfer-block",
             "--chain-file",
             path_text.as_str(),
@@ -3166,7 +3327,11 @@ mod tests {
             "--expires-at-height",
             "100",
         ])
-        .unwrap();
+        .unwrap()
+        {
+            NodeRunnerOutput::ProducedTransferBlock(produced) => produced,
+            other => panic!("unexpected output: {other:?}"),
+        };
         let config = PrivateDevnetHttpServerConfig {
             bind: "127.0.0.1:8787".to_string(),
             chain_file: path_text,
@@ -3206,6 +3371,34 @@ mod tests {
         assert_eq!(mempool.status_code, 200);
         assert!(mempool.body.contains("\"command\": \"mempool-detail\""));
         assert!(mempool.body.contains("\"pending_count\": 0"));
+
+        let transaction_path = format!("/v1/transactions/{}", hash_hex(produced.transaction_hash));
+        let transaction = private_devnet_http_response(&config, "GET", &transaction_path);
+        assert_eq!(transaction.status_code, 200);
+        assert!(transaction
+            .body
+            .contains("\"command\": \"transaction-detail\""));
+        assert!(transaction.body.contains("\"status\": \"confirmed\""));
+        assert!(transaction.body.contains("\"block_height\": 1"));
+        assert!(transaction.body.contains("\"transaction_index\": 0"));
+        assert!(transaction.body.contains("\"amount_base_units\": \"25\""));
+
+        let missing_transaction = private_devnet_http_response(
+            &config,
+            "GET",
+            "/v1/transactions/1111111111111111111111111111111111111111111111111111111111111111",
+        );
+        assert_eq!(missing_transaction.status_code, 404);
+        assert!(missing_transaction
+            .body
+            .contains("\"code\": \"transaction_not_found\""));
+
+        let bad_transaction_hash =
+            private_devnet_http_response(&config, "GET", "/v1/transactions/not-a-hash");
+        assert_eq!(bad_transaction_hash.status_code, 400);
+        assert!(bad_transaction_hash
+            .body
+            .contains("\"code\": \"invalid_hash\""));
 
         let missing_block = private_devnet_http_response(&config, "GET", "/v1/blocks/99");
         assert_eq!(missing_block.status_code, 404);

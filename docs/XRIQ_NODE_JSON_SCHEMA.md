@@ -158,6 +158,40 @@ Shape:
 }
 ```
 
+## Confirmed Transaction Detail
+
+HTTP endpoint:
+
+```bash
+GET /v1/transactions/{hash}
+```
+
+The read-only HTTP wrapper scans confirmed transactions in persisted blocks and
+returns `404` when the hash is not found. It does not report durable pending
+transactions yet because the file-backed HTTP wrapper does not persist mempool
+state across requests.
+
+Shape:
+
+```json
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "transaction-detail",
+  "warning": "private-devnet-only-no-public-token",
+  "tx_hash": "64-hex-character-transaction-hash",
+  "status": "confirmed",
+  "block_height": 1,
+  "block_hash": "64-hex-character-block-hash",
+  "transaction_index": 0,
+  "from": "xriqdev1alice00000000000",
+  "to": "xriqdev1bobbb00000000000",
+  "amount_base_units": "25",
+  "fee_base_units": "2",
+  "nonce": 0,
+  "expires_at_height": 100
+}
+```
+
 ## Account Detail
 
 Command:
@@ -299,14 +333,14 @@ Implemented read-only endpoints:
 - `GET /v1/chain/status`
 - `GET /v1/explorer/overview?limit=5`
 - `GET /v1/blocks/{height}`
+- `GET /v1/transactions/{hash}`
 - `GET /v1/accounts/{address}`
 - `GET /v1/mempool`
 
 The read-only endpoints reuse the JSON bodies documented above where possible.
 HTTP-only health and wrapper errors use
-`format_version: xriq-node-http-v1`. `POST /v1/transactions` and
-`GET /v1/transactions/{hash}` intentionally return `501` until a persisted
-transaction index/submission path exists.
+`format_version: xriq-node-http-v1`. `POST /v1/transactions` intentionally
+returns `501` until a persisted submission path exists.
 
 ## Next Schema Work
 
