@@ -485,9 +485,9 @@ As of 2026-05-17:
   - `cargo fmt --check`
   - `cargo test` with `34` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification before `xriq-consensus`:
+- Latest Vast verification:
   - `cargo fmt --check`
-  - `cargo test` with `27` passing tests.
+  - `cargo test` with `34` passing tests.
   - `cargo clippy -- -D warnings`.
 
 Next implementation target: add local RPC endpoints.
