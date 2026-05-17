@@ -1,0 +1,12 @@
+[package]
+name = "xriq-rpc"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "XRIQ private-devnet local RPC endpoint behavior."
+
+[dependencies]
+xriq-core = { path = "../xriq-core" }
+xriq-ledger = { path = "../xriq-ledger" }
+xriq-mempool = { path = "../xriq-mempool" }

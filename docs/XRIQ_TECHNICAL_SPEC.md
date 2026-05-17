@@ -451,11 +451,13 @@ Before any public network, require:
    dependency-free private-devnet baseline.
 7. Implement deterministic single-node block production. Current status: done
    for the single-authority private-devnet baseline.
-8. Add local RPC endpoints.
-9. Add wallet CLI for test transfers.
-10. Add explorer API/UI for private-devnet inspection.
-11. Add local multi-node tests.
-12. Revisit consensus, supply, governance, and public-readiness decisions.
+8. Add local RPC endpoints. Current status: done for the dependency-free local
+   service baseline.
+9. Add durable local storage and a node loop.
+10. Add wallet CLI for test transfers.
+11. Add explorer API/UI for private-devnet inspection.
+12. Add local multi-node tests.
+13. Revisit consensus, supply, governance, and public-readiness decisions.
 
 ## Current Prototype Status
 
@@ -467,6 +469,7 @@ As of 2026-05-17:
   - `xriq/crates/xriq-consensus`
   - `xriq/crates/xriq-ledger`
   - `xriq/crates/xriq-mempool`
+  - `xriq/crates/xriq-rpc`
 - Implemented dependency-free private-devnet core primitives:
   - checked `XriqAmount`
   - validated devnet `Address`
@@ -489,16 +492,23 @@ As of 2026-05-17:
   - producer identity from private-devnet config
   - mempool transaction selection by deterministic ordering
   - per-block transaction cap enforcement
+- Implemented local RPC endpoint behavior:
+  - health response
+  - chain status response
+  - account lookup
+  - mempool listing
+  - pending transaction lookup
+  - transaction submission with ledger-backed validation before mempool insert
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test` with `34` passing tests.
+  - `cargo test` with `40` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification:
+- Latest Vast verification before `xriq-rpc`:
   - `cargo fmt --check`
   - `cargo test` with `34` passing tests.
   - `cargo clippy -- -D warnings`.
 
-Next implementation target: add local RPC endpoints.
+Next implementation target: add durable local storage and a node loop.
 
 ## Open Decisions
 

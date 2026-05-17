@@ -100,6 +100,19 @@ last broad-safe Rust/XRIQ adapter.
   - Treat it as conservative engineering guidance, not legal advice. Public
     launch steps still require qualified legal, tax, AML, sanctions, securities,
     commodities, consumer-protection, and security review.
+- Local XRIQ prototype progress after the legal-risk guardrail checkpoint:
+  - Added `xriq/crates/xriq-rpc` for dependency-free local private-devnet RPC
+    endpoint behavior.
+  - The local RPC service currently covers health, chain status, account lookup,
+    mempool listing, pending transaction lookup, and transaction submission with
+    ledger-backed validation before mempool insertion.
+  - Added `Mempool::entry` so RPC can expose pending transaction status without
+    duplicating mempool internals.
+  - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test` with `40` passing tests, and
+    `cargo clippy -- -D warnings`.
+  - Vast has not yet been re-verified with `xriq-rpc` unless a later entry in
+    this handoff says so.
 
 ## Repo State
 
@@ -566,6 +579,7 @@ last broad-safe Rust/XRIQ adapter.
     - `xriq/crates/xriq-consensus`
     - `xriq/crates/xriq-ledger`
     - `xriq/crates/xriq-mempool`
+    - `xriq/crates/xriq-rpc`
   - implemented dependency-free private-devnet primitives for checked
     `XriqAmount`, validated devnet `Address`, `Hash32`, basic transaction
     validation, and block-header validation.
@@ -577,13 +591,16 @@ last broad-safe Rust/XRIQ adapter.
   - implemented deterministic single-authority block production with parent
     checks, explicit roots, signature requirement, transaction cap enforcement,
     and mempool-based transaction selection.
+  - implemented dependency-free local RPC endpoint behavior for health, chain
+    status, account lookup, mempool listing, pending transaction lookup, and
+    transaction submission.
   - latest local validation passed: `cd xriq && cargo fmt --check && cargo test`.
-  - latest local Rust test result: `34` passed.
+  - latest local Rust test result: `40` passed.
   - latest local clippy validation passed:
     `cd xriq && cargo clippy -- -D warnings`.
-  - latest Vast Rust validation passed with the toolchain stored under
-    `/workspace`: `cargo fmt --check`, `cargo test` with `34` passing tests,
-    and `cargo clippy -- -D warnings`.
+  - latest Vast Rust validation before `xriq-rpc` passed with the toolchain
+    stored under `/workspace`: `cargo fmt --check`, `cargo test` with `34`
+    passing tests, and `cargo clippy -- -D warnings`.
   - Installed the `clippy` Rust component into `/workspace/.rustup` and updated
     `scripts/vast_install_rust_toolchain.sh` so future Rust setup includes it.
   - No Vast GPU/model training was needed for this step.
@@ -1206,8 +1223,8 @@ cargo clippy -- -D warnings
    stable. `xriq/` is already the separate Rust workspace inside this repo, and
    it is preferred over creating a second top-level Rust workspace unless the
    project later needs independent release/versioning. The next protocol target
-   after `xriq-core`, `xriq-ledger`, `xriq-mempool`, and `xriq-consensus` is
-   local RPC endpoints.
+   after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`, and
+   `xriq-rpc` is durable local storage and a node loop.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.

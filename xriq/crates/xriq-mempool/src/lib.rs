@@ -60,6 +60,10 @@ impl Mempool {
         self.entries.contains_key(tx_hash)
     }
 
+    pub fn entry(&self, tx_hash: &Hash32) -> Option<&MempoolEntry> {
+        self.entries.get(tx_hash)
+    }
+
     pub fn insert(&mut self, tx_hash: Hash32, tx: Transaction) -> Result<(), MempoolError> {
         if self.entries.contains_key(&tx_hash) {
             return Err(MempoolError::DuplicateTransaction);

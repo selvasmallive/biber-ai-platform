@@ -27,3 +27,12 @@ version = "0.1.0"
 dependencies = [
  "xriq-core",
 ]
+
+[[package]]
+name = "xriq-rpc"
+version = "0.1.0"
+dependencies = [
+ "xriq-core",
+ "xriq-ledger",
+ "xriq-mempool",
+]
