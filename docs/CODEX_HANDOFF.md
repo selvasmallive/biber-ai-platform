@@ -92,6 +92,14 @@ last broad-safe Rust/XRIQ adapter.
   - Vast checkout was fast-forwarded to include `xriq-consensus`; Vast Rust
     verification also passed with `cargo fmt --check`, `cargo test` with `34`
     passing tests, and `cargo clippy -- -D warnings`.
+- Added the dedicated XRIQ legal-risk guardrail document:
+  `docs/XRIQ_LEGAL_RISK_REDUCTION.md`.
+  - Future Codex/BIBER sessions must follow it before XRIQ public-token, DEX,
+    custody, bridge, stablecoin, payment, airdrop, validator-reward, liquidity,
+    listing, or investment-facing messaging work.
+  - Treat it as conservative engineering guidance, not legal advice. Public
+    launch steps still require qualified legal, tax, AML, sanctions, securities,
+    commodities, consumer-protection, and security review.
 
 ## Repo State
 
@@ -1101,6 +1109,11 @@ tail -f /workspace/biber-logs/vllm.log
   private Rust devnet, then wallet/explorer tools, and only later consider any
   public network or cryptocurrency launch after separate security and
   legal/compliance review.
+- XRIQ legal-risk reduction is now a hard design guardrail documented in
+  `docs/XRIQ_LEGAL_RISK_REDUCTION.md`. Do not implement or generate
+  market-facing public token, DEX, custody, bridge, stablecoin, payment,
+  airdrop, liquidity, listing, validator-yield, or investment-promotion features
+  unless the required review status is explicitly recorded in docs.
 - Near-term language priority is Rust/XRIQ first because the user's first major
   inference use case for BIBER AI is developing the XRIQ cryptocurrency
   blockchain. Defer .NET, Spring Boot Java, broader Python expansion, and other

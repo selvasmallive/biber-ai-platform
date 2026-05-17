@@ -24,6 +24,10 @@ token launch.
   private testnet.
 - Do not market, sell, list, or distribute a cryptocurrency/token without
   separate legal, tax, AML, securities, and consumer-protection review.
+- Follow `docs/XRIQ_LEGAL_RISK_REDUCTION.md` for every XRIQ design and coding
+  step. Treat it as a hard project guardrail for future Codex/BIBER sessions,
+  especially before any DEX, public token, bridge, custody, validator reward,
+  airdrop, liquidity, or market-facing feature.
 - Security comes before launch: cryptography, key handling, consensus, wallet
   signing, networking, and upgrade paths need independent review.
 

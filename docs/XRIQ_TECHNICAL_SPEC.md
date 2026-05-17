@@ -37,6 +37,14 @@ completed.
 - Do not rely on model-generated security-critical code without human review,
   tests, and external audit before any public exposure.
 
+## Legal-Risk Reduction Guardrail
+
+All XRIQ design and implementation work must follow
+`docs/XRIQ_LEGAL_RISK_REDUCTION.md`. If a requested feature touches public
+tokens, DEXs, custody, bridges, stablecoins, payments, liquidity incentives,
+airdrops, validator rewards, market listings, or investment-facing messaging,
+pause the feature until the required review gates in that document are satisfied.
+
 ## Target Design Advantages
 
 XRIQ should be designed around a focused set of advantages instead of trying to
