@@ -12,6 +12,7 @@ only until security and legal/compliance review says otherwise.
 - `xriq-node`: minimal local private-devnet node loop.
 - `xriq-rpc`: local private-devnet RPC endpoint behavior.
 - `xriq-storage`: local block storage for private-devnet tests.
+- `xriq-wallet`: private-devnet wallet CLI for test identities and transfers.
 
 ## Commands
 

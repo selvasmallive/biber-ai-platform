@@ -128,6 +128,24 @@ last broad-safe Rust/XRIQ adapter.
   - Vast checkout was fast-forwarded to include `xriq-storage` and `xriq-node`;
     Vast Rust verification also passed with `cargo fmt --check`, `cargo test`
     with `50` passing tests, and `cargo clippy -- -D warnings`.
+- Local XRIQ prototype progress after the storage/node checkpoint:
+  - Added `xriq/crates/xriq-wallet` with a real binary crate named
+    `xriq-wallet`.
+  - Current commands:
+    - `xriq-wallet key generate --label <lowercase-label>`
+    - `xriq-wallet transfer --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--expires-at-height <height>]`
+  - This wallet is private-devnet-only. It creates deterministic test
+    identities and fake nonempty test signatures; it does not manage real
+    private keys, seed phrases, encrypted key stores, or production custody.
+  - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test` with `56` passing tests, and
+    `cargo clippy -- -D warnings`.
+  - Local CLI smoke passed:
+    `cargo run -p xriq-wallet -- key generate --label alice`.
+  - Local transfer CLI smoke passed:
+    `cargo run -p xriq-wallet -- transfer --chain-id xriq-devnet --from xriqdev1alice00000000000 --to xriqdev1bobbb00000000000 --amount 25 --fee 2 --nonce 7 --expires-at-height 100`.
+  - Vast has not yet been re-verified with `xriq-wallet` unless a later entry in
+    this handoff says so.
 
 ## Repo State
 
@@ -597,6 +615,7 @@ last broad-safe Rust/XRIQ adapter.
     - `xriq/crates/xriq-node`
     - `xriq/crates/xriq-rpc`
     - `xriq/crates/xriq-storage`
+    - `xriq/crates/xriq-wallet`
   - implemented dependency-free private-devnet primitives for checked
     `XriqAmount`, validated devnet `Address`, `Hash32`, basic transaction
     validation, and block-header validation.
@@ -614,13 +633,15 @@ last broad-safe Rust/XRIQ adapter.
   - implemented local block storage and a minimal node loop for transaction
     submission, block production, ledger application, mempool cleanup, block
     persistence, and RPC-visible state.
+  - implemented private-devnet wallet CLI baseline for deterministic test
+    identity generation and transfer draft construction.
   - latest local validation passed: `cd xriq && cargo fmt --check && cargo test`.
-  - latest local Rust test result: `50` passed.
+  - latest local Rust test result: `56` passed.
   - latest local clippy validation passed:
     `cd xriq && cargo clippy -- -D warnings`.
-  - latest Vast Rust validation passed with the toolchain stored under
-    `/workspace`: `cargo fmt --check`, `cargo test` with `50` passing tests,
-    and `cargo clippy -- -D warnings`.
+  - latest Vast Rust validation before `xriq-wallet` passed with the toolchain
+    stored under `/workspace`: `cargo fmt --check`, `cargo test` with `50`
+    passing tests, and `cargo clippy -- -D warnings`.
   - Installed the `clippy` Rust component into `/workspace/.rustup` and updated
     `scripts/vast_install_rust_toolchain.sh` so future Rust setup includes it.
   - No Vast GPU/model training was needed for this step.
@@ -1244,8 +1265,8 @@ cargo clippy -- -D warnings
    it is preferred over creating a second top-level Rust workspace unless the
    project later needs independent release/versioning. The next protocol target
    after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`,
-   `xriq-rpc`, `xriq-storage`, and `xriq-node` is wallet CLI for test
-   transfers.
+   `xriq-rpc`, `xriq-storage`, `xriq-node`, and `xriq-wallet` is explorer
+   API/UI for private-devnet inspection.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.

@@ -55,3 +55,10 @@ version = "0.1.0"
 dependencies = [
  "xriq-core",
 ]
+
+[[package]]
+name = "xriq-wallet"
+version = "0.1.0"
+dependencies = [
+ "xriq-core",
+]

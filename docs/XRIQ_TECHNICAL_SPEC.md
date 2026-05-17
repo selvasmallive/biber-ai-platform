@@ -455,7 +455,8 @@ Before any public network, require:
    service baseline.
 9. Add durable local storage and a node loop. Current status: done for the
    dependency-free local private-devnet baseline.
-10. Add wallet CLI for test transfers.
+10. Add wallet CLI for test transfers. Current status: done for deterministic
+    private-devnet test identities and transfer drafts.
 11. Add explorer API/UI for private-devnet inspection.
 12. Add local multi-node tests.
 13. Revisit consensus, supply, governance, and public-readiness decisions.
@@ -473,6 +474,7 @@ As of 2026-05-17:
   - `xriq/crates/xriq-node`
   - `xriq/crates/xriq-rpc`
   - `xriq/crates/xriq-storage`
+  - `xriq/crates/xriq-wallet`
 - Implemented dependency-free private-devnet core primitives:
   - checked `XriqAmount`
   - validated devnet `Address`
@@ -509,16 +511,21 @@ As of 2026-05-17:
   - pending transaction application into produced blocks
   - block persistence before node-state commit
   - RPC-visible node state after block production
+- Implemented private-devnet wallet CLI baseline:
+  - deterministic test identity generation from labels
+  - transfer draft construction
+  - fake nonempty test signatures only
+  - no real private-key, seed-phrase, or production custody support
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test` with `50` passing tests.
+  - `cargo test` with `56` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification:
+- Latest Vast verification before `xriq-wallet`:
   - `cargo fmt --check`
   - `cargo test` with `50` passing tests.
   - `cargo clippy -- -D warnings`.
 
-Next implementation target: add wallet CLI for test transfers.
+Next implementation target: add explorer API/UI for private-devnet inspection.
 
 ## Open Decisions
 
