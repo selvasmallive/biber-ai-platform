@@ -88,5 +88,11 @@ cargo run -p xriq-node -- produce-draft-block \
   --timestamp-ms 1000
 ```
 
+One-command private-devnet smoke from the repo root:
+
+```bash
+bash scripts/xriq_private_devnet_smoke.sh
+```
+
 Keep generated chain data, node databases, wallets, and testnet artifacts out of
 Git.

@@ -525,6 +525,10 @@ Before any public network, require:
     and `xriq-node account-detail --chain-file <path> --address <address>`
     commands that replay canonical private-devnet chain files before rendering
     dependency-free explorer detail output.
+23. Add a compact local private-devnet smoke script. Current status: done for
+    `bash scripts/xriq_private_devnet_smoke.sh`, which chains wallet draft
+    generation, draft-block production, explorer overview, block detail, and
+    account detail over one persisted chain file.
 
 ## Current Prototype Status
 
@@ -622,6 +626,9 @@ As of 2026-05-17:
     file and renders one block by height, including transfer summaries
   - local private-devnet account detail command that replays the persisted
     chain file and renders one account balance and nonce by address
+  - one-command private-devnet smoke script that validates wallet draft,
+    draft-block, explorer overview, block detail, and account detail behavior
+    against one persisted chain file
   - node transaction submission
   - node transaction submission rejects invalid hash-bound test-only signatures
     before mempool insert
@@ -663,6 +670,8 @@ As of 2026-05-17:
   - `cargo run -p xriq-node -- explorer-overview --chain-file target/xriq-node-draft-smoke-chain-20260517-codex.bin --alice-balance 100 --limit 5`.
   - `cargo run -p xriq-node -- block-detail --chain-file target/xriq-node-detail-smoke-chain-20260517-codex.bin --alice-balance 100 --height 1`.
   - `cargo run -p xriq-node -- account-detail --chain-file target/xriq-node-detail-smoke-chain-20260517-codex.bin --alice-balance 100 --address xriqdev1alice00000000000`.
+  - `bash -n scripts/xriq_private_devnet_smoke.sh`.
+  - `CARGO_TARGET_DIR=target-codex-smoke bash scripts/xriq_private_devnet_smoke.sh`.
 - Latest Vast verification:
   - `cargo fmt --check`
   - `cargo test -j 1` with `114` passing tests.
@@ -673,10 +682,10 @@ As of 2026-05-17:
   - `cargo run -p xriq-node -- block-detail --chain-file target/xriq-node-detail-smoke-chain-1779009178.bin --alice-balance 100 --height 1`.
   - `cargo run -p xriq-node -- account-detail --chain-file target/xriq-node-detail-smoke-chain-1779009178.bin --alice-balance 100 --address xriqdev1alice00000000000`.
 
-Next implementation target: add a compact local private-devnet smoke script
-that chains wallet draft generation, draft-block production, explorer overview,
-block detail, and account detail over one persisted chain file. Keep HTTP/RPC
-serving deferred until the local file-backed workflow is comfortable.
+Next implementation target: add a read-only pending/mempool detail runner over
+file-backed or local in-process private-devnet state only if it directly helps
+the MVP workflow. Keep HTTP/RPC serving deferred until the local file-backed
+workflow is comfortable.
 
 ## Open Decisions
 
