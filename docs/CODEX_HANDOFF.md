@@ -26,6 +26,37 @@ prototype from the current GPU-backed direct vLLM/FastAPI state.
   - Keep `docs/XRIQ_LEGAL_RISK_REDUCTION.md` as a hard guardrail for any future
     public XRIQ work.
 
+## Cost-Control Execution Policy
+
+Future Codex sessions must default to a low-OpenAI-cost operating mode.
+
+- Primary near-term budget target: try to finish the focused BIBER MVP plus
+  XRIQ private-devnet prototype with roughly `$250-$900` of additional
+  OpenAI/Codex usage, and treat about `$500` as the practical disciplined target
+  when scope stays focused.
+- Do not use Codex as the default bulk implementation engine. Use Codex for
+  planning, risky architecture, small scoped patches, security-sensitive Rust
+  review, failure diagnosis, integration glue, verification interpretation, and
+  handoff updates.
+- Use the user's Vast.ai GPU, local scripts, the local BIBER model, and ordinary
+  deterministic tests for repetitive generation, long-running evals, QLoRA,
+  dataset work, smoke loops, and batch validation.
+- Do not start broad exploratory rewrites, large refactors, public XRIQ work,
+  or extra model-training loops unless they directly unblock the focused MVP or
+  the user explicitly approves the cost.
+- Keep OpenAI mentor/reviewer calls optional and disabled by default. Use them
+  only when the user requests mentor review or when quality/risk justifies it,
+  such as cryptography boundaries, security design, eval design, legal-risk
+  docs, or complex architecture decisions.
+- Prefer the smallest valuable checkpoint: one narrow feature, one focused test
+  addition, one doc checkpoint, or one deployment verification at a time.
+- For docs-only updates, do not rerun expensive Rust/Vast verification; commit,
+  push, and fast-forward Vast. For Rust/code changes, run focused local checks
+  first, then Vast verification only after the local result is clean.
+- If a future step looks likely to consume more than about `$50` of OpenAI/Codex
+  usage or to require a long open-ended agent session, pause and give the user a
+  cost/risk estimate before proceeding.
+
 ## Immediate Resume State
 
 As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
@@ -1616,7 +1647,8 @@ tail -f /workspace/biber-logs/vllm.log
   Codex session active. Start training, fine-tuning, batch evaluation, and other
   multi-hour jobs in `tmux`/`screen` on the GPU; disconnect while they run; bring
   Codex back only for failures, log review, result interpretation, or the next
-  code/deployment change.
+  code/deployment change. Follow the explicit `Cost-Control Execution Policy`
+  near the top of this handoff.
 - Future custom-model phases should prefer the user's own GPU and eventual
   fine-tuned `biber-dev-core` model over paid external model APIs. Keep optional
   mentor APIs disabled unless the user explicitly wants them for quality review.
