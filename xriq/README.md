@@ -12,8 +12,8 @@ only until security and legal/compliance review says otherwise.
 - `xriq-ledger`: deterministic private-devnet account state transitions.
 - `xriq-mempool`: deterministic pending-transaction checks and ordering.
 - `xriq-node`: minimal local private-devnet node loop with deterministic replay
-  startup from persisted canonical blocks, a private-devnet status runner, and a
-  local transfer-to-block runner.
+  startup from persisted canonical blocks, a private-devnet status runner, a
+  local transfer-to-block runner, and a file-backed explorer overview runner.
 - `xriq-rpc`: local private-devnet RPC endpoint behavior.
 - `xriq-storage`: local block storage for private-devnet tests.
 - `xriq-wallet`: private-devnet wallet CLI for test identities and transfers.
@@ -46,6 +46,15 @@ cargo run -p xriq-node -- produce-transfer-block \
   --nonce 0 \
   --expires-at-height 100 \
   --timestamp-ms 1000
+```
+
+Private-devnet file explorer smoke:
+
+```bash
+cargo run -p xriq-node -- explorer-overview \
+  --chain-file target/xriq-devnet-chain.bin \
+  --alice-balance 100 \
+  --limit 5
 ```
 
 Keep generated chain data, node databases, wallets, and testnet artifacts out of

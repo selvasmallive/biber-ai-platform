@@ -137,6 +137,7 @@ dependencies = [
  "xriq-consensus",
  "xriq-core",
  "xriq-crypto",
+ "xriq-explorer",
  "xriq-ledger",
  "xriq-mempool",
  "xriq-rpc",

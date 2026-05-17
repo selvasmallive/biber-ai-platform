@@ -13,6 +13,7 @@ use xriq_crypto::{
     transaction_signing_hash, transactions_root as canonical_transactions_root,
     SignatureVerificationError, TestOnlySignatureVerifier,
 };
+use xriq_explorer::ExplorerService;
 use xriq_ledger::{LedgerError, LedgerState};
 use xriq_mempool::{Mempool, MempoolConfig, MempoolError};
 use xriq_rpc::RpcService;
@@ -85,6 +86,7 @@ pub enum NodeRunnerOutput {
     Help(String),
     Status(NodeStatus),
     ProducedTransferBlock(ProducedTransferBlockStatus),
+    ExplorerOverview(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -185,6 +187,7 @@ impl fmt::Display for NodeRunnerOutput {
             Self::Help(help) => formatter.write_str(help),
             Self::Status(status) => write!(formatter, "{status}"),
             Self::ProducedTransferBlock(status) => write!(formatter, "{status}"),
+            Self::ExplorerOverview(overview) => formatter.write_str(overview),
         }
     }
 }
@@ -214,6 +217,7 @@ pub fn node_help_text() -> String {
         "xriq-node private-devnet commands:",
         "  xriq-node status --chain-file <path> [--alice-balance <base-units>]",
         "  xriq-node produce-transfer-block --chain-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>]",
+        "  xriq-node explorer-overview --chain-file <path> [--alice-balance <base-units>] [--limit <count>]",
         "",
         "Warning: this runner is for private devnet tests only. It does not start a public network.",
     ]
@@ -234,6 +238,7 @@ where
         Some("help" | "--help" | "-h") => Ok(NodeRunnerOutput::Help(node_help_text())),
         Some("status") => run_status_command(&args[1..]),
         Some("produce-transfer-block") => run_produce_transfer_block_command(&args[1..]),
+        Some("explorer-overview") => run_explorer_overview_command(&args[1..]),
         Some(command) => Err(NodeRunnerError::UnknownCommand(command.to_string())),
     }
 }
@@ -270,6 +275,18 @@ pub fn private_devnet_file_produce_transfer_block(
     })
 }
 
+pub fn private_devnet_file_explorer_overview(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    limit: usize,
+) -> Result<String, NodeError> {
+    let store = FileChainStore::open(chain_file).map_err(NodeError::Storage)?;
+    let genesis = private_devnet_runner_genesis(alice_balance);
+    let node = XriqNode::from_genesis_replaying_store(&genesis, store)?;
+    let explorer = ExplorerService::new(node.rpc_service(), node.store());
+    Ok(explorer.render_overview(limit))
+}
+
 fn run_status_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
     flags.reject_unknown(&["--chain-file", "--alice-balance"])?;
@@ -280,6 +297,24 @@ fn run_status_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerErr
         .transpose()?;
     private_devnet_file_status(chain_file, alice_balance)
         .map(NodeRunnerOutput::Status)
+        .map_err(NodeRunnerError::Node)
+}
+
+fn run_explorer_overview_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&["--chain-file", "--alice-balance", "--limit"])?;
+    let chain_file = flags.required("--chain-file")?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let limit = flags
+        .optional("--limit")
+        .map(|value| parse_usize("--limit", value))
+        .transpose()?
+        .unwrap_or(10);
+    private_devnet_file_explorer_overview(chain_file, alice_balance, limit)
+        .map(NodeRunnerOutput::ExplorerOverview)
         .map_err(NodeRunnerError::Node)
 }
 
@@ -398,6 +433,13 @@ fn parse_u64(flag: &'static str, value: &str) -> Result<u64, NodeRunnerError> {
     })
 }
 
+fn parse_usize(flag: &'static str, value: &str) -> Result<usize, NodeRunnerError> {
+    value.parse().map_err(|_| NodeRunnerError::InvalidNumber {
+        flag,
+        value: value.to_string(),
+    })
+}
+
 fn parse_amount(flag: &'static str, value: &str) -> Result<XriqAmount, NodeRunnerError> {
     Ok(XriqAmount::from_base_units(value.parse().map_err(
         |_| NodeRunnerError::InvalidNumber {
@@ -462,6 +504,7 @@ fn flag_to_static(flag: &str) -> &'static str {
     match flag {
         "--chain-file" => "--chain-file",
         "--alice-balance" => "--alice-balance",
+        "--limit" => "--limit",
         "--from" => "--from",
         "--to" => "--to",
         "--amount" => "--amount",
@@ -1442,6 +1485,74 @@ mod tests {
                 stored_blocks: 1,
             })
         );
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn node_runner_explorer_overview_renders_replayed_chain_file() {
+        let path = temp_store_path();
+        let path_text = path.to_string_lossy().to_string();
+
+        run_node_command([
+            "produce-transfer-block",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1bobbb00000000000",
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--expires-at-height",
+            "100",
+        ])
+        .unwrap();
+        run_node_command([
+            "produce-transfer-block",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1carol00000000000",
+            "--amount",
+            "10",
+            "--fee",
+            "2",
+            "--nonce",
+            "1",
+            "--expires-at-height",
+            "100",
+        ])
+        .unwrap();
+
+        let overview = run_node_command([
+            "explorer-overview",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--limit",
+            "2",
+        ])
+        .unwrap()
+        .to_string();
+
+        assert!(overview.contains("XRIQ Private Devnet Explorer"));
+        assert!(overview.contains("chain: xriq-devnet"));
+        assert!(overview.contains("current height: 2"));
+        assert!(overview.contains("stored blocks: 2, pending transactions: 0"));
+        assert!(overview.contains("- height 2"));
+        assert!(overview.contains("- height 1"));
 
         let _ = fs::remove_file(path);
     }
