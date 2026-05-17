@@ -62,10 +62,11 @@ Future Codex sessions must default to a low-OpenAI-cost operating mode.
 As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
-- Last XRIQ implementation commit pushed and Vast-verified:
-  `dafc5f0 Add XRIQ private devnet JSON fixtures`.
-- Vast checkout was fast-forwarded and Rust/script/HTTP-smoke verified through
-  `dafc5f0`.
+- Last XRIQ implementation commit pushed and Vast Rust-verified:
+  `3c50394 Add XRIQ read-only JSON fixtures`.
+- Vast checkout was fast-forwarded and Rust verified through `3c50394`. The
+  latest full script/HTTP smoke remains the `dafc5f0` checkpoint because the
+  latest change only added checked read-only JSON fixtures and tests.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -822,6 +823,34 @@ serving the last broad-safe Rust/XRIQ adapter.
     `bash scripts/xriq_private_devnet_smoke.sh`.
   - Latest expanded smoke artifacts on Vast:
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T195504Z-28133`.
+- Local XRIQ prototype progress after the read-only JSON fixture checkpoint:
+  - Added additional checked private-devnet golden fixtures under
+    `xriq/fixtures/private-devnet/`:
+    `node-status-empty.json`, `node-mempool-empty.json`, and
+    `node-account-alice-initial.json`.
+  - Added exact-match Rust tests so fresh `xriq-node status --format json`,
+    empty `xriq-node mempool-detail --format json`, and initial Alice
+    `xriq-node account-detail --format json` continue matching those
+    private-devnet schema examples.
+  - Updated `xriq/README.md` and `docs/XRIQ_NODE_JSON_SCHEMA.md` to list the
+    expanded checked fixture set for future BIBER/client-agent work.
+  - Local Windows verification passed from `xriq/` with
+    `CARGO_TARGET_DIR=target-codex-next-fixtures`: `cargo fmt --check`,
+    focused `cargo test -p xriq-node checked_fixture -j 1` with `4` passing
+    node fixture tests, `cargo test -j 1` with `125` passing workspace tests,
+    and `cargo clippy -- -D warnings`. Generated local target/test files were
+    removed afterward.
+  - Pushed implementation commit:
+    `3c50394 Add XRIQ read-only JSON fixtures`.
+  - Vast checkout was fast-forwarded to `3c50394`; Vast verification passed
+    with the workspace-volume Rust toolchain env:
+    `RUSTUP_HOME=/workspace/.rustup`,
+    `CARGO_HOME=/workspace/.cargo`, and
+    `PATH=/workspace/.cargo/bin:...`.
+  - Vast verification passed with `cargo fmt --check`, `cargo test -j 1` with
+    `125` passing tests, and `cargo clippy -- -D warnings`. Full
+    `scripts/xriq_private_devnet_smoke.sh` was intentionally not rerun for
+    this fixture-only Rust checkpoint to keep cost/time low.
 
 ## Repo State
 
