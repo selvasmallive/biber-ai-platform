@@ -7,6 +7,7 @@ use xriq_core::{
 };
 use xriq_crypto::{
     account_state_root, transaction_hash, transactions_root as canonical_transactions_root,
+    SignatureVerificationError, TestOnlySignatureVerifier,
 };
 use xriq_ledger::{LedgerError, LedgerState};
 use xriq_mempool::{Mempool, MempoolConfig, MempoolError};
@@ -65,6 +66,9 @@ pub enum NodeError {
     Header(BlockValidationError),
     UnauthorizedProducer,
     TooManyBlockTransactions { max: usize, actual: usize },
+    WrongTransactionsRoot { expected: Hash32, actual: Hash32 },
+    WrongStateRoot { expected: Hash32, actual: Hash32 },
+    BlockSignature(SignatureVerificationError),
     Storage(StorageError),
 }
 
@@ -282,6 +286,13 @@ impl<S: ChainStore> XriqNode<S> {
                 actual: block.transactions.len(),
             });
         }
+        let expected_transactions_root = canonical_transactions_root(&block.transactions);
+        if block.header.transactions_root != expected_transactions_root {
+            return Err(NodeError::WrongTransactionsRoot {
+                expected: expected_transactions_root,
+                actual: block.header.transactions_root,
+            });
+        }
 
         let mut next_ledger = self.ledger.clone();
         for transaction in &block.transactions {
@@ -289,6 +300,16 @@ impl<S: ChainStore> XriqNode<S> {
                 .apply_transaction(transaction)
                 .map_err(NodeError::Ledger)?;
         }
+        let expected_state_root = account_state_root(&next_ledger.state_root_entries());
+        if block.header.state_root != expected_state_root {
+            return Err(NodeError::WrongStateRoot {
+                expected: expected_state_root,
+                actual: block.header.state_root,
+            });
+        }
+        TestOnlySignatureVerifier
+            .verify_block_header(&block.header)
+            .map_err(NodeError::BlockSignature)?;
         next_ledger.set_current_height(block.header.height);
         let block_hash = self.append_block_to_store(block_hash_override, block.clone())?;
 
@@ -366,7 +387,8 @@ impl<S: ChainStore> XriqNode<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use xriq_core::{Address, XriqAmount};
+    use xriq_core::{Address, BlockHeader, XriqAmount};
+    use xriq_crypto::{block_header_signing_hash, test_only_signature_for_hash};
     use xriq_storage::InMemoryChainStore;
 
     fn address(label: &str) -> Address {
@@ -403,36 +425,73 @@ mod tests {
         }
     }
 
-    fn produce_canonical_input() -> ProduceNextBlockCanonicalInput {
+    fn produce_canonical_input(
+        node: &XriqNode<InMemoryChainStore>,
+    ) -> ProduceNextBlockCanonicalInput {
+        let state_root = hash(4);
+        let transactions_root = next_transactions_root(node);
         ProduceNextBlockCanonicalInput {
-            state_root: hash(4),
+            state_root,
             timestamp_ms: 1_000,
             consensus_round: 0,
-            signature: SignatureBytes::new(vec![9]),
+            signature: next_block_signature(node, state_root, transactions_root),
         }
     }
 
-    fn produce_canonical_roots_input() -> ProduceNextBlockCanonicalRootsInput {
+    fn produce_canonical_roots_input(
+        node: &XriqNode<InMemoryChainStore>,
+    ) -> ProduceNextBlockCanonicalRootsInput {
+        let (state_root, transactions_root) = next_canonical_roots(node);
         ProduceNextBlockCanonicalRootsInput {
             timestamp_ms: 1_000,
             consensus_round: 0,
-            signature: SignatureBytes::new(vec![9]),
+            signature: next_block_signature(node, state_root, transactions_root),
         }
     }
 
-    fn produce_input_with_roots(
-        block_hash: Hash32,
+    fn next_transactions(node: &XriqNode<InMemoryChainStore>) -> Vec<Transaction> {
+        node.mempool()
+            .ordered_entries()
+            .into_iter()
+            .take(node.producer.config().max_transactions_per_block)
+            .map(|entry| entry.tx.clone())
+            .collect()
+    }
+
+    fn next_transactions_root(node: &XriqNode<InMemoryChainStore>) -> Hash32 {
+        xriq_crypto::transactions_root(&next_transactions(node))
+    }
+
+    fn next_canonical_roots(node: &XriqNode<InMemoryChainStore>) -> (Hash32, Hash32) {
+        let transactions = next_transactions(node);
+        let mut next_ledger = node.ledger().clone();
+        for transaction in &transactions {
+            next_ledger.apply_transaction(transaction).unwrap();
+        }
+        (
+            xriq_crypto::account_state_root(&next_ledger.state_root_entries()),
+            xriq_crypto::transactions_root(&transactions),
+        )
+    }
+
+    fn next_block_signature(
+        node: &XriqNode<InMemoryChainStore>,
         state_root: Hash32,
         transactions_root: Hash32,
-    ) -> ProduceNextBlockInput {
-        ProduceNextBlockInput {
-            block_hash,
+    ) -> SignatureBytes {
+        let header = BlockHeader {
+            version: BlockHeader::SUPPORTED_VERSION,
+            chain_id: node.ledger().config().chain_id.clone(),
+            height: node.ledger().current_height() + 1,
+            previous_block_hash: node.latest_block_hash(),
             state_root,
             transactions_root,
             timestamp_ms: 1_000,
+            producer: node.producer.config().producer.clone(),
             consensus_round: 0,
-            signature: SignatureBytes::new(vec![9]),
-        }
+            signature: SignatureBytes::new(Vec::new()),
+        };
+        test_only_signature_for_hash(block_header_signing_hash(&header))
     }
 
     fn node() -> XriqNode<InMemoryChainStore> {
@@ -502,7 +561,7 @@ mod tests {
         node.submit_transaction_with_canonical_hash(tx).unwrap();
 
         let produced = node
-            .produce_next_block_with_canonical_hash(produce_canonical_input())
+            .produce_next_block_with_canonical_hash(produce_canonical_input(&node))
             .unwrap();
 
         assert_eq!(
@@ -526,7 +585,7 @@ mod tests {
         node.submit_transaction_with_canonical_hash(tx).unwrap();
 
         let produced = node
-            .produce_next_block_with_canonical_roots(produce_canonical_roots_input())
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&node))
             .unwrap();
 
         assert_eq!(
@@ -599,14 +658,14 @@ mod tests {
         follower.submit_transaction(hash(1), tx).unwrap();
 
         let produced = producer
-            .produce_next_block(produce_input_with_roots(hash(8), hash(4), hash(5)))
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
             .unwrap();
 
         assert_eq!(
             follower.import_block(produced.block_hash, produced.block.clone()),
             Ok(())
         );
-        assert_eq!(follower.latest_block_hash(), hash(8));
+        assert_eq!(follower.latest_block_hash(), produced.block_hash);
         assert_eq!(follower.ledger().current_height(), 1);
         assert_eq!(follower.mempool().len(), 0);
         assert_eq!(follower.store().len(), 1);
@@ -626,7 +685,7 @@ mod tests {
         let mut producer = node();
         let mut follower = node();
         let produced = producer
-            .produce_next_block_with_canonical_hash(produce_canonical_input())
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
             .unwrap();
 
         let imported_hash = follower
@@ -644,23 +703,97 @@ mod tests {
         let mut producer = node();
         let mut follower = node();
         let first = producer
-            .produce_next_block(produce_input_with_roots(hash(8), hash(4), hash(5)))
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
             .unwrap();
         follower
             .import_block(first.block_hash, first.block.clone())
             .unwrap();
 
         let second = producer
-            .produce_next_block(produce_input_with_roots(hash(9), hash(6), hash(7)))
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
             .unwrap();
 
         assert_eq!(
             follower.import_block(second.block_hash, second.block),
             Ok(())
         );
-        assert_eq!(follower.latest_block_hash(), hash(9));
+        assert_eq!(follower.latest_block_hash(), second.block_hash);
         assert_eq!(follower.ledger().current_height(), 2);
         assert_eq!(follower.store().len(), 2);
+    }
+
+    #[test]
+    fn rejects_peer_block_with_wrong_transaction_root_without_mutating_state() {
+        let mut producer = node();
+        let mut follower = node();
+        let tx = transaction(address("alice"), 0, 25, 2);
+        producer.submit_transaction_with_canonical_hash(tx).unwrap();
+        let mut produced = producer
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
+            .unwrap();
+        produced.block.header.transactions_root = hash(99);
+        let before_ledger = follower.ledger().clone();
+
+        assert_eq!(
+            follower.import_block(produced.block_hash, produced.block.clone()),
+            Err(NodeError::WrongTransactionsRoot {
+                expected: xriq_crypto::transactions_root(&produced.block.transactions),
+                actual: hash(99),
+            })
+        );
+        assert_eq!(follower.latest_block_hash(), hash(0));
+        assert_eq!(follower.ledger(), &before_ledger);
+        assert_eq!(follower.store().len(), 0);
+    }
+
+    #[test]
+    fn rejects_peer_block_with_wrong_state_root_without_mutating_state() {
+        let mut producer = node();
+        let mut follower = node();
+        let tx = transaction(address("alice"), 0, 25, 2);
+        producer.submit_transaction_with_canonical_hash(tx).unwrap();
+        let mut produced = producer
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
+            .unwrap();
+        produced.block.header.state_root = hash(99);
+        let before_ledger = follower.ledger().clone();
+        let mut expected_ledger = follower.ledger().clone();
+        for transaction in &produced.block.transactions {
+            expected_ledger.apply_transaction(transaction).unwrap();
+        }
+
+        assert_eq!(
+            follower.import_block(produced.block_hash, produced.block),
+            Err(NodeError::WrongStateRoot {
+                expected: xriq_crypto::account_state_root(&expected_ledger.state_root_entries()),
+                actual: hash(99),
+            })
+        );
+        assert_eq!(follower.latest_block_hash(), hash(0));
+        assert_eq!(follower.ledger(), &before_ledger);
+        assert_eq!(follower.store().len(), 0);
+    }
+
+    #[test]
+    fn rejects_peer_block_with_bad_test_only_signature_without_mutating_state() {
+        let mut producer = node();
+        let mut follower = node();
+        let produced = producer
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
+            .unwrap();
+        let mut block = produced.block;
+        block.header.signature = SignatureBytes::new(vec![1]);
+        let before_ledger = follower.ledger().clone();
+
+        assert_eq!(
+            follower.import_block(produced.block_hash, block),
+            Err(NodeError::BlockSignature(
+                xriq_crypto::SignatureVerificationError::InvalidSignature
+            ))
+        );
+        assert_eq!(follower.latest_block_hash(), hash(0));
+        assert_eq!(follower.ledger(), &before_ledger);
+        assert_eq!(follower.store().len(), 0);
     }
 
     #[test]
@@ -668,7 +801,7 @@ mod tests {
         let mut producer = node();
         let mut follower = node();
         let mut produced = producer
-            .produce_next_block(produce_input_with_roots(hash(8), hash(4), hash(5)))
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
             .unwrap();
         produced.block.header.previous_block_hash = hash(99);
         let before_ledger = follower.ledger().clone();
@@ -687,7 +820,7 @@ mod tests {
         let mut producer = node();
         let mut follower = node();
         let mut produced = producer
-            .produce_next_block(produce_input_with_roots(hash(8), hash(4), hash(5)))
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
             .unwrap();
         produced.block.header.producer = address("intruder");
 
@@ -711,7 +844,7 @@ mod tests {
             transaction(address("frank"), 0, 10, 2),
         ];
         let mut produced = producer
-            .produce_next_block(produce_input_with_roots(hash(8), hash(4), hash(5)))
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
             .unwrap();
         produced.block.transactions = transactions;
         let before_ledger = follower.ledger().clone();

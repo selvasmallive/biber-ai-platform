@@ -252,6 +252,21 @@ last broad-safe Rust/XRIQ adapter.
   - Vast checkout was fast-forwarded to `a5a8c08`; Vast Rust verification also
     passed with `cargo fmt --check`, `cargo test -j 1` with `96` passing tests,
     and `cargo clippy -- -D warnings`.
+- Local XRIQ prototype progress after the genesis/config checkpoint:
+  - Imported peer blocks now reject mismatched canonical transaction roots.
+  - Imported peer blocks now reject mismatched deterministic account-state roots
+    after follower-side ledger execution.
+  - Imported peer blocks now verify hash-bound private-devnet block-header
+    signatures through `TestOnlySignatureVerifier`.
+  - Wrong transaction roots, wrong state roots, and bad test-only block
+    signatures leave follower ledger, tip, storage, and mempool state
+    unchanged.
+  - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `99` passing tests, and
+    `cargo clippy -- -D warnings`.
+  - Vast verification for this imported-block validation checkpoint is pending.
+    The previous Vast checkpoint remains the genesis/config pass with `96`
+    tests.
 
 ## Repo State
 
@@ -1374,8 +1389,8 @@ cargo clippy -- -D warnings
    after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`,
    `xriq-rpc`, `xriq-storage`, `xriq-node`, `xriq-wallet`, and
    `xriq-explorer`, canonical hash API wiring, and genesis/root strategy is
-   deterministic transaction-root and state-root validation on imported blocks,
-   followed by private-devnet test-only block signature verification.
+   hash-bound test-only transaction signature verification at RPC/node
+   submission and imported-block execution boundaries.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.

@@ -502,7 +502,9 @@ Before any public network, require:
     SHA-256 account-state root calculation.
 17. Enforce deterministic transaction-root and state-root validation on
     imported blocks, then wire the test-only block signature verifier at the
-    node boundary.
+    node boundary. Current status: done for private-devnet peer-block import.
+18. Wire hash-bound test-only transaction signature verification into RPC/node
+    submission and imported-block transaction execution.
 
 ## Current Prototype Status
 
@@ -588,6 +590,9 @@ As of 2026-05-17:
   - peer block import for in-process private-devnet multi-node tests
   - follower-side parent, chain, signature, authorized-producer, and block-size
     checks before ledger/storage commit
+  - follower-side deterministic transaction-root and state-root checks before
+    storage commit
+  - follower-side hash-bound test-only block-header signature verification
   - local mempool cleanup when imported peer blocks include pending transactions
 - Implemented private-devnet wallet CLI baseline:
   - deterministic test identity generation from labels
@@ -603,16 +608,18 @@ As of 2026-05-17:
   - dependency-free text rendering for private-devnet inspection
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `96` passing tests.
+  - `cargo test -j 1` with `99` passing tests.
   - `cargo clippy -- -D warnings`.
 - Latest Vast verification:
+  - Previous genesis/config checkpoint passed with:
   - `cargo fmt --check`
   - `cargo test -j 1` with `96` passing tests.
   - `cargo clippy -- -D warnings`.
+  - The imported-block root/signature validation checkpoint is pending Vast
+    verification.
 
-Next implementation target: enforce deterministic transaction-root and
-state-root validation on imported blocks, then wire the test-only block
-signature verifier at the node boundary.
+Next implementation target: wire hash-bound test-only transaction signature
+verification into RPC/node submission and imported-block transaction execution.
 
 ## Open Decisions
 

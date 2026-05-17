@@ -176,17 +176,28 @@ This remains private-devnet-only. The config does not set public supply,
 emissions, validator rewards, token sale, airdrop, treasury, or public
 economics.
 
+## Current Import Validation Checkpoint
+
+Imported private-devnet blocks now enforce deterministic root and block
+signature checks before follower state commits:
+
+- transaction roots must match the canonical root of the block body
+- state roots must match deterministic ledger execution on the follower
+- block-header signatures must pass the hash-bound `TestOnlySignatureVerifier`
+- wrong transaction roots, wrong state roots, and bad test-only block
+  signatures leave follower ledger, tip, mempool, and storage unchanged
+
 ## Next Engineering Step
 
-The next implementation target should enforce deterministic roots and test-only
-block signature checks on imported blocks:
+The next implementation target should wire hash-bound test-only transaction
+signature verification into the private-devnet transaction boundary:
 
-- reject imported blocks whose transaction root does not match the canonical
-  root of the block body
-- reject imported blocks whose state root does not match deterministic ledger
-  execution
-- wire the existing hash-bound `TestOnlySignatureVerifier` into private-devnet
-  block-header validation
+- reject RPC/node transaction submissions whose signatures do not match
+  canonical transaction signing bytes
+- reject imported blocks containing transactions with invalid test-only
+  signatures before ledger/storage commit
+- keep wallet transfer drafts private-devnet-only until real key custody is
+  designed
 - keep public supply, emissions, validator rewards, sale, airdrop, treasury,
   and public validator economics unset and blocked
 - keep test-only signature verification separate from production crypto review
