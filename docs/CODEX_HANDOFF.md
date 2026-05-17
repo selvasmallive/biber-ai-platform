@@ -32,8 +32,8 @@ As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Last XRIQ implementation commit pushed and Vast-verified:
-  `0789724 Add XRIQ private devnet smoke script`.
-- Vast checkout was fast-forwarded and Rust/script-verified through `0789724`.
+  `7e9d99f Add XRIQ mempool detail runner`.
+- Vast checkout was fast-forwarded and Rust/script-verified through `7e9d99f`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -436,6 +436,35 @@ serving the last broad-safe Rust/XRIQ adapter.
     `bash scripts/xriq_private_devnet_smoke.sh`.
   - Latest smoke artifacts on Vast:
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T142125Z-19189`.
+- Local XRIQ prototype progress after the mempool-detail runner checkpoint:
+  - Added `xriq-node mempool-detail` for read-only pending transaction
+    inspection over persisted private-devnet chain files.
+  - The command replays the chain file and can preview a wallet transfer draft
+    in the local mempool without producing a block or mutating storage.
+  - Updated `scripts/xriq_private_devnet_smoke.sh` so the compact smoke path now
+    verifies wallet draft generation, mempool preview, draft-block production,
+    explorer overview, block detail, and account detail against one persisted
+    chain file under `xriq/target/`.
+  - Added directionally compatible exchange-readiness guardrails across the
+    XRIQ docs: keep the MVP transparent and auditable, preserve future
+    exchange-review surfaces, and do not claim listing readiness until public
+    network, security, tokenomics, legal, AML/CFT, sanctions, custody,
+    integration, and market-quality reviews are complete.
+  - Local Windows Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `115` passing tests, and
+    `cargo clippy -- -D warnings`, using
+    `CARGO_TARGET_DIR=target-codex-mempool` to avoid default target binary
+    locks.
+  - Local PowerShell smoke verified wallet draft generation, `mempool-detail`
+    preview, unchanged status before block production, draft-block production,
+    and explorer overview replay.
+  - Vast checkout was fast-forwarded to `7e9d99f`; Vast verification passed
+    with `bash -n scripts/xriq_private_devnet_smoke.sh`,
+    `cargo fmt --check`, `cargo test -j 1` with `115` passing tests,
+    `cargo clippy -- -D warnings`, and
+    `bash scripts/xriq_private_devnet_smoke.sh`.
+  - Latest smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T144421Z-19849`.
 
 ## Repo State
 
@@ -1634,12 +1663,12 @@ cargo clippy -- -D warnings
    `xriq-explorer`, canonical hash API wiring, genesis/root strategy,
    deterministic replay startup, the local `xriq-node status`,
    `xriq-node produce-transfer-block`, `xriq-node produce-draft-block`,
-   `xriq-node explorer-overview`, `xriq-node block-detail`, and
-   `xriq-node account-detail` runner commands, and
-   `scripts/xriq_private_devnet_smoke.sh`, is to add read-only pending/mempool
-   detail runner coverage only if it directly helps the MVP workflow. HTTP/RPC
-   serving and snapshot checkpointing can wait until the local file-backed
-   workflow is comfortable.
+   `xriq-node explorer-overview`, `xriq-node block-detail`,
+   `xriq-node account-detail`, and `xriq-node mempool-detail` runner commands,
+   and `scripts/xriq_private_devnet_smoke.sh`, is to add a concise
+   exchange-readiness checklist document/section while keeping XRIQ explicitly
+   not listing-ready. HTTP/RPC serving and snapshot checkpointing can wait until
+   the local file-backed workflow is comfortable.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.

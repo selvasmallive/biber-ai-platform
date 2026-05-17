@@ -748,15 +748,14 @@ As of 2026-05-17:
 - Latest Vast verification:
   - `bash -n scripts/xriq_private_devnet_smoke.sh`.
   - `cargo fmt --check`
-  - `cargo test -j 1` with `114` passing tests.
+  - `cargo test -j 1` with `115` passing tests.
   - `cargo clippy -- -D warnings`.
-  - `cargo run -p xriq-wallet -- transfer --chain-id xriq-devnet --from xriqdev1alice00000000000 --to xriqdev1bobbb00000000000 --amount 25 --fee 2 --nonce 0 --expires-at-height 100` captured to `target/xriq-wallet-detail-draft-1779009178.txt`.
-  - `cargo run -p xriq-node -- produce-draft-block --chain-file target/xriq-node-detail-smoke-chain-1779009178.bin --draft-file target/xriq-wallet-detail-draft-1779009178.txt --alice-balance 100 --timestamp-ms 1000`.
-  - `cargo run -p xriq-node -- explorer-overview --chain-file target/xriq-node-detail-smoke-chain-1779009178.bin --alice-balance 100 --limit 5`.
-  - `cargo run -p xriq-node -- block-detail --chain-file target/xriq-node-detail-smoke-chain-1779009178.bin --alice-balance 100 --height 1`.
-  - `cargo run -p xriq-node -- account-detail --chain-file target/xriq-node-detail-smoke-chain-1779009178.bin --alice-balance 100 --address xriqdev1alice00000000000`.
+  - `xriq-node mempool-detail` through the one-command smoke path, verifying a
+    wallet draft can be previewed in the local mempool before block production.
+  - `xriq-node produce-draft-block`, `explorer-overview`, `block-detail`, and
+    `account-detail` through the same smoke path.
   - `bash scripts/xriq_private_devnet_smoke.sh`, which wrote artifacts under
-    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T142125Z-19189`.
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T144421Z-19849`.
 
 Next implementation target: add a concise exchange-readiness checklist document
 or section that future sessions can use without treating XRIQ as listing-ready.
