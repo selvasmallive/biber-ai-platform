@@ -67,13 +67,13 @@ As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Last XRIQ implementation commit pushed and Vast-verified:
-  `ea9918d Add XRIQ pending block production`.
-- Latest XRIQ fixture/docs commit pushed and Vast-verified:
+  `7c4030d Add XRIQ preflight transfer flow`.
+- Latest XRIQ checked-fixture-only commit pushed and Vast-verified:
   `77cf376 Add XRIQ pending block JSON fixture`.
 - Latest XRIQ smoke-harness commit pushed and Vast-verified:
   `2bd99cc Ensure XRIQ smoke server cleanup`.
 - Vast checkout was fast-forwarded and Rust/script/HTTP-smoke verified through
-  `ea9918d`; focused fixture verification is current through `77cf376`.
+  `7c4030d`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -1010,6 +1010,41 @@ serving the last broad-safe Rust/XRIQ adapter.
     pending-block implementation itself remains smoke-verified through
     `ea9918d` with artifacts at
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T210028Z-33204`.
+- Local XRIQ prototype progress after the preflight transfer checkpoint:
+  - Added `xriq-node preflight-transfer`, a deterministic private-devnet helper
+    that infers the sender nonce from a replayed file-backed chain, validates a
+    test-only transfer, submits it to the durable pending file, produces one
+    block from pending transactions, compacts the pending file, and verifies the
+    transaction through confirmed transaction lookup.
+  - Added stable JSON/text output for the preflight transfer result including
+    preflight balance/nonce, transaction hash, block hash, confirmed block
+    height/index, final balance/nonce, and node status fields.
+  - Expanded `scripts/xriq_private_devnet_smoke.sh` with preflight artifacts:
+    `preflight-chain.bin`, `preflight-pending.tsv`,
+    `preflight-transfer.json`, and `preflight-transaction.json`.
+  - Updated `xriq/README.md`, `docs/XRIQ_NODE_JSON_SCHEMA.md`, and
+    `docs/XRIQ_TECHNICAL_SPEC.md` with the preflight transfer workflow and
+    artifact contract.
+  - Local Windows verification passed from `xriq/` with
+    `CARGO_TARGET_DIR=target-codex-preflight`: focused
+    `cargo test -p xriq-node preflight -j 1`, `cargo test -j 1` with `131`
+    passing workspace tests, and `cargo clippy -- -D warnings`. Generated
+    local target files were removed afterward.
+  - Pushed implementation commit:
+    `7c4030d Add XRIQ preflight transfer flow`.
+  - Vast checkout was fast-forwarded to `7c4030d`; verification passed with the
+    workspace-volume Rust toolchain env:
+    `RUSTUP_HOME=/workspace/.rustup`,
+    `CARGO_HOME=/workspace/.cargo`, and
+    `PATH=/workspace/.cargo/bin:...`.
+  - Vast verification passed with `cargo fmt --check`, `cargo test -j 1` with
+    `131` passing workspace tests, `cargo clippy -- -D warnings`,
+    `bash -n scripts/xriq_private_devnet_smoke.sh`, and
+    `bash scripts/xriq_private_devnet_smoke.sh`. After the smoke,
+    `pgrep -af xriq-node` showed only the invoking shell command, not a live
+    XRIQ smoke server process.
+  - Latest expanded smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T215459Z-35326`.
 
 ## Repo State
 
@@ -2201,6 +2236,9 @@ export PATH=/workspace/.cargo/bin:$PATH
 cargo fmt --check
 cargo test -j 1
 cargo clippy -- -D warnings
+cd /workspace/biber-ai-platform
+bash -n scripts/xriq_private_devnet_smoke.sh
+bash scripts/xriq_private_devnet_smoke.sh
 ```
 
 12. Continue the XRIQ private-devnet prototype after the Rust/XRIQ model loop is
@@ -2217,12 +2255,13 @@ cargo clippy -- -D warnings
    `xriq-node transaction-detail` runner commands,
    `scripts/xriq_private_devnet_smoke.sh`,
    `xriq-node serve-readonly`, `xriq-node serve-private`, and
-   durable pending HTTP state and pending-block production, is to keep the
-   local file-backed workflow small and deterministic. Good next targets are
-   snapshot/replay improvements, a small checked fixture for the pending-block
-   JSON shape, or wallet/client preflight helpers only when they directly help
-   the private-devnet MVP. Public XRIQ launch, exchange listing, custody,
-   liquidity, bridges, and market-facing work remain blocked.
+   durable pending HTTP state, pending-block production, and
+   `xriq-node preflight-transfer`, is to keep the local file-backed workflow
+   small and deterministic. Good next targets are a small checked fixture for
+   the preflight-transfer JSON shape, a thin BIBER/client wrapper around the
+   file-backed preflight flow, or snapshot/replay improvements only when they
+   directly help the private-devnet MVP. Public XRIQ launch, exchange listing,
+   custody, liquidity, bridges, and market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
