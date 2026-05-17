@@ -180,6 +180,23 @@ last broad-safe Rust/XRIQ adapter.
     Vast Rust verification also passed with `cargo fmt --check`,
     `cargo test -j 1` with `69` passing tests, and
     `cargo clippy -- -D warnings`.
+- XRIQ Phase 3 decision checkpoint after local multi-node verification:
+  - Added `docs/XRIQ_PHASE3_DECISIONS.md`.
+  - Consensus decision: keep deterministic authority consensus for the private
+    devnet; defer public PoS/BFT economics, validator rewards, slashing, and
+    public validator admission.
+  - Supply decision: keep XRIQ supply test-only through deterministic private
+    allocations; public supply, emissions, burns, treasury allocation, sale,
+    airdrop, and reward schedule remain unset and blocked.
+  - Governance decision: use private engineering governance through docs,
+    commits, and verification; do not add token governance, treasury rights,
+    revenue rights, or public upgrade promises.
+  - Public-readiness decision: public launch remains blocked until crypto,
+    hashing, genesis/config, networking, security, open-source, and legal-risk
+    gates are satisfied.
+  - Next implementation target is `xriq-crypto` plus canonical transaction and
+    block hashing, with fake wallet signatures kept test-only until the crypto
+    boundary is reviewed.
 
 ## Repo State
 
@@ -1301,8 +1318,7 @@ cargo clippy -- -D warnings
    project later needs independent release/versioning. The next protocol target
    after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`,
    `xriq-rpc`, `xriq-storage`, `xriq-node`, `xriq-wallet`, and
-   `xriq-explorer` is to revisit consensus, supply, governance, and
-   public-readiness decisions.
+   `xriq-explorer` is `xriq-crypto` plus canonical transaction/block hashing.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.

@@ -45,6 +45,10 @@ tokens, DEXs, custody, bridges, stablecoins, payments, liquidity incentives,
 airdrops, validator rewards, market listings, or investment-facing messaging,
 pause the feature until the required review gates in that document are satisfied.
 
+Current Phase 3 protocol decisions are recorded in
+`docs/XRIQ_PHASE3_DECISIONS.md`. Treat that document as the active decision
+record for consensus, supply, governance, and public-readiness scope.
+
 ## Target Design Advantages
 
 XRIQ should be designed around a focused set of advantages instead of trying to
@@ -143,6 +147,11 @@ For the private devnet, use deterministic test allocation only:
 - no public sale
 - no mining reward promise
 - no staking yield promise
+
+Current Phase 3 decision: public supply, emissions, burns, treasury allocation,
+validator rewards, and token distribution remain unset and blocked until the
+review gates in `docs/XRIQ_PHASE3_DECISIONS.md` and
+`docs/XRIQ_LEGAL_RISK_REDUCTION.md` are satisfied.
 
 Open decision for later phases:
 
@@ -298,6 +307,23 @@ Phase 3 private devnet should start with deterministic authority consensus:
 This keeps the first implementation testable. More advanced consensus choices
 such as proof of stake or BFT finality should be treated as later design
 decisions, not Phase 3 defaults.
+
+Current Phase 3 decision: keep deterministic authority consensus for private
+tests, add explicit chain/validator configuration before networked peers, and
+defer public validator economics.
+
+## Governance
+
+Phase 3 governance is ordinary private engineering governance:
+
+- decisions recorded in docs
+- code reviewed through Git commits
+- local and Vast verification before marking checkpoints complete
+- no token-holder governance
+- no public treasury, revenue, profit, asset, debt, equity, or management rights
+
+Any public governance model is deferred until separate technical, legal, and
+security review.
 
 ## Finality
 
@@ -462,6 +488,8 @@ Before any public network, require:
 12. Add local multi-node tests. Current status: done for in-process
     private-devnet block import and follower validation.
 13. Revisit consensus, supply, governance, and public-readiness decisions.
+    Current status: done in `docs/XRIQ_PHASE3_DECISIONS.md`.
+14. Add `xriq-crypto` and canonical transaction/block hashing.
 
 ## Current Prototype Status
 
@@ -534,21 +562,21 @@ As of 2026-05-17:
   - `cargo fmt --check`
   - `cargo test -j 1` with `69` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification:
+- Latest Vast verification before the Phase 3 decision record:
   - `cargo fmt --check`
   - `cargo test -j 1` with `69` passing tests.
   - `cargo clippy -- -D warnings`.
 
-Next implementation target: revisit consensus, supply, governance, and
-public-readiness decisions.
+Next implementation target: add `xriq-crypto` and canonical transaction/block
+hashing.
 
 ## Open Decisions
 
 - final chain purpose beyond private engineering prototype
-- public supply model
+- detailed public supply model after review
 - consensus model after private devnet
-- validator admission rules
-- governance and upgrade process
+- validator admission rules after private-devnet config
+- governance and upgrade process for any public network
 - final wallet key format
 - explorer technology stack
 - public API authentication and rate-limit model
