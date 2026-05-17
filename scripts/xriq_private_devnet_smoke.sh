@@ -48,17 +48,30 @@ start_http_server() {
   local port="$2"
   local log_file="$3"
   local pending_file="${4:-}"
+  local target_dir="${CARGO_TARGET_DIR:-${XRIQ_DIR}/target}"
+
+  if [[ "$target_dir" != /* ]]; then
+    target_dir="${XRIQ_DIR}/${target_dir}"
+  fi
+
+  local node_bin="${target_dir}/debug/xriq-node"
+
+  if [ -x "${node_bin}.exe" ]; then
+    node_bin="${node_bin}.exe"
+  fi
+
+  (cd "$XRIQ_DIR" && cargo build -q -p xriq-node)
 
   (
     cd "$XRIQ_DIR"
     if [ -n "$pending_file" ]; then
-      cargo run -q -p xriq-node -- serve-private \
+      "$node_bin" serve-private \
         --chain-file "$chain_file" \
         --pending-file "$pending_file" \
         --alice-balance 100 \
         --bind "127.0.0.1:${port}"
     else
-      cargo run -q -p xriq-node -- serve-private \
+      "$node_bin" serve-private \
         --chain-file "$chain_file" \
         --alice-balance 100 \
         --bind "127.0.0.1:${port}"
@@ -324,15 +337,16 @@ require_contains "http json account detail" "$http_account_output" '"balance_bas
 stop_http_server
 
 HTTP_PENDING_LOG_FILE="${ARTIFACT_DIR}/http-pending-server.log"
-start_http_server "$HTTP_PENDING_CHAIN_FILE" "$HTTP_PORT" "$HTTP_PENDING_LOG_FILE" "$HTTP_PENDING_FILE"
-wait_for_http_server "$HTTP_PORT"
+HTTP_PENDING_PORT="$(pick_http_port)"
+start_http_server "$HTTP_PENDING_CHAIN_FILE" "$HTTP_PENDING_PORT" "$HTTP_PENDING_LOG_FILE" "$HTTP_PENDING_FILE"
+wait_for_http_server "$HTTP_PENDING_PORT"
 
 http_pending_submit_output="$(
   curl -fsS \
     -X POST \
     -H 'Content-Type: application/json' \
     --data-binary "@${WALLET_JSON_FILE}" \
-    "http://127.0.0.1:${HTTP_PORT}/v1/mempool"
+    "http://127.0.0.1:${HTTP_PENDING_PORT}/v1/mempool"
 )"
 printf '%s\n' "$http_pending_submit_output" > "$HTTP_PENDING_SUBMIT_FILE"
 require_contains "http pending submit" "$http_pending_submit_output" '"command": "transaction-detail"'
@@ -341,7 +355,7 @@ require_contains "http pending submit" "$http_pending_submit_output" '"amount_ba
 
 http_pending_hash="$(printf '%s\n' "$http_pending_submit_output" | grep -m1 '"tx_hash"' | cut -d '"' -f4)"
 http_pending_mempool_output="$(
-  curl -fsS "http://127.0.0.1:${HTTP_PORT}/v1/mempool"
+  curl -fsS "http://127.0.0.1:${HTTP_PENDING_PORT}/v1/mempool"
 )"
 printf '%s\n' "$http_pending_mempool_output" > "$HTTP_PENDING_MEMPOOL_FILE"
 require_contains "http pending mempool" "$http_pending_mempool_output" '"command": "mempool-detail"'
@@ -349,7 +363,7 @@ require_contains "http pending mempool" "$http_pending_mempool_output" '"pending
 require_contains "http pending mempool" "$http_pending_mempool_output" '"amount_base_units": "25"'
 
 http_pending_transaction_output="$(
-  curl -fsS "http://127.0.0.1:${HTTP_PORT}/v1/transactions/${http_pending_hash}"
+  curl -fsS "http://127.0.0.1:${HTTP_PENDING_PORT}/v1/transactions/${http_pending_hash}"
 )"
 printf '%s\n' "$http_pending_transaction_output" > "$HTTP_PENDING_TRANSACTION_FILE"
 require_contains "http pending transaction" "$http_pending_transaction_output" '"command": "transaction-detail"'
