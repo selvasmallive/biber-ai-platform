@@ -32,8 +32,8 @@ As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Last XRIQ implementation commit pushed and Vast-verified:
-  `266daf3 Add XRIQ node JSON output`.
-- Vast checkout was fast-forwarded and Rust/script-verified through `266daf3`.
+  `8969b08 Add XRIQ node JSON error responses`.
+- Vast checkout was fast-forwarded and Rust/script-verified through `8969b08`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -512,9 +512,35 @@ serving the last broad-safe Rust/XRIQ adapter.
   - Documented compatibility rules: text remains default, hashes and addresses
     are strings, XRIQ amounts are decimal `*_base_units` strings, optional
     heights are number-or-null, unknown fields should be ignored by consumers,
-    and error output is not JSON yet.
+    and JSON error responses are available when `--format json` is requested.
   - Linked the schema doc from `xriq/README.md` and
     `docs/XRIQ_TECHNICAL_SPEC.md`.
+- Local XRIQ prototype progress after the JSON error-response checkpoint:
+  - Added structured JSON error responses for the `xriq-node` CLI when
+    `--format json` is present and the command fails.
+  - JSON error responses are written to stderr, exit nonzero, include
+    `format_version: xriq-node-json-v1`, private-devnet warning, `ok: false`,
+    optional `command`, and stable `error.code` plus `error.message`.
+  - Text errors and help output remain the default when `--format json` is not
+    requested.
+  - Added stable `NodeRunnerError::code()` mappings and Rust coverage for the
+    JSON error shape.
+  - Updated `scripts/xriq_private_devnet_smoke.sh` so the one-command Vast
+    smoke path verifies a missing `--chain-file` failure returns JSON with
+    `ok: false`, `command: "status"`, `code: "missing_flag"`, and the expected
+    message.
+  - Local Windows Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `117` passing tests, and
+    `cargo clippy -- -D warnings`, using
+    `CARGO_TARGET_DIR=target-codex-json-errors` to avoid default target binary
+    locks.
+  - Vast checkout was fast-forwarded to `8969b08`; Vast verification passed
+    with `bash -n scripts/xriq_private_devnet_smoke.sh`,
+    `cargo fmt --check`, `cargo test -j 1` with `117` passing tests,
+    `cargo clippy -- -D warnings`, and
+    `bash scripts/xriq_private_devnet_smoke.sh`.
+  - Latest smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T153320Z-21369`.
 
 ## Repo State
 
@@ -1717,10 +1743,11 @@ cargo clippy -- -D warnings
    `xriq-node account-detail`, and `xriq-node mempool-detail` runner commands,
    `scripts/xriq_private_devnet_smoke.sh`, and
    `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`, is to keep the local
-   file-backed workflow small and deterministic. Add JSON error responses,
-   minimal HTTP/RPC serving, or snapshot/replay improvements only when they
-   directly help the private-devnet MVP. Public XRIQ launch, exchange listing,
-   custody, liquidity, bridges, and market-facing work remain blocked.
+   file-backed workflow small and deterministic. Add command names to success
+   JSON responses, minimal HTTP/RPC serving, or snapshot/replay improvements
+   only when they directly help the private-devnet MVP. Public XRIQ launch,
+   exchange listing, custody, liquidity, bridges, and market-facing work remain
+   blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.

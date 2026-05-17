@@ -707,6 +707,9 @@ As of 2026-05-17:
   - stable `--format json` output for status, block production, explorer
     overview, block detail, account detail, and mempool detail runner commands,
     while preserving text output as the default
+  - structured JSON error responses for failed `xriq-node` commands when
+    `--format json` is requested, while preserving human-readable text errors
+    as the default
   - documented private-devnet JSON runner contract in
     `docs/XRIQ_NODE_JSON_SCHEMA.md`
   - one-command private-devnet smoke script that validates wallet draft,
@@ -747,8 +750,8 @@ As of 2026-05-17:
     for machine-readable private-devnet inspection
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `116` passing tests. On Windows, this was run with
-    `CARGO_TARGET_DIR=target-codex-json2` to avoid default target binary
+  - `cargo test -j 1` with `117` passing tests. On Windows, this was run with
+    `CARGO_TARGET_DIR=target-codex-json-errors` to avoid default target binary
     locks.
   - `cargo clippy -- -D warnings`.
   - `cargo run -p xriq-wallet -- transfer --chain-id xriq-devnet --from xriqdev1alice00000000000 --to xriqdev1bobbb00000000000 --amount 25 --fee 2 --nonce 0 --expires-at-height 100` captured to `target/xriq-wallet-transfer-draft-20260517-codex.txt`.
@@ -760,28 +763,32 @@ As of 2026-05-17:
   - JSON output coverage for `status`, `produce-draft-block`,
     `explorer-overview`, `block-detail`, `account-detail`, and
     `mempool-detail` through the Rust test suite.
+  - JSON error-response coverage for a missing required flag through the Rust
+    test suite.
   - Local Windows Bash execution is unavailable on this workstation because
     `bash.exe` maps to WSL and no WSL distribution is installed; Bash script
     verification is therefore recorded under Vast verification.
 - Latest Vast verification:
   - `bash -n scripts/xriq_private_devnet_smoke.sh`.
   - `cargo fmt --check`
-  - `cargo test -j 1` with `116` passing tests.
+  - `cargo test -j 1` with `117` passing tests.
   - `cargo clippy -- -D warnings`.
   - `xriq-node mempool-detail` through the one-command smoke path, verifying a
     wallet draft can be previewed in the local mempool before block production.
   - `xriq-node mempool-detail --format json`,
     `explorer-overview --format json`, and `account-detail --format json`
     through the one-command smoke path.
+  - `xriq-node status --format json` error output for a missing `--chain-file`
+    through the one-command smoke path.
   - `xriq-node produce-draft-block`, `explorer-overview`, `block-detail`, and
     `account-detail` text output through the same smoke path.
   - `bash scripts/xriq_private_devnet_smoke.sh`, which wrote artifacts under
-    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T150315Z-20580`.
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T153320Z-21369`.
 
 Next implementation target: keep the local file-backed workflow small and
-deterministic. Add JSON error responses, minimal HTTP/RPC serving, or
-snapshot/replay improvements only when they directly help the private-devnet
-MVP, and keep public XRIQ launch or listing work blocked.
+deterministic. Add command names to success JSON responses, minimal HTTP/RPC
+serving, or snapshot/replay improvements only when they directly help the
+private-devnet MVP, and keep public XRIQ launch or listing work blocked.
 Keep HTTP/RPC serving deferred until the local file-backed workflow is
 comfortable.
 
