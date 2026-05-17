@@ -1,6 +1,6 @@
 //! Minimal local node loop for the XRIQ private devnet.
 
-use std::{fmt, path::Path};
+use std::{fmt, fs, path::Path};
 
 use xriq_consensus::{BlockProductionError, BlockProductionInput, SingleAuthorityProducer};
 use xriq_core::{
@@ -97,6 +97,13 @@ pub enum NodeRunnerError {
     MissingFlag(&'static str),
     DuplicateFlag(String),
     UnexpectedArgument(String),
+    DraftFileRead { path: String, error: String },
+    InvalidDraftLine(String),
+    UnknownDraftField(String),
+    DuplicateDraftField(String),
+    MissingDraftField(&'static str),
+    UnsupportedDraftVersion { expected: u16, actual: String },
+    WrongDraftChainId { expected: String, actual: String },
     InvalidNumber { flag: &'static str, value: String },
     InvalidAddress(AddressError),
     Node(NodeError),
@@ -203,6 +210,23 @@ impl fmt::Display for NodeRunnerError {
             Self::UnexpectedArgument(argument) => {
                 write!(formatter, "unexpected argument: {argument}")
             }
+            Self::DraftFileRead { path, error } => {
+                write!(formatter, "could not read draft file {path}: {error}")
+            }
+            Self::InvalidDraftLine(line) => write!(formatter, "invalid draft line: {line}"),
+            Self::UnknownDraftField(field) => write!(formatter, "unknown draft field: {field}"),
+            Self::DuplicateDraftField(field) => {
+                write!(formatter, "duplicate draft field: {field}")
+            }
+            Self::MissingDraftField(field) => write!(formatter, "missing draft field: {field}"),
+            Self::UnsupportedDraftVersion { expected, actual } => write!(
+                formatter,
+                "unsupported draft version: expected {expected}, got {actual}"
+            ),
+            Self::WrongDraftChainId { expected, actual } => write!(
+                formatter,
+                "wrong draft chain id: expected {expected}, got {actual}"
+            ),
             Self::InvalidNumber { flag, value } => {
                 write!(formatter, "invalid number for {flag}: {value}")
             }
@@ -217,6 +241,7 @@ pub fn node_help_text() -> String {
         "xriq-node private-devnet commands:",
         "  xriq-node status --chain-file <path> [--alice-balance <base-units>]",
         "  xriq-node produce-transfer-block --chain-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>]",
+        "  xriq-node produce-draft-block --chain-file <path> --draft-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>]",
         "  xriq-node explorer-overview --chain-file <path> [--alice-balance <base-units>] [--limit <count>]",
         "",
         "Warning: this runner is for private devnet tests only. It does not start a public network.",
@@ -238,6 +263,7 @@ where
         Some("help" | "--help" | "-h") => Ok(NodeRunnerOutput::Help(node_help_text())),
         Some("status") => run_status_command(&args[1..]),
         Some("produce-transfer-block") => run_produce_transfer_block_command(&args[1..]),
+        Some("produce-draft-block") => run_produce_draft_block_command(&args[1..]),
         Some("explorer-overview") => run_explorer_overview_command(&args[1..]),
         Some(command) => Err(NodeRunnerError::UnknownCommand(command.to_string())),
     }
@@ -273,6 +299,27 @@ pub fn private_devnet_file_produce_transfer_block(
         applied_transactions: produced.applied_transactions,
         status: node_status(&node),
     })
+}
+
+pub fn private_devnet_file_produce_draft_block(
+    chain_file: impl AsRef<Path>,
+    draft_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    timestamp_ms: u64,
+    consensus_round: u64,
+) -> Result<ProducedTransferBlockStatus, NodeRunnerError> {
+    let draft_path = draft_file.as_ref();
+    let draft_text =
+        fs::read_to_string(draft_path).map_err(|error| NodeRunnerError::DraftFileRead {
+            path: draft_path.to_string_lossy().to_string(),
+            error: error.to_string(),
+        })?;
+    let genesis = private_devnet_runner_genesis(alice_balance);
+    let mut transfer = parse_private_devnet_transfer_draft(&draft_text, &genesis.chain_id)?;
+    transfer.timestamp_ms = timestamp_ms;
+    transfer.consensus_round = consensus_round;
+    private_devnet_file_produce_transfer_block(chain_file, alice_balance, transfer)
+        .map_err(NodeRunnerError::Node)
 }
 
 pub fn private_devnet_file_explorer_overview(
@@ -316,6 +363,41 @@ fn run_explorer_overview_command(args: &[String]) -> Result<NodeRunnerOutput, No
     private_devnet_file_explorer_overview(chain_file, alice_balance, limit)
         .map(NodeRunnerOutput::ExplorerOverview)
         .map_err(NodeRunnerError::Node)
+}
+
+fn run_produce_draft_block_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--draft-file",
+        "--alice-balance",
+        "--timestamp-ms",
+        "--consensus-round",
+    ])?;
+    let chain_file = flags.required("--chain-file")?;
+    let draft_file = flags.required("--draft-file")?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let timestamp_ms = flags
+        .optional("--timestamp-ms")
+        .map(|value| parse_u64("--timestamp-ms", value))
+        .transpose()?
+        .unwrap_or(1_000);
+    let consensus_round = flags
+        .optional("--consensus-round")
+        .map(|value| parse_u64("--consensus-round", value))
+        .transpose()?
+        .unwrap_or(0);
+    private_devnet_file_produce_draft_block(
+        chain_file,
+        draft_file,
+        alice_balance,
+        timestamp_ms,
+        consensus_round,
+    )
+    .map(NodeRunnerOutput::ProducedTransferBlock)
 }
 
 fn run_produce_transfer_block_command(
@@ -395,6 +477,104 @@ fn private_devnet_runner_transaction<S: ChainStore>(
     };
     transaction.signature = test_only_signature_for_hash(transaction_signing_hash(&transaction));
     transaction
+}
+
+fn parse_private_devnet_transfer_draft(
+    draft_text: &str,
+    expected_chain_id: &str,
+) -> Result<PrivateDevnetTransferInput, NodeRunnerError> {
+    let fields = DraftFields::parse(draft_text)?;
+    let version = fields.required("version")?;
+    let expected_version = Transaction::SUPPORTED_VERSION;
+    if version != expected_version.to_string() {
+        return Err(NodeRunnerError::UnsupportedDraftVersion {
+            expected: expected_version,
+            actual: version.to_string(),
+        });
+    }
+
+    let chain_id = fields.required("chain_id")?;
+    if chain_id != expected_chain_id {
+        return Err(NodeRunnerError::WrongDraftChainId {
+            expected: expected_chain_id.to_string(),
+            actual: chain_id.to_string(),
+        });
+    }
+
+    Ok(PrivateDevnetTransferInput {
+        from: parse_address("from", fields.required("from")?)?,
+        to: parse_address("to", fields.required("to")?)?,
+        amount: parse_amount("amount", fields.required("amount")?)?,
+        fee: parse_amount("fee", fields.required("fee")?)?,
+        nonce: parse_u64("nonce", fields.required("nonce")?)?,
+        expires_at_height: fields
+            .optional("expires_at_height")
+            .filter(|value| !value.is_empty())
+            .map(|value| parse_u64("expires_at_height", value))
+            .transpose()?,
+        timestamp_ms: 1_000,
+        consensus_round: 0,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DraftFields {
+    pairs: Vec<(String, String)>,
+}
+
+impl DraftFields {
+    fn parse(draft_text: &str) -> Result<Self, NodeRunnerError> {
+        let mut pairs = Vec::new();
+        for line in draft_text.lines() {
+            let line = line.trim().trim_start_matches('\u{feff}');
+            if line.is_empty() {
+                continue;
+            }
+            let Some((field, value)) = line.split_once('=') else {
+                return Err(NodeRunnerError::InvalidDraftLine(line.to_string()));
+            };
+            let field = field.trim();
+            if !is_allowed_draft_field(field) {
+                return Err(NodeRunnerError::UnknownDraftField(field.to_string()));
+            }
+            if pairs
+                .iter()
+                .any(|(existing_field, _)| existing_field == field)
+            {
+                return Err(NodeRunnerError::DuplicateDraftField(field.to_string()));
+            }
+            pairs.push((field.to_string(), value.trim().to_string()));
+        }
+        Ok(Self { pairs })
+    }
+
+    fn required(&self, field: &'static str) -> Result<&str, NodeRunnerError> {
+        self.optional(field)
+            .ok_or(NodeRunnerError::MissingDraftField(field))
+    }
+
+    fn optional(&self, field: &str) -> Option<&str> {
+        self.pairs
+            .iter()
+            .find(|(candidate, _)| candidate == field)
+            .map(|(_, value)| value.as_str())
+    }
+}
+
+fn is_allowed_draft_field(field: &str) -> bool {
+    matches!(
+        field,
+        "warning"
+            | "version"
+            | "chain_id"
+            | "from"
+            | "to"
+            | "amount"
+            | "fee"
+            | "nonce"
+            | "expires_at_height"
+            | "signature_bytes"
+    )
 }
 
 fn private_devnet_runner_genesis(alice_balance: Option<XriqAmount>) -> GenesisConfig {
@@ -503,6 +683,7 @@ impl RunnerFlagParser {
 fn flag_to_static(flag: &str) -> &'static str {
     match flag {
         "--chain-file" => "--chain-file",
+        "--draft-file" => "--draft-file",
         "--alice-balance" => "--alice-balance",
         "--limit" => "--limit",
         "--from" => "--from",
@@ -1555,6 +1736,128 @@ mod tests {
         assert!(overview.contains("- height 1"));
 
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn node_runner_produces_block_from_wallet_draft_file() {
+        let path = temp_store_path();
+        let draft_path = path.with_extension("draft");
+        let path_text = path.to_string_lossy().to_string();
+        let draft_text = draft_path.to_string_lossy().to_string();
+        fs::write(
+            &draft_path,
+            [
+                "\u{feff}warning=private-devnet-test-identity-only",
+                "version=1",
+                "chain_id=xriq-devnet",
+                "from=xriqdev1alice00000000000",
+                "to=xriqdev1bobbb00000000000",
+                "amount=25",
+                "fee=2",
+                "nonce=0",
+                "expires_at_height=100",
+                "signature_bytes=48",
+            ]
+            .join("\n"),
+        )
+        .unwrap();
+
+        let output = run_node_command([
+            "produce-draft-block",
+            "--chain-file",
+            path_text.as_str(),
+            "--draft-file",
+            draft_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--timestamp-ms",
+            "1000",
+        ])
+        .unwrap();
+        let produced = match output {
+            NodeRunnerOutput::ProducedTransferBlock(produced) => produced,
+            other => panic!("unexpected output: {other:?}"),
+        };
+
+        assert_eq!(produced.applied_transactions, 1);
+        assert_eq!(produced.status.current_height, 1);
+        assert_eq!(produced.status.stored_blocks, 1);
+
+        let reloaded = XriqNode::from_genesis_replaying_store(
+            &genesis(),
+            FileChainStore::open(&path).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            reloaded
+                .ledger()
+                .account(&address("alice"))
+                .unwrap()
+                .balance,
+            XriqAmount::from_base_units(73)
+        );
+        assert_eq!(
+            reloaded.ledger().account(&address("bobbb")).unwrap().nonce,
+            0
+        );
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(draft_path);
+    }
+
+    #[test]
+    fn node_runner_rejects_wrong_chain_wallet_draft_without_persisting_block() {
+        let path = temp_store_path();
+        let draft_path = path.with_extension("draft");
+        let path_text = path.to_string_lossy().to_string();
+        let draft_text = draft_path.to_string_lossy().to_string();
+        fs::write(
+            &draft_path,
+            [
+                "warning=private-devnet-test-identity-only",
+                "version=1",
+                "chain_id=xriq-mainnet",
+                "from=xriqdev1alice00000000000",
+                "to=xriqdev1bobbb00000000000",
+                "amount=25",
+                "fee=2",
+                "nonce=0",
+                "expires_at_height=100",
+                "signature_bytes=48",
+            ]
+            .join("\n"),
+        )
+        .unwrap();
+
+        assert_eq!(
+            run_node_command([
+                "produce-draft-block",
+                "--chain-file",
+                path_text.as_str(),
+                "--draft-file",
+                draft_text.as_str(),
+                "--alice-balance",
+                "100",
+            ]),
+            Err(NodeRunnerError::WrongDraftChainId {
+                expected: "xriq-devnet".to_string(),
+                actual: "xriq-mainnet".to_string(),
+            })
+        );
+        assert_eq!(
+            private_devnet_file_status(&path, Some(XriqAmount::from_base_units(100))).unwrap(),
+            NodeStatus {
+                warning: PRIVATE_DEVNET_RUNNER_WARNING,
+                chain_id: "xriq-devnet".to_string(),
+                current_height: 0,
+                latest_block_hash: hash(0),
+                pending_transactions: 0,
+                stored_blocks: 0,
+            }
+        );
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(draft_path);
     }
 
     #[test]
