@@ -58,6 +58,18 @@ require_contains "mempool-detail" "$mempool_output" "xriqdev1alice00000000000 ->
 require_contains "mempool-detail" "$mempool_output" "amount=25"
 require_contains "mempool-detail" "$mempool_output" "fee=2"
 
+mempool_json_output="$(
+  run_xriq -p xriq-node -- mempool-detail \
+    --chain-file "$CHAIN_FILE" \
+    --draft-file "$DRAFT_FILE" \
+    --alice-balance 100 \
+    --format json
+)"
+require_contains "mempool-detail json" "$mempool_json_output" '"format_version": "xriq-node-json-v1"'
+require_contains "mempool-detail json" "$mempool_json_output" '"pending_count": 1'
+require_contains "mempool-detail json" "$mempool_json_output" '"amount_base_units": "25"'
+require_contains "mempool-detail json" "$mempool_json_output" '"fee_base_units": "2"'
+
 produce_output="$(
   run_xriq -p xriq-node -- produce-draft-block \
     --chain-file "$CHAIN_FILE" \
@@ -78,6 +90,17 @@ overview_output="$(
 require_contains "explorer-overview" "$overview_output" "XRIQ Private Devnet Explorer"
 require_contains "explorer-overview" "$overview_output" "current height: 1"
 require_contains "explorer-overview" "$overview_output" "stored blocks: 1, pending transactions: 0"
+
+overview_json_output="$(
+  run_xriq -p xriq-node -- explorer-overview \
+    --chain-file "$CHAIN_FILE" \
+    --alice-balance 100 \
+    --limit 5 \
+    --format json
+)"
+require_contains "explorer-overview json" "$overview_json_output" '"latest_blocks": ['
+require_contains "explorer-overview json" "$overview_json_output" '"height": 1'
+require_contains "explorer-overview json" "$overview_json_output" '"transaction_count": 1'
 
 block_output="$(
   run_xriq -p xriq-node -- block-detail \
@@ -100,6 +123,17 @@ account_output="$(
 require_contains "account-detail" "$account_output" "account xriqdev1alice00000000000"
 require_contains "account-detail" "$account_output" "balance: 73"
 require_contains "account-detail" "$account_output" "nonce: 1"
+
+account_json_output="$(
+  run_xriq -p xriq-node -- account-detail \
+    --chain-file "$CHAIN_FILE" \
+    --alice-balance 100 \
+    --address xriqdev1alice00000000000 \
+    --format json
+)"
+require_contains "account-detail json" "$account_json_output" '"address": "xriqdev1alice00000000000"'
+require_contains "account-detail json" "$account_json_output" '"balance_base_units": "73"'
+require_contains "account-detail json" "$account_json_output" '"nonce": 1'
 
 echo "ok=xriq-private-devnet-smoke"
 echo "draft=${DRAFT_FILE}"

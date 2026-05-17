@@ -1,6 +1,10 @@
 //! Minimal local node loop for the XRIQ private devnet.
 
-use std::{fmt, fs, path::Path};
+use std::{
+    fmt::{self, Write as _},
+    fs,
+    path::Path,
+};
 
 use xriq_consensus::{BlockProductionError, BlockProductionInput, SingleAuthorityProducer};
 use xriq_core::{
@@ -14,7 +18,9 @@ use xriq_crypto::{
     SignatureVerificationError, TestOnlySignatureVerifier,
 };
 use xriq_explorer::{
-    render_account_detail, render_block_detail, render_mempool, ExplorerError, ExplorerService,
+    render_account_detail, render_block_detail, render_mempool, render_overview,
+    ExplorerAccountDetail, ExplorerBlockDetail, ExplorerBlockSummary, ExplorerError,
+    ExplorerMempoolDetail, ExplorerOverview, ExplorerService,
 };
 use xriq_ledger::{LedgerError, LedgerState};
 use xriq_mempool::{Mempool, MempoolConfig, MempoolError};
@@ -92,6 +98,7 @@ pub enum NodeRunnerOutput {
     BlockDetail(String),
     AccountDetail(String),
     MempoolDetail(String),
+    Json(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,9 +117,16 @@ pub enum NodeRunnerError {
     UnsupportedDraftVersion { expected: u16, actual: String },
     WrongDraftChainId { expected: String, actual: String },
     InvalidNumber { flag: &'static str, value: String },
+    InvalidFormat(String),
     InvalidAddress(AddressError),
     Explorer(ExplorerError),
     Node(NodeError),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RunnerOutputFormat {
+    Text,
+    Json,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -204,6 +218,7 @@ impl fmt::Display for NodeRunnerOutput {
             Self::BlockDetail(detail)
             | Self::AccountDetail(detail)
             | Self::MempoolDetail(detail) => formatter.write_str(detail),
+            Self::Json(json) => formatter.write_str(json),
         }
     }
 }
@@ -239,6 +254,9 @@ impl fmt::Display for NodeRunnerError {
             Self::InvalidNumber { flag, value } => {
                 write!(formatter, "invalid number for {flag}: {value}")
             }
+            Self::InvalidFormat(value) => {
+                write!(formatter, "invalid format: {value}; expected text or json")
+            }
             Self::InvalidAddress(error) => write!(formatter, "invalid address: {error:?}"),
             Self::Explorer(error) => write!(formatter, "explorer error: {error:?}"),
             Self::Node(error) => write!(formatter, "node error: {error:?}"),
@@ -246,16 +264,26 @@ impl fmt::Display for NodeRunnerError {
     }
 }
 
+impl RunnerOutputFormat {
+    fn parse(value: Option<&str>) -> Result<Self, NodeRunnerError> {
+        match value.unwrap_or("text") {
+            "text" => Ok(Self::Text),
+            "json" => Ok(Self::Json),
+            value => Err(NodeRunnerError::InvalidFormat(value.to_string())),
+        }
+    }
+}
+
 pub fn node_help_text() -> String {
     [
         "xriq-node private-devnet commands:",
-        "  xriq-node status --chain-file <path> [--alice-balance <base-units>]",
-        "  xriq-node produce-transfer-block --chain-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>]",
-        "  xriq-node produce-draft-block --chain-file <path> --draft-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>]",
-        "  xriq-node explorer-overview --chain-file <path> [--alice-balance <base-units>] [--limit <count>]",
-        "  xriq-node block-detail --chain-file <path> --height <height> [--alice-balance <base-units>]",
-        "  xriq-node account-detail --chain-file <path> --address <address> [--alice-balance <base-units>]",
-        "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--alice-balance <base-units>]",
+        "  xriq-node status --chain-file <path> [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node produce-transfer-block --chain-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
+        "  xriq-node produce-draft-block --chain-file <path> --draft-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
+        "  xriq-node explorer-overview --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
+        "  xriq-node block-detail --chain-file <path> --height <height> [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node account-detail --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "",
         "Warning: this runner is for private devnet tests only. It does not start a public network.",
     ]
@@ -337,11 +365,21 @@ pub fn private_devnet_file_explorer_overview(
     alice_balance: Option<XriqAmount>,
     limit: usize,
 ) -> Result<String, NodeError> {
+    let (overview, latest_blocks) =
+        private_devnet_file_explorer_overview_data(chain_file, alice_balance, limit)?;
+    Ok(render_overview(&overview, &latest_blocks))
+}
+
+pub fn private_devnet_file_explorer_overview_data(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    limit: usize,
+) -> Result<(ExplorerOverview, Vec<ExplorerBlockSummary>), NodeError> {
     let store = FileChainStore::open(chain_file).map_err(NodeError::Storage)?;
     let genesis = private_devnet_runner_genesis(alice_balance);
     let node = XriqNode::from_genesis_replaying_store(&genesis, store)?;
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
-    Ok(explorer.render_overview(limit))
+    Ok((explorer.overview(), explorer.latest_blocks(limit)))
 }
 
 pub fn private_devnet_file_block_detail(
@@ -349,6 +387,15 @@ pub fn private_devnet_file_block_detail(
     alice_balance: Option<XriqAmount>,
     height: u64,
 ) -> Result<String, NodeRunnerError> {
+    let detail = private_devnet_file_block_detail_data(chain_file, alice_balance, height)?;
+    Ok(render_block_detail(&detail))
+}
+
+pub fn private_devnet_file_block_detail_data(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    height: u64,
+) -> Result<ExplorerBlockDetail, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
     let genesis = private_devnet_runner_genesis(alice_balance);
@@ -357,7 +404,6 @@ pub fn private_devnet_file_block_detail(
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
     explorer
         .block_by_height(height)
-        .map(|detail| render_block_detail(&detail))
         .map_err(NodeRunnerError::Explorer)
 }
 
@@ -366,6 +412,15 @@ pub fn private_devnet_file_account_detail(
     alice_balance: Option<XriqAmount>,
     address: Address,
 ) -> Result<String, NodeRunnerError> {
+    let detail = private_devnet_file_account_detail_data(chain_file, alice_balance, address)?;
+    Ok(render_account_detail(&detail))
+}
+
+pub fn private_devnet_file_account_detail_data(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    address: Address,
+) -> Result<ExplorerAccountDetail, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
     let genesis = private_devnet_runner_genesis(alice_balance);
@@ -374,7 +429,6 @@ pub fn private_devnet_file_account_detail(
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
     explorer
         .account(&address)
-        .map(|detail| render_account_detail(&detail))
         .map_err(NodeRunnerError::Explorer)
 }
 
@@ -383,6 +437,15 @@ pub fn private_devnet_file_mempool_detail(
     draft_file: Option<impl AsRef<Path>>,
     alice_balance: Option<XriqAmount>,
 ) -> Result<String, NodeRunnerError> {
+    let detail = private_devnet_file_mempool_detail_data(chain_file, draft_file, alice_balance)?;
+    Ok(render_mempool(&detail))
+}
+
+pub fn private_devnet_file_mempool_detail_data(
+    chain_file: impl AsRef<Path>,
+    draft_file: Option<impl AsRef<Path>>,
+    alice_balance: Option<XriqAmount>,
+) -> Result<ExplorerMempoolDetail, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
     let genesis = private_devnet_runner_genesis(alice_balance);
@@ -395,25 +458,30 @@ pub fn private_devnet_file_mempool_detail(
             .map_err(NodeRunnerError::Node)?;
     }
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
-    Ok(render_mempool(&explorer.mempool()))
+    Ok(explorer.mempool())
 }
 
 fn run_status_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
-    flags.reject_unknown(&["--chain-file", "--alice-balance"])?;
+    flags.reject_unknown(&["--chain-file", "--alice-balance", "--format"])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
     let alice_balance = flags
         .optional("--alice-balance")
         .map(|value| parse_amount("--alice-balance", value))
         .transpose()?;
-    private_devnet_file_status(chain_file, alice_balance)
-        .map(NodeRunnerOutput::Status)
-        .map_err(NodeRunnerError::Node)
+    let status =
+        private_devnet_file_status(chain_file, alice_balance).map_err(NodeRunnerError::Node)?;
+    Ok(match output_format {
+        RunnerOutputFormat::Text => NodeRunnerOutput::Status(status),
+        RunnerOutputFormat::Json => NodeRunnerOutput::Json(render_node_status_json(&status)),
+    })
 }
 
 fn run_explorer_overview_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
-    flags.reject_unknown(&["--chain-file", "--alice-balance", "--limit"])?;
+    flags.reject_unknown(&["--chain-file", "--alice-balance", "--limit", "--format"])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
     let alice_balance = flags
         .optional("--alice-balance")
@@ -424,48 +492,92 @@ fn run_explorer_overview_command(args: &[String]) -> Result<NodeRunnerOutput, No
         .map(|value| parse_usize("--limit", value))
         .transpose()?
         .unwrap_or(10);
-    private_devnet_file_explorer_overview(chain_file, alice_balance, limit)
-        .map(NodeRunnerOutput::ExplorerOverview)
-        .map_err(NodeRunnerError::Node)
+    Ok(match output_format {
+        RunnerOutputFormat::Text => {
+            private_devnet_file_explorer_overview(chain_file, alice_balance, limit)
+                .map(NodeRunnerOutput::ExplorerOverview)
+                .map_err(NodeRunnerError::Node)?
+        }
+        RunnerOutputFormat::Json => {
+            let (overview, latest_blocks) =
+                private_devnet_file_explorer_overview_data(chain_file, alice_balance, limit)
+                    .map_err(NodeRunnerError::Node)?;
+            NodeRunnerOutput::Json(render_explorer_overview_json(&overview, &latest_blocks))
+        }
+    })
 }
 
 fn run_block_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
-    flags.reject_unknown(&["--chain-file", "--alice-balance", "--height"])?;
+    flags.reject_unknown(&["--chain-file", "--alice-balance", "--height", "--format"])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
     let alice_balance = flags
         .optional("--alice-balance")
         .map(|value| parse_amount("--alice-balance", value))
         .transpose()?;
     let height = parse_u64("--height", flags.required("--height")?)?;
-    private_devnet_file_block_detail(chain_file, alice_balance, height)
-        .map(NodeRunnerOutput::BlockDetail)
+    Ok(match output_format {
+        RunnerOutputFormat::Text => {
+            private_devnet_file_block_detail(chain_file, alice_balance, height)
+                .map(NodeRunnerOutput::BlockDetail)?
+        }
+        RunnerOutputFormat::Json => {
+            let detail = private_devnet_file_block_detail_data(chain_file, alice_balance, height)?;
+            NodeRunnerOutput::Json(render_block_detail_json(&detail))
+        }
+    })
 }
 
 fn run_account_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
-    flags.reject_unknown(&["--chain-file", "--alice-balance", "--address"])?;
+    flags.reject_unknown(&["--chain-file", "--alice-balance", "--address", "--format"])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
     let alice_balance = flags
         .optional("--alice-balance")
         .map(|value| parse_amount("--alice-balance", value))
         .transpose()?;
     let address = parse_address("--address", flags.required("--address")?)?;
-    private_devnet_file_account_detail(chain_file, alice_balance, address)
-        .map(NodeRunnerOutput::AccountDetail)
+    Ok(match output_format {
+        RunnerOutputFormat::Text => {
+            private_devnet_file_account_detail(chain_file, alice_balance, address)
+                .map(NodeRunnerOutput::AccountDetail)?
+        }
+        RunnerOutputFormat::Json => {
+            let detail =
+                private_devnet_file_account_detail_data(chain_file, alice_balance, address)?;
+            NodeRunnerOutput::Json(render_account_detail_json(&detail))
+        }
+    })
 }
 
 fn run_mempool_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
-    flags.reject_unknown(&["--chain-file", "--draft-file", "--alice-balance"])?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--draft-file",
+        "--alice-balance",
+        "--format",
+    ])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
     let draft_file = flags.optional("--draft-file");
     let alice_balance = flags
         .optional("--alice-balance")
         .map(|value| parse_amount("--alice-balance", value))
         .transpose()?;
-    private_devnet_file_mempool_detail(chain_file, draft_file, alice_balance)
-        .map(NodeRunnerOutput::MempoolDetail)
+    Ok(match output_format {
+        RunnerOutputFormat::Text => {
+            private_devnet_file_mempool_detail(chain_file, draft_file, alice_balance)
+                .map(NodeRunnerOutput::MempoolDetail)?
+        }
+        RunnerOutputFormat::Json => {
+            let detail =
+                private_devnet_file_mempool_detail_data(chain_file, draft_file, alice_balance)?;
+            NodeRunnerOutput::Json(render_mempool_detail_json(&detail))
+        }
+    })
 }
 
 fn run_produce_draft_block_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
@@ -476,7 +588,9 @@ fn run_produce_draft_block_command(args: &[String]) -> Result<NodeRunnerOutput, 
         "--alice-balance",
         "--timestamp-ms",
         "--consensus-round",
+        "--format",
     ])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
     let draft_file = flags.required("--draft-file")?;
     let alice_balance = flags
@@ -500,7 +614,12 @@ fn run_produce_draft_block_command(args: &[String]) -> Result<NodeRunnerOutput, 
         timestamp_ms,
         consensus_round,
     )
-    .map(NodeRunnerOutput::ProducedTransferBlock)
+    .map(|status| match output_format {
+        RunnerOutputFormat::Text => NodeRunnerOutput::ProducedTransferBlock(status),
+        RunnerOutputFormat::Json => {
+            NodeRunnerOutput::Json(render_produced_transfer_block_status_json(&status))
+        }
+    })
 }
 
 fn run_produce_transfer_block_command(
@@ -518,7 +637,9 @@ fn run_produce_transfer_block_command(
         "--expires-at-height",
         "--timestamp-ms",
         "--consensus-round",
+        "--format",
     ])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
     let alice_balance = flags
         .optional("--alice-balance")
@@ -545,9 +666,14 @@ fn run_produce_transfer_block_command(
             .transpose()?
             .unwrap_or(0),
     };
-    private_devnet_file_produce_transfer_block(chain_file, alice_balance, transfer)
-        .map(NodeRunnerOutput::ProducedTransferBlock)
-        .map_err(NodeRunnerError::Node)
+    let status = private_devnet_file_produce_transfer_block(chain_file, alice_balance, transfer)
+        .map_err(NodeRunnerError::Node)?;
+    Ok(match output_format {
+        RunnerOutputFormat::Text => NodeRunnerOutput::ProducedTransferBlock(status),
+        RunnerOutputFormat::Json => {
+            NodeRunnerOutput::Json(render_produced_transfer_block_status_json(&status))
+        }
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -718,6 +844,456 @@ fn node_status<S: ChainStore>(node: &XriqNode<S>) -> NodeStatus {
     }
 }
 
+fn render_node_status_json(status: &NodeStatus) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"format_version\": {},",
+        json_string("xriq-node-json-v1")
+    )
+    .expect("write to String");
+    push_node_status_json_fields(&mut output, status, "  ", false);
+    output.push_str("\n}");
+    output
+}
+
+fn render_produced_transfer_block_status_json(status: &ProducedTransferBlockStatus) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"format_version\": {},",
+        json_string("xriq-node-json-v1")
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(status.status.warning)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"transaction_hash\": {},",
+        json_string(&hash_hex(status.transaction_hash))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"block_hash\": {},",
+        json_string(&hash_hex(status.block_hash))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"applied_transactions\": {},",
+        status.applied_transactions
+    )
+    .expect("write to String");
+    push_node_status_json_fields_without_warning(&mut output, &status.status, "  ", false);
+    output.push_str("\n}");
+    output
+}
+
+fn render_explorer_overview_json(
+    overview: &ExplorerOverview,
+    latest_blocks: &[ExplorerBlockSummary],
+) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"format_version\": {},",
+        json_string("xriq-node-json-v1")
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(PRIVATE_DEVNET_RUNNER_WARNING)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"chain_id\": {},",
+        json_string(&overview.chain_id)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"current_height\": {},",
+        overview.current_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"latest_block_hash\": {},",
+        json_string(&hash_hex(overview.latest_block_hash))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"pending_transactions\": {},",
+        overview.pending_transactions
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"stored_blocks\": {},",
+        overview.stored_blocks
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"latest_blocks\": [").expect("write to String");
+    for (index, block) in latest_blocks.iter().enumerate() {
+        push_block_summary_json(&mut output, block, "    ");
+        if index + 1 != latest_blocks.len() {
+            output.push(',');
+        }
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
+fn render_block_detail_json(block: &ExplorerBlockDetail) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"format_version\": {},",
+        json_string("xriq-node-json-v1")
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(PRIVATE_DEVNET_RUNNER_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"height\": {},", block.summary.height).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"block_hash\": {},",
+        json_string(&hash_hex(block.summary.block_hash))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"previous_block_hash\": {},",
+        json_string(&hash_hex(block.previous_block_hash))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"state_root\": {},",
+        json_string(&hash_hex(block.state_root))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"transactions_root\": {},",
+        json_string(&hash_hex(block.transactions_root))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"transaction_count\": {},",
+        block.summary.transaction_count
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"producer\": {},",
+        json_string(block.summary.producer.as_str())
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"timestamp_ms\": {},",
+        block.summary.timestamp_ms
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"transactions\": [").expect("write to String");
+    for (index, transaction) in block.transactions.iter().enumerate() {
+        push_transaction_summary_json(&mut output, transaction, "    ");
+        if index + 1 != block.transactions.len() {
+            output.push(',');
+        }
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
+fn render_account_detail_json(account: &ExplorerAccountDetail) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"format_version\": {},",
+        json_string("xriq-node-json-v1")
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(PRIVATE_DEVNET_RUNNER_WARNING)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"address\": {},",
+        json_string(account.address.as_str())
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"balance_base_units\": {},",
+        json_string(&account.balance.base_units().to_string())
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"nonce\": {}", account.nonce).expect("write to String");
+    output.push('}');
+    output
+}
+
+fn render_mempool_detail_json(detail: &ExplorerMempoolDetail) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"format_version\": {},",
+        json_string("xriq-node-json-v1")
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(PRIVATE_DEVNET_RUNNER_WARNING)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"pending_count\": {},",
+        detail.pending_count
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"transactions\": [").expect("write to String");
+    for (index, transaction) in detail.transactions.iter().enumerate() {
+        push_pending_transaction_json(&mut output, transaction, "    ");
+        if index + 1 != detail.transactions.len() {
+            output.push(',');
+        }
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
+fn push_node_status_json_fields(
+    output: &mut String,
+    status: &NodeStatus,
+    indent: &str,
+    trailing_comma: bool,
+) {
+    writeln!(
+        output,
+        "{indent}\"warning\": {},",
+        json_string(status.warning)
+    )
+    .expect("write to String");
+    push_node_status_json_fields_without_warning(output, status, indent, trailing_comma);
+}
+
+fn push_node_status_json_fields_without_warning(
+    output: &mut String,
+    status: &NodeStatus,
+    indent: &str,
+    trailing_comma: bool,
+) {
+    writeln!(
+        output,
+        "{indent}\"chain_id\": {},",
+        json_string(&status.chain_id)
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}\"current_height\": {},",
+        status.current_height
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}\"latest_block_hash\": {},",
+        json_string(&hash_hex(status.latest_block_hash))
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}\"pending_transactions\": {},",
+        status.pending_transactions
+    )
+    .expect("write to String");
+    write!(
+        output,
+        "{indent}\"stored_blocks\": {}",
+        status.stored_blocks
+    )
+    .expect("write to String");
+    if trailing_comma {
+        output.push(',');
+    }
+}
+
+fn push_block_summary_json(output: &mut String, block: &ExplorerBlockSummary, indent: &str) {
+    writeln!(output, "{indent}{{").expect("write to String");
+    writeln!(output, "{indent}  \"height\": {},", block.height).expect("write to String");
+    writeln!(
+        output,
+        "{indent}  \"block_hash\": {},",
+        json_string(&hash_hex(block.block_hash))
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}  \"transaction_count\": {},",
+        block.transaction_count
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}  \"producer\": {},",
+        json_string(block.producer.as_str())
+    )
+    .expect("write to String");
+    writeln!(output, "{indent}  \"timestamp_ms\": {}", block.timestamp_ms)
+        .expect("write to String");
+    write!(output, "{indent}}}").expect("write to String");
+}
+
+fn push_transaction_summary_json(
+    output: &mut String,
+    transaction: &xriq_explorer::ExplorerTransactionSummary,
+    indent: &str,
+) {
+    writeln!(output, "{indent}{{").expect("write to String");
+    writeln!(output, "{indent}  \"index\": {},", transaction.index).expect("write to String");
+    writeln!(
+        output,
+        "{indent}  \"from\": {},",
+        json_string(transaction.from.as_str())
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}  \"to\": {},",
+        json_string(transaction.to.as_str())
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}  \"amount_base_units\": {},",
+        json_string(&transaction.amount.base_units().to_string())
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}  \"fee_base_units\": {},",
+        json_string(&transaction.fee.base_units().to_string())
+    )
+    .expect("write to String");
+    writeln!(output, "{indent}  \"nonce\": {},", transaction.nonce).expect("write to String");
+    writeln!(
+        output,
+        "{indent}  \"expires_at_height\": {}",
+        json_optional_u64(transaction.expires_at_height)
+    )
+    .expect("write to String");
+    write!(output, "{indent}}}").expect("write to String");
+}
+
+fn push_pending_transaction_json(
+    output: &mut String,
+    transaction: &xriq_explorer::ExplorerPendingTransaction,
+    indent: &str,
+) {
+    writeln!(output, "{indent}{{").expect("write to String");
+    writeln!(
+        output,
+        "{indent}  \"tx_hash\": {},",
+        json_string(&hash_hex(transaction.tx_hash))
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}  \"from\": {},",
+        json_string(transaction.from.as_str())
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}  \"to\": {},",
+        json_string(transaction.to.as_str())
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}  \"amount_base_units\": {},",
+        json_string(&transaction.amount.base_units().to_string())
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}  \"fee_base_units\": {},",
+        json_string(&transaction.fee.base_units().to_string())
+    )
+    .expect("write to String");
+    writeln!(output, "{indent}  \"nonce\": {},", transaction.nonce).expect("write to String");
+    writeln!(
+        output,
+        "{indent}  \"received_order\": {},",
+        transaction.received_order
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}  \"expires_at_height\": {}",
+        json_optional_u64(transaction.expires_at_height)
+    )
+    .expect("write to String");
+    write!(output, "{indent}}}").expect("write to String");
+}
+
+fn json_optional_u64(value: Option<u64>) -> String {
+    value
+        .map(|number| number.to_string())
+        .unwrap_or_else(|| "null".to_string())
+}
+
+fn json_string(value: &str) -> String {
+    let mut output = String::with_capacity(value.len() + 2);
+    output.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            '\u{08}' => output.push_str("\\b"),
+            '\u{0c}' => output.push_str("\\f"),
+            character if character < '\u{20}' => {
+                write!(&mut output, "\\u{:04x}", character as u32).expect("write to String");
+            }
+            character => output.push(character),
+        }
+    }
+    output.push('"');
+    output
+}
+
 fn parse_address(_flag: &'static str, value: &str) -> Result<Address, NodeRunnerError> {
     Address::parse(value).map_err(NodeRunnerError::InvalidAddress)
 }
@@ -812,6 +1388,7 @@ fn flag_to_static(flag: &str) -> &'static str {
         "--expires-at-height" => "--expires-at-height",
         "--timestamp-ms" => "--timestamp-ms",
         "--consensus-round" => "--consensus-round",
+        "--format" => "--format",
         _ => "--flag",
     }
 }
@@ -2033,6 +2610,153 @@ mod tests {
                 pending_transactions: 0,
                 stored_blocks: 0,
             }
+        );
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(draft_path);
+    }
+
+    #[test]
+    fn node_runner_json_format_outputs_stable_machine_fields() {
+        let path = temp_store_path();
+        let draft_path = path.with_extension("draft");
+        let path_text = path.to_string_lossy().to_string();
+        let draft_text = draft_path.to_string_lossy().to_string();
+        fs::write(
+            &draft_path,
+            [
+                "warning=private-devnet-test-identity-only",
+                "version=1",
+                "chain_id=xriq-devnet",
+                "from=xriqdev1alice00000000000",
+                "to=xriqdev1bobbb00000000000",
+                "amount=25",
+                "fee=2",
+                "nonce=0",
+                "expires_at_height=100",
+                "signature_bytes=48",
+            ]
+            .join("\n"),
+        )
+        .unwrap();
+
+        let status_json = run_node_command([
+            "status",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(status_json.contains("\"format_version\": \"xriq-node-json-v1\""));
+        assert!(status_json.contains("\"warning\": \"private-devnet-only-no-public-token\""));
+        assert!(status_json.contains("\"chain_id\": \"xriq-devnet\""));
+        assert!(status_json.contains("\"current_height\": 0"));
+
+        let mempool_json = run_node_command([
+            "mempool-detail",
+            "--chain-file",
+            path_text.as_str(),
+            "--draft-file",
+            draft_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(mempool_json.contains("\"pending_count\": 1"));
+        assert!(mempool_json.contains("\"tx_hash\":"));
+        assert!(mempool_json.contains("\"amount_base_units\": \"25\""));
+        assert!(mempool_json.contains("\"fee_base_units\": \"2\""));
+        assert!(mempool_json.contains("\"expires_at_height\": 100"));
+
+        let produced_json = run_node_command([
+            "produce-draft-block",
+            "--chain-file",
+            path_text.as_str(),
+            "--draft-file",
+            draft_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(produced_json.contains("\"transaction_hash\":"));
+        assert!(produced_json.contains("\"block_hash\":"));
+        assert!(produced_json.contains("\"applied_transactions\": 1"));
+        assert!(produced_json.contains("\"current_height\": 1"));
+
+        let overview_json = run_node_command([
+            "explorer-overview",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--limit",
+            "5",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(overview_json.contains("\"latest_blocks\": ["));
+        assert!(overview_json.contains("\"height\": 1"));
+        assert!(overview_json.contains("\"transaction_count\": 1"));
+
+        let block_json = run_node_command([
+            "block-detail",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--height",
+            "1",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(block_json.contains("\"transactions\": ["));
+        assert!(block_json.contains("\"from\": \"xriqdev1alice00000000000\""));
+        assert!(block_json.contains("\"to\": \"xriqdev1bobbb00000000000\""));
+        assert!(block_json.contains("\"amount_base_units\": \"25\""));
+        assert!(block_json.contains("\"fee_base_units\": \"2\""));
+
+        let account_json = run_node_command([
+            "account-detail",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--address",
+            "xriqdev1alice00000000000",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(account_json.contains("\"address\": \"xriqdev1alice00000000000\""));
+        assert!(account_json.contains("\"balance_base_units\": \"73\""));
+        assert!(account_json.contains("\"nonce\": 1"));
+
+        assert_eq!(
+            run_node_command([
+                "status",
+                "--chain-file",
+                path_text.as_str(),
+                "--format",
+                "yaml",
+            ]),
+            Err(NodeRunnerError::InvalidFormat("yaml".to_string()))
         );
 
         let _ = fs::remove_file(path);

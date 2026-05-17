@@ -704,9 +704,13 @@ As of 2026-05-17:
   - local private-devnet mempool detail command that replays the persisted
     chain file and can preview a wallet draft in the pending-transaction view
     without mutating storage
+  - stable `--format json` output for status, block production, explorer
+    overview, block detail, account detail, and mempool detail runner commands,
+    while preserving text output as the default
   - one-command private-devnet smoke script that validates wallet draft,
-    mempool detail preview, draft-block, explorer overview, block detail, and
-    account detail behavior against one persisted chain file
+    mempool detail preview, selected JSON outputs, draft-block, explorer
+    overview, block detail, and account detail behavior against one persisted
+    chain file
   - node transaction submission
   - node transaction submission rejects invalid hash-bound test-only signatures
     before mempool insert
@@ -737,10 +741,12 @@ As of 2026-05-17:
   - account balance and nonce lookup
   - pending mempool transaction detail and deterministic order
   - dependency-free text rendering for private-devnet inspection
+  - dependency-free JSON rendering through the file-backed `xriq-node` runner
+    for machine-readable private-devnet inspection
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `115` passing tests. On Windows, this was run with
-    `CARGO_TARGET_DIR=target-codex-mempool` to avoid default target binary
+  - `cargo test -j 1` with `116` passing tests. On Windows, this was run with
+    `CARGO_TARGET_DIR=target-codex-json2` to avoid default target binary
     locks.
   - `cargo clippy -- -D warnings`.
   - `cargo run -p xriq-wallet -- transfer --chain-id xriq-devnet --from xriqdev1alice00000000000 --to xriqdev1bobbb00000000000 --amount 25 --fee 2 --nonce 0 --expires-at-height 100` captured to `target/xriq-wallet-transfer-draft-20260517-codex.txt`.
@@ -749,6 +755,9 @@ As of 2026-05-17:
   - `cargo run -p xriq-node -- block-detail --chain-file target/xriq-node-detail-smoke-chain-20260517-codex.bin --alice-balance 100 --height 1`.
   - `cargo run -p xriq-node -- account-detail --chain-file target/xriq-node-detail-smoke-chain-20260517-codex.bin --alice-balance 100 --address xriqdev1alice00000000000`.
   - `cargo run -p xriq-node -- mempool-detail --chain-file target/xriq-node-mempool-smoke-chain-20260517-codex.bin --draft-file target/xriq-wallet-transfer-draft-20260517-codex.txt --alice-balance 100`.
+  - JSON output coverage for `status`, `produce-draft-block`,
+    `explorer-overview`, `block-detail`, `account-detail`, and
+    `mempool-detail` through the Rust test suite.
   - Local Windows Bash execution is unavailable on this workstation because
     `bash.exe` maps to WSL and no WSL distribution is installed; Bash script
     verification is therefore recorded under Vast verification.
@@ -765,9 +774,9 @@ As of 2026-05-17:
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T144421Z-19849`.
 
 Next implementation target: keep the local file-backed workflow small and
-deterministic. Add minimal HTTP/RPC serving or snapshot/replay improvements only
-when they directly help the private-devnet MVP, and keep public XRIQ launch or
-listing work blocked.
+deterministic. Add stable JSON schema documentation or minimal HTTP/RPC serving
+only when they directly help the private-devnet MVP, and keep public XRIQ
+launch or listing work blocked.
 Keep HTTP/RPC serving deferred until the local file-backed workflow is
 comfortable.
 
