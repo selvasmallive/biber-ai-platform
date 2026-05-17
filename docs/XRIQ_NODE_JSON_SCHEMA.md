@@ -12,7 +12,7 @@ Current format version: `xriq-node-json-v1`.
 Checked examples live in `xriq/fixtures/private-devnet/` and are compared by
 Rust tests so schema drift is intentional. The current checked set covers fresh
 node status, empty mempool detail, initial Alice account detail, wallet transfer
-submit body, and produced transfer block JSON.
+submit body, produced transfer block JSON, and produced pending-block JSON.
 
 ## Compatibility Rules
 
@@ -554,6 +554,7 @@ The repository also includes checked private-devnet golden files under
 
 - `wallet-transfer-submit.json`
 - `node-produce-transfer-block.json`
+- `node-produce-pending-block.json`
 - `node-status-empty.json`
 - `node-mempool-empty.json`
 - `node-account-alice-initial.json`
