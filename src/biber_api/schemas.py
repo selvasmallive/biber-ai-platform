@@ -29,6 +29,7 @@ class ChatRequest(BaseModel):
     temperature: float = Field(default=0.2, ge=0, le=2)
     max_tokens: int | None = Field(default=None, gt=0, le=32000)
     use_mentor: bool = True
+    repo_context_paths: list[str] = Field(default_factory=list, max_length=12)
     save_to_github: GitHubSaveTarget | None = None
     backup_to_azure: bool = False
 

@@ -12,6 +12,7 @@ from app.model_registry import (
     build_model_registry,
     OPENAI_COMPATIBLE_CHAT,
 )
+from app.repo_context import build_repo_context_message
 
 
 BIBER_SYSTEM_PROMPT = """You are biber-dev-core, BIBER's private software development model.
@@ -186,17 +187,26 @@ class BiberChatService:
         task_type: str,
         use_mentor: bool,
         model: str | None,
+        repo_context_paths: list[str] | None,
         temperature: float,
         max_tokens: int | None,
     ) -> tuple[str, str | None, dict[str, Any], str]:
         selected_model = self._registry.resolve(model)
         provider = self._provider_for(selected_model)
         mentor_notes = None
+        repo_context = build_repo_context_message(
+            repo_context_paths,
+            root=settings.repo_context_root,
+            max_files=settings.repo_context_max_files,
+            max_bytes_per_file=settings.repo_context_max_bytes_per_file,
+            max_total_bytes=settings.repo_context_max_total_bytes,
+        )
         local_messages = self._build_local_messages(
             messages=messages,
             language=language,
             task_type=task_type,
             mentor_notes=None,
+            repo_context=repo_context,
         )
 
         if use_mentor and self._mentor and self._has_mentor_trigger(messages):
@@ -206,6 +216,7 @@ class BiberChatService:
                 language=language,
                 task_type=task_type,
                 mentor_notes=mentor_notes,
+                repo_context=repo_context,
             )
 
         result = await provider.chat(
@@ -263,6 +274,7 @@ class BiberChatService:
         language: str | None,
         task_type: str,
         mentor_notes: str | None,
+        repo_context: str | None,
     ) -> list[dict[str, str]]:
         system_parts = [
             BIBER_SYSTEM_PROMPT,
@@ -270,6 +282,8 @@ class BiberChatService:
         ]
         if language:
             system_parts.append(f"Primary language/platform: {language}.")
+        if repo_context:
+            system_parts.append(repo_context)
         if mentor_notes:
             system_parts.append(f"Mentor guidance to consider:\n{mentor_notes}")
 

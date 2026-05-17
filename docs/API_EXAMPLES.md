@@ -30,14 +30,19 @@ curl -X POST http://localhost:8000/v1/chat \
     "language": "TypeScript",
     "model": "biber-dev-core-v1",
     "task_type": "code_generation",
+    "repo_context_paths": ["src/components/SearchBox.tsx"],
     "messages": [
       {
         "role": "user",
         "content": "Create a React hook that debounces a search query."
       }
     ]
-  }'
+}'
 ```
+
+`repo_context_paths` accepts selected workspace-relative files only. The server
+applies file-count and byte limits and rejects `.env`, private-key-looking
+files, cache directories, and paths outside the configured repo context root.
 
 ## Queue Chat Job Instead Of Immediate Inference
 

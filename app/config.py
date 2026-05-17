@@ -49,6 +49,14 @@ class Settings:
     local_model_base_url: str = os.getenv("BIBER_LOCAL_MODEL_BASE_URL", "http://localhost:8000/v1")
     local_model_name: str = os.getenv("BIBER_LOCAL_MODEL_NAME", "biber-dev-core")
     local_model_timeout_seconds: float = float(os.getenv("BIBER_LOCAL_MODEL_TIMEOUT_SECONDS", "180"))
+    repo_context_root: str = os.getenv("BIBER_REPO_CONTEXT_ROOT") or os.getcwd()
+    repo_context_max_files: int = int(os.getenv("BIBER_REPO_CONTEXT_MAX_FILES", "12"))
+    repo_context_max_bytes_per_file: int = int(
+        os.getenv("BIBER_REPO_CONTEXT_MAX_BYTES_PER_FILE", "12000")
+    )
+    repo_context_max_total_bytes: int = int(
+        os.getenv("BIBER_REPO_CONTEXT_MAX_TOTAL_BYTES", "40000")
+    )
 
     mentor_enabled: bool = _bool(os.getenv("BIBER_MENTOR_ENABLED"), default=False)
     openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")

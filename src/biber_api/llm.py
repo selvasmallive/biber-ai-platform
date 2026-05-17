@@ -12,6 +12,7 @@ from .model_registry import (
     build_model_registry,
     OPENAI_COMPATIBLE_CHAT,
 )
+from .repo_context import build_repo_context_message
 from .schemas import ChatMessage, ChatRequest
 
 
@@ -184,11 +185,26 @@ class BiberChatService:
         selected_model = self._registry.resolve(request.model)
         provider = self._provider_for(selected_model)
         mentor_notes = None
-        messages = self._build_local_messages(request, mentor_notes=None)
+        repo_context = build_repo_context_message(
+            request.repo_context_paths,
+            root=self._settings.repo_context_root,
+            max_files=self._settings.repo_context_max_files,
+            max_bytes_per_file=self._settings.repo_context_max_bytes_per_file,
+            max_total_bytes=self._settings.repo_context_max_total_bytes,
+        )
+        messages = self._build_local_messages(
+            request,
+            mentor_notes=None,
+            repo_context=repo_context,
+        )
 
         if request.use_mentor and self._mentor and self._has_mentor_trigger(request.messages):
             mentor_notes = await self._get_mentor_notes(request)
-            messages = self._build_local_messages(request, mentor_notes=mentor_notes)
+            messages = self._build_local_messages(
+                request,
+                mentor_notes=mentor_notes,
+                repo_context=repo_context,
+            )
 
         result = await provider.chat(
             messages,
@@ -239,6 +255,7 @@ class BiberChatService:
         request: ChatRequest,
         *,
         mentor_notes: str | None,
+        repo_context: str | None,
     ) -> list[dict[str, str]]:
         system_parts = [
             BIBER_SYSTEM_PROMPT,
@@ -246,6 +263,8 @@ class BiberChatService:
         ]
         if request.language:
             system_parts.append(f"Primary language/platform: {request.language}.")
+        if repo_context:
+            system_parts.append(repo_context)
         if mentor_notes:
             system_parts.append(f"Mentor guidance to consider:\n{mentor_notes}")
 

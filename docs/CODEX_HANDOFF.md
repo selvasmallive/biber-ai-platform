@@ -786,6 +786,19 @@ last broad-safe Rust/XRIQ adapter.
   - Live `/v1/models` now reports `biber-dev-core-v1` as stable/enabled backed
     by provider model `biber-dev-core`, and `biber-dev-core-v2-candidate` as a
     disabled candidate for future Qwen3/newer-model evaluation.
+- Added selected-file repo context for the BIBER MVP:
+  - `app/repo_context.py` and `src/biber_api/repo_context.py` provide bounded
+    selected-file context ingestion for `/v1/chat`.
+  - Request field: `repo_context_paths`, with workspace-relative file paths.
+  - The context loader rejects paths outside the configured repo root, obvious
+    secret paths such as `.env`, private-key-looking files, binary-looking
+    files, and common cache/VCS directories.
+  - Context is bounded by `BIBER_REPO_CONTEXT_MAX_FILES`,
+    `BIBER_REPO_CONTEXT_MAX_BYTES_PER_FILE`, and
+    `BIBER_REPO_CONTEXT_MAX_TOTAL_BYTES`.
+  - This is intentionally not full RAG or automatic repo crawling. It is the
+    minimal repo-aware step before file edit/test execution workflows.
+  - Local Python verification passed with `pytest`: `38` tests.
 - Started and expanded the Rust private-devnet prototype workspace:
   - workspace path: `xriq/`.
   - implemented crates:

@@ -23,6 +23,8 @@ The current platform already has the beginnings of this architecture:
 - FastAPI service for BIBER.
 - Protected endpoints using bearer API keys from `BIBER_API_KEYS`.
 - `/v1/chat` for BIBER code generation and reasoning.
+- Selected-file repo context through `repo_context_paths`; this is a bounded
+  MVP context path, not full RAG or automatic repository crawling.
 - `/v1/models` and `/v1/runtime` for model/runtime discovery.
 - vLLM serving `biber-dev-core` through an OpenAI-compatible local runtime.
 - A config-driven model registry maps logical BIBER model IDs such as

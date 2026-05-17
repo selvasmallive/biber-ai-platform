@@ -16,6 +16,7 @@ from .github import (
 )
 from .llm import BiberChatService, MENTOR_TRIGGER_PHRASE
 from .model_registry import ModelRegistryError, build_model_registry
+from .repo_context import RepoContextError
 from .schemas import (
     AzureBackupRequest,
     AzureBackupResponse,
@@ -81,6 +82,8 @@ async def chat_completion(
     try:
         content, mentor_notes, raw, model_id = await service.generate(request_body)
     except ModelRegistryError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RepoContextError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except httpx.HTTPStatusError as exc:
         raise HTTPException(

@@ -19,6 +19,7 @@ from app.github_client import (
 )
 from app.llm import BiberChatService, MENTOR_TRIGGER_PHRASE
 from app.model_registry import ModelRegistryError, build_model_registry
+from app.repo_context import RepoContextError
 from app.scheduler import scheduler
 
 app = FastAPI(
@@ -53,6 +54,7 @@ class ChatRequest(BaseModel):
     temperature: float = Field(default=0.2, ge=0, le=2)
     max_tokens: int | None = Field(default=None, gt=0, le=32000)
     use_mentor: bool = True
+    repo_context_paths: list[str] = Field(default_factory=list, max_length=12)
     queue_only: bool = False
     save_to_github: GitHubSaveTargetRequest | None = None
     backup_to_azure: bool = False
@@ -173,10 +175,13 @@ async def chat(
             task_type=req.task_type,
             use_mentor=req.use_mentor,
             model=req.model,
+            repo_context_paths=req.repo_context_paths,
             temperature=req.temperature,
             max_tokens=req.max_tokens,
         )
     except ModelRegistryError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RepoContextError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except httpx.HTTPStatusError as exc:
         raise HTTPException(

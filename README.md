@@ -129,6 +129,7 @@ curl -X POST http://localhost:8000/v1/chat \
   -d '{
     "model": "biber-dev-core-v1",
     "language": "TypeScript",
+    "repo_context_paths": ["src/components/SearchBox.tsx"],
     "messages": [
       {
         "role": "user",
@@ -137,6 +138,12 @@ curl -X POST http://localhost:8000/v1/chat \
     ]
   }'
 ```
+
+`repo_context_paths` is intentionally selected-file context, not automatic repo
+crawling. It is bounded by `BIBER_REPO_CONTEXT_MAX_FILES`,
+`BIBER_REPO_CONTEXT_MAX_BYTES_PER_FILE`, and
+`BIBER_REPO_CONTEXT_MAX_TOTAL_BYTES`; obvious secret paths such as `.env` and
+private key files are rejected.
 
 OpenAI mentor review is optional and costed. Configure `BIBER_MENTOR_ENABLED`,
 `OPENAI_API_KEY`, and `OPENAI_MODEL` on the server, then opt in per prompt with

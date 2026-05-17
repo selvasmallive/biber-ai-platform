@@ -48,6 +48,10 @@ class BiberSettings:
     azure_storage_connection_string: str | None
     azure_blob_container: str
     default_model: str = "biber-dev-core-v1"
+    repo_context_root: str = "."
+    repo_context_max_files: int = 12
+    repo_context_max_bytes_per_file: int = 12000
+    repo_context_max_total_bytes: int = 40000
 
 
 @lru_cache(maxsize=1)
@@ -69,4 +73,10 @@ def get_settings() -> BiberSettings:
         azure_storage_connection_string=os.getenv("AZURE_STORAGE_CONNECTION_STRING") or None,
         azure_blob_container=os.getenv("AZURE_BLOB_CONTAINER", "biber-backups"),
         default_model=os.getenv("BIBER_DEFAULT_MODEL", "biber-dev-core-v1"),
+        repo_context_root=os.getenv("BIBER_REPO_CONTEXT_ROOT") or os.getcwd(),
+        repo_context_max_files=int(os.getenv("BIBER_REPO_CONTEXT_MAX_FILES", "12")),
+        repo_context_max_bytes_per_file=int(
+            os.getenv("BIBER_REPO_CONTEXT_MAX_BYTES_PER_FILE", "12000")
+        ),
+        repo_context_max_total_bytes=int(os.getenv("BIBER_REPO_CONTEXT_MAX_TOTAL_BYTES", "40000")),
     )
