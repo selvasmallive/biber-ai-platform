@@ -707,6 +707,8 @@ As of 2026-05-17:
   - stable `--format json` output for status, block production, explorer
     overview, block detail, account detail, and mempool detail runner commands,
     while preserving text output as the default
+  - documented private-devnet JSON runner contract in
+    `docs/XRIQ_NODE_JSON_SCHEMA.md`
   - one-command private-devnet smoke script that validates wallet draft,
     mempool detail preview, selected JSON outputs, draft-block, explorer
     overview, block detail, and account detail behavior against one persisted
@@ -777,9 +779,9 @@ As of 2026-05-17:
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T150315Z-20580`.
 
 Next implementation target: keep the local file-backed workflow small and
-deterministic. Add stable JSON schema documentation or minimal HTTP/RPC serving
-only when they directly help the private-devnet MVP, and keep public XRIQ
-launch or listing work blocked.
+deterministic. Add JSON error responses, minimal HTTP/RPC serving, or
+snapshot/replay improvements only when they directly help the private-devnet
+MVP, and keep public XRIQ launch or listing work blocked.
 Keep HTTP/RPC serving deferred until the local file-backed workflow is
 comfortable.
 

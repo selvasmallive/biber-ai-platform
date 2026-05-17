@@ -109,5 +109,8 @@ bash scripts/xriq_private_devnet_smoke.sh
 This is a Bash script. On Windows workstations without Git Bash or a WSL
 distribution, run it on the Vast workspace after `git pull`.
 
+The current machine-readable runner contract is documented in
+`../docs/XRIQ_NODE_JSON_SCHEMA.md`.
+
 Keep generated chain data, node databases, wallets, and testnet artifacts out of
 Git.

@@ -503,6 +503,18 @@ serving the last broad-safe Rust/XRIQ adapter.
     `bash scripts/xriq_private_devnet_smoke.sh`.
   - Latest smoke artifacts on Vast:
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T150315Z-20580`.
+- XRIQ JSON schema documentation checkpoint:
+  - Added `docs/XRIQ_NODE_JSON_SCHEMA.md` for the private-devnet
+    `xriq-node --format json` contract.
+  - Documented the stable `xriq-node-json-v1` success shapes for status,
+    produced block, explorer overview, block detail, account detail, and
+    mempool detail.
+  - Documented compatibility rules: text remains default, hashes and addresses
+    are strings, XRIQ amounts are decimal `*_base_units` strings, optional
+    heights are number-or-null, unknown fields should be ignored by consumers,
+    and error output is not JSON yet.
+  - Linked the schema doc from `xriq/README.md` and
+    `docs/XRIQ_TECHNICAL_SPEC.md`.
 
 ## Repo State
 
@@ -1705,7 +1717,7 @@ cargo clippy -- -D warnings
    `xriq-node account-detail`, and `xriq-node mempool-detail` runner commands,
    `scripts/xriq_private_devnet_smoke.sh`, and
    `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`, is to keep the local
-   file-backed workflow small and deterministic. Add stable JSON schema docs,
+   file-backed workflow small and deterministic. Add JSON error responses,
    minimal HTTP/RPC serving, or snapshot/replay improvements only when they
    directly help the private-devnet MVP. Public XRIQ launch, exchange listing,
    custody, liquidity, bridges, and market-facing work remain blocked.
