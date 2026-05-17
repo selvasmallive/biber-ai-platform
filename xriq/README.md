@@ -14,7 +14,7 @@ only until security and legal/compliance review says otherwise.
 - `xriq-node`: minimal local private-devnet node loop with deterministic replay
   startup from persisted canonical blocks, a private-devnet status runner, a
   local transfer-to-block runner, wallet draft-file block production, and a
-  file-backed explorer overview runner.
+  file-backed explorer overview plus block/account detail runners.
 - `xriq-rpc`: local private-devnet RPC endpoint behavior.
 - `xriq-storage`: local block storage for private-devnet tests.
 - `xriq-wallet`: private-devnet wallet CLI for test identities and transfers.
@@ -56,6 +56,16 @@ cargo run -p xriq-node -- explorer-overview \
   --chain-file target/xriq-devnet-chain.bin \
   --alice-balance 100 \
   --limit 5
+
+cargo run -p xriq-node -- block-detail \
+  --chain-file target/xriq-devnet-chain.bin \
+  --alice-balance 100 \
+  --height 1
+
+cargo run -p xriq-node -- account-detail \
+  --chain-file target/xriq-devnet-chain.bin \
+  --alice-balance 100 \
+  --address xriqdev1alice00000000000
 ```
 
 Private-devnet wallet-draft-to-block smoke:

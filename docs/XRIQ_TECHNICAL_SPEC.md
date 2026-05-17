@@ -520,6 +520,11 @@ Before any public network, require:
     The parser tolerates UTF-8 BOMs from Windows PowerShell draft files,
     rejects malformed/wrong-chain drafts, and still uses private-devnet
     test-only signatures.
+22. Add focused persisted-chain inspection commands. Current status: done for
+    file-backed `xriq-node block-detail --chain-file <path> --height <height>`
+    and `xriq-node account-detail --chain-file <path> --address <address>`
+    commands that replay canonical private-devnet chain files before rendering
+    dependency-free explorer detail output.
 
 ## Current Prototype Status
 
@@ -613,6 +618,10 @@ As of 2026-05-17:
   - local private-devnet explorer overview command that replays the persisted
     chain file and renders chain height, latest block hash, stored block count,
     pending count, and recent block summaries without starting HTTP/RPC serving
+  - local private-devnet block detail command that replays the persisted chain
+    file and renders one block by height, including transfer summaries
+  - local private-devnet account detail command that replays the persisted
+    chain file and renders one account balance and nonce by address
   - node transaction submission
   - node transaction submission rejects invalid hash-bound test-only signatures
     before mempool insert
@@ -645,13 +654,15 @@ As of 2026-05-17:
   - dependency-free text rendering for private-devnet inspection
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `112` passing tests. On Windows, this was run with
-    `CARGO_TARGET_DIR=target-codex-draft` because the default test binary was
-    temporarily locked by the filesystem.
+  - `cargo test -j 1` with `114` passing tests. On Windows, this was run with
+    `CARGO_TARGET_DIR=target-codex-detail` to avoid default target binary
+    locks.
   - `cargo clippy -- -D warnings`.
   - `cargo run -p xriq-wallet -- transfer --chain-id xriq-devnet --from xriqdev1alice00000000000 --to xriqdev1bobbb00000000000 --amount 25 --fee 2 --nonce 0 --expires-at-height 100` captured to `target/xriq-wallet-transfer-draft-20260517-codex.txt`.
   - `cargo run -p xriq-node -- produce-draft-block --chain-file target/xriq-node-draft-smoke-chain-20260517-codex.bin --draft-file target/xriq-wallet-transfer-draft-20260517-codex.txt --alice-balance 100 --timestamp-ms 1000`.
   - `cargo run -p xriq-node -- explorer-overview --chain-file target/xriq-node-draft-smoke-chain-20260517-codex.bin --alice-balance 100 --limit 5`.
+  - `cargo run -p xriq-node -- block-detail --chain-file target/xriq-node-detail-smoke-chain-20260517-codex.bin --alice-balance 100 --height 1`.
+  - `cargo run -p xriq-node -- account-detail --chain-file target/xriq-node-detail-smoke-chain-20260517-codex.bin --alice-balance 100 --address xriqdev1alice00000000000`.
 - Latest Vast verification:
   - `cargo fmt --check`
   - `cargo test -j 1` with `112` passing tests.
@@ -660,9 +671,10 @@ As of 2026-05-17:
   - `cargo run -p xriq-node -- produce-draft-block --chain-file target/xriq-node-draft-smoke-chain-1779008675.bin --draft-file target/xriq-wallet-draft-1779008675.txt --alice-balance 100 --timestamp-ms 1000`.
   - `cargo run -p xriq-node -- explorer-overview --chain-file target/xriq-node-draft-smoke-chain-1779008675.bin --alice-balance 100 --limit 5`.
 
-Next implementation target: add focused account and block detail inspection
-commands over persisted chain files. Keep HTTP/RPC serving deferred until the
-local file-backed workflow is comfortable.
+Next implementation target: add a compact local private-devnet smoke script
+that chains wallet draft generation, draft-block production, explorer overview,
+block detail, and account detail over one persisted chain file. Keep HTTP/RPC
+serving deferred until the local file-backed workflow is comfortable.
 
 ## Open Decisions
 

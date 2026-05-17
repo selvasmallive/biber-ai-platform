@@ -261,6 +261,14 @@ pub fn render_block_detail(block: &ExplorerBlockDetail) -> String {
     output
 }
 
+pub fn render_account_detail(account: &ExplorerAccountDetail) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "account {}", account.address).expect("write to String");
+    writeln!(&mut output, "balance: {}", account.balance).expect("write to String");
+    writeln!(&mut output, "nonce: {}", account.nonce).expect("write to String");
+    output
+}
+
 pub fn render_mempool(detail: &ExplorerMempoolDetail) -> String {
     let mut output = String::new();
     writeln!(&mut output, "mempool pending: {}", detail.pending_count).expect("write to String");
@@ -534,6 +542,11 @@ mod tests {
         let block = render_block_detail(&explorer.block_by_height(1).unwrap());
         assert!(block.contains("transactions: 1"));
         assert!(block.contains("amount=25"));
+
+        let account = render_account_detail(&explorer.account(&address("alice")).unwrap());
+        assert!(account.contains("account xriqdev1alice00000000000"));
+        assert!(account.contains("balance: 100"));
+        assert!(account.contains("nonce: 1"));
 
         let mempool = render_mempool(&explorer.mempool());
         assert!(mempool.contains("mempool pending: 2"));
