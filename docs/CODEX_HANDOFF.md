@@ -215,6 +215,21 @@ last broad-safe Rust/XRIQ adapter.
   - Vast checkout was fast-forwarded to include `xriq-crypto`; Vast Rust
     verification also passed with `cargo fmt --check`, `cargo test -j 1` with
     `78` passing tests, and `cargo clippy -- -D warnings`.
+- Local XRIQ prototype progress after the crypto/hash checkpoint:
+  - Wired canonical transaction hashes into higher-level RPC and node
+    transaction-submission helper APIs.
+  - Added a storage helper that appends blocks using the canonical
+    block/header hash while keeping explicit hash append available for fixtures.
+  - Added node helper APIs for canonical block production and peer-block import.
+    Canonical production now derives the transaction-list root from selected
+    transactions and derives the stored block hash from the produced block.
+  - Explicit manual hash APIs remain available where tests need fixture control
+    and negative-case construction.
+  - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `84` passing tests, and
+    `cargo clippy -- -D warnings`.
+  - Vast verification for this canonical-hash API checkpoint is pending. The
+    previous Vast checkpoint remains the `xriq-crypto` pass with `78` tests.
 
 ## Repo State
 
@@ -1336,7 +1351,8 @@ cargo clippy -- -D warnings
    project later needs independent release/versioning. The next protocol target
    after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`,
    `xriq-rpc`, `xriq-storage`, `xriq-node`, `xriq-wallet`, and
-   `xriq-explorer` is to wire canonical hashes into node/RPC/storage APIs.
+   `xriq-explorer`, and canonical hash API wiring is private-devnet
+   genesis/chain configuration plus deterministic root calculation strategy.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.

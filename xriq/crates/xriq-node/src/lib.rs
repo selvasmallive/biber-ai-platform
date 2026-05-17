@@ -5,6 +5,7 @@ use xriq_core::{
     Block, BlockValidationError, Hash32, ParentHeaderView, SignatureBytes, Transaction,
     TransactionValidationContext, TransactionValidationError,
 };
+use xriq_crypto::{transaction_hash, transactions_root as canonical_transactions_root};
 use xriq_ledger::{LedgerError, LedgerState};
 use xriq_mempool::{Mempool, MempoolError};
 use xriq_rpc::RpcService;
@@ -15,6 +16,14 @@ pub struct ProduceNextBlockInput {
     pub block_hash: Hash32,
     pub state_root: Hash32,
     pub transactions_root: Hash32,
+    pub timestamp_ms: u64,
+    pub consensus_round: u64,
+    pub signature: SignatureBytes,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProduceNextBlockCanonicalInput {
+    pub state_root: Hash32,
     pub timestamp_ms: u64,
     pub consensus_round: u64,
     pub signature: SignatureBytes,
@@ -93,9 +102,52 @@ impl<S: ChainStore> XriqNode<S> {
         Ok(())
     }
 
+    pub fn submit_transaction_with_canonical_hash(
+        &mut self,
+        tx: Transaction,
+    ) -> Result<Hash32, NodeError> {
+        let tx_hash = transaction_hash(&tx);
+        self.submit_transaction(tx_hash, tx)?;
+        Ok(tx_hash)
+    }
+
     pub fn produce_next_block(
         &mut self,
         input: ProduceNextBlockInput,
+    ) -> Result<ProducedBlock, NodeError> {
+        let ProduceNextBlockInput {
+            block_hash,
+            state_root,
+            transactions_root,
+            timestamp_ms,
+            consensus_round,
+            signature,
+        } = input;
+
+        self.produce_next_block_inner(
+            ProduceNextBlockCanonicalInput {
+                state_root,
+                timestamp_ms,
+                consensus_round,
+                signature,
+            },
+            Some(transactions_root),
+            Some(block_hash),
+        )
+    }
+
+    pub fn produce_next_block_with_canonical_hash(
+        &mut self,
+        input: ProduceNextBlockCanonicalInput,
+    ) -> Result<ProducedBlock, NodeError> {
+        self.produce_next_block_inner(input, None, None)
+    }
+
+    fn produce_next_block_inner(
+        &mut self,
+        input: ProduceNextBlockCanonicalInput,
+        transactions_root_override: Option<Hash32>,
+        block_hash_override: Option<Hash32>,
     ) -> Result<ProducedBlock, NodeError> {
         let selected_transactions: Vec<(Hash32, Transaction)> = self
             .mempool
@@ -104,6 +156,12 @@ impl<S: ChainStore> XriqNode<S> {
             .take(self.producer.config().max_transactions_per_block)
             .map(|entry| (entry.tx_hash, entry.tx.clone()))
             .collect();
+        let transactions: Vec<Transaction> = selected_transactions
+            .iter()
+            .map(|(_, transaction)| transaction.clone())
+            .collect();
+        let transactions_root = transactions_root_override
+            .unwrap_or_else(|| canonical_transactions_root(&transactions));
 
         let mut next_ledger = self.ledger.clone();
         for (_, transaction) in &selected_transactions {
@@ -120,38 +178,44 @@ impl<S: ChainStore> XriqNode<S> {
         let block_input = BlockProductionInput {
             parent,
             state_root: input.state_root,
-            transactions_root: input.transactions_root,
+            transactions_root,
             timestamp_ms: input.timestamp_ms,
             consensus_round: input.consensus_round,
             signature: input.signature,
         };
-        let transactions = selected_transactions
-            .iter()
-            .map(|(_, transaction)| transaction.clone())
-            .collect();
         let block = self
             .producer
             .produce_block(block_input, transactions)
             .map_err(NodeError::Block)?;
         next_ledger.set_current_height(block.header.height);
-        self.store
-            .append_block(input.block_hash, block.clone())
-            .map_err(NodeError::Storage)?;
+        let block_hash = self.append_block_to_store(block_hash_override, block.clone())?;
 
         for (tx_hash, _) in &selected_transactions {
             self.mempool.remove(tx_hash);
         }
         self.ledger = next_ledger;
-        self.latest_block_hash = input.block_hash;
+        self.latest_block_hash = block_hash;
 
         Ok(ProducedBlock {
-            block_hash: input.block_hash,
+            block_hash,
             block,
             applied_transactions: selected_transactions.len(),
         })
     }
 
     pub fn import_block(&mut self, block_hash: Hash32, block: Block) -> Result<(), NodeError> {
+        self.import_block_inner(Some(block_hash), block).map(|_| ())
+    }
+
+    pub fn import_block_with_canonical_hash(&mut self, block: Block) -> Result<Hash32, NodeError> {
+        self.import_block_inner(None, block)
+    }
+
+    fn import_block_inner(
+        &mut self,
+        block_hash_override: Option<Hash32>,
+        block: Block,
+    ) -> Result<Hash32, NodeError> {
         let parent = self.parent_header_view();
         block
             .header
@@ -175,14 +239,12 @@ impl<S: ChainStore> XriqNode<S> {
                 .map_err(NodeError::Ledger)?;
         }
         next_ledger.set_current_height(block.header.height);
-        self.store
-            .append_block(block_hash, block.clone())
-            .map_err(NodeError::Storage)?;
+        let block_hash = self.append_block_to_store(block_hash_override, block.clone())?;
 
         self.remove_included_transactions(&block.transactions);
         self.ledger = next_ledger;
         self.latest_block_hash = block_hash;
-        Ok(())
+        Ok(block_hash)
     }
 
     pub fn rpc_service(&self) -> RpcService {
@@ -207,6 +269,25 @@ impl<S: ChainStore> XriqNode<S> {
 
     pub fn latest_block_hash(&self) -> Hash32 {
         self.latest_block_hash
+    }
+
+    fn append_block_to_store(
+        &mut self,
+        block_hash_override: Option<Hash32>,
+        block: Block,
+    ) -> Result<Hash32, NodeError> {
+        match block_hash_override {
+            Some(block_hash) => {
+                self.store
+                    .append_block(block_hash, block)
+                    .map_err(NodeError::Storage)?;
+                Ok(block_hash)
+            }
+            None => self
+                .store
+                .append_block_with_canonical_hash(block)
+                .map_err(NodeError::Storage),
+        }
     }
 
     fn parent_header_view(&self) -> ParentHeaderView {
@@ -272,6 +353,15 @@ mod tests {
             block_hash,
             state_root: hash(4),
             transactions_root: hash(5),
+            timestamp_ms: 1_000,
+            consensus_round: 0,
+            signature: SignatureBytes::new(vec![9]),
+        }
+    }
+
+    fn produce_canonical_input() -> ProduceNextBlockCanonicalInput {
+        ProduceNextBlockCanonicalInput {
+            state_root: hash(4),
             timestamp_ms: 1_000,
             consensus_round: 0,
             signature: SignatureBytes::new(vec![9]),
@@ -351,6 +441,40 @@ mod tests {
     }
 
     #[test]
+    fn canonical_submit_uses_transaction_hash() {
+        let mut node = node();
+        let tx = transaction(address("alice"), 0, 25, 2);
+        let tx_hash = xriq_crypto::transaction_hash(&tx);
+
+        assert_eq!(node.submit_transaction_with_canonical_hash(tx), Ok(tx_hash));
+        assert!(node.mempool().contains(&tx_hash));
+    }
+
+    #[test]
+    fn canonical_block_production_persists_derived_block_hash() {
+        let mut node = node();
+        let tx = transaction(address("alice"), 0, 25, 2);
+        node.submit_transaction_with_canonical_hash(tx).unwrap();
+
+        let produced = node
+            .produce_next_block_with_canonical_hash(produce_canonical_input())
+            .unwrap();
+
+        assert_eq!(
+            produced.block_hash,
+            xriq_crypto::block_hash(&produced.block)
+        );
+        assert_eq!(
+            produced.block.header.transactions_root,
+            xriq_crypto::transactions_root(&produced.block.transactions)
+        );
+        assert_eq!(
+            node.store().latest_block().map(|record| record.block_hash),
+            Some(produced.block_hash)
+        );
+    }
+
+    #[test]
     fn rejects_invalid_transaction_without_mutating_mempool() {
         let mut node = node();
 
@@ -426,6 +550,24 @@ mod tests {
             XriqAmount::from_base_units(73)
         );
         assert_eq!(producer.ledger(), follower.ledger());
+    }
+
+    #[test]
+    fn canonical_import_uses_block_hash() {
+        let mut producer = node();
+        let mut follower = node();
+        let produced = producer
+            .produce_next_block_with_canonical_hash(produce_canonical_input())
+            .unwrap();
+
+        let imported_hash = follower
+            .import_block_with_canonical_hash(produced.block.clone())
+            .unwrap();
+
+        assert_eq!(imported_hash, produced.block_hash);
+        assert_eq!(imported_hash, xriq_crypto::block_hash(&produced.block));
+        assert_eq!(follower.latest_block_hash(), produced.block_hash);
+        assert_eq!(follower.store().len(), 1);
     }
 
     #[test]

@@ -8,3 +8,4 @@ description = "XRIQ private-devnet local chain storage."
 
 [dependencies]
 xriq-core = { path = "../xriq-core" }
+xriq-crypto = { path = "../xriq-crypto" }

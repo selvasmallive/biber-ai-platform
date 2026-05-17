@@ -144,18 +144,33 @@ This is not production signature verification or wallet custody. The only
 accepted verifier currently implemented is test-only, and wallet drafts remain
 private-devnet-only.
 
+Canonical-hash wiring now exists in the higher-level local APIs:
+
+- RPC transaction submission can derive transaction hashes from `xriq-crypto`
+- storage can append blocks using the canonical block/header hash
+- node transaction submission can derive transaction hashes from canonical
+  transaction bytes
+- node block production can derive the transaction-list root and block hash for
+  produced blocks
+- node peer-block import can derive the canonical block hash before commit
+- manual hash inputs remain available where fixtures and negative tests need
+  explicit control
+
 ## Next Engineering Step
 
-The next implementation target should wire canonical hashes into the existing
-node/RPC/storage path:
+The next implementation target should add private-devnet genesis/chain
+configuration and begin replacing ad hoc fixture roots with deterministic root
+calculation strategy:
 
-- derive transaction hashes from `xriq-crypto` instead of accepting caller
-  supplied transaction hashes in higher-level APIs where possible
-- derive block/header hashes from `xriq-crypto` when producing and importing
-  blocks
-- keep manual hash inputs only where tests need explicit fixture control
-- keep test-only signature verification separate from production crypto
-  verification
+- define explicit private-devnet chain configuration instead of scattered
+  fixture values
+- define deterministic test allocations and fee policy in a `GenesisConfig` or
+  equivalent
+- keep public supply, emissions, validator rewards, sale, airdrop, and treasury
+  choices unset and blocked
+- start replacing manual transaction-root and state-root fixture inputs where a
+  deterministic implementation exists
+- keep test-only signature verification separate from production crypto review
 
 Wallet private-key custody should remain test-only until the crypto and
 key-management boundary is reviewed.

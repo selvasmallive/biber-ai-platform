@@ -8,6 +8,7 @@ use std::{
 };
 
 use xriq_core::{Address, Block, BlockHeader, Hash32, SignatureBytes, Transaction, XriqAmount};
+use xriq_crypto::block_hash as canonical_block_hash;
 
 const BLOCK_RECORD_TAG: &[u8; 4] = b"BLK1";
 
@@ -28,6 +29,13 @@ pub enum StorageError {
 
 pub trait ChainStore {
     fn append_block(&mut self, block_hash: Hash32, block: Block) -> Result<(), StorageError>;
+
+    fn append_block_with_canonical_hash(&mut self, block: Block) -> Result<Hash32, StorageError> {
+        let block_hash = canonical_block_hash(&block);
+        self.append_block(block_hash, block)?;
+        Ok(block_hash)
+    }
+
     fn block_by_hash(&self, block_hash: &Hash32) -> Option<&StoredBlock>;
     fn block_by_height(&self, height: u64) -> Option<&StoredBlock>;
     fn latest_block(&self) -> Option<&StoredBlock>;
@@ -508,6 +516,22 @@ mod tests {
         assert_eq!(
             store.latest_block().map(|record| record.block_hash),
             Some(block_hash)
+        );
+    }
+
+    #[test]
+    fn memory_store_appends_block_with_canonical_hash() {
+        let mut store = InMemoryChainStore::new();
+        let block = block(1, hash(0));
+        let block_hash = canonical_block_hash(&block);
+
+        assert_eq!(
+            store.append_block_with_canonical_hash(block.clone()),
+            Ok(block_hash)
+        );
+        assert_eq!(
+            store.block_by_hash(&block_hash).map(|record| &record.block),
+            Some(&block)
         );
     }
 

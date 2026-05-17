@@ -491,7 +491,12 @@ Before any public network, require:
     Current status: done in `docs/XRIQ_PHASE3_DECISIONS.md`.
 14. Add `xriq-crypto` and canonical transaction/block hashing. Current status:
     done for SHA-256 canonical hashes and a test-only verifier boundary.
-15. Wire canonical hashes into node/RPC/storage APIs.
+15. Wire canonical hashes into node/RPC/storage APIs. Current status: done for
+    canonical RPC transaction submission, storage block append, node
+    transaction submission, node block production, and node peer-block import
+    helper paths.
+16. Add private-devnet genesis/chain configuration and a deterministic root
+    calculation strategy.
 
 ## Current Prototype Status
 
@@ -539,6 +544,17 @@ As of 2026-05-17:
   - deterministic transaction-list roots over transaction hashes
   - explicit signature algorithm identifiers for crypto agility
   - hash-bound `TestOnlySignatureVerifier` for private-devnet tests
+- Canonical hashes are wired into higher-level local APIs:
+  - RPC transaction submission can derive the transaction hash from canonical
+    transaction bytes
+  - storage can append blocks using the canonical block/header hash
+  - node transaction submission can derive canonical transaction hashes
+  - node block production can derive the transaction-list root and block hash
+    for the produced block
+  - node peer-block import can derive the canonical block hash before storage
+    commit
+  - explicit manual hash APIs remain available for fixture control and
+    negative tests
 - Implemented local RPC endpoint behavior:
   - health response
   - chain status response
@@ -571,14 +587,18 @@ As of 2026-05-17:
   - dependency-free text rendering for private-devnet inspection
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `78` passing tests.
+  - `cargo test -j 1` with `84` passing tests.
   - `cargo clippy -- -D warnings`.
 - Latest Vast verification:
+  - Previous crypto checkpoint passed with:
   - `cargo fmt --check`
   - `cargo test -j 1` with `78` passing tests.
   - `cargo clippy -- -D warnings`.
+  - The canonical-hash API checkpoint is pending Vast verification.
 
-Next implementation target: wire canonical hashes into node/RPC/storage APIs.
+Next implementation target: add private-devnet genesis/chain configuration and
+start replacing ad hoc fixture roots with deterministic root calculation
+strategy.
 
 ## Open Decisions
 

@@ -7,6 +7,7 @@ use xriq_core::{
     Address, Hash32, Transaction, TransactionValidationContext, TransactionValidationError,
     XriqAmount,
 };
+use xriq_crypto::transaction_hash;
 use xriq_ledger::LedgerState;
 use xriq_mempool::{Mempool, MempoolError};
 
@@ -157,6 +158,14 @@ impl RpcService {
         })
     }
 
+    pub fn submit_transaction_with_canonical_hash(
+        &mut self,
+        tx: Transaction,
+    ) -> Result<SubmitTransactionResponse, RpcError> {
+        let tx_hash = transaction_hash(&tx);
+        self.submit_transaction(tx_hash, tx)
+    }
+
     pub fn ledger(&self) -> &LedgerState {
         &self.ledger
     }
@@ -290,6 +299,30 @@ mod tests {
     }
 
     #[test]
+    fn accepts_valid_transaction_with_canonical_hash() {
+        let mut service = service();
+        let tx = transaction(address("alice"), 0, 25, 2);
+        let tx_hash = transaction_hash(&tx);
+
+        assert_eq!(
+            service.submit_transaction_with_canonical_hash(tx.clone()),
+            Ok(SubmitTransactionResponse {
+                tx_hash,
+                accepted: true,
+                pending_count: 1,
+            })
+        );
+        assert_eq!(
+            service.transaction(&tx_hash),
+            Some(TransactionResponse {
+                tx_hash,
+                status: TransactionStatus::Pending,
+                transaction: tx,
+            })
+        );
+    }
+
+    #[test]
     fn rejects_transaction_with_bad_nonce_without_mutating_mempool() {
         let mut service = service();
 
@@ -303,6 +336,20 @@ mod tests {
             ))
         );
         assert_eq!(service.mempool().pending_count, 0);
+    }
+
+    #[test]
+    fn rejects_duplicate_canonical_transaction_hash() {
+        let mut service = service();
+        let tx = transaction(address("alice"), 0, 25, 2);
+        service
+            .submit_transaction_with_canonical_hash(tx.clone())
+            .unwrap();
+
+        assert_eq!(
+            service.submit_transaction_with_canonical_hash(tx),
+            Err(RpcError::Mempool(MempoolError::DuplicateTransaction))
+        );
     }
 
     #[test]

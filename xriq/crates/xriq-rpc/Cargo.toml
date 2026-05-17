@@ -8,5 +8,6 @@ description = "XRIQ private-devnet local RPC endpoint behavior."
 
 [dependencies]
 xriq-core = { path = "../xriq-core" }
+xriq-crypto = { path = "../xriq-crypto" }
 xriq-ledger = { path = "../xriq-ledger" }
 xriq-mempool = { path = "../xriq-mempool" }

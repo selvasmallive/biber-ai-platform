@@ -9,6 +9,7 @@ description = "XRIQ private-devnet local node loop."
 [dependencies]
 xriq-consensus = { path = "../xriq-consensus" }
 xriq-core = { path = "../xriq-core" }
+xriq-crypto = { path = "../xriq-crypto" }
 xriq-ledger = { path = "../xriq-ledger" }
 xriq-mempool = { path = "../xriq-mempool" }
 xriq-rpc = { path = "../xriq-rpc" }

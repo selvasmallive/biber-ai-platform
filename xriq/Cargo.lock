@@ -136,6 +136,7 @@ version = "0.1.0"
 dependencies = [
  "xriq-consensus",
  "xriq-core",
+ "xriq-crypto",
  "xriq-ledger",
  "xriq-mempool",
  "xriq-rpc",
@@ -147,6 +148,7 @@ name = "xriq-rpc"
 version = "0.1.0"
 dependencies = [
  "xriq-core",
+ "xriq-crypto",
  "xriq-ledger",
  "xriq-mempool",
 ]
@@ -156,6 +158,7 @@ name = "xriq-storage"
 version = "0.1.0"
 dependencies = [
  "xriq-core",
+ "xriq-crypto",
 ]
 
 [[package]]
