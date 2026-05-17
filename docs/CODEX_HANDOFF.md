@@ -68,10 +68,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 
 - Last XRIQ implementation commit pushed and Vast-verified:
   `ea9918d Add XRIQ pending block production`.
+- Latest XRIQ fixture/docs commit pushed and Vast-verified:
+  `77cf376 Add XRIQ pending block JSON fixture`.
 - Latest XRIQ smoke-harness commit pushed and Vast-verified:
   `2bd99cc Ensure XRIQ smoke server cleanup`.
 - Vast checkout was fast-forwarded and Rust/script/HTTP-smoke verified through
-  `ea9918d`.
+  `ea9918d`; focused fixture verification is current through `77cf376`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -982,6 +984,31 @@ serving the last broad-safe Rust/XRIQ adapter.
     `bash scripts/xriq_private_devnet_smoke.sh`. After the smoke,
     `pgrep -af xriq-node` showed no lingering XRIQ smoke server process.
   - Latest expanded smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T210028Z-33204`.
+- XRIQ checked pending-block fixture checkpoint:
+  - Added checked fixture:
+    `xriq/fixtures/private-devnet/node-produce-pending-block.json`.
+  - Added Rust coverage so `xriq-node produce-pending-block --format json`
+    must continue matching that fixture exactly after a deterministic durable
+    pending transaction is submitted.
+  - Updated `xriq/README.md`, `docs/XRIQ_NODE_JSON_SCHEMA.md`, and
+    `docs/XRIQ_TECHNICAL_SPEC.md` so the checked fixture set includes
+    pending-block production.
+  - Local Windows verification passed from `xriq/` with
+    `CARGO_TARGET_DIR=target-codex-pending-fixture`: `cargo fmt --check`,
+    focused `cargo test -p xriq-node checked_fixture -j 1` with `5` passing
+    fixture tests, `cargo test -j 1` with `130` passing workspace tests, and
+    `cargo clippy -- -D warnings`. Generated local target files were removed
+    afterward.
+  - Pushed fixture/docs commit:
+    `77cf376 Add XRIQ pending block JSON fixture`.
+  - Vast checkout was fast-forwarded to `77cf376`; focused verification passed
+    with `cargo fmt --check`,
+    `cargo test -p xriq-node checked_fixture -j 1` with `5` passing fixture
+    tests, and `cargo clippy -p xriq-node -- -D warnings`.
+  - Full Vast runtime smoke was not rerun for this fixture-only checkpoint; the
+    pending-block implementation itself remains smoke-verified through
+    `ea9918d` with artifacts at
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T210028Z-33204`.
 
 ## Repo State
