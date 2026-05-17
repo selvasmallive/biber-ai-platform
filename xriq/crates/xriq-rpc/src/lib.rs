@@ -7,7 +7,7 @@ use xriq_core::{
     Address, Hash32, Transaction, TransactionValidationContext, TransactionValidationError,
     XriqAmount,
 };
-use xriq_crypto::transaction_hash;
+use xriq_crypto::{transaction_hash, SignatureVerificationError, TestOnlySignatureVerifier};
 use xriq_ledger::LedgerState;
 use xriq_mempool::{Mempool, MempoolError};
 
@@ -60,6 +60,7 @@ pub struct SubmitTransactionResponse {
 pub enum RpcError {
     AccountNotFound,
     Transaction(TransactionValidationError),
+    TransactionSignature(SignatureVerificationError),
     Mempool(MempoolError),
 }
 
@@ -147,6 +148,9 @@ impl RpcService {
             min_fee: self.ledger.config().min_fee,
         };
         tx.validate_basic(&context).map_err(RpcError::Transaction)?;
+        TestOnlySignatureVerifier
+            .verify_transaction(&tx)
+            .map_err(RpcError::TransactionSignature)?;
         self.mempool
             .insert(tx_hash, tx)
             .map_err(RpcError::Mempool)?;
@@ -183,6 +187,7 @@ impl RpcService {
 mod tests {
     use super::*;
     use xriq_core::SignatureBytes;
+    use xriq_crypto::{test_only_signature_for_hash, transaction_signing_hash};
     use xriq_ledger::{Account, LedgerConfig};
     use xriq_mempool::MempoolConfig;
 
@@ -199,7 +204,7 @@ mod tests {
     }
 
     fn transaction(from: Address, nonce: u64, amount: u128, fee: u128) -> Transaction {
-        Transaction {
+        let mut tx = Transaction {
             version: Transaction::SUPPORTED_VERSION,
             chain_id: "xriq-devnet".to_string(),
             from,
@@ -209,8 +214,10 @@ mod tests {
             nonce,
             memo_hash: None,
             expires_at_height: Some(100),
-            signature: SignatureBytes::new(vec![1, 2, 3]),
-        }
+            signature: SignatureBytes::new(Vec::new()),
+        };
+        tx.signature = test_only_signature_for_hash(transaction_signing_hash(&tx));
+        tx
     }
 
     fn service() -> RpcService {
@@ -333,6 +340,21 @@ mod tests {
                     expected: 0,
                     actual: 7,
                 }
+            ))
+        );
+        assert_eq!(service.mempool().pending_count, 0);
+    }
+
+    #[test]
+    fn rejects_bad_test_only_transaction_signature_without_mutating_mempool() {
+        let mut service = service();
+        let mut tx = transaction(address("alice"), 0, 25, 2);
+        tx.signature = SignatureBytes::new(vec![9]);
+
+        assert_eq!(
+            service.submit_transaction_with_canonical_hash(tx),
+            Err(RpcError::TransactionSignature(
+                SignatureVerificationError::InvalidSignature
             ))
         );
         assert_eq!(service.mempool().pending_count, 0);

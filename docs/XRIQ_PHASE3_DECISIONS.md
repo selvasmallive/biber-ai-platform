@@ -187,20 +187,38 @@ signature checks before follower state commits:
 - wrong transaction roots, wrong state roots, and bad test-only block
   signatures leave follower ledger, tip, mempool, and storage unchanged
 
+## Current Transaction Signature Checkpoint
+
+Private-devnet transaction entry points now enforce hash-bound test-only
+signatures before accepting or executing transactions:
+
+- RPC transaction submission rejects invalid `TestOnlySignatureVerifier`
+  signatures before mempool insertion
+- node transaction submission rejects invalid test-only signatures before
+  mempool insertion
+- imported peer blocks reject invalid transaction signatures before follower
+  ledger execution, storage commit, tip update, or mempool cleanup
+- wallet drafts still use private-devnet-only hash-bound test signatures
+
+This remains a test-only crypto boundary. Production signature algorithms,
+public-key formats, custody, hardware-wallet support, and post-quantum/hybrid
+verification remain blocked until a dedicated crypto and key-management review.
+
 ## Next Engineering Step
 
-The next implementation target should wire hash-bound test-only transaction
-signature verification into the private-devnet transaction boundary:
+The next implementation target should add deterministic private-devnet chain
+replay or snapshot startup:
 
-- reject RPC/node transaction submissions whose signatures do not match
-  canonical transaction signing bytes
-- reject imported blocks containing transactions with invalid test-only
-  signatures before ledger/storage commit
-- keep wallet transfer drafts private-devnet-only until real key custody is
-  designed
+- rebuild trusted ledger state, current height, and latest block hash from
+  persisted blocks before serving RPC
+- validate parent linkage, canonical hashes, transaction roots, state roots,
+  block signatures, and transaction signatures during replay
+- reject corrupted or inconsistent persisted blocks without partially serving
+  bad state
 - keep public supply, emissions, validator rewards, sale, airdrop, treasury,
   and public validator economics unset and blocked
-- keep test-only signature verification separate from production crypto review
+- keep wallet transfer drafts private-devnet-only until real key custody is
+  designed
 
 Wallet private-key custody should remain test-only until the crypto and
 key-management boundary is reviewed.

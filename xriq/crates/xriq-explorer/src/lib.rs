@@ -127,7 +127,9 @@ impl<'a, S: ChainStore> ExplorerService<'a, S> {
     pub fn account(&self, address: &Address) -> Result<ExplorerAccountDetail, ExplorerError> {
         let account = self.rpc.account(address).map_err(|error| match error {
             RpcError::AccountNotFound => ExplorerError::AccountNotFound,
-            RpcError::Transaction(_) | RpcError::Mempool(_) => ExplorerError::AccountNotFound,
+            RpcError::Transaction(_) | RpcError::TransactionSignature(_) | RpcError::Mempool(_) => {
+                ExplorerError::AccountNotFound
+            }
         })?;
         Ok(ExplorerAccountDetail {
             address: account.address,

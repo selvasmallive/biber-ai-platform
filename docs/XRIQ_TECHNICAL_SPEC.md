@@ -504,7 +504,8 @@ Before any public network, require:
     imported blocks, then wire the test-only block signature verifier at the
     node boundary. Current status: done for private-devnet peer-block import.
 18. Wire hash-bound test-only transaction signature verification into RPC/node
-    submission and imported-block transaction execution.
+    submission and imported-block transaction execution. Current status: done
+    for private-devnet submission/import boundaries.
 
 ## Current Prototype Status
 
@@ -580,10 +581,14 @@ As of 2026-05-17:
   - mempool listing
   - pending transaction lookup
   - transaction submission with ledger-backed validation before mempool insert
+  - transaction submission rejects invalid hash-bound test-only signatures
+    before mempool insert
 - Implemented local storage and node loop:
   - in-memory block index by hash and height
   - append-only local file store for block persistence and reload
   - node transaction submission
+  - node transaction submission rejects invalid hash-bound test-only signatures
+    before mempool insert
   - pending transaction application into produced blocks
   - block persistence before node-state commit
   - RPC-visible node state after block production
@@ -593,6 +598,8 @@ As of 2026-05-17:
   - follower-side deterministic transaction-root and state-root checks before
     storage commit
   - follower-side hash-bound test-only block-header signature verification
+  - follower-side hash-bound test-only transaction signature verification
+    before imported-block ledger execution
   - local mempool cleanup when imported peer blocks include pending transactions
 - Implemented private-devnet wallet CLI baseline:
   - deterministic test identity generation from labels
@@ -608,15 +615,17 @@ As of 2026-05-17:
   - dependency-free text rendering for private-devnet inspection
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `99` passing tests.
+  - `cargo test -j 1` with `102` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification:
+- Latest Vast verification for the previous checkpoint:
   - `cargo fmt --check`
   - `cargo test -j 1` with `99` passing tests.
   - `cargo clippy -- -D warnings`.
+- Vast verification for the transaction-signature checkpoint is pending.
 
-Next implementation target: wire hash-bound test-only transaction signature
-verification into RPC/node submission and imported-block transaction execution.
+Next implementation target: add deterministic private-devnet chain replay or
+snapshot startup so a node can rebuild trusted ledger/tip state from persisted
+blocks before serving RPC.
 
 ## Open Decisions
 

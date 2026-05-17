@@ -267,6 +267,21 @@ last broad-safe Rust/XRIQ adapter.
   - Vast checkout was fast-forwarded to `543057c`; Vast Rust verification also
     passed with `cargo fmt --check`, `cargo test -j 1` with `99` passing tests,
     and `cargo clippy -- -D warnings`.
+- Local XRIQ prototype progress after the import validation checkpoint:
+  - RPC transaction submission now rejects invalid hash-bound private-devnet
+    test signatures before mempool insertion.
+  - Node transaction submission now rejects invalid hash-bound private-devnet
+    test signatures before mempool insertion.
+  - Imported peer blocks now reject transactions with invalid hash-bound
+    private-devnet test signatures before follower ledger execution, storage
+    commit, tip update, or mempool cleanup.
+  - Explorer RPC-error mapping was updated for the new transaction-signature
+    rejection case.
+  - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `102` passing tests, and
+    `cargo clippy -- -D warnings`.
+  - Vast verification for this checkpoint is pending; the previous Vast Rust
+    verification passed at `543057c` with `99` tests.
 
 ## Repo State
 
@@ -1389,8 +1404,8 @@ cargo clippy -- -D warnings
    after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`,
    `xriq-rpc`, `xriq-storage`, `xriq-node`, `xriq-wallet`, and
    `xriq-explorer`, canonical hash API wiring, and genesis/root strategy is
-   hash-bound test-only transaction signature verification at RPC/node
-   submission and imported-block execution boundaries.
+   deterministic private-devnet chain replay or snapshot startup, so a node can
+   rebuild trusted ledger/tip state from persisted blocks before serving RPC.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.

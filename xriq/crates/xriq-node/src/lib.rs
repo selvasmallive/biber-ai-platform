@@ -60,6 +60,7 @@ pub struct ProducedBlock {
 pub enum NodeError {
     MissingSender,
     Transaction(TransactionValidationError),
+    TransactionSignature(SignatureVerificationError),
     Mempool(MempoolError),
     Ledger(LedgerError),
     Block(BlockProductionError),
@@ -130,6 +131,9 @@ impl<S: ChainStore> XriqNode<S> {
         };
         tx.validate_basic(&context)
             .map_err(NodeError::Transaction)?;
+        TestOnlySignatureVerifier
+            .verify_transaction(&tx)
+            .map_err(NodeError::TransactionSignature)?;
         self.mempool
             .insert(tx_hash, tx)
             .map_err(NodeError::Mempool)?;
@@ -286,6 +290,11 @@ impl<S: ChainStore> XriqNode<S> {
                 actual: block.transactions.len(),
             });
         }
+        for transaction in &block.transactions {
+            TestOnlySignatureVerifier
+                .verify_transaction(transaction)
+                .map_err(NodeError::TransactionSignature)?;
+        }
         let expected_transactions_root = canonical_transactions_root(&block.transactions);
         if block.header.transactions_root != expected_transactions_root {
             return Err(NodeError::WrongTransactionsRoot {
@@ -388,7 +397,9 @@ impl<S: ChainStore> XriqNode<S> {
 mod tests {
     use super::*;
     use xriq_core::{Address, BlockHeader, XriqAmount};
-    use xriq_crypto::{block_header_signing_hash, test_only_signature_for_hash};
+    use xriq_crypto::{
+        block_header_signing_hash, test_only_signature_for_hash, transaction_signing_hash,
+    };
     use xriq_storage::InMemoryChainStore;
 
     fn address(label: &str) -> Address {
@@ -400,7 +411,7 @@ mod tests {
     }
 
     fn transaction(from: Address, nonce: u64, amount: u128, fee: u128) -> Transaction {
-        Transaction {
+        let mut tx = Transaction {
             version: Transaction::SUPPORTED_VERSION,
             chain_id: "xriq-devnet".to_string(),
             from,
@@ -410,8 +421,10 @@ mod tests {
             nonce,
             memo_hash: None,
             expires_at_height: Some(100),
-            signature: SignatureBytes::new(vec![1, 2, 3]),
-        }
+            signature: SignatureBytes::new(Vec::new()),
+        };
+        tx.signature = test_only_signature_for_hash(transaction_signing_hash(&tx));
+        tx
     }
 
     fn produce_input(block_hash: Hash32) -> ProduceNextBlockInput {
@@ -619,6 +632,21 @@ mod tests {
     }
 
     #[test]
+    fn rejects_bad_test_only_transaction_signature_without_mutating_mempool() {
+        let mut node = node();
+        let mut tx = transaction(address("alice"), 0, 25, 2);
+        tx.signature = SignatureBytes::new(vec![9]);
+
+        assert_eq!(
+            node.submit_transaction_with_canonical_hash(tx),
+            Err(NodeError::TransactionSignature(
+                SignatureVerificationError::InvalidSignature
+            ))
+        );
+        assert_eq!(node.mempool().len(), 0);
+    }
+
+    #[test]
     fn storage_failure_does_not_commit_node_state() {
         let mut node = node();
         node.submit_transaction(hash(1), transaction(address("alice"), 0, 25, 2))
@@ -789,6 +817,30 @@ mod tests {
             follower.import_block(produced.block_hash, block),
             Err(NodeError::BlockSignature(
                 xriq_crypto::SignatureVerificationError::InvalidSignature
+            ))
+        );
+        assert_eq!(follower.latest_block_hash(), hash(0));
+        assert_eq!(follower.ledger(), &before_ledger);
+        assert_eq!(follower.store().len(), 0);
+    }
+
+    #[test]
+    fn rejects_peer_block_with_bad_transaction_signature_without_mutating_state() {
+        let mut producer = node();
+        let mut follower = node();
+        let tx = transaction(address("alice"), 0, 25, 2);
+        producer.submit_transaction_with_canonical_hash(tx).unwrap();
+        let produced = producer
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
+            .unwrap();
+        let mut block = produced.block;
+        block.transactions[0].signature = SignatureBytes::new(vec![1]);
+        let before_ledger = follower.ledger().clone();
+
+        assert_eq!(
+            follower.import_block(produced.block_hash, block),
+            Err(NodeError::TransactionSignature(
+                SignatureVerificationError::InvalidSignature
             ))
         );
         assert_eq!(follower.latest_block_hash(), hash(0));
