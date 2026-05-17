@@ -69,9 +69,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Last XRIQ implementation commit pushed and Vast-verified:
   `4e437cc Add XRIQ durable pending HTTP state`.
 - Latest XRIQ smoke-harness commit pushed and Vast-verified:
-  `3306130 Run XRIQ smoke server directly`.
+  `2bd99cc Ensure XRIQ smoke server cleanup`.
 - Vast checkout was fast-forwarded and Rust/script/HTTP-smoke verified through
-  `3306130`.
+  `2bd99cc`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -927,17 +927,20 @@ serving the last broad-safe Rust/XRIQ adapter.
     `4e437cc Add XRIQ durable pending HTTP state`.
   - Pushed smoke-harness robustness commits:
     `174cdb1 Harden XRIQ smoke HTTP port selection` and
-    `3306130 Run XRIQ smoke server directly`. These fixed Vast smoke harness
-    issues caused by fixed-port collisions and `cargo run` leaving the server
-    child alive after the harness stopped Cargo.
+    `3306130 Run XRIQ smoke server directly`, followed by
+    `2bd99cc Ensure XRIQ smoke server cleanup`. These fixed Vast smoke harness
+    issues caused by fixed-port collisions, `cargo run` leaving the server
+    child alive after the harness stopped Cargo, and the subshell needing to
+    `exec` the node binary so cleanup kills the actual server process.
   - Vast Rust verification passed through `4e437cc` with
     `cargo fmt --check`, `cargo test -j 1` with `128` passing workspace tests,
     and `cargo clippy -- -D warnings`.
-  - Vast checkout was then fast-forwarded to `3306130`; verification passed
+  - Vast checkout was then fast-forwarded to `2bd99cc`; verification passed
     with `bash -n scripts/xriq_private_devnet_smoke.sh` and
-    `bash scripts/xriq_private_devnet_smoke.sh`.
+    `bash scripts/xriq_private_devnet_smoke.sh`. After the final smoke,
+    `pgrep -af xriq-node` showed no lingering XRIQ smoke server process.
   - Latest expanded smoke artifacts on Vast:
-    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T204806Z-31871`.
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T205029Z-32291`.
 
 ## Repo State
 
