@@ -65,6 +65,7 @@ start_http_server() {
     fi
   ) > "$log_file" 2>&1 &
   HTTP_SERVER_PID=$!
+  HTTP_SERVER_LOG_FILE="$log_file"
 }
 
 stop_http_server() {
@@ -79,6 +80,13 @@ wait_for_http_server() {
   local port="$1"
 
   for _ in $(seq 1 30); do
+    if [ -n "${HTTP_SERVER_PID:-}" ] && ! kill -0 "$HTTP_SERVER_PID" >/dev/null 2>&1; then
+      echo "error=http server exited before becoming ready on port ${port}" >&2
+      if [ -n "${HTTP_SERVER_LOG_FILE:-}" ] && [ -f "$HTTP_SERVER_LOG_FILE" ]; then
+        cat "$HTTP_SERVER_LOG_FILE" >&2
+      fi
+      exit 1
+    fi
     if curl -fsS "http://127.0.0.1:${port}/health" >/dev/null 2>&1; then
       return 0
     fi
@@ -87,6 +95,20 @@ wait_for_http_server() {
 
   echo "error=http server did not become ready on port ${port}" >&2
   exit 1
+}
+
+pick_http_port() {
+  if [ -n "${XRIQ_SMOKE_HTTP_PORT:-}" ]; then
+    printf '%s\n' "$XRIQ_SMOKE_HTTP_PORT"
+    return 0
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'
+    return 0
+  fi
+
+  printf '%s\n' "$((18000 + ($$ % 1000)))"
 }
 
 mkdir -p "$ARTIFACT_DIR"
@@ -266,7 +288,7 @@ require_contains "status json error" "$json_error_output" '"command": "status"'
 require_contains "status json error" "$json_error_output" '"code": "missing_flag"'
 require_contains "status json error" "$json_error_output" '"message": "missing required flag: --chain-file"'
 
-HTTP_PORT="${XRIQ_SMOKE_HTTP_PORT:-18797}"
+HTTP_PORT="$(pick_http_port)"
 HTTP_LOG_FILE="${ARTIFACT_DIR}/http-json-server.log"
 start_http_server "$HTTP_JSON_CHAIN_FILE" "$HTTP_PORT" "$HTTP_LOG_FILE"
 wait_for_http_server "$HTTP_PORT"
