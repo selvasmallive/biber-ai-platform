@@ -2,8 +2,8 @@
 
 use xriq_consensus::{BlockProductionError, BlockProductionInput, SingleAuthorityProducer};
 use xriq_core::{
-    Block, Hash32, ParentHeaderView, SignatureBytes, Transaction, TransactionValidationContext,
-    TransactionValidationError,
+    Block, BlockValidationError, Hash32, ParentHeaderView, SignatureBytes, Transaction,
+    TransactionValidationContext, TransactionValidationError,
 };
 use xriq_ledger::{LedgerError, LedgerState};
 use xriq_mempool::{Mempool, MempoolError};
@@ -34,6 +34,9 @@ pub enum NodeError {
     Mempool(MempoolError),
     Ledger(LedgerError),
     Block(BlockProductionError),
+    Header(BlockValidationError),
+    UnauthorizedProducer,
+    TooManyBlockTransactions { max: usize, actual: usize },
     Storage(StorageError),
 }
 
@@ -148,6 +151,40 @@ impl<S: ChainStore> XriqNode<S> {
         })
     }
 
+    pub fn import_block(&mut self, block_hash: Hash32, block: Block) -> Result<(), NodeError> {
+        let parent = self.parent_header_view();
+        block
+            .header
+            .validate_against_parent(&parent)
+            .map_err(NodeError::Header)?;
+        if block.header.producer != self.producer.config().producer {
+            return Err(NodeError::UnauthorizedProducer);
+        }
+        let max_transactions = self.producer.config().max_transactions_per_block;
+        if block.transactions.len() > max_transactions {
+            return Err(NodeError::TooManyBlockTransactions {
+                max: max_transactions,
+                actual: block.transactions.len(),
+            });
+        }
+
+        let mut next_ledger = self.ledger.clone();
+        for transaction in &block.transactions {
+            next_ledger
+                .apply_transaction(transaction)
+                .map_err(NodeError::Ledger)?;
+        }
+        next_ledger.set_current_height(block.header.height);
+        self.store
+            .append_block(block_hash, block.clone())
+            .map_err(NodeError::Storage)?;
+
+        self.remove_included_transactions(&block.transactions);
+        self.ledger = next_ledger;
+        self.latest_block_hash = block_hash;
+        Ok(())
+    }
+
     pub fn rpc_service(&self) -> RpcService {
         RpcService::new(
             self.ledger.clone(),
@@ -170,6 +207,27 @@ impl<S: ChainStore> XriqNode<S> {
 
     pub fn latest_block_hash(&self) -> Hash32 {
         self.latest_block_hash
+    }
+
+    fn parent_header_view(&self) -> ParentHeaderView {
+        ParentHeaderView {
+            chain_id: self.ledger.config().chain_id.clone(),
+            height: self.ledger.current_height(),
+            block_hash: self.latest_block_hash,
+        }
+    }
+
+    fn remove_included_transactions(&mut self, transactions: &[Transaction]) {
+        let included_hashes: Vec<Hash32> = self
+            .mempool
+            .ordered_entries()
+            .into_iter()
+            .filter(|entry| transactions.contains(&entry.tx))
+            .map(|entry| entry.tx_hash)
+            .collect();
+        for tx_hash in included_hashes {
+            self.mempool.remove(&tx_hash);
+        }
     }
 }
 
@@ -214,6 +272,21 @@ mod tests {
             block_hash,
             state_root: hash(4),
             transactions_root: hash(5),
+            timestamp_ms: 1_000,
+            consensus_round: 0,
+            signature: SignatureBytes::new(vec![9]),
+        }
+    }
+
+    fn produce_input_with_roots(
+        block_hash: Hash32,
+        state_root: Hash32,
+        transactions_root: Hash32,
+    ) -> ProduceNextBlockInput {
+        ProduceNextBlockInput {
+            block_hash,
+            state_root,
+            transactions_root,
             timestamp_ms: 1_000,
             consensus_round: 0,
             signature: SignatureBytes::new(vec![9]),
@@ -322,5 +395,121 @@ mod tests {
         assert!(produced.block.transactions.is_empty());
         assert_eq!(node.ledger().current_height(), 1);
         assert_eq!(node.store().len(), 1);
+    }
+
+    #[test]
+    fn imports_peer_block_updates_follower_state_and_storage() {
+        let mut producer = node();
+        let mut follower = node();
+        let tx = transaction(address("alice"), 0, 25, 2);
+        producer.submit_transaction(hash(1), tx.clone()).unwrap();
+        follower.submit_transaction(hash(1), tx).unwrap();
+
+        let produced = producer
+            .produce_next_block(produce_input_with_roots(hash(8), hash(4), hash(5)))
+            .unwrap();
+
+        assert_eq!(
+            follower.import_block(produced.block_hash, produced.block.clone()),
+            Ok(())
+        );
+        assert_eq!(follower.latest_block_hash(), hash(8));
+        assert_eq!(follower.ledger().current_height(), 1);
+        assert_eq!(follower.mempool().len(), 0);
+        assert_eq!(follower.store().len(), 1);
+        assert_eq!(
+            follower
+                .ledger()
+                .account(&address("alice"))
+                .unwrap()
+                .balance,
+            XriqAmount::from_base_units(73)
+        );
+        assert_eq!(producer.ledger(), follower.ledger());
+    }
+
+    #[test]
+    fn imports_empty_peer_block_after_prior_import() {
+        let mut producer = node();
+        let mut follower = node();
+        let first = producer
+            .produce_next_block(produce_input_with_roots(hash(8), hash(4), hash(5)))
+            .unwrap();
+        follower
+            .import_block(first.block_hash, first.block.clone())
+            .unwrap();
+
+        let second = producer
+            .produce_next_block(produce_input_with_roots(hash(9), hash(6), hash(7)))
+            .unwrap();
+
+        assert_eq!(
+            follower.import_block(second.block_hash, second.block),
+            Ok(())
+        );
+        assert_eq!(follower.latest_block_hash(), hash(9));
+        assert_eq!(follower.ledger().current_height(), 2);
+        assert_eq!(follower.store().len(), 2);
+    }
+
+    #[test]
+    fn rejects_peer_block_with_wrong_parent_without_mutating_state() {
+        let mut producer = node();
+        let mut follower = node();
+        let mut produced = producer
+            .produce_next_block(produce_input_with_roots(hash(8), hash(4), hash(5)))
+            .unwrap();
+        produced.block.header.previous_block_hash = hash(99);
+        let before_ledger = follower.ledger().clone();
+
+        assert_eq!(
+            follower.import_block(produced.block_hash, produced.block),
+            Err(NodeError::Header(BlockValidationError::WrongPreviousHash))
+        );
+        assert_eq!(follower.latest_block_hash(), hash(0));
+        assert_eq!(follower.ledger(), &before_ledger);
+        assert_eq!(follower.store().len(), 0);
+    }
+
+    #[test]
+    fn rejects_peer_block_from_unauthorized_producer() {
+        let mut producer = node();
+        let mut follower = node();
+        let mut produced = producer
+            .produce_next_block(produce_input_with_roots(hash(8), hash(4), hash(5)))
+            .unwrap();
+        produced.block.header.producer = address("intruder");
+
+        assert_eq!(
+            follower.import_block(produced.block_hash, produced.block),
+            Err(NodeError::UnauthorizedProducer)
+        );
+        assert_eq!(follower.ledger().current_height(), 0);
+        assert_eq!(follower.store().len(), 0);
+    }
+
+    #[test]
+    fn rejects_peer_block_over_transaction_limit_without_mutating_state() {
+        let mut follower = node();
+        let mut producer = node();
+        let transactions = vec![
+            transaction(address("alice"), 0, 10, 2),
+            transaction(address("carol"), 0, 10, 2),
+            transaction(address("davee"), 0, 10, 2),
+            transaction(address("erinn"), 0, 10, 2),
+            transaction(address("frank"), 0, 10, 2),
+        ];
+        let mut produced = producer
+            .produce_next_block(produce_input_with_roots(hash(8), hash(4), hash(5)))
+            .unwrap();
+        produced.block.transactions = transactions;
+        let before_ledger = follower.ledger().clone();
+
+        assert_eq!(
+            follower.import_block(produced.block_hash, produced.block),
+            Err(NodeError::TooManyBlockTransactions { max: 4, actual: 5 })
+        );
+        assert_eq!(follower.ledger(), &before_ledger);
+        assert_eq!(follower.store().len(), 0);
     }
 }

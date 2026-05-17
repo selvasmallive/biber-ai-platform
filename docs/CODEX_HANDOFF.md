@@ -161,6 +161,23 @@ last broad-safe Rust/XRIQ adapter.
   - Vast checkout was fast-forwarded to include `xriq-explorer`; Vast Rust
     verification also passed with `cargo fmt --check`, `cargo test -j 1` with
     `64` passing tests, and `cargo clippy -- -D warnings`.
+- Local XRIQ prototype progress after the explorer checkpoint:
+  - Added `XriqNode::import_block` for in-process private-devnet block
+    propagation tests between local nodes.
+  - Imported peer blocks now validate the parent height/hash, chain id,
+    nonempty block signature, authorized producer, and maximum transactions per
+    block before any ledger or storage commit.
+  - Follower nodes apply imported block transactions through the same ledger
+    transition path, persist the block before committing node state, update the
+    local tip, and remove matching included transactions from the local mempool.
+  - Added local multi-node tests for follower import, consecutive empty block
+    import, wrong-parent rejection, unauthorized-producer rejection, and
+    over-limit block rejection.
+  - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -j 1` with `69` passing tests, and
+    `cargo clippy -- -D warnings`.
+  - Vast verification is the next checkpoint after this code is committed,
+    pushed, and fast-forwarded on `/workspace/biber-ai-platform`.
 
 ## Repo State
 
@@ -1282,7 +1299,8 @@ cargo clippy -- -D warnings
    project later needs independent release/versioning. The next protocol target
    after `xriq-core`, `xriq-ledger`, `xriq-mempool`, `xriq-consensus`,
    `xriq-rpc`, `xriq-storage`, `xriq-node`, `xriq-wallet`, and
-   `xriq-explorer` is local multi-node private-devnet tests.
+   `xriq-explorer` is to verify the local multi-node checkpoint on Vast, then
+   revisit consensus, supply, governance, and public-readiness decisions.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.

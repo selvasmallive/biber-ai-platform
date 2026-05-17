@@ -459,7 +459,8 @@ Before any public network, require:
     private-devnet test identities and transfer drafts.
 11. Add explorer API/UI for private-devnet inspection. Current status: done for
     dependency-free private-devnet view models and text rendering.
-12. Add local multi-node tests.
+12. Add local multi-node tests. Current status: done for in-process
+    private-devnet block import and follower validation.
 13. Revisit consensus, supply, governance, and public-readiness decisions.
 
 ## Current Prototype Status
@@ -513,6 +514,10 @@ As of 2026-05-17:
   - pending transaction application into produced blocks
   - block persistence before node-state commit
   - RPC-visible node state after block production
+  - peer block import for in-process private-devnet multi-node tests
+  - follower-side parent, chain, signature, authorized-producer, and block-size
+    checks before ledger/storage commit
+  - local mempool cleanup when imported peer blocks include pending transactions
 - Implemented private-devnet wallet CLI baseline:
   - deterministic test identity generation from labels
   - transfer draft construction
@@ -527,14 +532,16 @@ As of 2026-05-17:
   - dependency-free text rendering for private-devnet inspection
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `64` passing tests.
+  - `cargo test -j 1` with `69` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification:
+- Latest Vast verification before the local multi-node checkpoint:
   - `cargo fmt --check`
   - `cargo test -j 1` with `64` passing tests.
   - `cargo clippy -- -D warnings`.
 
-Next implementation target: add local multi-node private-devnet tests.
+Next implementation target: fast-forward the Vast checkout and verify the
+local multi-node checkpoint, then revisit consensus, supply, governance, and
+public-readiness decisions.
 
 ## Open Decisions
 
