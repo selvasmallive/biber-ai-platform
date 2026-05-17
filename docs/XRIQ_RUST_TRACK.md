@@ -28,6 +28,9 @@ token launch.
   step. Treat it as a hard project guardrail for future Codex/BIBER sessions,
   especially before any DEX, public token, bridge, custody, validator reward,
   airdrop, liquidity, or market-facing feature.
+- Follow `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md` for future
+  exchange-compatibility work. It is a directional engineering checklist, not a
+  claim that XRIQ is ready for listing or trading.
 - Security comes before launch: cryptography, key handling, consensus, wallet
   signing, networking, and upgrade paths need independent review.
 

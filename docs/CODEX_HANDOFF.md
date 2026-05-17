@@ -465,6 +465,17 @@ serving the last broad-safe Rust/XRIQ adapter.
     `bash scripts/xriq_private_devnet_smoke.sh`.
   - Latest smoke artifacts on Vast:
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T144421Z-19849`.
+- XRIQ exchange-compatibility documentation checkpoint:
+  - Added `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`.
+  - The checklist keeps XRIQ directionally compatible with future centralized
+    exchange review while explicitly stating that XRIQ is not listing-ready.
+  - It defines private-devnet, public-testnet, public-mainnet, and
+    centralized-exchange review gates; hard-blocks listing outreach, market
+    making, custody, bridges, public distribution, and investment-facing claims;
+    and keeps privacy future-facing and selective-disclosure oriented.
+  - Linked the checklist from `docs/XRIQ_TECHNICAL_SPEC.md`,
+    `docs/XRIQ_PHASE3_DECISIONS.md`, `docs/XRIQ_LEGAL_RISK_REDUCTION.md`, and
+    `docs/XRIQ_RUST_TRACK.md`.
 
 ## Repo State
 
@@ -1665,10 +1676,12 @@ cargo clippy -- -D warnings
    `xriq-node produce-transfer-block`, `xriq-node produce-draft-block`,
    `xriq-node explorer-overview`, `xriq-node block-detail`,
    `xriq-node account-detail`, and `xriq-node mempool-detail` runner commands,
-   and `scripts/xriq_private_devnet_smoke.sh`, is to add a concise
-   exchange-readiness checklist document/section while keeping XRIQ explicitly
-   not listing-ready. HTTP/RPC serving and snapshot checkpointing can wait until
-   the local file-backed workflow is comfortable.
+   `scripts/xriq_private_devnet_smoke.sh`, and
+   `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`, is to keep the local
+   file-backed workflow small and deterministic. Add minimal HTTP/RPC serving,
+   stable JSON output, or snapshot/replay improvements only when they directly
+   help the private-devnet MVP. Public XRIQ launch, exchange listing, custody,
+   liquidity, bridges, and market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.

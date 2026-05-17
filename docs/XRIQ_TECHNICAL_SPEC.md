@@ -50,6 +50,10 @@ Current Phase 3 protocol decisions are recorded in
 `docs/XRIQ_PHASE3_DECISIONS.md`. Treat that document as the active decision
 record for consensus, supply, governance, and public-readiness scope.
 
+Future centralized-exchange compatibility is tracked in
+`docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`. Treat it as a future-facing
+engineering checklist only; it does not make XRIQ listing-ready.
+
 ## Target Design Advantages
 
 XRIQ should be designed around a focused set of advantages instead of trying to
@@ -167,6 +171,9 @@ XRIQ does not currently meet centralized exchange listing requirements. The
 private devnet has no production mainnet, no public tokenomics, no audited
 wallet/custody path, no real signature scheme, no public liquidity, and no legal
 listing opinion.
+
+The detailed future-facing checklist is
+`docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`.
 
 Keep the architecture directionally compatible with future review by preserving:
 
@@ -757,8 +764,10 @@ As of 2026-05-17:
   - `bash scripts/xriq_private_devnet_smoke.sh`, which wrote artifacts under
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T144421Z-19849`.
 
-Next implementation target: add a concise exchange-readiness checklist document
-or section that future sessions can use without treating XRIQ as listing-ready.
+Next implementation target: keep the local file-backed workflow small and
+deterministic. Add minimal HTTP/RPC serving or snapshot/replay improvements only
+when they directly help the private-devnet MVP, and keep public XRIQ launch or
+listing work blocked.
 Keep HTTP/RPC serving deferred until the local file-backed workflow is
 comfortable.
 

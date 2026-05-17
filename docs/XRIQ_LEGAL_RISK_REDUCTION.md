@@ -94,6 +94,8 @@ exchange activity.
 - Do not claim centralized-exchange listing readiness or submit listing
   applications until public-network, security, tokenomics, legal, AML/CFT,
   sanctions, market-quality, custody, and integration reviews are complete.
+- Use `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md` as the project checklist for
+  future exchange-compatibility work, while treating it as directional only.
 - Do not integrate sanctioned addresses, mixers, ransomware-linked services, or
   known illicit-finance infrastructure.
 - Any public DEX interface, aggregator, relayer, bridge, or liquidity program is

@@ -8,6 +8,9 @@ future Codex and BIBER sessions can keep moving without turning the private
 devnet into a public cryptocurrency product by accident.
 
 All work here remains subject to `docs/XRIQ_LEGAL_RISK_REDUCTION.md`.
+Future centralized-exchange compatibility is additionally tracked in
+`docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`, which is a guardrail checklist and
+not a listing-readiness claim.
 
 ## Scope
 
@@ -168,6 +171,9 @@ Do not claim XRIQ meets centralized exchange requirements until a public
 network, audited production wallet/node stack, tokenomics, legal review,
 liquidity plan, compliance controls, and exchange-specific integration work are
 actually complete.
+
+Use `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md` before any future exchange,
+broker, market-maker, liquidity-provider, custodian, or trading-venue work.
 
 ## Public-Readiness Decision
 
