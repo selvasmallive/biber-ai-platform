@@ -63,9 +63,9 @@ As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Last XRIQ implementation commit pushed and Vast-verified:
-  `9618a11 Add XRIQ read-only HTTP wrapper`.
+  `b2080a2 Add XRIQ confirmed transaction HTTP lookup`.
 - Vast checkout was fast-forwarded and Rust/script/HTTP-smoke verified through
-  `9618a11`.
+  `b2080a2`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -641,6 +641,42 @@ serving the last broad-safe Rust/XRIQ adapter.
     /v1/transactions` returning `501`.
   - Latest smoke artifacts on Vast:
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T160417Z-23404`.
+- Local XRIQ prototype progress after the confirmed transaction HTTP lookup
+  checkpoint:
+  - Added `GET /v1/transactions/{hash}` behavior to `xriq-node
+    serve-readonly` for confirmed transactions already stored in persisted
+    private-devnet blocks.
+  - The endpoint scans canonical transaction hashes in the replayed chain file
+    and returns `command: "transaction-detail"`, `status: "confirmed"`,
+    block height/hash, transaction index, sender/recipient, amount, fee, nonce,
+    and expiry height.
+  - Missing confirmed transactions return `404 transaction_not_found`; invalid
+    non-lowercase/non-64-hex hashes return `400 invalid_hash`.
+  - Durable pending transaction status and `POST /v1/transactions` remain
+    intentionally deferred; do not pretend the file-backed HTTP wrapper has a
+    persistent mempool yet.
+  - Updated `xriq/README.md`, `docs/XRIQ_NODE_JSON_SCHEMA.md`, and
+    `docs/XRIQ_TECHNICAL_SPEC.md` with the confirmed-transaction lookup
+    boundary and the next implementation target.
+  - Local Windows verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test -p xriq-node -j 1` with `35` passing node tests,
+    `cargo test -j 1` with `117` passing workspace tests using
+    `CARGO_TARGET_DIR=target-codex-tx-status`, and
+    `cargo clippy -- -D warnings`.
+  - Vast checkout was fast-forwarded to `b2080a2`; Vast verification passed
+    with `cargo fmt --check`, `cargo test -j 1` with `117` passing tests,
+    `cargo clippy -- -D warnings`, a live loopback HTTP transaction lookup
+    smoke against `127.0.0.1:18789`, and
+    `bash scripts/xriq_private_devnet_smoke.sh`.
+  - Live Vast HTTP transaction lookup smoke used chain:
+    `/workspace/biber-ai-platform/xriq/target/xriq-http-tx-smoke-chain-20260517T161320Z-24229.bin`.
+    It verified transaction hash
+    `fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565`
+    returned `transaction-detail`, `confirmed`, and `amount_base_units: "25"`;
+    it also verified missing hash returns `404` and malformed hash returns
+    `400`.
+  - Latest smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T161332Z-24264`.
 
 ## Repo State
 
@@ -1845,10 +1881,10 @@ cargo clippy -- -D warnings
    `scripts/xriq_private_devnet_smoke.sh`,
    `xriq-node serve-readonly`, and
    `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`, is to keep the local
-   file-backed workflow small and deterministic. Add transaction status or
-   transaction submission over HTTP, snapshot/replay improvements, or checked
-   schema fixtures only when they directly help the private-devnet MVP. Public
-   XRIQ launch, exchange listing, custody, liquidity, bridges, and
+   file-backed workflow small and deterministic. Add transaction submission
+   over HTTP, durable pending transaction status, snapshot/replay improvements,
+   or checked schema fixtures only when they directly help the private-devnet
+   MVP. Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
    market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
