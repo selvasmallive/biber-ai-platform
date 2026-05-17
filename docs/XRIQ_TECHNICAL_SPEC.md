@@ -513,9 +513,9 @@ As of 2026-05-17:
   - `cargo fmt --check`
   - `cargo test` with `50` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification before `xriq-storage` and `xriq-node`:
+- Latest Vast verification:
   - `cargo fmt --check`
-  - `cargo test` with `40` passing tests.
+  - `cargo test` with `50` passing tests.
   - `cargo clippy -- -D warnings`.
 
 Next implementation target: add wallet CLI for test transfers.
