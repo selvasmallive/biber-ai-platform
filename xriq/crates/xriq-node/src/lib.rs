@@ -12,7 +12,7 @@ use xriq_crypto::{
 use xriq_ledger::{LedgerError, LedgerState};
 use xriq_mempool::{Mempool, MempoolConfig, MempoolError};
 use xriq_rpc::RpcService;
-use xriq_storage::{ChainStore, StorageError};
+use xriq_storage::{ChainStore, StorageError, StoredBlock};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProduceNextBlockInput {
@@ -58,6 +58,7 @@ pub struct ProducedBlock {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeError {
+    Genesis(GenesisConfigError),
     MissingSender,
     Transaction(TransactionValidationError),
     TransactionSignature(SignatureVerificationError),
@@ -71,6 +72,9 @@ pub enum NodeError {
     WrongStateRoot { expected: Hash32, actual: Hash32 },
     BlockSignature(SignatureVerificationError),
     Storage(StorageError),
+    MissingStoredBlock { height: u64 },
+    UnexpectedStoredBlockHeight { minimum: u64, actual: u64 },
+    WrongStoredBlockHash { expected: Hash32, actual: Hash32 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -108,6 +112,46 @@ impl<S: ChainStore> XriqNode<S> {
             store,
             genesis.genesis_block_hash,
         ))
+    }
+
+    pub fn from_genesis_replaying_store(
+        genesis: &GenesisConfig,
+        store: S,
+    ) -> Result<Self, NodeError> {
+        let mut node = Self::from_genesis(genesis, store).map_err(NodeError::Genesis)?;
+        let Some(latest_record) = node.store.latest_block() else {
+            return Ok(node);
+        };
+
+        let minimum_height = genesis
+            .initial_height
+            .checked_add(1)
+            .ok_or(NodeError::Header(BlockValidationError::HeightOverflow))?;
+        let latest_height = latest_record.block.header.height;
+        if latest_height < minimum_height {
+            return Err(NodeError::UnexpectedStoredBlockHeight {
+                minimum: minimum_height,
+                actual: latest_height,
+            });
+        }
+
+        let mut height = minimum_height;
+        while height <= latest_height {
+            let record = node
+                .store
+                .block_by_height(height)
+                .cloned()
+                .ok_or(NodeError::MissingStoredBlock { height })?;
+            node.replay_stored_block(record)?;
+            if height == latest_height {
+                break;
+            }
+            height = height
+                .checked_add(1)
+                .ok_or(NodeError::Header(BlockValidationError::HeightOverflow))?;
+        }
+
+        Ok(node)
     }
 
     pub fn submit_transaction(
@@ -275,6 +319,31 @@ impl<S: ChainStore> XriqNode<S> {
         block_hash_override: Option<Hash32>,
         block: Block,
     ) -> Result<Hash32, NodeError> {
+        let next_ledger = self.validate_next_block_state(&block)?;
+        let block_hash = self.append_block_to_store(block_hash_override, block.clone())?;
+
+        self.remove_included_transactions(&block.transactions);
+        self.ledger = next_ledger;
+        self.latest_block_hash = block_hash;
+        Ok(block_hash)
+    }
+
+    fn replay_stored_block(&mut self, record: StoredBlock) -> Result<(), NodeError> {
+        let expected_hash = xriq_crypto::block_hash(&record.block);
+        if record.block_hash != expected_hash {
+            return Err(NodeError::WrongStoredBlockHash {
+                expected: expected_hash,
+                actual: record.block_hash,
+            });
+        }
+
+        let next_ledger = self.validate_next_block_state(&record.block)?;
+        self.ledger = next_ledger;
+        self.latest_block_hash = record.block_hash;
+        Ok(())
+    }
+
+    fn validate_next_block_state(&self, block: &Block) -> Result<LedgerState, NodeError> {
         let parent = self.parent_header_view();
         block
             .header
@@ -320,12 +389,7 @@ impl<S: ChainStore> XriqNode<S> {
             .verify_block_header(&block.header)
             .map_err(NodeError::BlockSignature)?;
         next_ledger.set_current_height(block.header.height);
-        let block_hash = self.append_block_to_store(block_hash_override, block.clone())?;
-
-        self.remove_included_transactions(&block.transactions);
-        self.ledger = next_ledger;
-        self.latest_block_hash = block_hash;
-        Ok(block_hash)
+        Ok(next_ledger)
     }
 
     pub fn rpc_service(&self) -> RpcService {
@@ -396,11 +460,16 @@ impl<S: ChainStore> XriqNode<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        fs,
+        path::PathBuf,
+        time::{SystemTime, UNIX_EPOCH},
+    };
     use xriq_core::{Address, BlockHeader, XriqAmount};
     use xriq_crypto::{
         block_header_signing_hash, test_only_signature_for_hash, transaction_signing_hash,
     };
-    use xriq_storage::InMemoryChainStore;
+    use xriq_storage::{FileChainStore, InMemoryChainStore};
 
     fn address(label: &str) -> Address {
         Address::parse(&format!("xriqdev1{label}00000000000")).unwrap()
@@ -438,8 +507,8 @@ mod tests {
         }
     }
 
-    fn produce_canonical_input(
-        node: &XriqNode<InMemoryChainStore>,
+    fn produce_canonical_input<S: ChainStore>(
+        node: &XriqNode<S>,
     ) -> ProduceNextBlockCanonicalInput {
         let state_root = hash(4);
         let transactions_root = next_transactions_root(node);
@@ -451,8 +520,8 @@ mod tests {
         }
     }
 
-    fn produce_canonical_roots_input(
-        node: &XriqNode<InMemoryChainStore>,
+    fn produce_canonical_roots_input<S: ChainStore>(
+        node: &XriqNode<S>,
     ) -> ProduceNextBlockCanonicalRootsInput {
         let (state_root, transactions_root) = next_canonical_roots(node);
         ProduceNextBlockCanonicalRootsInput {
@@ -462,7 +531,7 @@ mod tests {
         }
     }
 
-    fn next_transactions(node: &XriqNode<InMemoryChainStore>) -> Vec<Transaction> {
+    fn next_transactions<S: ChainStore>(node: &XriqNode<S>) -> Vec<Transaction> {
         node.mempool()
             .ordered_entries()
             .into_iter()
@@ -471,11 +540,11 @@ mod tests {
             .collect()
     }
 
-    fn next_transactions_root(node: &XriqNode<InMemoryChainStore>) -> Hash32 {
+    fn next_transactions_root<S: ChainStore>(node: &XriqNode<S>) -> Hash32 {
         xriq_crypto::transactions_root(&next_transactions(node))
     }
 
-    fn next_canonical_roots(node: &XriqNode<InMemoryChainStore>) -> (Hash32, Hash32) {
+    fn next_canonical_roots<S: ChainStore>(node: &XriqNode<S>) -> (Hash32, Hash32) {
         let transactions = next_transactions(node);
         let mut next_ledger = node.ledger().clone();
         for transaction in &transactions {
@@ -487,8 +556,8 @@ mod tests {
         )
     }
 
-    fn next_block_signature(
-        node: &XriqNode<InMemoryChainStore>,
+    fn next_block_signature<S: ChainStore>(
+        node: &XriqNode<S>,
         state_root: Hash32,
         transactions_root: Hash32,
     ) -> SignatureBytes {
@@ -507,13 +576,25 @@ mod tests {
         test_only_signature_for_hash(block_header_signing_hash(&header))
     }
 
-    fn node() -> XriqNode<InMemoryChainStore> {
-        let genesis = GenesisConfig::private_devnet().with_account(
+    fn genesis() -> GenesisConfig {
+        GenesisConfig::private_devnet().with_account(
             address("alice"),
             XriqAmount::from_base_units(100),
             0,
-        );
+        )
+    }
+
+    fn node() -> XriqNode<InMemoryChainStore> {
+        let genesis = genesis();
         XriqNode::from_genesis(&genesis, InMemoryChainStore::new()).unwrap()
+    }
+
+    fn temp_store_path() -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("xriq-node-store-{nanos}.bin"))
     }
 
     #[test]
@@ -724,6 +805,104 @@ mod tests {
         assert_eq!(imported_hash, xriq_crypto::block_hash(&produced.block));
         assert_eq!(follower.latest_block_hash(), produced.block_hash);
         assert_eq!(follower.store().len(), 1);
+    }
+
+    #[test]
+    fn replays_persisted_file_store_into_node_state() {
+        let path = temp_store_path();
+        let genesis = genesis();
+        let latest_hash;
+
+        {
+            let mut node =
+                XriqNode::from_genesis(&genesis, FileChainStore::open(&path).unwrap()).unwrap();
+            node.submit_transaction_with_canonical_hash(transaction(address("alice"), 0, 25, 2))
+                .unwrap();
+            node.produce_next_block_with_canonical_roots(produce_canonical_roots_input(&node))
+                .unwrap();
+            node.submit_transaction_with_canonical_hash(transaction(address("alice"), 1, 10, 2))
+                .unwrap();
+            let second = node
+                .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&node))
+                .unwrap();
+            latest_hash = second.block_hash;
+        }
+
+        let store = FileChainStore::open(&path).unwrap();
+        let reloaded = XriqNode::from_genesis_replaying_store(&genesis, store).unwrap();
+
+        assert_eq!(reloaded.latest_block_hash(), latest_hash);
+        assert_eq!(reloaded.ledger().current_height(), 2);
+        assert_eq!(reloaded.store().len(), 2);
+        assert_eq!(
+            reloaded
+                .ledger()
+                .account(&address("alice"))
+                .unwrap()
+                .balance,
+            XriqAmount::from_base_units(61)
+        );
+        assert_eq!(
+            reloaded
+                .ledger()
+                .account(&address("bobbb"))
+                .unwrap()
+                .balance,
+            XriqAmount::from_base_units(35)
+        );
+        assert_eq!(
+            reloaded
+                .ledger()
+                .account(&GenesisConfig::private_devnet().fee_sink)
+                .unwrap()
+                .balance,
+            XriqAmount::from_base_units(4)
+        );
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn replay_rejects_noncanonical_stored_block_hash() {
+        let genesis = genesis();
+        let mut producer = XriqNode::from_genesis(&genesis, InMemoryChainStore::new()).unwrap();
+        let produced = producer
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
+            .unwrap();
+        let wrong_hash = hash(99);
+        let mut store = InMemoryChainStore::new();
+        store
+            .append_block(wrong_hash, produced.block.clone())
+            .unwrap();
+
+        assert_eq!(
+            XriqNode::from_genesis_replaying_store(&genesis, store),
+            Err(NodeError::WrongStoredBlockHash {
+                expected: xriq_crypto::block_hash(&produced.block),
+                actual: wrong_hash,
+            })
+        );
+    }
+
+    #[test]
+    fn replay_rejects_height_gaps() {
+        let genesis = genesis();
+        let mut producer = XriqNode::from_genesis(&genesis, InMemoryChainStore::new()).unwrap();
+        producer
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
+            .unwrap();
+        let second = producer
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
+            .unwrap();
+        let mut store = InMemoryChainStore::new();
+        store
+            .append_block(second.block_hash, second.block.clone())
+            .unwrap();
+
+        assert_eq!(
+            XriqNode::from_genesis_replaying_store(&genesis, store),
+            Err(NodeError::MissingStoredBlock { height: 1 })
+        );
     }
 
     #[test]

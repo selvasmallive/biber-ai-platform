@@ -506,6 +506,9 @@ Before any public network, require:
 18. Wire hash-bound test-only transaction signature verification into RPC/node
     submission and imported-block transaction execution. Current status: done
     for private-devnet submission/import boundaries.
+19. Add deterministic private-devnet chain replay startup. Current status: done
+    for rebuilding ledger height, account state, and latest tip from persisted
+    canonical blocks. Snapshot checkpointing remains deferred.
 
 ## Current Prototype Status
 
@@ -586,6 +589,7 @@ As of 2026-05-17:
 - Implemented local storage and node loop:
   - in-memory block index by hash and height
   - append-only local file store for block persistence and reload
+  - deterministic startup replay through `XriqNode::from_genesis_replaying_store`
   - node transaction submission
   - node transaction submission rejects invalid hash-bound test-only signatures
     before mempool insert
@@ -601,6 +605,9 @@ As of 2026-05-17:
   - follower-side hash-bound test-only transaction signature verification
     before imported-block ledger execution
   - local mempool cleanup when imported peer blocks include pending transactions
+  - replay validates contiguous stored heights, canonical stored block hashes,
+    parent links, authorized producer, transaction roots, account-state roots,
+    and hash-bound test-only signatures before restoring node tip/state
 - Implemented private-devnet wallet CLI baseline:
   - deterministic test identity generation from labels
   - transfer draft construction
@@ -615,16 +622,16 @@ As of 2026-05-17:
   - dependency-free text rendering for private-devnet inspection
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `102` passing tests.
+  - `cargo test` with `105` passing tests.
   - `cargo clippy -- -D warnings`.
 - Latest Vast verification:
   - `cargo fmt --check`
   - `cargo test -j 1` with `102` passing tests.
   - `cargo clippy -- -D warnings`.
 
-Next implementation target: add deterministic private-devnet chain replay or
-snapshot startup so a node can rebuild trusted ledger/tip state from persisted
-blocks before serving RPC.
+Next implementation target: wire replay startup into a future node runner or
+local RPC-server start path, then consider snapshot checkpointing once replayed
+startup is exercised through tooling.
 
 ## Open Decisions
 

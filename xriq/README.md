@@ -11,7 +11,8 @@ only until security and legal/compliance review says otherwise.
 - `xriq-explorer`: read-only private-devnet explorer view models and text UI.
 - `xriq-ledger`: deterministic private-devnet account state transitions.
 - `xriq-mempool`: deterministic pending-transaction checks and ordering.
-- `xriq-node`: minimal local private-devnet node loop.
+- `xriq-node`: minimal local private-devnet node loop with deterministic replay
+  startup from persisted canonical blocks.
 - `xriq-rpc`: local private-devnet RPC endpoint behavior.
 - `xriq-storage`: local block storage for private-devnet tests.
 - `xriq-wallet`: private-devnet wallet CLI for test identities and transfers.
@@ -22,6 +23,7 @@ only until security and legal/compliance review says otherwise.
 cd xriq
 cargo fmt --check
 cargo test
+cargo clippy -- -D warnings
 ```
 
 Keep generated chain data, node databases, wallets, and testnet artifacts out of
