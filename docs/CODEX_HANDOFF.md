@@ -41,6 +41,10 @@ Future Codex sessions must default to a low-OpenAI-cost operating mode.
 - Use the user's Vast.ai GPU, local scripts, the local BIBER model, and ordinary
   deterministic tests for repetitive generation, long-running evals, QLoRA,
   dataset work, smoke loops, and batch validation.
+- Actual model training/fine-tuning should run on the Vast GPU with local
+  datasets, local scripts, local checkpoints, and local evals. Do not put
+  OpenAI/Codex calls inside the training loop. OpenAI/Codex cost should come
+  only from bounded engineering sessions and optional mentor/reviewer calls.
 - Do not start broad exploratory rewrites, large refactors, public XRIQ work,
   or extra model-training loops unless they directly unblock the focused MVP or
   the user explicitly approves the cost.
@@ -63,9 +67,11 @@ As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Last XRIQ implementation commit pushed and Vast-verified:
-  `824816e Add XRIQ transaction detail runner`.
+  `4e437cc Add XRIQ durable pending HTTP state`.
+- Latest XRIQ smoke-harness commit pushed and Vast-verified:
+  `3306130 Run XRIQ smoke server directly`.
 - Vast checkout was fast-forwarded and Rust/script/HTTP-smoke verified through
-  `824816e`.
+  `3306130`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -886,6 +892,52 @@ serving the last broad-safe Rust/XRIQ adapter.
     `bash scripts/xriq_private_devnet_smoke.sh`.
   - Latest expanded smoke artifacts on Vast:
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T202943Z-29119`.
+- Local XRIQ prototype progress after the durable pending HTTP checkpoint:
+  - Added optional durable private-devnet pending HTTP state to
+    `xriq-node serve-private --pending-file <path>`.
+  - Added `POST /v1/mempool` for private-devnet pending transaction submission.
+    It accepts the same wallet draft or wallet JSON transfer body as
+    `POST /v1/transactions`, validates against replayed chain state plus the
+    current pending file, appends a pending record, and returns `202 Accepted`
+    with the existing transaction-detail JSON shape and `status: "pending"`.
+  - `GET /v1/mempool`, `GET /v1/chain/status`, and
+    `GET /v1/transactions/{hash}` now include durable pending-file state when
+    `--pending-file` is configured. Confirmed chain transactions are still
+    resolved before pending records.
+  - Existing `POST /v1/transactions` intentionally remains the simple
+    submit-and-produce private-devnet flow; it persists a block immediately and
+    does not become a public mempool API.
+  - Updated `scripts/xriq_private_devnet_smoke.sh` so the full smoke covers
+    durable pending submit/list/lookup artifacts:
+    `http-pending-submit.json`, `http-pending-mempool.json`,
+    `http-pending-transaction.json`, and `http-pending-mempool.tsv`.
+  - Updated `xriq/README.md`, `docs/XRIQ_NODE_JSON_SCHEMA.md`, and
+    `docs/XRIQ_TECHNICAL_SPEC.md` with the pending HTTP endpoint contract and
+    internal private-devnet pending-file behavior.
+  - Local Windows verification passed from `xriq/` with
+    `CARGO_TARGET_DIR=target-codex-pending-http2`: `cargo fmt --check`,
+    focused
+    `cargo test -p xriq-node private_devnet_http_routes_persist_pending_transactions -j 1`,
+    `cargo test -j 1` with `128` passing workspace tests, and
+    `cargo clippy -- -D warnings`. Generated local target files were removed
+    afterward. Local Bash verification is still unavailable because Windows has
+    no WSL distribution installed, so Bash syntax and smoke verification were
+    done on Vast.
+  - Pushed implementation commit:
+    `4e437cc Add XRIQ durable pending HTTP state`.
+  - Pushed smoke-harness robustness commits:
+    `174cdb1 Harden XRIQ smoke HTTP port selection` and
+    `3306130 Run XRIQ smoke server directly`. These fixed Vast smoke harness
+    issues caused by fixed-port collisions and `cargo run` leaving the server
+    child alive after the harness stopped Cargo.
+  - Vast Rust verification passed through `4e437cc` with
+    `cargo fmt --check`, `cargo test -j 1` with `128` passing workspace tests,
+    and `cargo clippy -- -D warnings`.
+  - Vast checkout was then fast-forwarded to `3306130`; verification passed
+    with `bash -n scripts/xriq_private_devnet_smoke.sh` and
+    `bash scripts/xriq_private_devnet_smoke.sh`.
+  - Latest expanded smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T204806Z-31871`.
 
 ## Repo State
 
@@ -2093,12 +2145,13 @@ cargo clippy -- -D warnings
    `xriq-node transaction-detail` runner commands,
    `scripts/xriq_private_devnet_smoke.sh`,
    `xriq-node serve-readonly`, `xriq-node serve-private`, and
-   `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`, is to keep the local
-   file-backed workflow small and deterministic. Add durable pending
-   transaction status, snapshot/replay improvements, or additional checked
-   schema fixtures only when they directly help the private-devnet MVP. Public
-   XRIQ launch, exchange listing, custody, liquidity, bridges, and
-   market-facing work remain blocked.
+   durable pending HTTP state, is to keep the local file-backed workflow small
+   and deterministic. Good next targets are producing a block from the durable
+   pending file, compacting/clearing pending records after inclusion,
+   snapshot/replay improvements, or additional checked schema fixtures only
+   when they directly help the private-devnet MVP. Public XRIQ launch,
+   exchange listing, custody, liquidity, bridges, and market-facing work remain
+   blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
