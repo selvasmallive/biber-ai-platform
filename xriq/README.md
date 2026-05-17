@@ -7,6 +7,7 @@ only until security and legal/compliance review says otherwise.
 
 - `xriq-core`: dependency-free protocol types and validation helpers.
 - `xriq-ledger`: deterministic private-devnet account state transitions.
+- `xriq-mempool`: deterministic pending-transaction checks and ordering.
 
 ## Commands
 

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/xriq-core", "crates/xriq-ledger"]
+members = ["crates/xriq-core", "crates/xriq-ledger", "crates/xriq-mempool"]
 resolver = "2"
 
 [workspace.package]

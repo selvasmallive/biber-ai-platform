@@ -66,6 +66,18 @@ last broad-safe Rust/XRIQ adapter.
   validator score at `6/7`. Do not chase more blind QLoRA runs for the ledger
   prompt without first improving the eval design, prompt scaffolding, or
   training-data strategy.
+- Local XRIQ prototype progress made after the last Vast check:
+  - `docs/XRIQ_TECHNICAL_SPEC.md` now makes the intended XRIQ advantages
+    explicit: no mining, predictable fees, Rust-first implementation, clean
+    token issuance, DEX/BTC-swap friendliness, crypto agility, cautious
+    compliance posture, and BIBER-assisted vertical tooling.
+  - Added `xriq/crates/xriq-mempool` to the Rust workspace for deterministic
+    private-devnet pending-transaction rules.
+  - Local Rust verification passed from `xriq/`: `cargo fmt --check`,
+    `cargo test` with `27` passing tests, and
+    `cargo clippy -- -D warnings`.
+  - Vast has not yet been re-verified with `xriq-mempool` unless a later entry
+    in this handoff says so.
 
 ## Repo State
 
@@ -525,16 +537,26 @@ last broad-safe Rust/XRIQ adapter.
   - Future agent-client work should move toward database-backed API keys,
     repo-agent sessions, patch-oriented responses, streaming, usage logging, and
     explicit mentor review gates.
-- Started the Rust private-devnet prototype workspace:
+- Started and expanded the Rust private-devnet prototype workspace:
   - workspace path: `xriq/`.
-  - first crate: `xriq/crates/xriq-core`.
+  - implemented crates:
+    - `xriq/crates/xriq-core`
+    - `xriq/crates/xriq-ledger`
+    - `xriq/crates/xriq-mempool`
   - implemented dependency-free private-devnet primitives for checked
     `XriqAmount`, validated devnet `Address`, `Hash32`, basic transaction
     validation, and block-header validation.
-  - local validation passed: `cd xriq && cargo fmt --check && cargo test`.
-  - Rust test result: `15` passed.
-  - local clippy validation passed: `cd xriq && cargo clippy -- -D warnings`.
-  - Vast Rust validation passed with the toolchain stored under `/workspace`:
+  - implemented account ledger state transitions for balances, nonces, minimum
+    fees, fee-sink crediting, and atomic mutation.
+  - implemented deterministic mempool checks for duplicate transaction hashes,
+    duplicate account nonces, minimum fee, zero amount, removal, and
+    fee/order/hash ordering.
+  - latest local validation passed: `cd xriq && cargo fmt --check && cargo test`.
+  - latest local Rust test result: `27` passed.
+  - latest local clippy validation passed:
+    `cd xriq && cargo clippy -- -D warnings`.
+  - prior Vast Rust validation passed with the toolchain stored under
+    `/workspace` before `xriq-mempool` was added:
     `cargo fmt --check`, `cargo test`, and `cargo clippy -- -D warnings`.
   - Installed the `clippy` Rust component into `/workspace/.rustup` and updated
     `scripts/vast_install_rust_toolchain.sh` so future Rust setup includes it.
@@ -1137,36 +1159,50 @@ bash scripts/vast_eval_lora_direct.sh
    and regenerate datasets from the approved sources.
 10. Update this handoff immediately after SSH is restored, training finishes,
    serving restarts, evals complete, or the instance is moved.
-11. Continue the XRIQ private-devnet prototype after the Rust/XRIQ model loop is
+11. After pushing local XRIQ prototype changes, fast-forward the Vast checkout
+   and rerun Rust validation there:
+
+```bash
+cd /workspace/biber-ai-platform
+git pull --ff-only origin main
+cd xriq
+cargo fmt --check
+cargo test
+cargo clippy -- -D warnings
+```
+
+12. Continue the XRIQ private-devnet prototype after the Rust/XRIQ model loop is
    stable. `xriq/` is already the separate Rust workspace inside this repo, and
    it is preferred over creating a second top-level Rust workspace unless the
-   project later needs independent release/versioning.
-12. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
+   project later needs independent release/versioning. The next protocol target
+   after `xriq-core`, `xriq-ledger`, and `xriq-mempool` is deterministic
+   single-node block production.
+13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
-13. Use BIBER AI for XRIQ through inference first: spec drafting, Rust module
+14. Use BIBER AI for XRIQ through inference first: spec drafting, Rust module
    scaffolding, tests, review prompts, and private-devnet tooling. Fine-tune
    only after Rust/XRIQ evals show repeatable gaps.
-14. After the Rust/XRIQ baseline is stable, follow
+15. After the Rust/XRIQ baseline is stable, follow
    `docs/BIBER_CAPABILITY_ROADMAP.md` in order: PostgreSQL, React, TypeScript,
    JavaScript, jQuery, CSS, HTML, Docker, GitHub Actions CI/CD, WASM, Bash,
    security engineering, cryptography concepts, Kubernetes, and distributed
    systems optimization before lower-priority stacks.
-15. Add new training data only through approved/provenance-tracked sources, then
+16. Add new training data only through approved/provenance-tracked sources, then
    validate and promote to `/workspace/data/biber_train.jsonl`.
-16. Keep the cost-saving pattern: Codex changes scripts, docs, evals, and
+17. Keep the cost-saving pattern: Codex changes scripts, docs, evals, and
    diagnoses failures; Vast.ai runs long GPU jobs in `tmux`.
-17. Keep the API private over SSH tunnels unless credentials are deliberately
+18. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
-18. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
-19. Add optional OpenAI mentor credentials if desired and cost-approved.
-20. Add database-backed API keys and agent-client sessions per
+19. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
+20. Add optional OpenAI mentor credentials if desired and cost-approved.
+21. Add database-backed API keys and agent-client sessions per
     `docs/BIBER_AGENT_API_AND_MENTOR_STRATEGY.md`.
-21. Add a durable fine-grained GitHub token to Vast `.env` if persistent
+22. Add a durable fine-grained GitHub token to Vast `.env` if persistent
    generated-code save should stay enabled.
-22. Add Azure Blob connection string and test backups.
-23. Replace demo API key/passcode auth with database-backed credentials.
-24. Add real MySQL persistence and Redis worker integration.
+23. Add Azure Blob connection string and test backups.
+24. Replace demo API key/passcode auth with database-backed credentials.
+25. Add real MySQL persistence and Redis worker integration.
 
 ## Resume Prompt For A New Chat
 

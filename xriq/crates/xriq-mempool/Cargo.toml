@@ -1,0 +1,10 @@
+[package]
+name = "xriq-mempool"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "XRIQ private-devnet deterministic mempool rules."
+
+[dependencies]
+xriq-core = { path = "../xriq-core" }

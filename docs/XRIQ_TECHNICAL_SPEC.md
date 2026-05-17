@@ -37,6 +37,33 @@ completed.
 - Do not rely on model-generated security-critical code without human review,
   tests, and external audit before any public exposure.
 
+## Target Design Advantages
+
+XRIQ should be designed around a focused set of advantages instead of trying to
+clone Ethereum feature-for-feature:
+
+- no mining: use validator-based private-devnet consensus first, with public
+  proof-of-stake or BFT-style consensus treated as a later design phase.
+- predictable fees: start with simple minimum fees and deterministic mempool
+  ordering, then evolve toward a transparent fee market only after the basic
+  ledger and wallet flows are proven.
+- Rust-first implementation: keep the protocol core in Rust with small crates,
+  strong tests, and future WASM support for wallet, light-client, or contract
+  tooling.
+- clean token issuance: support protocol-governed native supply and future
+  XRC-style token modules instead of mining-based coin creation.
+- DEX and BTC-swap friendliness: prefer non-custodial atomic-swap and
+  interoperability designs before bridges, wrapped assets, or custodial
+  services.
+- crypto agility: make key, address, and signature formats versioned so the
+  network can migrate algorithms and later support hybrid or post-quantum
+  signatures without redesigning the whole chain.
+- compliance-minimizing posture: keep the first network private and test-only,
+  avoid fundraising or profit promises, and require legal/security review before
+  any public token, bridge, exchange, or payment feature.
+- vertical integration with BIBER: use BIBER to help build the node, wallet,
+  explorer, SDKs, tests, and future custom agent workflows around the chain.
+
 ## Architecture Overview
 
 The private prototype should be a Rust workspace with small crates that can be
@@ -100,6 +127,8 @@ All arithmetic must use checked operations.
 
 ## Supply Policy
 
+XRIQ does not use mining for coin creation in the planned design.
+
 For the private devnet, use deterministic test allocation only:
 
 - genesis creates test balances for configured devnet accounts
@@ -109,9 +138,11 @@ For the private devnet, use deterministic test allocation only:
 
 Open decision for later phases:
 
-- fixed supply, inflationary supply, or validator reward schedule
+- fixed supply, capped emissions, or validator reward schedule
 - whether transaction fees are burned, paid to block producers, or split
 - whether supply policy should be upgradeable
+- whether future application tokens use a native XRC-style token module, smart
+  contracts, or both
 
 Do not finalize a public supply policy without legal and economic review.
 
@@ -136,6 +167,15 @@ Required checks:
 - reject wrong network prefixes
 - reject invalid public keys or signatures
 - never log private keys or seed phrases
+
+Crypto-agility requirements:
+
+- include an algorithm identifier in signature verification metadata
+- use versioned address formats so future key types can coexist
+- keep signature verification behind a small protocol interface
+- allow a future policy layer to reject deprecated algorithms by block height
+- design room for hybrid signatures, such as classical plus post-quantum
+  signatures, after mature libraries and audits are available
 
 ## Transaction Format
 
@@ -214,7 +254,9 @@ The first mempool should be simple and deterministic:
 - reject malformed or invalid transactions
 - reject transactions with stale nonces
 - keep at most one transaction per account nonce
-- sort by fee per byte, then arrival time, then transaction hash
+- sort by fee amount, then arrival time, then transaction hash in the first
+  dependency-free prototype
+- revisit fee-per-byte ordering after canonical serialization size is available
 - cap maximum transaction count and memory usage
 - expose pending transaction count through RPC
 
@@ -241,12 +283,13 @@ Phase 3 private devnet should start with deterministic authority consensus:
 - a fixed validator set in genesis config
 - round-robin or single-authority block production for local tests
 - signed blocks
+- no proof-of-work mining
 - no public validator admission
 - no economic staking until a later design review
 
 This keeps the first implementation testable. More advanced consensus choices
-such as proof of stake, BFT finality, or Nakamoto-style mining should be treated
-as later design decisions, not Phase 3 defaults.
+such as proof of stake or BFT finality should be treated as later design
+decisions, not Phase 3 defaults.
 
 ## Finality
 
@@ -388,15 +431,16 @@ Before any public network, require:
 
 ## Prototype Milestones
 
-1. Approve this technical spec direction. Current status: started.
+1. Approve this technical spec direction. Current status: in progress.
 2. Create the Rust workspace skeleton. Current status: done in `xriq/`.
 3. Implement `xriq-core` amount, address, hash, and serialization types.
-   Current status: started with dependency-free amount, devnet address, and
-   `Hash32` types.
-4. Implement transaction validation with unit tests. Current status: started
-   with basic transfer validation and unit tests.
-5. Implement account ledger state transitions.
-6. Implement mempool duplicate and fee checks.
+   Current status: done for the dependency-free private-devnet baseline.
+4. Implement transaction validation with unit tests. Current status: done for
+   basic signed transfers.
+5. Implement account ledger state transitions. Current status: done for basic
+   transfer, nonce, fee, and atomic-state checks.
+6. Implement mempool duplicate and fee checks. Current status: done for the
+   dependency-free private-devnet baseline.
 7. Implement deterministic single-node block production.
 8. Add local RPC endpoints.
 9. Add wallet CLI for test transfers.
@@ -409,24 +453,36 @@ Before any public network, require:
 As of 2026-05-17:
 
 - Rust workspace path: `xriq/`.
-- First crate: `xriq/crates/xriq-core`.
+- Implemented crates:
+  - `xriq/crates/xriq-core`
+  - `xriq/crates/xriq-ledger`
+  - `xriq/crates/xriq-mempool`
 - Implemented dependency-free private-devnet core primitives:
   - checked `XriqAmount`
   - validated devnet `Address`
   - fixed-size `Hash32`
   - basic signed-transfer shape and validation context
   - block-header validation against a parent header view
+- Implemented ledger state transitions:
+  - account balances and nonces
+  - minimum fee validation through transaction context
+  - fee-sink crediting
+  - atomic mutation by cloning state before commit
+- Implemented mempool rules:
+  - duplicate transaction-hash rejection
+  - one pending transaction per account nonce
+  - minimum fee and zero-amount rejection
+  - deterministic fee/order/hash transaction ordering
 - Local verification:
   - `cargo fmt --check`
-  - `cargo test` with `15` passing tests.
+  - `cargo test` with `27` passing tests.
   - `cargo clippy -- -D warnings`.
-- Vast verification:
+- Latest Vast verification before `xriq-mempool`:
   - `cargo fmt --check`
-  - `cargo test` with `15` passing tests.
+  - `cargo test` with `20` passing tests.
   - `cargo clippy -- -D warnings`.
 
-Next implementation target: add `xriq-ledger` for account balances, nonces, and
-deterministic transaction application.
+Next implementation target: add deterministic single-node block production.
 
 ## Open Decisions
 
