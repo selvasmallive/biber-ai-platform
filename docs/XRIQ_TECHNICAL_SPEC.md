@@ -534,13 +534,12 @@ As of 2026-05-17:
   - `cargo fmt --check`
   - `cargo test -j 1` with `69` passing tests.
   - `cargo clippy -- -D warnings`.
-- Latest Vast verification before the local multi-node checkpoint:
+- Latest Vast verification:
   - `cargo fmt --check`
-  - `cargo test -j 1` with `64` passing tests.
+  - `cargo test -j 1` with `69` passing tests.
   - `cargo clippy -- -D warnings`.
 
-Next implementation target: fast-forward the Vast checkout and verify the
-local multi-node checkpoint, then revisit consensus, supply, governance, and
+Next implementation target: revisit consensus, supply, governance, and
 public-readiness decisions.
 
 ## Open Decisions
