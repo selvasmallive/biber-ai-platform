@@ -1,0 +1,8 @@
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "mempool-detail",
+  "warning": "private-devnet-only-no-public-token",
+  "pending_count": 0,
+  "transactions": [
+  ]
+}

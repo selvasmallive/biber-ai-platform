@@ -9,6 +9,11 @@ API, wallet-custody interface, or exchange-listing interface.
 
 Current format version: `xriq-node-json-v1`.
 
+Checked examples live in `xriq/fixtures/private-devnet/` and are compared by
+Rust tests so schema drift is intentional. The current checked set covers fresh
+node status, empty mempool detail, initial Alice account detail, wallet transfer
+submit body, and produced transfer block JSON.
+
 ## Compatibility Rules
 
 - Text output remains the default. Consumers that need machine-readable output

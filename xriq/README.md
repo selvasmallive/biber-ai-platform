@@ -129,6 +129,9 @@ The current machine-readable runner contract is documented in
 
 Checked private-devnet JSON fixtures live in `fixtures/private-devnet/`.
 They are used by Rust tests as golden examples for wallet/node schema drift.
+Current checked fixtures cover fresh node status, empty mempool detail, initial
+Alice account detail, wallet transfer submit body, and produced transfer block
+JSON.
 
 Private-devnet read-only HTTP wrapper:
 

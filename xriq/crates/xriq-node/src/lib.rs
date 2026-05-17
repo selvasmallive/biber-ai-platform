@@ -3844,6 +3844,75 @@ mod tests {
     }
 
     #[test]
+    fn node_status_json_matches_checked_fixture() {
+        let path = temp_store_path();
+        let path_text = path.to_string_lossy().to_string();
+        let status_json = run_node_command([
+            "status",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        let fixture = include_str!("../../../fixtures/private-devnet/node-status-empty.json");
+
+        assert_eq!(status_json.trim_end(), fixture.trim_end());
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn node_empty_mempool_json_matches_checked_fixture() {
+        let path = temp_store_path();
+        let path_text = path.to_string_lossy().to_string();
+        let mempool_json = run_node_command([
+            "mempool-detail",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        let fixture = include_str!("../../../fixtures/private-devnet/node-mempool-empty.json");
+
+        assert_eq!(mempool_json.trim_end(), fixture.trim_end());
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn node_initial_account_json_matches_checked_fixture() {
+        let path = temp_store_path();
+        let path_text = path.to_string_lossy().to_string();
+        let account_json = run_node_command([
+            "account-detail",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--address",
+            "xriqdev1alice00000000000",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        let fixture =
+            include_str!("../../../fixtures/private-devnet/node-account-alice-initial.json");
+
+        assert_eq!(account_json.trim_end(), fixture.trim_end());
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
     fn private_devnet_http_routes_wrap_file_backed_json_outputs() {
         let path = temp_store_path();
         let path_text = path.to_string_lossy().to_string();

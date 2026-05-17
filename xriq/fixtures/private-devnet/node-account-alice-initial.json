@@ -1,0 +1,8 @@
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "account-detail",
+  "warning": "private-devnet-only-no-public-token",
+  "address": "xriqdev1alice00000000000",
+  "balance_base_units": "100",
+  "nonce": 0
+}
