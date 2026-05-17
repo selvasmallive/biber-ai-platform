@@ -303,9 +303,9 @@ Implemented read-only endpoints:
 - `GET /v1/mempool`
 
 The read-only endpoints reuse the JSON bodies documented above where possible.
-HTTP-only health and wrapper errors use `format_version:
-xriq-node-http-v1`. `POST /v1/transactions` and `GET
-/v1/transactions/{hash}` intentionally return `501` until a persisted
+HTTP-only health and wrapper errors use
+`format_version: xriq-node-http-v1`. `POST /v1/transactions` and
+`GET /v1/transactions/{hash}` intentionally return `501` until a persisted
 transaction index/submission path exists.
 
 ## Next Schema Work

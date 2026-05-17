@@ -63,9 +63,9 @@ As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Last XRIQ implementation commit pushed and Vast-verified:
-  `f222b01 Persist XRIQ smoke JSON artifacts`.
-- Vast checkout was fast-forwarded and script-verified through `f222b01`.
-  Previous full Rust suite verification remains through `1a7218f`.
+  `9618a11 Add XRIQ read-only HTTP wrapper`.
+- Vast checkout was fast-forwarded and Rust/script/HTTP-smoke verified through
+  `9618a11`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -611,6 +611,36 @@ serving the last broad-safe Rust/XRIQ adapter.
   - Full Rust tests were intentionally not rerun for this script/docs-only
     checkpoint; previous full Rust and Vast verification remains through
     `1a7218f`.
+- Local XRIQ prototype progress after the read-only HTTP wrapper checkpoint:
+  - Added `xriq-node serve-readonly` as a dependency-free, loopback-first,
+    private-devnet HTTP wrapper over the existing file-backed JSON runner
+    outputs.
+  - Implemented read-only endpoints for `/health`, `/v1/chain/status`,
+    `/v1/explorer/overview?limit=5`, `/v1/blocks/{height}`,
+    `/v1/accounts/{address}`, and `/v1/mempool`.
+  - `POST /v1/transactions` and `GET /v1/transactions/{hash}` intentionally
+    return `501` until a real persisted transaction index/submission path is
+    added. Do not treat this wrapper as public API readiness.
+  - Updated `xriq/README.md`, `docs/XRIQ_NODE_JSON_SCHEMA.md`, and
+    `docs/XRIQ_TECHNICAL_SPEC.md` with the private-devnet HTTP surface and
+    next-step boundaries.
+  - Local Windows verification passed from `xriq/`: `cargo fmt --check`,
+    focused `cargo test -p xriq-node private_devnet_http_routes_wrap_file_backed_json_outputs -j 1`,
+    `cargo test -p xriq-node -j 1` with `35` passing node tests,
+    `cargo test -j 1` with `117` passing workspace tests using
+    `CARGO_TARGET_DIR=target-codex-http` after the default target directory hit
+    the known Windows linker lock, and `cargo clippy -- -D warnings`.
+  - Vast checkout was fast-forwarded to `9618a11`; Vast verification passed
+    with `cargo fmt --check`, `cargo test -j 1` with `117` passing tests,
+    `cargo clippy -- -D warnings`, a live loopback HTTP smoke against
+    `127.0.0.1:18787`, and `bash scripts/xriq_private_devnet_smoke.sh`.
+  - Live Vast HTTP smoke used chain:
+    `/workspace/biber-ai-platform/xriq/target/xriq-http-smoke-chain-20260517T160404Z-23361.bin`.
+    It verified `/health`, `/v1/chain/status` with `current_height: 1`,
+    `/v1/accounts/xriqdev1alice00000000000` with balance `73`, and `POST
+    /v1/transactions` returning `501`.
+  - Latest smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T160417Z-23404`.
 
 ## Repo State
 
@@ -1812,13 +1842,14 @@ cargo clippy -- -D warnings
    `xriq-node produce-transfer-block`, `xriq-node produce-draft-block`,
    `xriq-node explorer-overview`, `xriq-node block-detail`,
    `xriq-node account-detail`, and `xriq-node mempool-detail` runner commands,
-   `scripts/xriq_private_devnet_smoke.sh`, and
+   `scripts/xriq_private_devnet_smoke.sh`,
+   `xriq-node serve-readonly`, and
    `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`, is to keep the local
-   file-backed workflow small and deterministic. Add response examples from
-   smoke artifacts, minimal HTTP/RPC serving, or snapshot/replay improvements
-   only when they directly help the private-devnet MVP. Public XRIQ launch,
-   exchange listing, custody, liquidity, bridges, and market-facing work remain
-   blocked.
+   file-backed workflow small and deterministic. Add transaction status or
+   transaction submission over HTTP, snapshot/replay improvements, or checked
+   schema fixtures only when they directly help the private-devnet MVP. Public
+   XRIQ launch, exchange listing, custody, liquidity, bridges, and
+   market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
