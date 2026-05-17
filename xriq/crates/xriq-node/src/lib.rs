@@ -544,7 +544,9 @@ fn run_status_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerErr
         private_devnet_file_status(chain_file, alice_balance).map_err(NodeRunnerError::Node)?;
     Ok(match output_format {
         RunnerOutputFormat::Text => NodeRunnerOutput::Status(status),
-        RunnerOutputFormat::Json => NodeRunnerOutput::Json(render_node_status_json(&status)),
+        RunnerOutputFormat::Json => {
+            NodeRunnerOutput::Json(render_node_status_json("status", &status))
+        }
     })
 }
 
@@ -572,7 +574,11 @@ fn run_explorer_overview_command(args: &[String]) -> Result<NodeRunnerOutput, No
             let (overview, latest_blocks) =
                 private_devnet_file_explorer_overview_data(chain_file, alice_balance, limit)
                     .map_err(NodeRunnerError::Node)?;
-            NodeRunnerOutput::Json(render_explorer_overview_json(&overview, &latest_blocks))
+            NodeRunnerOutput::Json(render_explorer_overview_json(
+                "explorer-overview",
+                &overview,
+                &latest_blocks,
+            ))
         }
     })
 }
@@ -594,7 +600,7 @@ fn run_block_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRun
         }
         RunnerOutputFormat::Json => {
             let detail = private_devnet_file_block_detail_data(chain_file, alice_balance, height)?;
-            NodeRunnerOutput::Json(render_block_detail_json(&detail))
+            NodeRunnerOutput::Json(render_block_detail_json("block-detail", &detail))
         }
     })
 }
@@ -617,7 +623,7 @@ fn run_account_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeR
         RunnerOutputFormat::Json => {
             let detail =
                 private_devnet_file_account_detail_data(chain_file, alice_balance, address)?;
-            NodeRunnerOutput::Json(render_account_detail_json(&detail))
+            NodeRunnerOutput::Json(render_account_detail_json("account-detail", &detail))
         }
     })
 }
@@ -645,7 +651,7 @@ fn run_mempool_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeR
         RunnerOutputFormat::Json => {
             let detail =
                 private_devnet_file_mempool_detail_data(chain_file, draft_file, alice_balance)?;
-            NodeRunnerOutput::Json(render_mempool_detail_json(&detail))
+            NodeRunnerOutput::Json(render_mempool_detail_json("mempool-detail", &detail))
         }
     })
 }
@@ -686,9 +692,9 @@ fn run_produce_draft_block_command(args: &[String]) -> Result<NodeRunnerOutput, 
     )
     .map(|status| match output_format {
         RunnerOutputFormat::Text => NodeRunnerOutput::ProducedTransferBlock(status),
-        RunnerOutputFormat::Json => {
-            NodeRunnerOutput::Json(render_produced_transfer_block_status_json(&status))
-        }
+        RunnerOutputFormat::Json => NodeRunnerOutput::Json(
+            render_produced_transfer_block_status_json("produce-draft-block", &status),
+        ),
     })
 }
 
@@ -740,9 +746,9 @@ fn run_produce_transfer_block_command(
         .map_err(NodeRunnerError::Node)?;
     Ok(match output_format {
         RunnerOutputFormat::Text => NodeRunnerOutput::ProducedTransferBlock(status),
-        RunnerOutputFormat::Json => {
-            NodeRunnerOutput::Json(render_produced_transfer_block_status_json(&status))
-        }
+        RunnerOutputFormat::Json => NodeRunnerOutput::Json(
+            render_produced_transfer_block_status_json("produce-transfer-block", &status),
+        ),
     })
 }
 
@@ -914,29 +920,22 @@ fn node_status<S: ChainStore>(node: &XriqNode<S>) -> NodeStatus {
     }
 }
 
-fn render_node_status_json(status: &NodeStatus) -> String {
+fn render_node_status_json(command: &str, status: &NodeStatus) -> String {
     let mut output = String::new();
     writeln!(&mut output, "{{").expect("write to String");
-    writeln!(
-        &mut output,
-        "  \"format_version\": {},",
-        json_string("xriq-node-json-v1")
-    )
-    .expect("write to String");
+    push_success_json_preamble(&mut output, command);
     push_node_status_json_fields(&mut output, status, "  ", false);
     output.push_str("\n}");
     output
 }
 
-fn render_produced_transfer_block_status_json(status: &ProducedTransferBlockStatus) -> String {
+fn render_produced_transfer_block_status_json(
+    command: &str,
+    status: &ProducedTransferBlockStatus,
+) -> String {
     let mut output = String::new();
     writeln!(&mut output, "{{").expect("write to String");
-    writeln!(
-        &mut output,
-        "  \"format_version\": {},",
-        json_string("xriq-node-json-v1")
-    )
-    .expect("write to String");
+    push_success_json_preamble(&mut output, command);
     writeln!(
         &mut output,
         "  \"warning\": {},",
@@ -967,17 +966,13 @@ fn render_produced_transfer_block_status_json(status: &ProducedTransferBlockStat
 }
 
 fn render_explorer_overview_json(
+    command: &str,
     overview: &ExplorerOverview,
     latest_blocks: &[ExplorerBlockSummary],
 ) -> String {
     let mut output = String::new();
     writeln!(&mut output, "{{").expect("write to String");
-    writeln!(
-        &mut output,
-        "  \"format_version\": {},",
-        json_string("xriq-node-json-v1")
-    )
-    .expect("write to String");
+    push_success_json_preamble(&mut output, command);
     writeln!(
         &mut output,
         "  \"warning\": {},",
@@ -1026,15 +1021,10 @@ fn render_explorer_overview_json(
     output
 }
 
-fn render_block_detail_json(block: &ExplorerBlockDetail) -> String {
+fn render_block_detail_json(command: &str, block: &ExplorerBlockDetail) -> String {
     let mut output = String::new();
     writeln!(&mut output, "{{").expect("write to String");
-    writeln!(
-        &mut output,
-        "  \"format_version\": {},",
-        json_string("xriq-node-json-v1")
-    )
-    .expect("write to String");
+    push_success_json_preamble(&mut output, command);
     writeln!(
         &mut output,
         "  \"warning\": {},",
@@ -1096,15 +1086,10 @@ fn render_block_detail_json(block: &ExplorerBlockDetail) -> String {
     output
 }
 
-fn render_account_detail_json(account: &ExplorerAccountDetail) -> String {
+fn render_account_detail_json(command: &str, account: &ExplorerAccountDetail) -> String {
     let mut output = String::new();
     writeln!(&mut output, "{{").expect("write to String");
-    writeln!(
-        &mut output,
-        "  \"format_version\": {},",
-        json_string("xriq-node-json-v1")
-    )
-    .expect("write to String");
+    push_success_json_preamble(&mut output, command);
     writeln!(
         &mut output,
         "  \"warning\": {},",
@@ -1128,15 +1113,10 @@ fn render_account_detail_json(account: &ExplorerAccountDetail) -> String {
     output
 }
 
-fn render_mempool_detail_json(detail: &ExplorerMempoolDetail) -> String {
+fn render_mempool_detail_json(command: &str, detail: &ExplorerMempoolDetail) -> String {
     let mut output = String::new();
     writeln!(&mut output, "{{").expect("write to String");
-    writeln!(
-        &mut output,
-        "  \"format_version\": {},",
-        json_string("xriq-node-json-v1")
-    )
-    .expect("write to String");
+    push_success_json_preamble(&mut output, command);
     writeln!(
         &mut output,
         "  \"warning\": {},",
@@ -1159,6 +1139,16 @@ fn render_mempool_detail_json(detail: &ExplorerMempoolDetail) -> String {
     }
     output.push_str("  ]\n}");
     output
+}
+
+fn push_success_json_preamble(output: &mut String, command: &str) {
+    writeln!(
+        output,
+        "  \"format_version\": {},",
+        json_string("xriq-node-json-v1")
+    )
+    .expect("write to String");
+    writeln!(output, "  \"command\": {},", json_string(command)).expect("write to String");
 }
 
 fn push_node_status_json_fields(
@@ -2726,6 +2716,7 @@ mod tests {
         .unwrap()
         .to_string();
         assert!(status_json.contains("\"format_version\": \"xriq-node-json-v1\""));
+        assert!(status_json.contains("\"command\": \"status\""));
         assert!(status_json.contains("\"warning\": \"private-devnet-only-no-public-token\""));
         assert!(status_json.contains("\"chain_id\": \"xriq-devnet\""));
         assert!(status_json.contains("\"current_height\": 0"));
@@ -2743,6 +2734,7 @@ mod tests {
         ])
         .unwrap()
         .to_string();
+        assert!(mempool_json.contains("\"command\": \"mempool-detail\""));
         assert!(mempool_json.contains("\"pending_count\": 1"));
         assert!(mempool_json.contains("\"tx_hash\":"));
         assert!(mempool_json.contains("\"amount_base_units\": \"25\""));
@@ -2764,6 +2756,7 @@ mod tests {
         ])
         .unwrap()
         .to_string();
+        assert!(produced_json.contains("\"command\": \"produce-draft-block\""));
         assert!(produced_json.contains("\"transaction_hash\":"));
         assert!(produced_json.contains("\"block_hash\":"));
         assert!(produced_json.contains("\"applied_transactions\": 1"));
@@ -2782,6 +2775,7 @@ mod tests {
         ])
         .unwrap()
         .to_string();
+        assert!(overview_json.contains("\"command\": \"explorer-overview\""));
         assert!(overview_json.contains("\"latest_blocks\": ["));
         assert!(overview_json.contains("\"height\": 1"));
         assert!(overview_json.contains("\"transaction_count\": 1"));
@@ -2799,6 +2793,7 @@ mod tests {
         ])
         .unwrap()
         .to_string();
+        assert!(block_json.contains("\"command\": \"block-detail\""));
         assert!(block_json.contains("\"transactions\": ["));
         assert!(block_json.contains("\"from\": \"xriqdev1alice00000000000\""));
         assert!(block_json.contains("\"to\": \"xriqdev1bobbb00000000000\""));
@@ -2818,6 +2813,7 @@ mod tests {
         ])
         .unwrap()
         .to_string();
+        assert!(account_json.contains("\"command\": \"account-detail\""));
         assert!(account_json.contains("\"address\": \"xriqdev1alice00000000000\""));
         assert!(account_json.contains("\"balance_base_units\": \"73\""));
         assert!(account_json.contains("\"nonce\": 1"));

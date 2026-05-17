@@ -13,7 +13,7 @@ Current format version: `xriq-node-json-v1`.
 
 - Text output remains the default. Consumers that need machine-readable output
   must pass `--format json`.
-- Every successful JSON response includes `format_version`.
+- Every successful JSON response includes `format_version` and `command`.
 - Every successful private-devnet response includes the warning value
   `private-devnet-only-no-public-token`.
 - Hashes are lowercase 64-character hexadecimal strings.
@@ -48,6 +48,7 @@ Shape:
 ```json
 {
   "format_version": "xriq-node-json-v1",
+  "command": "status",
   "warning": "private-devnet-only-no-public-token",
   "chain_id": "xriq-devnet",
   "current_height": 0,
@@ -67,6 +68,7 @@ Shape:
 ```json
 {
   "format_version": "xriq-node-json-v1",
+  "command": "produce-draft-block",
   "warning": "private-devnet-only-no-public-token",
   "transaction_hash": "64-hex-character-transaction-hash",
   "block_hash": "64-hex-character-block-hash",
@@ -96,6 +98,7 @@ Shape:
 ```json
 {
   "format_version": "xriq-node-json-v1",
+  "command": "explorer-overview",
   "warning": "private-devnet-only-no-public-token",
   "chain_id": "xriq-devnet",
   "current_height": 1,
@@ -131,6 +134,7 @@ Shape:
 ```json
 {
   "format_version": "xriq-node-json-v1",
+  "command": "block-detail",
   "warning": "private-devnet-only-no-public-token",
   "height": 1,
   "block_hash": "64-hex-character-block-hash",
@@ -171,6 +175,7 @@ Shape:
 ```json
 {
   "format_version": "xriq-node-json-v1",
+  "command": "account-detail",
   "warning": "private-devnet-only-no-public-token",
   "address": "xriqdev1alice00000000000",
   "balance_base_units": "73",
@@ -195,6 +200,7 @@ Shape:
 ```json
 {
   "format_version": "xriq-node-json-v1",
+  "command": "mempool-detail",
   "warning": "private-devnet-only-no-public-token",
   "pending_count": 1,
   "transactions": [
@@ -265,6 +271,5 @@ Current stable error codes:
 
 Before exposing these shapes through HTTP/RPC, add:
 
-- machine-readable command names in each response
 - explicit schema tests if the JSON surface grows beyond this small contract
 - response examples generated from the smoke script artifacts

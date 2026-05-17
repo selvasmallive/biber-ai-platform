@@ -66,6 +66,7 @@ mempool_json_output="$(
     --format json
 )"
 require_contains "mempool-detail json" "$mempool_json_output" '"format_version": "xriq-node-json-v1"'
+require_contains "mempool-detail json" "$mempool_json_output" '"command": "mempool-detail"'
 require_contains "mempool-detail json" "$mempool_json_output" '"pending_count": 1'
 require_contains "mempool-detail json" "$mempool_json_output" '"amount_base_units": "25"'
 require_contains "mempool-detail json" "$mempool_json_output" '"fee_base_units": "2"'
@@ -98,6 +99,7 @@ overview_json_output="$(
     --limit 5 \
     --format json
 )"
+require_contains "explorer-overview json" "$overview_json_output" '"command": "explorer-overview"'
 require_contains "explorer-overview json" "$overview_json_output" '"latest_blocks": ['
 require_contains "explorer-overview json" "$overview_json_output" '"height": 1'
 require_contains "explorer-overview json" "$overview_json_output" '"transaction_count": 1'
@@ -131,6 +133,7 @@ account_json_output="$(
     --address xriqdev1alice00000000000 \
     --format json
 )"
+require_contains "account-detail json" "$account_json_output" '"command": "account-detail"'
 require_contains "account-detail json" "$account_json_output" '"address": "xriqdev1alice00000000000"'
 require_contains "account-detail json" "$account_json_output" '"balance_base_units": "73"'
 require_contains "account-detail json" "$account_json_output" '"nonce": 1'
