@@ -6,6 +6,7 @@ only until security and legal/compliance review says otherwise.
 ## Current Scope
 
 - `xriq-core`: dependency-free protocol types and validation helpers.
+- `xriq-ledger`: deterministic private-devnet account state transitions.
 
 ## Commands
 
