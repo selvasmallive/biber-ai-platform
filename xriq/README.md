@@ -100,6 +100,21 @@ cargo run -p xriq-node -- produce-draft-block \
   --timestamp-ms 1000
 ```
 
+Private-devnet wallet JSON submit body:
+
+```bash
+cargo run -p xriq-wallet -- transfer \
+  --chain-id xriq-devnet \
+  --from xriqdev1alice00000000000 \
+  --to xriqdev1bobbb00000000000 \
+  --amount 25 \
+  --fee 2 \
+  --nonce 0 \
+  --expires-at-height 100 \
+  --format json \
+  > target/xriq-wallet-transfer-submit.json
+```
+
 One-command private-devnet smoke from the repo root:
 
 ```bash
@@ -150,11 +165,12 @@ wrapper does not persist a mempool across requests.
 either the existing wallet transfer draft text or a private-devnet JSON transfer
 body, then immediately produces a private-devnet block against the configured
 chain file. This is an MVP submit-and-block helper, not a production mempool
-API.
+API. The JSON body can be produced by `xriq-wallet transfer --format json`.
 
 ```json
 {
   "format_version": "xriq-node-transfer-submit-v1",
+  "warning": "private-devnet-test-identity-only",
   "version": 1,
   "chain_id": "xriq-devnet",
   "from": "xriqdev1alice00000000000",
@@ -162,7 +178,8 @@ API.
   "amount_base_units": "25",
   "fee_base_units": "2",
   "nonce": 0,
-  "expires_at_height": 100
+  "expires_at_height": 100,
+  "signature_bytes": 48
 }
 ```
 

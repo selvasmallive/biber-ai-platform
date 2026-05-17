@@ -469,12 +469,13 @@ implemented yet.
 
 `xriq-node serve-private` enables the same private-devnet HTTP surface plus
 `POST /v1/transactions`. The POST body may be either the existing wallet
-transfer draft text emitted by `xriq-wallet transfer` or a flat
-`xriq-node-transfer-submit-v1` JSON transfer body; the server validates it
-against the replayed chain state, immediately produces one block, and persists
-that block to the configured chain file. This is an MVP submit-and-block helper,
-not a production mempool API or production signed-transaction format. This is
-still private-devnet tooling, not a public API.
+transfer draft text emitted by `xriq-wallet transfer` or the flat
+`xriq-node-transfer-submit-v1` JSON transfer body emitted by
+`xriq-wallet transfer --format json`; the server validates it against the
+replayed chain state, immediately produces one block, and persists that block to
+the configured chain file. This is an MVP submit-and-block helper, not a
+production mempool API or production signed-transaction format. This is still
+private-devnet tooling, not a public API.
 
 Minimum wallet-facing RPC behavior:
 
@@ -571,7 +572,8 @@ Before any public network, require:
 9. Add durable local storage and a node loop. Current status: done for the
    dependency-free local private-devnet baseline.
 10. Add wallet CLI for test transfers. Current status: done for deterministic
-    private-devnet test identities and transfer drafts.
+    private-devnet test identities, transfer drafts, and private-devnet JSON
+    submit bodies.
 11. Add explorer API/UI for private-devnet inspection. Current status: done for
     dependency-free private-devnet view models and text rendering.
 12. Add local multi-node tests. Current status: done for in-process
@@ -616,8 +618,10 @@ Before any public network, require:
     dependency-free explorer detail output.
 23. Add a compact local private-devnet smoke script. Current status: done for
     `bash scripts/xriq_private_devnet_smoke.sh`, which chains wallet draft
-    generation, mempool detail preview, draft-block production, explorer
-    overview, block detail, and account detail over one persisted chain file.
+    generation, wallet JSON submit body generation, mempool detail preview,
+    draft-block production, explorer overview, block detail, account detail,
+    and live HTTP JSON submit behavior over persisted private-devnet chain
+    files.
 24. Add read-only mempool inspection to the local runner. Current status: done
     for `xriq-node mempool-detail --chain-file <path> [--draft-file <path>]`,
     which replays a private-devnet chain file and can preview a wallet draft as

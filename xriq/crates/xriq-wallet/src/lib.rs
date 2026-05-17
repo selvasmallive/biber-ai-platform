@@ -39,6 +39,7 @@ pub enum WalletOutput {
     Help(String),
     TestIdentity(TestIdentity),
     TransferDraft(TransferDraft),
+    TransferSubmitJson(TransferDraft),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,6 +53,13 @@ pub enum WalletError {
     InvalidLabel,
     InvalidAddress(AddressError),
     InvalidNumber { flag: &'static str, value: String },
+    InvalidFormat(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WalletOutputFormat {
+    Text,
+    Json,
 }
 
 impl fmt::Display for WalletError {
@@ -69,6 +77,9 @@ impl fmt::Display for WalletError {
             Self::InvalidAddress(error) => write!(formatter, "invalid address: {error:?}"),
             Self::InvalidNumber { flag, value } => {
                 write!(formatter, "invalid number for {flag}: {value}")
+            }
+            Self::InvalidFormat(value) => {
+                write!(formatter, "invalid format: {value}; expected text or json")
             }
         }
     }
@@ -103,6 +114,19 @@ impl fmt::Display for WalletOutput {
                     tx.signature.as_slice().len()
                 )
             }
+            Self::TransferSubmitJson(draft) => {
+                formatter.write_str(&render_transfer_submit_json(draft))
+            }
+        }
+    }
+}
+
+impl WalletOutputFormat {
+    fn parse(value: Option<&str>) -> Result<Self, WalletError> {
+        match value.unwrap_or("text") {
+            "text" => Ok(Self::Text),
+            "json" => Ok(Self::Json),
+            value => Err(WalletError::InvalidFormat(value.to_string())),
         }
     }
 }
@@ -111,7 +135,7 @@ pub fn help_text() -> String {
     [
         "xriq-wallet private-devnet commands:",
         "  xriq-wallet key generate --label <lowercase-label>",
-        "  xriq-wallet transfer --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--expires-at-height <height>]",
+        "  xriq-wallet transfer --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--expires-at-height <height>] [--format text|json]",
         "",
         "Warning: this wallet is for private devnet tests only and does not manage real keys.",
     ]
@@ -198,7 +222,9 @@ fn run_transfer_command(args: &[String]) -> Result<WalletOutput, WalletError> {
         "--fee",
         "--nonce",
         "--expires-at-height",
+        "--format",
     ])?;
+    let output_format = WalletOutputFormat::parse(flags.optional("--format"))?;
     let chain_id = flags.required("--chain-id")?.to_string();
     let from = parse_address(flags.required("--from")?)?;
     let to = parse_address(flags.required("--to")?)?;
@@ -218,7 +244,10 @@ fn run_transfer_command(args: &[String]) -> Result<WalletOutput, WalletError> {
         nonce,
         expires_at_height,
     });
-    Ok(WalletOutput::TransferDraft(draft))
+    Ok(match output_format {
+        WalletOutputFormat::Text => WalletOutput::TransferDraft(draft),
+        WalletOutputFormat::Json => WalletOutput::TransferSubmitJson(draft),
+    })
 }
 
 fn parse_address(value: &str) -> Result<Address, WalletError> {
@@ -249,6 +278,74 @@ fn is_valid_label(label: &str) -> bool {
         && label
             .chars()
             .all(|character| character.is_ascii_lowercase() || character.is_ascii_digit())
+}
+
+fn render_transfer_submit_json(draft: &TransferDraft) -> String {
+    let tx = &draft.transaction;
+    let mut output = String::new();
+    output.push_str("{\n");
+    output.push_str("  \"format_version\": \"xriq-node-transfer-submit-v1\",\n");
+    output.push_str("  \"warning\": ");
+    output.push_str(&json_string(draft.warning));
+    output.push_str(",\n");
+    output.push_str("  \"version\": ");
+    output.push_str(&tx.version.to_string());
+    output.push_str(",\n");
+    output.push_str("  \"chain_id\": ");
+    output.push_str(&json_string(&tx.chain_id));
+    output.push_str(",\n");
+    output.push_str("  \"from\": ");
+    output.push_str(&json_string(tx.from.as_str()));
+    output.push_str(",\n");
+    output.push_str("  \"to\": ");
+    output.push_str(&json_string(tx.to.as_str()));
+    output.push_str(",\n");
+    output.push_str("  \"amount_base_units\": ");
+    output.push_str(&json_string(&tx.amount.base_units().to_string()));
+    output.push_str(",\n");
+    output.push_str("  \"fee_base_units\": ");
+    output.push_str(&json_string(&tx.fee.base_units().to_string()));
+    output.push_str(",\n");
+    output.push_str("  \"nonce\": ");
+    output.push_str(&tx.nonce.to_string());
+    output.push_str(",\n");
+    output.push_str("  \"expires_at_height\": ");
+    output.push_str(&json_optional_u64(tx.expires_at_height));
+    output.push_str(",\n");
+    output.push_str("  \"signature_bytes\": ");
+    output.push_str(&tx.signature.as_slice().len().to_string());
+    output.push_str("\n}");
+    output
+}
+
+fn json_optional_u64(value: Option<u64>) -> String {
+    value
+        .map(|number| number.to_string())
+        .unwrap_or_else(|| "null".to_string())
+}
+
+fn json_string(value: &str) -> String {
+    let mut output = String::with_capacity(value.len() + 2);
+    output.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            '\u{08}' => output.push_str("\\b"),
+            '\u{0c}' => output.push_str("\\f"),
+            character if character < '\u{20}' => {
+                use fmt::Write;
+                write!(&mut output, "\\u{:04x}", character as u32)
+                    .expect("writing to String cannot fail");
+            }
+            character => output.push(character),
+        }
+    }
+    output.push('"');
+    output
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -311,6 +408,7 @@ fn flag_to_static(flag: &str) -> &'static str {
         "--fee" => "--fee",
         "--nonce" => "--nonce",
         "--expires-at-height" => "--expires-at-height",
+        "--format" => "--format",
         _ => "--flag",
     }
 }
@@ -421,6 +519,79 @@ mod tests {
     }
 
     #[test]
+    fn renders_transfer_submit_json_for_node_post_body() {
+        let output = run_wallet_command([
+            "transfer",
+            "--chain-id",
+            "xriq-devnet",
+            "--from",
+            alice().as_str(),
+            "--to",
+            bob().as_str(),
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "7",
+            "--expires-at-height",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+
+        match &output {
+            WalletOutput::TransferSubmitJson(draft) => {
+                assert_eq!(draft.transaction.from, alice());
+                assert_eq!(draft.transaction.to, bob());
+            }
+            other => panic!("unexpected wallet output: {other:?}"),
+        }
+
+        let json = output.to_string();
+        assert!(json.contains("\"format_version\": \"xriq-node-transfer-submit-v1\""));
+        assert!(json.contains("\"warning\": \"private-devnet-test-identity-only\""));
+        assert!(json.contains("\"version\": 1"));
+        assert!(json.contains("\"chain_id\": \"xriq-devnet\""));
+        assert!(json.contains("\"from\": \"xriqdev1alice00000000000\""));
+        assert!(json.contains("\"to\": \"xriqdev1bobbb00000000000\""));
+        assert!(json.contains("\"amount_base_units\": \"25\""));
+        assert!(json.contains("\"fee_base_units\": \"2\""));
+        assert!(json.contains("\"nonce\": 7"));
+        assert!(json.contains("\"expires_at_height\": 100"));
+        assert!(json.contains("\"signature_bytes\":"));
+        assert!(!json.contains("private_key"));
+        assert!(!json.contains("seed"));
+        assert!(!json.contains("xriq-test-only-signature"));
+    }
+
+    #[test]
+    fn renders_json_transfer_expiration_as_null_when_absent() {
+        let output = run_wallet_command([
+            "transfer",
+            "--chain-id",
+            "xriq-devnet",
+            "--from",
+            alice().as_str(),
+            "--to",
+            bob().as_str(),
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "7",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+
+        assert!(output.contains("\"expires_at_height\": null"));
+    }
+
+    #[test]
     fn rejects_missing_required_transfer_flag() {
         assert_eq!(
             run_wallet_command(["transfer", "--chain-id", "xriq-devnet"]),
@@ -441,6 +612,30 @@ mod tests {
         assert_eq!(
             run_wallet_command(["key", "generate", "--label", "alice", "--network", "dev"]),
             Err(WalletError::UnknownFlag("--network".to_string()))
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_transfer_output_format() {
+        assert_eq!(
+            run_wallet_command([
+                "transfer",
+                "--chain-id",
+                "xriq-devnet",
+                "--from",
+                alice().as_str(),
+                "--to",
+                bob().as_str(),
+                "--amount",
+                "25",
+                "--fee",
+                "2",
+                "--nonce",
+                "7",
+                "--format",
+                "xml",
+            ]),
+            Err(WalletError::InvalidFormat("xml".to_string()))
         );
     }
 

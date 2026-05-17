@@ -204,10 +204,11 @@ This endpoint is enabled only by `xriq-node serve-private`. `serve-readonly`
 returns `501`.
 
 The request body can be either the existing wallet transfer draft text emitted
-by `xriq-wallet transfer` or the flat JSON transfer body shown below. The
-file-backed private-devnet helper immediately validates the transfer against
-the replayed chain state, produces one block, and persists it to the configured
-chain file. It does not create a durable pending mempool entry.
+by `xriq-wallet transfer` or the flat JSON transfer body emitted by
+`xriq-wallet transfer --format json`. The file-backed private-devnet helper
+immediately validates the transfer against the replayed chain state, produces
+one block, and persists it to the configured chain file. It does not create a
+durable pending mempool entry.
 
 Example wallet draft request body:
 
@@ -229,6 +230,7 @@ Example JSON request body:
 ```json
 {
   "format_version": "xriq-node-transfer-submit-v1",
+  "warning": "private-devnet-test-identity-only",
   "version": 1,
   "chain_id": "xriq-devnet",
   "from": "xriqdev1alice00000000000",
@@ -236,7 +238,8 @@ Example JSON request body:
   "amount_base_units": "25",
   "fee_base_units": "2",
   "nonce": 0,
-  "expires_at_height": 100
+  "expires_at_height": 100,
+  "signature_bytes": 48
 }
 ```
 
@@ -244,6 +247,8 @@ JSON notes:
 
 - `amount_base_units` and `fee_base_units` may be strings or integer numbers.
 - `expires_at_height` may be an integer, string, `null`, or omitted.
+- `warning` and `signature_bytes` are metadata emitted by the private-devnet
+  wallet for operator safety and are ignored by the submit helper.
 - `timestamp_ms` and `consensus_round` are optional private-devnet block
   production helpers and default to `1000` and `0`.
 - The server reconstructs the current test-only private-devnet signature path;
@@ -393,10 +398,14 @@ bash scripts/xriq_private_devnet_smoke.sh
 
 The script prints the artifact directory and writes these files:
 
+- `wallet-transfer-submit.json`
 - `mempool-detail.json`
 - `explorer-overview.json`
 - `account-detail.json`
 - `status-error.json`
+- `http-json-submit.json`
+- `http-json-transaction.json`
+- `http-json-account.json`
 
 Use these generated files as concrete examples for BIBER agents, future
 contract tests, and later HTTP/RPC adapters. They are private-devnet examples,
