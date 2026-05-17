@@ -799,6 +799,16 @@ last broad-safe Rust/XRIQ adapter.
   - This is intentionally not full RAG or automatic repo crawling. It is the
     minimal repo-aware step before file edit/test execution workflows.
   - Local Python verification passed with `pytest`: `38` tests.
+  - Vast checkout was fast-forwarded to `7e66a7f`.
+  - Vast syntax verification passed with `/venv/main/bin/python -m compileall
+    app src tests training`.
+  - Restarted only the FastAPI process; vLLM stayed running with pid `5802`.
+    New FastAPI pid: `15053`.
+  - `bash scripts/vast_test_direct.sh` passed. `/v1/chat` returned
+    `model="biber-dev-core-v1"` and `mentor_used=false`.
+  - Live repo-context smoke passed: a valid `repo_context_paths=["README.md"]`
+    request returned from `biber-dev-core-v1`, and an absolute path was rejected
+    with HTTP `400` and `Repo context path must be workspace-relative`.
 - Started and expanded the Rust private-devnet prototype workspace:
   - workspace path: `xriq/`.
   - implemented crates:
