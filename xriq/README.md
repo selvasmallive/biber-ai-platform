@@ -73,6 +73,13 @@ cargo run -p xriq-node -- mempool-detail \
   --draft-file target/xriq-wallet-transfer-draft.txt \
   --alice-balance 100
 
+cargo run -p xriq-node -- transaction-detail \
+  --chain-file target/xriq-devnet-chain.bin \
+  --draft-file target/xriq-wallet-transfer-draft.txt \
+  --alice-balance 100 \
+  --tx-hash <hash-from-mempool-detail> \
+  --format json
+
 cargo run -p xriq-node -- explorer-overview \
   --chain-file target/xriq-devnet-chain.bin \
   --alice-balance 100 \
@@ -165,7 +172,9 @@ GET /v1/mempool
 
 `GET /v1/transactions/{hash}` scans confirmed transactions in persisted blocks.
 It does not report a durable pending status yet because the file-backed HTTP
-wrapper does not persist a mempool across requests.
+wrapper does not persist a mempool across requests. The local runner can preview
+a pending transaction from a wallet draft with
+`xriq-node transaction-detail --draft-file <path> --tx-hash <hash>`.
 
 `POST /v1/transactions` is available only through `serve-private`. It accepts
 either the existing wallet transfer draft text or a private-devnet JSON transfer

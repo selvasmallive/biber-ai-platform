@@ -12,6 +12,8 @@ WALLET_JSON_FILE="${ARTIFACT_DIR}/wallet-transfer-submit.json"
 CHAIN_FILE="${ARTIFACT_DIR}/chain.bin"
 HTTP_JSON_CHAIN_FILE="${ARTIFACT_DIR}/http-json-chain.bin"
 MEMPOOL_JSON_FILE="${ARTIFACT_DIR}/mempool-detail.json"
+PENDING_TRANSACTION_JSON_FILE="${ARTIFACT_DIR}/pending-transaction-detail.json"
+CONFIRMED_TRANSACTION_JSON_FILE="${ARTIFACT_DIR}/confirmed-transaction-detail.json"
 OVERVIEW_JSON_FILE="${ARTIFACT_DIR}/explorer-overview.json"
 ACCOUNT_JSON_FILE="${ARTIFACT_DIR}/account-detail.json"
 STATUS_ERROR_JSON_FILE="${ARTIFACT_DIR}/status-error.json"
@@ -138,6 +140,21 @@ require_contains "mempool-detail json" "$mempool_json_output" '"pending_count": 
 require_contains "mempool-detail json" "$mempool_json_output" '"amount_base_units": "25"'
 require_contains "mempool-detail json" "$mempool_json_output" '"fee_base_units": "2"'
 
+pending_tx_hash="$(printf '%s\n' "$mempool_json_output" | grep -m1 '"tx_hash"' | cut -d '"' -f4)"
+pending_transaction_output="$(
+  run_xriq -p xriq-node -- transaction-detail \
+    --chain-file "$CHAIN_FILE" \
+    --draft-file "$DRAFT_FILE" \
+    --alice-balance 100 \
+    --tx-hash "$pending_tx_hash" \
+    --format json
+)"
+printf '%s\n' "$pending_transaction_output" > "$PENDING_TRANSACTION_JSON_FILE"
+require_contains "pending transaction detail" "$pending_transaction_output" '"command": "transaction-detail"'
+require_contains "pending transaction detail" "$pending_transaction_output" '"status": "pending"'
+require_contains "pending transaction detail" "$pending_transaction_output" '"received_order": 0'
+require_contains "pending transaction detail" "$pending_transaction_output" '"amount_base_units": "25"'
+
 produce_output="$(
   run_xriq -p xriq-node -- produce-draft-block \
     --chain-file "$CHAIN_FILE" \
@@ -148,6 +165,19 @@ produce_output="$(
 require_contains "produce-draft-block" "$produce_output" "warning=private-devnet-only-no-public-token"
 require_contains "produce-draft-block" "$produce_output" "current_height=1"
 require_contains "produce-draft-block" "$produce_output" "stored_blocks=1"
+
+confirmed_transaction_output="$(
+  run_xriq -p xriq-node -- transaction-detail \
+    --chain-file "$CHAIN_FILE" \
+    --alice-balance 100 \
+    --tx-hash "$pending_tx_hash" \
+    --format json
+)"
+printf '%s\n' "$confirmed_transaction_output" > "$CONFIRMED_TRANSACTION_JSON_FILE"
+require_contains "confirmed transaction detail" "$confirmed_transaction_output" '"command": "transaction-detail"'
+require_contains "confirmed transaction detail" "$confirmed_transaction_output" '"status": "confirmed"'
+require_contains "confirmed transaction detail" "$confirmed_transaction_output" '"block_height": 1'
+require_contains "confirmed transaction detail" "$confirmed_transaction_output" '"amount_base_units": "25"'
 
 overview_output="$(
   run_xriq -p xriq-node -- explorer-overview \
@@ -262,6 +292,8 @@ echo "draft=${DRAFT_FILE}"
 echo "wallet_json=${WALLET_JSON_FILE}"
 echo "chain=${CHAIN_FILE}"
 echo "mempool_json=${MEMPOOL_JSON_FILE}"
+echo "pending_transaction_json=${PENDING_TRANSACTION_JSON_FILE}"
+echo "confirmed_transaction_json=${CONFIRMED_TRANSACTION_JSON_FILE}"
 echo "overview_json=${OVERVIEW_JSON_FILE}"
 echo "account_json=${ACCOUNT_JSON_FILE}"
 echo "status_error_json=${STATUS_ERROR_JSON_FILE}"

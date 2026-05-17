@@ -726,6 +726,9 @@ As of 2026-05-17:
   - local private-devnet mempool detail command that replays the persisted
     chain file and can preview a wallet draft in the pending-transaction view
     without mutating storage
+  - local private-devnet transaction detail command that replays the persisted
+    chain file, returns confirmed transactions by hash, and can preview a
+    matching wallet draft as pending without mutating storage
   - local private-devnet read-only HTTP wrapper through
     `xriq-node serve-readonly`, defaulting to `127.0.0.1:8787` and reusing the
     file-backed JSON runner responses for health/status/explorer/block/account
@@ -736,9 +739,9 @@ As of 2026-05-17:
     wallet draft text body or a flat JSON transfer body, validates it,
     immediately produces one block, and persists it to the file-backed chain
   - stable `--format json` output for status, block production, explorer
-    overview, block detail, account detail, and mempool detail runner commands,
-    while preserving text output as the default; successful JSON responses
-    include `command` names
+    overview, block detail, account detail, mempool detail, and transaction
+    detail runner commands, while preserving text output as the default;
+    successful JSON responses include `command` names
   - structured JSON error responses for failed `xriq-node` commands when
     `--format json` is requested, while preserving human-readable text errors
     as the default
@@ -747,10 +750,11 @@ As of 2026-05-17:
   - checked private-devnet JSON fixtures under `xriq/fixtures/private-devnet`
     for selected wallet and node schema-drift tests
   - one-command private-devnet smoke script that validates wallet draft,
-    mempool detail preview, selected JSON outputs, draft-block, explorer
-    overview, block detail, and account detail behavior against one persisted
-    chain file, and persists representative JSON response examples beside the
-    smoke artifacts for future BIBER agents and HTTP/RPC adapters
+    mempool detail preview, pending and confirmed transaction detail, selected
+    JSON outputs, draft-block, explorer overview, block detail, and account
+    detail behavior against one persisted chain file, and persists
+    representative JSON response examples beside the smoke artifacts for future
+    BIBER agents and HTTP/RPC adapters
   - node transaction submission
   - node transaction submission rejects invalid hash-bound test-only signatures
     before mempool insert

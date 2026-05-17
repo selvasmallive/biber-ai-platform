@@ -163,7 +163,22 @@ Shape:
 }
 ```
 
-## Confirmed Transaction Detail
+## Transaction Detail
+
+Runner command:
+
+```bash
+cargo run -p xriq-node -- transaction-detail \
+  --chain-file target/xriq-devnet-chain.bin \
+  --tx-hash 64-hex-character-transaction-hash \
+  --alice-balance 100 \
+  --format json
+```
+
+When `--draft-file <path>` is provided, the runner scans confirmed blocks first,
+then previews the supplied wallet draft as an in-memory pending transaction and
+returns it when the requested hash matches. This preview does not persist a
+mempool entry.
 
 HTTP endpoint:
 
@@ -176,7 +191,7 @@ returns `404` when the hash is not found. It does not report durable pending
 transactions yet because the file-backed HTTP wrapper does not persist mempool
 state across requests.
 
-Shape:
+Confirmed shape:
 
 ```json
 {
@@ -188,6 +203,25 @@ Shape:
   "block_height": 1,
   "block_hash": "64-hex-character-block-hash",
   "transaction_index": 0,
+  "from": "xriqdev1alice00000000000",
+  "to": "xriqdev1bobbb00000000000",
+  "amount_base_units": "25",
+  "fee_base_units": "2",
+  "nonce": 0,
+  "expires_at_height": 100
+}
+```
+
+Pending preview shape:
+
+```json
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "transaction-detail",
+  "warning": "private-devnet-only-no-public-token",
+  "tx_hash": "64-hex-character-transaction-hash",
+  "status": "pending",
+  "received_order": 0,
   "from": "xriqdev1alice00000000000",
   "to": "xriqdev1bobbb00000000000",
   "amount_base_units": "25",
@@ -387,6 +421,7 @@ Current stable error codes:
 - `duplicate_json_field`
 - `missing_json_field`
 - `invalid_number`
+- `invalid_hash`
 - `invalid_format`
 - `invalid_address`
 - `explorer_error`
@@ -405,6 +440,8 @@ The script prints the artifact directory and writes these files:
 
 - `wallet-transfer-submit.json`
 - `mempool-detail.json`
+- `pending-transaction-detail.json`
+- `confirmed-transaction-detail.json`
 - `explorer-overview.json`
 - `account-detail.json`
 - `status-error.json`
@@ -423,6 +460,9 @@ The repository also includes checked private-devnet golden files under
 
 - `wallet-transfer-submit.json`
 - `node-produce-transfer-block.json`
+- `node-status-empty.json`
+- `node-mempool-empty.json`
+- `node-account-alice-initial.json`
 
 Rust tests compare selected wallet and node JSON output to these files exactly
 so accidental schema drift is caught early. These fixtures are private-devnet
