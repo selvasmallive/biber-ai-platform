@@ -96,6 +96,21 @@
       "max_bytes": 1048576
     },
     {
+      "name": "biber-rust-xriq-fee-regression-jsonl",
+      "enabled": true,
+      "approved": true,
+      "type": "jsonl_url",
+      "url": "https://raw.githubusercontent.com/selvasmallive/biber-ai-platform/main/training/targeted_rust_xriq_fee_regression_dataset.jsonl",
+      "license": "project-owned",
+      "attribution": "BIBER AI Platform Rust/XRIQ fee-regression dataset, owned by the project user.",
+      "record_format": "biber_jsonl",
+      "category": "rust",
+      "stack": ["rust", "xriq", "blockchain", "fees", "validation"],
+      "quality": "verified",
+      "max_records": 20,
+      "max_bytes": 1048576
+    },
+    {
       "name": "soymaycol-codeinstruct-20k",
       "enabled": true,
       "approved": true,
