@@ -567,6 +567,34 @@ mod tests {
     }
 
     #[test]
+    fn transfer_submit_json_matches_checked_fixture() {
+        let output = run_wallet_command([
+            "transfer",
+            "--chain-id",
+            "xriq-devnet",
+            "--from",
+            alice().as_str(),
+            "--to",
+            bob().as_str(),
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--expires-at-height",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        let fixture = include_str!("../../../fixtures/private-devnet/wallet-transfer-submit.json");
+
+        assert_eq!(output.trim_end(), fixture.trim_end());
+    }
+
+    #[test]
     fn renders_json_transfer_expiration_as_null_when_absent() {
         let output = run_wallet_command([
             "transfer",

@@ -3807,6 +3807,43 @@ mod tests {
     }
 
     #[test]
+    fn produced_transfer_block_json_matches_checked_fixture() {
+        let path = temp_store_path();
+        let path_text = path.to_string_lossy().to_string();
+        let produced_json = run_node_command([
+            "produce-transfer-block",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1bobbb00000000000",
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--expires-at-height",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        let fixture =
+            include_str!("../../../fixtures/private-devnet/node-produce-transfer-block.json");
+
+        assert_eq!(produced_json.trim_end(), fixture.trim_end());
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
     fn private_devnet_http_routes_wrap_file_backed_json_outputs() {
         let path = temp_store_path();
         let path_text = path.to_string_lossy().to_string();

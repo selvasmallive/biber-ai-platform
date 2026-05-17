@@ -127,6 +127,9 @@ distribution, run it on the Vast workspace after `git pull`.
 The current machine-readable runner contract is documented in
 `../docs/XRIQ_NODE_JSON_SCHEMA.md`.
 
+Checked private-devnet JSON fixtures live in `fixtures/private-devnet/`.
+They are used by Rust tests as golden examples for wallet/node schema drift.
+
 Private-devnet read-only HTTP wrapper:
 
 ```bash

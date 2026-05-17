@@ -744,6 +744,8 @@ As of 2026-05-17:
     as the default
   - documented private-devnet JSON runner contract in
     `docs/XRIQ_NODE_JSON_SCHEMA.md`
+  - checked private-devnet JSON fixtures under `xriq/fixtures/private-devnet`
+    for selected wallet and node schema-drift tests
   - one-command private-devnet smoke script that validates wallet draft,
     mempool detail preview, selected JSON outputs, draft-block, explorer
     overview, block detail, and account detail behavior against one persisted
@@ -825,8 +827,9 @@ As of 2026-05-17:
 
 Next implementation target: keep the local file-backed workflow small and
 deterministic. Add durable pending transaction status, snapshot/replay
-improvements, or checked schema fixtures only when they directly help the
-private-devnet MVP, and keep public XRIQ launch or listing work blocked.
+improvements, or additional checked schema fixtures only when they directly
+help the private-devnet MVP, and keep public XRIQ launch or listing work
+blocked.
 
 ## Open Decisions
 

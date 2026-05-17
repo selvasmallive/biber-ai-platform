@@ -411,6 +411,18 @@ Use these generated files as concrete examples for BIBER agents, future
 contract tests, and later HTTP/RPC adapters. They are private-devnet examples,
 not public API fixtures.
 
+## Checked Fixtures
+
+The repository also includes checked private-devnet golden files under
+`xriq/fixtures/private-devnet/`:
+
+- `wallet-transfer-submit.json`
+- `node-produce-transfer-block.json`
+
+Rust tests compare selected wallet and node JSON output to these files exactly
+so accidental schema drift is caught early. These fixtures are private-devnet
+contract examples only; they are not public-mainnet API guarantees.
+
 ## Read-Only HTTP Wrapper
 
 `xriq-node serve-readonly` exposes selected private-devnet JSON runner outputs
@@ -440,4 +452,4 @@ Before making the HTTP/RPC surface broader than the current private-devnet
 read-only wrapper, add:
 
 - explicit schema tests if the JSON surface grows beyond this small contract
-- optional checked-in fixtures only if consumers need stable golden files
+- more checked-in fixtures only if consumers need stable golden files
