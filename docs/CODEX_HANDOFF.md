@@ -74,20 +74,23 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER API/XRIQ durable mempool wrapper commit pushed and
   Vast-verified:
   `81824b3 Add XRIQ durable mempool wrapper`.
+- Latest BIBER API/XRIQ explorer/block wrapper commit pushed and Vast-verified:
+  `32909e8 Add BIBER XRIQ explorer wrappers`.
 - Last XRIQ implementation commit pushed and Vast-verified:
   `7c4030d Add XRIQ preflight transfer flow`.
 - Latest XRIQ checked-fixture-only commit pushed and Vast-verified:
   `2a2b9d8 Add XRIQ preflight JSON fixture`.
 - Latest XRIQ smoke-harness commit pushed and Vast-verified:
   `2bd99cc Ensure XRIQ smoke server cleanup`.
-- Vast checkout was fast-forwarded to `81824b3`. Full Rust/script/API wrapper
-  verification is current through `81824b3`; focused fixture verification is
+- Vast checkout was fast-forwarded to `32909e8`. Full Rust/script/API wrapper
+  verification is current through `81824b3`; focused BIBER API wrapper
+  verification is current through `32909e8`; focused fixture verification is
   current through `2a2b9d8`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `38538`
+  - FastAPI pid: `38909`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - Latest endpoint smoke:
@@ -98,6 +101,11 @@ serving the last broad-safe Rust/XRIQ adapter.
     Latest live mempool smoke also confirmed
     `GET /v1/xriq/private-devnet/mempool` returns `200 OK` with
     `command=mempool-detail` and current `pending_count=0`.
+    Latest live explorer/block smoke confirmed
+    `GET /v1/xriq/private-devnet/explorer?limit=5` returns
+    `command=explorer-overview` with `current_height=2`, and
+    `GET /v1/xriq/private-devnet/blocks/1` returns `command=block-detail`
+    with `height=1`.
     The earlier read smoke confirmed `transaction_status=confirmed` and status
     `current_height=2` for the test chain used in that smoke.
   - Last full chat smoke remains `bash scripts/vast_test_direct.sh` with chat
@@ -1187,6 +1195,25 @@ serving the last broad-safe Rust/XRIQ adapter.
     `command=mempool-detail` and current `pending_count=0`.
   - Pushed commit:
     `81824b3 Add XRIQ durable mempool wrapper`.
+- BIBER API/XRIQ explorer/block wrapper checkpoint:
+  - Added thin BIBER read wrappers around existing `xriq-node --format json`
+    explorer commands.
+  - New API endpoints in both API paths:
+    `GET /v1/xriq/private-devnet/explorer?limit={count}` and
+    `GET /v1/xriq/private-devnet/blocks/{height}`.
+  - The explorer `limit` query is optional and bounded to `1..100`; block
+    height is constrained to `>= 0`.
+  - Local Windows verification passed: `git diff --check` and bundled Python
+    `compileall app src tests`. Local pytest remains unavailable in the
+    bundled workstation runtime.
+  - Vast verification passed: `/workspace/biber-venv/bin/python -m compileall
+    app src tests`, focused pytest with `25 passed`, and live endpoint smoke
+    for `/v1/xriq/private-devnet/explorer?limit=5` plus
+    `/v1/xriq/private-devnet/blocks/1`.
+  - FastAPI only was restarted on Vast; vLLM was not restarted. Live smoke
+    confirmed explorer `current_height=2` and block detail `height=1`.
+  - Pushed commit:
+    `32909e8 Add BIBER XRIQ explorer wrappers`.
 
 ## Repo State
 
@@ -1239,6 +1266,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   - `4d8c251 Add BIBER XRIQ read wrappers`
   - `690df43 Record BIBER XRIQ read wrapper checkpoint`
   - `81824b3 Add XRIQ durable mempool wrapper`
+  - `0fffb80 Record XRIQ mempool wrapper checkpoint`
+  - `32909e8 Add BIBER XRIQ explorer wrappers`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -2406,10 +2435,11 @@ bash scripts/xriq_private_devnet_smoke.sh
    durable pending HTTP state, pending-block production, and
    `xriq-node preflight-transfer`, is to keep the local file-backed workflow
    small and deterministic. The thin BIBER preflight wrapper and read wrappers
-   for status/account/transaction/mempool are now done. Good next targets are
-   BIBER explorer/block read wrappers, snapshot/replay improvements, or another
-   small checked fixture only when it directly helps the private-devnet MVP.
-   Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
+   for status/explorer/block/account/transaction/mempool are now done. Good next
+   targets are a BIBER consolidated explorer summary smoke, snapshot/replay
+   improvements, or another small checked fixture only when it directly helps
+   the private-devnet MVP. Public XRIQ launch, exchange listing, custody,
+   liquidity, bridges, and
    market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
