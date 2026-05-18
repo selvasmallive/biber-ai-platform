@@ -121,6 +121,37 @@ _, runtime = request_json("GET", "/v1/runtime", "runtime.json")
 if runtime.get("service") != "biber-api":
     fail(f"runtime service was unexpected: {runtime!r}")
 
+_, capabilities = request_json("GET", "/v1/agent/capabilities", "agent-capabilities.json")
+if capabilities.get("service") != "biber-agent":
+    fail(f"agent capabilities service was unexpected: {capabilities!r}")
+features = capabilities.get("features")
+if not isinstance(features, dict):
+    fail(f"agent capabilities features were missing: {capabilities!r}")
+xriq_feature = features.get("xriq_private_devnet")
+if not isinstance(xriq_feature, dict) or xriq_feature.get("context_supported") is not True:
+    fail(f"agent capabilities did not advertise XRIQ context: {xriq_feature!r}")
+test_runner = features.get("test_runner")
+commands = test_runner.get("commands") if isinstance(test_runner, dict) else None
+if not isinstance(commands, list):
+    fail(f"agent capabilities test commands were missing: {test_runner!r}")
+test_ids = {
+    command.get("test_id")
+    for command in commands
+    if isinstance(command, dict)
+}
+if "python-compileall-api" not in test_ids:
+    fail(f"agent capabilities omitted python-compileall-api: {test_ids!r}")
+presets = capabilities.get("presets")
+if not isinstance(presets, list):
+    fail(f"agent capabilities presets were missing: {capabilities!r}")
+preset_ids = {
+    preset.get("id")
+    for preset in presets
+    if isinstance(preset, dict)
+}
+if "xriq_private_devnet_review" not in preset_ids:
+    fail(f"agent capabilities omitted XRIQ preset: {preset_ids!r}")
+
 chat_payload = {
     "language": "Rust",
     "model": "biber-dev-core-v1",
@@ -245,6 +276,7 @@ summary = {
     "ok": "biber-agent-smoke",
     "artifacts": str(artifact_dir),
     "chat_model": chat.get("model"),
+    "capability_presets": sorted(item for item in preset_ids if isinstance(item, str)),
     "chat_content_prefix": chat.get("content", "")[:120],
     "file_edit_dry_run": edit.get("dry_run"),
     "test_id": test_run.get("test_id"),

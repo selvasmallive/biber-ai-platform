@@ -120,6 +120,105 @@ def _format_xriq_agent_context(overview: dict[str, object]) -> str:
     return "\n".join(fields)
 
 
+def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
+    registry = build_model_registry(settings).as_response()
+    default_model = str(registry.get("default_model") or settings.default_model)
+    return {
+        "service": "biber-agent",
+        "version": "mvp-v1",
+        "default_model": default_model,
+        "endpoints": {
+            "create_session": "POST /v1/agent/sessions",
+            "list_sessions": "GET /v1/agent/sessions",
+            "get_session": "GET /v1/agent/sessions/{session_id}",
+            "run_test": "POST /v1/tests/run",
+            "edit_file": "POST /v1/files/edit",
+            "github_save": "POST /v1/save/github",
+            "github_pull_request": "POST /v1/github/pull-request",
+        },
+        "features": {
+            "repo_context": {
+                "enabled": True,
+                "max_files": settings.repo_context_max_files,
+                "max_bytes_per_file": settings.repo_context_max_bytes_per_file,
+                "max_total_bytes": settings.repo_context_max_total_bytes,
+            },
+            "workspace_edit": {
+                "enabled": True,
+                "dry_run_supported": True,
+                "max_file_bytes": settings.workspace_edit_max_file_bytes,
+                "max_new_text_bytes": settings.workspace_edit_max_new_text_bytes,
+            },
+            "test_runner": {
+                "enabled": True,
+                "commands": list_test_commands(settings),
+            },
+            "github_workflow": {
+                "save_configured": bool(settings.github_token),
+                "pull_request_configured": bool(settings.github_token),
+            },
+            "openai_mentor": {
+                "enabled": settings.mentor_enabled,
+                "configured": bool(settings.openai_api_key and settings.openai_model),
+                "trigger_phrase": MENTOR_TRIGGER_PHRASE,
+            },
+            "xriq_private_devnet": {
+                "context_supported": True,
+                "overview_endpoint": "GET /v1/xriq/private-devnet/overview",
+                "dashboard_endpoint": "GET /xriq/private-devnet/dashboard",
+                "default_explorer_limit": 5,
+                "default_snapshot_limit": 5,
+                "max_context_limit": 25,
+            },
+        },
+        "presets": [
+            {
+                "id": "default_coding_session",
+                "label": "Default coding session",
+                "description": "Repo-aware chat with optional bounded edit and test run.",
+                "request_template": {
+                    "model": default_model,
+                    "task_type": "agent_session",
+                    "use_mentor": False,
+                    "repo_context_paths": [],
+                    "include_xriq_context": False,
+                    "test_id": "python-compileall-api",
+                },
+            },
+            {
+                "id": "xriq_private_devnet_review",
+                "label": "XRIQ private-devnet review",
+                "description": (
+                    "Rust/XRIQ session that includes current private-devnet "
+                    "overview context before chat."
+                ),
+                "request_template": {
+                    "model": default_model,
+                    "language": "Rust",
+                    "task_type": "xriq_private_devnet_review",
+                    "use_mentor": False,
+                    "repo_context_paths": [
+                        "README.md",
+                        "docs/XRIQ_TECHNICAL_SPEC.md",
+                        "xriq/README.md",
+                    ],
+                    "include_xriq_context": True,
+                    "xriq_explorer_limit": 5,
+                    "xriq_snapshot_limit": 5,
+                    "test_id": "python-compileall-api",
+                },
+            },
+        ],
+        "safety": {
+            "arbitrary_shell_commands": False,
+            "bounded_workspace_edits": True,
+            "github_actions_explicit_only": True,
+            "mentor_calls_disabled_by_default": True,
+            "credentials_returned": False,
+        },
+    }
+
+
 @app.get("/health")
 async def health(settings: BiberSettings = Depends(get_settings)) -> dict[str, str | bool]:
     return {
@@ -177,6 +276,14 @@ async def run_tests(
     except TestRunnerConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return TestRunResponse.model_validate(result)
+
+
+@app.get("/v1/agent/capabilities")
+async def agent_capabilities(
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> dict[str, object]:
+    return _agent_capabilities(settings)
 
 
 @app.post("/v1/files/edit", response_model=WorkspaceEditResponse)

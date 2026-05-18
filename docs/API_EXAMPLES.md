@@ -184,6 +184,18 @@ bash scripts/vast_biber_agent_smoke.sh
 To include GitHub save and draft-PR creation, configure GitHub credentials on
 the server first, then run with `BIBER_AGENT_SMOKE_GITHUB=1`.
 
+## Discover Agent Capabilities
+
+Client tools can call this endpoint before creating sessions. It returns the
+safe workflow surface, allowlisted test commands, and request templates for
+common session presets such as XRIQ private-devnet review. It does not return
+API keys or other secrets.
+
+```bash
+curl http://localhost:8000/v1/agent/capabilities \
+  -H "Authorization: Bearer dev-api-key-change-me"
+```
+
 ## Run A Tracked Agent Session
 
 This endpoint wraps the existing MVP primitives into one tracked workflow:
