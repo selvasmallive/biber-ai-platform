@@ -89,6 +89,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER API/XRIQ private-devnet client commit pushed and
   Vast-verified:
   `2bb7ca0 Add BIBER XRIQ private devnet client`.
+- Latest BIBER API/XRIQ private-devnet dashboard commit pushed and
+  Vast-verified:
+  `afa080b Add XRIQ private devnet dashboard`.
 - Latest XRIQ explorer transaction-hash navigation commit pushed and
   Vast-verified:
   `6205b66 Expose XRIQ block transaction hashes`.
@@ -114,12 +117,12 @@ serving the last broad-safe Rust/XRIQ adapter.
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
   `786ec51 Persist BIBER agent sessions`.
-- Vast code verification is current through `2bb7ca0`. Full Rust/private-devnet
+- Vast code verification is current through `afa080b`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
-  verification is current through `2bb7ca0`; consolidated BIBER XRIQ API smoke
-  verification is current through `2bb7ca0`; focused fixture verification is
-  current through `919b348`; BIBER test-runner API verification is current
-  through `d4df8c0`; BIBER workspace-edit API verification is current through
+  and dashboard verification is current through `afa080b`; consolidated BIBER
+  XRIQ API smoke verification is current through `afa080b`; focused fixture
+  verification is current through `919b348`; BIBER test-runner API verification
+  is current through `d4df8c0`; BIBER workspace-edit API verification is current through
   `992890b`; BIBER GitHub branch/PR workflow verification is current through
   `179f58b`; BIBER agent-smoke verification is current through `28ebe62`;
   BIBER agent-session API/persistence verification is current through
@@ -130,9 +133,20 @@ serving the last broad-safe Rust/XRIQ adapter.
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `47248`
+  - FastAPI pid: `48095`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - The `afa080b` dashboard checkpoint required a FastAPI-only restart.
+    vLLM stayed on pid `5802`; FastAPI moved from pid `47248` to pid `48095`.
+  - Latest focused Vast verification for the BIBER/XRIQ dashboard slice:
+    `/workspace/biber-venv/bin/python -m compileall app src tests scripts`,
+    `bash -n scripts/vast_xriq_api_smoke.sh`, and focused pytest covering
+    `test_xriq_preflight_api.py`, `test_xriq_private_devnet_client.py`, and
+    `test_xriq_dashboard.py` with `26 passed`.
+  - Browser dashboard route is live at:
+    `http://127.0.0.1:8000/xriq/private-devnet/dashboard` when connected
+    through the SSH tunnel. It is same-origin with the API and stores the typed
+    API key only in browser `sessionStorage`.
   - The `2bb7ca0` client/docs/test checkpoint required no service restart;
     vLLM stayed on pid `5802` and FastAPI stayed on pid `47248`.
   - Latest focused Vast verification for the BIBER/XRIQ API client slice:
@@ -187,18 +201,20 @@ serving the last broad-safe Rust/XRIQ adapter.
     `GET /v1/xriq/private-devnet/snapshots?limit=10`, `GET
     /v1/xriq/private-devnet/snapshots/{snapshot_name}`, snapshot height `2`,
     `GET /v1/xriq/private-devnet/overview?explorer_limit=5&snapshot_limit=10`,
-    snapshot list count `4`, overview snapshot count `4`, state root
+    snapshot list count `5`, overview snapshot count `5`, state root
     `578bdd2affeece78c7949d34da08391c797b363b045c3cff6c999868e0baa2d6`,
     transaction hash
     `e1dadff3325ac720c71bfa8c900ed15e2637dbb041848f0fdfe35dbfbbb94e1d`
     sourced from the latest block, transaction detail status `confirmed`, and
     the minimal stdlib client commands for overview, snapshot list, and
-    snapshot detail.
+    snapshot detail. The smoke also fetched
+    `GET /xriq/private-devnet/dashboard` and verified the dashboard marker.
     Latest smoke artifact:
-    `/workspace/outputs/xriq-api-smoke-20260518T224201Z-47642`. Client
+    `/workspace/outputs/xriq-api-smoke-20260518T225937Z-48120`. Client
     artifacts inside that directory:
     `client-overview.txt`, `client-snapshots.txt`, and
-    `client-snapshot-detail.txt`.
+    `client-snapshot-detail.txt`. Dashboard artifact:
+    `dashboard.html`.
     The earlier read smoke confirmed `transaction_status=confirmed` and status
     `current_height=2` for the test chain used in that smoke.
   - Latest XRIQ private-devnet CLI smoke:
@@ -2992,13 +3008,14 @@ bash scripts/xriq_private_devnet_smoke.sh
    Vast-verified. XRIQ private-devnet snapshot export/import is also
    implemented and Vast-verified for cheap chain/pending state moves, with the
    thin BIBER API wrapper, snapshot discovery endpoints, and consolidated
-   private-devnet overview endpoint now live. The minimal stdlib client for the
-   BIBER/XRIQ private-devnet overview and snapshot endpoints is now also
-   implemented and Vast-verified. Good next targets are continued
-   wallet/explorer workflow polish, a tiny TypeScript/React consumer for the
-   overview payload, or keeping the BIBER agent flow pointed at these XRIQ
-   endpoints. Public XRIQ launch, exchange listing, custody, liquidity,
-   bridges, and market-facing work remain blocked.
+   private-devnet overview endpoint now live. The minimal stdlib client and
+   same-origin browser dashboard for the BIBER/XRIQ private-devnet overview
+   and snapshot endpoints are now also implemented and Vast-verified. Good
+   next targets are continued wallet/explorer workflow polish, adding a small
+   preflight-transfer UI action behind the existing wrapper, or keeping the
+   BIBER agent flow pointed at these XRIQ endpoints. Public XRIQ launch,
+   exchange listing, custody, liquidity, bridges, and market-facing work remain
+   blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
