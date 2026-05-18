@@ -112,7 +112,7 @@ BIBER_QUEUE_PRIORITY_DEMO
 4. biber-dev-core can generate code   -> vLLM service named biber-dev-core
 5. Code output can be saved to GitHub -> /v1/save/github and chat save option
 6. Models/data can be backed up       -> /v1/backup/azure and chat backup option
-7. XRIQ private-devnet preflight flow -> /v1/xriq/private-devnet/preflight-transfer
+7. XRIQ private-devnet read/preflight flows -> /v1/xriq/private-devnet/*
 ```
 
 ## 6. Chat Example
@@ -196,6 +196,12 @@ Read-only helpers are also available:
 
 ```bash
 curl http://localhost:8000/v1/xriq/private-devnet/status \
+  -H "Authorization: Bearer dev-api-key-change-me"
+
+curl 'http://localhost:8000/v1/xriq/private-devnet/explorer?limit=5' \
+  -H "Authorization: Bearer dev-api-key-change-me"
+
+curl http://localhost:8000/v1/xriq/private-devnet/blocks/1 \
   -H "Authorization: Bearer dev-api-key-change-me"
 
 curl http://localhost:8000/v1/xriq/private-devnet/accounts/xriqdev1alice00000000000 \

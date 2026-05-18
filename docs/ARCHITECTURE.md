@@ -37,6 +37,8 @@ XRIQ private-devnet client path:
 ```text
 Developer or BIBER client
  -> /v1/xriq/private-devnet/status
+ -> /v1/xriq/private-devnet/explorer?limit={count}
+ -> /v1/xriq/private-devnet/blocks/{height}
  -> /v1/xriq/private-devnet/accounts/{address}
  -> /v1/xriq/private-devnet/transactions/{hash}
  -> /v1/xriq/private-devnet/mempool

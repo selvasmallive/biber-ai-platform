@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Path, Query
 
 from .azure_backup import AzureBackupDisabled, AzureBlobBackup
 from .config import BiberSettings, get_settings
@@ -33,6 +33,8 @@ from .xriq_client import (
     XriqConfigurationError,
     XriqPreflightTransferRequest,
     run_private_devnet_account_detail,
+    run_private_devnet_block_detail,
+    run_private_devnet_explorer_overview,
     run_private_devnet_mempool_detail,
     run_private_devnet_preflight_transfer,
     run_private_devnet_status,
@@ -185,6 +187,40 @@ async def xriq_private_devnet_status(
 ) -> dict[str, object]:
     try:
         return run_private_devnet_status(settings)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqCommandTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except XriqCommandError as exc:
+        detail: object = exc.payload or str(exc)
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+
+
+@app.get("/v1/xriq/private-devnet/explorer")
+async def xriq_private_devnet_explorer_overview(
+    limit: int | None = Query(default=None, ge=1, le=100),
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> dict[str, object]:
+    try:
+        return run_private_devnet_explorer_overview(settings, limit=limit)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqCommandTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except XriqCommandError as exc:
+        detail: object = exc.payload or str(exc)
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+
+
+@app.get("/v1/xriq/private-devnet/blocks/{height}")
+async def xriq_private_devnet_block_detail(
+    height: int = Path(ge=0),
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> dict[str, object]:
+    try:
+        return run_private_devnet_block_detail(height, settings)
     except XriqConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except XriqCommandTimeout as exc:

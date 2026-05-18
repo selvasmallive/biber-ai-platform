@@ -140,6 +140,12 @@ read commands. Mempool detail reads the server-configured durable pending file.
 curl http://localhost:8000/v1/xriq/private-devnet/status \
   -H "Authorization: Bearer dev-api-key-change-me"
 
+curl 'http://localhost:8000/v1/xriq/private-devnet/explorer?limit=5' \
+  -H "Authorization: Bearer dev-api-key-change-me"
+
+curl http://localhost:8000/v1/xriq/private-devnet/blocks/1 \
+  -H "Authorization: Bearer dev-api-key-change-me"
+
 curl http://localhost:8000/v1/xriq/private-devnet/accounts/xriqdev1alice00000000000 \
   -H "Authorization: Bearer dev-api-key-change-me"
 

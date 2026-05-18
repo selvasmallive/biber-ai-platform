@@ -76,6 +76,39 @@ def run_private_devnet_status(
     )
 
 
+def run_private_devnet_explorer_overview(
+    settings: BiberSettings,
+    *,
+    limit: int | None = None,
+    runner: Runner = subprocess.run,
+) -> dict[str, Any]:
+    command = _read_command("explorer-overview", settings)
+    if limit is not None:
+        command.extend(["--limit", str(limit)])
+    return _run_xriq_node_json(
+        command,
+        settings,
+        runner=runner,
+        operation="XRIQ explorer overview",
+    )
+
+
+def run_private_devnet_block_detail(
+    height: int,
+    settings: BiberSettings,
+    *,
+    runner: Runner = subprocess.run,
+) -> dict[str, Any]:
+    command = _read_command("block-detail", settings)
+    command.extend(["--height", str(height)])
+    return _run_xriq_node_json(
+        command,
+        settings,
+        runner=runner,
+        operation="XRIQ block detail",
+    )
+
+
 def run_private_devnet_account_detail(
     address: str,
     settings: BiberSettings,

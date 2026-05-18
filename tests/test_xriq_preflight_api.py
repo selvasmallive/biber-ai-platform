@@ -14,6 +14,8 @@ from biber_api.xriq_client import (
     XriqCommandError,
     XriqPreflightTransferRequest,
     run_private_devnet_account_detail,
+    run_private_devnet_block_detail,
+    run_private_devnet_explorer_overview,
     run_private_devnet_mempool_detail,
     run_private_devnet_preflight_transfer,
     run_private_devnet_status,
@@ -160,6 +162,80 @@ def test_status_client_invokes_xriq_node_runner(tmp_path: Path) -> None:
         "100",
         "--format",
         "json",
+    ]
+
+
+def test_explorer_client_invokes_xriq_node_runner_with_limit(tmp_path: Path) -> None:
+    calls: list[list[str]] = []
+
+    def runner(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps(
+                {
+                    "format_version": "xriq-node-json-v1",
+                    "command": "explorer-overview",
+                    "latest_blocks": [],
+                }
+            ),
+            stderr="",
+        )
+
+    payload = run_private_devnet_explorer_overview(
+        make_settings(tmp_path),
+        limit=5,
+        runner=runner,
+    )
+
+    assert payload["command"] == "explorer-overview"
+    assert calls[0] == [
+        "xriq-node",
+        "explorer-overview",
+        "--chain-file",
+        "target/test-chain.bin",
+        "--alice-balance",
+        "100",
+        "--format",
+        "json",
+        "--limit",
+        "5",
+    ]
+
+
+def test_block_client_invokes_xriq_node_runner(tmp_path: Path) -> None:
+    calls: list[list[str]] = []
+
+    def runner(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps(
+                {
+                    "format_version": "xriq-node-json-v1",
+                    "command": "block-detail",
+                    "height": 1,
+                }
+            ),
+            stderr="",
+        )
+
+    payload = run_private_devnet_block_detail(1, make_settings(tmp_path), runner=runner)
+
+    assert payload["command"] == "block-detail"
+    assert calls[0] == [
+        "xriq-node",
+        "block-detail",
+        "--chain-file",
+        "target/test-chain.bin",
+        "--alice-balance",
+        "100",
+        "--format",
+        "json",
+        "--height",
+        "1",
     ]
 
 
@@ -319,6 +395,16 @@ def test_read_endpoints_return_runner_payload(monkeypatch: pytest.MonkeyPatch) -
     )
     monkeypatch.setattr(
         main_module,
+        "run_private_devnet_explorer_overview",
+        lambda settings, limit=None: {"command": "explorer-overview", "limit": limit},
+    )
+    monkeypatch.setattr(
+        main_module,
+        "run_private_devnet_block_detail",
+        lambda height, settings: {"command": "block-detail", "height": height},
+    )
+    monkeypatch.setattr(
+        main_module,
         "run_private_devnet_account_detail",
         lambda address, settings: {"command": "account-detail", "address": address},
     )
@@ -337,6 +423,11 @@ def test_read_endpoints_return_runner_payload(monkeypatch: pytest.MonkeyPatch) -
     headers = {"x-api-key": "test-key"}
 
     status_response = client.get("/v1/xriq/private-devnet/status", headers=headers)
+    explorer_response = client.get(
+        "/v1/xriq/private-devnet/explorer?limit=5",
+        headers=headers,
+    )
+    block_response = client.get("/v1/xriq/private-devnet/blocks/1", headers=headers)
     account_response = client.get(
         "/v1/xriq/private-devnet/accounts/xriqdev1alice00000000000",
         headers=headers,
@@ -349,6 +440,10 @@ def test_read_endpoints_return_runner_payload(monkeypatch: pytest.MonkeyPatch) -
 
     assert status_response.status_code == 200
     assert status_response.json()["command"] == "status"
+    assert explorer_response.status_code == 200
+    assert explorer_response.json() == {"command": "explorer-overview", "limit": 5}
+    assert block_response.status_code == 200
+    assert block_response.json() == {"command": "block-detail", "height": 1}
     assert account_response.status_code == 200
     assert account_response.json()["address"] == "xriqdev1alice00000000000"
     assert transaction_response.status_code == 200

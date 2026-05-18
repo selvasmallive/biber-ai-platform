@@ -4,7 +4,16 @@ from typing import Any, Literal
 from uuid import uuid4
 
 import httpx
-from fastapi import FastAPI, Depends, Header, HTTPException, UploadFile, File
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    Path as ApiPath,
+    Query,
+    UploadFile,
+)
 from pydantic import BaseModel, Field
 
 from app.azure_backup import AzureBackupDisabled, AzureBlobBackup
@@ -27,6 +36,8 @@ from app.xriq_client import (
     XriqConfigurationError,
     XriqPreflightTransferRequest,
     run_private_devnet_account_detail,
+    run_private_devnet_block_detail,
+    run_private_devnet_explorer_overview,
     run_private_devnet_mempool_detail,
     run_private_devnet_preflight_transfer,
     run_private_devnet_status,
@@ -319,6 +330,38 @@ def xriq_private_devnet_preflight_transfer(
 def xriq_private_devnet_status(auth=Depends(require_api_key)):
     try:
         return run_private_devnet_status(settings)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqCommandTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except XriqCommandError as exc:
+        detail: object = exc.payload or str(exc)
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+
+
+@app.get("/v1/xriq/private-devnet/explorer")
+def xriq_private_devnet_explorer_overview(
+    limit: int | None = Query(default=None, ge=1, le=100),
+    auth=Depends(require_api_key),
+):
+    try:
+        return run_private_devnet_explorer_overview(settings, limit=limit)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqCommandTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except XriqCommandError as exc:
+        detail: object = exc.payload or str(exc)
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+
+
+@app.get("/v1/xriq/private-devnet/blocks/{height}")
+def xriq_private_devnet_block_detail(
+    height: int = ApiPath(ge=0),
+    auth=Depends(require_api_key),
+):
+    try:
+        return run_private_devnet_block_detail(height, settings)
     except XriqConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except XriqCommandTimeout as exc:
