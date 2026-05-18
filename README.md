@@ -214,6 +214,13 @@ curl http://localhost:8000/v1/xriq/private-devnet/mempool \
   -H "Authorization: Bearer dev-api-key-change-me"
 ```
 
+On the Vast direct deployment, the XRIQ API read wrappers can be checked
+together without mutating the chain:
+
+```bash
+bash scripts/vast_xriq_api_smoke.sh
+```
+
 ## 7. Vast Connection Needed
 
 To deploy this to your Vast.ai GPU, use the instance SSH command:

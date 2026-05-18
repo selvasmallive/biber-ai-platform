@@ -37,6 +37,7 @@ REQUIRED_FILES = [
     "scripts/vast_status_direct.sh",
     "scripts/vast_stop_direct.sh",
     "scripts/vast_test_direct.sh",
+    "scripts/vast_xriq_api_smoke.sh",
     "src/biber_api/__init__.py",
     "src/biber_api/azure_backup.py",
     "src/biber_api/config.py",
