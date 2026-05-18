@@ -31,6 +31,10 @@ use xriq_rpc::RpcService;
 use xriq_storage::{ChainStore, FileChainStore, StorageError, StoredBlock};
 
 pub const PRIVATE_DEVNET_RUNNER_WARNING: &str = "private-devnet-only-no-public-token";
+pub const PRIVATE_DEVNET_SNAPSHOT_FORMAT_VERSION: &str = "xriq-private-devnet-snapshot-v1";
+const SNAPSHOT_MANIFEST_FILE: &str = "manifest.json";
+const SNAPSHOT_CHAIN_FILE: &str = "chain.bin";
+const SNAPSHOT_PENDING_FILE: &str = "pending.tsv";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProduceNextBlockInput {
@@ -83,6 +87,14 @@ pub struct NodeStatus {
     pub state_root: Hash32,
     pub pending_transactions: usize,
     pub stored_blocks: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateDevnetSnapshotStatus {
+    pub snapshot_dir: String,
+    pub chain_file: String,
+    pub pending_file: Option<String>,
+    pub status: NodeStatus,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -182,6 +194,7 @@ pub enum NodeRunnerOutput {
     AccountDetail(String),
     MempoolDetail(String),
     TransactionDetail(String),
+    Snapshot(PrivateDevnetSnapshotStatus),
     Json(String),
 }
 
@@ -195,6 +208,10 @@ pub enum NodeRunnerError {
     UnexpectedArgument(String),
     DraftFileRead { path: String, error: String },
     PendingFileRead { path: String, error: String },
+    SnapshotFileRead { path: String, error: String },
+    SnapshotFileWrite { path: String, error: String },
+    SnapshotTargetExists(String),
+    InvalidSnapshotManifest(String),
     InvalidPendingRecord(String),
     InvalidDraftLine(String),
     UnknownDraftField(String),
@@ -389,6 +406,38 @@ impl fmt::Display for PrivateDevnetPreflightTransferStatus {
     }
 }
 
+impl fmt::Display for PrivateDevnetSnapshotStatus {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(formatter, "warning={}", self.status.warning)?;
+        writeln!(
+            formatter,
+            "snapshot_format_version={}",
+            PRIVATE_DEVNET_SNAPSHOT_FORMAT_VERSION
+        )?;
+        writeln!(formatter, "snapshot_dir={}", self.snapshot_dir)?;
+        writeln!(formatter, "chain_file={}", self.chain_file)?;
+        writeln!(
+            formatter,
+            "pending_file={}",
+            self.pending_file.as_deref().unwrap_or("none")
+        )?;
+        writeln!(formatter, "chain_id={}", self.status.chain_id)?;
+        writeln!(formatter, "current_height={}", self.status.current_height)?;
+        writeln!(
+            formatter,
+            "latest_block_hash={}",
+            hash_hex(self.status.latest_block_hash)
+        )?;
+        writeln!(formatter, "state_root={}", hash_hex(self.status.state_root))?;
+        writeln!(
+            formatter,
+            "pending_transactions={}",
+            self.status.pending_transactions
+        )?;
+        write!(formatter, "stored_blocks={}", self.status.stored_blocks)
+    }
+}
+
 impl fmt::Display for NodeRunnerOutput {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -402,6 +451,7 @@ impl fmt::Display for NodeRunnerOutput {
             | Self::AccountDetail(detail)
             | Self::MempoolDetail(detail)
             | Self::TransactionDetail(detail) => formatter.write_str(detail),
+            Self::Snapshot(status) => write!(formatter, "{status}"),
             Self::Json(json) => formatter.write_str(json),
         }
     }
@@ -423,6 +473,18 @@ impl fmt::Display for NodeRunnerError {
             }
             Self::PendingFileRead { path, error } => {
                 write!(formatter, "could not read pending file {path}: {error}")
+            }
+            Self::SnapshotFileRead { path, error } => {
+                write!(formatter, "could not read snapshot file {path}: {error}")
+            }
+            Self::SnapshotFileWrite { path, error } => {
+                write!(formatter, "could not write snapshot file {path}: {error}")
+            }
+            Self::SnapshotTargetExists(path) => {
+                write!(formatter, "snapshot target already exists: {path}")
+            }
+            Self::InvalidSnapshotManifest(message) => {
+                write!(formatter, "invalid snapshot manifest: {message}")
             }
             Self::InvalidPendingRecord(record) => {
                 write!(formatter, "invalid pending transaction record: {record}")
@@ -485,6 +547,10 @@ impl NodeRunnerError {
             Self::UnexpectedArgument(_) => "unexpected_argument",
             Self::DraftFileRead { .. } => "draft_file_read",
             Self::PendingFileRead { .. } => "pending_file_read",
+            Self::SnapshotFileRead { .. } => "snapshot_file_read",
+            Self::SnapshotFileWrite { .. } => "snapshot_file_write",
+            Self::SnapshotTargetExists(_) => "snapshot_target_exists",
+            Self::InvalidSnapshotManifest(_) => "invalid_snapshot_manifest",
             Self::InvalidPendingRecord(_) => "invalid_pending_record",
             Self::InvalidDraftLine(_) => "invalid_draft_line",
             Self::UnknownDraftField(_) => "unknown_draft_field",
@@ -519,6 +585,8 @@ pub fn node_help_text() -> String {
         "  xriq-node account-detail --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node snapshot-export --chain-file <path> --snapshot-dir <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node snapshot-import --snapshot-dir <path> --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>]",
         "  xriq-node serve-private --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>]",
         "",
@@ -594,6 +662,8 @@ where
         Some("account-detail") => run_account_detail_command(&args[1..]),
         Some("mempool-detail") => run_mempool_detail_command(&args[1..]),
         Some("transaction-detail") => run_transaction_detail_command(&args[1..]),
+        Some("snapshot-export") => run_snapshot_export_command(&args[1..]),
+        Some("snapshot-import") => run_snapshot_import_command(&args[1..]),
         Some(command) => Err(NodeRunnerError::UnknownCommand(command.to_string())),
     }
 }
@@ -1320,6 +1390,88 @@ pub fn private_devnet_file_transaction_detail_with_pending_file_data(
     ))
 }
 
+fn private_devnet_export_snapshot(
+    chain_file: &str,
+    pending_file: Option<&str>,
+    alice_balance: Option<XriqAmount>,
+    snapshot_dir: &str,
+) -> Result<PrivateDevnetSnapshotStatus, NodeRunnerError> {
+    let status = if let Some(pending_file) = pending_file {
+        private_devnet_file_status_with_pending_file(chain_file, pending_file, alice_balance)?
+    } else {
+        private_devnet_file_status(chain_file, alice_balance).map_err(NodeRunnerError::Node)?
+    };
+    let snapshot_dir_path = Path::new(snapshot_dir);
+    prepare_new_snapshot_dir(snapshot_dir_path)?;
+
+    let chain_snapshot_path = snapshot_dir_path.join(SNAPSHOT_CHAIN_FILE);
+    copy_snapshot_file(Path::new(chain_file), &chain_snapshot_path)?;
+
+    let pending_snapshot_path = if let Some(pending_file) = pending_file {
+        let target = snapshot_dir_path.join(SNAPSHOT_PENDING_FILE);
+        if Path::new(pending_file).exists() {
+            copy_snapshot_file(Path::new(pending_file), &target)?;
+        } else {
+            write_snapshot_file(&target, "")?;
+        }
+        Some(target)
+    } else {
+        None
+    };
+
+    let exported = PrivateDevnetSnapshotStatus {
+        snapshot_dir: snapshot_dir_path.to_string_lossy().to_string(),
+        chain_file: chain_snapshot_path.to_string_lossy().to_string(),
+        pending_file: pending_snapshot_path
+            .as_ref()
+            .map(|path| path.to_string_lossy().to_string()),
+        status,
+    };
+    write_snapshot_file(
+        &snapshot_dir_path.join(SNAPSHOT_MANIFEST_FILE),
+        &render_snapshot_manifest_json(&exported),
+    )?;
+    Ok(exported)
+}
+
+fn private_devnet_import_snapshot(
+    snapshot_dir: &str,
+    chain_file: &str,
+    pending_file: Option<&str>,
+    alice_balance: Option<XriqAmount>,
+) -> Result<PrivateDevnetSnapshotStatus, NodeRunnerError> {
+    let snapshot_dir_path = Path::new(snapshot_dir);
+    validate_snapshot_manifest(snapshot_dir_path)?;
+
+    copy_snapshot_file_to_new_path(
+        &snapshot_dir_path.join(SNAPSHOT_CHAIN_FILE),
+        Path::new(chain_file),
+    )?;
+    let imported_pending_file = if let Some(pending_file) = pending_file {
+        let source = snapshot_dir_path.join(SNAPSHOT_PENDING_FILE);
+        if source.exists() {
+            copy_snapshot_file_to_new_path(&source, Path::new(pending_file))?;
+        } else {
+            write_new_snapshot_file(Path::new(pending_file), "")?;
+        }
+        Some(pending_file.to_string())
+    } else {
+        None
+    };
+
+    let status = if let Some(pending_file) = pending_file {
+        private_devnet_file_status_with_pending_file(chain_file, pending_file, alice_balance)?
+    } else {
+        private_devnet_file_status(chain_file, alice_balance).map_err(NodeRunnerError::Node)?
+    };
+    Ok(PrivateDevnetSnapshotStatus {
+        snapshot_dir: snapshot_dir_path.to_string_lossy().to_string(),
+        chain_file: chain_file.to_string(),
+        pending_file: imported_pending_file,
+        status,
+    })
+}
+
 pub fn private_devnet_file_submit_pending_transfer_body(
     chain_file: impl AsRef<Path>,
     pending_file: impl AsRef<Path>,
@@ -1892,6 +2044,60 @@ fn run_transaction_detail_command(args: &[String]) -> Result<NodeRunnerOutput, N
     })
 }
 
+fn run_snapshot_export_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--pending-file",
+        "--snapshot-dir",
+        "--alice-balance",
+        "--format",
+    ])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let chain_file = flags.required("--chain-file")?;
+    let pending_file = flags.optional("--pending-file");
+    let snapshot_dir = flags.required("--snapshot-dir")?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    private_devnet_export_snapshot(chain_file, pending_file, alice_balance, snapshot_dir).map(
+        |status| match output_format {
+            RunnerOutputFormat::Text => NodeRunnerOutput::Snapshot(status),
+            RunnerOutputFormat::Json => {
+                NodeRunnerOutput::Json(render_snapshot_status_json("snapshot-export", &status))
+            }
+        },
+    )
+}
+
+fn run_snapshot_import_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--snapshot-dir",
+        "--chain-file",
+        "--pending-file",
+        "--alice-balance",
+        "--format",
+    ])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let snapshot_dir = flags.required("--snapshot-dir")?;
+    let chain_file = flags.required("--chain-file")?;
+    let pending_file = flags.optional("--pending-file");
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    private_devnet_import_snapshot(snapshot_dir, chain_file, pending_file, alice_balance).map(
+        |status| match output_format {
+            RunnerOutputFormat::Text => NodeRunnerOutput::Snapshot(status),
+            RunnerOutputFormat::Json => {
+                NodeRunnerOutput::Json(render_snapshot_status_json("snapshot-import", &status))
+            }
+        },
+    )
+}
+
 fn run_preflight_transfer_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
     flags.reject_unknown(&[
@@ -2265,6 +2471,112 @@ fn write_pending_transaction_records(
         path: pending_file.to_string_lossy().to_string(),
         error: error.to_string(),
     })
+}
+
+fn prepare_new_snapshot_dir(snapshot_dir: &Path) -> Result<(), NodeRunnerError> {
+    if snapshot_dir.exists() {
+        let mut entries =
+            fs::read_dir(snapshot_dir).map_err(|error| NodeRunnerError::SnapshotFileRead {
+                path: snapshot_dir.to_string_lossy().to_string(),
+                error: error.to_string(),
+            })?;
+        if entries
+            .next()
+            .transpose()
+            .map_err(|error| NodeRunnerError::SnapshotFileRead {
+                path: snapshot_dir.to_string_lossy().to_string(),
+                error: error.to_string(),
+            })?
+            .is_some()
+        {
+            return Err(NodeRunnerError::SnapshotTargetExists(
+                snapshot_dir.to_string_lossy().to_string(),
+            ));
+        }
+        return Ok(());
+    }
+    fs::create_dir_all(snapshot_dir).map_err(|error| NodeRunnerError::SnapshotFileWrite {
+        path: snapshot_dir.to_string_lossy().to_string(),
+        error: error.to_string(),
+    })
+}
+
+fn copy_snapshot_file(source: &Path, target: &Path) -> Result<(), NodeRunnerError> {
+    if let Some(parent) = target
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent).map_err(|error| NodeRunnerError::SnapshotFileWrite {
+            path: target.to_string_lossy().to_string(),
+            error: error.to_string(),
+        })?;
+    }
+    fs::copy(source, target).map(|_| ()).map_err(|error| {
+        if source.exists() {
+            NodeRunnerError::SnapshotFileWrite {
+                path: target.to_string_lossy().to_string(),
+                error: error.to_string(),
+            }
+        } else {
+            NodeRunnerError::SnapshotFileRead {
+                path: source.to_string_lossy().to_string(),
+                error: error.to_string(),
+            }
+        }
+    })
+}
+
+fn copy_snapshot_file_to_new_path(source: &Path, target: &Path) -> Result<(), NodeRunnerError> {
+    reject_existing_snapshot_target(target)?;
+    copy_snapshot_file(source, target)
+}
+
+fn write_new_snapshot_file(target: &Path, text: &str) -> Result<(), NodeRunnerError> {
+    reject_existing_snapshot_target(target)?;
+    write_snapshot_file(target, text)
+}
+
+fn reject_existing_snapshot_target(target: &Path) -> Result<(), NodeRunnerError> {
+    if target.exists() {
+        return Err(NodeRunnerError::SnapshotTargetExists(
+            target.to_string_lossy().to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn write_snapshot_file(target: &Path, text: &str) -> Result<(), NodeRunnerError> {
+    if let Some(parent) = target
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent).map_err(|error| NodeRunnerError::SnapshotFileWrite {
+            path: target.to_string_lossy().to_string(),
+            error: error.to_string(),
+        })?;
+    }
+    fs::write(target, text).map_err(|error| NodeRunnerError::SnapshotFileWrite {
+        path: target.to_string_lossy().to_string(),
+        error: error.to_string(),
+    })
+}
+
+fn validate_snapshot_manifest(snapshot_dir: &Path) -> Result<(), NodeRunnerError> {
+    let manifest_path = snapshot_dir.join(SNAPSHOT_MANIFEST_FILE);
+    let manifest =
+        fs::read_to_string(&manifest_path).map_err(|error| NodeRunnerError::SnapshotFileRead {
+            path: manifest_path.to_string_lossy().to_string(),
+            error: error.to_string(),
+        })?;
+    if !manifest.contains(&format!(
+        "\"snapshot_format_version\": {}",
+        json_string(PRIVATE_DEVNET_SNAPSHOT_FORMAT_VERSION)
+    )) {
+        return Err(NodeRunnerError::InvalidSnapshotManifest(
+            "missing or unsupported snapshot_format_version".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn render_pending_transaction_record(tx_hash: Hash32, transaction: &Transaction) -> String {
@@ -2825,6 +3137,82 @@ fn render_node_status_json(command: &str, status: &NodeStatus) -> String {
     push_success_json_preamble(&mut output, command);
     push_node_status_json_fields(&mut output, status, "  ", false);
     output.push_str("\n}");
+    output
+}
+
+fn render_snapshot_status_json(command: &str, status: &PrivateDevnetSnapshotStatus) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_success_json_preamble(&mut output, command);
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(status.status.warning)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"snapshot_format_version\": {},",
+        json_string(PRIVATE_DEVNET_SNAPSHOT_FORMAT_VERSION)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"snapshot_dir\": {},",
+        json_string(&status.snapshot_dir)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"chain_file\": {},",
+        json_string(&status.chain_file)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"pending_file\": {},",
+        json_optional_string(status.pending_file.as_deref())
+    )
+    .expect("write to String");
+    push_node_status_json_fields_without_warning(&mut output, &status.status, "  ", false);
+    output.push_str("\n}");
+    output
+}
+
+fn render_snapshot_manifest_json(status: &PrivateDevnetSnapshotStatus) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"snapshot_format_version\": {},",
+        json_string(PRIVATE_DEVNET_SNAPSHOT_FORMAT_VERSION)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(status.status.warning)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"chain_file\": {},",
+        json_string(SNAPSHOT_CHAIN_FILE)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"pending_file\": {},",
+        json_optional_string(
+            status
+                .pending_file
+                .as_deref()
+                .map(|_| SNAPSHOT_PENDING_FILE)
+        )
+    )
+    .expect("write to String");
+    push_node_status_json_fields_without_warning(&mut output, &status.status, "  ", false);
+    output.push_str("\n}\n");
     output
 }
 
@@ -3665,6 +4053,7 @@ fn flag_to_static(flag: &str) -> &'static str {
         "--height" => "--height",
         "--address" => "--address",
         "--tx-hash" => "--tx-hash",
+        "--snapshot-dir" => "--snapshot-dir",
         "--from" => "--from",
         "--to" => "--to",
         "--amount" => "--amount",
@@ -4332,6 +4721,14 @@ mod tests {
         std::env::temp_dir().join(format!("xriq-node-store-{nanos}.bin"))
     }
 
+    fn temp_snapshot_dir() -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("xriq-node-snapshot-{nanos}"))
+    }
+
     fn write_wallet_draft(path: &Path, amount: u128, fee: u128, nonce: u64) {
         fs::write(
             path,
@@ -4952,6 +5349,166 @@ mod tests {
 
         let _ = fs::remove_file(path);
         let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn node_runner_snapshot_export_import_restores_chain_and_pending_files() {
+        let path = temp_store_path();
+        let pending_path = path.with_extension("pending");
+        let imported_path = path.with_extension("imported.bin");
+        let imported_pending_path = path.with_extension("imported.pending");
+        let snapshot_dir = temp_snapshot_dir();
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let imported_text = imported_path.to_string_lossy().to_string();
+        let imported_pending_text = imported_pending_path.to_string_lossy().to_string();
+        let snapshot_text = snapshot_dir.to_string_lossy().to_string();
+
+        run_node_command([
+            "produce-transfer-block",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1bobbb00000000000",
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--expires-at-height",
+            "100",
+            "--timestamp-ms",
+            "1000",
+        ])
+        .unwrap();
+        let pending_body = [
+            "warning=private-devnet-test-identity-only",
+            "version=1",
+            "chain_id=xriq-devnet",
+            "from=xriqdev1alice00000000000",
+            "to=xriqdev1bobbb00000000000",
+            "amount=10",
+            "fee=2",
+            "nonce=1",
+            "expires_at_height=100",
+            "signature_bytes=48",
+        ]
+        .join("\n");
+        private_devnet_file_submit_pending_transfer_body(
+            &path_text,
+            &pending_text,
+            Some(XriqAmount::from_base_units(100)),
+            &pending_body,
+        )
+        .unwrap();
+
+        let export_json = run_node_command([
+            "snapshot-export",
+            "--chain-file",
+            path_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--snapshot-dir",
+            snapshot_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(export_json.contains("\"command\": \"snapshot-export\""));
+        assert!(export_json.contains("\"snapshot_format_version\":"));
+        assert!(export_json.contains("\"current_height\": 1"));
+        assert!(export_json.contains("\"pending_transactions\": 1"));
+        assert!(snapshot_dir.join(SNAPSHOT_CHAIN_FILE).exists());
+        assert!(snapshot_dir.join(SNAPSHOT_PENDING_FILE).exists());
+        let manifest = fs::read_to_string(snapshot_dir.join(SNAPSHOT_MANIFEST_FILE)).unwrap();
+        assert!(manifest.contains("\"snapshot_format_version\":"));
+        assert!(manifest.contains("\"pending_file\": \"pending.tsv\""));
+
+        let import_json = run_node_command([
+            "snapshot-import",
+            "--snapshot-dir",
+            snapshot_text.as_str(),
+            "--chain-file",
+            imported_text.as_str(),
+            "--pending-file",
+            imported_pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(import_json.contains("\"command\": \"snapshot-import\""));
+        assert!(import_json.contains("\"current_height\": 1"));
+        assert!(import_json.contains("\"pending_transactions\": 1"));
+
+        let imported_mempool = run_node_command([
+            "mempool-detail",
+            "--chain-file",
+            imported_text.as_str(),
+            "--pending-file",
+            imported_pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(imported_mempool.contains("\"pending_count\": 1"));
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+        let _ = fs::remove_file(imported_path);
+        let _ = fs::remove_file(imported_pending_path);
+        let _ = fs::remove_dir_all(snapshot_dir);
+    }
+
+    #[test]
+    fn node_runner_snapshot_import_rejects_existing_chain_target() {
+        let path = temp_store_path();
+        let imported_path = path.with_extension("existing.bin");
+        let snapshot_dir = temp_snapshot_dir();
+        let path_text = path.to_string_lossy().to_string();
+        let imported_text = imported_path.to_string_lossy().to_string();
+        let snapshot_text = snapshot_dir.to_string_lossy().to_string();
+
+        run_node_command([
+            "snapshot-export",
+            "--chain-file",
+            path_text.as_str(),
+            "--snapshot-dir",
+            snapshot_text.as_str(),
+            "--alice-balance",
+            "100",
+        ])
+        .unwrap();
+        fs::write(&imported_path, "already here").unwrap();
+
+        let error = run_node_command([
+            "snapshot-import",
+            "--snapshot-dir",
+            snapshot_text.as_str(),
+            "--chain-file",
+            imported_text.as_str(),
+            "--alice-balance",
+            "100",
+        ])
+        .unwrap_err();
+        assert!(matches!(error, NodeRunnerError::SnapshotTargetExists(_)));
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(imported_path);
+        let _ = fs::remove_dir_all(snapshot_dir);
     }
 
     #[test]

@@ -19,6 +19,10 @@ CONFIRMED_TRANSACTION_JSON_FILE="${ARTIFACT_DIR}/confirmed-transaction-detail.js
 OVERVIEW_JSON_FILE="${ARTIFACT_DIR}/explorer-overview.json"
 ACCOUNT_JSON_FILE="${ARTIFACT_DIR}/account-detail.json"
 REPLAY_STATUS_JSON_FILE="${ARTIFACT_DIR}/replay-status.json"
+SNAPSHOT_DIR="${ARTIFACT_DIR}/snapshot"
+SNAPSHOT_EXPORT_JSON_FILE="${ARTIFACT_DIR}/snapshot-export.json"
+SNAPSHOT_IMPORT_CHAIN_FILE="${ARTIFACT_DIR}/snapshot-import-chain.bin"
+SNAPSHOT_IMPORT_JSON_FILE="${ARTIFACT_DIR}/snapshot-import.json"
 STATUS_ERROR_JSON_FILE="${ARTIFACT_DIR}/status-error.json"
 HTTP_JSON_SUBMIT_FILE="${ARTIFACT_DIR}/http-json-submit.json"
 HTTP_JSON_TRANSACTION_FILE="${ARTIFACT_DIR}/http-json-transaction.json"
@@ -243,6 +247,32 @@ require_contains "replay status" "$replay_status_output" '"command": "status"'
 require_contains "replay status" "$replay_status_output" '"current_height": 1'
 require_contains "replay status" "$replay_status_output" '"stored_blocks": 1'
 require_contains "replay status" "$replay_status_output" "\"state_root\": \"${produce_state_root}\""
+
+snapshot_export_output="$(
+  run_xriq -p xriq-node -- snapshot-export \
+    --chain-file "$CHAIN_FILE" \
+    --snapshot-dir "$SNAPSHOT_DIR" \
+    --alice-balance 100 \
+    --format json
+)"
+printf '%s\n' "$snapshot_export_output" > "$SNAPSHOT_EXPORT_JSON_FILE"
+require_contains "snapshot export" "$snapshot_export_output" '"command": "snapshot-export"'
+require_contains "snapshot export" "$snapshot_export_output" '"snapshot_format_version": "xriq-private-devnet-snapshot-v1"'
+require_contains "snapshot export" "$snapshot_export_output" '"current_height": 1'
+require_contains "snapshot export" "$snapshot_export_output" "\"state_root\": \"${produce_state_root}\""
+
+snapshot_import_output="$(
+  run_xriq -p xriq-node -- snapshot-import \
+    --snapshot-dir "$SNAPSHOT_DIR" \
+    --chain-file "$SNAPSHOT_IMPORT_CHAIN_FILE" \
+    --alice-balance 100 \
+    --format json
+)"
+printf '%s\n' "$snapshot_import_output" > "$SNAPSHOT_IMPORT_JSON_FILE"
+require_contains "snapshot import" "$snapshot_import_output" '"command": "snapshot-import"'
+require_contains "snapshot import" "$snapshot_import_output" '"current_height": 1'
+require_contains "snapshot import" "$snapshot_import_output" '"stored_blocks": 1'
+require_contains "snapshot import" "$snapshot_import_output" "\"state_root\": \"${produce_state_root}\""
 
 confirmed_transaction_output="$(
   run_xriq -p xriq-node -- transaction-detail \
@@ -501,6 +531,10 @@ echo "confirmed_transaction_json=${CONFIRMED_TRANSACTION_JSON_FILE}"
 echo "overview_json=${OVERVIEW_JSON_FILE}"
 echo "account_json=${ACCOUNT_JSON_FILE}"
 echo "replay_status_json=${REPLAY_STATUS_JSON_FILE}"
+echo "snapshot_dir=${SNAPSHOT_DIR}"
+echo "snapshot_export_json=${SNAPSHOT_EXPORT_JSON_FILE}"
+echo "snapshot_import_chain=${SNAPSHOT_IMPORT_CHAIN_FILE}"
+echo "snapshot_import_json=${SNAPSHOT_IMPORT_JSON_FILE}"
 echo "status_error_json=${STATUS_ERROR_JSON_FILE}"
 echo "http_json_chain=${HTTP_JSON_CHAIN_FILE}"
 echo "http_json_submit=${HTTP_JSON_SUBMIT_FILE}"

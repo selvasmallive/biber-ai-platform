@@ -15,6 +15,11 @@ node status, empty mempool detail, initial Alice account detail, wallet transfer
 submit body, produced transfer block JSON, block detail JSON with transaction
 hashes, produced pending-block JSON, and preflight transfer JSON.
 
+Snapshot export/import uses the same successful runner response envelope with
+commands `snapshot-export` and `snapshot-import`. The snapshot directory itself
+contains `manifest.json`, `chain.bin`, and optional `pending.tsv`; see
+`docs/XRIQ_SNAPSHOT_EXPORT_IMPORT.md`.
+
 ## Compatibility Rules
 
 - Text output remains the default. Consumers that need machine-readable output

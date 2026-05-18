@@ -167,6 +167,28 @@ to height, latest block hash, pending transaction count, and stored block count.
 Use it as the compact deterministic marker when comparing a chain before and
 after restart, copy, or future snapshot/export work.
 
+Private-devnet snapshot export/import:
+
+```bash
+cargo run -p xriq-node -- snapshot-export \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --snapshot-dir target/xriq-devnet-snapshot \
+  --alice-balance 100 \
+  --format json
+
+cargo run -p xriq-node -- snapshot-import \
+  --snapshot-dir target/xriq-devnet-snapshot \
+  --chain-file target/xriq-devnet-restored-chain.bin \
+  --pending-file target/xriq-devnet-restored-pending.tsv \
+  --alice-balance 100 \
+  --format json
+```
+
+The snapshot workflow copies `chain.bin`, optional `pending.tsv`, and
+`manifest.json` into a new snapshot directory. Import refuses to overwrite
+existing target files. See `../docs/XRIQ_SNAPSHOT_EXPORT_IMPORT.md`.
+
 Checked private-devnet JSON fixtures live in `fixtures/private-devnet/`.
 They are used by Rust tests as golden examples for wallet/node schema drift.
 Current checked fixtures cover fresh node status, empty mempool detail, initial
