@@ -39,6 +39,7 @@ Developer or BIBER client
  -> /v1/xriq/private-devnet/status
  -> /v1/xriq/private-devnet/accounts/{address}
  -> /v1/xriq/private-devnet/transactions/{hash}
+ -> /v1/xriq/private-devnet/mempool
  -> /v1/xriq/private-devnet/preflight-transfer
  -> server-side BIBER XRIQ wrapper
  -> xriq-node ... --format json

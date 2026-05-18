@@ -511,7 +511,7 @@ pub fn node_help_text() -> String {
         "  xriq-node explorer-overview --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node block-detail --chain-file <path> --height <height> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node account-detail --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
-        "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>]",
         "  xriq-node serve-private --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>]",
@@ -1690,11 +1690,33 @@ pub fn private_devnet_file_mempool_detail_data(
     draft_file: Option<impl AsRef<Path>>,
     alice_balance: Option<XriqAmount>,
 ) -> Result<ExplorerMempoolDetail, NodeRunnerError> {
-    let store = FileChainStore::open(chain_file)
-        .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
+    private_devnet_file_mempool_detail_with_sources_data(
+        chain_file,
+        draft_file,
+        None::<&Path>,
+        alice_balance,
+    )
+}
+
+pub fn private_devnet_file_mempool_detail_with_sources_data<P, D, F>(
+    chain_file: P,
+    draft_file: Option<D>,
+    pending_file: Option<F>,
+    alice_balance: Option<XriqAmount>,
+) -> Result<ExplorerMempoolDetail, NodeRunnerError>
+where
+    P: AsRef<Path>,
+    D: AsRef<Path>,
+    F: AsRef<Path>,
+{
     let genesis = private_devnet_runner_genesis(alice_balance);
-    let mut node =
-        XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?;
+    let mut node = if let Some(pending_file) = pending_file {
+        private_devnet_node_with_pending_file(chain_file.as_ref(), pending_file, alice_balance)?
+    } else {
+        let store = FileChainStore::open(chain_file.as_ref())
+            .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
+        XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?
+    };
     if let Some(draft_file) = draft_file {
         let transfer = read_private_devnet_transfer_draft(draft_file, &genesis.chain_id)?;
         let transaction = private_devnet_runner_transaction(&node, &transfer);
@@ -1807,24 +1829,27 @@ fn run_mempool_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeR
     flags.reject_unknown(&[
         "--chain-file",
         "--draft-file",
+        "--pending-file",
         "--alice-balance",
         "--format",
     ])?;
     let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
     let draft_file = flags.optional("--draft-file");
+    let pending_file = flags.optional("--pending-file");
     let alice_balance = flags
         .optional("--alice-balance")
         .map(|value| parse_amount("--alice-balance", value))
         .transpose()?;
+    let detail = private_devnet_file_mempool_detail_with_sources_data(
+        chain_file,
+        draft_file,
+        pending_file,
+        alice_balance,
+    )?;
     Ok(match output_format {
-        RunnerOutputFormat::Text => {
-            private_devnet_file_mempool_detail(chain_file, draft_file, alice_balance)
-                .map(NodeRunnerOutput::MempoolDetail)?
-        }
+        RunnerOutputFormat::Text => NodeRunnerOutput::MempoolDetail(render_mempool(&detail)),
         RunnerOutputFormat::Json => {
-            let detail =
-                private_devnet_file_mempool_detail_data(chain_file, draft_file, alice_balance)?;
             NodeRunnerOutput::Json(render_mempool_detail_json("mempool-detail", &detail))
         }
     })
@@ -4726,6 +4751,60 @@ mod tests {
 
         let _ = fs::remove_file(path);
         let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn node_runner_mempool_detail_reads_durable_pending_file() {
+        let path = temp_store_path();
+        let pending_path = path.with_extension("pending");
+        let draft_path = path.with_extension("draft");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        write_wallet_draft(&draft_path, 25, 2, 0);
+        let draft_body = fs::read_to_string(&draft_path).unwrap();
+        let pending_detail = private_devnet_file_submit_pending_transfer_body(
+            &path_text,
+            &pending_text,
+            Some(XriqAmount::from_base_units(100)),
+            &draft_body,
+        )
+        .unwrap();
+
+        let pending_json = run_node_command([
+            "mempool-detail",
+            "--chain-file",
+            path_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(pending_json.contains("\"command\": \"mempool-detail\""));
+        assert!(pending_json.contains("\"pending_count\": 1"));
+        assert!(pending_json.contains(&hash_hex(pending_detail.tx_hash)));
+        assert!(pending_json.contains("\"amount_base_units\": \"25\""));
+        assert!(pending_json.contains("\"fee_base_units\": \"2\""));
+
+        let in_memory_json = run_node_command([
+            "mempool-detail",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(in_memory_json.contains("\"pending_count\": 0"));
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+        let _ = fs::remove_file(draft_path);
     }
 
     #[test]

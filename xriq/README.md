@@ -71,6 +71,7 @@ cargo run -p xriq-node -- account-detail \
 cargo run -p xriq-node -- mempool-detail \
   --chain-file target/xriq-devnet-chain.bin \
   --draft-file target/xriq-wallet-transfer-draft.txt \
+  --pending-file target/xriq-devnet-pending.tsv \
   --alice-balance 100
 
 cargo run -p xriq-node -- transaction-detail \
@@ -210,6 +211,9 @@ When `serve-private` is started with `--pending-file <path>`,
 persists it as private-devnet pending state. `GET /v1/mempool`,
 `GET /v1/chain/status`, and `GET /v1/transactions/{hash}` then include that
 durable pending state across requests and server restarts.
+
+The local runner can inspect the same durable pending state with
+`xriq-node mempool-detail --pending-file <path>`.
 
 `POST /v1/blocks` is available only through `serve-private --pending-file
 <path>`. It produces one private-devnet block from the durable pending file,

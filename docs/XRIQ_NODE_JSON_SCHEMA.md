@@ -188,9 +188,9 @@ GET /v1/transactions/{hash}
 ```
 
 The read-only HTTP wrapper scans confirmed transactions in persisted blocks and
-returns `404` when the hash is not found. It does not report durable pending
-transactions yet because the file-backed HTTP wrapper does not persist mempool
-state across requests.
+returns `404` when the hash is not found. When the private HTTP wrapper is
+started with `--pending-file <path>`, transaction lookup checks confirmed
+blocks first, then durable pending transactions.
 
 Confirmed shape:
 
@@ -484,9 +484,14 @@ Command:
 cargo run -p xriq-node -- mempool-detail \
   --chain-file target/xriq-devnet-chain.bin \
   --draft-file target/xriq-wallet-transfer-draft.txt \
+  --pending-file target/xriq-devnet-pending.tsv \
   --alice-balance 100 \
   --format json
 ```
+
+`--draft-file` previews a wallet draft in memory. `--pending-file` loads
+durable private-devnet pending transactions from disk. Both options can be used
+together when a client needs to compare persisted pending state with a draft.
 
 Shape:
 
@@ -589,6 +594,7 @@ The script prints the artifact directory and writes these files:
 - `http-json-transaction.json`
 - `http-json-account.json`
 - `http-pending-submit.json`
+- `cli-pending-mempool.json`
 - `http-pending-mempool.json`
 - `http-pending-transaction.json`
 - `http-pending-produce.json`

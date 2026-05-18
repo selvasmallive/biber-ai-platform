@@ -14,6 +14,7 @@ from biber_api.xriq_client import (
     XriqCommandError,
     XriqPreflightTransferRequest,
     run_private_devnet_account_detail,
+    run_private_devnet_mempool_detail,
     run_private_devnet_preflight_transfer,
     run_private_devnet_status,
     run_private_devnet_transaction_detail,
@@ -241,6 +242,41 @@ def test_transaction_client_invokes_xriq_node_runner(tmp_path: Path) -> None:
     ]
 
 
+def test_mempool_client_invokes_xriq_node_runner_with_pending_file(tmp_path: Path) -> None:
+    calls: list[list[str]] = []
+
+    def runner(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps(
+                {
+                    "format_version": "xriq-node-json-v1",
+                    "command": "mempool-detail",
+                    "pending_count": 1,
+                }
+            ),
+            stderr="",
+        )
+
+    payload = run_private_devnet_mempool_detail(make_settings(tmp_path), runner=runner)
+
+    assert payload["command"] == "mempool-detail"
+    assert calls[0] == [
+        "xriq-node",
+        "mempool-detail",
+        "--chain-file",
+        "target/test-chain.bin",
+        "--alice-balance",
+        "100",
+        "--format",
+        "json",
+        "--pending-file",
+        "target/test-pending.tsv",
+    ]
+
+
 def test_preflight_endpoint_returns_runner_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_preflight(
         request: XriqPreflightTransferRequest,
@@ -291,6 +327,11 @@ def test_read_endpoints_return_runner_payload(monkeypatch: pytest.MonkeyPatch) -
         "run_private_devnet_transaction_detail",
         lambda tx_hash, settings: {"command": "transaction-detail", "tx_hash": tx_hash},
     )
+    monkeypatch.setattr(
+        main_module,
+        "run_private_devnet_mempool_detail",
+        lambda settings: {"command": "mempool-detail", "pending_count": 1},
+    )
 
     client = TestClient(main_module.app)
     headers = {"x-api-key": "test-key"}
@@ -304,6 +345,7 @@ def test_read_endpoints_return_runner_payload(monkeypatch: pytest.MonkeyPatch) -
         f"/v1/xriq/private-devnet/transactions/{'a' * 64}",
         headers=headers,
     )
+    mempool_response = client.get("/v1/xriq/private-devnet/mempool", headers=headers)
 
     assert status_response.status_code == 200
     assert status_response.json()["command"] == "status"
@@ -311,3 +353,5 @@ def test_read_endpoints_return_runner_payload(monkeypatch: pytest.MonkeyPatch) -
     assert account_response.json()["address"] == "xriqdev1alice00000000000"
     assert transaction_response.status_code == 200
     assert transaction_response.json()["command"] == "transaction-detail"
+    assert mempool_response.status_code == 200
+    assert mempool_response.json()["command"] == "mempool-detail"

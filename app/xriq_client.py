@@ -108,6 +108,21 @@ def run_private_devnet_transaction_detail(
     )
 
 
+def run_private_devnet_mempool_detail(
+    settings: Settings,
+    *,
+    runner: Runner = subprocess.run,
+) -> dict[str, Any]:
+    command = _read_command("mempool-detail", settings)
+    command.extend(["--pending-file", settings.xriq_pending_file])
+    return _run_xriq_node_json(
+        command,
+        settings,
+        runner=runner,
+        operation="XRIQ mempool detail",
+    )
+
+
 def _run_xriq_node_json(
     command: list[str],
     settings: Settings,

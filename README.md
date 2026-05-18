@@ -203,6 +203,9 @@ curl http://localhost:8000/v1/xriq/private-devnet/accounts/xriqdev1alice00000000
 
 curl http://localhost:8000/v1/xriq/private-devnet/transactions/<transaction-hash> \
   -H "Authorization: Bearer dev-api-key-change-me"
+
+curl http://localhost:8000/v1/xriq/private-devnet/mempool \
+  -H "Authorization: Bearer dev-api-key-change-me"
 ```
 
 ## 7. Vast Connection Needed

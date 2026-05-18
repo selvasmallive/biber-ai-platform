@@ -753,6 +753,8 @@ As of 2026-05-17:
     lets `GET /v1/chain/status`, `GET /v1/mempool`, and
     `GET /v1/transactions/{hash}` report pending state across requests and
     server restarts
+  - durable pending mempool inspection through
+    `xriq-node mempool-detail --pending-file <path>`
   - durable pending block production through
     `xriq-node produce-pending-block --pending-file <path>` and
     `POST /v1/blocks`, including pending-file compaction after included
@@ -774,8 +776,9 @@ As of 2026-05-17:
     for selected wallet and node schema-drift tests, including pending-block
     production and preflight transfer
   - one-command private-devnet smoke script that validates wallet draft,
-    mempool detail preview, pending and confirmed transaction detail, selected
-    JSON outputs, draft-block, durable HTTP pending state, durable
+    mempool detail preview, durable pending-file mempool detail, pending and
+    confirmed transaction detail, selected JSON outputs, draft-block, durable
+    HTTP pending state, durable
     pending-block production, client preflight transfer flow, explorer
     overview, block detail, and account detail behavior against persisted chain
     files, and persists representative JSON response examples beside the smoke

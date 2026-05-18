@@ -23,6 +23,7 @@ HTTP_JSON_SUBMIT_FILE="${ARTIFACT_DIR}/http-json-submit.json"
 HTTP_JSON_TRANSACTION_FILE="${ARTIFACT_DIR}/http-json-transaction.json"
 HTTP_JSON_ACCOUNT_FILE="${ARTIFACT_DIR}/http-json-account.json"
 HTTP_PENDING_SUBMIT_FILE="${ARTIFACT_DIR}/http-pending-submit.json"
+CLI_PENDING_MEMPOOL_FILE="${ARTIFACT_DIR}/cli-pending-mempool.json"
 HTTP_PENDING_MEMPOOL_FILE="${ARTIFACT_DIR}/http-pending-mempool.json"
 HTTP_PENDING_TRANSACTION_FILE="${ARTIFACT_DIR}/http-pending-transaction.json"
 HTTP_PENDING_PRODUCE_FILE="${ARTIFACT_DIR}/http-pending-produce.json"
@@ -361,6 +362,20 @@ require_contains "http pending submit" "$http_pending_submit_output" '"status": 
 require_contains "http pending submit" "$http_pending_submit_output" '"amount_base_units": "25"'
 
 http_pending_hash="$(printf '%s\n' "$http_pending_submit_output" | grep -m1 '"tx_hash"' | cut -d '"' -f4)"
+
+cli_pending_mempool_output="$(
+  run_xriq -p xriq-node -- mempool-detail \
+    --chain-file "$HTTP_PENDING_CHAIN_FILE" \
+    --pending-file "$HTTP_PENDING_FILE" \
+    --alice-balance 100 \
+    --format json
+)"
+printf '%s\n' "$cli_pending_mempool_output" > "$CLI_PENDING_MEMPOOL_FILE"
+require_contains "cli pending mempool" "$cli_pending_mempool_output" '"command": "mempool-detail"'
+require_contains "cli pending mempool" "$cli_pending_mempool_output" '"pending_count": 1'
+require_contains "cli pending mempool" "$cli_pending_mempool_output" "$http_pending_hash"
+require_contains "cli pending mempool" "$cli_pending_mempool_output" '"amount_base_units": "25"'
+
 http_pending_mempool_output="$(
   curl -fsS "http://127.0.0.1:${HTTP_PENDING_PORT}/v1/mempool"
 )"
@@ -472,6 +487,7 @@ echo "http_json_account=${HTTP_JSON_ACCOUNT_FILE}"
 echo "http_pending_chain=${HTTP_PENDING_CHAIN_FILE}"
 echo "http_pending_store=${HTTP_PENDING_FILE}"
 echo "http_pending_submit=${HTTP_PENDING_SUBMIT_FILE}"
+echo "cli_pending_mempool=${CLI_PENDING_MEMPOOL_FILE}"
 echo "http_pending_mempool=${HTTP_PENDING_MEMPOOL_FILE}"
 echo "http_pending_transaction=${HTTP_PENDING_TRANSACTION_FILE}"
 echo "http_pending_produce=${HTTP_PENDING_PRODUCE_FILE}"
