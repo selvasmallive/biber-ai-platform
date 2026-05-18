@@ -80,6 +80,9 @@ class Settings:
     xriq_command_timeout_seconds: float = float(
         os.getenv("BIBER_XRIQ_COMMAND_TIMEOUT_SECONDS", "30")
     )
+    xriq_rustup_home: str | None = os.getenv("BIBER_XRIQ_RUSTUP_HOME") or None
+    xriq_cargo_home: str | None = os.getenv("BIBER_XRIQ_CARGO_HOME") or None
+    xriq_path_prefix: str | None = os.getenv("BIBER_XRIQ_PATH_PREFIX") or None
 
     mentor_enabled: bool = _bool(os.getenv("BIBER_MENTOR_ENABLED"), default=False)
     openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")

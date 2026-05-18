@@ -58,6 +58,9 @@ class BiberSettings:
     xriq_pending_file: str = "target/biber-xriq-private-devnet-pending.tsv"
     xriq_default_alice_balance_base_units: str = "100"
     xriq_command_timeout_seconds: float = 30.0
+    xriq_rustup_home: str | None = None
+    xriq_cargo_home: str | None = None
+    xriq_path_prefix: str | None = None
 
 
 @lru_cache(maxsize=1)
@@ -107,4 +110,7 @@ def get_settings() -> BiberSettings:
         xriq_command_timeout_seconds=float(
             os.getenv("BIBER_XRIQ_COMMAND_TIMEOUT_SECONDS", "30")
         ),
+        xriq_rustup_home=os.getenv("BIBER_XRIQ_RUSTUP_HOME") or None,
+        xriq_cargo_home=os.getenv("BIBER_XRIQ_CARGO_HOME") or None,
+        xriq_path_prefix=os.getenv("BIBER_XRIQ_PATH_PREFIX") or None,
     )

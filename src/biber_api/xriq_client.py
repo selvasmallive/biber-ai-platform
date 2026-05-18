@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import subprocess
 from pathlib import Path
@@ -67,6 +68,7 @@ def run_private_devnet_preflight_transfer(
             text=True,
             timeout=settings.xriq_command_timeout_seconds,
             check=False,
+            env=_subprocess_env(settings),
         )
     except FileNotFoundError as exc:
         raise XriqConfigurationError(f"XRIQ node command not found: {command[0]}") from exc
@@ -137,6 +139,18 @@ def _preflight_command(
         command.extend(["--consensus-round", str(request.consensus_round)])
     command.extend(["--format", "json"])
     return command
+
+
+def _subprocess_env(settings: BiberSettings) -> dict[str, str]:
+    env = os.environ.copy()
+    if settings.xriq_rustup_home:
+        env["RUSTUP_HOME"] = settings.xriq_rustup_home
+    if settings.xriq_cargo_home:
+        env["CARGO_HOME"] = settings.xriq_cargo_home
+    if settings.xriq_path_prefix:
+        current_path = env.get("PATH", "")
+        env["PATH"] = settings.xriq_path_prefix + os.pathsep + current_path
+    return env
 
 
 def _parse_json_or_none(value: str) -> dict[str, Any] | None:
