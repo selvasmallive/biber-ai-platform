@@ -21,6 +21,13 @@ from app.llm import BiberChatService, MENTOR_TRIGGER_PHRASE
 from app.model_registry import ModelRegistryError, build_model_registry
 from app.repo_context import RepoContextError
 from app.scheduler import scheduler
+from app.xriq_client import (
+    XriqCommandError,
+    XriqCommandTimeout,
+    XriqConfigurationError,
+    XriqPreflightTransferRequest,
+    run_private_devnet_preflight_transfer,
+)
 
 app = FastAPI(
     title="BIBER AI Platform",
@@ -286,6 +293,22 @@ async def save_to_github(req: SaveToGitHubRequest, auth=Depends(require_api_key)
     except GitHubSaveError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return SaveToGitHubResponse(url=url)
+
+
+@app.post("/v1/xriq/private-devnet/preflight-transfer")
+def xriq_private_devnet_preflight_transfer(
+    req: XriqPreflightTransferRequest,
+    auth=Depends(require_api_key),
+):
+    try:
+        return run_private_devnet_preflight_transfer(req, settings)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqCommandTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except XriqCommandError as exc:
+        detail: object = exc.payload or str(exc)
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
 
 
 @app.post("/v1/backup/azure", response_model=AzureBackupResponse)

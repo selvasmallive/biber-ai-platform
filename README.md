@@ -112,6 +112,7 @@ BIBER_QUEUE_PRIORITY_DEMO
 4. biber-dev-core can generate code   -> vLLM service named biber-dev-core
 5. Code output can be saved to GitHub -> /v1/save/github and chat save option
 6. Models/data can be backed up       -> /v1/backup/azure and chat backup option
+7. XRIQ private-devnet preflight flow -> /v1/xriq/private-devnet/preflight-transfer
 ```
 
 ## 6. Chat Example
@@ -171,6 +172,24 @@ curl -X POST http://localhost:8000/v1/chat \
   -H "Authorization: Bearer dev-api-key-change-me" \
   -H "Content-Type: application/json" \
   -d '{"message":"Create a FastAPI health endpoint","queue_only":true}'
+```
+
+XRIQ private-devnet preflight transfer is exposed through a thin BIBER wrapper
+around the local Rust runner. Chain and pending-file paths are server-side
+configuration, so the request only supplies transfer values:
+
+```bash
+curl -X POST http://localhost:8000/v1/xriq/private-devnet/preflight-transfer \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": "xriqdev1alice00000000000",
+    "to": "xriqdev1bobbb00000000000",
+    "amount_base_units": "25",
+    "fee_base_units": "2",
+    "expires_at_height": 100,
+    "timestamp_ms": 1000
+  }'
 ```
 
 ## 7. Vast Connection Needed

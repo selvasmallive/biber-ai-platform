@@ -107,6 +107,27 @@ curl -X POST http://localhost:8000/v1/save/github \
       "commit_message": "Save generated BIBER example"
     },
     "content": "export const hello = () => \"biber\";\n"
+}'
+```
+
+## XRIQ Private-Devnet Preflight Transfer
+
+This endpoint is a thin wrapper around the local Rust
+`xriq-node preflight-transfer --format json` command. The chain file, pending
+file, Rust workspace, and runner command are configured on the server with
+`BIBER_XRIQ_*` settings. The request does not accept arbitrary file paths.
+
+```bash
+curl -X POST http://localhost:8000/v1/xriq/private-devnet/preflight-transfer \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": "xriqdev1alice00000000000",
+    "to": "xriqdev1bobbb00000000000",
+    "amount_base_units": "25",
+    "fee_base_units": "2",
+    "expires_at_height": 100,
+    "timestamp_ms": 1000
   }'
 ```
 

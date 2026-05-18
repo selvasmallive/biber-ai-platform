@@ -57,6 +57,29 @@ class Settings:
     repo_context_max_total_bytes: int = int(
         os.getenv("BIBER_REPO_CONTEXT_MAX_TOTAL_BYTES", "40000")
     )
+    xriq_workspace_dir: str = os.getenv("BIBER_XRIQ_WORKSPACE_DIR") or os.path.join(
+        repo_context_root,
+        "xriq",
+    )
+    xriq_node_command: str = os.getenv(
+        "BIBER_XRIQ_NODE_COMMAND",
+        "cargo run -q -p xriq-node --",
+    )
+    xriq_chain_file: str = os.getenv(
+        "BIBER_XRIQ_CHAIN_FILE",
+        "target/biber-xriq-private-devnet-chain.bin",
+    )
+    xriq_pending_file: str = os.getenv(
+        "BIBER_XRIQ_PENDING_FILE",
+        "target/biber-xriq-private-devnet-pending.tsv",
+    )
+    xriq_default_alice_balance_base_units: str = os.getenv(
+        "BIBER_XRIQ_DEFAULT_ALICE_BALANCE_BASE_UNITS",
+        "100",
+    )
+    xriq_command_timeout_seconds: float = float(
+        os.getenv("BIBER_XRIQ_COMMAND_TIMEOUT_SECONDS", "30")
+    )
 
     mentor_enabled: bool = _bool(os.getenv("BIBER_MENTOR_ENABLED"), default=False)
     openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")

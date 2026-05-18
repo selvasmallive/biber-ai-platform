@@ -1,0 +1,160 @@
+from __future__ import annotations
+
+import json
+import shlex
+import subprocess
+from pathlib import Path
+from typing import Any, Callable
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.config import Settings
+
+
+class XriqPreflightTransferRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_address: str = Field(alias="from", min_length=1)
+    to_address: str = Field(alias="to", min_length=1)
+    amount_base_units: str = Field(min_length=1, pattern=r"^[0-9]+$")
+    fee_base_units: str = Field(min_length=1, pattern=r"^[0-9]+$")
+    expires_at_height: int | None = Field(default=None, ge=0)
+    timestamp_ms: int | None = Field(default=None, ge=0)
+    consensus_round: int | None = Field(default=None, ge=0)
+    alice_balance_base_units: str | None = Field(default=None, pattern=r"^[0-9]+$")
+
+
+class XriqConfigurationError(RuntimeError):
+    pass
+
+
+class XriqCommandTimeout(RuntimeError):
+    pass
+
+
+class XriqCommandError(RuntimeError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int = 400,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.payload = payload
+
+
+Runner = Callable[..., subprocess.CompletedProcess[str]]
+
+
+def run_private_devnet_preflight_transfer(
+    request: XriqPreflightTransferRequest,
+    settings: Settings,
+    *,
+    runner: Runner = subprocess.run,
+) -> dict[str, Any]:
+    workspace = Path(settings.xriq_workspace_dir)
+    if not workspace.exists() or not workspace.is_dir():
+        raise XriqConfigurationError(f"XRIQ workspace does not exist: {workspace}")
+
+    command = _preflight_command(request, settings)
+    try:
+        completed = runner(
+            command,
+            cwd=str(workspace),
+            capture_output=True,
+            text=True,
+            timeout=settings.xriq_command_timeout_seconds,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise XriqConfigurationError(f"XRIQ node command not found: {command[0]}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise XriqCommandTimeout(
+            f"XRIQ preflight transfer timed out after {settings.xriq_command_timeout_seconds}s"
+        ) from exc
+
+    if completed.returncode != 0:
+        payload = _parse_json_or_none(completed.stderr) or _parse_json_or_none(completed.stdout)
+        message = _error_message(payload) if payload else _trim_output(completed.stderr)
+        if not message:
+            message = f"XRIQ preflight transfer failed with exit code {completed.returncode}"
+        raise XriqCommandError(
+            message,
+            status_code=400 if payload else 502,
+            payload=payload,
+        )
+
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise XriqCommandError(
+            "XRIQ preflight transfer returned invalid JSON.",
+            status_code=502,
+        ) from exc
+    if not isinstance(payload, dict):
+        raise XriqCommandError(
+            "XRIQ preflight transfer returned a non-object JSON response.",
+            status_code=502,
+        )
+    return payload
+
+
+def _preflight_command(
+    request: XriqPreflightTransferRequest,
+    settings: Settings,
+) -> list[str]:
+    command = shlex.split(settings.xriq_node_command)
+    if not command:
+        raise XriqConfigurationError("BIBER_XRIQ_NODE_COMMAND must not be empty.")
+
+    command.extend(
+        [
+            "preflight-transfer",
+            "--chain-file",
+            settings.xriq_chain_file,
+            "--pending-file",
+            settings.xriq_pending_file,
+            "--alice-balance",
+            request.alice_balance_base_units
+            or settings.xriq_default_alice_balance_base_units,
+            "--from",
+            request.from_address,
+            "--to",
+            request.to_address,
+            "--amount",
+            request.amount_base_units,
+            "--fee",
+            request.fee_base_units,
+        ]
+    )
+    if request.expires_at_height is not None:
+        command.extend(["--expires-at-height", str(request.expires_at_height)])
+    if request.timestamp_ms is not None:
+        command.extend(["--timestamp-ms", str(request.timestamp_ms)])
+    if request.consensus_round is not None:
+        command.extend(["--consensus-round", str(request.consensus_round)])
+    command.extend(["--format", "json"])
+    return command
+
+
+def _parse_json_or_none(value: str) -> dict[str, Any] | None:
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _error_message(payload: dict[str, Any] | None) -> str:
+    if not payload:
+        return ""
+    error = payload.get("error")
+    if isinstance(error, dict) and isinstance(error.get("message"), str):
+        return error["message"]
+    return str(payload)
+
+
+def _trim_output(value: str) -> str:
+    return value.strip()[:1000]

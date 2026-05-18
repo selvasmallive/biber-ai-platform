@@ -52,10 +52,17 @@ class BiberSettings:
     repo_context_max_files: int = 12
     repo_context_max_bytes_per_file: int = 12000
     repo_context_max_total_bytes: int = 40000
+    xriq_workspace_dir: str = "xriq"
+    xriq_node_command: str = "cargo run -q -p xriq-node --"
+    xriq_chain_file: str = "target/biber-xriq-private-devnet-chain.bin"
+    xriq_pending_file: str = "target/biber-xriq-private-devnet-pending.tsv"
+    xriq_default_alice_balance_base_units: str = "100"
+    xriq_command_timeout_seconds: float = 30.0
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> BiberSettings:
+    repo_context_root = os.getenv("BIBER_REPO_CONTEXT_ROOT") or os.getcwd()
     return BiberSettings(
         env=os.getenv("BIBER_ENV", "dev"),
         api_keys=_csv(os.getenv("BIBER_API_KEYS")),
@@ -73,10 +80,31 @@ def get_settings() -> BiberSettings:
         azure_storage_connection_string=os.getenv("AZURE_STORAGE_CONNECTION_STRING") or None,
         azure_blob_container=os.getenv("AZURE_BLOB_CONTAINER", "biber-backups"),
         default_model=os.getenv("BIBER_DEFAULT_MODEL", "biber-dev-core-v1"),
-        repo_context_root=os.getenv("BIBER_REPO_CONTEXT_ROOT") or os.getcwd(),
+        repo_context_root=repo_context_root,
         repo_context_max_files=int(os.getenv("BIBER_REPO_CONTEXT_MAX_FILES", "12")),
         repo_context_max_bytes_per_file=int(
             os.getenv("BIBER_REPO_CONTEXT_MAX_BYTES_PER_FILE", "12000")
         ),
         repo_context_max_total_bytes=int(os.getenv("BIBER_REPO_CONTEXT_MAX_TOTAL_BYTES", "40000")),
+        xriq_workspace_dir=os.getenv("BIBER_XRIQ_WORKSPACE_DIR")
+        or os.path.join(repo_context_root, "xriq"),
+        xriq_node_command=os.getenv(
+            "BIBER_XRIQ_NODE_COMMAND",
+            "cargo run -q -p xriq-node --",
+        ),
+        xriq_chain_file=os.getenv(
+            "BIBER_XRIQ_CHAIN_FILE",
+            "target/biber-xriq-private-devnet-chain.bin",
+        ),
+        xriq_pending_file=os.getenv(
+            "BIBER_XRIQ_PENDING_FILE",
+            "target/biber-xriq-private-devnet-pending.tsv",
+        ),
+        xriq_default_alice_balance_base_units=os.getenv(
+            "BIBER_XRIQ_DEFAULT_ALICE_BALANCE_BASE_UNITS",
+            "100",
+        ),
+        xriq_command_timeout_seconds=float(
+            os.getenv("BIBER_XRIQ_COMMAND_TIMEOUT_SECONDS", "30")
+        ),
     )

@@ -27,6 +27,13 @@ from .schemas import (
     SaveToGitHubResponse,
 )
 from .security import AuthContext, require_api_key
+from .xriq_client import (
+    XriqCommandError,
+    XriqCommandTimeout,
+    XriqConfigurationError,
+    XriqPreflightTransferRequest,
+    run_private_devnet_preflight_transfer,
+)
 
 
 app = FastAPI(
@@ -148,6 +155,23 @@ async def save_to_github(
     except GitHubSaveError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return SaveToGitHubResponse(url=url)
+
+
+@app.post("/v1/xriq/private-devnet/preflight-transfer")
+async def xriq_private_devnet_preflight_transfer(
+    request_body: XriqPreflightTransferRequest,
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> dict[str, object]:
+    try:
+        return run_private_devnet_preflight_transfer(request_body, settings)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqCommandTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except XriqCommandError as exc:
+        detail: object = exc.payload or str(exc)
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
 
 
 @app.post("/v1/backup/azure", response_model=AzureBackupResponse)

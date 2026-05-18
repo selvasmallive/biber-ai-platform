@@ -32,6 +32,17 @@ Developer
  -> optional Azure Blob backup
 ```
 
+XRIQ private-devnet client path:
+
+```text
+Developer or BIBER client
+ -> /v1/xriq/private-devnet/preflight-transfer
+ -> server-side BIBER XRIQ wrapper
+ -> xriq-node preflight-transfer --format json
+ -> file-backed private-devnet chain and pending state
+ -> stable JSON response
+```
+
 Video/proctoring path:
 
 ```text
