@@ -12,7 +12,8 @@ only until security and legal/compliance review says otherwise.
 - `xriq-ledger`: deterministic private-devnet account state transitions.
 - `xriq-mempool`: deterministic pending-transaction checks and ordering.
 - `xriq-node`: minimal local private-devnet node loop with deterministic replay
-  startup from persisted canonical blocks, a private-devnet status runner, a
+  startup from persisted canonical blocks plus a startup consistency guard, a
+  private-devnet status runner, a
   local transfer-to-block runner, wallet draft-file block production, and a
   file-backed explorer overview plus block/account/mempool detail runners with
   optional stable JSON output and a read-only local HTTP wrapper.

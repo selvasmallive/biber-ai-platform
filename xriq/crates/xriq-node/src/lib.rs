@@ -237,6 +237,7 @@ pub enum NodeError {
     Storage(StorageError),
     MissingStoredBlock { height: u64 },
     UnexpectedStoredBlockHeight { minimum: u64, actual: u64 },
+    UnexpectedStoredBlockCount { expected: usize, actual: usize },
     WrongStoredBlockHash { expected: Hash32, actual: Hash32 },
 }
 
@@ -3728,6 +3729,7 @@ impl<S: ChainStore> XriqNode<S> {
     ) -> Result<Self, NodeError> {
         let mut node = Self::from_genesis(genesis, store).map_err(NodeError::Genesis)?;
         let Some(latest_record) = node.store.latest_block() else {
+            node.verify_replayed_chain_state(genesis)?;
             return Ok(node);
         };
 
@@ -3759,6 +3761,7 @@ impl<S: ChainStore> XriqNode<S> {
                 .ok_or(NodeError::Header(BlockValidationError::HeightOverflow))?;
         }
 
+        node.verify_replayed_chain_state(genesis)?;
         Ok(node)
     }
 
@@ -3999,6 +4002,59 @@ impl<S: ChainStore> XriqNode<S> {
         let next_ledger = self.validate_next_block_state(&record.block)?;
         self.ledger = next_ledger;
         self.latest_block_hash = record.block_hash;
+        Ok(())
+    }
+
+    fn verify_replayed_chain_state(&self, genesis: &GenesisConfig) -> Result<(), NodeError> {
+        let expected_blocks = self
+            .ledger
+            .current_height()
+            .checked_sub(genesis.initial_height)
+            .ok_or(NodeError::UnexpectedStoredBlockHeight {
+                minimum: genesis.initial_height,
+                actual: self.ledger.current_height(),
+            })?;
+        let expected_blocks = usize::try_from(expected_blocks)
+            .map_err(|_| NodeError::Header(BlockValidationError::HeightOverflow))?;
+        if self.store.len() != expected_blocks {
+            return Err(NodeError::UnexpectedStoredBlockCount {
+                expected: expected_blocks,
+                actual: self.store.len(),
+            });
+        }
+
+        if expected_blocks == 0 {
+            return Ok(());
+        }
+
+        let current_height = self.ledger.current_height();
+        let latest_record = self
+            .store
+            .latest_block()
+            .ok_or(NodeError::MissingStoredBlock {
+                height: current_height,
+            })?;
+        if latest_record.block.header.height != current_height {
+            return Err(NodeError::UnexpectedStoredBlockHeight {
+                minimum: current_height,
+                actual: latest_record.block.header.height,
+            });
+        }
+        if latest_record.block_hash != self.latest_block_hash {
+            return Err(NodeError::WrongStoredBlockHash {
+                expected: latest_record.block_hash,
+                actual: self.latest_block_hash,
+            });
+        }
+
+        let expected_state_root = account_state_root(&self.ledger.state_root_entries());
+        if latest_record.block.header.state_root != expected_state_root {
+            return Err(NodeError::WrongStateRoot {
+                expected: expected_state_root,
+                actual: latest_record.block.header.state_root,
+            });
+        }
+
         Ok(())
     }
 
@@ -6227,6 +6283,32 @@ mod tests {
         assert_eq!(
             XriqNode::from_genesis_replaying_store(&genesis, store),
             Err(NodeError::MissingStoredBlock { height: 1 })
+        );
+    }
+
+    #[test]
+    fn replay_rejects_extra_stored_blocks_outside_replayed_height_range() {
+        let genesis = genesis();
+        let mut producer = XriqNode::from_genesis(&genesis, InMemoryChainStore::new()).unwrap();
+        let first = producer
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
+            .unwrap();
+        let mut extra_block = first.block.clone();
+        extra_block.header.height = genesis.initial_height;
+        let extra_hash = xriq_crypto::block_hash(&extra_block);
+
+        let mut store = InMemoryChainStore::new();
+        store.append_block(extra_hash, extra_block).unwrap();
+        store
+            .append_block(first.block_hash, first.block.clone())
+            .unwrap();
+
+        assert_eq!(
+            XriqNode::from_genesis_replaying_store(&genesis, store),
+            Err(NodeError::UnexpectedStoredBlockCount {
+                expected: 1,
+                actual: 2,
+            })
         );
     }
 

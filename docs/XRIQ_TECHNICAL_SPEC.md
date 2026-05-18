@@ -801,7 +801,8 @@ As of 2026-05-17:
   - local mempool cleanup when imported peer blocks include pending transactions
   - replay validates contiguous stored heights, canonical stored block hashes,
     parent links, authorized producer, transaction roots, account-state roots,
-    and hash-bound test-only signatures before restoring node tip/state
+    hash-bound test-only signatures, and final stored-count/tip-state
+    consistency before restoring node tip/state
 - Implemented private-devnet wallet CLI baseline:
   - deterministic test identity generation from labels
   - transfer draft construction
