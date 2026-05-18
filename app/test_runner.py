@@ -45,12 +45,16 @@ _TEST_COMMANDS: dict[str, TestCommandSpec] = {
     "pytest-core": TestCommandSpec(
         test_id="pytest-core",
         label="Core API pytest",
-        description="Run the focused BIBER API tests for model registry, mentor trigger, repo context, and XRIQ wrappers.",
+        description=(
+            "Run focused BIBER API tests for workspace edits, model registry, "
+            "mentor trigger, repo context, and XRIQ wrappers."
+        ),
         cwd="repo",
         argv=(
             sys.executable,
             "-m",
             "pytest",
+            "tests/test_workspace_edit.py",
             "tests/test_model_registry.py",
             "tests/test_openai_mentor_trigger.py",
             "tests/test_repo_context.py",

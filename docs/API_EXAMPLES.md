@@ -131,6 +131,28 @@ curl -X POST http://localhost:8000/v1/tests/run \
 
 Use `dry_run: true` to inspect the selected command without executing it.
 
+## Apply A Bounded Workspace Edit
+
+This endpoint performs one exact text replacement in a workspace-relative text
+file, or creates a new text file only when `create_if_missing` is explicitly
+set. It rejects path escapes, secret-looking paths, cache directories, common
+binary file types, oversized files, and replacement-count mismatches.
+
+```bash
+curl -X POST http://localhost:8000/v1/files/edit \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "generated/example.ts",
+    "old_text": "export const hello = () => \"old\";",
+    "new_text": "export const hello = () => \"biber\";",
+    "expected_replacements": 1
+  }'
+```
+
+Use `dry_run: true` to validate the path and replacement count without writing
+the file.
+
 ## XRIQ Private-Devnet Preflight Transfer
 
 This endpoint is a thin wrapper around the local Rust

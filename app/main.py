@@ -36,6 +36,11 @@ from app.test_runner import (
     list_test_commands,
     run_test_command,
 )
+from app.workspace_edit import (
+    WorkspaceEditConfigurationError,
+    WorkspaceEditError,
+    apply_workspace_edit,
+)
 from app.xriq_client import (
     XriqCommandError,
     XriqCommandTimeout,
@@ -169,6 +174,27 @@ class TestRunResponse(BaseModel):
     stderr_truncated: bool
 
 
+class WorkspaceEditRequest(BaseModel):
+    path: str = Field(min_length=1)
+    old_text: str | None = None
+    new_text: str = ""
+    expected_replacements: int = Field(default=1, ge=1, le=20)
+    create_if_missing: bool = False
+    dry_run: bool = False
+
+
+class WorkspaceEditResponse(BaseModel):
+    path: str
+    created: bool
+    dry_run: bool
+    changed: bool
+    replacements: int
+    old_sha256: str | None
+    new_sha256: str
+    old_bytes: int
+    new_bytes: int
+
+
 @app.get("/health")
 def health():
     return {
@@ -212,6 +238,25 @@ def run_tests(req: TestRunRequest, auth=Depends(require_api_key)):
     except TestRunnerConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return TestRunResponse.model_validate(result)
+
+
+@app.post("/v1/files/edit", response_model=WorkspaceEditResponse)
+def edit_workspace_file(req: WorkspaceEditRequest, auth=Depends(require_api_key)):
+    try:
+        result = apply_workspace_edit(
+            path=req.path,
+            old_text=req.old_text,
+            new_text=req.new_text,
+            expected_replacements=req.expected_replacements,
+            create_if_missing=req.create_if_missing,
+            dry_run=req.dry_run,
+            settings=settings,
+        )
+    except WorkspaceEditConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except WorkspaceEditError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return WorkspaceEditResponse.model_validate(result)
 
 
 @app.post("/v1/chat")

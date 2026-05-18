@@ -27,6 +27,8 @@ from .schemas import (
     SaveToGitHubResponse,
     TestRunRequest,
     TestRunResponse,
+    WorkspaceEditRequest,
+    WorkspaceEditResponse,
 )
 from .security import AuthContext, require_api_key
 from .test_runner import (
@@ -34,6 +36,11 @@ from .test_runner import (
     UnknownTestCommandError,
     list_test_commands,
     run_test_command,
+)
+from .workspace_edit import (
+    WorkspaceEditConfigurationError,
+    WorkspaceEditError,
+    apply_workspace_edit,
 )
 from .xriq_client import (
     XriqCommandError,
@@ -114,6 +121,29 @@ async def run_tests(
     except TestRunnerConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return TestRunResponse.model_validate(result)
+
+
+@app.post("/v1/files/edit", response_model=WorkspaceEditResponse)
+async def edit_workspace_file(
+    request_body: WorkspaceEditRequest,
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> WorkspaceEditResponse:
+    try:
+        result = apply_workspace_edit(
+            path=request_body.path,
+            old_text=request_body.old_text,
+            new_text=request_body.new_text,
+            expected_replacements=request_body.expected_replacements,
+            create_if_missing=request_body.create_if_missing,
+            dry_run=request_body.dry_run,
+            settings=settings,
+        )
+    except WorkspaceEditConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except WorkspaceEditError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return WorkspaceEditResponse.model_validate(result)
 
 
 @app.post("/v1/chat", response_model=ChatResponse)

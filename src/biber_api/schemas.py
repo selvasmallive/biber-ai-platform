@@ -96,3 +96,24 @@ class TestRunResponse(BaseModel):
     stderr: str
     stdout_truncated: bool
     stderr_truncated: bool
+
+
+class WorkspaceEditRequest(BaseModel):
+    path: str = Field(min_length=1)
+    old_text: str | None = None
+    new_text: str = ""
+    expected_replacements: int = Field(default=1, ge=1, le=20)
+    create_if_missing: bool = False
+    dry_run: bool = False
+
+
+class WorkspaceEditResponse(BaseModel):
+    path: str
+    created: bool
+    dry_run: bool
+    changed: bool
+    replacements: int
+    old_sha256: str | None
+    new_sha256: str
+    old_bytes: int
+    new_bytes: int

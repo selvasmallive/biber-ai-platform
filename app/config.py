@@ -89,6 +89,12 @@ class Settings:
     test_runner_max_output_bytes: int = int(
         os.getenv("BIBER_TEST_RUNNER_MAX_OUTPUT_BYTES", "12000")
     )
+    workspace_edit_max_file_bytes: int = int(
+        os.getenv("BIBER_WORKSPACE_EDIT_MAX_FILE_BYTES", "200000")
+    )
+    workspace_edit_max_new_text_bytes: int = int(
+        os.getenv("BIBER_WORKSPACE_EDIT_MAX_NEW_TEXT_BYTES", "120000")
+    )
 
     mentor_enabled: bool = _bool(os.getenv("BIBER_MENTOR_ENABLED"), default=False)
     openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")

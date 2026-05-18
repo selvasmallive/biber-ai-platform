@@ -63,6 +63,8 @@ class BiberSettings:
     xriq_path_prefix: str | None = None
     test_runner_timeout_seconds: float = 120.0
     test_runner_max_output_bytes: int = 12000
+    workspace_edit_max_file_bytes: int = 200000
+    workspace_edit_max_new_text_bytes: int = 120000
 
 
 @lru_cache(maxsize=1)
@@ -120,5 +122,11 @@ def get_settings() -> BiberSettings:
         ),
         test_runner_max_output_bytes=int(
             os.getenv("BIBER_TEST_RUNNER_MAX_OUTPUT_BYTES", "12000")
+        ),
+        workspace_edit_max_file_bytes=int(
+            os.getenv("BIBER_WORKSPACE_EDIT_MAX_FILE_BYTES", "200000")
+        ),
+        workspace_edit_max_new_text_bytes=int(
+            os.getenv("BIBER_WORKSPACE_EDIT_MAX_NEW_TEXT_BYTES", "120000")
         ),
     )
