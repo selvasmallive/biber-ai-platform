@@ -80,6 +80,7 @@ pub struct NodeStatus {
     pub chain_id: String,
     pub current_height: u64,
     pub latest_block_hash: Hash32,
+    pub state_root: Hash32,
     pub pending_transactions: usize,
     pub stored_blocks: usize,
 }
@@ -260,6 +261,7 @@ impl fmt::Display for NodeStatus {
             "latest_block_hash={}",
             hash_hex(self.latest_block_hash)
         )?;
+        writeln!(formatter, "state_root={}", hash_hex(self.state_root))?;
         writeln!(
             formatter,
             "pending_transactions={}",
@@ -290,6 +292,7 @@ impl fmt::Display for ProducedTransferBlockStatus {
             "latest_block_hash={}",
             hash_hex(self.status.latest_block_hash)
         )?;
+        writeln!(formatter, "state_root={}", hash_hex(self.status.state_root))?;
         writeln!(
             formatter,
             "pending_transactions={}",
@@ -324,6 +327,7 @@ impl fmt::Display for ProducedPendingBlockStatus {
             "latest_block_hash={}",
             hash_hex(self.status.latest_block_hash)
         )?;
+        writeln!(formatter, "state_root={}", hash_hex(self.status.state_root))?;
         writeln!(
             formatter,
             "pending_transactions={}",
@@ -375,6 +379,7 @@ impl fmt::Display for PrivateDevnetPreflightTransferStatus {
             "latest_block_hash={}",
             hash_hex(self.status.latest_block_hash)
         )?;
+        writeln!(formatter, "state_root={}", hash_hex(self.status.state_root))?;
         writeln!(
             formatter,
             "pending_transactions={}",
@@ -2808,6 +2813,7 @@ fn node_status<S: ChainStore>(node: &XriqNode<S>) -> NodeStatus {
         chain_id: chain_status.chain_id,
         current_height: chain_status.current_height,
         latest_block_hash: chain_status.latest_block_hash,
+        state_root: account_state_root(&node.ledger().state_root_entries()),
         pending_transactions: chain_status.pending_transactions,
         stored_blocks: node.store().len(),
     }
@@ -3320,6 +3326,12 @@ fn push_node_status_json_fields_without_warning(
         output,
         "{indent}\"latest_block_hash\": {},",
         json_string(&hash_hex(status.latest_block_hash))
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}\"state_root\": {},",
+        json_string(&hash_hex(status.state_root))
     )
     .expect("write to String");
     writeln!(
@@ -4304,6 +4316,14 @@ mod tests {
         XriqNode::from_genesis(&genesis, InMemoryChainStore::new()).unwrap()
     }
 
+    fn node_state_root<S: ChainStore>(node: &XriqNode<S>) -> Hash32 {
+        xriq_crypto::account_state_root(&node.ledger().state_root_entries())
+    }
+
+    fn genesis_state_root() -> Hash32 {
+        node_state_root(&node())
+    }
+
     fn temp_store_path() -> PathBuf {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -4613,6 +4633,7 @@ mod tests {
         let path_text = path.to_string_lossy().to_string();
         let genesis = genesis();
         let latest_hash;
+        let latest_state_root;
 
         {
             let mut node =
@@ -4623,6 +4644,7 @@ mod tests {
                 .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&node))
                 .unwrap();
             latest_hash = produced.block_hash;
+            latest_state_root = produced.block.header.state_root;
         }
 
         assert_eq!(
@@ -4638,6 +4660,7 @@ mod tests {
                 chain_id: "xriq-devnet".to_string(),
                 current_height: 1,
                 latest_block_hash: latest_hash,
+                state_root: latest_state_root,
                 pending_transactions: 0,
                 stored_blocks: 1,
             }))
@@ -4703,6 +4726,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(reloaded.latest_block_hash(), produced.block_hash);
+        assert_eq!(produced.status.state_root, node_state_root(&reloaded));
         assert_eq!(
             reloaded
                 .ledger()
@@ -4735,6 +4759,7 @@ mod tests {
                 chain_id: "xriq-devnet".to_string(),
                 current_height: 1,
                 latest_block_hash: produced.block_hash,
+                state_root: produced.status.state_root,
                 pending_transactions: 0,
                 stored_blocks: 1,
             })
@@ -5171,6 +5196,7 @@ mod tests {
                 chain_id: "xriq-devnet".to_string(),
                 current_height: 0,
                 latest_block_hash: hash(0),
+                state_root: genesis_state_root(),
                 pending_transactions: 0,
                 stored_blocks: 0,
             }
@@ -5244,6 +5270,7 @@ mod tests {
                 chain_id: "xriq-devnet".to_string(),
                 current_height: 0,
                 latest_block_hash: hash(0),
+                state_root: genesis_state_root(),
                 pending_transactions: 0,
                 stored_blocks: 0,
             }
@@ -6181,6 +6208,7 @@ mod tests {
                 chain_id: "xriq-devnet".to_string(),
                 current_height: 0,
                 latest_block_hash: hash(0),
+                state_root: genesis_state_root(),
                 pending_transactions: 0,
                 stored_blocks: 0,
             }
@@ -6227,6 +6255,7 @@ mod tests {
                 chain_id: "xriq-devnet".to_string(),
                 current_height: 0,
                 latest_block_hash: hash(0),
+                state_root: genesis_state_root(),
                 pending_transactions: 0,
                 stored_blocks: 0,
             }

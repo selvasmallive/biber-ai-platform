@@ -23,6 +23,8 @@ hashes, produced pending-block JSON, and preflight transfer JSON.
 - Every successful private-devnet response includes the warning value
   `private-devnet-only-no-public-token`.
 - Hashes are lowercase 64-character hexadecimal strings.
+- `state_root` is the canonical account-state root for the replayed node state
+  at `current_height`; clients can compare it across restarts/snapshots.
 - Addresses are strings.
 - XRIQ amounts are decimal strings named `*_base_units`. They are strings so
   JavaScript and TypeScript clients do not lose precision for future `u128`
@@ -59,6 +61,7 @@ Shape:
   "chain_id": "xriq-devnet",
   "current_height": 0,
   "latest_block_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "state_root": "64-hex-character-state-root",
   "pending_transactions": 0,
   "stored_blocks": 0
 }
@@ -82,6 +85,7 @@ Shape:
   "chain_id": "xriq-devnet",
   "current_height": 1,
   "latest_block_hash": "64-hex-character-block-hash",
+  "state_root": "64-hex-character-state-root",
   "pending_transactions": 0,
   "stored_blocks": 1
 }
@@ -310,6 +314,7 @@ Shape:
   "chain_id": "xriq-devnet",
   "current_height": 1,
   "latest_block_hash": "64-hex-character-block-hash",
+  "state_root": "64-hex-character-state-root",
   "pending_transactions": 0,
   "stored_blocks": 1
 }
@@ -396,6 +401,7 @@ Shape:
   "chain_id": "xriq-devnet",
   "current_height": 1,
   "latest_block_hash": "64-hex-character-block-hash",
+  "state_root": "64-hex-character-state-root",
   "pending_transactions": 0,
   "stored_blocks": 1
 }
@@ -447,6 +453,7 @@ Shape:
   "chain_id": "xriq-devnet",
   "current_height": 1,
   "latest_block_hash": "64-hex-character-block-hash",
+  "state_root": "64-hex-character-state-root",
   "pending_transactions": 0,
   "stored_blocks": 1
 }

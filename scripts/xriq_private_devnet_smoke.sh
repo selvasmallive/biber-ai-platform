@@ -18,6 +18,7 @@ PENDING_TRANSACTION_JSON_FILE="${ARTIFACT_DIR}/pending-transaction-detail.json"
 CONFIRMED_TRANSACTION_JSON_FILE="${ARTIFACT_DIR}/confirmed-transaction-detail.json"
 OVERVIEW_JSON_FILE="${ARTIFACT_DIR}/explorer-overview.json"
 ACCOUNT_JSON_FILE="${ARTIFACT_DIR}/account-detail.json"
+REPLAY_STATUS_JSON_FILE="${ARTIFACT_DIR}/replay-status.json"
 STATUS_ERROR_JSON_FILE="${ARTIFACT_DIR}/status-error.json"
 HTTP_JSON_SUBMIT_FILE="${ARTIFACT_DIR}/http-json-submit.json"
 HTTP_JSON_TRANSACTION_FILE="${ARTIFACT_DIR}/http-json-transaction.json"
@@ -222,6 +223,26 @@ produce_output="$(
 require_contains "produce-draft-block" "$produce_output" "warning=private-devnet-only-no-public-token"
 require_contains "produce-draft-block" "$produce_output" "current_height=1"
 require_contains "produce-draft-block" "$produce_output" "stored_blocks=1"
+require_contains "produce-draft-block" "$produce_output" "state_root="
+
+produce_state_root="$(printf '%s\n' "$produce_output" | awk -F= '/^state_root=/{print $2; exit}')"
+if [ -z "$produce_state_root" ]; then
+  echo "error=produce-draft-block did not expose state_root" >&2
+  printf '%s\n' "$produce_output" >&2
+  exit 1
+fi
+
+replay_status_output="$(
+  run_xriq -p xriq-node -- status \
+    --chain-file "$CHAIN_FILE" \
+    --alice-balance 100 \
+    --format json
+)"
+printf '%s\n' "$replay_status_output" > "$REPLAY_STATUS_JSON_FILE"
+require_contains "replay status" "$replay_status_output" '"command": "status"'
+require_contains "replay status" "$replay_status_output" '"current_height": 1'
+require_contains "replay status" "$replay_status_output" '"stored_blocks": 1'
+require_contains "replay status" "$replay_status_output" "\"state_root\": \"${produce_state_root}\""
 
 confirmed_transaction_output="$(
   run_xriq -p xriq-node -- transaction-detail \
@@ -479,6 +500,7 @@ echo "pending_transaction_json=${PENDING_TRANSACTION_JSON_FILE}"
 echo "confirmed_transaction_json=${CONFIRMED_TRANSACTION_JSON_FILE}"
 echo "overview_json=${OVERVIEW_JSON_FILE}"
 echo "account_json=${ACCOUNT_JSON_FILE}"
+echo "replay_status_json=${REPLAY_STATUS_JSON_FILE}"
 echo "status_error_json=${STATUS_ERROR_JSON_FILE}"
 echo "http_json_chain=${HTTP_JSON_CHAIN_FILE}"
 echo "http_json_submit=${HTTP_JSON_SUBMIT_FILE}"

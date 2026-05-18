@@ -162,6 +162,11 @@ distribution, run it on the Vast workspace after `git pull`.
 The current machine-readable runner contract is documented in
 `../docs/XRIQ_NODE_JSON_SCHEMA.md`.
 
+`xriq-node status --format json` includes a replayed `state_root` in addition
+to height, latest block hash, pending transaction count, and stored block count.
+Use it as the compact deterministic marker when comparing a chain before and
+after restart, copy, or future snapshot/export work.
+
 Checked private-devnet JSON fixtures live in `fixtures/private-devnet/`.
 They are used by Rust tests as golden examples for wallet/node schema drift.
 Current checked fixtures cover fresh node status, empty mempool detail, initial

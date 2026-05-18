@@ -17,6 +17,7 @@
   "chain_id": "xriq-devnet",
   "current_height": 1,
   "latest_block_hash": "fe349b87f4219a7edd3dc8cb430b27200eb3500ab9550692b1493d4c4312371d",
+  "state_root": "915a4319e23daea9370a2ea1dfe9b57ac0099be910f64d04a5f4b9dfb0c5d067",
   "pending_transactions": 0,
   "stored_blocks": 1
 }

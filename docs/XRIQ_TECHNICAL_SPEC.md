@@ -803,6 +803,9 @@ As of 2026-05-17:
     parent links, authorized producer, transaction roots, account-state roots,
     hash-bound test-only signatures, and final stored-count/tip-state
     consistency before restoring node tip/state
+  - runner status exposes the replayed account-state root so deterministic
+    restart, copy, and future snapshot checks can compare height, latest block
+    hash, and state root together
 - Implemented private-devnet wallet CLI baseline:
   - deterministic test identity generation from labels
   - transfer draft construction
@@ -860,8 +863,8 @@ As of 2026-05-17:
     response.
 
 Next implementation target: keep the local file-backed workflow small and
-deterministic. Add snapshot/replay improvements or additional checked schema
-fixtures only when they directly help the private-devnet MVP, and keep public
+deterministic. Add a dedicated snapshot/export format only after the replayed
+status state-root marker and smoke checks prove insufficient, and keep public
 XRIQ launch or listing work blocked.
 
 ## Open Decisions
