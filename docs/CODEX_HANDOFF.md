@@ -88,6 +88,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   `66098c1 Add XRIQ block detail JSON fixture`.
 - Latest XRIQ smoke-harness commit pushed and Vast-verified:
   `919b348 Expose XRIQ replay state root`.
+- Latest XRIQ snapshot export/import commit pushed and Vast-verified:
+  `fba4a1d Add XRIQ snapshot export import`.
 - Latest BIBER MVP core-agent test-runner commit pushed and Vast-verified:
   `d4df8c0 Add allowlisted BIBER test runner API`.
 - Latest BIBER MVP bounded workspace-edit commit pushed and Vast-verified:
@@ -102,8 +104,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
   `786ec51 Persist BIBER agent sessions`.
-- Vast code verification is current through `786ec51`. Full Rust/API wrapper
-  verification is current through `919b348`; focused BIBER API wrapper
+- Vast code verification is current through `fba4a1d`. Full Rust/private-devnet
+  verification is current through `fba4a1d`; focused BIBER API wrapper
   verification is current through `32909e8`; consolidated BIBER XRIQ API smoke
   verification is current through `919b348`; focused fixture verification is
   current through `919b348`; BIBER test-runner API verification is current
@@ -169,6 +171,12 @@ serving the last broad-safe Rust/XRIQ adapter.
     `/workspace/outputs/xriq-api-smoke-20260518T180400Z-42662`.
     The earlier read smoke confirmed `transaction_status=confirmed` and status
     `current_height=2` for the test chain used in that smoke.
+  - Latest XRIQ private-devnet CLI smoke:
+    `bash scripts/xriq_private_devnet_smoke.sh` passed after adding
+    snapshot export/import coverage. Artifact:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260518T203806Z-44845`.
+    It includes `snapshot/`, `snapshot-export.json`,
+    `snapshot-import-chain.bin`, and `snapshot-import.json`.
   - Last full chat smoke remains `bash scripts/vast_test_direct.sh` with chat
     content `ok` before the FastAPI-only restart; vLLM remained running.
 - Latest current Rust/XRIQ eval:
@@ -1581,6 +1589,40 @@ serving the last broad-safe Rust/XRIQ adapter.
     `200 OK`; session id `af658dd2-44b6-4800-bd87-561b7424c17c`; artifact:
     `/workspace/outputs/agent-sessions/af658dd2-44b6-4800-bd87-561b7424c17c.json`.
   - No credential change, model training, or OpenAI mentor call was needed.
+- XRIQ snapshot export/import checkpoint:
+  - Added private-devnet `xriq-node snapshot-export` and
+    `xriq-node snapshot-import`.
+  - Export writes a new snapshot directory containing `manifest.json`,
+    `chain.bin`, and optional `pending.tsv`. The manifest records
+    `xriq-private-devnet-snapshot-v1`, chain id, height, latest block hash,
+    state root, pending count, and stored block count.
+  - Import restores into fresh target chain/pending files only and refuses to
+    overwrite existing targets, so it can be used for cheap Vast GPU/volume
+    moves without accidentally replacing a live chain.
+  - Added design/operations doc:
+    `docs/XRIQ_SNAPSHOT_EXPORT_IMPORT.md`.
+  - Updated `xriq/README.md`, `docs/XRIQ_NODE_JSON_SCHEMA.md`,
+    `docs/XRIQ_TECHNICAL_SPEC.md`, and
+    `scripts/xriq_private_devnet_smoke.sh`.
+  - Local Windows verification passed from `xriq/`: `cargo fmt --check`,
+    focused `cargo test -p xriq-node snapshot -j 1`,
+    focused `cargo test -p xriq-node checked_fixture -j 1`,
+    full isolated `cargo test -j 1` with `136` passing workspace tests, and
+    `cargo clippy -- -D warnings`. The default Windows target had a transient
+    locked test binary, so full tests were run with an isolated target dir,
+    then generated target files were removed.
+  - Pushed implementation/docs/smoke commit:
+    `fba4a1d Add XRIQ snapshot export import`.
+  - Vast checkout was fast-forwarded to `fba4a1d`; verification passed with
+    `bash -n scripts/xriq_private_devnet_smoke.sh`, `cargo fmt --check`,
+    focused snapshot tests, focused checked-fixture tests, full
+    `cargo test -j 1` with `136` passing workspace tests,
+    `cargo clippy -- -D warnings`, and full
+    `bash scripts/xriq_private_devnet_smoke.sh`.
+  - Latest private-devnet smoke artifact:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260518T203806Z-44845`.
+  - No FastAPI/vLLM restart, credential change, model training, or OpenAI
+    mentor call was needed.
 
 ## Repo State
 
@@ -1647,6 +1689,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   - `28ebe62 Add BIBER agent smoke script`
   - `b280d49 Add BIBER agent session API`
   - `786ec51 Persist BIBER agent sessions`
+  - `fba4a1d Add XRIQ snapshot export import`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -2825,11 +2868,11 @@ bash scripts/xriq_private_devnet_smoke.sh
    done. The branch-aware GitHub save plus draft-PR path, a small BIBER MVP
    end-to-end agent smoke, the tracked agent-session endpoint, and the
    file-backed persisted agent-session artifact layer are now implemented and
-   Vast-verified. A good next target is a short XRIQ snapshot export/import
-   design note so the private-devnet file-backed chain can be moved or restored
-   cheaply before adding more public-network complexity. Public XRIQ launch,
-   exchange listing, custody, liquidity, bridges, and market-facing work remain
-   blocked.
+   Vast-verified. XRIQ private-devnet snapshot export/import is also
+   implemented and Vast-verified for cheap chain/pending state moves. Good next
+   targets are either a thin BIBER API wrapper for snapshot export/import or
+   continued wallet/explorer workflow polish. Public XRIQ launch, exchange
+   listing, custody, liquidity, bridges, and market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
