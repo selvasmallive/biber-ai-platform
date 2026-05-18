@@ -297,19 +297,28 @@
       margin-top: 14px;
     }
 
-    .transfer-form {
+    .transfer-form,
+    .transaction-form {
       display: grid;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 10px;
       padding: 14px;
       align-items: end;
+    }
+
+    .transfer-form {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+
+    .transaction-form {
+      grid-template-columns: minmax(220px, 1fr) auto;
     }
 
     .span-2 {
       grid-column: span 2;
     }
 
-    .transfer-result {
+    .transfer-result,
+    .transaction-result {
       margin: 0 14px 14px;
       border: 1px solid #dce7e1;
       border-radius: 6px;
@@ -321,11 +330,13 @@
       font-size: 13px;
     }
 
-    .transfer-result strong {
+    .transfer-result strong,
+    .transaction-result strong {
       color: var(--text);
     }
 
-    .transfer-result .hash {
+    .transfer-result .hash,
+    .transaction-result .hash {
       color: var(--text);
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       overflow-wrap: anywhere;
@@ -350,7 +361,8 @@
       .toolbar,
       .metrics,
       .grid,
-      .transfer-form {
+      .transfer-form,
+      .transaction-form {
         grid-template-columns: 1fr;
       }
 
@@ -480,6 +492,27 @@
           <div><strong>Balance</strong> <span id="transferBalance">-</span></div>
         </div>
       </section>
+
+      <section class="panel transfer-panel" aria-label="Transaction lookup">
+        <div class="panel-header">
+          <h2>Transaction Lookup</h2>
+          <div id="transactionLookupStatus" class="timestamp">-</div>
+        </div>
+        <form id="transactionLookupForm" class="transaction-form">
+          <div class="field">
+            <label for="transactionHashInput">Transaction hash</label>
+            <input id="transactionHashInput" autocomplete="off" spellcheck="false">
+          </div>
+          <button id="transactionLookupButton" class="refresh secondary" type="submit">Lookup</button>
+        </form>
+        <div id="transactionResult" class="transaction-result">
+          <div><strong>Status</strong> <span id="transactionStatus">-</span></div>
+          <div><strong>Hash</strong> <span id="transactionHashResult" class="hash">-</span></div>
+          <div><strong>Block</strong> <span id="transactionBlock">-</span></div>
+          <div><strong>Parties</strong> <span id="transactionParties">-</span></div>
+          <div><strong>Amounts</strong> <span id="transactionAmounts">-</span></div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -487,11 +520,13 @@
     const OVERVIEW_PATH = "/v1/xriq/private-devnet/overview";
     const SNAPSHOTS_PATH = "/v1/xriq/private-devnet/snapshots";
     const PREFLIGHT_PATH = "/v1/xriq/private-devnet/preflight-transfer";
+    const TRANSACTION_PATH_PREFIX = "/v1/xriq/private-devnet/transactions/";
     const STORAGE_KEYS = {
       baseUrl: "biber:xriq-dashboard:base-url",
       apiKey: "biber:xriq-dashboard:api-key",
       fromAddress: "biber:xriq-dashboard:from-address",
-      toAddress: "biber:xriq-dashboard:to-address"
+      toAddress: "biber:xriq-dashboard:to-address",
+      transactionHash: "biber:xriq-dashboard:transaction-hash"
     };
 
     const elements = {
@@ -500,6 +535,8 @@
       refreshButton: document.getElementById("refreshButton"),
       preflightButton: document.getElementById("preflightButton"),
       transferForm: document.getElementById("transferForm"),
+      transactionLookupButton: document.getElementById("transactionLookupButton"),
+      transactionLookupForm: document.getElementById("transactionLookupForm"),
       statusPill: document.getElementById("statusPill"),
       message: document.getElementById("message"),
       heightMetric: document.getElementById("heightMetric"),
@@ -518,7 +555,14 @@
       transferResultStatus: document.getElementById("transferResultStatus"),
       transferHash: document.getElementById("transferHash"),
       transferBlock: document.getElementById("transferBlock"),
-      transferBalance: document.getElementById("transferBalance")
+      transferBalance: document.getElementById("transferBalance"),
+      transactionLookupStatus: document.getElementById("transactionLookupStatus"),
+      transactionHashInput: document.getElementById("transactionHashInput"),
+      transactionStatus: document.getElementById("transactionStatus"),
+      transactionHashResult: document.getElementById("transactionHashResult"),
+      transactionBlock: document.getElementById("transactionBlock"),
+      transactionParties: document.getElementById("transactionParties"),
+      transactionAmounts: document.getElementById("transactionAmounts")
     };
 
     function defaultBaseUrl() {
@@ -609,6 +653,7 @@
       sessionStorage.setItem(STORAGE_KEYS.apiKey, elements.apiKey.value);
       sessionStorage.setItem(STORAGE_KEYS.fromAddress, elements.fromAddress.value);
       sessionStorage.setItem(STORAGE_KEYS.toAddress, elements.toAddress.value);
+      sessionStorage.setItem(STORAGE_KEYS.transactionHash, elements.transactionHashInput.value);
     }
 
     function renderBlocks(blocks) {
@@ -705,6 +750,74 @@
       setText(elements.transferBlock, payload.confirmed_block_height);
       setText(elements.transferBalance, payload.final_balance_base_units);
       setText(elements.transferStatus, new Date().toLocaleTimeString());
+      if (payload.transaction_hash) {
+        elements.transactionHashInput.value = payload.transaction_hash;
+      }
+    }
+
+    function transactionPath(txHash) {
+      return TRANSACTION_PATH_PREFIX + encodeURIComponent(txHash);
+    }
+
+    function validatedTransactionHash() {
+      const txHash = elements.transactionHashInput.value.trim();
+      if (!/^[0-9a-fA-F]{64}$/.test(txHash)) {
+        throw new Error("Transaction hash must be 64 hex characters.");
+      }
+      return txHash;
+    }
+
+    function renderTransactionResult(payload) {
+      const blockText = payload.status === "pending"
+        ? `pending order ${payload.received_order ?? "-"}`
+        : `height ${payload.block_height ?? "-"} index ${payload.transaction_index ?? "-"}`;
+      const partiesText = `${payload.from || "-"} -> ${payload.to || "-"}`;
+      const amountsText = [
+        `amount ${payload.amount_base_units ?? "-"}`,
+        `fee ${payload.fee_base_units ?? "-"}`,
+        `nonce ${payload.nonce ?? "-"}`
+      ].join(" ");
+
+      setText(elements.transactionStatus, payload.status);
+      setText(elements.transactionHashResult, shortHash(payload.tx_hash, 12));
+      elements.transactionHashResult.title = payload.tx_hash || "";
+      setText(elements.transactionBlock, blockText);
+      setText(elements.transactionParties, partiesText);
+      setText(elements.transactionAmounts, amountsText);
+      setText(elements.transactionLookupStatus, new Date().toLocaleTimeString());
+    }
+
+    async function lookupTransaction(event) {
+      event.preventDefault();
+      if (!elements.apiKey.value.trim()) {
+        setStatus("Missing key", "error");
+        setMessage("API key required.");
+        return;
+      }
+
+      let txHash;
+      try {
+        txHash = validatedTransactionHash();
+      } catch (error) {
+        setStatus("Error", "error");
+        setMessage(error.message || "Transaction hash is invalid.");
+        return;
+      }
+
+      saveInputs();
+      setMessage("");
+      setStatus("Lookup", "");
+      elements.transactionLookupButton.disabled = true;
+      try {
+        const result = await requestJson(transactionPath(txHash), null);
+        renderTransactionResult(result);
+        setStatus("Live", "ok");
+      } catch (error) {
+        setStatus("Error", "error");
+        setMessage(error.message || "Transaction lookup failed.");
+      } finally {
+        elements.transactionLookupButton.disabled = false;
+      }
     }
 
     async function runPreflight(event) {
@@ -790,11 +903,13 @@
         || "xriqdev1alice00000000000";
       elements.toAddress.value = sessionStorage.getItem(STORAGE_KEYS.toAddress)
         || "xriqdev1bobbb00000000000";
+      elements.transactionHashInput.value = sessionStorage.getItem(STORAGE_KEYS.transactionHash) || "";
       elements.amountBaseUnits.value = "1";
       elements.feeBaseUnits.value = "1";
       elements.expiresAtHeight.value = "";
       elements.refreshButton.addEventListener("click", refresh);
       elements.transferForm.addEventListener("submit", runPreflight);
+      elements.transactionLookupForm.addEventListener("submit", lookupTransaction);
       elements.apiKey.addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
           refresh();

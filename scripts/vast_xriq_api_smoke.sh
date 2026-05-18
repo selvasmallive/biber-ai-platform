@@ -279,7 +279,9 @@ curl -fsS "${API_BASE_URL}/xriq/private-devnet/dashboard" \
   -o "${ARTIFACT_DIR}/dashboard.html"
 grep -q "data-biber-xriq-dashboard" "${ARTIFACT_DIR}/dashboard.html"
 grep -q "/v1/xriq/private-devnet/preflight-transfer" "${ARTIFACT_DIR}/dashboard.html"
+grep -q "/v1/xriq/private-devnet/transactions/" "${ARTIFACT_DIR}/dashboard.html"
 grep -q "transferForm" "${ARTIFACT_DIR}/dashboard.html"
+grep -q "transactionLookupForm" "${ARTIFACT_DIR}/dashboard.html"
 
 printf 'client_overview=%s\n' "${ARTIFACT_DIR}/client-overview.txt"
 printf 'client_snapshots=%s\n' "${ARTIFACT_DIR}/client-snapshots.txt"
