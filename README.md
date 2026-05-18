@@ -174,9 +174,9 @@ curl -X POST http://localhost:8000/v1/chat \
   -d '{"message":"Create a FastAPI health endpoint","queue_only":true}'
 ```
 
-XRIQ private-devnet preflight transfer is exposed through a thin BIBER wrapper
-around the local Rust runner. Chain and pending-file paths are server-side
-configuration, so the request only supplies transfer values:
+XRIQ private-devnet read and preflight flows are exposed through thin BIBER
+wrappers around the local Rust runner. Chain and pending-file paths are
+server-side configuration, so the request only supplies transfer values:
 
 ```bash
 curl -X POST http://localhost:8000/v1/xriq/private-devnet/preflight-transfer \
@@ -190,6 +190,19 @@ curl -X POST http://localhost:8000/v1/xriq/private-devnet/preflight-transfer \
     "expires_at_height": 100,
     "timestamp_ms": 1000
   }'
+```
+
+Read-only helpers are also available:
+
+```bash
+curl http://localhost:8000/v1/xriq/private-devnet/status \
+  -H "Authorization: Bearer dev-api-key-change-me"
+
+curl http://localhost:8000/v1/xriq/private-devnet/accounts/xriqdev1alice00000000000 \
+  -H "Authorization: Bearer dev-api-key-change-me"
+
+curl http://localhost:8000/v1/xriq/private-devnet/transactions/<transaction-hash> \
+  -H "Authorization: Bearer dev-api-key-change-me"
 ```
 
 ## 7. Vast Connection Needed

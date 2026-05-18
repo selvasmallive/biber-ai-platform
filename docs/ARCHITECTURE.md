@@ -36,9 +36,12 @@ XRIQ private-devnet client path:
 
 ```text
 Developer or BIBER client
+ -> /v1/xriq/private-devnet/status
+ -> /v1/xriq/private-devnet/accounts/{address}
+ -> /v1/xriq/private-devnet/transactions/{hash}
  -> /v1/xriq/private-devnet/preflight-transfer
  -> server-side BIBER XRIQ wrapper
- -> xriq-node preflight-transfer --format json
+ -> xriq-node ... --format json
  -> file-backed private-devnet chain and pending state
  -> stable JSON response
 ```

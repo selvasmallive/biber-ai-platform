@@ -55,11 +55,70 @@ def run_private_devnet_preflight_transfer(
     *,
     runner: Runner = subprocess.run,
 ) -> dict[str, Any]:
+    return _run_xriq_node_json(
+        _preflight_command(request, settings),
+        settings,
+        runner=runner,
+        operation="XRIQ preflight transfer",
+    )
+
+
+def run_private_devnet_status(
+    settings: Settings,
+    *,
+    runner: Runner = subprocess.run,
+) -> dict[str, Any]:
+    return _run_xriq_node_json(
+        _read_command("status", settings),
+        settings,
+        runner=runner,
+        operation="XRIQ status",
+    )
+
+
+def run_private_devnet_account_detail(
+    address: str,
+    settings: Settings,
+    *,
+    runner: Runner = subprocess.run,
+) -> dict[str, Any]:
+    command = _read_command("account-detail", settings)
+    command.extend(["--address", address])
+    return _run_xriq_node_json(
+        command,
+        settings,
+        runner=runner,
+        operation="XRIQ account detail",
+    )
+
+
+def run_private_devnet_transaction_detail(
+    tx_hash: str,
+    settings: Settings,
+    *,
+    runner: Runner = subprocess.run,
+) -> dict[str, Any]:
+    command = _read_command("transaction-detail", settings)
+    command.extend(["--tx-hash", tx_hash])
+    return _run_xriq_node_json(
+        command,
+        settings,
+        runner=runner,
+        operation="XRIQ transaction detail",
+    )
+
+
+def _run_xriq_node_json(
+    command: list[str],
+    settings: Settings,
+    *,
+    runner: Runner,
+    operation: str,
+) -> dict[str, Any]:
     workspace = Path(settings.xriq_workspace_dir)
     if not workspace.exists() or not workspace.is_dir():
         raise XriqConfigurationError(f"XRIQ workspace does not exist: {workspace}")
 
-    command = _preflight_command(request, settings)
     try:
         completed = runner(
             command,
@@ -74,14 +133,14 @@ def run_private_devnet_preflight_transfer(
         raise XriqConfigurationError(f"XRIQ node command not found: {command[0]}") from exc
     except subprocess.TimeoutExpired as exc:
         raise XriqCommandTimeout(
-            f"XRIQ preflight transfer timed out after {settings.xriq_command_timeout_seconds}s"
+            f"{operation} timed out after {settings.xriq_command_timeout_seconds}s"
         ) from exc
 
     if completed.returncode != 0:
         payload = _parse_json_or_none(completed.stderr) or _parse_json_or_none(completed.stdout)
         message = _error_message(payload) if payload else _trim_output(completed.stderr)
         if not message:
-            message = f"XRIQ preflight transfer failed with exit code {completed.returncode}"
+            message = f"{operation} failed with exit code {completed.returncode}"
         raise XriqCommandError(
             message,
             status_code=400 if payload else 502,
@@ -92,12 +151,12 @@ def run_private_devnet_preflight_transfer(
         payload = json.loads(completed.stdout)
     except json.JSONDecodeError as exc:
         raise XriqCommandError(
-            "XRIQ preflight transfer returned invalid JSON.",
+            f"{operation} returned invalid JSON.",
             status_code=502,
         ) from exc
     if not isinstance(payload, dict):
         raise XriqCommandError(
-            "XRIQ preflight transfer returned a non-object JSON response.",
+            f"{operation} returned a non-object JSON response.",
             status_code=502,
         )
     return payload
@@ -107,10 +166,7 @@ def _preflight_command(
     request: XriqPreflightTransferRequest,
     settings: Settings,
 ) -> list[str]:
-    command = shlex.split(settings.xriq_node_command)
-    if not command:
-        raise XriqConfigurationError("BIBER_XRIQ_NODE_COMMAND must not be empty.")
-
+    command = _base_command(settings)
     command.extend(
         [
             "preflight-transfer",
@@ -138,6 +194,29 @@ def _preflight_command(
     if request.consensus_round is not None:
         command.extend(["--consensus-round", str(request.consensus_round)])
     command.extend(["--format", "json"])
+    return command
+
+
+def _read_command(command_name: str, settings: Settings) -> list[str]:
+    command = _base_command(settings)
+    command.extend(
+        [
+            command_name,
+            "--chain-file",
+            settings.xriq_chain_file,
+            "--alice-balance",
+            settings.xriq_default_alice_balance_base_units,
+            "--format",
+            "json",
+        ]
+    )
+    return command
+
+
+def _base_command(settings: Settings) -> list[str]:
+    command = shlex.split(settings.xriq_node_command)
+    if not command:
+        raise XriqConfigurationError("BIBER_XRIQ_NODE_COMMAND must not be empty.")
     return command
 
 

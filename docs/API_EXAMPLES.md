@@ -131,6 +131,24 @@ curl -X POST http://localhost:8000/v1/xriq/private-devnet/preflight-transfer \
   }'
 ```
 
+## XRIQ Private-Devnet Read Helpers
+
+These endpoints are thin wrappers around the existing `xriq-node --format json`
+read commands. Mempool detail is intentionally not exposed through BIBER yet
+because the current CLI command does not read the durable pending file; add that
+Rust support first so the API does not present misleading pending state.
+
+```bash
+curl http://localhost:8000/v1/xriq/private-devnet/status \
+  -H "Authorization: Bearer dev-api-key-change-me"
+
+curl http://localhost:8000/v1/xriq/private-devnet/accounts/xriqdev1alice00000000000 \
+  -H "Authorization: Bearer dev-api-key-change-me"
+
+curl http://localhost:8000/v1/xriq/private-devnet/transactions/<transaction-hash> \
+  -H "Authorization: Bearer dev-api-key-change-me"
+```
+
 ## Submit Proctoring Analysis
 
 ```bash

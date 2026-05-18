@@ -32,7 +32,10 @@ from .xriq_client import (
     XriqCommandTimeout,
     XriqConfigurationError,
     XriqPreflightTransferRequest,
+    run_private_devnet_account_detail,
     run_private_devnet_preflight_transfer,
+    run_private_devnet_status,
+    run_private_devnet_transaction_detail,
 )
 
 
@@ -165,6 +168,56 @@ async def xriq_private_devnet_preflight_transfer(
 ) -> dict[str, object]:
     try:
         return run_private_devnet_preflight_transfer(request_body, settings)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqCommandTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except XriqCommandError as exc:
+        detail: object = exc.payload or str(exc)
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+
+
+@app.get("/v1/xriq/private-devnet/status")
+async def xriq_private_devnet_status(
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> dict[str, object]:
+    try:
+        return run_private_devnet_status(settings)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqCommandTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except XriqCommandError as exc:
+        detail: object = exc.payload or str(exc)
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+
+
+@app.get("/v1/xriq/private-devnet/accounts/{address}")
+async def xriq_private_devnet_account_detail(
+    address: str,
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> dict[str, object]:
+    try:
+        return run_private_devnet_account_detail(address, settings)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqCommandTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except XriqCommandError as exc:
+        detail: object = exc.payload or str(exc)
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+
+
+@app.get("/v1/xriq/private-devnet/transactions/{tx_hash}")
+async def xriq_private_devnet_transaction_detail(
+    tx_hash: str,
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> dict[str, object]:
+    try:
+        return run_private_devnet_transaction_detail(tx_hash, settings)
     except XriqConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except XriqCommandTimeout as exc:

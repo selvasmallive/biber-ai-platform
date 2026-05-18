@@ -26,7 +26,10 @@ from app.xriq_client import (
     XriqCommandTimeout,
     XriqConfigurationError,
     XriqPreflightTransferRequest,
+    run_private_devnet_account_detail,
     run_private_devnet_preflight_transfer,
+    run_private_devnet_status,
+    run_private_devnet_transaction_detail,
 )
 
 app = FastAPI(
@@ -302,6 +305,45 @@ def xriq_private_devnet_preflight_transfer(
 ):
     try:
         return run_private_devnet_preflight_transfer(req, settings)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqCommandTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except XriqCommandError as exc:
+        detail: object = exc.payload or str(exc)
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+
+
+@app.get("/v1/xriq/private-devnet/status")
+def xriq_private_devnet_status(auth=Depends(require_api_key)):
+    try:
+        return run_private_devnet_status(settings)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqCommandTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except XriqCommandError as exc:
+        detail: object = exc.payload or str(exc)
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+
+
+@app.get("/v1/xriq/private-devnet/accounts/{address}")
+def xriq_private_devnet_account_detail(address: str, auth=Depends(require_api_key)):
+    try:
+        return run_private_devnet_account_detail(address, settings)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqCommandTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except XriqCommandError as exc:
+        detail: object = exc.payload or str(exc)
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+
+
+@app.get("/v1/xriq/private-devnet/transactions/{tx_hash}")
+def xriq_private_devnet_transaction_detail(tx_hash: str, auth=Depends(require_api_key)):
+    try:
+        return run_private_devnet_transaction_detail(tx_hash, settings)
     except XriqConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except XriqCommandTimeout as exc:

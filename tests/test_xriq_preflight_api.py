@@ -13,7 +13,10 @@ from biber_api.config import BiberSettings
 from biber_api.xriq_client import (
     XriqCommandError,
     XriqPreflightTransferRequest,
+    run_private_devnet_account_detail,
     run_private_devnet_preflight_transfer,
+    run_private_devnet_status,
+    run_private_devnet_transaction_detail,
 )
 
 
@@ -132,6 +135,112 @@ def test_preflight_client_surfaces_xriq_json_errors(tmp_path: Path) -> None:
     assert exc_info.value.payload == error_payload
 
 
+def test_status_client_invokes_xriq_node_runner(tmp_path: Path) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def runner(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append({"command": command, "kwargs": kwargs})
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps({"format_version": "xriq-node-json-v1", "command": "status"}),
+            stderr="",
+        )
+
+    payload = run_private_devnet_status(make_settings(tmp_path), runner=runner)
+
+    assert payload["command"] == "status"
+    assert calls[0]["command"] == [
+        "xriq-node",
+        "status",
+        "--chain-file",
+        "target/test-chain.bin",
+        "--alice-balance",
+        "100",
+        "--format",
+        "json",
+    ]
+
+
+def test_account_client_invokes_xriq_node_runner(tmp_path: Path) -> None:
+    calls: list[list[str]] = []
+
+    def runner(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps(
+                {
+                    "format_version": "xriq-node-json-v1",
+                    "command": "account-detail",
+                    "address": "xriqdev1alice00000000000",
+                }
+            ),
+            stderr="",
+        )
+
+    payload = run_private_devnet_account_detail(
+        "xriqdev1alice00000000000",
+        make_settings(tmp_path),
+        runner=runner,
+    )
+
+    assert payload["command"] == "account-detail"
+    assert calls[0] == [
+        "xriq-node",
+        "account-detail",
+        "--chain-file",
+        "target/test-chain.bin",
+        "--alice-balance",
+        "100",
+        "--format",
+        "json",
+        "--address",
+        "xriqdev1alice00000000000",
+    ]
+
+
+def test_transaction_client_invokes_xriq_node_runner(tmp_path: Path) -> None:
+    calls: list[list[str]] = []
+    tx_hash = "a" * 64
+
+    def runner(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps(
+                {
+                    "format_version": "xriq-node-json-v1",
+                    "command": "transaction-detail",
+                    "tx_hash": tx_hash,
+                }
+            ),
+            stderr="",
+        )
+
+    payload = run_private_devnet_transaction_detail(
+        tx_hash,
+        make_settings(tmp_path),
+        runner=runner,
+    )
+
+    assert payload["command"] == "transaction-detail"
+    assert calls[0] == [
+        "xriq-node",
+        "transaction-detail",
+        "--chain-file",
+        "target/test-chain.bin",
+        "--alice-balance",
+        "100",
+        "--format",
+        "json",
+        "--tx-hash",
+        tx_hash,
+    ]
+
+
 def test_preflight_endpoint_returns_runner_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_preflight(
         request: XriqPreflightTransferRequest,
@@ -164,3 +273,41 @@ def test_preflight_endpoint_returns_runner_payload(monkeypatch: pytest.MonkeyPat
 
     assert response.status_code == 200
     assert response.json()["command"] == "preflight-transfer"
+
+
+def test_read_endpoints_return_runner_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        main_module,
+        "run_private_devnet_status",
+        lambda settings: {"command": "status"},
+    )
+    monkeypatch.setattr(
+        main_module,
+        "run_private_devnet_account_detail",
+        lambda address, settings: {"command": "account-detail", "address": address},
+    )
+    monkeypatch.setattr(
+        main_module,
+        "run_private_devnet_transaction_detail",
+        lambda tx_hash, settings: {"command": "transaction-detail", "tx_hash": tx_hash},
+    )
+
+    client = TestClient(main_module.app)
+    headers = {"x-api-key": "test-key"}
+
+    status_response = client.get("/v1/xriq/private-devnet/status", headers=headers)
+    account_response = client.get(
+        "/v1/xriq/private-devnet/accounts/xriqdev1alice00000000000",
+        headers=headers,
+    )
+    transaction_response = client.get(
+        f"/v1/xriq/private-devnet/transactions/{'a' * 64}",
+        headers=headers,
+    )
+
+    assert status_response.status_code == 200
+    assert status_response.json()["command"] == "status"
+    assert account_response.status_code == 200
+    assert account_response.json()["address"] == "xriqdev1alice00000000000"
+    assert transaction_response.status_code == 200
+    assert transaction_response.json()["command"] == "transaction-detail"
