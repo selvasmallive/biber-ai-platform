@@ -126,7 +126,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
   `786ec51 Persist BIBER agent sessions`.
-- Vast code verification is current through `4af1ee5`. Full Rust/private-devnet
+- Latest BIBER MVP agent-session XRIQ-context commit pushed and Vast-verified:
+  `e4df1d0 Add XRIQ context to agent sessions`.
+- Vast code verification is current through `e4df1d0`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -134,18 +136,26 @@ serving the last broad-safe Rust/XRIQ adapter.
   is current through `d4df8c0`; BIBER workspace-edit API verification is
   current through `992890b`; BIBER GitHub branch/PR workflow verification is
   current through `179f58b`; BIBER agent-smoke verification is current through
-  `28ebe62`;
+  `e4df1d0`;
   BIBER agent-session API/persistence verification is current through
-  `786ec51`.
+  `e4df1d0`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `48095`
+  - FastAPI pid: `49733`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - The `e4df1d0` agent-session XRIQ-context checkpoint required a FastAPI-only
+    restart. vLLM stayed on pid `5802`; FastAPI moved from pid `48095` to
+    pid `49733`.
+  - Latest focused Vast verification for the BIBER agent-session XRIQ-context
+    slice:
+    `/workspace/biber-venv/bin/python -m compileall app src tests scripts`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, and focused pytest covering
+    `test_agent_session.py` and `test_xriq_preflight_api.py` with `23 passed`.
   - The `4af1ee5` dashboard account-lookup checkpoint required no service
     restart. vLLM stayed on pid `5802`; FastAPI stayed on pid `48095`.
   - Latest focused Vast verification for the BIBER/XRIQ dashboard account
@@ -202,9 +212,13 @@ serving the last broad-safe Rust/XRIQ adapter.
     intentionally not configured on Vast.
   - Latest BIBER end-to-end agent smoke:
     `bash scripts/vast_biber_agent_smoke.sh` passed with repo-context chat,
-    workspace-edit dry-run, `python-compileall-api`, and GitHub skipped because
-    it is not configured. Artifact:
-    `/workspace/outputs/biber-agent-smoke-20260518T195259Z-44005`.
+    workspace-edit dry-run, `python-compileall-api`, opt-in XRIQ private-devnet
+    context in a tracked agent session, and GitHub skipped because it is not
+    configured. Latest artifact:
+    `/workspace/outputs/biber-agent-smoke-20260518T234409Z-49758`.
+    Latest XRIQ-context session id:
+    `303e354e-79f3-4435-a936-01669802a1a4`; step order was
+    `xriq_context`, then `chat`; context height was `2`; mentor was not used.
   - Latest BIBER agent-session smoke:
     `POST /v1/agent/sessions` returned `200 OK` with steps `chat`,
     `workspace_edit`, and `test_run`; `model=biber-dev-core-v1`,
@@ -1673,6 +1687,35 @@ serving the last broad-safe Rust/XRIQ adapter.
     `200 OK`; session id `af658dd2-44b6-4800-bd87-561b7424c17c`; artifact:
     `/workspace/outputs/agent-sessions/af658dd2-44b6-4800-bd87-561b7424c17c.json`.
   - No credential change, model training, or OpenAI mentor call was needed.
+- BIBER MVP agent-session XRIQ-context checkpoint:
+  - Added opt-in `include_xriq_context` to `POST /v1/agent/sessions` in both
+    the packaged API and the current Vast direct launcher path.
+  - When enabled, the session reads the configured XRIQ private-devnet overview
+    before chat, prepends a concise chain summary to the model context, and
+    persists the raw overview under an `xriq_context` step.
+  - Added bounded controls `xriq_explorer_limit` and `xriq_snapshot_limit`.
+    Defaults are `5`; each is capped at `25`.
+  - Updated `scripts/vast_biber_agent_smoke.sh` so the live smoke now verifies
+    the `xriq_context` step before `chat`, confirms mentor remains disabled,
+    and records the XRIQ context height in `summary.json`.
+  - Local workstation verification passed with bundled Python
+    `compileall app src tests scripts` and `git diff --check`. Local pytest is
+    still unavailable in the bundled workstation runtime.
+  - Pushed implementation commit:
+    `e4df1d0 Add XRIQ context to agent sessions`.
+  - Vast checkout was fast-forwarded to `e4df1d0`; Vast verification passed
+    with `/workspace/biber-venv/bin/python -m compileall app src tests scripts`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_agent_session.py tests/test_xriq_preflight_api.py -q` with
+    `23 passed`, and the live BIBER agent smoke.
+  - Restarted only the FastAPI process; vLLM stayed running with pid `5802`.
+    New FastAPI pid: `49733`.
+  - Latest live smoke artifact:
+    `/workspace/outputs/biber-agent-smoke-20260518T234409Z-49758`.
+    It returned session id `303e354e-79f3-4435-a936-01669802a1a4`, step order
+    `xriq_context`, then `chat`, `xriq_context_height=2`, and
+    `mentor_used=false`.
+  - No credential change, model training, or OpenAI mentor call was needed.
 - XRIQ snapshot export/import checkpoint:
   - Added private-devnet `xriq-node snapshot-export` and
     `xriq-node snapshot-import`.
@@ -3049,11 +3092,13 @@ bash scripts/xriq_private_devnet_smoke.sh
    private-devnet overview endpoint now live. The minimal stdlib client and
    same-origin browser dashboard for the BIBER/XRIQ private-devnet overview,
    snapshot, preflight-transfer, transaction-detail, and account-detail
-   endpoints are now also implemented and Vast-verified. Good next targets are
-   small dashboard wallet/explorer polish such as latest-block transaction hash
-   buttons that fill the transaction lookup, adding safer persisted dashboard
-   settings later with database-backed users/API keys, or keeping the BIBER
-   agent flow pointed at these XRIQ endpoints. Public XRIQ launch,
+   endpoints are now also implemented and Vast-verified. The tracked BIBER
+   agent-session flow can now opt into XRIQ private-devnet overview context
+   before chat. Good next targets are small dashboard wallet/explorer polish
+   such as latest-block transaction hash buttons that fill the transaction
+   lookup, a small agent-session action preset for XRIQ wallet/explorer review,
+   or adding safer persisted dashboard settings later with database-backed
+   users/API keys. Public XRIQ launch,
    exchange listing, custody, liquidity, bridges, and market-facing work remain
    blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
