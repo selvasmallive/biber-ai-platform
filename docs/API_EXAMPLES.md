@@ -249,6 +249,14 @@ curl -X POST http://localhost:8000/v1/xriq/private-devnet/preflight-transfer \
 These endpoints are thin wrappers around the existing `xriq-node --format json`
 read commands. Mempool detail reads the server-configured durable pending file.
 
+Use the overview endpoint when a client needs one compact private-devnet status
+payload for a wallet/explorer dashboard:
+
+```bash
+curl 'http://localhost:8000/v1/xriq/private-devnet/overview?explorer_limit=5&snapshot_limit=5' \
+  -H "Authorization: Bearer dev-api-key-change-me"
+```
+
 ```bash
 curl http://localhost:8000/v1/xriq/private-devnet/status \
   -H "Authorization: Bearer dev-api-key-change-me"

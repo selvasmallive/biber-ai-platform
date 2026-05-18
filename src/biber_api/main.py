@@ -70,6 +70,7 @@ from .xriq_client import (
     run_private_devnet_block_detail,
     run_private_devnet_explorer_overview,
     run_private_devnet_mempool_detail,
+    run_private_devnet_overview,
     run_private_devnet_preflight_transfer,
     run_private_devnet_snapshot_export,
     run_private_devnet_snapshot_import,
@@ -457,6 +458,30 @@ async def xriq_private_devnet_preflight_transfer(
     except XriqCommandError as exc:
         detail: object = exc.payload or str(exc)
         raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+
+
+@app.get("/v1/xriq/private-devnet/overview")
+async def xriq_private_devnet_overview(
+    explorer_limit: int = Query(default=5, ge=1, le=100),
+    snapshot_limit: int = Query(default=5, ge=1, le=100),
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> dict[str, object]:
+    try:
+        return run_private_devnet_overview(
+            settings,
+            explorer_limit=explorer_limit,
+            snapshot_limit=snapshot_limit,
+        )
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqCommandTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except XriqCommandError as exc:
+        detail: object = exc.payload or str(exc)
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+    except XriqSnapshotStoreError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
 
 @app.get("/v1/xriq/private-devnet/status")

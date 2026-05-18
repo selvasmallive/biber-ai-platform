@@ -263,6 +263,41 @@ def get_private_devnet_snapshot(
     return _snapshot_payload(snapshot_name, snapshot_dir, manifest)
 
 
+def run_private_devnet_overview(
+    settings: BiberSettings,
+    *,
+    explorer_limit: int = 5,
+    snapshot_limit: int = 5,
+    runner: Runner = subprocess.run,
+) -> dict[str, Any]:
+    status = run_private_devnet_status(settings, runner=runner)
+    explorer = run_private_devnet_explorer_overview(
+        settings,
+        limit=explorer_limit,
+        runner=runner,
+    )
+    mempool = run_private_devnet_mempool_detail(settings, runner=runner)
+    snapshots = list_private_devnet_snapshots(settings, limit=snapshot_limit)
+    latest_snapshot = _first_snapshot(snapshots)
+    return {
+        "command": "biber-private-devnet-overview",
+        "status": status,
+        "explorer": explorer,
+        "mempool": mempool,
+        "snapshots": snapshots,
+        "summary": {
+            "current_height": status.get("current_height"),
+            "state_root": status.get("state_root"),
+            "pending_count": mempool.get("pending_count"),
+            "snapshot_count": snapshots.get("count"),
+            "snapshot_total_available": snapshots.get("total_available"),
+            "latest_snapshot_name": latest_snapshot.get("snapshot_name")
+            if latest_snapshot
+            else None,
+        },
+    }
+
+
 def _run_xriq_node_json(
     command: list[str],
     settings: BiberSettings,
@@ -315,6 +350,14 @@ def _run_xriq_node_json(
             status_code=502,
         )
     return payload
+
+
+def _first_snapshot(snapshots: dict[str, Any]) -> dict[str, Any] | None:
+    items = snapshots.get("snapshots")
+    if not isinstance(items, list) or not items:
+        return None
+    first = items[0]
+    return first if isinstance(first, dict) else None
 
 
 def _snapshot_root_path(settings: BiberSettings) -> Path:

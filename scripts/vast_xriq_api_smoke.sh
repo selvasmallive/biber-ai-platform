@@ -202,6 +202,19 @@ snapshot_detail = request_json(
 expect(snapshot_detail, "snapshot_name", snapshot_name, "snapshot detail")
 expect(snapshot_detail, "status", "ok", "snapshot detail")
 
+overview_path = "/v1/xriq/private-devnet/overview?" + urllib.parse.urlencode(
+    {"explorer_limit": explorer_limit, "snapshot_limit": 10}
+)
+overview = request_json(overview_path, "overview.json")
+expect(overview, "command", "biber-private-devnet-overview", "overview")
+summary_payload = overview.get("summary")
+if not isinstance(summary_payload, dict):
+    fail("overview returned non-object summary")
+if summary_payload.get("current_height") != status.get("current_height"):
+    fail("overview current_height did not match status")
+if summary_payload.get("snapshot_count") is None:
+    fail("overview did not include snapshot_count")
+
 tx_hash = requested_tx_hash
 transaction_source = "env" if tx_hash else "skipped"
 if not tx_hash and isinstance(block, dict):
@@ -234,6 +247,7 @@ summary = {
     "snapshot_name": snapshot_name,
     "snapshot_height": snapshot_export.get("current_height"),
     "snapshot_list_count": snapshot_list.get("count"),
+    "overview_snapshot_count": summary_payload.get("snapshot_count"),
     "transaction_hash": tx_hash or None,
     "transaction_source": transaction_source,
     "transaction_status": transaction_status,

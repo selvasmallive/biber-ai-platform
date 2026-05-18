@@ -22,6 +22,7 @@ from biber_api.xriq_client import (
     run_private_devnet_block_detail,
     run_private_devnet_explorer_overview,
     run_private_devnet_mempool_detail,
+    run_private_devnet_overview,
     run_private_devnet_preflight_transfer,
     run_private_devnet_snapshot_export,
     run_private_devnet_snapshot_import,
@@ -541,6 +542,99 @@ def test_snapshot_detail_returns_not_found_for_missing_snapshot(tmp_path: Path) 
     assert "missing" in str(exc_info.value)
 
 
+def test_overview_client_combines_read_wrappers_and_snapshot_summary(
+    tmp_path: Path,
+) -> None:
+    write_snapshot_fixture(tmp_path, "smoke")
+    calls: list[list[str]] = []
+
+    def runner(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        command_name = command[1]
+        payload_by_command = {
+            "status": {
+                "format_version": "xriq-node-json-v1",
+                "command": "status",
+                "current_height": 2,
+                "state_root": "b" * 64,
+            },
+            "explorer-overview": {
+                "format_version": "xriq-node-json-v1",
+                "command": "explorer-overview",
+                "current_height": 2,
+                "latest_blocks": [],
+            },
+            "mempool-detail": {
+                "format_version": "xriq-node-json-v1",
+                "command": "mempool-detail",
+                "pending_count": 0,
+            },
+        }
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout=json.dumps(payload_by_command[command_name]),
+            stderr="",
+        )
+
+    payload = run_private_devnet_overview(
+        make_settings(tmp_path),
+        explorer_limit=7,
+        snapshot_limit=3,
+        runner=runner,
+    )
+
+    assert payload["command"] == "biber-private-devnet-overview"
+    assert payload["status"]["command"] == "status"
+    assert payload["explorer"]["command"] == "explorer-overview"
+    assert payload["mempool"]["command"] == "mempool-detail"
+    assert payload["snapshots"]["count"] == 1
+    assert payload["summary"] == {
+        "current_height": 2,
+        "state_root": "b" * 64,
+        "pending_count": 0,
+        "snapshot_count": 1,
+        "snapshot_total_available": 1,
+        "latest_snapshot_name": "smoke",
+    }
+    assert calls == [
+        [
+            "xriq-node",
+            "status",
+            "--chain-file",
+            "target/test-chain.bin",
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ],
+        [
+            "xriq-node",
+            "explorer-overview",
+            "--chain-file",
+            "target/test-chain.bin",
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+            "--limit",
+            "7",
+        ],
+        [
+            "xriq-node",
+            "mempool-detail",
+            "--chain-file",
+            "target/test-chain.bin",
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+            "--pending-file",
+            "target/test-pending.tsv",
+        ],
+    ]
+
+
 def test_preflight_endpoint_returns_runner_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_preflight(
         request: XriqPreflightTransferRequest,
@@ -606,6 +700,15 @@ def test_read_endpoints_return_runner_payload(monkeypatch: pytest.MonkeyPatch) -
         "run_private_devnet_mempool_detail",
         lambda settings: {"command": "mempool-detail", "pending_count": 1},
     )
+    monkeypatch.setattr(
+        main_module,
+        "run_private_devnet_overview",
+        lambda settings, explorer_limit=5, snapshot_limit=5: {
+            "command": "biber-private-devnet-overview",
+            "explorer_limit": explorer_limit,
+            "snapshot_limit": snapshot_limit,
+        },
+    )
 
     client = TestClient(main_module.app)
     headers = {"x-api-key": "test-key"}
@@ -625,6 +728,10 @@ def test_read_endpoints_return_runner_payload(monkeypatch: pytest.MonkeyPatch) -
         headers=headers,
     )
     mempool_response = client.get("/v1/xriq/private-devnet/mempool", headers=headers)
+    overview_response = client.get(
+        "/v1/xriq/private-devnet/overview?explorer_limit=3&snapshot_limit=4",
+        headers=headers,
+    )
 
     assert status_response.status_code == 200
     assert status_response.json()["command"] == "status"
@@ -638,6 +745,12 @@ def test_read_endpoints_return_runner_payload(monkeypatch: pytest.MonkeyPatch) -
     assert transaction_response.json()["command"] == "transaction-detail"
     assert mempool_response.status_code == 200
     assert mempool_response.json()["command"] == "mempool-detail"
+    assert overview_response.status_code == 200
+    assert overview_response.json() == {
+        "command": "biber-private-devnet-overview",
+        "explorer_limit": 3,
+        "snapshot_limit": 4,
+    }
 
 
 def test_snapshot_endpoints_return_runner_payload(monkeypatch: pytest.MonkeyPatch) -> None:
