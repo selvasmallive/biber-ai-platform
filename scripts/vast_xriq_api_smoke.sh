@@ -255,3 +255,26 @@ summary = {
 write_artifact("summary.json", summary)
 print(json.dumps(summary, sort_keys=True))
 PY
+
+BIBER_API_BASE_URL="$API_BASE_URL" \
+BIBER_API_KEY="$API_KEY" \
+"$PYTHON_BIN" "${SCRIPT_DIR}/biber_xriq_private_devnet_client.py" overview \
+  --explorer-limit "$EXPLORER_LIMIT" \
+  --snapshot-limit 10 \
+  > "${ARTIFACT_DIR}/client-overview.txt"
+
+BIBER_API_BASE_URL="$API_BASE_URL" \
+BIBER_API_KEY="$API_KEY" \
+"$PYTHON_BIN" "${SCRIPT_DIR}/biber_xriq_private_devnet_client.py" snapshots \
+  --limit 10 \
+  > "${ARTIFACT_DIR}/client-snapshots.txt"
+
+BIBER_API_BASE_URL="$API_BASE_URL" \
+BIBER_API_KEY="$API_KEY" \
+"$PYTHON_BIN" "${SCRIPT_DIR}/biber_xriq_private_devnet_client.py" snapshot \
+  "$SNAPSHOT_NAME" \
+  > "${ARTIFACT_DIR}/client-snapshot-detail.txt"
+
+printf 'client_overview=%s\n' "${ARTIFACT_DIR}/client-overview.txt"
+printf 'client_snapshots=%s\n' "${ARTIFACT_DIR}/client-snapshots.txt"
+printf 'client_snapshot_detail=%s\n' "${ARTIFACT_DIR}/client-snapshot-detail.txt"

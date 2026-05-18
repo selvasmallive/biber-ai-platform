@@ -257,6 +257,26 @@ curl 'http://localhost:8000/v1/xriq/private-devnet/overview?explorer_limit=5&sna
   -H "Authorization: Bearer dev-api-key-change-me"
 ```
 
+For a dependency-free Python client that future wallet/explorer work can reuse:
+
+```bash
+BIBER_API_BASE_URL=http://127.0.0.1:8000 \
+BIBER_API_KEY=dev-api-key-change-me \
+python scripts/biber_xriq_private_devnet_client.py overview
+```
+
+```bash
+BIBER_API_BASE_URL=http://127.0.0.1:8000 \
+BIBER_API_KEY=dev-api-key-change-me \
+python scripts/biber_xriq_private_devnet_client.py snapshots --limit 10
+```
+
+```bash
+BIBER_API_BASE_URL=http://127.0.0.1:8000 \
+BIBER_API_KEY=dev-api-key-change-me \
+python scripts/biber_xriq_private_devnet_client.py snapshot manual-smoke
+```
+
 ```bash
 curl http://localhost:8000/v1/xriq/private-devnet/status \
   -H "Authorization: Bearer dev-api-key-change-me"
