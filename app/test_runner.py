@@ -47,7 +47,7 @@ _TEST_COMMANDS: dict[str, TestCommandSpec] = {
         label="Core API pytest",
         description=(
             "Run focused BIBER API tests for workspace edits, model registry, "
-            "mentor trigger, repo context, and XRIQ wrappers."
+            "GitHub workflows, mentor trigger, repo context, and XRIQ wrappers."
         ),
         cwd="repo",
         argv=(
