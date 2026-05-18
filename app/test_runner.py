@@ -54,6 +54,7 @@ _TEST_COMMANDS: dict[str, TestCommandSpec] = {
             sys.executable,
             "-m",
             "pytest",
+            "tests/test_agent_session.py",
             "tests/test_workspace_edit.py",
             "tests/test_github_client.py",
             "tests/test_model_registry.py",
@@ -76,7 +77,10 @@ _TEST_COMMANDS: dict[str, TestCommandSpec] = {
     "xriq-private-devnet-smoke": TestCommandSpec(
         test_id="xriq-private-devnet-smoke",
         label="XRIQ private-devnet smoke",
-        description="Run the deterministic private-devnet shell smoke, including replay-status state-root checks.",
+        description=(
+            "Run the deterministic private-devnet shell smoke, including "
+            "replay-status state-root checks."
+        ),
         cwd="repo",
         argv=("bash", "scripts/xriq_private_devnet_smoke.sh"),
         timeout_seconds=240,

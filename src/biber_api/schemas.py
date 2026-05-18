@@ -134,3 +134,40 @@ class WorkspaceEditResponse(BaseModel):
     new_sha256: str
     old_bytes: int
     new_bytes: int
+
+
+class AgentSessionRequest(BaseModel):
+    instruction: str = Field(min_length=1)
+    model: str | None = None
+    language: str | None = None
+    task_type: str = "agent_session"
+    temperature: float = Field(default=0.2, ge=0, le=2)
+    max_tokens: int | None = Field(default=512, gt=0, le=32000)
+    use_mentor: bool = False
+    repo_context_paths: list[str] = Field(default_factory=list, max_length=12)
+    workspace_edit: WorkspaceEditRequest | None = None
+    test_id: str | None = "python-compileall-api"
+    test_dry_run: bool = False
+    save_to_github: GitHubSaveTarget | None = None
+    pull_request: CreateGitHubPullRequestRequest | None = None
+
+
+class AgentSessionStep(BaseModel):
+    name: str
+    status: str
+    detail: str | None = None
+    output: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentSessionResponse(BaseModel):
+    id: str
+    created_at: str
+    model: str
+    content: str
+    mentor_used: bool
+    mentor_notes: str | None = None
+    steps: list[AgentSessionStep]
+    github_url: str | None = None
+    pull_request_url: str | None = None
+    pull_request_number: int | None = None
+    priority: int

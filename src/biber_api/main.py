@@ -19,8 +19,12 @@ from .llm import BiberChatService, MENTOR_TRIGGER_PHRASE
 from .model_registry import ModelRegistryError, build_model_registry
 from .repo_context import RepoContextError
 from .schemas import (
+    AgentSessionRequest,
+    AgentSessionResponse,
+    AgentSessionStep,
     AzureBackupRequest,
     AzureBackupResponse,
+    ChatMessage,
     ChatRequest,
     ChatResponse,
     CreateGitHubPullRequestRequest,
@@ -147,6 +151,154 @@ async def edit_workspace_file(
     except WorkspaceEditError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return WorkspaceEditResponse.model_validate(result)
+
+
+@app.post("/v1/agent/sessions", response_model=AgentSessionResponse)
+async def run_agent_session(
+    request_body: AgentSessionRequest,
+    auth: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> AgentSessionResponse:
+    steps: list[AgentSessionStep] = []
+    created_at = datetime.now(UTC).isoformat()
+    chat_request = ChatRequest(
+        messages=[ChatMessage(role="user", content=request_body.instruction)],
+        model=request_body.model,
+        language=request_body.language,
+        task_type=request_body.task_type,
+        temperature=request_body.temperature,
+        max_tokens=request_body.max_tokens,
+        use_mentor=request_body.use_mentor,
+        repo_context_paths=request_body.repo_context_paths,
+    )
+
+    try:
+        content, mentor_notes, _, model_id = await BiberChatService(settings).generate(
+            chat_request
+        )
+    except ModelRegistryError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RepoContextError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Model endpoint returned {exc.response.status_code}.",
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Model endpoint failed: {exc}") from exc
+
+    steps.append(
+        AgentSessionStep(
+            name="chat",
+            status="ok",
+            output={
+                "model": model_id,
+                "mentor_used": mentor_notes is not None,
+                "repo_context_files": len(request_body.repo_context_paths),
+            },
+        )
+    )
+
+    if request_body.workspace_edit is not None:
+        try:
+            edit_result = apply_workspace_edit(
+                path=request_body.workspace_edit.path,
+                old_text=request_body.workspace_edit.old_text,
+                new_text=request_body.workspace_edit.new_text,
+                expected_replacements=request_body.workspace_edit.expected_replacements,
+                create_if_missing=request_body.workspace_edit.create_if_missing,
+                dry_run=request_body.workspace_edit.dry_run,
+                settings=settings,
+            )
+        except WorkspaceEditConfigurationError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except WorkspaceEditError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        steps.append(
+            AgentSessionStep(
+                name="workspace_edit",
+                status="ok",
+                output=WorkspaceEditResponse.model_validate(edit_result).model_dump(),
+            )
+        )
+
+    if request_body.test_id:
+        try:
+            test_result = run_test_command(
+                request_body.test_id,
+                settings,
+                dry_run=request_body.test_dry_run,
+            )
+        except UnknownTestCommandError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except TestRunnerConfigurationError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        steps.append(
+            AgentSessionStep(
+                name="test_run",
+                status="ok" if test_result.get("ok") is not False else "failed",
+                output=TestRunResponse.model_validate(test_result).model_dump(),
+            )
+        )
+
+    github_url = None
+    pull_request_url = None
+    pull_request_number = None
+    github = GitHubClient(settings)
+    if request_body.save_to_github is not None:
+        try:
+            github_url = await github.save_text(request_body.save_to_github, content)
+        except GitHubDisabled as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except GitHubConfigurationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except GitHubSaveError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        steps.append(
+            AgentSessionStep(
+                name="github_save",
+                status="ok",
+                output={"url": github_url},
+            )
+        )
+
+    if request_body.pull_request is not None:
+        try:
+            pr_result = await github.create_pull_request(request_body.pull_request)
+        except GitHubDisabled as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except GitHubConfigurationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except GitHubPullRequestError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        pull_request_url = str(pr_result.get("url") or "")
+        number = pr_result.get("number")
+        pull_request_number = number if isinstance(number, int) else None
+        steps.append(
+            AgentSessionStep(
+                name="github_pull_request",
+                status="ok",
+                output={
+                    "url": pull_request_url,
+                    "number": pull_request_number,
+                },
+            )
+        )
+
+    return AgentSessionResponse(
+        id=str(uuid4()),
+        created_at=created_at,
+        model=model_id,
+        content=content,
+        mentor_used=mentor_notes is not None,
+        mentor_notes=mentor_notes,
+        steps=steps,
+        github_url=github_url,
+        pull_request_url=pull_request_url,
+        pull_request_number=pull_request_number,
+        priority=auth.priority,
+    )
 
 
 @app.post("/v1/chat", response_model=ChatResponse)

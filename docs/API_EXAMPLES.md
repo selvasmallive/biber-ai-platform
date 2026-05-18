@@ -184,6 +184,29 @@ bash scripts/vast_biber_agent_smoke.sh
 To include GitHub save and draft-PR creation, configure GitHub credentials on
 the server first, then run with `BIBER_AGENT_SMOKE_GITHUB=1`.
 
+## Run A Tracked Agent Session
+
+This endpoint wraps the existing MVP primitives into one tracked workflow:
+repo-context chat, optional bounded workspace edit, optional allowlisted test,
+and optional GitHub save/PR only when explicitly supplied.
+
+```bash
+curl -X POST http://localhost:8000/v1/agent/sessions \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "instruction": "Use README.md context and draft a concise implementation note.",
+    "repo_context_paths": ["README.md"],
+    "workspace_edit": {
+      "path": "generated/agent-session-note.txt",
+      "new_text": "BIBER agent session note\n",
+      "create_if_missing": true,
+      "dry_run": true
+    },
+    "test_id": "python-compileall-api"
+  }'
+```
+
 ## XRIQ Private-Devnet Preflight Transfer
 
 This endpoint is a thin wrapper around the local Rust
