@@ -88,18 +88,25 @@ serving the last broad-safe Rust/XRIQ adapter.
   `66098c1 Add XRIQ block detail JSON fixture`.
 - Latest XRIQ smoke-harness commit pushed and Vast-verified:
   `919b348 Expose XRIQ replay state root`.
-- Vast checkout was fast-forwarded to `919b348`. Full Rust/API wrapper
+- Latest BIBER MVP core-agent test-runner commit pushed and Vast-verified:
+  `d4df8c0 Add allowlisted BIBER test runner API`.
+- Vast checkout was fast-forwarded to `d4df8c0`. Full Rust/API wrapper
   verification is current through `919b348`; focused BIBER API wrapper
   verification is current through `32909e8`; consolidated BIBER XRIQ API smoke
   verification is current through `919b348`; focused fixture verification is
-  current through `919b348`.
+  current through `919b348`; BIBER test-runner API verification is current
+  through `d4df8c0`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `38909`
+  - FastAPI pid: `42987`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - Latest BIBER test-runner smoke:
+    `GET /v1/tests` returned the four allowlisted commands and
+    `POST /v1/tests/run` with `test_id=python-compileall-api` returned
+    `200 OK`, `executed=true`, and `ok=true`.
   - Latest endpoint smoke:
     `POST /v1/xriq/private-devnet/preflight-transfer`,
     `GET /v1/xriq/private-devnet/status`,
@@ -1358,6 +1365,31 @@ serving the last broad-safe Rust/XRIQ adapter.
     were not restarted.
   - Pushed commit:
     `6205b66 Expose XRIQ block transaction hashes`.
+- BIBER MVP allowlisted test-runner checkpoint:
+  - Added a protected, fixed-ID test-runner API in both the packaged API and
+    the current Vast direct launcher path.
+  - New endpoints:
+    `GET /v1/tests` and `POST /v1/tests/run`.
+  - Current allowlisted `test_id` values:
+    `python-compileall-api`, `pytest-core`, `xriq-node-fixtures`, and
+    `xriq-private-devnet-smoke`.
+  - Clients choose only `test_id` and optional `dry_run`; they cannot submit
+    arbitrary commands, working directories, shell fragments, or file paths.
+  - Local workstation verification passed with bundled Python
+    `compileall app src`, a direct runner dry-run smoke, and `git diff --check`.
+    Local pytest is still unavailable in the bundled workstation runtime.
+  - Vast checkout was fast-forwarded to `d4df8c0`.
+  - Vast verification passed with the command
+    `/workspace/biber-venv/bin/python -m compileall app src` and focused pytest:
+    `tests/test_test_runner.py`, `tests/test_model_registry.py`,
+    `tests/test_repo_context.py`, `tests/test_openai_mentor_trigger.py`, and
+    `tests/test_xriq_preflight_api.py` with `31 passed`.
+  - Restarted only the FastAPI process; vLLM stayed running with pid `5802`.
+    New FastAPI pid: `42987`.
+  - Live smoke passed: `GET /v1/tests` returned the allowlist, and
+    `POST /v1/tests/run` for `python-compileall-api` returned `ok=true`.
+  - Pushed commit:
+    `d4df8c0 Add allowlisted BIBER test runner API`.
 
 ## Repo State
 
@@ -1366,7 +1398,7 @@ serving the last broad-safe Rust/XRIQ adapter.
 - GitHub `origin/main` was pushed from this workstation on 2026-05-18 and now
   includes the live deployment hardening, GitHub save hardening, pytest
   verification, BIBER XRIQ preflight/read wrappers, the durable mempool
-  wrapper, and handoff updates.
+  wrapper, allowlisted BIBER test-runner API, and handoff updates.
 - The pushed history includes at least:
   - `b782c05 Harden Vast direct service binding`
   - `b0462e6 Update Vast handoff state`
@@ -1416,6 +1448,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   - `16e506b Add BIBER XRIQ API smoke script`
   - `a193478 Record XRIQ API smoke checkpoint`
   - `6205b66 Expose XRIQ block transaction hashes`
+  - `d4df8c0 Add allowlisted BIBER test runner API`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -2586,11 +2619,12 @@ bash scripts/xriq_private_devnet_smoke.sh
    for status/explorer/block/account/transaction/mempool are now done, and
    `scripts/vast_xriq_api_smoke.sh` provides a consolidated read-only live API
    smoke that follows block transaction hashes into transaction detail. The
-   status state-root marker and deterministic replay smoke are now done. Good
-   next targets are either a short snapshot export/import design note or a
-   shift back to the BIBER MVP core agent workflow: repo context, file edits,
-   test execution, and GitHub save/PR. Public XRIQ launch, exchange listing,
-   custody, liquidity, bridges, and market-facing work remain blocked.
+   status state-root marker, deterministic replay smoke, and the first
+   allowlisted BIBER test-execution API slice are now done. Good next targets
+   are either a short snapshot export/import design note or the next BIBER MVP
+   core-agent workflow slice: bounded file-edit/apply-patch support and
+   GitHub save/PR polish. Public XRIQ launch, exchange listing, custody,
+   liquidity, bridges, and market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
