@@ -6,6 +6,12 @@ from uuid import uuid4
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Path, Query
 
+from .agent_sessions import (
+    AgentSessionStoreError,
+    list_agent_sessions,
+    load_agent_session,
+    persist_agent_session,
+)
 from .azure_backup import AzureBackupDisabled, AzureBlobBackup
 from .config import BiberSettings, get_settings
 from .github import (
@@ -153,6 +159,28 @@ async def edit_workspace_file(
     return WorkspaceEditResponse.model_validate(result)
 
 
+@app.get("/v1/agent/sessions")
+async def get_agent_sessions(
+    limit: int = Query(default=20, ge=1, le=100),
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> dict[str, object]:
+    return {"sessions": list_agent_sessions(settings, limit=limit)}
+
+
+@app.get("/v1/agent/sessions/{session_id}", response_model=AgentSessionResponse)
+async def get_agent_session(
+    session_id: str,
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> AgentSessionResponse:
+    try:
+        payload = load_agent_session(session_id, settings)
+    except AgentSessionStoreError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return AgentSessionResponse.model_validate(payload)
+
+
 @app.post("/v1/agent/sessions", response_model=AgentSessionResponse)
 async def run_agent_session(
     request_body: AgentSessionRequest,
@@ -286,7 +314,7 @@ async def run_agent_session(
             )
         )
 
-    return AgentSessionResponse(
+    response = AgentSessionResponse(
         id=str(uuid4()),
         created_at=created_at,
         model=model_id,
@@ -299,6 +327,12 @@ async def run_agent_session(
         pull_request_number=pull_request_number,
         priority=auth.priority,
     )
+    try:
+        artifact = persist_agent_session(response, settings)
+    except AgentSessionStoreError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    response.artifact_path = str(artifact["artifact_path"])
+    return response
 
 
 @app.post("/v1/chat", response_model=ChatResponse)

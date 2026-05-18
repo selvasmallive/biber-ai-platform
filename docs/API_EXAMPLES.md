@@ -188,7 +188,9 @@ the server first, then run with `BIBER_AGENT_SMOKE_GITHUB=1`.
 
 This endpoint wraps the existing MVP primitives into one tracked workflow:
 repo-context chat, optional bounded workspace edit, optional allowlisted test,
-and optional GitHub save/PR only when explicitly supplied.
+and optional GitHub save/PR only when explicitly supplied. Each completed
+session is persisted as a local JSON artifact under `BIBER_AGENT_SESSION_DIR`,
+or `/workspace/outputs/agent-sessions` on Vast.ai when the setting is omitted.
 
 ```bash
 curl -X POST http://localhost:8000/v1/agent/sessions \
@@ -205,6 +207,20 @@ curl -X POST http://localhost:8000/v1/agent/sessions \
     },
     "test_id": "python-compileall-api"
   }'
+```
+
+List recent persisted sessions:
+
+```bash
+curl 'http://localhost:8000/v1/agent/sessions?limit=10' \
+  -H "Authorization: Bearer dev-api-key-change-me"
+```
+
+Load one persisted session by the `id` returned from the create call:
+
+```bash
+curl http://localhost:8000/v1/agent/sessions/<session-id> \
+  -H "Authorization: Bearer dev-api-key-change-me"
 ```
 
 ## XRIQ Private-Devnet Preflight Transfer

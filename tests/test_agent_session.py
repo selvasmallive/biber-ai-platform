@@ -28,6 +28,7 @@ def make_settings(workspace: Path) -> BiberSettings:
         azure_storage_connection_string=None,
         azure_blob_container="biber-backups",
         repo_context_root=str(workspace),
+        agent_session_dir=str(workspace / ".biber-test-sessions"),
         workspace_edit_max_file_bytes=1000,
         workspace_edit_max_new_text_bytes=500,
     )
@@ -123,6 +124,8 @@ def test_agent_session_runs_chat_edit_and_test(
     assert body["model"] == "biber-dev-core-v1"
     assert body["content"] == "BIBER agent plan"
     assert body["mentor_used"] is False
+    assert body["artifact_path"]
+    assert Path(body["artifact_path"]).exists()
     assert [step["name"] for step in body["steps"]] == [
         "chat",
         "workspace_edit",
@@ -169,3 +172,52 @@ def test_agent_session_can_skip_test_run(
 
     assert response.status_code == 200
     assert [step["name"] for step in response.json()["steps"]] == ["chat"]
+
+
+def test_agent_session_can_be_listed_and_loaded(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    settings = make_settings(tmp_path)
+
+    class FakeChatService:
+        def __init__(self, injected_settings: BiberSettings) -> None:
+            pass
+
+        async def generate(
+            self,
+            request: ChatRequest,
+        ) -> tuple[str, str | None, dict[str, Any], str]:
+            return "Persisted chat", None, {}, "biber-dev-core-v1"
+
+    monkeypatch.setattr(main_module, "BiberChatService", FakeChatService)
+    main_module.app.dependency_overrides[main_module.get_settings] = lambda: settings
+    try:
+        client = TestClient(main_module.app)
+        created = client.post(
+            "/v1/agent/sessions",
+            json={"instruction": "Persist this session.", "test_id": None},
+            headers={"x-api-key": "test-key"},
+        )
+        assert created.status_code == 200
+        created_body = created.json()
+
+        listed = client.get(
+            "/v1/agent/sessions?limit=10",
+            headers={"x-api-key": "test-key"},
+        )
+        loaded = client.get(
+            f"/v1/agent/sessions/{created_body['id']}",
+            headers={"x-api-key": "test-key"},
+        )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert listed.status_code == 200
+    sessions = listed.json()["sessions"]
+    assert sessions[0]["id"] == created_body["id"]
+    assert sessions[0]["steps"] == ["chat"]
+    assert Path(sessions[0]["artifact_path"]).exists()
+    assert loaded.status_code == 200
+    assert loaded.json()["id"] == created_body["id"]
+    assert loaded.json()["artifact_path"] == created_body["artifact_path"]

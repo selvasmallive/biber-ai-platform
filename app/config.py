@@ -30,6 +30,15 @@ def _priority_passcodes(value: str | None) -> dict[str, int]:
     return passcodes
 
 
+def _default_agent_session_dir(repo_context_root: str) -> str:
+    configured = os.getenv("BIBER_AGENT_SESSION_DIR")
+    if configured:
+        return configured
+    if os.path.isdir("/workspace") and os.access("/workspace", os.W_OK):
+        return "/workspace/outputs/agent-sessions"
+    return os.path.join(repo_context_root, ".biber-runtime", "agent-sessions")
+
+
 @dataclass
 class Settings:
     env: str = os.getenv("BIBER_ENV", "dev")
@@ -50,6 +59,7 @@ class Settings:
     local_model_name: str = os.getenv("BIBER_LOCAL_MODEL_NAME", "biber-dev-core")
     local_model_timeout_seconds: float = float(os.getenv("BIBER_LOCAL_MODEL_TIMEOUT_SECONDS", "180"))
     repo_context_root: str = os.getenv("BIBER_REPO_CONTEXT_ROOT") or os.getcwd()
+    agent_session_dir: str = _default_agent_session_dir(repo_context_root)
     repo_context_max_files: int = int(os.getenv("BIBER_REPO_CONTEXT_MAX_FILES", "12"))
     repo_context_max_bytes_per_file: int = int(
         os.getenv("BIBER_REPO_CONTEXT_MAX_BYTES_PER_FILE", "12000")

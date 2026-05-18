@@ -170,4 +170,5 @@ class AgentSessionResponse(BaseModel):
     github_url: str | None = None
     pull_request_url: str | None = None
     pull_request_number: int | None = None
+    artifact_path: str | None = None
     priority: int

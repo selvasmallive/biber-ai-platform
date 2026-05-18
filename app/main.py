@@ -16,6 +16,12 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 
+from app.agent_sessions import (
+    AgentSessionStoreError,
+    list_agent_sessions,
+    load_agent_session,
+    persist_agent_session,
+)
 from app.azure_backup import AzureBackupDisabled, AzureBlobBackup
 from app.auth import require_api_key, get_priority_from_passcode
 from app.config import settings
@@ -248,6 +254,7 @@ class AgentSessionResponse(BaseModel):
     github_url: str | None = None
     pull_request_url: str | None = None
     pull_request_number: int | None = None
+    artifact_path: str | None = None
     priority: int
 
 
@@ -313,6 +320,23 @@ def edit_workspace_file(req: WorkspaceEditRequest, auth=Depends(require_api_key)
     except WorkspaceEditError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return WorkspaceEditResponse.model_validate(result)
+
+
+@app.get("/v1/agent/sessions")
+def get_agent_sessions(
+    limit: int = Query(default=20, ge=1, le=100),
+    auth=Depends(require_api_key),
+):
+    return {"sessions": list_agent_sessions(settings, limit=limit)}
+
+
+@app.get("/v1/agent/sessions/{session_id}", response_model=AgentSessionResponse)
+def get_agent_session(session_id: str, auth=Depends(require_api_key)):
+    try:
+        payload = load_agent_session(session_id, settings)
+    except AgentSessionStoreError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return AgentSessionResponse.model_validate(payload)
 
 
 @app.post("/v1/agent/sessions", response_model=AgentSessionResponse)
@@ -451,7 +475,7 @@ async def run_agent_session(
             )
         )
 
-    return AgentSessionResponse(
+    response = AgentSessionResponse(
         id=str(uuid4()),
         created_at=created_at,
         model=model_id,
@@ -464,6 +488,12 @@ async def run_agent_session(
         pull_request_number=pull_request_number,
         priority=priority,
     )
+    try:
+        artifact = persist_agent_session(response, settings)
+    except AgentSessionStoreError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    response.artifact_path = str(artifact["artifact_path"])
+    return response
 
 
 @app.post("/v1/chat")

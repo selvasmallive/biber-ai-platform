@@ -30,6 +30,15 @@ def _priority_passcodes(value: str | None) -> dict[str, int]:
     return passcodes
 
 
+def _default_agent_session_dir(repo_context_root: str) -> str:
+    configured = os.getenv("BIBER_AGENT_SESSION_DIR")
+    if configured:
+        return configured
+    if os.path.isdir("/workspace") and os.access("/workspace", os.W_OK):
+        return "/workspace/outputs/agent-sessions"
+    return os.path.join(repo_context_root, ".biber-runtime", "agent-sessions")
+
+
 @dataclass(frozen=True)
 class BiberSettings:
     env: str
@@ -49,6 +58,7 @@ class BiberSettings:
     azure_blob_container: str
     default_model: str = "biber-dev-core-v1"
     repo_context_root: str = "."
+    agent_session_dir: str = ""
     repo_context_max_files: int = 12
     repo_context_max_bytes_per_file: int = 12000
     repo_context_max_total_bytes: int = 40000
@@ -88,6 +98,7 @@ def get_settings() -> BiberSettings:
         azure_blob_container=os.getenv("AZURE_BLOB_CONTAINER", "biber-backups"),
         default_model=os.getenv("BIBER_DEFAULT_MODEL", "biber-dev-core-v1"),
         repo_context_root=repo_context_root,
+        agent_session_dir=_default_agent_session_dir(repo_context_root),
         repo_context_max_files=int(os.getenv("BIBER_REPO_CONTEXT_MAX_FILES", "12")),
         repo_context_max_bytes_per_file=int(
             os.getenv("BIBER_REPO_CONTEXT_MAX_BYTES_PER_FILE", "12000")
