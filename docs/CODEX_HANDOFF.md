@@ -85,14 +85,14 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Last XRIQ implementation commit pushed and Vast-verified:
   `7c4030d Add XRIQ preflight transfer flow`.
 - Latest XRIQ checked-fixture-only commit pushed and Vast-verified:
-  `2a2b9d8 Add XRIQ preflight JSON fixture`.
+  `66098c1 Add XRIQ block detail JSON fixture`.
 - Latest XRIQ smoke-harness commit pushed and Vast-verified:
   `2bd99cc Ensure XRIQ smoke server cleanup`.
-- Vast checkout was fast-forwarded to `6205b66`. Full Rust/script/API wrapper
+- Vast checkout was fast-forwarded to `66098c1`. Full Rust/script/API wrapper
   verification is current through `6205b66`; focused BIBER API wrapper
   verification is current through `32909e8`; consolidated BIBER XRIQ API smoke
   verification is current through `6205b66`; focused fixture verification is
-  current through `2a2b9d8`.
+  current through `66098c1`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -1110,6 +1110,31 @@ serving the last broad-safe Rust/XRIQ adapter.
     preflight implementation itself remains smoke-verified through `7c4030d`
     with artifacts at
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T215459Z-35326`.
+- XRIQ checked block-detail transaction fixture checkpoint:
+  - Added checked fixture:
+    `xriq/fixtures/private-devnet/node-block-detail-transfer.json`.
+  - Added Rust coverage so `xriq-node block-detail --format json` must continue
+    matching the fixture exactly after a deterministic produced transfer block,
+    including the block transaction hash used by the BIBER API smoke to follow
+    latest-block transactions into transaction detail.
+  - Updated `xriq/README.md`, `docs/XRIQ_NODE_JSON_SCHEMA.md`, and
+    `docs/XRIQ_TECHNICAL_SPEC.md` so the checked fixture set includes block
+    detail transaction hashes.
+  - Local Windows verification passed from `xriq/` with
+    `CARGO_TARGET_DIR=target-codex-block-detail-fixture`: `cargo fmt`, Python
+    `compileall scripts`, focused
+    `cargo test -p xriq-node block_detail_json_matches_checked_fixture -j 1`,
+    `cargo fmt --check`, `git diff --check`, full `cargo test -j 1` with `135`
+    passing Rust workspace tests, and `cargo clippy -- -D warnings`. Generated
+    local target files were removed afterward.
+  - Pushed fixture/docs commit:
+    `66098c1 Add XRIQ block detail JSON fixture`.
+  - Vast checkout was fast-forwarded to `66098c1`; focused verification passed
+    with `cargo fmt --check` and
+    `cargo test -p xriq-node block_detail_json_matches_checked_fixture -j 1`.
+  - Full Vast runtime smoke was not rerun for this fixture-only checkpoint; the
+    live BIBER API/vLLM services were not restarted and remain on the existing
+    healthy direct deployment.
 - BIBER API XRIQ preflight wrapper checkpoint:
   - Added a thin private-devnet BIBER wrapper around the existing Rust
     `xriq-node preflight-transfer --format json` flow.
@@ -2494,10 +2519,10 @@ bash scripts/xriq_private_devnet_smoke.sh
    for status/explorer/block/account/transaction/mempool are now done, and
    `scripts/vast_xriq_api_smoke.sh` provides a consolidated read-only live API
    smoke that follows block transaction hashes into transaction detail. Good
-   next targets are snapshot/replay improvements, a small checked fixture for
-   block-detail transaction hashes, or another small fixture only when it
-   directly helps the private-devnet MVP. Public XRIQ launch, exchange listing,
-   custody, liquidity, bridges, and market-facing work remain blocked.
+   next targets are snapshot/replay improvements, a chain-state consistency
+   guard around replay/startup, or another small fixture only when it directly
+   helps the private-devnet MVP. Public XRIQ launch, exchange listing, custody,
+   liquidity, bridges, and market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
