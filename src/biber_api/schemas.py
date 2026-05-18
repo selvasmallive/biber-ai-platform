@@ -18,6 +18,8 @@ class GitHubSaveTarget(BaseModel):
     owner: str | None = None
     repo: str | None = None
     branch: str = "main"
+    base_branch: str | None = None
+    create_branch_if_missing: bool = False
     commit_message: str = "Save BIBER generated code"
 
 
@@ -53,6 +55,21 @@ class SaveToGitHubRequest(BaseModel):
 
 class SaveToGitHubResponse(BaseModel):
     url: str
+
+
+class CreateGitHubPullRequestRequest(BaseModel):
+    owner: str | None = None
+    repo: str | None = None
+    head: str = Field(min_length=1)
+    base: str = "main"
+    title: str = Field(min_length=1)
+    body: str = ""
+    draft: bool = True
+
+
+class CreateGitHubPullRequestResponse(BaseModel):
+    url: str
+    number: int | None = None
 
 
 class AzureBackupRequest(BaseModel):

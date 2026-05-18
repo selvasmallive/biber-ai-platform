@@ -23,6 +23,8 @@ from app.github_client import (
     GitHubClient,
     GitHubConfigurationError,
     GitHubDisabled,
+    GitHubPullRequestError,
+    GitHubPullRequestTarget,
     GitHubSaveError,
     GitHubSaveTarget,
 )
@@ -75,6 +77,8 @@ class GitHubSaveTargetRequest(BaseModel):
     owner: str | None = None
     repo: str | None = None
     branch: str = "main"
+    base_branch: str | None = None
+    create_branch_if_missing: bool = False
     commit_message: str = "Save BIBER generated code"
 
 
@@ -140,6 +144,21 @@ class SaveToGitHubRequest(BaseModel):
 
 class SaveToGitHubResponse(BaseModel):
     url: str
+
+
+class CreateGitHubPullRequestRequest(BaseModel):
+    owner: str | None = None
+    repo: str | None = None
+    head: str = Field(min_length=1)
+    base: str = "main"
+    title: str = Field(min_length=1)
+    body: str = ""
+    draft: bool = True
+
+
+class CreateGitHubPullRequestResponse(BaseModel):
+    url: str
+    number: int | None = None
 
 
 class AzureBackupRequest(BaseModel):
@@ -399,6 +418,24 @@ async def save_to_github(req: SaveToGitHubRequest, auth=Depends(require_api_key)
     except GitHubSaveError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return SaveToGitHubResponse(url=url)
+
+
+@app.post("/v1/github/pull-request", response_model=CreateGitHubPullRequestResponse)
+async def create_github_pull_request(
+    req: CreateGitHubPullRequestRequest,
+    auth=Depends(require_api_key),
+):
+    try:
+        result = await GitHubClient().create_pull_request(
+            GitHubPullRequestTarget(**req.model_dump())
+        )
+    except GitHubDisabled as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except GitHubConfigurationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except GitHubPullRequestError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return CreateGitHubPullRequestResponse.model_validate(result)
 
 
 @app.post("/v1/xriq/private-devnet/preflight-transfer")

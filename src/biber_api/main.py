@@ -12,6 +12,7 @@ from .github import (
     GitHubClient,
     GitHubConfigurationError,
     GitHubDisabled,
+    GitHubPullRequestError,
     GitHubSaveError,
 )
 from .llm import BiberChatService, MENTOR_TRIGGER_PHRASE
@@ -22,6 +23,8 @@ from .schemas import (
     AzureBackupResponse,
     ChatRequest,
     ChatResponse,
+    CreateGitHubPullRequestRequest,
+    CreateGitHubPullRequestResponse,
     RuntimeStatus,
     SaveToGitHubRequest,
     SaveToGitHubResponse,
@@ -226,6 +229,23 @@ async def save_to_github(
     except GitHubSaveError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return SaveToGitHubResponse(url=url)
+
+
+@app.post("/v1/github/pull-request", response_model=CreateGitHubPullRequestResponse)
+async def create_github_pull_request(
+    request_body: CreateGitHubPullRequestRequest,
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> CreateGitHubPullRequestResponse:
+    try:
+        result = await GitHubClient(settings).create_pull_request(request_body)
+    except GitHubDisabled as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except GitHubConfigurationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except GitHubPullRequestError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return CreateGitHubPullRequestResponse.model_validate(result)
 
 
 @app.post("/v1/xriq/private-devnet/preflight-transfer")
