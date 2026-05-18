@@ -188,9 +188,10 @@ the server first, then run with `BIBER_AGENT_SMOKE_GITHUB=1`.
 
 This endpoint wraps the existing MVP primitives into one tracked workflow:
 repo-context chat, optional bounded workspace edit, optional allowlisted test,
-and optional GitHub save/PR only when explicitly supplied. Each completed
-session is persisted as a local JSON artifact under `BIBER_AGENT_SESSION_DIR`,
-or `/workspace/outputs/agent-sessions` on Vast.ai when the setting is omitted.
+optional XRIQ private-devnet context, and optional GitHub save/PR only when
+explicitly supplied. Each completed session is persisted as a local JSON
+artifact under `BIBER_AGENT_SESSION_DIR`, or `/workspace/outputs/agent-sessions`
+on Vast.ai when the setting is omitted.
 
 ```bash
 curl -X POST http://localhost:8000/v1/agent/sessions \
@@ -199,6 +200,9 @@ curl -X POST http://localhost:8000/v1/agent/sessions \
   -d '{
     "instruction": "Use README.md context and draft a concise implementation note.",
     "repo_context_paths": ["README.md"],
+    "include_xriq_context": true,
+    "xriq_explorer_limit": 3,
+    "xriq_snapshot_limit": 3,
     "workspace_edit": {
       "path": "generated/agent-session-note.txt",
       "new_text": "BIBER agent session note\n",
@@ -208,6 +212,10 @@ curl -X POST http://localhost:8000/v1/agent/sessions \
     "test_id": "python-compileall-api"
   }'
 ```
+
+When `include_xriq_context` is `true`, the session first reads the configured
+XRIQ private-devnet overview, adds a concise chain summary to the model context,
+and persists the raw overview under an `xriq_context` session step.
 
 List recent persisted sessions:
 

@@ -145,6 +145,9 @@ class AgentSessionRequest(BaseModel):
     max_tokens: int | None = Field(default=512, gt=0, le=32000)
     use_mentor: bool = False
     repo_context_paths: list[str] = Field(default_factory=list, max_length=12)
+    include_xriq_context: bool = False
+    xriq_explorer_limit: int = Field(default=5, ge=1, le=25)
+    xriq_snapshot_limit: int = Field(default=5, ge=1, le=25)
     workspace_edit: WorkspaceEditRequest | None = None
     test_id: str | None = "python-compileall-api"
     test_dry_run: bool = False

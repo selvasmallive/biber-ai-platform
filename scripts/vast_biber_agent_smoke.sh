@@ -161,6 +161,42 @@ _, test_run = request_json("POST", "/v1/tests/run", "test-run.json", test_payloa
 if test_run.get("executed") is not True or test_run.get("ok") is not True:
     fail(f"allowlisted test run failed: {test_run!r}")
 
+agent_session_payload = {
+    "instruction": (
+        "Use the included XRIQ private-devnet context and return one concise "
+        "sentence that begins with BIBER_XRIQ_AGENT_CONTEXT_OK."
+    ),
+    "language": "Rust",
+    "model": "biber-dev-core-v1",
+    "task_type": "xriq_agent_context_smoke",
+    "max_tokens": chat_max_tokens,
+    "use_mentor": False,
+    "include_xriq_context": True,
+    "xriq_explorer_limit": 3,
+    "xriq_snapshot_limit": 3,
+    "test_id": None,
+}
+_, agent_session = request_json(
+    "POST",
+    "/v1/agent/sessions",
+    "agent-session-xriq-context.json",
+    agent_session_payload,
+)
+steps = agent_session.get("steps")
+if not isinstance(steps, list):
+    fail(f"agent session steps were not a list: {agent_session!r}")
+step_names = [step.get("name") for step in steps if isinstance(step, dict)]
+if step_names[:2] != ["xriq_context", "chat"]:
+    fail(f"agent session did not include xriq_context before chat: {step_names!r}")
+xriq_step = steps[0] if isinstance(steps[0], dict) else {}
+xriq_output = xriq_step.get("output") if isinstance(xriq_step, dict) else {}
+overview = xriq_output.get("overview") if isinstance(xriq_output, dict) else {}
+summary = overview.get("summary") if isinstance(overview, dict) else {}
+if not isinstance(summary, dict) or summary.get("current_height") is None:
+    fail(f"agent session XRIQ context summary was incomplete: {summary!r}")
+if agent_session.get("mentor_used") is not False:
+    fail("agent session XRIQ context smoke unexpectedly used mentor")
+
 github_result: dict[str, Any] = {
     "mode": github_mode,
     "configured": bool(runtime.get("github_configured")),
@@ -213,6 +249,9 @@ summary = {
     "file_edit_dry_run": edit.get("dry_run"),
     "test_id": test_run.get("test_id"),
     "test_ok": test_run.get("ok"),
+    "agent_session_id": agent_session.get("id"),
+    "agent_session_steps": step_names,
+    "xriq_context_height": summary.get("current_height"),
     "github": github_result,
 }
 write_artifact("summary.json", summary)

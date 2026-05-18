@@ -174,6 +174,80 @@ def test_agent_session_can_skip_test_run(
     assert [step["name"] for step in response.json()["steps"]] == ["chat"]
 
 
+def test_agent_session_can_include_xriq_context(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    calls: dict[str, Any] = {}
+    settings = make_settings(tmp_path)
+    overview = {
+        "command": "biber-private-devnet-overview",
+        "summary": {
+            "current_height": 2,
+            "state_root": "abc123",
+            "pending_count": 0,
+            "snapshot_count": 3,
+            "latest_snapshot_name": "api-smoke",
+        },
+    }
+
+    class FakeChatService:
+        def __init__(self, injected_settings: BiberSettings) -> None:
+            calls["chat_settings"] = injected_settings
+
+        async def generate(
+            self,
+            request: ChatRequest,
+        ) -> tuple[str, str | None, dict[str, Any], str]:
+            calls["chat_request"] = request
+            return "XRIQ-aware plan", None, {}, "biber-dev-core-v1"
+
+    def fake_overview(
+        injected_settings: BiberSettings,
+        *,
+        explorer_limit: int = 5,
+        snapshot_limit: int = 5,
+    ) -> dict[str, Any]:
+        calls["xriq_overview"] = {
+            "settings": injected_settings,
+            "explorer_limit": explorer_limit,
+            "snapshot_limit": snapshot_limit,
+        }
+        return overview
+
+    monkeypatch.setattr(main_module, "BiberChatService", FakeChatService)
+    monkeypatch.setattr(main_module, "run_private_devnet_overview", fake_overview)
+    main_module.app.dependency_overrides[main_module.get_settings] = lambda: settings
+    try:
+        response = TestClient(main_module.app).post(
+            "/v1/agent/sessions",
+            json={
+                "instruction": "Plan next XRIQ wallet check.",
+                "include_xriq_context": True,
+                "xriq_explorer_limit": 3,
+                "xriq_snapshot_limit": 4,
+                "test_id": None,
+            },
+            headers={"x-api-key": "test-key"},
+        )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [step["name"] for step in body["steps"]] == ["xriq_context", "chat"]
+    assert body["steps"][0]["output"]["overview"]["summary"]["current_height"] == 2
+    assert calls["xriq_overview"]["settings"] is settings
+    assert calls["xriq_overview"]["explorer_limit"] == 3
+    assert calls["xriq_overview"]["snapshot_limit"] == 4
+    messages = calls["chat_request"].messages
+    assert messages[0].role == "system"
+    assert "XRIQ private-devnet context" in messages[0].content
+    assert "current_height: 2" in messages[0].content
+    assert messages[1].role == "user"
+    assert messages[1].content == "Plan next XRIQ wallet check."
+
+
 def test_agent_session_can_be_listed_and_loaded(
     tmp_path: Path,
     monkeypatch,

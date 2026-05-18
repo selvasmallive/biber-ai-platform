@@ -256,6 +256,9 @@ class AgentSessionRequest(BaseModel):
     max_tokens: int | None = Field(default=512, gt=0, le=32000)
     use_mentor: bool = False
     repo_context_paths: list[str] = Field(default_factory=list, max_length=12)
+    include_xriq_context: bool = False
+    xriq_explorer_limit: int = Field(default=5, ge=1, le=25)
+    xriq_snapshot_limit: int = Field(default=5, ge=1, le=25)
     workspace_edit: WorkspaceEditRequest | None = None
     test_id: str | None = "python-compileall-api"
     test_dry_run: bool = False
@@ -283,6 +286,20 @@ class AgentSessionResponse(BaseModel):
     pull_request_number: int | None = None
     artifact_path: str | None = None
     priority: int
+
+
+def _format_xriq_agent_context(overview: dict[str, object]) -> str:
+    summary_value = overview.get("summary")
+    summary = summary_value if isinstance(summary_value, dict) else {}
+    fields = [
+        "XRIQ private-devnet context for this BIBER agent session.",
+        f"current_height: {summary.get('current_height', 'unknown')}",
+        f"state_root: {summary.get('state_root', 'unknown')}",
+        f"pending_count: {summary.get('pending_count', 'unknown')}",
+        f"snapshot_count: {summary.get('snapshot_count', 'unknown')}",
+        f"latest_snapshot_name: {summary.get('latest_snapshot_name', 'none')}",
+    ]
+    return "\n".join(fields)
 
 
 @app.get("/health")
@@ -375,10 +392,39 @@ async def run_agent_session(
     priority = get_priority_from_passcode(x_biber_passcode)
     steps: list[AgentSessionStep] = []
     created_at = datetime.now(UTC).isoformat()
+    messages = [{"role": "user", "content": req.instruction}]
+
+    if req.include_xriq_context:
+        try:
+            xriq_overview = run_private_devnet_overview(
+                settings,
+                explorer_limit=req.xriq_explorer_limit,
+                snapshot_limit=req.xriq_snapshot_limit,
+            )
+        except XriqConfigurationError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except XriqCommandTimeout as exc:
+            raise HTTPException(status_code=504, detail=str(exc)) from exc
+        except XriqCommandError as exc:
+            detail: object = exc.payload or str(exc)
+            raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+        except XriqSnapshotStoreError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        messages.insert(
+            0,
+            {"role": "system", "content": _format_xriq_agent_context(xriq_overview)},
+        )
+        steps.append(
+            AgentSessionStep(
+                name="xriq_context",
+                status="ok",
+                output={"overview": xriq_overview},
+            )
+        )
 
     try:
         content, mentor_notes, raw, model_id = await BiberChatService().generate(
-            messages=[{"role": "user", "content": req.instruction}],
+            messages=messages,
             language=req.language,
             task_type=req.task_type,
             use_mentor=req.use_mentor,
