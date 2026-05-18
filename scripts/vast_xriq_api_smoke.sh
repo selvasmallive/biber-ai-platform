@@ -57,7 +57,7 @@ api_key = os.environ["API_KEY"]
 artifact_dir = Path(os.environ["ARTIFACT_DIR"])
 explorer_limit = int(os.environ["EXPLORER_LIMIT"])
 alice_address = os.environ["ALICE_ADDRESS"]
-tx_hash = os.environ["TX_HASH"].strip()
+requested_tx_hash = os.environ["TX_HASH"].strip()
 
 
 def fail(message: str) -> None:
@@ -140,10 +140,20 @@ expect(account, "address", alice_address, "account")
 mempool = request_json("/v1/xriq/private-devnet/mempool", "mempool.json")
 expect(mempool, "command", "mempool-detail", "mempool")
 
+tx_hash = requested_tx_hash
+transaction_source = "env" if tx_hash else "skipped"
+if not tx_hash and isinstance(block, dict):
+    transactions = block.get("transactions")
+    if isinstance(transactions, list) and transactions:
+        first_transaction = transactions[0]
+        if isinstance(first_transaction, dict) and isinstance(first_transaction.get("tx_hash"), str):
+            tx_hash = first_transaction["tx_hash"]
+            transaction_source = "latest-block"
+
 transaction_status = "skipped"
 if tx_hash:
     if not re.fullmatch(r"[0-9a-fA-F]{64}", tx_hash):
-        fail("BIBER_XRIQ_API_SMOKE_TX_HASH must be 64 hex characters when set")
+        fail("transaction hash must be 64 hex characters")
     transaction = request_json(
         f"/v1/xriq/private-devnet/transactions/{tx_hash}",
         "transaction.json",
@@ -159,6 +169,8 @@ summary = {
     "block_height": block_height,
     "account": account.get("address"),
     "mempool_pending": mempool.get("pending_count"),
+    "transaction_hash": tx_hash or None,
+    "transaction_source": transaction_source,
     "transaction_status": transaction_status,
 }
 write_artifact("summary.json", summary)

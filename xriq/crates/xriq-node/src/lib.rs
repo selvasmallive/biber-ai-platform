@@ -3373,6 +3373,12 @@ fn push_transaction_summary_json(
     writeln!(output, "{indent}  \"index\": {},", transaction.index).expect("write to String");
     writeln!(
         output,
+        "{indent}  \"tx_hash\": {},",
+        json_string(&hash_hex(transaction.tx_hash))
+    )
+    .expect("write to String");
+    writeln!(
+        output,
         "{indent}  \"from\": {},",
         json_string(transaction.from.as_str())
     )
@@ -5375,6 +5381,7 @@ mod tests {
         .to_string();
         assert!(block_json.contains("\"command\": \"block-detail\""));
         assert!(block_json.contains("\"transactions\": ["));
+        assert!(block_json.contains("\"tx_hash\":"));
         assert!(block_json.contains("\"from\": \"xriqdev1alice00000000000\""));
         assert!(block_json.contains("\"to\": \"xriqdev1bobbb00000000000\""));
         assert!(block_json.contains("\"amount_base_units\": \"25\""));

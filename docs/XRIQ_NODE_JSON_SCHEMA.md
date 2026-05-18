@@ -153,6 +153,7 @@ Shape:
   "transactions": [
     {
       "index": 0,
+      "tx_hash": "64-hex-character-transaction-hash",
       "from": "xriqdev1alice00000000000",
       "to": "xriqdev1bobbb00000000000",
       "amount_base_units": "25",

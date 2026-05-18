@@ -215,7 +215,8 @@ curl http://localhost:8000/v1/xriq/private-devnet/mempool \
 ```
 
 On the Vast direct deployment, the XRIQ API read wrappers can be checked
-together without mutating the chain:
+together without mutating the chain. The smoke follows a transaction hash from
+the latest block when block detail exposes one:
 
 ```bash
 bash scripts/vast_xriq_api_smoke.sh

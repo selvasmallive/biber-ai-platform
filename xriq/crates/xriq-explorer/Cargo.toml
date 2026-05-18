@@ -7,6 +7,7 @@ repository.workspace = true
 
 [dependencies]
 xriq-core = { path = "../xriq-core" }
+xriq-crypto = { path = "../xriq-crypto" }
 xriq-rpc = { path = "../xriq-rpc" }
 xriq-storage = { path = "../xriq-storage" }
 

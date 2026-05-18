@@ -7,6 +7,7 @@
 use std::fmt::Write as _;
 
 use xriq_core::{Address, Hash32, Transaction, XriqAmount};
+use xriq_crypto::transaction_hash;
 use xriq_rpc::{RpcError, RpcService};
 use xriq_storage::{ChainStore, StoredBlock};
 
@@ -40,6 +41,7 @@ pub struct ExplorerBlockDetail {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExplorerTransactionSummary {
     pub index: usize,
+    pub tx_hash: Hash32,
     pub from: Address,
     pub to: Address,
     pub amount: XriqAmount,
@@ -248,8 +250,9 @@ pub fn render_block_detail(block: &ExplorerBlockDetail) -> String {
     for tx in &block.transactions {
         writeln!(
             &mut output,
-            "- #{index} {from} -> {to} amount={amount} fee={fee} nonce={nonce}",
+            "- #{index} {tx_hash} {from} -> {to} amount={amount} fee={fee} nonce={nonce}",
             index = tx.index,
+            tx_hash = hash_hex(tx.tx_hash),
             from = tx.from,
             to = tx.to,
             amount = tx.amount,
@@ -325,6 +328,7 @@ fn block_detail(record: &StoredBlock) -> ExplorerBlockDetail {
 fn transaction_summary((index, tx): (usize, &Transaction)) -> ExplorerTransactionSummary {
     ExplorerTransactionSummary {
         index,
+        tx_hash: transaction_hash(tx),
         from: tx.from.clone(),
         to: tx.to.clone(),
         amount: tx.amount,
@@ -471,6 +475,10 @@ mod tests {
         assert_eq!(block.summary.block_hash, hash(1));
         assert_eq!(block.previous_block_hash, hash(0));
         assert_eq!(block.transactions.len(), 1);
+        assert_eq!(
+            block.transactions[0].tx_hash,
+            transaction_hash(&store.block_by_height(1).unwrap().block.transactions[0])
+        );
         assert_eq!(block.transactions[0].from, address("alice"));
         assert_eq!(block.transactions[0].to, address("bobbb"));
         assert_eq!(
@@ -539,8 +547,11 @@ mod tests {
         assert!(overview.contains("current height: 2"));
         assert!(overview.contains("pending transactions: 2"));
 
-        let block = render_block_detail(&explorer.block_by_height(1).unwrap());
+        let block_detail = explorer.block_by_height(1).unwrap();
+        let block_hash = hash_hex(block_detail.transactions[0].tx_hash);
+        let block = render_block_detail(&block_detail);
         assert!(block.contains("transactions: 1"));
+        assert!(block.contains(&block_hash));
         assert!(block.contains("amount=25"));
 
         let account = render_account_detail(&explorer.account(&address("alice")).unwrap());

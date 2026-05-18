@@ -729,7 +729,8 @@ As of 2026-05-17:
     chain file and renders chain height, latest block hash, stored block count,
     pending count, and recent block summaries without starting HTTP/RPC serving
   - local private-devnet block detail command that replays the persisted chain
-    file and renders one block by height, including transfer summaries
+    file and renders one block by height, including transaction hashes and
+    transfer summaries
   - local private-devnet account detail command that replays the persisted
     chain file and renders one account balance and nonce by address
   - local private-devnet mempool detail command that replays the persisted
@@ -809,7 +810,7 @@ As of 2026-05-17:
 - Implemented private-devnet explorer baseline:
   - read-only chain overview from local RPC snapshots
   - latest block listing from storage by descending height
-  - block detail and transfer summaries
+  - block detail with transaction hashes and transfer summaries
   - account balance and nonce lookup
   - pending mempool transaction detail and deterministic order
   - dependency-free text rendering for private-devnet inspection

@@ -110,6 +110,7 @@ name = "xriq-explorer"
 version = "0.1.0"
 dependencies = [
  "xriq-core",
+ "xriq-crypto",
  "xriq-ledger",
  "xriq-mempool",
  "xriq-rpc",
