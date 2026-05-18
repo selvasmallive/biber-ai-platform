@@ -83,15 +83,15 @@ serving the last broad-safe Rust/XRIQ adapter.
   Vast-verified:
   `6205b66 Expose XRIQ block transaction hashes`.
 - Last XRIQ implementation commit pushed and Vast-verified:
-  `7c4030d Add XRIQ preflight transfer flow`.
+  `66bf4bf Add XRIQ replay consistency guard`.
 - Latest XRIQ checked-fixture-only commit pushed and Vast-verified:
   `66098c1 Add XRIQ block detail JSON fixture`.
 - Latest XRIQ smoke-harness commit pushed and Vast-verified:
   `2bd99cc Ensure XRIQ smoke server cleanup`.
-- Vast checkout was fast-forwarded to `66098c1`. Full Rust/script/API wrapper
-  verification is current through `6205b66`; focused BIBER API wrapper
+- Vast checkout was fast-forwarded to `66bf4bf`. Full Rust/API wrapper
+  verification is current through `66bf4bf`; focused BIBER API wrapper
   verification is current through `32909e8`; consolidated BIBER XRIQ API smoke
-  verification is current through `6205b66`; focused fixture verification is
+  verification is current through `66bf4bf`; focused fixture verification is
   current through `66098c1`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
@@ -118,6 +118,8 @@ serving the last broad-safe Rust/XRIQ adapter.
     account detail, mempool pending count `0`, transaction hash
     `e1dadff3325ac720c71bfa8c900ed15e2637dbb041848f0fdfe35dbfbbb94e1d`
     sourced from the latest block, and transaction detail status `confirmed`.
+    Latest smoke artifact:
+    `/workspace/outputs/xriq-api-smoke-20260518T174425Z-41324`.
     The earlier read smoke confirmed `transaction_status=confirmed` and status
     `current_height=2` for the test chain used in that smoke.
   - Last full chat smoke remains `bash scripts/vast_test_direct.sh` with chat
@@ -1135,6 +1137,38 @@ serving the last broad-safe Rust/XRIQ adapter.
   - Full Vast runtime smoke was not rerun for this fixture-only checkpoint; the
     live BIBER API/vLLM services were not restarted and remain on the existing
     healthy direct deployment.
+- XRIQ replay/startup consistency guard checkpoint:
+  - Added a post-replay consistency guard inside
+    `XriqNode::from_genesis_replaying_store`.
+  - Replay still validates contiguous heights, canonical stored block hashes,
+    parent links, authorized producer, transaction roots, state roots, and
+    signatures while replaying each block. The new guard adds a final stored
+    block count and replayed tip check so a corrupted/local store cannot hide
+    extra records outside the replayed height range.
+  - Added regression coverage with
+    `replay_rejects_extra_stored_blocks_outside_replayed_height_range`, which
+    creates a valid height-1 block plus an extra genesis-height record and now
+    expects `UnexpectedStoredBlockCount`.
+  - Updated `xriq/README.md`, `docs/XRIQ_NODE_JSON_SCHEMA.md`, and
+    `docs/XRIQ_TECHNICAL_SPEC.md` for the tightened replay/startup contract and
+    current checked fixture set.
+  - Local Windows verification passed from `xriq/` with
+    `CARGO_TARGET_DIR=target-codex-replay-guard`: `cargo fmt`, focused replay
+    guard test, `cargo fmt --check`, `git diff --check`, full
+    `cargo test -j 1` with `136` passing Rust workspace tests, and
+    `cargo clippy -- -D warnings`. Generated local target files were removed
+    afterward.
+  - Pushed implementation/docs commit:
+    `66bf4bf Add XRIQ replay consistency guard`.
+  - Vast checkout was fast-forwarded to `66bf4bf`; verification passed with
+    `cargo fmt --check`, focused replay guard test,
+    `cargo clippy -p xriq-node -- -D warnings`, full `cargo test -j 1` with
+    `136` passing Rust workspace tests, and full
+    `cargo clippy -- -D warnings`.
+  - Live BIBER API smoke passed with
+    `bash scripts/vast_xriq_api_smoke.sh`; artifact:
+    `/workspace/outputs/xriq-api-smoke-20260518T174425Z-41324`.
+  - No vLLM/FastAPI restart, model training, or OpenAI mentor call was needed.
 - BIBER API XRIQ preflight wrapper checkpoint:
   - Added a thin private-devnet BIBER wrapper around the existing Rust
     `xriq-node preflight-transfer --format json` flow.
@@ -2519,9 +2553,9 @@ bash scripts/xriq_private_devnet_smoke.sh
    for status/explorer/block/account/transaction/mempool are now done, and
    `scripts/vast_xriq_api_smoke.sh` provides a consolidated read-only live API
    smoke that follows block transaction hashes into transaction detail. Good
-   next targets are snapshot/replay improvements, a chain-state consistency
-   guard around replay/startup, or another small fixture only when it directly
-   helps the private-devnet MVP. Public XRIQ launch, exchange listing, custody,
+   next targets are snapshot export/import planning, a deterministic
+   snapshot/replay smoke, or another small fixture only when it directly helps
+   the private-devnet MVP. Public XRIQ launch, exchange listing, custody,
    liquidity, bridges, and market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
