@@ -15,6 +15,9 @@ from biber_api.xriq_client import (
     XriqPreflightTransferRequest,
     XriqSnapshotExportRequest,
     XriqSnapshotImportRequest,
+    XriqSnapshotStoreError,
+    get_private_devnet_snapshot,
+    list_private_devnet_snapshots,
     run_private_devnet_account_detail,
     run_private_devnet_block_detail,
     run_private_devnet_explorer_overview,
@@ -66,6 +69,28 @@ def preflight_request() -> XriqPreflightTransferRequest:
             "timestamp_ms": 1000,
         }
     )
+
+
+def write_snapshot_fixture(workspace: Path, snapshot_name: str) -> dict[str, object]:
+    manifest = {
+        "snapshot_format_version": "xriq-private-devnet-snapshot-v1",
+        "chain_id": "xriq-devnet",
+        "current_height": 2,
+        "latest_block_hash": "a" * 64,
+        "state_root": "b" * 64,
+        "pending_transactions": 0,
+        "stored_blocks": 2,
+        "warning": "private-devnet-only-no-public-token",
+    }
+    snapshot_dir = workspace / "target" / "snapshots" / snapshot_name
+    snapshot_dir.mkdir(parents=True)
+    (snapshot_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (snapshot_dir / "chain.bin").write_bytes(b"xriq-chain")
+    (snapshot_dir / "pending.tsv").write_text("", encoding="utf-8")
+    return manifest
 
 
 def test_preflight_client_invokes_xriq_node_runner(tmp_path: Path) -> None:
@@ -483,6 +508,39 @@ def test_snapshot_import_client_can_target_configured_devnet_file(tmp_path: Path
     ]
 
 
+def test_snapshot_list_reads_manifests_from_configured_root(tmp_path: Path) -> None:
+    manifest = write_snapshot_fixture(tmp_path, "smoke")
+
+    payload = list_private_devnet_snapshots(make_settings(tmp_path), limit=10)
+
+    assert payload["snapshot_root"] == "target/snapshots"
+    assert payload["count"] == 1
+    assert payload["total_available"] == 1
+    snapshot = payload["snapshots"][0]
+    assert snapshot["snapshot_name"] == "smoke"
+    assert snapshot["current_height"] == manifest["current_height"]
+    assert snapshot["state_root"] == manifest["state_root"]
+    assert snapshot["status"] == "ok"
+
+
+def test_snapshot_detail_reads_manifest_and_file_presence(tmp_path: Path) -> None:
+    manifest = write_snapshot_fixture(tmp_path, "smoke")
+
+    payload = get_private_devnet_snapshot("smoke", make_settings(tmp_path))
+
+    assert payload["snapshot_name"] == "smoke"
+    assert payload["manifest"] == manifest
+    assert payload["files"] == {"manifest": True, "chain": True, "pending": True}
+
+
+def test_snapshot_detail_returns_not_found_for_missing_snapshot(tmp_path: Path) -> None:
+    with pytest.raises(XriqSnapshotStoreError) as exc_info:
+        get_private_devnet_snapshot("missing", make_settings(tmp_path))
+
+    assert exc_info.value.status_code == 404
+    assert "missing" in str(exc_info.value)
+
+
 def test_preflight_endpoint_returns_runner_payload(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_preflight(
         request: XriqPreflightTransferRequest,
@@ -627,3 +685,52 @@ def test_snapshot_endpoints_return_runner_payload(monkeypatch: pytest.MonkeyPatc
     assert export_response.json() == {"command": "snapshot-export", "snapshot_name": "smoke"}
     assert import_response.status_code == 200
     assert import_response.json() == {"command": "snapshot-import", "snapshot_name": "smoke"}
+
+
+def test_snapshot_read_endpoints_return_store_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_list_snapshots(
+        settings: BiberSettings,
+        *,
+        limit: int = 20,
+    ) -> dict[str, object]:
+        assert limit == 5
+        return {
+            "snapshot_root": "target/snapshots",
+            "count": 1,
+            "total_available": 1,
+            "snapshots": [{"snapshot_name": "smoke"}],
+        }
+
+    def fake_get_snapshot(
+        snapshot_name: str,
+        settings: BiberSettings,
+    ) -> dict[str, object]:
+        assert snapshot_name == "smoke"
+        return {"snapshot_name": "smoke", "status": "ok"}
+
+    monkeypatch.setattr(
+        main_module,
+        "list_private_devnet_snapshots",
+        fake_list_snapshots,
+    )
+    monkeypatch.setattr(
+        main_module,
+        "get_private_devnet_snapshot",
+        fake_get_snapshot,
+    )
+
+    client = TestClient(main_module.app)
+    headers = {"x-api-key": "test-key"}
+    list_response = client.get(
+        "/v1/xriq/private-devnet/snapshots?limit=5",
+        headers=headers,
+    )
+    detail_response = client.get(
+        "/v1/xriq/private-devnet/snapshots/smoke",
+        headers=headers,
+    )
+
+    assert list_response.status_code == 200
+    assert list_response.json()["snapshots"] == [{"snapshot_name": "smoke"}]
+    assert detail_response.status_code == 200
+    assert detail_response.json() == {"snapshot_name": "smoke", "status": "ok"}

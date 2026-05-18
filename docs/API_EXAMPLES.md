@@ -304,6 +304,16 @@ Use `"target": "configured"` only for an intentional restore onto a clean or
 operator-prepared private-devnet file path. The Rust command refuses to
 overwrite existing target files.
 
+List snapshots and inspect one snapshot manifest:
+
+```bash
+curl 'http://localhost:8000/v1/xriq/private-devnet/snapshots?limit=10' \
+  -H "Authorization: Bearer dev-api-key-change-me"
+
+curl http://localhost:8000/v1/xriq/private-devnet/snapshots/manual-smoke \
+  -H "Authorization: Bearer dev-api-key-change-me"
+```
+
 ## Submit Proctoring Analysis
 
 ```bash

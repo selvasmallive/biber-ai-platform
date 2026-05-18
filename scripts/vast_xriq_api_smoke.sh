@@ -182,6 +182,26 @@ for key in ("current_height", "state_root"):
     if exported is not None and imported is not None and exported != imported:
         fail(f"snapshot import expected {key}={exported!r}, got {imported!r}")
 
+snapshot_list_path = "/v1/xriq/private-devnet/snapshots?" + urllib.parse.urlencode(
+    {"limit": 10}
+)
+snapshot_list = request_json(snapshot_list_path, "snapshots.json")
+snapshots = snapshot_list.get("snapshots")
+if not isinstance(snapshots, list):
+    fail("snapshot list returned non-list snapshots")
+if not any(
+    isinstance(snapshot, dict) and snapshot.get("snapshot_name") == snapshot_name
+    for snapshot in snapshots
+):
+    fail(f"snapshot list did not include {snapshot_name}")
+
+snapshot_detail = request_json(
+    f"/v1/xriq/private-devnet/snapshots/{urllib.parse.quote(snapshot_name, safe='')}",
+    "snapshot-detail.json",
+)
+expect(snapshot_detail, "snapshot_name", snapshot_name, "snapshot detail")
+expect(snapshot_detail, "status", "ok", "snapshot detail")
+
 tx_hash = requested_tx_hash
 transaction_source = "env" if tx_hash else "skipped"
 if not tx_hash and isinstance(block, dict):
@@ -213,6 +233,7 @@ summary = {
     "mempool_pending": mempool.get("pending_count"),
     "snapshot_name": snapshot_name,
     "snapshot_height": snapshot_export.get("current_height"),
+    "snapshot_list_count": snapshot_list.get("count"),
     "transaction_hash": tx_hash or None,
     "transaction_source": transaction_source,
     "transaction_status": transaction_status,

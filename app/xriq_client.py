@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import subprocess
 from datetime import UTC, datetime
@@ -15,6 +16,10 @@ from app.config import Settings
 
 
 SNAPSHOT_NAME_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}$"
+SNAPSHOT_NAME_RE = re.compile(SNAPSHOT_NAME_PATTERN)
+SNAPSHOT_MANIFEST_FILE = "manifest.json"
+SNAPSHOT_CHAIN_FILE = "chain.bin"
+SNAPSHOT_PENDING_FILE = "pending.tsv"
 
 
 class XriqPreflightTransferRequest(BaseModel):
@@ -62,6 +67,12 @@ class XriqCommandError(RuntimeError):
         super().__init__(message)
         self.status_code = status_code
         self.payload = payload
+
+
+class XriqSnapshotStoreError(RuntimeError):
+    def __init__(self, message: str, *, status_code: int = 400) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
@@ -208,6 +219,50 @@ def run_private_devnet_snapshot_import(
     return payload
 
 
+def list_private_devnet_snapshots(
+    settings: Settings,
+    *,
+    limit: int = 20,
+) -> dict[str, Any]:
+    root = _snapshot_root_path(settings)
+    if not root.exists():
+        return {
+            "snapshot_root": settings.xriq_snapshot_root_dir,
+            "count": 0,
+            "total_available": 0,
+            "snapshots": [],
+        }
+    if not root.is_dir():
+        raise XriqSnapshotStoreError(
+            f"XRIQ snapshot root is not a directory: {root}",
+            status_code=503,
+        )
+
+    snapshots = [
+        _snapshot_summary(child)
+        for child in root.iterdir()
+        if child.is_dir() and SNAPSHOT_NAME_RE.fullmatch(child.name)
+    ]
+    snapshots.sort(key=lambda item: str(item.get("modified_at") or ""), reverse=True)
+    return {
+        "snapshot_root": settings.xriq_snapshot_root_dir,
+        "count": len(snapshots[:limit]),
+        "total_available": len(snapshots),
+        "snapshots": snapshots[:limit],
+    }
+
+
+def get_private_devnet_snapshot(
+    snapshot_name: str,
+    settings: Settings,
+) -> dict[str, Any]:
+    if not SNAPSHOT_NAME_RE.fullmatch(snapshot_name):
+        raise XriqSnapshotStoreError("Invalid XRIQ snapshot name.", status_code=422)
+    snapshot_dir = _snapshot_root_path(settings) / snapshot_name
+    manifest = _read_snapshot_manifest(snapshot_dir, missing_status_code=404)
+    return _snapshot_payload(snapshot_name, snapshot_dir, manifest)
+
+
 def _run_xriq_node_json(
     command: list[str],
     settings: Settings,
@@ -260,6 +315,104 @@ def _run_xriq_node_json(
             status_code=502,
         )
     return payload
+
+
+def _snapshot_root_path(settings: Settings) -> Path:
+    workspace = Path(settings.xriq_workspace_dir)
+    if not workspace.exists() or not workspace.is_dir():
+        raise XriqConfigurationError(f"XRIQ workspace does not exist: {workspace}")
+    root = Path(settings.xriq_snapshot_root_dir)
+    return root if root.is_absolute() else workspace / root
+
+
+def _snapshot_summary(snapshot_dir: Path) -> dict[str, Any]:
+    try:
+        manifest = _read_snapshot_manifest(snapshot_dir, missing_status_code=0)
+    except XriqSnapshotStoreError as exc:
+        return {
+            "snapshot_name": snapshot_dir.name,
+            "snapshot_dir": str(snapshot_dir),
+            "status": "unreadable",
+            "error": str(exc),
+        }
+    return _snapshot_payload(snapshot_dir.name, snapshot_dir, manifest, summary=True)
+
+
+def _read_snapshot_manifest(
+    snapshot_dir: Path,
+    *,
+    missing_status_code: int,
+) -> dict[str, Any]:
+    manifest_path = snapshot_dir / SNAPSHOT_MANIFEST_FILE
+    if not manifest_path.exists():
+        if missing_status_code == 0:
+            raise XriqSnapshotStoreError("snapshot manifest is missing")
+        raise XriqSnapshotStoreError(
+            f"XRIQ snapshot not found: {snapshot_dir.name}",
+            status_code=missing_status_code,
+        )
+    try:
+        parsed = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise XriqSnapshotStoreError(
+            f"XRIQ snapshot manifest is invalid JSON: {manifest_path}",
+            status_code=502,
+        ) from exc
+    except OSError as exc:
+        raise XriqSnapshotStoreError(
+            f"XRIQ snapshot manifest could not be read: {manifest_path}",
+            status_code=503,
+        ) from exc
+    if not isinstance(parsed, dict):
+        raise XriqSnapshotStoreError(
+            f"XRIQ snapshot manifest is not an object: {manifest_path}",
+            status_code=502,
+        )
+    return parsed
+
+
+def _snapshot_payload(
+    snapshot_name: str,
+    snapshot_dir: Path,
+    manifest: dict[str, Any],
+    *,
+    summary: bool = False,
+) -> dict[str, Any]:
+    manifest_path = snapshot_dir / SNAPSHOT_MANIFEST_FILE
+    payload: dict[str, Any] = {
+        "snapshot_name": snapshot_name,
+        "snapshot_dir": str(snapshot_dir),
+        "manifest_path": str(manifest_path),
+        "modified_at": _path_modified_at(manifest_path),
+        "status": "ok",
+    }
+    for key in (
+        "snapshot_format_version",
+        "chain_id",
+        "current_height",
+        "latest_block_hash",
+        "state_root",
+        "pending_transactions",
+        "stored_blocks",
+        "warning",
+    ):
+        if key in manifest:
+            payload[key] = manifest[key]
+    if not summary:
+        payload["manifest"] = manifest
+        payload["files"] = {
+            "manifest": manifest_path.exists(),
+            "chain": (snapshot_dir / SNAPSHOT_CHAIN_FILE).exists(),
+            "pending": (snapshot_dir / SNAPSHOT_PENDING_FILE).exists(),
+        }
+    return payload
+
+
+def _path_modified_at(path: Path) -> str | None:
+    try:
+        return datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat()
+    except OSError:
+        return None
 
 
 def _preflight_command(

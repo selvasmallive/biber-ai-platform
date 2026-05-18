@@ -50,12 +50,16 @@ from app.workspace_edit import (
     apply_workspace_edit,
 )
 from app.xriq_client import (
+    SNAPSHOT_NAME_PATTERN,
     XriqCommandError,
     XriqCommandTimeout,
     XriqConfigurationError,
     XriqPreflightTransferRequest,
     XriqSnapshotExportRequest,
     XriqSnapshotImportRequest,
+    XriqSnapshotStoreError,
+    get_private_devnet_snapshot,
+    list_private_devnet_snapshots,
     run_private_devnet_account_detail,
     run_private_devnet_block_detail,
     run_private_devnet_explorer_overview,
@@ -790,6 +794,32 @@ def xriq_private_devnet_snapshot_import(
     except XriqCommandError as exc:
         detail: object = exc.payload or str(exc)
         raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+
+
+@app.get("/v1/xriq/private-devnet/snapshots")
+def xriq_private_devnet_snapshots(
+    limit: int = Query(default=20, ge=1, le=100),
+    auth=Depends(require_api_key),
+):
+    try:
+        return list_private_devnet_snapshots(settings, limit=limit)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqSnapshotStoreError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+
+@app.get("/v1/xriq/private-devnet/snapshots/{snapshot_name}")
+def xriq_private_devnet_snapshot_detail(
+    snapshot_name: str = ApiPath(pattern=SNAPSHOT_NAME_PATTERN),
+    auth=Depends(require_api_key),
+):
+    try:
+        return get_private_devnet_snapshot(snapshot_name, settings)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqSnapshotStoreError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
 
 @app.post("/v1/backup/azure", response_model=AzureBackupResponse)
