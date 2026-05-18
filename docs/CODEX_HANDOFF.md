@@ -95,14 +95,17 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP GitHub branch/PR workflow commits pushed and Vast-verified:
   `552220b Add BIBER GitHub PR workflow support` and
   `179f58b Clarify GitHub workflow test label`.
-- Vast code verification is current through `179f58b`. Full Rust/API wrapper
+- Latest BIBER MVP end-to-end agent-smoke script commit pushed and
+  Vast-verified:
+  `28ebe62 Add BIBER agent smoke script`.
+- Vast code verification is current through `28ebe62`. Full Rust/API wrapper
   verification is current through `919b348`; focused BIBER API wrapper
   verification is current through `32909e8`; consolidated BIBER XRIQ API smoke
   verification is current through `919b348`; focused fixture verification is
   current through `919b348`; BIBER test-runner API verification is current
   through `d4df8c0`; BIBER workspace-edit API verification is current through
   `992890b`; BIBER GitHub branch/PR workflow verification is current through
-  `179f58b`.
+  `179f58b`; BIBER agent-smoke verification is current through `28ebe62`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -122,6 +125,11 @@ serving the last broad-safe Rust/XRIQ adapter.
     `POST /v1/github/pull-request` returned the expected `503` with
     `GitHub saving is not configured` because live GitHub credentials are still
     intentionally not configured on Vast.
+  - Latest BIBER end-to-end agent smoke:
+    `bash scripts/vast_biber_agent_smoke.sh` passed with repo-context chat,
+    workspace-edit dry-run, `python-compileall-api`, and GitHub skipped because
+    it is not configured. Artifact:
+    `/workspace/outputs/biber-agent-smoke-20260518T195259Z-44005`.
   - Latest endpoint smoke:
     `POST /v1/xriq/private-devnet/preflight-transfer`,
     `GET /v1/xriq/private-devnet/status`,
@@ -1467,6 +1475,34 @@ serving the last broad-safe Rust/XRIQ adapter.
   - Pushed commits:
     `552220b Add BIBER GitHub PR workflow support` and
     `179f58b Clarify GitHub workflow test label`.
+- BIBER MVP end-to-end agent-smoke checkpoint:
+  - Added `scripts/vast_biber_agent_smoke.sh`.
+  - The script validates the live BIBER agent workflow with:
+    repo-context `/v1/chat`, bounded `/v1/files/edit` dry-run, allowlisted
+    `/v1/tests/run` with `python-compileall-api`, and optional GitHub
+    save/draft-PR creation only when `BIBER_AGENT_SMOKE_GITHUB=1` is explicitly
+    set.
+  - Default GitHub behavior is `skip`, so the smoke does not create branches,
+    commits, or pull requests unless deliberately enabled.
+  - Artifacts are written outside the repo under
+    `/workspace/outputs/biber-agent-smoke-*`.
+  - Updated `docs/API_EXAMPLES.md` with the smoke command.
+  - Local workstation verification passed with bundled Python
+    `compileall app src tests` and `git diff --cached --check`. Local
+    `bash -n` remains unavailable because WSL has no installed distro.
+  - Vast checkout was fast-forwarded to `28ebe62`; Vast verification passed
+    with `bash -n scripts/vast_biber_agent_smoke.sh`,
+    `/workspace/biber-venv/bin/python -m compileall app src tests`, and the
+    live smoke script.
+  - Latest live smoke summary: chat returned `model=biber-dev-core-v1`,
+    mentor was not used, file edit was dry-run only, `python-compileall-api`
+    returned `ok=true`, and GitHub was skipped because it is not configured.
+  - Latest smoke artifact:
+    `/workspace/outputs/biber-agent-smoke-20260518T195259Z-44005`.
+  - No FastAPI/vLLM restart, model training, credential change, or OpenAI
+    mentor call was needed.
+  - Pushed commit:
+    `28ebe62 Add BIBER agent smoke script`.
 
 ## Repo State
 
@@ -1529,6 +1565,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   - `992890b Add bounded BIBER workspace edit API`
   - `552220b Add BIBER GitHub PR workflow support`
   - `179f58b Clarify GitHub workflow test label`
+  - `28ebe62 Add BIBER agent smoke script`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -2701,11 +2738,12 @@ bash scripts/xriq_private_devnet_smoke.sh
    smoke that follows block transaction hashes into transaction detail. The
    status state-root marker, deterministic replay smoke, the first allowlisted
    BIBER test-execution API slice, and bounded workspace-edit API slice are now
-   done. The branch-aware GitHub save plus draft-PR path is now implemented
-   and Vast-verified. Good next targets are either a short snapshot
-   export/import design note or a small BIBER MVP end-to-end agent smoke that
-   chains repo context, bounded file edit, allowlisted tests, and optional
-   GitHub save/PR when credentials are configured. Public XRIQ launch,
+   done. The branch-aware GitHub save plus draft-PR path and a small BIBER MVP
+   end-to-end agent smoke are now implemented and Vast-verified. Good next
+   targets are either a short XRIQ snapshot export/import design note or a
+   small BIBER agent-session API design/implementation step that wraps the
+   already-built repo context, bounded file edit, test run, and optional
+   GitHub save/PR primitives into one tracked workflow. Public XRIQ launch,
    exchange listing, custody, liquidity, bridges, and market-facing work remain
    blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
