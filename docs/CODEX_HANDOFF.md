@@ -69,11 +69,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Last XRIQ implementation commit pushed and Vast-verified:
   `7c4030d Add XRIQ preflight transfer flow`.
 - Latest XRIQ checked-fixture-only commit pushed and Vast-verified:
-  `77cf376 Add XRIQ pending block JSON fixture`.
+  `2a2b9d8 Add XRIQ preflight JSON fixture`.
 - Latest XRIQ smoke-harness commit pushed and Vast-verified:
   `2bd99cc Ensure XRIQ smoke server cleanup`.
-- Vast checkout was fast-forwarded and Rust/script/HTTP-smoke verified through
-  `7c4030d`.
+- Vast checkout was fast-forwarded to `2a2b9d8`. Full Rust/script/HTTP-smoke
+  verification is current through `7c4030d`; focused fixture verification is
+  current through `2a2b9d8`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
@@ -1044,6 +1045,31 @@ serving the last broad-safe Rust/XRIQ adapter.
     `pgrep -af xriq-node` showed only the invoking shell command, not a live
     XRIQ smoke server process.
   - Latest expanded smoke artifacts on Vast:
+    `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T215459Z-35326`.
+- XRIQ checked preflight-transfer fixture checkpoint:
+  - Added checked fixture:
+    `xriq/fixtures/private-devnet/node-preflight-transfer.json`.
+  - Added Rust coverage so `xriq-node preflight-transfer --format json` must
+    continue matching that fixture exactly after the deterministic file-backed
+    preflight flow submits, produces, confirms, and compacts pending state.
+  - Updated `xriq/README.md`, `docs/XRIQ_NODE_JSON_SCHEMA.md`, and
+    `docs/XRIQ_TECHNICAL_SPEC.md` so the checked fixture set includes
+    preflight transfer.
+  - Local Windows verification passed from `xriq/` with
+    `CARGO_TARGET_DIR=target-codex-preflight-fixture`: `cargo fmt --check`,
+    focused `cargo test -p xriq-node checked_fixture -j 1` with `6` passing
+    fixture tests, `cargo test -j 1` with `132` passing workspace tests, and
+    `cargo clippy -- -D warnings`. Generated local target files were removed
+    afterward.
+  - Pushed fixture/docs commit:
+    `2a2b9d8 Add XRIQ preflight JSON fixture`.
+  - Vast checkout was fast-forwarded to `2a2b9d8`; focused verification passed
+    with `cargo fmt --check`,
+    `cargo test -p xriq-node checked_fixture -j 1` with `6` passing fixture
+    tests, and `cargo clippy -p xriq-node -- -D warnings`.
+  - Full Vast runtime smoke was not rerun for this fixture-only checkpoint; the
+    preflight implementation itself remains smoke-verified through `7c4030d`
+    with artifacts at
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T215459Z-35326`.
 
 ## Repo State
@@ -2257,11 +2283,11 @@ bash scripts/xriq_private_devnet_smoke.sh
    `xriq-node serve-readonly`, `xriq-node serve-private`, and
    durable pending HTTP state, pending-block production, and
    `xriq-node preflight-transfer`, is to keep the local file-backed workflow
-   small and deterministic. Good next targets are a small checked fixture for
-   the preflight-transfer JSON shape, a thin BIBER/client wrapper around the
-   file-backed preflight flow, or snapshot/replay improvements only when they
-   directly help the private-devnet MVP. Public XRIQ launch, exchange listing,
-   custody, liquidity, bridges, and market-facing work remain blocked.
+   small and deterministic. Good next targets are a thin BIBER/client wrapper
+   around the file-backed preflight flow, snapshot/replay improvements, or
+   another small checked fixture only when it directly helps the private-devnet
+   MVP. Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
+   market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
