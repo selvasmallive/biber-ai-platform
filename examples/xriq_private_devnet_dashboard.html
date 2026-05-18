@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XRIQ Private Devnet</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7f6;
+      --panel: #ffffff;
+      --panel-soft: #eef5f1;
+      --border: #cbd8d0;
+      --text: #14201a;
+      --muted: #5d6d64;
+      --accent: #087f5b;
+      --accent-strong: #056248;
+      --warn: #a15c10;
+      --danger: #a33434;
+      --shadow: 0 10px 24px rgba(31, 51, 41, 0.08);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      letter-spacing: 0;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .topbar {
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+    }
+
+    .topbar-inner {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 18px 0;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: center;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.2;
+      font-weight: 750;
+    }
+
+    .status-pill {
+      min-width: 116px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 12px;
+      color: var(--muted);
+      background: var(--panel-soft);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .status-pill.ok {
+      border-color: rgba(8, 127, 91, 0.32);
+      color: var(--accent-strong);
+      background: #e4f6ee;
+    }
+
+    .status-pill.error {
+      border-color: rgba(163, 52, 52, 0.3);
+      color: var(--danger);
+      background: #fff0ee;
+    }
+
+    main {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 18px 0 34px;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1.4fr) minmax(180px, 1fr) auto;
+      gap: 10px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+
+    .field {
+      display: grid;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    input {
+      width: 100%;
+      min-width: 0;
+      height: 38px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: var(--text);
+      background: var(--panel);
+    }
+
+    input:focus {
+      outline: 2px solid rgba(8, 127, 91, 0.22);
+      border-color: var(--accent);
+    }
+
+    .refresh {
+      height: 38px;
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      padding: 0 16px;
+      color: #ffffff;
+      background: var(--accent);
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .refresh:hover,
+    .refresh:focus {
+      background: var(--accent-strong);
+    }
+
+    .refresh:disabled {
+      cursor: progress;
+      opacity: 0.72;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .metric {
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .metric-value {
+      margin-top: 8px;
+      font-size: clamp(20px, 4vw, 30px);
+      line-height: 1.05;
+      font-weight: 760;
+      overflow-wrap: anywhere;
+    }
+
+    .metric-value.hash {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.8fr);
+      gap: 14px;
+    }
+
+    .panel {
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-soft);
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.2;
+    }
+
+    .timestamp {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 11px 14px;
+      border-bottom: 1px solid #e3ebe6;
+      text-align: left;
+      vertical-align: top;
+      font-size: 13px;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    td.hash,
+    .snapshot-root {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      overflow-wrap: anywhere;
+    }
+
+    .snapshots {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .snapshot {
+      border: 1px solid #dce7e1;
+      border-radius: 6px;
+      padding: 11px;
+      background: #fbfdfc;
+    }
+
+    .snapshot-name {
+      font-weight: 740;
+      overflow-wrap: anywhere;
+    }
+
+    .snapshot-meta {
+      margin-top: 7px;
+      color: var(--muted);
+      display: grid;
+      gap: 4px;
+      font-size: 12px;
+    }
+
+    .message {
+      margin-bottom: 14px;
+      border: 1px solid rgba(161, 92, 16, 0.24);
+      border-radius: 8px;
+      padding: 11px 12px;
+      color: var(--warn);
+      background: #fff8eb;
+      display: none;
+    }
+
+    .message.show {
+      display: block;
+    }
+
+    @media (max-width: 820px) {
+      .topbar-inner,
+      .toolbar,
+      .metrics,
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .status-pill {
+        justify-self: start;
+      }
+
+      .refresh {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body data-biber-xriq-dashboard>
+  <div class="shell">
+    <header class="topbar">
+      <div class="topbar-inner">
+        <h1>XRIQ Private Devnet</h1>
+        <div id="statusPill" class="status-pill">Idle</div>
+      </div>
+    </header>
+
+    <main>
+      <section class="toolbar" aria-label="Connection">
+        <div class="field">
+          <label for="baseUrl">API base URL</label>
+          <input id="baseUrl" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="apiKey">API key</label>
+          <input id="apiKey" type="password" autocomplete="off" spellcheck="false">
+        </div>
+        <button id="refreshButton" class="refresh" type="button">Refresh</button>
+      </section>
+
+      <div id="message" class="message" role="status"></div>
+
+      <section class="metrics" aria-label="Chain metrics">
+        <article class="metric">
+          <div class="metric-label">Height</div>
+          <div id="heightMetric" class="metric-value">-</div>
+        </article>
+        <article class="metric">
+          <div class="metric-label">Pending</div>
+          <div id="pendingMetric" class="metric-value">-</div>
+        </article>
+        <article class="metric">
+          <div class="metric-label">Snapshots</div>
+          <div id="snapshotMetric" class="metric-value">-</div>
+        </article>
+        <article class="metric">
+          <div class="metric-label">State root</div>
+          <div id="stateRootMetric" class="metric-value hash">-</div>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Latest Blocks</h2>
+            <div id="updatedAt" class="timestamp">-</div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Height</th>
+                <th>Hash</th>
+                <th>Transactions</th>
+              </tr>
+            </thead>
+            <tbody id="blocksBody">
+              <tr>
+                <td colspan="3">-</td>
+              </tr>
+            </tbody>
+          </table>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Snapshots</h2>
+          </div>
+          <div id="snapshotsList" class="snapshots">
+            <div class="snapshot">
+              <div class="snapshot-name">-</div>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const OVERVIEW_PATH = "/v1/xriq/private-devnet/overview";
+    const SNAPSHOTS_PATH = "/v1/xriq/private-devnet/snapshots";
+    const STORAGE_KEYS = {
+      baseUrl: "biber:xriq-dashboard:base-url",
+      apiKey: "biber:xriq-dashboard:api-key"
+    };
+
+    const elements = {
+      baseUrl: document.getElementById("baseUrl"),
+      apiKey: document.getElementById("apiKey"),
+      refreshButton: document.getElementById("refreshButton"),
+      statusPill: document.getElementById("statusPill"),
+      message: document.getElementById("message"),
+      heightMetric: document.getElementById("heightMetric"),
+      pendingMetric: document.getElementById("pendingMetric"),
+      snapshotMetric: document.getElementById("snapshotMetric"),
+      stateRootMetric: document.getElementById("stateRootMetric"),
+      blocksBody: document.getElementById("blocksBody"),
+      snapshotsList: document.getElementById("snapshotsList"),
+      updatedAt: document.getElementById("updatedAt")
+    };
+
+    function defaultBaseUrl() {
+      if (window.location.origin && window.location.origin !== "null") {
+        return window.location.origin;
+      }
+      return "http://127.0.0.1:8000";
+    }
+
+    function normalizeBaseUrl(value) {
+      return (value || defaultBaseUrl()).replace(/\/+$/, "");
+    }
+
+    function endpoint(path, params) {
+      const url = new URL(normalizeBaseUrl(elements.baseUrl.value) + path);
+      Object.entries(params || {}).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          url.searchParams.set(key, value);
+        }
+      });
+      return url.toString();
+    }
+
+    function setText(idOrElement, value) {
+      const element = typeof idOrElement === "string"
+        ? document.getElementById(idOrElement)
+        : idOrElement;
+      element.textContent = value === undefined || value === null || value === "" ? "-" : String(value);
+    }
+
+    function shortHash(value, size) {
+      if (!value) {
+        return "-";
+      }
+      const text = String(value);
+      if (text.length <= size * 2 + 3) {
+        return text;
+      }
+      return `${text.slice(0, size)}...${text.slice(-size)}`;
+    }
+
+    function setStatus(text, mode) {
+      elements.statusPill.className = `status-pill ${mode || ""}`.trim();
+      setText(elements.statusPill, text);
+    }
+
+    function setMessage(text) {
+      setText(elements.message, text);
+      elements.message.classList.toggle("show", Boolean(text));
+    }
+
+    function headers() {
+      return {
+        "Accept": "application/json",
+        "Authorization": `Bearer ${elements.apiKey.value}`
+      };
+    }
+
+    async function requestJson(path, params) {
+      const response = await fetch(endpoint(path, params), { headers: headers() });
+      const body = await response.text();
+      let payload;
+      try {
+        payload = JSON.parse(body);
+      } catch (error) {
+        throw new Error(`${path} returned invalid JSON`);
+      }
+      if (!response.ok) {
+        const detail = payload.detail || payload.error || response.statusText;
+        throw new Error(`${path} returned HTTP ${response.status}: ${JSON.stringify(detail).slice(0, 240)}`);
+      }
+      return payload;
+    }
+
+    function saveInputs() {
+      sessionStorage.setItem(STORAGE_KEYS.baseUrl, normalizeBaseUrl(elements.baseUrl.value));
+      sessionStorage.setItem(STORAGE_KEYS.apiKey, elements.apiKey.value);
+    }
+
+    function renderBlocks(blocks) {
+      elements.blocksBody.replaceChildren();
+      if (!Array.isArray(blocks) || blocks.length === 0) {
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = 3;
+        setText(cell, "-");
+        row.append(cell);
+        elements.blocksBody.append(row);
+        return;
+      }
+
+      blocks.forEach((block) => {
+        const row = document.createElement("tr");
+        const height = document.createElement("td");
+        const hash = document.createElement("td");
+        const count = document.createElement("td");
+        hash.className = "hash";
+        setText(height, block.height);
+        setText(hash, shortHash(block.block_hash, 10));
+        hash.title = block.block_hash || "";
+        setText(count, block.transaction_count);
+        row.append(height, hash, count);
+        elements.blocksBody.append(row);
+      });
+    }
+
+    function renderSnapshots(payload) {
+      const snapshots = Array.isArray(payload.snapshots) ? payload.snapshots : [];
+      elements.snapshotsList.replaceChildren();
+      if (snapshots.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "snapshot";
+        const name = document.createElement("div");
+        name.className = "snapshot-name";
+        setText(name, "-");
+        empty.append(name);
+        elements.snapshotsList.append(empty);
+        return;
+      }
+
+      snapshots.forEach((snapshot) => {
+        const item = document.createElement("div");
+        item.className = "snapshot";
+        const name = document.createElement("div");
+        name.className = "snapshot-name";
+        setText(name, snapshot.snapshot_name);
+
+        const meta = document.createElement("div");
+        meta.className = "snapshot-meta";
+        const height = document.createElement("div");
+        const pending = document.createElement("div");
+        const root = document.createElement("div");
+        root.className = "snapshot-root";
+        setText(height, `height ${snapshot.current_height ?? "-"}`);
+        setText(pending, `pending ${snapshot.pending_transactions ?? "-"}`);
+        setText(root, shortHash(snapshot.state_root, 8));
+        root.title = snapshot.state_root || "";
+        meta.append(height, pending, root);
+        item.append(name, meta);
+        elements.snapshotsList.append(item);
+      });
+    }
+
+    function renderOverview(payload) {
+      const summary = payload.summary || {};
+      const explorer = payload.explorer || {};
+      setText(elements.heightMetric, summary.current_height);
+      setText(elements.pendingMetric, summary.pending_count);
+      setText(elements.snapshotMetric, summary.snapshot_count);
+      setText(elements.stateRootMetric, shortHash(summary.state_root, 12));
+      elements.stateRootMetric.title = summary.state_root || "";
+      renderBlocks(explorer.latest_blocks);
+      setText(elements.updatedAt, new Date().toLocaleTimeString());
+    }
+
+    async function refresh() {
+      if (!elements.apiKey.value.trim()) {
+        setStatus("Missing key", "error");
+        setMessage("API key required.");
+        return;
+      }
+      saveInputs();
+      setMessage("");
+      setStatus("Loading", "");
+      elements.refreshButton.disabled = true;
+      try {
+        const [overview, snapshots] = await Promise.all([
+          requestJson(OVERVIEW_PATH, { explorer_limit: 5, snapshot_limit: 10 }),
+          requestJson(SNAPSHOTS_PATH, { limit: 10 })
+        ]);
+        renderOverview(overview);
+        renderSnapshots(snapshots);
+        setStatus("Live", "ok");
+      } catch (error) {
+        setStatus("Error", "error");
+        setMessage(error.message || "Request failed.");
+      } finally {
+        elements.refreshButton.disabled = false;
+      }
+    }
+
+    function boot() {
+      elements.baseUrl.value = sessionStorage.getItem(STORAGE_KEYS.baseUrl) || defaultBaseUrl();
+      elements.apiKey.value = sessionStorage.getItem(STORAGE_KEYS.apiKey) || "";
+      elements.refreshButton.addEventListener("click", refresh);
+      elements.apiKey.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          refresh();
+        }
+      });
+    }
+
+    boot();
+  </script>
+</body>
+</html>

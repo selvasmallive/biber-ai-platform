@@ -14,6 +14,7 @@ from fastapi import (
     Query,
     UploadFile,
 )
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from app.agent_sessions import (
@@ -77,6 +78,23 @@ app = FastAPI(
     version="0.1.0",
     description="Private GPU-backed BIBER AI platform"
 )
+
+
+def _read_xriq_dashboard_html() -> str:
+    for parent in Path(__file__).resolve().parents:
+        dashboard = parent / "examples" / "xriq_private_devnet_dashboard.html"
+        if dashboard.is_file():
+            return dashboard.read_text(encoding="utf-8")
+    raise HTTPException(status_code=500, detail="XRIQ dashboard asset is missing.")
+
+
+@app.get(
+    "/xriq/private-devnet/dashboard",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+def xriq_private_devnet_dashboard() -> HTMLResponse:
+    return HTMLResponse(_read_xriq_dashboard_html())
 
 
 Role = Literal["system", "user", "assistant"]

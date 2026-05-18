@@ -275,6 +275,11 @@ BIBER_API_KEY="$API_KEY" \
   "$SNAPSHOT_NAME" \
   > "${ARTIFACT_DIR}/client-snapshot-detail.txt"
 
+curl -fsS "${API_BASE_URL}/xriq/private-devnet/dashboard" \
+  -o "${ARTIFACT_DIR}/dashboard.html"
+grep -q "data-biber-xriq-dashboard" "${ARTIFACT_DIR}/dashboard.html"
+
 printf 'client_overview=%s\n' "${ARTIFACT_DIR}/client-overview.txt"
 printf 'client_snapshots=%s\n' "${ARTIFACT_DIR}/client-snapshots.txt"
 printf 'client_snapshot_detail=%s\n' "${ARTIFACT_DIR}/client-snapshot-detail.txt"
+printf 'dashboard=%s\n' "${ARTIFACT_DIR}/dashboard.html"

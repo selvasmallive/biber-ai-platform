@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import uuid4
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Path, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Path as ApiPath
+from fastapi.responses import HTMLResponse
 
 from .agent_sessions import (
     AgentSessionStoreError,
@@ -84,6 +87,23 @@ app = FastAPI(
     version="0.1.0",
     description="Phase 1 API for biber-dev-core local GPU inference.",
 )
+
+
+def _read_xriq_dashboard_html() -> str:
+    for parent in Path(__file__).resolve().parents:
+        dashboard = parent / "examples" / "xriq_private_devnet_dashboard.html"
+        if dashboard.is_file():
+            return dashboard.read_text(encoding="utf-8")
+    raise HTTPException(status_code=500, detail="XRIQ dashboard asset is missing.")
+
+
+@app.get(
+    "/xriq/private-devnet/dashboard",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+async def xriq_private_devnet_dashboard() -> HTMLResponse:
+    return HTMLResponse(_read_xriq_dashboard_html())
 
 
 @app.get("/health")
@@ -519,7 +539,7 @@ async def xriq_private_devnet_explorer_overview(
 
 @app.get("/v1/xriq/private-devnet/blocks/{height}")
 async def xriq_private_devnet_block_detail(
-    height: int = Path(ge=0),
+    height: int = ApiPath(ge=0),
     _: AuthContext = Depends(require_api_key),
     settings: BiberSettings = Depends(get_settings),
 ) -> dict[str, object]:
@@ -634,7 +654,7 @@ async def xriq_private_devnet_snapshots(
 
 @app.get("/v1/xriq/private-devnet/snapshots/{snapshot_name}")
 async def xriq_private_devnet_snapshot_detail(
-    snapshot_name: str = Path(pattern=SNAPSHOT_NAME_PATTERN),
+    snapshot_name: str = ApiPath(pattern=SNAPSHOT_NAME_PATTERN),
     _: AuthContext = Depends(require_api_key),
     settings: BiberSettings = Depends(get_settings),
 ) -> dict[str, object]:

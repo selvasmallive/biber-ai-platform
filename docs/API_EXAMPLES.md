@@ -277,6 +277,12 @@ BIBER_API_KEY=dev-api-key-change-me \
 python scripts/biber_xriq_private_devnet_client.py snapshot manual-smoke
 ```
 
+For a same-origin browser dashboard over an SSH tunnel:
+
+```text
+http://127.0.0.1:8000/xriq/private-devnet/dashboard
+```
+
 ```bash
 curl http://localhost:8000/v1/xriq/private-devnet/status \
   -H "Authorization: Bearer dev-api-key-change-me"
