@@ -5411,6 +5411,47 @@ mod tests {
     }
 
     #[test]
+    fn preflight_transfer_json_matches_checked_fixture() {
+        let path = temp_store_path();
+        let pending_path = path.with_extension("pending");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+
+        let preflight_json = run_node_command([
+            "preflight-transfer",
+            "--chain-file",
+            path_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1bobbb00000000000",
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--expires-at-height",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        let fixture = include_str!("../../../fixtures/private-devnet/node-preflight-transfer.json");
+
+        assert_eq!(preflight_json.trim_end(), fixture.trim_end());
+        assert_eq!(fs::read_to_string(&pending_path).unwrap(), "");
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
     fn node_status_json_matches_checked_fixture() {
         let path = temp_store_path();
         let path_text = path.to_string_lossy().to_string();

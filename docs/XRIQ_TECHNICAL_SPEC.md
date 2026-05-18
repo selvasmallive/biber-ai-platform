@@ -772,7 +772,7 @@ As of 2026-05-17:
     `docs/XRIQ_NODE_JSON_SCHEMA.md`
   - checked private-devnet JSON fixtures under `xriq/fixtures/private-devnet`
     for selected wallet and node schema-drift tests, including pending-block
-    production
+    production and preflight transfer
   - one-command private-devnet smoke script that validates wallet draft,
     mempool detail preview, pending and confirmed transaction detail, selected
     JSON outputs, draft-block, durable HTTP pending state, durable

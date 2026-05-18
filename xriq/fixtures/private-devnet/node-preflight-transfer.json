@@ -1,0 +1,22 @@
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "preflight-transfer",
+  "warning": "private-devnet-only-no-public-token",
+  "from": "xriqdev1alice00000000000",
+  "to": "xriqdev1bobbb00000000000",
+  "amount_base_units": "25",
+  "fee_base_units": "2",
+  "preflight_balance_base_units": "100",
+  "preflight_nonce": 0,
+  "transaction_hash": "fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565",
+  "block_hash": "fe349b87f4219a7edd3dc8cb430b27200eb3500ab9550692b1493d4c4312371d",
+  "confirmed_block_height": 1,
+  "confirmed_transaction_index": 0,
+  "final_balance_base_units": "73",
+  "final_nonce": 1,
+  "chain_id": "xriq-devnet",
+  "current_height": 1,
+  "latest_block_hash": "fe349b87f4219a7edd3dc8cb430b27200eb3500ab9550692b1493d4c4312371d",
+  "pending_transactions": 0,
+  "stored_blocks": 1
+}
