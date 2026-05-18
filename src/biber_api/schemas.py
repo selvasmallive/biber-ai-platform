@@ -73,3 +73,26 @@ class RuntimeStatus(BaseModel):
     mentor_trigger_phrase: str
     github_configured: bool
     azure_backup_configured: bool
+
+
+class TestRunRequest(BaseModel):
+    test_id: str = Field(min_length=1)
+    dry_run: bool = False
+
+
+class TestRunResponse(BaseModel):
+    test_id: str
+    label: str
+    description: str
+    cwd: str
+    command: list[str]
+    timeout_seconds: float
+    executed: bool
+    ok: bool | None
+    exit_code: int | None
+    timed_out: bool
+    duration_ms: int
+    stdout: str
+    stderr: str
+    stdout_truncated: bool
+    stderr_truncated: bool

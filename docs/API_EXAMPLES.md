@@ -110,6 +110,27 @@ curl -X POST http://localhost:8000/v1/save/github \
 }'
 ```
 
+## Run Allowlisted Project Tests
+
+BIBER exposes only fixed server-side test IDs. Clients cannot submit arbitrary
+commands, directories, or file paths through this endpoint.
+
+```bash
+curl http://localhost:8000/v1/tests \
+  -H "Authorization: Bearer dev-api-key-change-me"
+```
+
+```bash
+curl -X POST http://localhost:8000/v1/tests/run \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "test_id": "python-compileall-api"
+  }'
+```
+
+Use `dry_run: true` to inspect the selected command without executing it.
+
 ## XRIQ Private-Devnet Preflight Transfer
 
 This endpoint is a thin wrapper around the local Rust

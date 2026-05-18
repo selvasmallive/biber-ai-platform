@@ -25,8 +25,16 @@ from .schemas import (
     RuntimeStatus,
     SaveToGitHubRequest,
     SaveToGitHubResponse,
+    TestRunRequest,
+    TestRunResponse,
 )
 from .security import AuthContext, require_api_key
+from .test_runner import (
+    TestRunnerConfigurationError,
+    UnknownTestCommandError,
+    list_test_commands,
+    run_test_command,
+)
 from .xriq_client import (
     XriqCommandError,
     XriqCommandTimeout,
@@ -79,6 +87,33 @@ async def runtime_status(settings: BiberSettings = Depends(get_settings)) -> Run
 @app.get("/v1/models")
 async def models(settings: BiberSettings = Depends(get_settings)) -> dict[str, object]:
     return build_model_registry(settings).as_response()
+
+
+@app.get("/v1/tests")
+async def list_tests(
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> dict[str, object]:
+    return {"commands": list_test_commands(settings)}
+
+
+@app.post("/v1/tests/run", response_model=TestRunResponse)
+async def run_tests(
+    request_body: TestRunRequest,
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> TestRunResponse:
+    try:
+        result = run_test_command(
+            request_body.test_id,
+            settings,
+            dry_run=request_body.dry_run,
+        )
+    except UnknownTestCommandError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except TestRunnerConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return TestRunResponse.model_validate(result)
 
 
 @app.post("/v1/chat", response_model=ChatResponse)

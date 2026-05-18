@@ -30,6 +30,12 @@ from app.llm import BiberChatService, MENTOR_TRIGGER_PHRASE
 from app.model_registry import ModelRegistryError, build_model_registry
 from app.repo_context import RepoContextError
 from app.scheduler import scheduler
+from app.test_runner import (
+    TestRunnerConfigurationError,
+    UnknownTestCommandError,
+    list_test_commands,
+    run_test_command,
+)
 from app.xriq_client import (
     XriqCommandError,
     XriqCommandTimeout,
@@ -140,6 +146,29 @@ class AzureBackupResponse(BaseModel):
     url: str
 
 
+class TestRunRequest(BaseModel):
+    test_id: str = Field(min_length=1)
+    dry_run: bool = False
+
+
+class TestRunResponse(BaseModel):
+    test_id: str
+    label: str
+    description: str
+    cwd: str
+    command: list[str]
+    timeout_seconds: float
+    executed: bool
+    ok: bool | None
+    exit_code: int | None
+    timed_out: bool
+    duration_ms: int
+    stdout: str
+    stderr: str
+    stdout_truncated: bool
+    stderr_truncated: bool
+
+
 @app.get("/health")
 def health():
     return {
@@ -167,6 +196,23 @@ def runtime_status(auth=Depends(require_api_key)):
 @app.get("/v1/models")
 def models(auth=Depends(require_api_key)):
     return build_model_registry(settings).as_response()
+
+
+@app.get("/v1/tests")
+def list_tests(auth=Depends(require_api_key)):
+    return {"commands": list_test_commands(settings)}
+
+
+@app.post("/v1/tests/run", response_model=TestRunResponse)
+def run_tests(req: TestRunRequest, auth=Depends(require_api_key)):
+    try:
+        result = run_test_command(req.test_id, settings, dry_run=req.dry_run)
+    except UnknownTestCommandError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except TestRunnerConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return TestRunResponse.model_validate(result)
+
 
 @app.post("/v1/chat")
 async def chat(

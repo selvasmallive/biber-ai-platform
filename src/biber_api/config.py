@@ -61,6 +61,8 @@ class BiberSettings:
     xriq_rustup_home: str | None = None
     xriq_cargo_home: str | None = None
     xriq_path_prefix: str | None = None
+    test_runner_timeout_seconds: float = 120.0
+    test_runner_max_output_bytes: int = 12000
 
 
 @lru_cache(maxsize=1)
@@ -113,4 +115,10 @@ def get_settings() -> BiberSettings:
         xriq_rustup_home=os.getenv("BIBER_XRIQ_RUSTUP_HOME") or None,
         xriq_cargo_home=os.getenv("BIBER_XRIQ_CARGO_HOME") or None,
         xriq_path_prefix=os.getenv("BIBER_XRIQ_PATH_PREFIX") or None,
+        test_runner_timeout_seconds=float(
+            os.getenv("BIBER_TEST_RUNNER_TIMEOUT_SECONDS", "120")
+        ),
+        test_runner_max_output_bytes=int(
+            os.getenv("BIBER_TEST_RUNNER_MAX_OUTPUT_BYTES", "12000")
+        ),
     )

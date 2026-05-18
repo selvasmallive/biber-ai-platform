@@ -83,6 +83,12 @@ class Settings:
     xriq_rustup_home: str | None = os.getenv("BIBER_XRIQ_RUSTUP_HOME") or None
     xriq_cargo_home: str | None = os.getenv("BIBER_XRIQ_CARGO_HOME") or None
     xriq_path_prefix: str | None = os.getenv("BIBER_XRIQ_PATH_PREFIX") or None
+    test_runner_timeout_seconds: float = float(
+        os.getenv("BIBER_TEST_RUNNER_TIMEOUT_SECONDS", "120")
+    )
+    test_runner_max_output_bytes: int = int(
+        os.getenv("BIBER_TEST_RUNNER_MAX_OUTPUT_BYTES", "12000")
+    )
 
     mentor_enabled: bool = _bool(os.getenv("BIBER_MENTOR_ENABLED"), default=False)
     openai_base_url: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
