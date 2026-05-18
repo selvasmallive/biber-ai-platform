@@ -76,15 +76,19 @@ serving the last broad-safe Rust/XRIQ adapter.
   `81824b3 Add XRIQ durable mempool wrapper`.
 - Latest BIBER API/XRIQ explorer/block wrapper commit pushed and Vast-verified:
   `32909e8 Add BIBER XRIQ explorer wrappers`.
+- Latest BIBER API/XRIQ consolidated smoke script commit pushed and
+  Vast-verified:
+  `16e506b Add BIBER XRIQ API smoke script`.
 - Last XRIQ implementation commit pushed and Vast-verified:
   `7c4030d Add XRIQ preflight transfer flow`.
 - Latest XRIQ checked-fixture-only commit pushed and Vast-verified:
   `2a2b9d8 Add XRIQ preflight JSON fixture`.
 - Latest XRIQ smoke-harness commit pushed and Vast-verified:
   `2bd99cc Ensure XRIQ smoke server cleanup`.
-- Vast checkout was fast-forwarded to `32909e8`. Full Rust/script/API wrapper
+- Vast checkout was fast-forwarded to `16e506b`. Full Rust/script/API wrapper
   verification is current through `81824b3`; focused BIBER API wrapper
-  verification is current through `32909e8`; focused fixture verification is
+  verification is current through `32909e8`; consolidated BIBER XRIQ API smoke
+  verification is current through `16e506b`; focused fixture verification is
   current through `2a2b9d8`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
@@ -106,6 +110,10 @@ serving the last broad-safe Rust/XRIQ adapter.
     `command=explorer-overview` with `current_height=2`, and
     `GET /v1/xriq/private-devnet/blocks/1` returns `command=block-detail`
     with `height=1`.
+    Latest consolidated API smoke with `bash scripts/vast_xriq_api_smoke.sh`
+    passed read-only with status/explorer height `2`, block height `2`, Alice
+    account detail, mempool pending count `0`, and transaction detail skipped
+    because no explicit transaction hash was supplied.
     The earlier read smoke confirmed `transaction_status=confirmed` and status
     `current_height=2` for the test chain used in that smoke.
   - Last full chat smoke remains `bash scripts/vast_test_direct.sh` with chat
@@ -1214,6 +1222,24 @@ serving the last broad-safe Rust/XRIQ adapter.
     confirmed explorer `current_height=2` and block detail `height=1`.
   - Pushed commit:
     `32909e8 Add BIBER XRIQ explorer wrappers`.
+- BIBER API/XRIQ consolidated smoke checkpoint:
+  - Added `scripts/vast_xriq_api_smoke.sh`, a read-only live BIBER API smoke
+    for the XRIQ private-devnet wrapper endpoints.
+  - The script checks health, status, explorer overview, latest block detail,
+    Alice account detail, and mempool detail. It stores JSON artifacts under
+    `/workspace/outputs/xriq-api-smoke-*` by default.
+  - Transaction detail is intentionally optional and skipped unless
+    `BIBER_XRIQ_API_SMOKE_TX_HASH` is supplied; this avoids mutating the live
+    chain just to create a confirmed hash.
+  - Local Windows verification passed: bundled Python `compileall scripts` and
+    `git diff --check`. Local `bash -n` could not run because this workstation
+    has WSL but no installed Linux distro.
+  - Vast verification passed: `bash -n scripts/vast_xriq_api_smoke.sh` and
+    `bash scripts/vast_xriq_api_smoke.sh`.
+  - Latest consolidated smoke artifact:
+    `/workspace/outputs/xriq-api-smoke-20260518T165750Z-39065/summary.json`.
+  - Pushed commit:
+    `16e506b Add BIBER XRIQ API smoke script`.
 
 ## Repo State
 
@@ -1268,6 +1294,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   - `81824b3 Add XRIQ durable mempool wrapper`
   - `0fffb80 Record XRIQ mempool wrapper checkpoint`
   - `32909e8 Add BIBER XRIQ explorer wrappers`
+  - `4610a32 Record XRIQ explorer wrapper checkpoint`
+  - `16e506b Add BIBER XRIQ API smoke script`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -2435,11 +2463,12 @@ bash scripts/xriq_private_devnet_smoke.sh
    durable pending HTTP state, pending-block production, and
    `xriq-node preflight-transfer`, is to keep the local file-backed workflow
    small and deterministic. The thin BIBER preflight wrapper and read wrappers
-   for status/explorer/block/account/transaction/mempool are now done. Good next
-   targets are a BIBER consolidated explorer summary smoke, snapshot/replay
-   improvements, or another small checked fixture only when it directly helps
-   the private-devnet MVP. Public XRIQ launch, exchange listing, custody,
-   liquidity, bridges, and
+   for status/explorer/block/account/transaction/mempool are now done, and
+   `scripts/vast_xriq_api_smoke.sh` provides a consolidated read-only live API
+   smoke. Good next targets are snapshot/replay improvements, transaction-hash
+   exposure in block summaries if useful for explorer clients, or another small
+   checked fixture only when it directly helps the private-devnet MVP. Public
+   XRIQ launch, exchange listing, custody, liquidity, bridges, and
    market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
