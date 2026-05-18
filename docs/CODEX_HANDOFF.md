@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-05-17
+Last updated: 2026-05-18
 
 ## Current Goal
 
@@ -63,26 +63,35 @@ Future Codex sessions must default to a low-OpenAI-cost operating mode.
 
 ## Immediate Resume State
 
-As of the latest 2026-05-17 checkpoint, the Vast.ai deployment is healthy and
+As of the latest 2026-05-18 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
+- Latest BIBER API/XRIQ wrapper commits pushed and Vast-verified:
+  `ddc5dc8 Add BIBER XRIQ preflight API wrapper` and
+  `67ce353 Add XRIQ wrapper Rust environment config`.
 - Last XRIQ implementation commit pushed and Vast-verified:
   `7c4030d Add XRIQ preflight transfer flow`.
 - Latest XRIQ checked-fixture-only commit pushed and Vast-verified:
   `2a2b9d8 Add XRIQ preflight JSON fixture`.
 - Latest XRIQ smoke-harness commit pushed and Vast-verified:
   `2bd99cc Ensure XRIQ smoke server cleanup`.
-- Vast checkout was fast-forwarded to `2a2b9d8`. Full Rust/script/HTTP-smoke
+- Vast checkout was fast-forwarded to `67ce353`. Full Rust/script/HTTP-smoke
   verification is current through `7c4030d`; focused fixture verification is
-  current through `2a2b9d8`.
+  current through `2a2b9d8`; BIBER API wrapper verification is current through
+  `67ce353`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `15053`
+  - FastAPI pid: `36848`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - `bash scripts/vast_test_direct.sh` passed with chat content `ok`.
+  - Latest endpoint smoke:
+    `POST /v1/xriq/private-devnet/preflight-transfer` returned `200 OK` with
+    `command=preflight-transfer`, `confirmed_block_height=3`, and
+    `pending_transactions=0`.
+  - Last full chat smoke remains `bash scripts/vast_test_direct.sh` with chat
+    content `ok` before the FastAPI-only restart; vLLM remained running.
 - Latest current Rust/XRIQ eval:
   - summary:
     `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260517T021032Z.summary.json`
@@ -1071,6 +1080,51 @@ serving the last broad-safe Rust/XRIQ adapter.
     preflight implementation itself remains smoke-verified through `7c4030d`
     with artifacts at
     `/workspace/biber-ai-platform/xriq/target/xriq-private-devnet-smoke-20260517T215459Z-35326`.
+- BIBER API XRIQ preflight wrapper checkpoint:
+  - Added a thin private-devnet BIBER wrapper around the existing Rust
+    `xriq-node preflight-transfer --format json` flow.
+  - New API endpoint:
+    `POST /v1/xriq/private-devnet/preflight-transfer`.
+  - The request accepts transfer values only: `from`, `to`,
+    `amount_base_units`, `fee_base_units`, optional `expires_at_height`,
+    optional `timestamp_ms`, optional `consensus_round`, and optional
+    `alice_balance_base_units`. It does not accept arbitrary chain or pending
+    file paths.
+  - Server-side XRIQ settings now include:
+    `BIBER_XRIQ_WORKSPACE_DIR`, `BIBER_XRIQ_NODE_COMMAND`,
+    `BIBER_XRIQ_CHAIN_FILE`, `BIBER_XRIQ_PENDING_FILE`,
+    `BIBER_XRIQ_DEFAULT_ALICE_BALANCE_BASE_UNITS`,
+    `BIBER_XRIQ_COMMAND_TIMEOUT_SECONDS`, `BIBER_XRIQ_RUSTUP_HOME`,
+    `BIBER_XRIQ_CARGO_HOME`, and `BIBER_XRIQ_PATH_PREFIX`.
+  - Vast `.env` was updated with:
+    `BIBER_XRIQ_WORKSPACE_DIR=/workspace/biber-ai-platform/xriq`,
+    `BIBER_XRIQ_NODE_COMMAND=/workspace/.cargo/bin/cargo run -q -p xriq-node --`,
+    `BIBER_XRIQ_CHAIN_FILE=target/biber-api-private-devnet-chain.bin`,
+    `BIBER_XRIQ_PENDING_FILE=target/biber-api-private-devnet-pending.tsv`,
+    `BIBER_XRIQ_RUSTUP_HOME=/workspace/.rustup`,
+    `BIBER_XRIQ_CARGO_HOME=/workspace/.cargo`, and
+    `BIBER_XRIQ_PATH_PREFIX=/workspace/.cargo/bin`.
+  - Implemented in both API paths because the packaged Docker/test path uses
+    `src/biber_api`, while the current Vast direct launcher still serves
+    `app.main:app`.
+  - Local Windows verification: bundled Python `compileall app src` passed.
+    Local pytest was not available on this workstation runtime, so pytest was
+    run on Vast.
+  - Vast verification passed with `/workspace/biber-venv/bin/python -m
+    compileall app src`, `/workspace/biber-venv/bin/python -m pytest
+    tests/test_xriq_preflight_api.py tests/test_model_registry.py
+    tests/test_openai_mentor_trigger.py tests/test_repo_context.py -q`
+    (`18 passed`), direct Python wrapper smoke through `src/biber_api`,
+    `cargo fmt --check`, and
+    `cargo test -p xriq-node checked_fixture -j 1` with `6` passing fixture
+    tests.
+  - FastAPI only was restarted on Vast; vLLM was not restarted. Live endpoint
+    smoke passed through the current API process with a valid private-devnet
+    fee of `2`. Earlier smoke with fee `1` correctly failed with
+    `Transaction(FeeTooLow)`.
+  - Pushed commits:
+    `ddc5dc8 Add BIBER XRIQ preflight API wrapper` and
+    `67ce353 Add XRIQ wrapper Rust environment config`.
 
 ## Repo State
 
@@ -1117,6 +1171,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   - `17eebc9 Add HashSet Rust XRIQ examples`
   - `457155c Record Rust HashSet eval success`
   - `6482059 Add XRIQ spec and mentor strategy`
+  - `ddc5dc8 Add BIBER XRIQ preflight API wrapper`
+  - `67ce353 Add XRIQ wrapper Rust environment config`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -2283,11 +2339,12 @@ bash scripts/xriq_private_devnet_smoke.sh
    `xriq-node serve-readonly`, `xriq-node serve-private`, and
    durable pending HTTP state, pending-block production, and
    `xriq-node preflight-transfer`, is to keep the local file-backed workflow
-   small and deterministic. Good next targets are a thin BIBER/client wrapper
-   around the file-backed preflight flow, snapshot/replay improvements, or
-   another small checked fixture only when it directly helps the private-devnet
-   MVP. Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
-   market-facing work remain blocked.
+   small and deterministic. The thin BIBER preflight wrapper is now done. Good
+   next targets are adding similarly thin BIBER read wrappers for XRIQ status,
+   account detail, transaction detail, or mempool detail; snapshot/replay
+   improvements; or another small checked fixture only when it directly helps
+   the private-devnet MVP. Public XRIQ launch, exchange listing, custody,
+   liquidity, bridges, and market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
