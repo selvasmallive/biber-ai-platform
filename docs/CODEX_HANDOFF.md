@@ -98,19 +98,22 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP end-to-end agent-smoke script commit pushed and
   Vast-verified:
   `28ebe62 Add BIBER agent smoke script`.
-- Vast code verification is current through `28ebe62`. Full Rust/API wrapper
+- Latest BIBER MVP agent-session API commit pushed and Vast-verified:
+  `b280d49 Add BIBER agent session API`.
+- Vast code verification is current through `b280d49`. Full Rust/API wrapper
   verification is current through `919b348`; focused BIBER API wrapper
   verification is current through `32909e8`; consolidated BIBER XRIQ API smoke
   verification is current through `919b348`; focused fixture verification is
   current through `919b348`; BIBER test-runner API verification is current
   through `d4df8c0`; BIBER workspace-edit API verification is current through
   `992890b`; BIBER GitHub branch/PR workflow verification is current through
-  `179f58b`; BIBER agent-smoke verification is current through `28ebe62`.
+  `179f58b`; BIBER agent-smoke verification is current through `28ebe62`;
+  BIBER agent-session API verification is current through `b280d49`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `43893`
+  - FastAPI pid: `44329`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - Latest BIBER test-runner smoke:
@@ -130,6 +133,11 @@ serving the last broad-safe Rust/XRIQ adapter.
     workspace-edit dry-run, `python-compileall-api`, and GitHub skipped because
     it is not configured. Artifact:
     `/workspace/outputs/biber-agent-smoke-20260518T195259Z-44005`.
+  - Latest BIBER agent-session smoke:
+    `POST /v1/agent/sessions` returned `200 OK` with steps `chat`,
+    `workspace_edit`, and `test_run`; `model=biber-dev-core-v1`,
+    `mentor_used=false`, workspace edit was dry-run only, and
+    `python-compileall-api` returned `ok=true`.
   - Latest endpoint smoke:
     `POST /v1/xriq/private-devnet/preflight-transfer`,
     `GET /v1/xriq/private-devnet/status`,
@@ -1503,6 +1511,36 @@ serving the last broad-safe Rust/XRIQ adapter.
     mentor call was needed.
   - Pushed commit:
     `28ebe62 Add BIBER agent smoke script`.
+- BIBER MVP agent-session API checkpoint:
+  - Added `POST /v1/agent/sessions` in both the packaged API and current Vast
+    direct launcher path.
+  - The endpoint wraps the existing MVP primitives into one response with a
+    session id and ordered step records:
+    repo-context chat, optional bounded workspace edit, optional allowlisted
+    test run, optional GitHub save, and optional GitHub pull request.
+  - Defaults remain conservative: `use_mentor=false`, `test_id` defaults to
+    `python-compileall-api`, GitHub actions run only when explicitly included,
+    and workspace edits obey the same bounded edit guardrails.
+  - Added `tests/test_agent_session.py` and included it in the focused
+    `pytest-core` allowlist.
+  - Updated `docs/API_EXAMPLES.md` with a tracked agent-session example.
+  - Local workstation verification passed with bundled Python
+    `compileall app src tests` and `git diff --cached --check`. Local pytest is
+    still unavailable in the bundled workstation runtime.
+  - Vast checkout was fast-forwarded to `b280d49`; Vast verification passed
+    with `/workspace/biber-venv/bin/python -m compileall app src tests` and
+    focused pytest:
+    `tests/test_agent_session.py`, `tests/test_workspace_edit.py`,
+    `tests/test_github_client.py`, `tests/test_test_runner.py`,
+    `tests/test_model_registry.py`, `tests/test_repo_context.py`,
+    `tests/test_openai_mentor_trigger.py`, and `tests/test_xriq_preflight_api.py`
+    with `49 passed`.
+  - Restarted only the FastAPI process; vLLM stayed running with pid `5802`.
+    New FastAPI pid: `44329`.
+  - Live smoke passed: `POST /v1/agent/sessions` returned `200 OK` with chat,
+    dry-run workspace edit, and successful `python-compileall-api` test step.
+  - Pushed commit:
+    `b280d49 Add BIBER agent session API`.
 
 ## Repo State
 
@@ -1566,6 +1604,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   - `552220b Add BIBER GitHub PR workflow support`
   - `179f58b Clarify GitHub workflow test label`
   - `28ebe62 Add BIBER agent smoke script`
+  - `b280d49 Add BIBER agent session API`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -2738,14 +2777,13 @@ bash scripts/xriq_private_devnet_smoke.sh
    smoke that follows block transaction hashes into transaction detail. The
    status state-root marker, deterministic replay smoke, the first allowlisted
    BIBER test-execution API slice, and bounded workspace-edit API slice are now
-   done. The branch-aware GitHub save plus draft-PR path and a small BIBER MVP
-   end-to-end agent smoke are now implemented and Vast-verified. Good next
-   targets are either a short XRIQ snapshot export/import design note or a
-   small BIBER agent-session API design/implementation step that wraps the
-   already-built repo context, bounded file edit, test run, and optional
-   GitHub save/PR primitives into one tracked workflow. Public XRIQ launch,
-   exchange listing, custody, liquidity, bridges, and market-facing work remain
-   blocked.
+   done. The branch-aware GitHub save plus draft-PR path, a small BIBER MVP
+   end-to-end agent smoke, and a first tracked agent-session endpoint are now
+   implemented and Vast-verified. Good next targets are either a short XRIQ
+   snapshot export/import design note or a minimal persistent agent-session
+   artifact layer so `/v1/agent/sessions` results can be listed/reloaded later.
+   Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
+   market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
