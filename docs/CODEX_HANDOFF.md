@@ -69,27 +69,32 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER API/XRIQ wrapper commits pushed and Vast-verified:
   `ddc5dc8 Add BIBER XRIQ preflight API wrapper` and
   `67ce353 Add XRIQ wrapper Rust environment config`.
+- Latest BIBER API/XRIQ read-wrapper commit pushed and Vast-verified:
+  `4d8c251 Add BIBER XRIQ read wrappers`.
 - Last XRIQ implementation commit pushed and Vast-verified:
   `7c4030d Add XRIQ preflight transfer flow`.
 - Latest XRIQ checked-fixture-only commit pushed and Vast-verified:
   `2a2b9d8 Add XRIQ preflight JSON fixture`.
 - Latest XRIQ smoke-harness commit pushed and Vast-verified:
   `2bd99cc Ensure XRIQ smoke server cleanup`.
-- Vast checkout was fast-forwarded to `67ce353`. Full Rust/script/HTTP-smoke
+- Vast checkout was fast-forwarded to `4d8c251`. Full Rust/script/HTTP-smoke
   verification is current through `7c4030d`; focused fixture verification is
   current through `2a2b9d8`; BIBER API wrapper verification is current through
-  `67ce353`.
+  `4d8c251`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `36848`
+  - FastAPI pid: `37059`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - Latest endpoint smoke:
-    `POST /v1/xriq/private-devnet/preflight-transfer` returned `200 OK` with
-    `command=preflight-transfer`, `confirmed_block_height=3`, and
-    `pending_transactions=0`.
+    `POST /v1/xriq/private-devnet/preflight-transfer`,
+    `GET /v1/xriq/private-devnet/status`,
+    `GET /v1/xriq/private-devnet/accounts/xriqdev1alice00000000000`, and
+    `GET /v1/xriq/private-devnet/transactions/{hash}` returned `200 OK`.
+    The read smoke confirmed `transaction_status=confirmed` and status
+    `current_height=2` for the test chain used in that smoke.
   - Last full chat smoke remains `bash scripts/vast_test_direct.sh` with chat
     content `ok` before the FastAPI-only restart; vLLM remained running.
 - Latest current Rust/XRIQ eval:
@@ -1125,6 +1130,36 @@ serving the last broad-safe Rust/XRIQ adapter.
   - Pushed commits:
     `ddc5dc8 Add BIBER XRIQ preflight API wrapper` and
     `67ce353 Add XRIQ wrapper Rust environment config`.
+- BIBER API XRIQ read-wrapper checkpoint:
+  - Added thin private-devnet BIBER read wrappers around existing
+    `xriq-node --format json` read commands.
+  - New API endpoints:
+    `GET /v1/xriq/private-devnet/status`,
+    `GET /v1/xriq/private-devnet/accounts/{address}`, and
+    `GET /v1/xriq/private-devnet/transactions/{tx_hash}`.
+  - Implemented in both API paths because the packaged Docker/test path uses
+    `src/biber_api`, while the current Vast direct launcher serves
+    `app.main:app`.
+  - Mempool read wrapper is intentionally delayed. The current CLI
+    `xriq-node mempool-detail` command does not read the durable pending file,
+    so exposing it through BIBER now would risk misleading clients about
+    pending state.
+  - Local Windows verification: bundled Python `compileall app src tests`
+    passed. Local pytest remains unavailable on this workstation runtime, so
+    pytest was run on Vast.
+  - Vast verification passed with `/workspace/biber-venv/bin/python -m
+    compileall app src`, `/workspace/biber-venv/bin/python -m pytest
+    tests/test_xriq_preflight_api.py tests/test_model_registry.py
+    tests/test_openai_mentor_trigger.py tests/test_repo_context.py -q`
+    (`22 passed`), `cargo fmt --check`, and
+    `cargo test -p xriq-node checked_fixture -j 1` with `6` passing fixture
+    tests.
+  - FastAPI only was restarted on Vast; vLLM was not restarted. Live endpoint
+    smoke passed by first creating a valid private-devnet transfer through the
+    preflight endpoint, then reading status, Alice account detail, and the
+    confirmed transaction through the new BIBER read endpoints.
+  - Pushed commit:
+    `4d8c251 Add BIBER XRIQ read wrappers`.
 
 ## Repo State
 
@@ -1173,6 +1208,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   - `6482059 Add XRIQ spec and mentor strategy`
   - `ddc5dc8 Add BIBER XRIQ preflight API wrapper`
   - `67ce353 Add XRIQ wrapper Rust environment config`
+  - `4d8c251 Add BIBER XRIQ read wrappers`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -2339,12 +2375,13 @@ bash scripts/xriq_private_devnet_smoke.sh
    `xriq-node serve-readonly`, `xriq-node serve-private`, and
    durable pending HTTP state, pending-block production, and
    `xriq-node preflight-transfer`, is to keep the local file-backed workflow
-   small and deterministic. The thin BIBER preflight wrapper is now done. Good
-   next targets are adding similarly thin BIBER read wrappers for XRIQ status,
-   account detail, transaction detail, or mempool detail; snapshot/replay
-   improvements; or another small checked fixture only when it directly helps
-   the private-devnet MVP. Public XRIQ launch, exchange listing, custody,
-   liquidity, bridges, and market-facing work remain blocked.
+   small and deterministic. The thin BIBER preflight wrapper and read wrappers
+   for status/account/transaction are now done. Good next targets are adding
+   durable pending-file support to `xriq-node mempool-detail`, then exposing a
+   BIBER mempool read wrapper; snapshot/replay improvements; or another small
+   checked fixture only when it directly helps the private-devnet MVP. Public
+   XRIQ launch, exchange listing, custody, liquidity, bridges, and
+   market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
