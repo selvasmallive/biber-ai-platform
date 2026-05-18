@@ -19,10 +19,13 @@ def test_xriq_dashboard_asset_is_static_and_credential_free() -> None:
     assert "/v1/xriq/private-devnet/snapshots" in html
     assert "/v1/xriq/private-devnet/preflight-transfer" in html
     assert "/v1/xriq/private-devnet/transactions/" in html
+    assert "/v1/xriq/private-devnet/accounts/" in html
     assert 'id="transferForm"' in html
     assert 'id="preflightButton"' in html
     assert 'id="transactionLookupForm"' in html
     assert 'id="transactionLookupButton"' in html
+    assert 'id="accountLookupForm"' in html
+    assert 'id="accountLookupButton"' in html
     assert "dev-api-key-change-me" not in html
     assert "BIBER_API_KEY" not in html
     assert "http://127.0.0.1:8000" in html

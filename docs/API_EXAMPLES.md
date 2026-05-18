@@ -285,9 +285,8 @@ http://127.0.0.1:8000/xriq/private-devnet/dashboard
 
 The dashboard reads the overview/snapshot endpoints, can submit a
 private-devnet preflight transfer through the existing safe wrapper, and can
-look up a transaction hash through the read-only transaction-detail wrapper. It
-does not embed an API key; enter the key in the browser session after opening
-it.
+look up transaction hashes and accounts through the read-only wrappers. It does
+not embed an API key; enter the key in the browser session after opening it.
 
 ```bash
 curl http://localhost:8000/v1/xriq/private-devnet/status \
