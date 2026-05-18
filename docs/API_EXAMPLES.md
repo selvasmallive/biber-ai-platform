@@ -170,6 +170,20 @@ curl -X POST http://localhost:8000/v1/files/edit \
 Use `dry_run: true` to validate the path and replacement count without writing
 the file.
 
+## Run The BIBER Agent Smoke
+
+On Vast.ai, this script checks the live agent flow: repo-context chat,
+workspace-edit dry-run, allowlisted test execution, and optional GitHub
+save/PR only when explicitly enabled.
+
+```bash
+cd /workspace/biber-ai-platform
+bash scripts/vast_biber_agent_smoke.sh
+```
+
+To include GitHub save and draft-PR creation, configure GitHub credentials on
+the server first, then run with `BIBER_AGENT_SMOKE_GITHUB=1`.
+
 ## XRIQ Private-Devnet Preflight Transfer
 
 This endpoint is a thin wrapper around the local Rust
