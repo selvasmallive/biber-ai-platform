@@ -153,6 +153,19 @@
       opacity: 0.72;
     }
 
+    .secondary {
+      border-color: var(--border);
+      color: var(--accent-strong);
+      background: #f8fcfa;
+    }
+
+    .secondary:hover,
+    .secondary:focus {
+      border-color: var(--accent);
+      color: #ffffff;
+      background: var(--accent);
+    }
+
     .metrics {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -280,6 +293,44 @@
       font-size: 12px;
     }
 
+    .transfer-panel {
+      margin-top: 14px;
+    }
+
+    .transfer-form {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      padding: 14px;
+      align-items: end;
+    }
+
+    .span-2 {
+      grid-column: span 2;
+    }
+
+    .transfer-result {
+      margin: 0 14px 14px;
+      border: 1px solid #dce7e1;
+      border-radius: 6px;
+      padding: 11px;
+      background: #fbfdfc;
+      display: grid;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .transfer-result strong {
+      color: var(--text);
+    }
+
+    .transfer-result .hash {
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      overflow-wrap: anywhere;
+    }
+
     .message {
       margin-bottom: 14px;
       border: 1px solid rgba(161, 92, 16, 0.24);
@@ -298,8 +349,13 @@
       .topbar-inner,
       .toolbar,
       .metrics,
-      .grid {
+      .grid,
+      .transfer-form {
         grid-template-columns: 1fr;
+      }
+
+      .span-2 {
+        grid-column: auto;
       }
 
       .status-pill {
@@ -388,21 +444,62 @@
           </div>
         </article>
       </section>
+
+      <section class="panel transfer-panel" aria-label="Preflight transfer">
+        <div class="panel-header">
+          <h2>Preflight Transfer</h2>
+          <div id="transferStatus" class="timestamp">-</div>
+        </div>
+        <form id="transferForm" class="transfer-form">
+          <div class="field span-2">
+            <label for="fromAddress">From</label>
+            <input id="fromAddress" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field span-2">
+            <label for="toAddress">To</label>
+            <input id="toAddress" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="amountBaseUnits">Amount</label>
+            <input id="amountBaseUnits" inputmode="numeric" pattern="[0-9]+">
+          </div>
+          <div class="field">
+            <label for="feeBaseUnits">Fee</label>
+            <input id="feeBaseUnits" inputmode="numeric" pattern="[0-9]+">
+          </div>
+          <div class="field">
+            <label for="expiresAtHeight">Expires</label>
+            <input id="expiresAtHeight" inputmode="numeric" pattern="[0-9]*">
+          </div>
+          <button id="preflightButton" class="refresh secondary" type="submit">Run</button>
+        </form>
+        <div id="transferResult" class="transfer-result">
+          <div><strong>Status</strong> <span id="transferResultStatus">-</span></div>
+          <div><strong>Transaction</strong> <span id="transferHash" class="hash">-</span></div>
+          <div><strong>Block</strong> <span id="transferBlock">-</span></div>
+          <div><strong>Balance</strong> <span id="transferBalance">-</span></div>
+        </div>
+      </section>
     </main>
   </div>
 
   <script>
     const OVERVIEW_PATH = "/v1/xriq/private-devnet/overview";
     const SNAPSHOTS_PATH = "/v1/xriq/private-devnet/snapshots";
+    const PREFLIGHT_PATH = "/v1/xriq/private-devnet/preflight-transfer";
     const STORAGE_KEYS = {
       baseUrl: "biber:xriq-dashboard:base-url",
-      apiKey: "biber:xriq-dashboard:api-key"
+      apiKey: "biber:xriq-dashboard:api-key",
+      fromAddress: "biber:xriq-dashboard:from-address",
+      toAddress: "biber:xriq-dashboard:to-address"
     };
 
     const elements = {
       baseUrl: document.getElementById("baseUrl"),
       apiKey: document.getElementById("apiKey"),
       refreshButton: document.getElementById("refreshButton"),
+      preflightButton: document.getElementById("preflightButton"),
+      transferForm: document.getElementById("transferForm"),
       statusPill: document.getElementById("statusPill"),
       message: document.getElementById("message"),
       heightMetric: document.getElementById("heightMetric"),
@@ -411,7 +508,17 @@
       stateRootMetric: document.getElementById("stateRootMetric"),
       blocksBody: document.getElementById("blocksBody"),
       snapshotsList: document.getElementById("snapshotsList"),
-      updatedAt: document.getElementById("updatedAt")
+      updatedAt: document.getElementById("updatedAt"),
+      fromAddress: document.getElementById("fromAddress"),
+      toAddress: document.getElementById("toAddress"),
+      amountBaseUnits: document.getElementById("amountBaseUnits"),
+      feeBaseUnits: document.getElementById("feeBaseUnits"),
+      expiresAtHeight: document.getElementById("expiresAtHeight"),
+      transferStatus: document.getElementById("transferStatus"),
+      transferResultStatus: document.getElementById("transferResultStatus"),
+      transferHash: document.getElementById("transferHash"),
+      transferBlock: document.getElementById("transferBlock"),
+      transferBalance: document.getElementById("transferBalance")
     };
 
     function defaultBaseUrl() {
@@ -470,12 +577,23 @@
       };
     }
 
-    async function requestJson(path, params) {
-      const response = await fetch(endpoint(path, params), { headers: headers() });
-      const body = await response.text();
+    async function requestJson(path, params, options) {
+      const requestOptions = options || {};
+      const requestHeaders = headers();
+      let requestBody;
+      if (requestOptions.body) {
+        requestHeaders["Content-Type"] = "application/json";
+        requestBody = JSON.stringify(requestOptions.body);
+      }
+      const response = await fetch(endpoint(path, params), {
+        method: requestOptions.method || "GET",
+        headers: requestHeaders,
+        body: requestBody
+      });
+      const responseBody = await response.text();
       let payload;
       try {
-        payload = JSON.parse(body);
+        payload = JSON.parse(responseBody);
       } catch (error) {
         throw new Error(`${path} returned invalid JSON`);
       }
@@ -489,6 +607,8 @@
     function saveInputs() {
       sessionStorage.setItem(STORAGE_KEYS.baseUrl, normalizeBaseUrl(elements.baseUrl.value));
       sessionStorage.setItem(STORAGE_KEYS.apiKey, elements.apiKey.value);
+      sessionStorage.setItem(STORAGE_KEYS.fromAddress, elements.fromAddress.value);
+      sessionStorage.setItem(STORAGE_KEYS.toAddress, elements.toAddress.value);
     }
 
     function renderBlocks(blocks) {
@@ -567,6 +687,76 @@
       setText(elements.updatedAt, new Date().toLocaleTimeString());
     }
 
+    function numericValue(input, label, required) {
+      const value = input.value.trim();
+      if (!value && !required) {
+        return undefined;
+      }
+      if (!/^[0-9]+$/.test(value)) {
+        throw new Error(`${label} must be a non-negative integer.`);
+      }
+      return value;
+    }
+
+    function renderTransferResult(payload) {
+      setText(elements.transferResultStatus, payload.command || "preflight-transfer");
+      setText(elements.transferHash, shortHash(payload.transaction_hash, 12));
+      elements.transferHash.title = payload.transaction_hash || "";
+      setText(elements.transferBlock, payload.confirmed_block_height);
+      setText(elements.transferBalance, payload.final_balance_base_units);
+      setText(elements.transferStatus, new Date().toLocaleTimeString());
+    }
+
+    async function runPreflight(event) {
+      event.preventDefault();
+      if (!elements.apiKey.value.trim()) {
+        setStatus("Missing key", "error");
+        setMessage("API key required.");
+        return;
+      }
+
+      let payload;
+      try {
+        const expires = numericValue(elements.expiresAtHeight, "Expires", false);
+        payload = {
+          "from": elements.fromAddress.value.trim(),
+          "to": elements.toAddress.value.trim(),
+          "amount_base_units": numericValue(elements.amountBaseUnits, "Amount", true),
+          "fee_base_units": numericValue(elements.feeBaseUnits, "Fee", true),
+          "timestamp_ms": Date.now()
+        };
+        if (!payload.from || !payload.to) {
+          throw new Error("From and To are required.");
+        }
+        if (expires !== undefined) {
+          payload.expires_at_height = Number(expires);
+        }
+      } catch (error) {
+        setStatus("Error", "error");
+        setMessage(error.message || "Transfer input is invalid.");
+        return;
+      }
+
+      saveInputs();
+      setMessage("");
+      setStatus("Sending", "");
+      elements.preflightButton.disabled = true;
+      try {
+        const result = await requestJson(PREFLIGHT_PATH, null, {
+          method: "POST",
+          body: payload
+        });
+        renderTransferResult(result);
+        await refresh();
+        setStatus("Live", "ok");
+      } catch (error) {
+        setStatus("Error", "error");
+        setMessage(error.message || "Preflight transfer failed.");
+      } finally {
+        elements.preflightButton.disabled = false;
+      }
+    }
+
     async function refresh() {
       if (!elements.apiKey.value.trim()) {
         setStatus("Missing key", "error");
@@ -596,7 +786,15 @@
     function boot() {
       elements.baseUrl.value = sessionStorage.getItem(STORAGE_KEYS.baseUrl) || defaultBaseUrl();
       elements.apiKey.value = sessionStorage.getItem(STORAGE_KEYS.apiKey) || "";
+      elements.fromAddress.value = sessionStorage.getItem(STORAGE_KEYS.fromAddress)
+        || "xriqdev1alice00000000000";
+      elements.toAddress.value = sessionStorage.getItem(STORAGE_KEYS.toAddress)
+        || "xriqdev1bobbb00000000000";
+      elements.amountBaseUnits.value = "1";
+      elements.feeBaseUnits.value = "1";
+      elements.expiresAtHeight.value = "";
       elements.refreshButton.addEventListener("click", refresh);
+      elements.transferForm.addEventListener("submit", runPreflight);
       elements.apiKey.addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
           refresh();

@@ -283,6 +283,10 @@ For a same-origin browser dashboard over an SSH tunnel:
 http://127.0.0.1:8000/xriq/private-devnet/dashboard
 ```
 
+The dashboard reads the overview/snapshot endpoints and can submit a
+private-devnet preflight transfer through the existing safe wrapper. It does
+not embed an API key; enter the key in the browser session after opening it.
+
 ```bash
 curl http://localhost:8000/v1/xriq/private-devnet/status \
   -H "Authorization: Bearer dev-api-key-change-me"
