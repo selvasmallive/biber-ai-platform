@@ -92,18 +92,22 @@ serving the last broad-safe Rust/XRIQ adapter.
   `d4df8c0 Add allowlisted BIBER test runner API`.
 - Latest BIBER MVP bounded workspace-edit commit pushed and Vast-verified:
   `992890b Add bounded BIBER workspace edit API`.
-- Vast code verification is current through `992890b`. Full Rust/API wrapper
+- Latest BIBER MVP GitHub branch/PR workflow commits pushed and Vast-verified:
+  `552220b Add BIBER GitHub PR workflow support` and
+  `179f58b Clarify GitHub workflow test label`.
+- Vast code verification is current through `179f58b`. Full Rust/API wrapper
   verification is current through `919b348`; focused BIBER API wrapper
   verification is current through `32909e8`; consolidated BIBER XRIQ API smoke
   verification is current through `919b348`; focused fixture verification is
   current through `919b348`; BIBER test-runner API verification is current
   through `d4df8c0`; BIBER workspace-edit API verification is current through
-  `992890b`.
+  `992890b`; BIBER GitHub branch/PR workflow verification is current through
+  `179f58b`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `43390`
+  - FastAPI pid: `43893`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - Latest BIBER test-runner smoke:
@@ -114,6 +118,10 @@ serving the last broad-safe Rust/XRIQ adapter.
     `POST /v1/files/edit` with `create_if_missing=true` and `dry_run=true`
     returned `200 OK`, `created=true`, `changed=true`, and did not write a
     file.
+  - Latest BIBER GitHub PR workflow smoke:
+    `POST /v1/github/pull-request` returned the expected `503` with
+    `GitHub saving is not configured` because live GitHub credentials are still
+    intentionally not configured on Vast.
   - Latest endpoint smoke:
     `POST /v1/xriq/private-devnet/preflight-transfer`,
     `GET /v1/xriq/private-devnet/status`,
@@ -1426,6 +1434,39 @@ serving the last broad-safe Rust/XRIQ adapter.
     `created=true` and `changed=true`.
   - Pushed commit:
     `992890b Add bounded BIBER workspace edit API`.
+- BIBER MVP GitHub branch/PR workflow checkpoint:
+  - Added optional branch creation to GitHub file save. `GitHubSaveTarget` now
+    supports `base_branch` and `create_branch_if_missing` so BIBER can save a
+    generated file to a review branch created from a configured base branch.
+  - Added the protected endpoint `POST /v1/github/pull-request` for opening a
+    draft or ready pull request from an existing head branch to a base branch.
+  - The GitHub client validates path/branch inputs, rejects unsafe branch
+    names, wraps GitHub API failures, and keeps the token server-side.
+  - Updated `docs/API_EXAMPLES.md` with the branch-save plus draft-PR flow.
+  - Updated the focused `pytest-core` allowlist to include
+    `tests/test_github_client.py`.
+  - Local workstation verification passed with bundled Python
+    `compileall app src tests` and `git diff --cached --check`. Local pytest is
+    still unavailable in the bundled workstation runtime.
+  - Vast checkout was fast-forwarded to `552220b`; verification passed with
+    the command `/workspace/biber-venv/bin/python -m compileall app src tests`
+    and focused pytest:
+    `tests/test_workspace_edit.py`, `tests/test_github_client.py`,
+    `tests/test_test_runner.py`, `tests/test_model_registry.py`,
+    `tests/test_repo_context.py`, `tests/test_openai_mentor_trigger.py`, and
+    `tests/test_xriq_preflight_api.py` with `47 passed`.
+  - A follow-up label-only commit `179f58b` clarified the live `/v1/tests`
+    description for GitHub workflows; Vast was fast-forwarded and compile-check
+    passed after that commit.
+  - Restarted only the FastAPI process; vLLM stayed running with pid `5802`.
+    New FastAPI pid: `43893`.
+  - Live smoke passed: `POST /v1/github/pull-request` returned expected
+    disabled-state HTTP `503` because live GitHub credentials are intentionally
+    not configured. `GET /v1/tests` shows `tests/test_github_client.py` in the
+    focused pytest command.
+  - Pushed commits:
+    `552220b Add BIBER GitHub PR workflow support` and
+    `179f58b Clarify GitHub workflow test label`.
 
 ## Repo State
 
@@ -1486,6 +1527,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   - `6205b66 Expose XRIQ block transaction hashes`
   - `d4df8c0 Add allowlisted BIBER test runner API`
   - `992890b Add bounded BIBER workspace edit API`
+  - `552220b Add BIBER GitHub PR workflow support`
+  - `179f58b Clarify GitHub workflow test label`
 - Later local/Vast handoff commits may exist on top of those; verify with Git
   before acting on branch state.
 - Use `git status --short --branch`, `git log --oneline -1`, and
@@ -2658,11 +2701,13 @@ bash scripts/xriq_private_devnet_smoke.sh
    smoke that follows block transaction hashes into transaction detail. The
    status state-root marker, deterministic replay smoke, the first allowlisted
    BIBER test-execution API slice, and bounded workspace-edit API slice are now
-   done. Good next targets are either a short snapshot export/import design
-   note or the next BIBER MVP core-agent workflow slice: GitHub save/PR polish,
-   branch-aware generated patch saving, and a small end-to-end agent smoke.
-   Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
-   market-facing work remain blocked.
+   done. The branch-aware GitHub save plus draft-PR path is now implemented
+   and Vast-verified. Good next targets are either a short snapshot
+   export/import design note or a small BIBER MVP end-to-end agent smoke that
+   chains repo context, bounded file edit, allowlisted tests, and optional
+   GitHub save/PR when credentials are configured. Public XRIQ launch,
+   exchange listing, custody, liquidity, bridges, and market-facing work remain
+   blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
