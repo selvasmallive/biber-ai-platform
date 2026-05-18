@@ -5458,6 +5458,56 @@ mod tests {
     }
 
     #[test]
+    fn block_detail_json_matches_checked_fixture() {
+        let path = temp_store_path();
+        let path_text = path.to_string_lossy().to_string();
+        run_node_command([
+            "produce-transfer-block",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1bobbb00000000000",
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--expires-at-height",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+
+        let block_detail_json = run_node_command([
+            "block-detail",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--height",
+            "1",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        let fixture =
+            include_str!("../../../fixtures/private-devnet/node-block-detail-transfer.json");
+
+        assert_eq!(block_detail_json.trim_end(), fixture.trim_end());
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
     fn produced_pending_block_json_matches_checked_fixture() {
         let path = temp_store_path();
         let pending_path = path.with_extension("pending");

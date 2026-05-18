@@ -615,6 +615,7 @@ The repository also includes checked private-devnet golden files under
 
 - `wallet-transfer-submit.json`
 - `node-produce-transfer-block.json`
+- `node-block-detail-transfer.json`
 - `node-produce-pending-block.json`
 - `node-preflight-transfer.json`
 - `node-status-empty.json`
