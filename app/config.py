@@ -83,6 +83,14 @@ class Settings:
         "BIBER_XRIQ_PENDING_FILE",
         "target/biber-xriq-private-devnet-pending.tsv",
     )
+    xriq_snapshot_root_dir: str = os.getenv(
+        "BIBER_XRIQ_SNAPSHOT_ROOT_DIR",
+        "target/biber-xriq-private-devnet-snapshots",
+    )
+    xriq_snapshot_import_root_dir: str = os.getenv(
+        "BIBER_XRIQ_SNAPSHOT_IMPORT_ROOT_DIR",
+        "target/biber-xriq-private-devnet-imports",
+    )
     xriq_default_alice_balance_base_units: str = os.getenv(
         "BIBER_XRIQ_DEFAULT_ALICE_BALANCE_BASE_UNITS",
         "100",

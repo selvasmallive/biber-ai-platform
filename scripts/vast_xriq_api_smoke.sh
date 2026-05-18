@@ -29,6 +29,7 @@ API_BASE_URL="${BIBER_XRIQ_API_SMOKE_URL:-http://127.0.0.1:${BIBER_API_PORT}}"
 EXPLORER_LIMIT="${BIBER_XRIQ_API_SMOKE_LIMIT:-5}"
 ALICE_ADDRESS="${BIBER_XRIQ_API_SMOKE_ACCOUNT:-xriqdev1alice00000000000}"
 TX_HASH="${BIBER_XRIQ_API_SMOKE_TX_HASH:-}"
+SNAPSHOT_NAME="${BIBER_XRIQ_API_SMOKE_SNAPSHOT_NAME:-api-smoke-${SMOKE_ID}}"
 
 mkdir -p "$ARTIFACT_DIR"
 
@@ -38,6 +39,7 @@ export ARTIFACT_DIR
 export EXPLORER_LIMIT
 export ALICE_ADDRESS
 export TX_HASH
+export SNAPSHOT_NAME
 
 "$PYTHON_BIN" <<'PY'
 from __future__ import annotations
@@ -58,6 +60,7 @@ artifact_dir = Path(os.environ["ARTIFACT_DIR"])
 explorer_limit = int(os.environ["EXPLORER_LIMIT"])
 alice_address = os.environ["ALICE_ADDRESS"]
 requested_tx_hash = os.environ["TX_HASH"].strip()
+snapshot_name = os.environ["SNAPSHOT_NAME"]
 
 
 def fail(message: str) -> None:
@@ -72,13 +75,26 @@ def write_artifact(name: str, payload: object) -> None:
     )
 
 
-def request_json(path: str, artifact_name: str) -> dict[str, object]:
+def request_json(
+    path: str,
+    artifact_name: str,
+    request_payload: dict[str, object] | None = None,
+) -> dict[str, object]:
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json",
+    }
+    data = None
+    method = "GET"
+    if request_payload is not None:
+        headers["Content-Type"] = "application/json"
+        data = json.dumps(request_payload).encode("utf-8")
+        method = "POST"
     request = urllib.request.Request(
         api_base_url + path,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Accept": "application/json",
-        },
+        data=data,
+        headers=headers,
+        method=method,
     )
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
@@ -140,6 +156,32 @@ expect(account, "address", alice_address, "account")
 mempool = request_json("/v1/xriq/private-devnet/mempool", "mempool.json")
 expect(mempool, "command", "mempool-detail", "mempool")
 
+snapshot_export = request_json(
+    "/v1/xriq/private-devnet/snapshots/export",
+    "snapshot-export.json",
+    {"snapshot_name": snapshot_name, "include_pending_file": True},
+)
+expect(snapshot_export, "command", "snapshot-export", "snapshot export")
+expect(snapshot_export, "snapshot_name", snapshot_name, "snapshot export")
+
+snapshot_import = request_json(
+    "/v1/xriq/private-devnet/snapshots/import",
+    "snapshot-import.json",
+    {
+        "snapshot_name": snapshot_name,
+        "target": "staging",
+        "include_pending_file": True,
+    },
+)
+expect(snapshot_import, "command", "snapshot-import", "snapshot import")
+expect(snapshot_import, "snapshot_name", snapshot_name, "snapshot import")
+expect(snapshot_import, "target", "staging", "snapshot import")
+for key in ("current_height", "state_root"):
+    exported = snapshot_export.get(key)
+    imported = snapshot_import.get(key)
+    if exported is not None and imported is not None and exported != imported:
+        fail(f"snapshot import expected {key}={exported!r}, got {imported!r}")
+
 tx_hash = requested_tx_hash
 transaction_source = "env" if tx_hash else "skipped"
 if not tx_hash and isinstance(block, dict):
@@ -169,6 +211,8 @@ summary = {
     "block_height": block_height,
     "account": account.get("address"),
     "mempool_pending": mempool.get("pending_count"),
+    "snapshot_name": snapshot_name,
+    "snapshot_height": snapshot_export.get("current_height"),
     "transaction_hash": tx_hash or None,
     "transaction_source": transaction_source,
     "transaction_status": transaction_status,

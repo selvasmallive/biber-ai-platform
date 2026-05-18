@@ -269,6 +269,41 @@ curl http://localhost:8000/v1/xriq/private-devnet/mempool \
   -H "Authorization: Bearer dev-api-key-change-me"
 ```
 
+## XRIQ Private-Devnet Snapshots
+
+These endpoints wrap `xriq-node snapshot-export` and `xriq-node
+snapshot-import`. Clients provide only a safe snapshot name and options; the
+server controls the snapshot, chain, and pending-file roots through
+`BIBER_XRIQ_*` settings.
+
+```bash
+curl -X POST http://localhost:8000/v1/xriq/private-devnet/snapshots/export \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "snapshot_name": "manual-smoke",
+    "include_pending_file": true
+  }'
+```
+
+Import defaults to a staging target so the restored chain can be checked
+without overwriting the live configured private-devnet files:
+
+```bash
+curl -X POST http://localhost:8000/v1/xriq/private-devnet/snapshots/import \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "snapshot_name": "manual-smoke",
+    "target": "staging",
+    "include_pending_file": true
+  }'
+```
+
+Use `"target": "configured"` only for an intentional restore onto a clean or
+operator-prepared private-devnet file path. The Rust command refuses to
+overwrite existing target files.
+
 ## Submit Proctoring Analysis
 
 ```bash

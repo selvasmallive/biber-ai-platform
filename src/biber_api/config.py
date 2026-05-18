@@ -66,6 +66,8 @@ class BiberSettings:
     xriq_node_command: str = "cargo run -q -p xriq-node --"
     xriq_chain_file: str = "target/biber-xriq-private-devnet-chain.bin"
     xriq_pending_file: str = "target/biber-xriq-private-devnet-pending.tsv"
+    xriq_snapshot_root_dir: str = "target/biber-xriq-private-devnet-snapshots"
+    xriq_snapshot_import_root_dir: str = "target/biber-xriq-private-devnet-imports"
     xriq_default_alice_balance_base_units: str = "100"
     xriq_command_timeout_seconds: float = 30.0
     xriq_rustup_home: str | None = None
@@ -117,6 +119,14 @@ def get_settings() -> BiberSettings:
         xriq_pending_file=os.getenv(
             "BIBER_XRIQ_PENDING_FILE",
             "target/biber-xriq-private-devnet-pending.tsv",
+        ),
+        xriq_snapshot_root_dir=os.getenv(
+            "BIBER_XRIQ_SNAPSHOT_ROOT_DIR",
+            "target/biber-xriq-private-devnet-snapshots",
+        ),
+        xriq_snapshot_import_root_dir=os.getenv(
+            "BIBER_XRIQ_SNAPSHOT_IMPORT_ROOT_DIR",
+            "target/biber-xriq-private-devnet-imports",
         ),
         xriq_default_alice_balance_base_units=os.getenv(
             "BIBER_XRIQ_DEFAULT_ALICE_BALANCE_BASE_UNITS",

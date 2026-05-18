@@ -4,12 +4,17 @@ import json
 import os
 import shlex
 import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Literal
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from .config import BiberSettings
+
+
+SNAPSHOT_NAME_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}$"
 
 
 class XriqPreflightTransferRequest(BaseModel):
@@ -22,6 +27,19 @@ class XriqPreflightTransferRequest(BaseModel):
     expires_at_height: int | None = Field(default=None, ge=0)
     timestamp_ms: int | None = Field(default=None, ge=0)
     consensus_round: int | None = Field(default=None, ge=0)
+    alice_balance_base_units: str | None = Field(default=None, pattern=r"^[0-9]+$")
+
+
+class XriqSnapshotExportRequest(BaseModel):
+    snapshot_name: str | None = Field(default=None, pattern=SNAPSHOT_NAME_PATTERN)
+    include_pending_file: bool = True
+    alice_balance_base_units: str | None = Field(default=None, pattern=r"^[0-9]+$")
+
+
+class XriqSnapshotImportRequest(BaseModel):
+    snapshot_name: str = Field(pattern=SNAPSHOT_NAME_PATTERN)
+    target: Literal["staging", "configured"] = "staging"
+    include_pending_file: bool = True
     alice_balance_base_units: str | None = Field(default=None, pattern=r"^[0-9]+$")
 
 
@@ -156,6 +174,40 @@ def run_private_devnet_mempool_detail(
     )
 
 
+def run_private_devnet_snapshot_export(
+    request: XriqSnapshotExportRequest,
+    settings: BiberSettings,
+    *,
+    runner: Runner = subprocess.run,
+) -> dict[str, Any]:
+    snapshot_name = _snapshot_name_or_default(request.snapshot_name)
+    payload = _run_xriq_node_json(
+        _snapshot_export_command(request, snapshot_name, settings),
+        settings,
+        runner=runner,
+        operation="XRIQ snapshot export",
+    )
+    payload.setdefault("snapshot_name", snapshot_name)
+    return payload
+
+
+def run_private_devnet_snapshot_import(
+    request: XriqSnapshotImportRequest,
+    settings: BiberSettings,
+    *,
+    runner: Runner = subprocess.run,
+) -> dict[str, Any]:
+    payload = _run_xriq_node_json(
+        _snapshot_import_command(request, settings),
+        settings,
+        runner=runner,
+        operation="XRIQ snapshot import",
+    )
+    payload.setdefault("snapshot_name", request.snapshot_name)
+    payload.setdefault("target", request.target)
+    return payload
+
+
 def _run_xriq_node_json(
     command: list[str],
     settings: BiberSettings,
@@ -245,6 +297,65 @@ def _preflight_command(
     return command
 
 
+def _snapshot_export_command(
+    request: XriqSnapshotExportRequest,
+    snapshot_name: str,
+    settings: BiberSettings,
+) -> list[str]:
+    command = _base_command(settings)
+    command.extend(
+        [
+            "snapshot-export",
+            "--chain-file",
+            settings.xriq_chain_file,
+            "--snapshot-dir",
+            _configured_child_path(settings.xriq_snapshot_root_dir, snapshot_name),
+            "--alice-balance",
+            request.alice_balance_base_units
+            or settings.xriq_default_alice_balance_base_units,
+        ]
+    )
+    if request.include_pending_file:
+        command.extend(["--pending-file", settings.xriq_pending_file])
+    command.extend(["--format", "json"])
+    return command
+
+
+def _snapshot_import_command(
+    request: XriqSnapshotImportRequest,
+    settings: BiberSettings,
+) -> list[str]:
+    snapshot_dir = _configured_child_path(settings.xriq_snapshot_root_dir, request.snapshot_name)
+    if request.target == "configured":
+        chain_file = settings.xriq_chain_file
+        pending_file = settings.xriq_pending_file
+    else:
+        import_root = _configured_child_path(
+            settings.xriq_snapshot_import_root_dir,
+            request.snapshot_name,
+        )
+        chain_file = str(Path(import_root) / "chain.bin")
+        pending_file = str(Path(import_root) / "pending.tsv")
+
+    command = _base_command(settings)
+    command.extend(
+        [
+            "snapshot-import",
+            "--snapshot-dir",
+            snapshot_dir,
+            "--chain-file",
+            chain_file,
+            "--alice-balance",
+            request.alice_balance_base_units
+            or settings.xriq_default_alice_balance_base_units,
+        ]
+    )
+    if request.include_pending_file:
+        command.extend(["--pending-file", pending_file])
+    command.extend(["--format", "json"])
+    return command
+
+
 def _read_command(command_name: str, settings: BiberSettings) -> list[str]:
     command = _base_command(settings)
     command.extend(
@@ -259,6 +370,17 @@ def _read_command(command_name: str, settings: BiberSettings) -> list[str]:
         ]
     )
     return command
+
+
+def _snapshot_name_or_default(snapshot_name: str | None) -> str:
+    if snapshot_name:
+        return snapshot_name
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return f"biber-xriq-snapshot-{timestamp}-{uuid4().hex[:8]}"
+
+
+def _configured_child_path(root: str, child_name: str) -> str:
+    return str(Path(root) / child_name)
 
 
 def _base_command(settings: BiberSettings) -> list[str]:

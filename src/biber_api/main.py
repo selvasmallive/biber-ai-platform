@@ -60,11 +60,15 @@ from .xriq_client import (
     XriqCommandTimeout,
     XriqConfigurationError,
     XriqPreflightTransferRequest,
+    XriqSnapshotExportRequest,
+    XriqSnapshotImportRequest,
     run_private_devnet_account_detail,
     run_private_devnet_block_detail,
     run_private_devnet_explorer_overview,
     run_private_devnet_mempool_detail,
     run_private_devnet_preflight_transfer,
+    run_private_devnet_snapshot_export,
+    run_private_devnet_snapshot_import,
     run_private_devnet_status,
     run_private_devnet_transaction_detail,
 )
@@ -542,6 +546,40 @@ async def xriq_private_devnet_mempool_detail(
 ) -> dict[str, object]:
     try:
         return run_private_devnet_mempool_detail(settings)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqCommandTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except XriqCommandError as exc:
+        detail: object = exc.payload or str(exc)
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+
+
+@app.post("/v1/xriq/private-devnet/snapshots/export")
+async def xriq_private_devnet_snapshot_export(
+    request_body: XriqSnapshotExportRequest,
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> dict[str, object]:
+    try:
+        return run_private_devnet_snapshot_export(request_body, settings)
+    except XriqConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except XriqCommandTimeout as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except XriqCommandError as exc:
+        detail: object = exc.payload or str(exc)
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+
+
+@app.post("/v1/xriq/private-devnet/snapshots/import")
+async def xriq_private_devnet_snapshot_import(
+    request_body: XriqSnapshotImportRequest,
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> dict[str, object]:
+    try:
+        return run_private_devnet_snapshot_import(request_body, settings)
     except XriqConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except XriqCommandTimeout as exc:
