@@ -1648,6 +1648,187 @@ def test_run_review_verified_repairs_summarizes_jsonl_without_api_key(
     assert result["rejected"][0]["reason"] == "unsupported_source"
 
 
+def test_run_show_repair_chain_summarizes_ready_chain_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("show-repair-chain should not resolve an API key")
+
+    plan_hash = "b" * 64
+    mvp_loop_path = tmp_path / "mvp-loop.json"
+    repair_path = tmp_path / "repair-request.json"
+    attempt_path = tmp_path / "repair-attempt.json"
+    extraction_path = tmp_path / "repair-extraction.json"
+    plan_path = tmp_path / "repair-plan.json"
+    apply_path = tmp_path / "repair-apply.json"
+    verification_path = tmp_path / "repair-verification.json"
+    review_jsonl_path = tmp_path / "verified-repairs.jsonl"
+    review_summary_path = tmp_path / "verified-repair-review.json"
+    output_path = tmp_path / "repair-chain.json"
+    mvp_loop_path.write_text(
+        json.dumps({"ok": False, "test_ok": False, "steps": {}}),
+        encoding="utf-8",
+    )
+    repair_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_request",
+                "repair_status": "ready_for_local_model",
+                "training_allowed": False,
+                "next_test_id": "python-compileall-api",
+            }
+        ),
+        encoding="utf-8",
+    )
+    attempt_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_attempt",
+                "repair_status": "model_repair_proposed",
+                "training_allowed": False,
+                "auto_applied": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    extraction_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_extraction",
+                "extraction_status": "ready_for_plan_edit",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    plan_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_plan",
+                "plan_status": "planned",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "plan_hash": plan_hash,
+            }
+        ),
+        encoding="utf-8",
+    )
+    apply_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "apply_status": "applied",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "auto_saved": False,
+                "approval_received": True,
+                "plan_hash": plan_hash,
+                "next_test_id": "python-compileall-api",
+            }
+        ),
+        encoding="utf-8",
+    )
+    verification_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_test_verification",
+                "verification_status": "passed",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "auto_saved": False,
+                "plan_hash": plan_hash,
+                "test_id": "python-compileall-api",
+            }
+        ),
+        encoding="utf-8",
+    )
+    review_jsonl_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_verified_repair",
+                "review_status": "needs_human_review",
+                "training_allowed": False,
+                "eligible_for_training": False,
+                "auto_saved": False,
+                "plan_hash": plan_hash,
+                "test_id": "python-compileall-api",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    review_summary_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_verified_repair_review",
+                "records": 1,
+                "ready_for_human_review": 1,
+                "rejected_records": 0,
+                "training_allowed": False,
+                "eligible_for_training": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "show-repair-chain",
+                "--mvp-loop",
+                str(mvp_loop_path),
+                "--repair",
+                str(repair_path),
+                "--attempt",
+                str(attempt_path),
+                "--extraction",
+                str(extraction_path),
+                "--plan",
+                str(plan_path),
+                "--apply",
+                str(apply_path),
+                "--verification",
+                str(verification_path),
+                "--review-jsonl",
+                str(review_jsonl_path),
+                "--review-summary",
+                str(review_summary_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["source"] == "biber_mvp_loop_repair_chain_summary"
+    assert result["chain_status"] == "ready_for_human_review"
+    assert result["ready_for_human_review"] is True
+    assert result["training_allowed"] is False
+    assert result["eligible_for_training"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["auto_saved"] is False
+    assert result["auto_applied"] is False
+    assert result["plan_hash"] == plan_hash
+    assert result["plan_hash_consistent"] is True
+    assert result["test_id"] == "python-compileall-api"
+    assert result["statuses"]["verification_status"] == "passed"
+    assert result["statuses"]["review_records"] == 1
+    assert result["missing_artifacts"] == []
+    assert result["next_action"] == "human_review_before_github_or_training"
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 

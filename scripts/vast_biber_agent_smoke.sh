@@ -80,6 +80,7 @@ client_mvp_loop_repair_apply_path = artifact_dir / "agent-client-mvp-loop-repair
 client_mvp_loop_repair_verify_path = artifact_dir / "agent-client-mvp-loop-repair-test-verification.json"
 client_mvp_loop_verified_repair_review_path = artifact_dir / "agent-client-mvp-loop-verified-repairs.jsonl"
 client_mvp_loop_verified_repair_review_summary_path = artifact_dir / "agent-client-mvp-loop-verified-repair-review.json"
+client_mvp_loop_repair_chain_path = artifact_dir / "agent-client-mvp-loop-repair-chain.json"
 
 
 def fail(message: str) -> None:
@@ -1194,6 +1195,73 @@ except json.JSONDecodeError as exc:
     fail(f"review-verified-repairs output artifact returned invalid JSON: {exc}")
 if saved_client_mvp_loop_verified_repair_review != client_mvp_loop_verified_repair_review:
     fail("review-verified-repairs output artifact did not match stdout JSON")
+try:
+    client_mvp_loop_repair_chain_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "show-repair-chain",
+            "--mvp-loop",
+            str(client_mvp_loop_output_path),
+            "--repair",
+            str(client_mvp_loop_repair_output_path),
+            "--attempt",
+            str(client_mvp_loop_repair_attempt_path),
+            "--extraction",
+            str(client_mvp_loop_repair_extraction_path),
+            "--plan",
+            str(client_mvp_loop_repair_plan_path),
+            "--apply",
+            str(client_mvp_loop_repair_apply_path),
+            "--verification",
+            str(client_mvp_loop_repair_verify_path),
+            "--review-jsonl",
+            str(client_mvp_loop_verified_repair_review_path),
+            "--review-summary",
+            str(client_mvp_loop_verified_repair_review_summary_path),
+            "--output",
+            str(client_mvp_loop_repair_chain_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py show-repair-chain failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py show-repair-chain timed out: {exc}")
+try:
+    client_mvp_loop_repair_chain = json.loads(client_mvp_loop_repair_chain_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py show-repair-chain returned invalid JSON: {exc}")
+if client_mvp_loop_repair_chain.get("chain_status") != "ready_for_human_review":
+    fail(f"show-repair-chain returned unexpected status: {client_mvp_loop_repair_chain!r}")
+if client_mvp_loop_repair_chain.get("ready_for_human_review") is not True:
+    fail(f"show-repair-chain did not mark human review readiness: {client_mvp_loop_repair_chain!r}")
+if client_mvp_loop_repair_chain.get("training_allowed") is not False:
+    fail(f"show-repair-chain must keep training_allowed=false: {client_mvp_loop_repair_chain!r}")
+if client_mvp_loop_repair_chain.get("safe_to_train") is not False:
+    fail(f"show-repair-chain must not mark safe_to_train=true: {client_mvp_loop_repair_chain!r}")
+if client_mvp_loop_repair_chain.get("github_save_ready") is not False:
+    fail(f"show-repair-chain must not mark GitHub save readiness: {client_mvp_loop_repair_chain!r}")
+chain_statuses = client_mvp_loop_repair_chain.get("statuses")
+if not isinstance(chain_statuses, dict):
+    fail(f"show-repair-chain omitted statuses: {client_mvp_loop_repair_chain!r}")
+if chain_statuses.get("verification_status") != "passed":
+    fail(f"show-repair-chain used unexpected verification status: {client_mvp_loop_repair_chain!r}")
+if chain_statuses.get("review_records") != 1:
+    fail(f"show-repair-chain saw unexpected review records: {client_mvp_loop_repair_chain!r}")
+if not client_mvp_loop_repair_chain_path.exists():
+    fail(f"show-repair-chain did not write {client_mvp_loop_repair_chain_path}")
+try:
+    saved_client_mvp_loop_repair_chain = json.loads(
+        client_mvp_loop_repair_chain_path.read_text(encoding="utf-8")
+    )
+except json.JSONDecodeError as exc:
+    fail(f"show-repair-chain output artifact returned invalid JSON: {exc}")
+if saved_client_mvp_loop_repair_chain != client_mvp_loop_repair_chain:
+    fail("show-repair-chain output artifact did not match stdout JSON")
 client_mvp_loop_applied_path.unlink()
 write_artifact(
     "agent-client-mvp-loop.json",
@@ -1286,6 +1354,15 @@ write_artifact(
         "body": client_mvp_loop_verified_repair_review,
         "output": str(client_mvp_loop_verified_repair_review_summary_path),
         "source": str(client_mvp_loop_verified_repair_review_path),
+    },
+)
+write_artifact(
+    "agent-client-mvp-loop-repair-chain.json",
+    {
+        "status": 0,
+        "body": client_mvp_loop_repair_chain,
+        "output": str(client_mvp_loop_repair_chain_path),
+        "source": str(client_mvp_loop_repair_verify_path),
     },
 )
 
@@ -1511,6 +1588,10 @@ summary = {
     "agent_client_mvp_loop_verified_repair_review_summary": str(client_mvp_loop_verified_repair_review_summary_path),
     "agent_client_mvp_loop_verified_repair_review_records": client_mvp_loop_verified_repair_review.get("records"),
     "agent_client_mvp_loop_verified_repair_review_ready": client_mvp_loop_verified_repair_review.get("ready_for_human_review"),
+    "agent_client_mvp_loop_repair_chain": str(client_mvp_loop_repair_chain_path),
+    "agent_client_mvp_loop_repair_chain_status": client_mvp_loop_repair_chain.get("chain_status"),
+    "agent_client_mvp_loop_repair_chain_ready": client_mvp_loop_repair_chain.get("ready_for_human_review"),
+    "agent_client_mvp_loop_repair_chain_safe_to_train": client_mvp_loop_repair_chain.get("safe_to_train"),
     "agent_client_mvp_loop_report_ok": "BIBER MVP loop" in client_mvp_loop_report,
     "agent_client_mvp_loop_test_ok": client_mvp_loop.get("test_ok"),
     "agent_client_test_id": client_test_run.get("test_id"),

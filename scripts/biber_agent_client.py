@@ -606,6 +606,17 @@ def normalize_mvp_loop_artifact(payload: Mapping[str, Any]) -> dict[str, Any] | 
     return None
 
 
+def normalize_mvp_loop_repair_request_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_repair_request":
+        return dict(payload)
+    body = payload.get("body")
+    if isinstance(body, dict) and body.get("source") == "biber_mvp_loop_repair_request":
+        return dict(body)
+    return None
+
+
 def summarize_mvp_loop_artifact(path: Path, payload: Mapping[str, Any]) -> dict[str, Any]:
     steps = require_mapping(payload.get("steps"))
     try:
@@ -1434,6 +1445,268 @@ def review_verified_repair_records(
     }
 
 
+def normalize_verified_repair_review_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_verified_repair_review":
+        return dict(payload)
+    body = payload.get("body")
+    if (
+        isinstance(body, dict)
+        and body.get("source") == "biber_mvp_loop_verified_repair_review"
+    ):
+        return dict(body)
+    return None
+
+
+def load_repair_chain_artifact(
+    *,
+    artifact_path: str | None,
+    label: str,
+    normalizer: Any,
+) -> dict[str, Any] | None:
+    if artifact_path is None:
+        return None
+    raw_payload = load_json_artifact(artifact_path, label=label)
+    normalized = normalizer(raw_payload)
+    if normalized is None:
+        raise BiberAgentClientError(f"{label} has an unsupported artifact shape.")
+    return normalized
+
+
+def optional_artifact_path(path: str | None) -> str | None:
+    if path is None:
+        return None
+    return str(Path(path))
+
+
+def artifact_status(
+    payload: Mapping[str, Any] | None,
+    key: str,
+    *,
+    missing: str = "not_supplied",
+) -> object:
+    if payload is None:
+        return missing
+    return payload.get(key, "unknown")
+
+
+def int_count(value: object) -> int:
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return max(0, value)
+    try:
+        return max(0, int(str(value)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def build_repair_chain_summary(
+    *,
+    mvp_loop_path: str | None,
+    repair_path: str | None,
+    attempt_path: str | None,
+    extraction_path: str | None,
+    plan_path: str | None,
+    apply_path: str | None,
+    verification_path: str | None,
+    review_jsonl_paths: list[str],
+    review_summary_path: str | None,
+) -> dict[str, Any]:
+    if not any(
+        [
+            mvp_loop_path,
+            repair_path,
+            attempt_path,
+            extraction_path,
+            plan_path,
+            apply_path,
+            verification_path,
+            review_jsonl_paths,
+            review_summary_path,
+        ]
+    ):
+        raise BiberAgentClientError(
+            "show-repair-chain requires at least one artifact path."
+        )
+
+    mvp_loop = load_repair_chain_artifact(
+        artifact_path=mvp_loop_path,
+        label="mvp-loop artifact",
+        normalizer=normalize_mvp_loop_artifact,
+    )
+    repair = load_repair_chain_artifact(
+        artifact_path=repair_path,
+        label="repair request artifact",
+        normalizer=normalize_mvp_loop_repair_request_artifact,
+    )
+    attempt = load_repair_chain_artifact(
+        artifact_path=attempt_path,
+        label="repair attempt artifact",
+        normalizer=normalize_repair_attempt_artifact,
+    )
+    extraction = load_repair_chain_artifact(
+        artifact_path=extraction_path,
+        label="repair edit extraction artifact",
+        normalizer=normalize_repair_edit_extraction_artifact,
+    )
+    plan = load_repair_chain_artifact(
+        artifact_path=plan_path,
+        label="repair edit plan artifact",
+        normalizer=normalize_repair_edit_plan_artifact,
+    )
+    repair_apply = load_repair_chain_artifact(
+        artifact_path=apply_path,
+        label="repair edit apply artifact",
+        normalizer=normalize_repair_edit_apply_artifact,
+    )
+    verification = load_repair_chain_artifact(
+        artifact_path=verification_path,
+        label="repair test verification artifact",
+        normalizer=normalize_repair_test_verification_artifact,
+    )
+    review_summary = load_repair_chain_artifact(
+        artifact_path=review_summary_path,
+        label="verified repair review summary artifact",
+        normalizer=normalize_verified_repair_review_artifact,
+    )
+
+    review_records = 0
+    ready_for_human_review_count = 0
+    rejected_review_records = 0
+    for jsonl_path in review_jsonl_paths:
+        for row in load_jsonl_artifact(jsonl_path, label="verified repair JSONL"):
+            if row.get("source") != "biber_mvp_loop_verified_repair":
+                rejected_review_records += 1
+                continue
+            review_records += 1
+            if row.get("review_status") == "needs_human_review":
+                ready_for_human_review_count += 1
+
+    if review_summary is not None:
+        review_records = max(review_records, int_count(review_summary.get("records")))
+        ready_for_human_review_count = max(
+            ready_for_human_review_count,
+            int_count(review_summary.get("ready_for_human_review")),
+        )
+        rejected_review_records = max(
+            rejected_review_records,
+            int_count(review_summary.get("rejected_records")),
+        )
+
+    plan_hashes = [
+        str(value)
+        for value in [
+            plan.get("plan_hash") if plan is not None else None,
+            repair_apply.get("plan_hash") if repair_apply is not None else None,
+            verification.get("plan_hash") if verification is not None else None,
+        ]
+        if isinstance(value, str) and value
+    ]
+    plan_hash_consistent = len(set(plan_hashes)) <= 1
+    verification_passed = (
+        verification is not None
+        and verification.get("verification_status") == "passed"
+        and verification.get("ok") is True
+    )
+    chain_complete = all(
+        artifact is not None
+        for artifact in [repair, attempt, extraction, plan, repair_apply, verification]
+    )
+    auto_applied = any(
+        artifact.get("auto_applied") is True
+        for artifact in [
+            repair,
+            attempt,
+            extraction,
+            plan,
+            repair_apply,
+            verification,
+        ]
+        if artifact is not None
+    )
+    ready_for_human_review = (
+        chain_complete
+        and verification_passed
+        and plan_hash_consistent
+        and not auto_applied
+        and ready_for_human_review_count > 0
+    )
+
+    statuses = {
+        "mvp_loop_ok": mvp_loop.get("ok") if mvp_loop is not None else "not_supplied",
+        "repair_status": artifact_status(repair, "repair_status"),
+        "attempt_status": artifact_status(attempt, "repair_status"),
+        "extraction_status": artifact_status(extraction, "extraction_status"),
+        "plan_status": artifact_status(plan, "plan_status"),
+        "apply_status": artifact_status(repair_apply, "apply_status"),
+        "verification_status": artifact_status(
+            verification,
+            "verification_status",
+        ),
+        "review_records": review_records,
+        "ready_for_human_review": ready_for_human_review_count,
+        "rejected_review_records": rejected_review_records,
+    }
+    artifacts = {
+        "mvp_loop": optional_artifact_path(mvp_loop_path),
+        "repair": optional_artifact_path(repair_path),
+        "attempt": optional_artifact_path(attempt_path),
+        "extraction": optional_artifact_path(extraction_path),
+        "plan": optional_artifact_path(plan_path),
+        "apply": optional_artifact_path(apply_path),
+        "verification": optional_artifact_path(verification_path),
+        "review_jsonl": [str(Path(path)) for path in review_jsonl_paths],
+        "review_summary": optional_artifact_path(review_summary_path),
+    }
+    missing_artifacts = [
+        name
+        for name in ["repair", "attempt", "extraction", "plan", "apply", "verification"]
+        if artifacts[name] is None
+    ]
+    test_id = None
+    for artifact in [verification, repair_apply, plan, extraction, repair]:
+        if artifact is None:
+            continue
+        value = artifact.get("test_id") or artifact.get("next_test_id")
+        if isinstance(value, str) and value:
+            test_id = value
+            break
+
+    return {
+        "source": "biber_mvp_loop_repair_chain_summary",
+        "repair_loop_version": "mvp-v1",
+        "ok": ready_for_human_review,
+        "chain_status": (
+            "ready_for_human_review"
+            if ready_for_human_review
+            else "incomplete_or_needs_repair"
+        ),
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "auto_promoted": False,
+        "auto_saved": False,
+        "auto_applied": auto_applied,
+        "github_save_ready": False,
+        "ready_for_human_review": ready_for_human_review,
+        "chain_complete": chain_complete,
+        "verification_passed": verification_passed,
+        "plan_hash": plan_hashes[0] if plan_hashes else None,
+        "plan_hash_consistent": plan_hash_consistent,
+        "test_id": test_id,
+        "statuses": statuses,
+        "artifacts": artifacts,
+        "missing_artifacts": missing_artifacts,
+        "next_action": (
+            "human_review_before_github_or_training"
+            if ready_for_human_review
+            else "continue_repair_loop_without_training_or_github_save"
+        ),
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -1997,6 +2270,31 @@ def format_verified_repair_review_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_repair_chain_summary(payload: Mapping[str, Any]) -> str:
+    statuses = require_mapping(payload.get("statuses"))
+    missing = [str(item) for item in require_list(payload.get("missing_artifacts"))]
+    lines = [
+        "BIBER repair chain summary",
+        f"chain_status: {payload.get('chain_status', '-')}",
+        f"ready_for_human_review: {payload.get('ready_for_human_review', False)}",
+        f"chain_complete: {payload.get('chain_complete', False)}",
+        f"verification_passed: {payload.get('verification_passed', False)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"auto_applied: {payload.get('auto_applied', False)}",
+        f"plan_hash: {payload.get('plan_hash', '-')}",
+        f"plan_hash_consistent: {payload.get('plan_hash_consistent', False)}",
+        f"test_id: {payload.get('test_id', '-')}",
+        f"review_records: {statuses.get('review_records', 0)}",
+        f"next_action: {payload.get('next_action', '-')}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    if missing:
+        lines.append(f"missing_artifacts: {', '.join(missing)}")
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -2365,6 +2663,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     review_verified_repairs.add_argument("--min-repeat", type=int, default=1)
     review_verified_repairs.add_argument("--output")
 
+    show_repair_chain = subparsers.add_parser(
+        "show-repair-chain",
+        help=(
+            "Summarize an MVP repair chain from saved artifacts without "
+            "training, saving to GitHub, or resolving API auth."
+        ),
+    )
+    show_repair_chain.add_argument("--mvp-loop")
+    show_repair_chain.add_argument("--repair")
+    show_repair_chain.add_argument("--attempt")
+    show_repair_chain.add_argument("--extraction")
+    show_repair_chain.add_argument("--plan")
+    show_repair_chain.add_argument("--apply")
+    show_repair_chain.add_argument("--verification")
+    show_repair_chain.add_argument("--review-jsonl", action="append", default=None)
+    show_repair_chain.add_argument("--review-summary")
+    show_repair_chain.add_argument("--output")
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -2521,6 +2837,26 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(review, indent=2, sort_keys=True)
             if args.print_json
             else format_verified_repair_review_summary(review)
+        )
+    if args.command == "show-repair-chain":
+        summary = build_repair_chain_summary(
+            mvp_loop_path=args.mvp_loop,
+            repair_path=args.repair,
+            attempt_path=args.attempt,
+            extraction_path=args.extraction,
+            plan_path=args.plan,
+            apply_path=args.apply,
+            verification_path=args.verification,
+            review_jsonl_paths=args.review_jsonl or [],
+            review_summary_path=args.review_summary,
+        )
+        if args.output:
+            summary["artifact_path"] = str(Path(args.output))
+            write_json_artifact(summary, args.output)
+        return (
+            json.dumps(summary, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_summary(summary)
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)
