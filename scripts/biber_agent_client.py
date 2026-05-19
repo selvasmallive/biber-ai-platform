@@ -1898,6 +1898,84 @@ def export_ready_repair_chain_reviews(
     }
 
 
+def review_ready_repair_chain_records(
+    *,
+    jsonl_paths: list[str],
+    min_repeat: int,
+) -> dict[str, Any]:
+    if min_repeat < 1:
+        raise BiberAgentClientError("--min-repeat must be at least 1.")
+    records: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for jsonl_path in jsonl_paths:
+        for index, row in enumerate(
+            load_jsonl_artifact(jsonl_path, label="ready repair-chain JSONL"),
+            start=1,
+        ):
+            if row.get("source") == "biber_mvp_loop_repair_chain_review":
+                item = dict(row)
+                item["jsonl_path"] = jsonl_path
+                item["jsonl_index"] = index
+                records.append(item)
+            else:
+                rejected.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "reason": "unsupported_source",
+                        "source": row.get("source"),
+                    }
+                )
+
+    groups_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for record in records:
+        key = (
+            str(record.get("test_id") or ""),
+            str(record.get("plan_hash") or ""),
+        )
+        group = groups_by_key.setdefault(
+            key,
+            {
+                "test_id": key[0],
+                "plan_hash": key[1],
+                "count": 0,
+                "source_artifacts": [],
+                "review_statuses": [],
+                "safe_to_train": False,
+                "github_save_ready": False,
+            },
+        )
+        group["count"] += 1
+        group["source_artifacts"].append(record.get("source_artifact"))
+        group["review_statuses"].append(record.get("review_status"))
+    groups = [
+        group
+        for group in groups_by_key.values()
+        if int(group.get("count") or 0) >= min_repeat
+    ]
+    groups.sort(key=lambda item: (-int(item.get("count") or 0), str(item.get("test_id") or "")))
+
+    return {
+        "source": "biber_mvp_loop_ready_repair_chain_review",
+        "review_status": "needs_human_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "auto_promoted": False,
+        "jsonl_paths": list(jsonl_paths),
+        "records": len(records),
+        "rejected_records": len(rejected),
+        "min_repeat": min_repeat,
+        "ready_for_human_review": len(records),
+        "groups": groups,
+        "rejected": rejected,
+        "next_review_action": (
+            "human_review_repeated_repair_chains_before_github_or_training"
+        ),
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -2535,6 +2613,36 @@ def format_ready_repair_chain_export_summary(payload: Mapping[str, Any]) -> str:
     )
 
 
+def format_ready_repair_chain_review_summary(payload: Mapping[str, Any]) -> str:
+    groups = [
+        item
+        for item in require_list(payload.get("groups"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER ready repair-chain review",
+        f"records: {payload.get('records', 0)}",
+        f"rejected_records: {payload.get('rejected_records', 0)}",
+        f"ready_for_human_review: {payload.get('ready_for_human_review', 0)}",
+        f"review_status: {payload.get('review_status', '-')}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"min_repeat: {payload.get('min_repeat', 1)}",
+        f"groups: {len(groups)}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    lines.extend(
+        (
+            f"- test_id={group.get('test_id', '-')} "
+            f"plan_hash={group.get('plan_hash', '-')} "
+            f"count={group.get('count', 0)}"
+        )
+        for group in groups[:8]
+    )
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -2946,6 +3054,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     export_ready_repair_chains.add_argument("--limit", type=int, default=100)
     export_ready_repair_chains.add_argument("--output", required=True)
 
+    review_ready_repair_chains = subparsers.add_parser(
+        "review-ready-repair-chains",
+        help=(
+            "Summarize ready repair-chain JSONL review queues without making "
+            "them training-eligible or GitHub-save-ready."
+        ),
+    )
+    review_ready_repair_chains.add_argument("jsonl", nargs="+")
+    review_ready_repair_chains.add_argument("--min-repeat", type=int, default=1)
+    review_ready_repair_chains.add_argument("--output")
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -3149,6 +3268,19 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(export, indent=2, sort_keys=True)
             if args.print_json
             else format_ready_repair_chain_export_summary(export)
+        )
+    if args.command == "review-ready-repair-chains":
+        review = review_ready_repair_chain_records(
+            jsonl_paths=args.jsonl,
+            min_repeat=args.min_repeat,
+        )
+        if args.output:
+            review["artifact_path"] = str(Path(args.output))
+            write_json_artifact(review, args.output)
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_ready_repair_chain_review_summary(review)
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)
