@@ -177,13 +177,14 @@ def scan_repo(
         if has_possible_secret(text):
             skipped["possible_secret"] += 1
             continue
+        relative_path = safe_relative_path(path, root)
         summaries.append(
             RepoFileSummary(
-                path=safe_relative_path(path, root),
+                path=relative_path,
                 bytes=size,
                 sha256=hashlib.sha256(data).hexdigest(),
                 language=language_for(path),
-                role=role_for(path),
+                role=role_for(Path(relative_path)),
             )
         )
         if len(summaries) >= max_files:
