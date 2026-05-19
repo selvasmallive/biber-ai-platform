@@ -132,7 +132,10 @@ serving the last broad-safe Rust/XRIQ adapter.
   `8a539de Add BIBER agent capabilities endpoint`.
 - Latest BIBER MVP agent-client helper commit pushed and Vast-verified:
   `51ad833 Add BIBER agent client helper`.
-- Vast code verification is current through `51ad833`. Full Rust/private-devnet
+- Latest BIBER MVP repo-adaptation commits pushed and Vast-verified:
+  `9126fdd Add BIBER repo adaptation plan` and
+  `2efa65b Fix repo adaptation relative role detection`.
+- Vast code verification is current through `2efa65b`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -142,16 +145,26 @@ serving the last broad-safe Rust/XRIQ adapter.
   current through `179f58b`; BIBER agent-smoke verification is current through
   `51ad833`;
   BIBER agent-session API/persistence verification is current through
-  `51ad833`.
+  `51ad833`; BIBER repo-adaptation verification is current through `2efa65b`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `50453`
+  - FastAPI pid: `50843`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - The `2efa65b` repo-adaptation checkpoint required a FastAPI-only restart
+    because it also updated the `pytest-core` allowlist served by the API.
+    vLLM stayed on pid `5802`; FastAPI moved from pid `50453` to pid `50843`.
+  - Latest focused Vast verification for the BIBER repo-adaptation slice:
+    `/workspace/biber-venv/bin/python -m compileall app src tests scripts training`,
+    focused pytest
+    `tests/test_repo_adaptation_plan.py tests/test_training_dataset.py -q`
+    with `7 passed`, and a real plan smoke writing
+    `/workspace/outputs/repo-adaptation-plan-smoke.json` plus
+    `/workspace/outputs/repo-adaptation-eval-smoke.jsonl`.
   - The `51ad833` agent-client helper checkpoint required a FastAPI-only
     restart because it also updated the `pytest-core` allowlist served by the
     API. vLLM stayed on pid `5802`; FastAPI moved from pid `50105` to
@@ -1813,6 +1826,43 @@ serving the last broad-safe Rust/XRIQ adapter.
     `36c0098f-d4a6-4674-9e58-88925bfb3d31`, step order `xriq_context`, then
     `chat`, and `xriq_context_height=2`.
   - No credential change, model training, or OpenAI mentor call was needed.
+- BIBER MVP repo-adaptation checkpoint:
+  - Added `training/repo_adaptation_plan.py`, a conservative helper for
+    preparing repo-specific BIBER adaptation work from a GitHub checkout or
+    local repo without copying source code into a training file.
+  - The helper scans metadata only: selected relative paths, size, SHA-256,
+    language, and role. It skips `.git`, dependency/build directories,
+    binary-looking files, secret-looking filenames, and files with
+    secret-looking contents.
+  - The emitted strategy defaults to repo-context-first. Fine-tuning is
+    explicitly gated on repeated model failures, curated examples, held-out eval
+    prompts, and a candidate model beating the current served baseline.
+  - Added generated eval-prompt output so future BIBER sessions can test repo
+    understanding before paying for a training run.
+  - Added `docs/BIBER_REPO_ADAPTATION.md`, documented the CLI in
+    `docs/API_EXAMPLES.md`, and added `tests/test_repo_adaptation_plan.py`.
+  - Added the repo-adaptation test to the `pytest-core` allowlist in both
+    `app/test_runner.py` and `src/biber_api/test_runner.py`.
+  - Local workstation verification passed with bundled Python
+    `compileall app src tests scripts training`, `git diff --check`, a touched
+    file long-line scan, and a real local plan smoke against this repo writing
+    `.biber-runtime/repo-adaptation-smoke.json` plus
+    `.biber-runtime/repo-adaptation-smoke-eval.jsonl`. Local pytest is still
+    unavailable in the bundled workstation runtime.
+  - Pushed implementation/fix commits:
+    `9126fdd Add BIBER repo adaptation plan` and
+    `2efa65b Fix repo adaptation relative role detection`.
+  - Vast checkout was fast-forwarded to `2efa65b`; Vast verification passed
+    with `/workspace/biber-venv/bin/python -m compileall app src tests scripts training`,
+    focused pytest
+    `tests/test_repo_adaptation_plan.py tests/test_training_dataset.py -q`
+    with `7 passed`, and a real repo-adaptation plan smoke against this repo
+    writing `/workspace/outputs/repo-adaptation-plan-smoke.json` plus
+    `/workspace/outputs/repo-adaptation-eval-smoke.jsonl`.
+  - Restarted only the FastAPI process because the server-side `pytest-core`
+    allowlist changed. vLLM stayed running with pid `5802`. New FastAPI pid:
+    `50843`.
+  - No credential change, model training, or OpenAI mentor call was needed.
 - XRIQ snapshot export/import checkpoint:
   - Added private-devnet `xriq-node snapshot-export` and
     `xriq-node snapshot-import`.
@@ -3046,6 +3096,12 @@ tail -f /workspace/biber-logs/vllm.log
   engine and OpenAI/Codex as an optional mentor/reviewer for architecture,
   security-sensitive Rust/crypto review, eval design, failure diagnosis, and
   curated training-data review.
+- Repo-specific adaptation is documented in `docs/BIBER_REPO_ADAPTATION.md`.
+  Use `training/repo_adaptation_plan.py` against the user's target GitHub repo
+  first, run the generated eval prompts through the current served BIBER model,
+  and fine-tune on Vast only after repeatable failures are converted into
+  curated examples with a held-out eval set. Do not treat arbitrary repo source
+  dumps as training data.
 - Future Rust/XRIQ work is now an explicit project track documented in
   `docs/XRIQ_RUST_TRACK.md`. Treat it as a phased path: first prove BIBER's
   Rust capability with `cargo`-backed evals, then design XRIQ, then build a
@@ -3195,13 +3251,17 @@ bash scripts/xriq_private_devnet_smoke.sh
    `xriq_private_devnet_review` request template through
    `GET /v1/agent/capabilities`. The stdlib
    `scripts/biber_agent_client.py` helper can now consume capabilities and
-   create sessions from presets. Good next targets are small dashboard
-   wallet/explorer polish such as latest-block transaction hash buttons that
-   fill the transaction lookup, adding a client helper `create-session` live
-   smoke with a tiny max-token budget, or adding safer persisted dashboard
-   settings later with database-backed users/API keys. Public XRIQ launch,
-   exchange listing, custody, liquidity, bridges, and market-facing work remain
-   blocked.
+   create sessions from presets. Repo-specific adaptation now has a conservative
+   metadata/eval scaffold in `training/repo_adaptation_plan.py` and
+   `docs/BIBER_REPO_ADAPTATION.md`; use it against the user's actual target
+   GitHub repo before considering Vast fine-tuning. Good next targets are
+   adding a live eval-run wrapper for the generated repo-adaptation prompts,
+   small dashboard wallet/explorer polish such as latest-block transaction hash
+   buttons that fill the transaction lookup, adding a client helper
+   `create-session` live smoke with a tiny max-token budget, or adding safer
+   persisted dashboard settings later with database-backed users/API keys.
+   Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
+   market-facing work remain blocked.
 13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
