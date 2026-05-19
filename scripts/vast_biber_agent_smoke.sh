@@ -27,6 +27,7 @@ SMOKE_ID="${BIBER_AGENT_SMOKE_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 ARTIFACT_DIR="${BIBER_AGENT_SMOKE_ARTIFACT_DIR:-${BIBER_RUNTIME_ROOT}/outputs/biber-agent-smoke-${SMOKE_ID}}"
 API_BASE_URL="${BIBER_AGENT_SMOKE_URL:-http://127.0.0.1:${BIBER_API_PORT}}"
 CHAT_MAX_TOKENS="${BIBER_AGENT_SMOKE_CHAT_MAX_TOKENS:-64}"
+CLIENT_SESSION_MAX_TOKENS="${BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS:-24}"
 GITHUB_MODE="${BIBER_AGENT_SMOKE_GITHUB:-skip}"
 
 mkdir -p "$ARTIFACT_DIR"
@@ -35,6 +36,7 @@ export API_BASE_URL
 export API_KEY
 export ARTIFACT_DIR
 export CHAT_MAX_TOKENS
+export CLIENT_SESSION_MAX_TOKENS
 export GITHUB_MODE
 export SMOKE_ID
 export SCRIPT_DIR
@@ -56,6 +58,7 @@ api_base_url = os.environ["API_BASE_URL"].rstrip("/")
 api_key = os.environ["API_KEY"]
 artifact_dir = Path(os.environ["ARTIFACT_DIR"])
 chat_max_tokens = int(os.environ["CHAT_MAX_TOKENS"])
+client_session_max_tokens = int(os.environ["CLIENT_SESSION_MAX_TOKENS"])
 github_mode = os.environ["GITHUB_MODE"].strip().lower()
 smoke_id = os.environ["SMOKE_ID"]
 script_dir = Path(os.environ["SCRIPT_DIR"])
@@ -183,6 +186,57 @@ if client_capabilities.get("service") != "biber-agent":
 write_artifact(
     "agent-client-capabilities.json",
     {"status": 0, "body": client_capabilities},
+)
+
+try:
+    client_session_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "--timeout-seconds",
+            "180",
+            "create-session",
+            "--preset",
+            "default_coding_session",
+            "--instruction",
+            (
+                "Use README.md context and return one concise sentence that "
+                "begins with BIBER_AGENT_CLIENT_SESSION_OK."
+            ),
+            "--repo-context",
+            "README.md",
+            "--no-test",
+            "--max-tokens",
+            str(client_session_max_tokens),
+        ],
+        env=client_env,
+        text=True,
+        timeout=180,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py create-session failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py create-session timed out: {exc}")
+try:
+    client_session = json.loads(client_session_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py create-session returned invalid JSON: {exc}")
+if client_session.get("mentor_used") is not False:
+    fail("agent client create-session unexpectedly used mentor")
+client_session_steps = client_session.get("steps")
+if not isinstance(client_session_steps, list):
+    fail(f"agent client create-session steps were not a list: {client_session!r}")
+client_session_step_names = [
+    step.get("name")
+    for step in client_session_steps
+    if isinstance(step, dict)
+]
+if "chat" not in client_session_step_names:
+    fail(f"agent client create-session did not include chat: {client_session_step_names!r}")
+write_artifact(
+    "agent-client-create-session.json",
+    {"status": 0, "body": client_session},
 )
 
 chat_payload = {
@@ -316,6 +370,8 @@ summary = {
     "test_ok": test_run.get("ok"),
     "agent_session_id": agent_session.get("id"),
     "agent_session_steps": step_names,
+    "agent_client_session_id": client_session.get("id"),
+    "agent_client_session_steps": client_session_step_names,
     "xriq_context_height": summary.get("current_height"),
     "github": github_result,
 }

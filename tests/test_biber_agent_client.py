@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -123,3 +124,69 @@ def test_format_session_summary_lists_steps() -> None:
     assert "BIBER agent session" in output
     assert "id: session-1" in output
     assert "steps: xriq_context, chat" in output
+
+
+def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
+    captured_payload: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        assert cli_api_key is None
+        return "test-key"
+
+    def fake_fetch_capabilities(
+        *,
+        base_url: str,
+        api_key: str,
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        assert base_url == "http://127.0.0.1:8000"
+        assert api_key == "test-key"
+        assert timeout_seconds == 180.0
+        return sample_capabilities()
+
+    def fake_create_agent_session(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        assert base_url == "http://127.0.0.1:8000"
+        assert api_key == "test-key"
+        assert timeout_seconds == 180.0
+        captured_payload.update(payload)
+        return {
+            "id": "session-1",
+            "model": payload["model"],
+            "mentor_used": False,
+            "steps": [{"name": "chat"}],
+            "artifact_path": "/workspace/outputs/agent-sessions/session-1.json",
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "fetch_capabilities", fake_fetch_capabilities)
+    monkeypatch.setattr(client, "create_agent_session", fake_create_agent_session)
+
+    args = client.parse_args(
+        [
+            "--json",
+            "create-session",
+            "--preset",
+            "default_coding_session",
+            "--instruction",
+            "Say ok.",
+            "--repo-context",
+            "README.md",
+            "--no-test",
+            "--max-tokens",
+            "24",
+        ]
+    )
+
+    output = client.run(args)
+
+    assert captured_payload["instruction"] == "Say ok."
+    assert captured_payload["repo_context_paths"] == ["README.md"]
+    assert captured_payload["test_id"] is None
+    assert captured_payload["max_tokens"] == 24
+    assert json.loads(output)["id"] == "session-1"

@@ -288,8 +288,9 @@ curl -X POST http://localhost:8000/v1/files/edit/apply \
 ## Run The BIBER Agent Smoke
 
 On Vast.ai, this script checks the live agent flow: repo-context chat,
-workspace-edit dry-run, allowlisted test execution, and optional GitHub
-save/PR only when explicitly enabled.
+workspace-edit dry-run, stdlib client capabilities and low-token
+`create-session`, allowlisted test execution, and optional GitHub save/PR only
+when explicitly enabled.
 
 ```bash
 cd /workspace/biber-ai-platform
