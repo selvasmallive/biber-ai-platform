@@ -194,6 +194,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP verified repair review export commit pushed and
   Vast-verified:
   `9b22ef5 Add verified repair review export`.
+- Latest BIBER MVP verified repair review summary commit pushed and
+  Vast-verified:
+  `caabb32 Add verified repair review summary`.
 - Latest Rust/XRIQ eval codegen-profile commits pushed and Vast-verified:
   `176b3e4 Add Rust XRIQ eval codegen profile`,
   `706448e Limit Rust XRIQ eval profile to ledger prompt`,
@@ -233,7 +236,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   `07eb63f Add TensorFlow capability track`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `9b22ef5`. Full Rust/private-devnet
+- Vast code verification is current through `caabb32`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -276,8 +279,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   guarded repair-edit apply verification is current through `cfed893`;
   BIBER agent-client repair-test verification is current through `2ae4a02`;
   BIBER verified repair review export verification is current through
-  `9b22ef5`; Rust/XRIQ live codegen-profile eval verification is current
-  through `7e7b8d`.
+  `9b22ef5`; BIBER verified repair review summary verification is current
+  through `caabb32`; Rust/XRIQ live codegen-profile eval verification is
+  current through `7e7b8d`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
@@ -287,9 +291,27 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `9b22ef5`. If later docs-only
+  - Vast code verification is current through `caabb32`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `caabb32` verified repair review summary checkpoint required no service
+    restart because it changed only the stdlib agent client, smoke script, docs,
+    and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid `53902`.
+  - Latest focused Vast verification for the BIBER verified repair review
+    summary slice:
+    `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py tests/test_github_client.py tests/test_agent_session.py tests/test_agent_capabilities.py tests/test_test_runner.py tests/test_test_diagnosis.py tests/test_workspace_edit.py tests/test_repo_context.py -q`
+    with `105 passed`, live
+    `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS=24 BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=96 bash scripts/vast_biber_agent_smoke.sh`,
+    and `bash scripts/vast_status_direct.sh`.
+    The live smoke wrote artifacts under
+    `/workspace/outputs/biber-agent-smoke-20260519T152710Z-63638`, verified
+    `review-verified-repairs` against the verified repair JSONL queue, and
+    wrote
+    `/workspace/outputs/biber-agent-smoke-20260519T152710Z-63638/agent-client-mvp-loop-verified-repair-review.json`
+    with `records=1`, `ready_for_human_review=1`, and no training eligibility.
+    GitHub remained skipped because `github_configured=false`.
   - The `9b22ef5` verified repair review export checkpoint required no service
     restart because it changed only the stdlib agent client, smoke script, docs,
     and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid `53902`.
@@ -4452,7 +4474,8 @@ bash scripts/xriq_private_devnet_smoke.sh
     allowlisted test from the approved apply artifact without saving or training
     from the result, plus `export-verified-repair`, which writes a JSONL
     human-review record from a passed verification while keeping
-    `eligible_for_training=false`.
+    `eligible_for_training=false`, and `review-verified-repairs`, which
+    summarizes one or more verified-repair JSONL queues without promoting them.
    - Stack-specific test execution: keep execution allowlisted and predictable.
      The test runner now exposes `dotnet-test`, `maven-test`, `gradle-test`,
      and `gradle-wrapper-test` for target repos that already include the
@@ -4532,14 +4555,16 @@ bash scripts/xriq_private_devnet_smoke.sh
    `verify-repair-edits`, which reruns the selected allowlisted test and
    records a no-save/no-training verification artifact, and
    `export-verified-repair`, which exports a passed verification into a JSONL
-   human-review queue without training eligibility. The repo-adaptation live
-   eval wrapper and the conservative repo-adaptation failure-review helper are
-   also live. Good next targets are running the full repair sequence
+   human-review queue without training eligibility, and
+   `review-verified-repairs`, which summarizes those queues for human review
+   while keeping them out of training. The repo-adaptation live eval wrapper and
+   the conservative repo-adaptation failure-review helper are also live. Good
+   next targets are running the full repair sequence
    (`mvp-loop`, `attempt-repair`, `extract-repair-edits`, `plan-repair-edits`,
    approved `apply-repair-edits`, `verify-repair-edits`, and
-   `export-verified-repair`) against a real user repo when provided, then
-   manually reviewing repeated passed repairs into verified examples only after
-   a real repo eval produces repeatable gaps.
+   `export-verified-repair`, followed by `review-verified-repairs`) against a
+   real user repo when provided, then manually reviewing repeated passed repairs
+   into verified examples only after a real repo eval produces repeatable gaps.
    Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
    market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
