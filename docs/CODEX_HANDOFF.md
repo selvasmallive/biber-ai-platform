@@ -147,6 +147,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP agent-client workspace-edit commands commit pushed and
   Vast-verified:
   `12450e2 Add agent client workspace edit commands`.
+- Latest BIBER MVP agent-client test/diagnosis commands commit pushed and
+  Vast-verified:
+  `b0d1df6 Add agent client test diagnosis commands`.
 - Latest BIBER MVP repo-adaptation commits pushed and Vast-verified:
   `9126fdd Add BIBER repo adaptation plan` and
   `2efa65b Fix repo adaptation relative role detection`.
@@ -179,7 +182,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   `07eb63f Add TensorFlow capability track`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `12450e2`. Full Rust/private-devnet
+- Vast code verification is current through `b0d1df6`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -204,7 +207,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   agent-client session-history command verification is current through
   `b8abdfb`; BIBER agent-client repo-context planning verification is current
   through `775b278`; BIBER agent-client workspace-edit command verification is
-  current through `12450e2`.
+  current through `12450e2`; BIBER agent-client test/diagnosis command
+  verification is current through `b0d1df6`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
@@ -214,6 +218,23 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - The `b0d1df6` agent-client test/diagnosis command checkpoint required no
+    service restart because it changed only the stdlib client helper, smoke
+    script, docs, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid
+    `53902`.
+  - Latest focused Vast verification for the BIBER agent-client test/diagnosis
+    command slice:
+    `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py tests/test_agent_session.py tests/test_agent_capabilities.py tests/test_workspace_edit.py tests/test_repo_context.py -q`
+    with `67 passed`, and live
+    `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS=24 bash scripts/vast_biber_agent_smoke.sh`.
+    The live smoke wrote artifacts under
+    `/workspace/outputs/biber-agent-smoke-20260519T111231Z-54617`, created a
+    stdlib-client session `0f1873b5-631c-4353-8dab-dfd6a89134aa`, created an
+    XRIQ-context session `d93e5d5a-5482-47ce-b628-c99cf3e7b88f`, confirmed the
+    stdlib client can list tests, run `python-compileall-api` with `ok=true`,
+    and classify synthetic `.NET` output as `compile_error` on stack `dotnet`.
   - The `12450e2` agent-client workspace-edit command checkpoint required no
     service restart because it changed only the stdlib client helper, smoke
     script, docs, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid
@@ -2210,6 +2231,50 @@ serving the last broad-safe Rust/XRIQ adapter.
     `f03f2123-2fa0-4cb7-b16a-e8e5d3c21d2a`.
   - No service restart, credential change, model training, or OpenAI mentor
     call was needed.
+- BIBER MVP agent-client test/diagnosis commands checkpoint:
+  - Added `list-tests`, `run-test`, and `diagnose-test` to
+    `scripts/biber_agent_client.py`.
+  - `list-tests` wraps `GET /v1/tests` so client tools can discover fixed
+    server-side allowlisted test IDs without submitting arbitrary commands.
+  - `run-test` wraps `POST /v1/tests/run` with `--test-id`, optional
+    `--dry-run`, and optional `--diagnose-on-failure`. When diagnosis is
+    requested and the test executes with `ok=false`, the client calls
+    `POST /v1/tests/diagnose` and embeds the deterministic diagnosis in the
+    returned JSON.
+  - `diagnose-test` wraps `POST /v1/tests/diagnose` for raw output supplied by
+    `--stdout`, `--stderr`, `--stdout-file`, `--stderr-file`, `--command-json`,
+    or repeated `--command-part`. It is deterministic and does not call a
+    model.
+  - Extended `scripts/vast_biber_agent_smoke.sh` so the live smoke now verifies
+    `list-tests`, runs `python-compileall-api` through the stdlib client, and
+    classifies synthetic `.NET` compiler output through the stdlib client.
+    Artifacts now include `agent-client-list-tests.json`,
+    `agent-client-run-test.json`, and `agent-client-diagnose-test.json`.
+  - Added focused unit coverage in `tests/test_biber_agent_client.py` and
+    documented the helper commands in `docs/API_EXAMPLES.md`.
+  - Local workstation verification passed with bundled Python
+    `compileall scripts tests`, `git diff --check`, and a tiny local helper
+    smoke. Local pytest is still unavailable in the bundled workstation
+    runtime.
+  - Pushed implementation commit:
+    `b0d1df6 Add agent client test diagnosis commands`.
+  - Vast checkout was fast-forwarded to `b0d1df6`; Vast verification passed
+    with `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py tests/test_agent_session.py tests/test_agent_capabilities.py tests/test_workspace_edit.py tests/test_repo_context.py -q`
+    with `67 passed`, and live
+    `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS=24 bash scripts/vast_biber_agent_smoke.sh`.
+  - Latest live smoke artifact:
+    `/workspace/outputs/biber-agent-smoke-20260519T111231Z-54617`.
+    It confirmed create/list/load session helpers, repo-context planning, safe
+    workspace edit planning/apply, allowlisted test discovery/execution, and
+    deterministic failure diagnosis through the real API. The stdlib client ran
+    `python-compileall-api` with `ok=true`, diagnosed synthetic `.NET` output
+    as `compile_error` on stack `dotnet`, created client session id
+    `0f1873b5-631c-4353-8dab-dfd6a89134aa`, and created XRIQ-context session
+    id `d93e5d5a-5482-47ce-b628-c99cf3e7b88f`.
+  - No service restart, credential change, model training, or OpenAI mentor
+    call was needed.
 - BIBER MVP repo-adaptation checkpoint:
   - Added `training/repo_adaptation_plan.py`, a conservative helper for
     preparing repo-specific BIBER adaptation work from a GitHub checkout or
@@ -3909,11 +3974,14 @@ bash scripts/xriq_private_devnet_smoke.sh
      failures; extract concise model context; rerun targeted tests; and save
      useful failure/fix pairs as future eval or training candidates. The first
      deterministic diagnosis endpoint, `POST /v1/tests/diagnose`, is now
-     implemented and Vast-verified.
+     implemented and Vast-verified. The stdlib agent client now wraps it with
+     `diagnose-test` and can attach it automatically to failed `run-test`
+     output.
    - Stack-specific test execution: keep execution allowlisted and predictable.
      The test runner now exposes `dotnet-test`, `maven-test`, `gradle-test`,
      and `gradle-wrapper-test` for target repos that already include the
-     matching project files and toolchains.
+     matching project files and toolchains. The stdlib agent client now wraps
+     test discovery and execution with `list-tests` and `run-test`.
 13. Continue the XRIQ private-devnet prototype after the Rust/XRIQ model loop is
    stable. `xriq/` is already the separate Rust workspace inside this repo, and
    it is preferred over creating a second top-level Rust workspace unless the
@@ -3963,13 +4031,14 @@ bash scripts/xriq_private_devnet_smoke.sh
    test runner now includes `.NET` and Java stack IDs for target repos. The
    repo-context planner now exposes `.NET` and Java stack profiles. The
    hash-gated multi-file edit apply endpoint is live, and the stdlib agent
-   client can now plan/apply those edits through the real API. The
-   repo-adaptation live eval wrapper and the conservative repo-adaptation
-   failure-review helper are also live. Good next targets are adding stdlib
-   client helpers for allowlisted test execution and test-failure diagnosis,
-   running the new stack profiles/test IDs against a real user repo when
-   provided, or manually reviewing repeated failure candidates into verified
-   examples only after a real repo eval produces repeatable gaps.
+   client can now plan/apply those edits through the real API. The stdlib agent
+   client can also list/run allowlisted tests and diagnose test failures through
+   the real API. The repo-adaptation live eval wrapper and the conservative
+   repo-adaptation failure-review helper are also live. Good next targets are
+   adding stdlib client helpers for GitHub save/PR, running the stack
+   profiles/test IDs against a real user repo when provided, or manually
+   reviewing repeated failure candidates into verified examples only after a
+   real repo eval produces repeatable gaps.
    Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
    market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
