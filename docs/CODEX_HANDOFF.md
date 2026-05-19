@@ -235,6 +235,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP repair-chain held-out eval prompt export commit pushed and
   Vast-verified:
   `16523ac Export repair chain eval prompts`.
+- Latest BIBER MVP repair-chain held-out eval runner commit pushed and
+  Vast-verified:
+  `95051e5 Add repair chain heldout eval runner`.
 - Latest Rust/XRIQ eval codegen-profile commits pushed and Vast-verified:
   `176b3e4 Add Rust XRIQ eval codegen profile`,
   `706448e Limit Rust XRIQ eval profile to ledger prompt`,
@@ -274,7 +277,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   `07eb63f Add TensorFlow capability track`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `16523ac`. Full Rust/private-devnet
+- Vast code verification is current through `95051e5`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -333,8 +336,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   export verification is current through `22566dc`; BIBER repair-chain
   eval-dataset validation verification is current through `78608bb`; BIBER
   repair-chain held-out eval prompt export verification is current through
-  `16523ac`; Rust/XRIQ live codegen-profile eval verification is current
-  through `7e7b8d`.
+  `16523ac`; BIBER repair-chain held-out eval runner verification is current
+  through `95051e5`; Rust/XRIQ live codegen-profile eval verification is
+  current through `7e7b8d`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
@@ -344,9 +348,33 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `16523ac`. If later docs-only
+  - Vast code verification is current through `95051e5`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `95051e5` repair-chain held-out eval runner checkpoint required no
+    service restart because it added only the Vast helper script
+    `scripts/vast_eval_repair_chain_prompts_direct.sh`. vLLM stayed on pid
+    `5802`; FastAPI stayed on pid `53902`.
+  - Latest focused Vast verification for the BIBER repair-chain held-out eval
+    runner slice:
+    `bash -n scripts/vast_eval_repair_chain_prompts_direct.sh`,
+    `bash scripts/vast_eval_repair_chain_prompts_direct.sh`,
+    `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    focused pytest
+    `tests/test_live_model_eval.py tests/test_biber_agent_client.py tests/test_github_client.py tests/test_agent_session.py tests/test_agent_capabilities.py tests/test_test_runner.py tests/test_test_diagnosis.py tests/test_workspace_edit.py tests/test_repo_context.py -q`
+    with `129 passed`, and `bash scripts/vast_status_direct.sh`.
+    The runner automatically found
+    `/workspace/outputs/biber-agent-smoke-20260519T203639Z-66726/agent-client-mvp-loop-ready-repair-chain-eval-prompts.jsonl`,
+    scored it through the current local BIBER API at `127.0.0.1:8000`, and
+    wrote
+    `/workspace/outputs/evals/biber-repair-chain-heldout-20260519T204610Z.jsonl`
+    plus
+    `/workspace/outputs/evals/biber-repair-chain-heldout-20260519T204610Z.summary.json`.
+    The summary had `prompts=1`, `ok=1`, `failed=0`, `expectation_ok=1`, and
+    `expectation_failed=0`; the result matched `Repair`, `Test`, and `Risk`
+    using model `biber-dev-core-v1`. This is live-eval evidence only; it does
+    not create training data, does not approve training, does not save to
+    GitHub, and does not approve public XRIQ work.
   - The `16523ac` repair-chain held-out eval prompt export checkpoint required
     no service restart because it changed only the stdlib agent client, smoke
     script, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid
@@ -4857,7 +4885,10 @@ bash scripts/xriq_private_devnet_smoke.sh
     queue's safety/provenance fields while still keeping it out of training.
     It now also has `export-ready-repair-chain-eval-prompts`, which turns
     validated eval-dataset rows into live-eval-compatible held-out prompts
-    while keeping them out of training and GitHub-save paths.
+    while keeping them out of training and GitHub-save paths. Vast now also
+    has `scripts/vast_eval_repair_chain_prompts_direct.sh`, which finds the
+    latest exported repair-chain held-out prompt JSONL under `/workspace`
+    outputs and runs it through `training/live_model_eval.py`.
    - Stack-specific test execution: keep execution allowlisted and predictable.
      The test runner now exposes `dotnet-test`, `maven-test`, `gradle-test`,
      and `gradle-wrapper-test` for target repos that already include the
@@ -4970,7 +5001,10 @@ bash scripts/xriq_private_devnet_smoke.sh
    eval-dataset queue without making it training-eligible, plus
    `export-ready-repair-chain-eval-prompts`, which converts validated
    eval-dataset rows into live-eval-compatible held-out prompts while keeping
-   them out of training and GitHub-save paths. The
+   them out of training and GitHub-save paths. The direct Vast runner
+   `scripts/vast_eval_repair_chain_prompts_direct.sh` now scores the latest
+   exported repair-chain held-out prompt JSONL through the current local BIBER
+   API without using OpenAI. The
    repo-adaptation live eval wrapper and the conservative
    repo-adaptation failure-review helper are also
    live. Good next targets are running the full repair sequence
@@ -4988,10 +5022,12 @@ bash scripts/xriq_private_devnet_smoke.sh
    `export-ready-repair-chain-eval-dataset`, then
    `validate-ready-repair-chain-eval-dataset`, then
    `export-ready-repair-chain-eval-prompts`) against a real user repo when
-   provided, then run the held-out prompt JSONL through live eval and manually
-   review repeated passed repairs into verified eval candidates only after a
-   real repo eval produces repeatable gaps. Public XRIQ launch, exchange
-   listing, custody, liquidity, bridges, and market-facing work remain blocked.
+   provided, then run
+   `bash scripts/vast_eval_repair_chain_prompts_direct.sh` on the held-out
+   prompt JSONL and manually review repeated passed repairs into verified eval
+   candidates only after a real repo eval produces repeatable gaps. Public XRIQ
+   launch, exchange listing, custody, liquidity, bridges, and market-facing
+   work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
