@@ -4,6 +4,7 @@ Use only the Rust standard library and code visible in the prompt; do not use ex
 Do not write `#[derive(thiserror::Error)]` or `#[error(...)]` attributes.
 Prefer explicit structs, enums, and Result errors over derive macros from external crates.
 For ledger/account updates, compute all checked values first, avoid long single-line method chains, and commit mutations only after every check passes.
+Never keep a mutable sender borrow alive while calling `accounts.entry(...)`; finish the sender update inside a short block, then update the recipient after that block ends.
 When a method chain includes `ok_or(...)` or `and_then(...)`, write it across multiple lines in the shape rustfmt expects, for example:
 `let sender = accounts`
 `    .get_mut(&tx.from)`
@@ -14,6 +15,24 @@ and:
 `    .checked_add(tx.fee)`
 `    .ok_or(LedgerError::ArithmeticOverflow)?;`
 For `entry(...).or_insert(Account { ... })`, use the compact rustfmt shape:
+`let recipient = accounts.entry(tx.to.clone()).or_insert(Account {`
+`    balance: 0,`
+`    nonce: 0,`
+`});`
+Use this borrow-checker-safe ledger mutation shape:
+`{`
+`    let sender = accounts`
+`        .get_mut(&tx.from)`
+`        .ok_or(LedgerError::MissingSender)?;`
+`    sender.balance = sender`
+`        .balance`
+`        .checked_sub(total)`
+`        .ok_or(LedgerError::ArithmeticOverflow)?;`
+`    sender.nonce = sender`
+`        .nonce`
+`        .checked_add(1)`
+`        .ok_or(LedgerError::ArithmeticOverflow)?;`
+`}`
 `let recipient = accounts.entry(tx.to.clone()).or_insert(Account {`
 `    balance: 0,`
 `    nonce: 0,`
