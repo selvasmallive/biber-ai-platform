@@ -270,6 +270,40 @@ def diagnose_test_failure(
     )
 
 
+def save_to_github(
+    *,
+    base_url: str,
+    api_key: str,
+    payload: Mapping[str, Any],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/save/github",
+        method="POST",
+        payload=payload,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def create_github_pull_request(
+    *,
+    base_url: str,
+    api_key: str,
+    payload: Mapping[str, Any],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/github/pull-request",
+        method="POST",
+        payload=payload,
+        timeout_seconds=timeout_seconds,
+    )
+
+
 def require_mapping(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
@@ -595,6 +629,75 @@ def build_diagnosis_payload_from_test_run(
     return diagnosis
 
 
+def build_github_save_payload(
+    *,
+    path: str,
+    content: str,
+    owner: str | None,
+    repo: str | None,
+    branch: str,
+    base_branch: str | None,
+    create_branch_if_missing: bool,
+    commit_message: str,
+) -> dict[str, Any]:
+    target: dict[str, Any] = {
+        "path": path,
+        "branch": branch,
+        "create_branch_if_missing": create_branch_if_missing,
+        "commit_message": commit_message,
+    }
+    if owner:
+        target["owner"] = owner
+    if repo:
+        target["repo"] = repo
+    if base_branch:
+        target["base_branch"] = base_branch
+    return {"target": target, "content": content}
+
+
+def build_github_pull_request_payload(
+    *,
+    head: str,
+    base: str,
+    title: str,
+    body: str,
+    owner: str | None,
+    repo: str | None,
+    draft: bool,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "head": head,
+        "base": base,
+        "title": title,
+        "body": body,
+        "draft": draft,
+    }
+    if owner:
+        payload["owner"] = owner
+    if repo:
+        payload["repo"] = repo
+    return payload
+
+
+def format_github_save_summary(payload: Mapping[str, Any]) -> str:
+    return "\n".join(
+        [
+            "BIBER GitHub save",
+            f"url: {payload.get('url', '-')}",
+        ]
+    )
+
+
+def format_github_pull_request_summary(payload: Mapping[str, Any]) -> str:
+    return "\n".join(
+        [
+            "BIBER GitHub pull request",
+            f"url: {payload.get('url', '-')}",
+            f"number: {payload.get('number', '-')}",
+        ]
+    )
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -841,6 +944,36 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     diagnose_test.add_argument("--stderr-file")
     diagnose_test.add_argument("--max-context-lines", type=int)
 
+    save_github = subparsers.add_parser(
+        "save-github",
+        help="Save generated text through BIBER's configured GitHub workflow.",
+    )
+    save_github.add_argument("--path", required=True)
+    save_github.add_argument("--content")
+    save_github.add_argument("--content-file")
+    save_github.add_argument("--owner")
+    save_github.add_argument("--repo")
+    save_github.add_argument("--branch", default="main")
+    save_github.add_argument("--base-branch")
+    save_github.add_argument("--create-branch-if-missing", action="store_true")
+    save_github.add_argument(
+        "--commit-message",
+        default="Save BIBER generated code",
+    )
+
+    create_pr = subparsers.add_parser(
+        "create-pr",
+        help="Create a GitHub pull request through BIBER's configured workflow.",
+    )
+    create_pr.add_argument("--head", required=True)
+    create_pr.add_argument("--base", default="main")
+    create_pr.add_argument("--title", required=True)
+    create_pr.add_argument("--body", default=None)
+    create_pr.add_argument("--body-file")
+    create_pr.add_argument("--owner")
+    create_pr.add_argument("--repo")
+    create_pr.add_argument("--ready", action="store_true", help="Create a non-draft PR.")
+
     args = parser.parse_args(argv)
     if args.command is None:
         args.command = "capabilities"
@@ -1048,6 +1181,59 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(diagnosis, indent=2, sort_keys=True)
             if args.print_json
             else format_test_diagnosis_summary(diagnosis)
+        )
+    if args.command == "save-github":
+        content = load_text_argument(
+            value=args.content,
+            file_path=args.content_file,
+            label="--content",
+        )
+        if not content:
+            raise BiberAgentClientError("GitHub save requires --content or --content-file.")
+        result = save_to_github(
+            base_url=base_url,
+            api_key=api_key,
+            payload=build_github_save_payload(
+                path=args.path,
+                content=content,
+                owner=args.owner,
+                repo=args.repo,
+                branch=args.branch,
+                base_branch=args.base_branch,
+                create_branch_if_missing=args.create_branch_if_missing,
+                commit_message=args.commit_message,
+            ),
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_github_save_summary(result)
+        )
+    if args.command == "create-pr":
+        body = load_text_argument(
+            value=args.body,
+            file_path=args.body_file,
+            label="--body",
+        )
+        result = create_github_pull_request(
+            base_url=base_url,
+            api_key=api_key,
+            payload=build_github_pull_request_payload(
+                head=args.head,
+                base=args.base,
+                title=args.title,
+                body=body,
+                owner=args.owner,
+                repo=args.repo,
+                draft=not args.ready,
+            ),
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_github_pull_request_summary(result)
         )
     raise BiberAgentClientError(f"unsupported command: {args.command}")
 
