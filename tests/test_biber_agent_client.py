@@ -3043,6 +3043,106 @@ def test_run_review_repair_chain_heldout_eval_results_without_api_key(
     assert result["rejected"][0]["reason"] == "unsupported_eval_result_id"
 
 
+def test_run_record_repair_chain_heldout_eval_decision_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "record-repair-chain-heldout-eval-decision should not resolve an API key"
+        )
+
+    review_path = tmp_path / "heldout-review.json"
+    unsupported_path = tmp_path / "unsupported-review.json"
+    output_path = tmp_path / "heldout-decisions.jsonl"
+    review_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_heldout_eval_review",
+                "review_status": "heldout_eval_passed",
+                "ok": True,
+                "records": 1,
+                "passed_records": 1,
+                "failed_records": 0,
+                "expectation_failed_records": 0,
+                "rejected_records": 0,
+                "model_counts": {"biber-dev-core-v1": 1},
+                "summary_path": "heldout.summary.json",
+                "jsonl_paths": ["heldout.jsonl"],
+                "results": [
+                    {
+                        "id": "repair_chain_python_compileall_api_abc123",
+                        "passed": True,
+                    }
+                ],
+                "training_allowed": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    unsupported_path.write_text(
+        json.dumps({"source": "other_source"}, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "record-repair-chain-heldout-eval-decision",
+                str(review_path),
+                str(unsupported_path),
+                "--decision",
+                "accept_for_baseline",
+                "--reviewer",
+                "biber-test",
+                "--notes",
+                "Test accept without training promotion.",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+
+    assert result["source"] == "biber_mvp_loop_repair_chain_heldout_eval_decision_export"
+    assert result["decision"] == "accept_for_baseline"
+    assert result["reviewer"] == "biber-test"
+    assert result["records"] == 1
+    assert result["rejected_records"] == 1
+    assert result["accepted_for_baseline_records"] == 1
+    assert result["baseline_candidate_ready"] is True
+    assert result["eval_only"] is True
+    assert result["training_allowed"] is False
+    assert result["eligible_for_training"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+    assert result["rejected"][0]["reason"] == "unsupported_source"
+    assert rows[0]["source"] == "biber_mvp_loop_repair_chain_heldout_eval_decision"
+    assert rows[0]["decision"] == "accept_for_baseline"
+    assert rows[0]["reviewer"] == "biber-test"
+    assert rows[0]["accepted_for_baseline"] is True
+    assert rows[0]["baseline_candidate_ready"] is True
+    assert rows[0]["requires_follow_up"] is False
+    assert rows[0]["eval_only"] is True
+    assert rows[0]["training_allowed"] is False
+    assert rows[0]["safe_to_train"] is False
+    assert rows[0]["github_save_ready"] is False
+    assert rows[0]["approved_for_training"] is False
+    assert rows[0]["heldout_eval_review_artifact"] == str(review_path)
+    assert rows[0]["heldout_eval_result_ids"] == [
+        "repair_chain_python_compileall_api_abc123"
+    ]
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 

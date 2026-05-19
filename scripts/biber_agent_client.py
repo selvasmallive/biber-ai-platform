@@ -3261,6 +3261,139 @@ def review_repair_chain_heldout_eval_results(
     }
 
 
+def build_repair_chain_heldout_eval_decision_record(
+    *,
+    review: Mapping[str, Any],
+    artifact_path: str,
+    decision: str,
+    reviewer: str,
+    notes: str,
+) -> dict[str, Any]:
+    if review.get("source") != "biber_mvp_loop_repair_chain_heldout_eval_review":
+        raise BiberAgentClientError(
+            "record-repair-chain-heldout-eval-decision requires held-out eval review artifacts."
+        )
+    accepted_for_baseline = decision == "accept_for_baseline"
+    review_ok = review.get("ok") is True
+    result_ids = [
+        str(item.get("id"))
+        for item in require_list(review.get("results"))
+        if isinstance(item, dict) and item.get("id")
+    ]
+    return {
+        "source": "biber_mvp_loop_repair_chain_heldout_eval_decision",
+        "decision_status": "recorded",
+        "decision": decision,
+        "review_status": f"human_{decision}",
+        "reviewer": reviewer,
+        "notes": notes,
+        "accepted_for_baseline": accepted_for_baseline and review_ok,
+        "baseline_candidate_ready": accepted_for_baseline and review_ok,
+        "requires_follow_up": not (accepted_for_baseline and review_ok),
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "heldout_eval_review_artifact": artifact_path,
+        "heldout_eval_review_status": review.get("review_status"),
+        "heldout_eval_review_ok": review_ok,
+        "heldout_eval_records": review.get("records"),
+        "heldout_eval_passed_records": review.get("passed_records"),
+        "heldout_eval_failed_records": review.get("failed_records"),
+        "heldout_eval_expectation_failed_records": review.get(
+            "expectation_failed_records"
+        ),
+        "heldout_eval_rejected_records": review.get("rejected_records"),
+        "heldout_eval_model_counts": require_mapping(review.get("model_counts")),
+        "heldout_eval_summary_path": review.get("summary_path"),
+        "heldout_eval_result_jsonl_paths": require_list(review.get("jsonl_paths")),
+        "heldout_eval_result_ids": result_ids,
+        "next_review_action": (
+            "manual_baseline_review_before_training_or_model_promotion"
+            if accepted_for_baseline and review_ok
+            else "continue_heldout_eval_review_before_training_or_model_promotion"
+        ),
+    }
+
+
+def record_repair_chain_heldout_eval_decisions(
+    *,
+    artifact_paths: list[str],
+    decision: str,
+    reviewer: str,
+    notes: str,
+    limit: int,
+    output_path: str,
+) -> dict[str, Any]:
+    valid_decisions = {"defer", "reject", "accept_for_baseline"}
+    if decision not in valid_decisions:
+        raise BiberAgentClientError(
+            "--decision must be one of defer, reject, or accept_for_baseline."
+        )
+    if not reviewer.strip():
+        raise BiberAgentClientError("--reviewer is required.")
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+
+    records: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for artifact_path in artifact_paths:
+        review = load_json_artifact(
+            artifact_path,
+            label="repair-chain held-out eval review artifact",
+        )
+        if review.get("source") != "biber_mvp_loop_repair_chain_heldout_eval_review":
+            rejected.append(
+                {
+                    "artifact_path": artifact_path,
+                    "reason": "unsupported_source",
+                    "source": review.get("source"),
+                }
+            )
+            continue
+        if len(records) >= limit:
+            continue
+        records.append(
+            build_repair_chain_heldout_eval_decision_record(
+                review=review,
+                artifact_path=artifact_path,
+                decision=decision,
+                reviewer=reviewer.strip(),
+                notes=notes,
+            )
+        )
+
+    output = write_jsonl_artifact(records, output_path)
+    accepted_for_baseline_records = sum(
+        1 for record in records if record.get("accepted_for_baseline") is True
+    )
+    return {
+        "source": "biber_mvp_loop_repair_chain_heldout_eval_decision_export",
+        "decision": decision,
+        "reviewer": reviewer.strip(),
+        "records": len(records),
+        "rejected_records": len(rejected),
+        "output": output,
+        "accepted_for_baseline_records": accepted_for_baseline_records,
+        "baseline_candidate_ready": accepted_for_baseline_records > 0,
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "artifact_paths": list(artifact_paths),
+        "rejected": rejected,
+        "next_review_action": (
+            "manual_heldout_eval_decision_recorded_without_training_or_github_save"
+        ),
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -4230,6 +4363,31 @@ def format_repair_chain_heldout_eval_review_summary(
     return "\n".join(lines)
 
 
+def format_repair_chain_heldout_eval_decision_export_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    return "\n".join(
+        [
+            "BIBER repair-chain held-out eval decision export",
+            f"decision: {payload.get('decision', '-')}",
+            f"reviewer: {payload.get('reviewer', '-')}",
+            f"records: {payload.get('records', 0)}",
+            f"rejected_records: {payload.get('rejected_records', 0)}",
+            (
+                "accepted_for_baseline_records: "
+                f"{payload.get('accepted_for_baseline_records', 0)}"
+            ),
+            f"baseline_candidate_ready: {payload.get('baseline_candidate_ready', False)}",
+            f"eval_only: {payload.get('eval_only', True)}",
+            f"training_allowed: {payload.get('training_allowed', False)}",
+            f"safe_to_train: {payload.get('safe_to_train', False)}",
+            f"github_save_ready: {payload.get('github_save_ready', False)}",
+            f"approved_for_training: {payload.get('approved_for_training', False)}",
+            f"output: {payload.get('output', '-')}",
+        ]
+    )
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -4817,6 +4975,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     review_repair_chain_heldout_eval_results.add_argument("--output")
 
+    record_repair_chain_heldout_eval_decision = subparsers.add_parser(
+        "record-repair-chain-heldout-eval-decision",
+        help=(
+            "Record a manual decision for held-out eval review artifacts "
+            "without training or GitHub save promotion."
+        ),
+    )
+    record_repair_chain_heldout_eval_decision.add_argument("artifact", nargs="+")
+    record_repair_chain_heldout_eval_decision.add_argument(
+        "--decision",
+        choices=["defer", "reject", "accept_for_baseline"],
+        required=True,
+    )
+    record_repair_chain_heldout_eval_decision.add_argument("--reviewer", required=True)
+    record_repair_chain_heldout_eval_decision.add_argument("--notes", default="")
+    record_repair_chain_heldout_eval_decision.add_argument("--limit", type=int, default=100)
+    record_repair_chain_heldout_eval_decision.add_argument("--output", required=True)
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -5165,6 +5341,20 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(review, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_chain_heldout_eval_review_summary(review)
+        )
+    if args.command == "record-repair-chain-heldout-eval-decision":
+        decision = record_repair_chain_heldout_eval_decisions(
+            artifact_paths=args.artifact,
+            decision=args.decision,
+            reviewer=args.reviewer,
+            notes=args.notes,
+            limit=args.limit,
+            output_path=args.output,
+        )
+        return (
+            json.dumps(decision, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_heldout_eval_decision_export_summary(decision)
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)
