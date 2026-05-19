@@ -208,6 +208,21 @@ python scripts/biber_agent_client.py create-session \
   --no-test
 ```
 
+## Prepare Repo-Specific BIBER Adaptation
+
+Before fine-tuning BIBER for a GitHub repo, generate a safe adaptation plan and
+starter eval prompts. Use repo context and evals first; fine-tune only after
+repeatable failures are collected and reviewed.
+
+```bash
+python training/repo_adaptation_plan.py \
+  --repo-root /path/to/github/repo \
+  --output /workspace/outputs/repo-adaptation-plan.json \
+  --eval-prompts-output /workspace/outputs/repo-adaptation-eval-prompts.jsonl
+```
+
+See `docs/BIBER_REPO_ADAPTATION.md` for the promotion rules.
+
 ## Run A Tracked Agent Session
 
 This endpoint wraps the existing MVP primitives into one tracked workflow:
