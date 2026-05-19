@@ -2071,6 +2071,97 @@ def test_run_review_ready_repair_chains_summarizes_jsonl_without_api_key(
     )
 
 
+def test_run_record_ready_repair_chain_decision_writes_jsonl_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "record-ready-repair-chain-decision should not resolve an API key"
+        )
+
+    jsonl_path = tmp_path / "ready-repair-chains.jsonl"
+    output_path = tmp_path / "ready-repair-chain-decisions.jsonl"
+    records = [
+        {
+            "source": "biber_mvp_loop_repair_chain_review",
+            "review_status": "needs_human_review",
+            "training_allowed": False,
+            "eligible_for_training": False,
+            "safe_to_train": False,
+            "github_save_ready": False,
+            "source_artifact": "repair-chain.json",
+            "plan_hash": "f" * 64,
+            "test_id": "python-compileall-api",
+            "chain": {
+                "chain_status": "ready_for_human_review",
+                "chain_complete": True,
+                "verification_passed": True,
+                "review_records": 1,
+            },
+            "artifacts": {"verification": "repair-verification.json"},
+        },
+        {
+            "source": "other_source",
+            "test_id": "ignored",
+        },
+    ]
+    jsonl_path.write_text(
+        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "record-ready-repair-chain-decision",
+                str(jsonl_path),
+                "--decision",
+                "defer",
+                "--reviewer",
+                "human-reviewer",
+                "--notes",
+                "Needs target repo confirmation.",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+
+    assert result["source"] == "biber_mvp_loop_ready_repair_chain_decision_export"
+    assert result["decision"] == "defer"
+    assert result["reviewer"] == "human-reviewer"
+    assert result["records"] == 1
+    assert result["rejected_records"] == 1
+    assert result["training_allowed"] is False
+    assert result["eligible_for_training"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+    assert rows[0]["source"] == "biber_mvp_loop_repair_chain_decision"
+    assert rows[0]["decision_status"] == "recorded"
+    assert rows[0]["decision"] == "defer"
+    assert rows[0]["review_status"] == "human_defer"
+    assert rows[0]["reviewer"] == "human-reviewer"
+    assert rows[0]["notes"] == "Needs target repo confirmation."
+    assert rows[0]["training_allowed"] is False
+    assert rows[0]["eligible_for_training"] is False
+    assert rows[0]["safe_to_train"] is False
+    assert rows[0]["github_save_ready"] is False
+    assert rows[0]["approved_for_eval"] is False
+    assert rows[0]["approved_for_training"] is False
+    assert rows[0]["source_artifact"] == "repair-chain.json"
+    assert rows[0]["artifacts"]["verification"] == "repair-verification.json"
+    assert rows[0]["next_review_action"] == (
+        "continue_human_review_before_github_or_training"
+    )
+    assert result["rejected"][0]["reason"] == "unsupported_source"
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 
