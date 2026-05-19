@@ -560,11 +560,16 @@ def summarize_mvp_loop_artifact(path: Path, payload: Mapping[str, Any]) -> dict[
     return summary
 
 
+def is_failed_mvp_loop_artifact(payload: Mapping[str, Any]) -> bool:
+    return payload.get("ok") is not True or payload.get("test_ok") is False
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
     pattern: str,
     limit: int,
+    failed_only: bool = False,
 ) -> dict[str, Any]:
     if limit < 1:
         raise BiberAgentClientError("--limit must be at least 1.")
@@ -587,12 +592,15 @@ def list_mvp_loop_artifacts(
         normalized = normalize_mvp_loop_artifact(raw_payload)
         if normalized is None:
             continue
+        if failed_only and not is_failed_mvp_loop_artifact(normalized):
+            continue
         artifacts.append(summarize_mvp_loop_artifact(path, normalized))
 
     artifacts.sort(key=lambda item: float(item.get("modified_epoch") or 0.0), reverse=True)
     return {
         "directory": str(root),
         "pattern": pattern,
+        "failed_only": failed_only,
         "scanned": scanned,
         "artifacts": artifacts[:limit],
     }
@@ -849,6 +857,7 @@ def format_mvp_loop_artifact_list_summary(payload: Mapping[str, Any]) -> str:
         f"BIBER MVP loop artifacts ({len(artifacts)})",
         f"directory: {payload.get('directory', '-')}",
         f"pattern: {payload.get('pattern', '-')}",
+        f"failed_only: {payload.get('failed_only', False)}",
         f"scanned: {payload.get('scanned', 0)}",
     ]
     for artifact in artifacts:
@@ -1199,6 +1208,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     list_mvp_loops.add_argument("directory")
     list_mvp_loops.add_argument("--pattern", default="*mvp-loop*.json")
     list_mvp_loops.add_argument("--limit", type=int, default=10)
+    list_mvp_loops.add_argument(
+        "--failed-only",
+        action="store_true",
+        help="Only list saved loop artifacts where ok is false or the test failed.",
+    )
 
     args = parser.parse_args(argv)
     if args.command is None:
@@ -1224,6 +1238,7 @@ def run(args: argparse.Namespace) -> str:
             directory=args.directory,
             pattern=args.pattern,
             limit=args.limit,
+            failed_only=args.failed_only,
         )
         return (
             json.dumps(artifacts, indent=2, sort_keys=True)

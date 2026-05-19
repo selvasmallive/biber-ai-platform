@@ -533,6 +533,42 @@ def test_run_list_mvp_loops_json_returns_recent_artifacts(tmp_path: Path) -> Non
     assert result["artifacts"][0]["path"] == str(direct)
 
 
+def test_run_list_mvp_loops_failed_only_filters_successes(tmp_path: Path) -> None:
+    success = tmp_path / "success-mvp-loop.json"
+    success.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "steps": {"context_plan": {}, "test_run": {"ok": True}},
+                "selected_context_paths": ["README.md"],
+                "test_ok": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    failure = tmp_path / "failure-mvp-loop.json"
+    failure.write_text(
+        json.dumps(
+            {
+                "ok": False,
+                "steps": {"context_plan": {}, "test_run": {"ok": False}},
+                "selected_context_paths": ["README.md"],
+                "test_ok": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output = client.run(
+        client.parse_args(["--json", "list-mvp-loops", str(tmp_path), "--failed-only"])
+    )
+    result = json.loads(output)
+
+    assert result["failed_only"] is True
+    assert result["scanned"] == 2
+    assert [item["path"] for item in result["artifacts"]] == [str(failure)]
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 

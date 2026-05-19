@@ -399,6 +399,10 @@ python scripts/biber_agent_client.py show-mvp-loop \
 python scripts/biber_agent_client.py list-mvp-loops \
   /workspace/outputs \
   --limit 10
+python scripts/biber_agent_client.py list-mvp-loops \
+  /workspace/outputs \
+  --failed-only \
+  --limit 10
 ```
 
 ## Prepare Repo-Specific BIBER Adaptation
