@@ -192,6 +192,35 @@ curl -X POST http://localhost:8000/v1/files/edit \
 Use `dry_run: true` to validate the path and replacement count without writing
 the file.
 
+## Plan Multiple Workspace Edits
+
+This endpoint validates a small batch of proposed file edits without writing
+anything. Use it before asking a client tool to apply a multi-file patch. It
+returns accepted edit previews, rejected edit reasons, hashes, byte counts, and
+a simple risk marker.
+
+```bash
+curl -X POST http://localhost:8000/v1/files/edit/plan \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "max_files": 4,
+    "edits": [
+      {
+        "path": "src/example.py",
+        "old_text": "return a + b",
+        "new_text": "return int(a) + int(b)",
+        "expected_replacements": 1
+      },
+      {
+        "path": "generated/notes.md",
+        "new_text": "planned note\n",
+        "create_if_missing": true
+      }
+    ]
+  }'
+```
+
 ## Run The BIBER Agent Smoke
 
 On Vast.ai, this script checks the live agent flow: repo-context chat,

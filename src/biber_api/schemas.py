@@ -159,6 +159,38 @@ class WorkspaceEditResponse(BaseModel):
     new_bytes: int
 
 
+class WorkspaceEditPlanRequest(BaseModel):
+    edits: list[WorkspaceEditRequest] = Field(min_length=1, max_length=20)
+    max_files: int = Field(default=8, ge=1, le=20)
+
+
+class WorkspaceEditPlanItem(BaseModel):
+    path: str
+    operation: str
+    changed: bool
+    replacements: int
+    old_sha256: str | None
+    new_sha256: str
+    old_bytes: int
+    new_bytes: int
+    risk_level: str
+    notes: list[str]
+
+
+class WorkspaceEditPlanRejection(BaseModel):
+    path: str
+    error: str
+
+
+class WorkspaceEditPlanResponse(BaseModel):
+    ok: bool
+    planned: list[WorkspaceEditPlanItem]
+    rejected: list[WorkspaceEditPlanRejection]
+    files_touched: int
+    total_new_bytes: int
+    summary: str
+
+
 class AgentSessionRequest(BaseModel):
     instruction: str = Field(min_length=1)
     model: str | None = None

@@ -49,6 +49,7 @@ from app.workspace_edit import (
     WorkspaceEditConfigurationError,
     WorkspaceEditError,
     apply_workspace_edit,
+    plan_workspace_edits,
 )
 from app.xriq_client import (
     SNAPSHOT_NAME_PATTERN,
@@ -270,6 +271,38 @@ class WorkspaceEditResponse(BaseModel):
     new_bytes: int
 
 
+class WorkspaceEditPlanRequest(BaseModel):
+    edits: list[WorkspaceEditRequest] = Field(min_length=1, max_length=20)
+    max_files: int = Field(default=8, ge=1, le=20)
+
+
+class WorkspaceEditPlanItem(BaseModel):
+    path: str
+    operation: str
+    changed: bool
+    replacements: int
+    old_sha256: str | None
+    new_sha256: str
+    old_bytes: int
+    new_bytes: int
+    risk_level: str
+    notes: list[str]
+
+
+class WorkspaceEditPlanRejection(BaseModel):
+    path: str
+    error: str
+
+
+class WorkspaceEditPlanResponse(BaseModel):
+    ok: bool
+    planned: list[WorkspaceEditPlanItem]
+    rejected: list[WorkspaceEditPlanRejection]
+    files_touched: int
+    total_new_bytes: int
+    summary: str
+
+
 class AgentSessionRequest(BaseModel):
     instruction: str = Field(min_length=1)
     model: str | None = None
@@ -338,6 +371,7 @@ def _agent_capabilities() -> dict[str, object]:
             "get_session": "GET /v1/agent/sessions/{session_id}",
             "run_test": "POST /v1/tests/run",
             "edit_file": "POST /v1/files/edit",
+            "edit_plan": "POST /v1/files/edit/plan",
             "github_save": "POST /v1/save/github",
             "github_pull_request": "POST /v1/github/pull-request",
         },
@@ -352,6 +386,9 @@ def _agent_capabilities() -> dict[str, object]:
             },
             "workspace_edit": {
                 "enabled": True,
+                "plan_endpoint": "POST /v1/files/edit/plan",
+                "multi_file_plan_supported": True,
+                "max_plan_files": 8,
                 "dry_run_supported": True,
                 "max_file_bytes": settings.workspace_edit_max_file_bytes,
                 "max_new_text_bytes": settings.workspace_edit_max_new_text_bytes,
@@ -509,6 +546,24 @@ def edit_workspace_file(req: WorkspaceEditRequest, auth=Depends(require_api_key)
     except WorkspaceEditError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return WorkspaceEditResponse.model_validate(result)
+
+
+@app.post("/v1/files/edit/plan", response_model=WorkspaceEditPlanResponse)
+def plan_workspace_file_edits(
+    req: WorkspaceEditPlanRequest,
+    auth=Depends(require_api_key),
+):
+    try:
+        result = plan_workspace_edits(
+            edits=[edit.model_dump() for edit in req.edits],
+            settings=settings,
+            max_files=req.max_files,
+        )
+    except WorkspaceEditConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except WorkspaceEditError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return WorkspaceEditPlanResponse.model_validate(result)
 
 
 @app.get("/v1/agent/sessions")

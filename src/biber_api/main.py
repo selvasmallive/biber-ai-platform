@@ -46,6 +46,8 @@ from .schemas import (
     RepoContextPlanRequest,
     RepoContextPlanResponse,
     WorkspaceEditRequest,
+    WorkspaceEditPlanRequest,
+    WorkspaceEditPlanResponse,
     WorkspaceEditResponse,
 )
 from .security import AuthContext, require_api_key
@@ -59,6 +61,7 @@ from .workspace_edit import (
     WorkspaceEditConfigurationError,
     WorkspaceEditError,
     apply_workspace_edit,
+    plan_workspace_edits,
 )
 from .xriq_client import (
     SNAPSHOT_NAME_PATTERN,
@@ -135,6 +138,7 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
             "get_session": "GET /v1/agent/sessions/{session_id}",
             "run_test": "POST /v1/tests/run",
             "edit_file": "POST /v1/files/edit",
+            "edit_plan": "POST /v1/files/edit/plan",
             "github_save": "POST /v1/save/github",
             "github_pull_request": "POST /v1/github/pull-request",
         },
@@ -149,6 +153,9 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
             },
             "workspace_edit": {
                 "enabled": True,
+                "plan_endpoint": "POST /v1/files/edit/plan",
+                "multi_file_plan_supported": True,
+                "max_plan_files": 8,
                 "dry_run_supported": True,
                 "max_file_bytes": settings.workspace_edit_max_file_bytes,
                 "max_new_text_bytes": settings.workspace_edit_max_new_text_bytes,
@@ -331,6 +338,25 @@ async def edit_workspace_file(
     except WorkspaceEditError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return WorkspaceEditResponse.model_validate(result)
+
+
+@app.post("/v1/files/edit/plan", response_model=WorkspaceEditPlanResponse)
+async def plan_workspace_file_edits(
+    request_body: WorkspaceEditPlanRequest,
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> WorkspaceEditPlanResponse:
+    try:
+        result = plan_workspace_edits(
+            edits=[edit.model_dump() for edit in request_body.edits],
+            settings=settings,
+            max_files=request_body.max_files,
+        )
+    except WorkspaceEditConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except WorkspaceEditError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return WorkspaceEditPlanResponse.model_validate(result)
 
 
 @app.get("/v1/agent/sessions")

@@ -96,6 +96,87 @@ def apply_workspace_edit(
     )
 
 
+def plan_workspace_edits(
+    *,
+    edits: list[dict[str, Any]],
+    settings: BiberSettings,
+    max_files: int = 8,
+) -> dict[str, Any]:
+    if max_files < 1:
+        raise WorkspaceEditError("Workspace edit plan max_files must be at least 1.")
+    if not edits:
+        raise WorkspaceEditError("Workspace edit plan must include at least one edit.")
+    if len(edits) > max_files:
+        raise WorkspaceEditError(
+            f"Workspace edit plan supports at most {max_files} file edits."
+        )
+
+    root_path = _repo_root(settings)
+    planned: list[dict[str, Any]] = []
+    rejected: list[dict[str, str]] = []
+    seen_paths: set[str] = set()
+
+    for index, edit in enumerate(edits):
+        raw_path = str(edit.get("path") or "")
+        try:
+            candidate = _resolve_edit_path(raw_path, root_path)
+            relative = candidate.relative_to(root_path).as_posix()
+            if relative.lower() in seen_paths:
+                raise WorkspaceEditError(
+                    f"Workspace edit plan has duplicate target: {relative}"
+                )
+            seen_paths.add(relative.lower())
+
+            result = apply_workspace_edit(
+                path=relative,
+                old_text=edit.get("old_text"),
+                new_text=str(edit.get("new_text") or ""),
+                expected_replacements=int(edit.get("expected_replacements") or 1),
+                create_if_missing=bool(edit.get("create_if_missing")),
+                dry_run=True,
+                settings=settings,
+            )
+        except (TypeError, ValueError, WorkspaceEditError) as exc:
+            rejected.append(
+                {
+                    "path": raw_path or f"<edit {index + 1}>",
+                    "error": str(exc),
+                }
+            )
+            continue
+
+        operation = "create" if result["created"] else "replace"
+        notes = _plan_notes(result)
+        planned.append(
+            {
+                "path": result["path"],
+                "operation": operation,
+                "changed": result["changed"],
+                "replacements": result["replacements"],
+                "old_sha256": result["old_sha256"],
+                "new_sha256": result["new_sha256"],
+                "old_bytes": result["old_bytes"],
+                "new_bytes": result["new_bytes"],
+                "risk_level": _plan_risk_level(result),
+                "notes": notes,
+            }
+        )
+
+    total_new_bytes = sum(int(item["new_bytes"]) for item in planned)
+    ok = bool(planned) and not rejected
+    return {
+        "ok": ok,
+        "planned": planned,
+        "rejected": rejected,
+        "files_touched": len(planned),
+        "total_new_bytes": total_new_bytes,
+        "summary": (
+            f"Planned {len(planned)} edit(s), rejected {len(rejected)} edit(s), "
+            f"total output size {total_new_bytes} bytes."
+        ),
+    }
+
+
 def _replace_existing_file(
     candidate: Path,
     *,
@@ -149,6 +230,25 @@ def _replace_existing_file(
         old_bytes=old_bytes,
         new_bytes=updated_bytes,
     )
+
+
+def _plan_notes(result: dict[str, Any]) -> list[str]:
+    notes: list[str] = []
+    if result["created"]:
+        notes.append("creates a new file")
+    if not result["changed"]:
+        notes.append("does not change file content")
+    if int(result["replacements"]) > 1:
+        notes.append("replaces multiple occurrences")
+    return notes
+
+
+def _plan_risk_level(result: dict[str, Any]) -> str:
+    if result["created"] or int(result["replacements"]) > 1:
+        return "medium"
+    if not result["changed"]:
+        return "low"
+    return "low"
 
 
 def _repo_root(settings: BiberSettings) -> Path:
