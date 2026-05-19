@@ -150,6 +150,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP agent-client test/diagnosis commands commit pushed and
   Vast-verified:
   `b0d1df6 Add agent client test diagnosis commands`.
+- Latest BIBER MVP agent-client GitHub workflow commands commit pushed and
+  Vast-verified:
+  `a3ba952 Add agent client GitHub workflow commands`.
 - Latest BIBER MVP repo-adaptation commits pushed and Vast-verified:
   `9126fdd Add BIBER repo adaptation plan` and
   `2efa65b Fix repo adaptation relative role detection`.
@@ -182,7 +185,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   `07eb63f Add TensorFlow capability track`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `b0d1df6`. Full Rust/private-devnet
+- Vast code verification is current through `a3ba952`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -208,7 +211,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   `b8abdfb`; BIBER agent-client repo-context planning verification is current
   through `775b278`; BIBER agent-client workspace-edit command verification is
   current through `12450e2`; BIBER agent-client test/diagnosis command
-  verification is current through `b0d1df6`.
+  verification is current through `b0d1df6`; BIBER agent-client GitHub workflow
+  command verification is current through `a3ba952`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
@@ -218,6 +222,23 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - The `a3ba952` agent-client GitHub workflow command checkpoint required no
+    service restart because it changed only the stdlib client helper, smoke
+    script, docs, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid
+    `53902`.
+  - Latest focused Vast verification for the BIBER agent-client GitHub workflow
+    command slice:
+    `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py tests/test_github_client.py tests/test_agent_session.py tests/test_agent_capabilities.py tests/test_test_runner.py tests/test_test_diagnosis.py tests/test_workspace_edit.py tests/test_repo_context.py -q`
+    with `79 passed`, and live
+    `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS=24 bash scripts/vast_biber_agent_smoke.sh`.
+    The live smoke wrote artifacts under
+    `/workspace/outputs/biber-agent-smoke-20260519T111822Z-54777`, created a
+    stdlib-client session `a341fcf1-1402-41d6-a90b-f89203150590`, created an
+    XRIQ-context session `bb4844af-6db9-4d43-a21b-f577c8847b54`, kept GitHub
+    save/PR skipped because `github_configured=false`, and kept the BIBER API
+    private/local.
   - The `b0d1df6` agent-client test/diagnosis command checkpoint required no
     service restart because it changed only the stdlib client helper, smoke
     script, docs, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid
@@ -2275,6 +2296,47 @@ serving the last broad-safe Rust/XRIQ adapter.
     id `d93e5d5a-5482-47ce-b628-c99cf3e7b88f`.
   - No service restart, credential change, model training, or OpenAI mentor
     call was needed.
+- BIBER MVP agent-client GitHub workflow commands checkpoint:
+  - Added `save-github` and `create-pr` to `scripts/biber_agent_client.py`.
+  - `save-github` wraps `POST /v1/save/github` with explicit `--path`,
+    `--content` or `--content-file`, optional `--owner`, optional `--repo`,
+    `--branch`, optional `--base-branch`, `--create-branch-if-missing`, and
+    `--commit-message`. The command does not read or manage GitHub tokens;
+    server-side `.env` remains the only GitHub credential source.
+  - `create-pr` wraps `POST /v1/github/pull-request` with explicit `--head`,
+    `--base`, `--title`, optional `--body` or `--body-file`, optional
+    `--owner`, optional `--repo`, and `--ready` for non-draft PRs. Draft PR is
+    the default.
+  - Updated `scripts/vast_biber_agent_smoke.sh` so when
+    `BIBER_AGENT_SMOKE_GITHUB=1` and GitHub is configured, the smoke uses the
+    stdlib client for GitHub save/PR and writes `agent-client-github-save.json`
+    plus `agent-client-github-pr.json`. In the current Vast state GitHub is
+    not configured, so the live smoke keeps this path skipped.
+  - Added focused unit coverage in `tests/test_biber_agent_client.py` and
+    documented the helper commands in `docs/API_EXAMPLES.md`.
+  - Local workstation verification passed with bundled Python
+    `compileall scripts tests`, `git diff --check`, and a tiny local helper
+    smoke. Local pytest is still unavailable in the bundled workstation
+    runtime.
+  - Pushed implementation commit:
+    `a3ba952 Add agent client GitHub workflow commands`.
+  - Vast checkout was fast-forwarded to `a3ba952`; Vast verification passed
+    with `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py tests/test_github_client.py tests/test_agent_session.py tests/test_agent_capabilities.py tests/test_test_runner.py tests/test_test_diagnosis.py tests/test_workspace_edit.py tests/test_repo_context.py -q`
+    with `79 passed`, and live
+    `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS=24 bash scripts/vast_biber_agent_smoke.sh`.
+  - Latest live smoke artifact:
+    `/workspace/outputs/biber-agent-smoke-20260519T111822Z-54777`.
+    It confirmed create/list/load session helpers, repo-context planning, safe
+    workspace edit planning/apply, allowlisted test discovery/execution, and
+    deterministic failure diagnosis through the real API. GitHub workflow was
+    deliberately skipped because `github_configured=false`; no GitHub
+    credential was added or rotated. The stdlib-client session id was
+    `a341fcf1-1402-41d6-a90b-f89203150590`; XRIQ-context session id was
+    `bb4844af-6db9-4d43-a21b-f577c8847b54`.
+  - No service restart, credential change, model training, or OpenAI mentor
+    call was needed.
 - BIBER MVP repo-adaptation checkpoint:
   - Added `training/repo_adaptation_plan.py`, a conservative helper for
     preparing repo-specific BIBER adaptation work from a GitHub checkout or
@@ -3982,6 +4044,10 @@ bash scripts/xriq_private_devnet_smoke.sh
      and `gradle-wrapper-test` for target repos that already include the
      matching project files and toolchains. The stdlib agent client now wraps
      test discovery and execution with `list-tests` and `run-test`.
+   - GitHub save/PR workflow: keep GitHub operations explicit and server-side
+     credential gated. The stdlib agent client now wraps save and draft PR
+     creation with `save-github` and `create-pr`, while GitHub remains disabled
+     on the current Vast service until credentials are deliberately configured.
 13. Continue the XRIQ private-devnet prototype after the Rust/XRIQ model loop is
    stable. `xriq/` is already the separate Rust workspace inside this repo, and
    it is preferred over creating a second top-level Rust workspace unless the
@@ -4033,10 +4099,13 @@ bash scripts/xriq_private_devnet_smoke.sh
    hash-gated multi-file edit apply endpoint is live, and the stdlib agent
    client can now plan/apply those edits through the real API. The stdlib agent
    client can also list/run allowlisted tests and diagnose test failures through
-   the real API. The repo-adaptation live eval wrapper and the conservative
-   repo-adaptation failure-review helper are also live. Good next targets are
-   adding stdlib client helpers for GitHub save/PR, running the stack
-   profiles/test IDs against a real user repo when provided, or manually
+   the real API, and it now wraps GitHub save/draft-PR workflow commands while
+   leaving credentials server-side. The repo-adaptation live eval wrapper and
+   the conservative repo-adaptation failure-review helper are also live. Good
+   next targets are adding a single stdlib client `mvp-loop` convenience
+   command that chains context planning, optional edit planning/apply,
+   allowlisted test execution, diagnosis, and optional save/PR; running the
+   stack profiles/test IDs against a real user repo when provided; or manually
    reviewing repeated failure candidates into verified examples only after a
    real repo eval produces repeatable gaps.
    Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
