@@ -1011,6 +1011,111 @@ def test_run_extract_repair_edits_writes_review_and_edits_files_without_api_key(
     assert edits_payload["edits"][0]["path"] == "src/App.cs"
 
 
+def test_build_plan_repair_edits_payload_rejects_empty_edits() -> None:
+    try:
+        client.build_plan_repair_edits_payload(
+            {"plan_edit_payload": {"edits": []}},
+            max_files=None,
+        )
+    except client.BiberAgentClientError as exc:
+        assert "at least one edit" in str(exc)
+    else:
+        raise AssertionError("expected empty repair edits to be rejected")
+
+
+def test_run_plan_repair_edits_calls_server_plan_without_apply(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_plan_workspace_edit(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured.update(
+            {
+                "base_url": base_url,
+                "api_key": api_key,
+                "payload": payload,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return {
+            "ok": True,
+            "plan_hash": "e" * 64,
+            "planned": [{"path": "src/App.cs", "operation": "edit"}],
+            "rejected": [],
+            "files_touched": 1,
+            "total_new_bytes": 10,
+            "summary": "Planned 1 edit.",
+        }
+
+    artifact = tmp_path / "repair-edit-extraction.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_extraction",
+                "extraction_status": "ready_for_plan_edit",
+                "training_allowed": False,
+                "auto_applied": False,
+                "apply_allowed": False,
+                "next_test_id": "dotnet-test",
+                "plan_edit_payload": {
+                    "edits": [
+                        {
+                            "path": "src/App.cs",
+                            "old_text": "return a",
+                            "new_text": "return a;",
+                            "expected_replacements": 1,
+                        }
+                    ],
+                    "max_files": 2,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "repair-edit-plan.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "plan_workspace_edit", fake_plan_workspace_edit)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "plan-repair-edits",
+                str(artifact),
+                "--max-files",
+                "1",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert captured["api_key"] == "test-key"
+    assert captured["payload"]["max_files"] == 1
+    assert captured["payload"]["edits"][0]["path"] == "src/App.cs"
+    assert result["source"] == "biber_mvp_loop_repair_edit_plan"
+    assert result["plan_status"] == "planned"
+    assert result["plan_hash"] == "e" * 64
+    assert result["training_allowed"] is False
+    assert result["auto_applied"] is False
+    assert result["apply_allowed"] is False
+    assert result["review_status"] == "needs_review"
+    assert result["next_test_id"] == "dotnet-test"
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 

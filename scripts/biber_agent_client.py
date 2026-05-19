@@ -1036,6 +1036,68 @@ def extract_repair_edits(
     }
 
 
+def normalize_repair_edit_extraction_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_repair_edit_extraction":
+        return dict(payload)
+    body = payload.get("body")
+    if (
+        isinstance(body, dict)
+        and body.get("source") == "biber_mvp_loop_repair_edit_extraction"
+    ):
+        return dict(body)
+    return None
+
+
+def build_plan_repair_edits_payload(
+    extraction: Mapping[str, Any],
+    *,
+    max_files: int | None,
+) -> dict[str, Any]:
+    payload = require_mapping(extraction.get("plan_edit_payload")).copy()
+    edits = require_list(payload.get("edits"))
+    if not edits:
+        raise BiberAgentClientError(
+            "plan-repair-edits requires an extraction artifact with at least one edit."
+        )
+    if max_files is not None:
+        if max_files < 1:
+            raise BiberAgentClientError("--max-files must be at least 1.")
+        payload["max_files"] = max_files
+    return payload
+
+
+def build_plan_repair_edits_result(
+    *,
+    extraction_path: Path,
+    extraction: Mapping[str, Any],
+    plan_payload: Mapping[str, Any],
+    edit_plan: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "source": "biber_mvp_loop_repair_edit_plan",
+        "repair_loop_version": "mvp-v1",
+        "source_artifact": str(extraction_path),
+        "plan_status": "planned" if edit_plan.get("ok") is True else "rejected",
+        "ok": edit_plan.get("ok") is True,
+        "training_allowed": False,
+        "auto_applied": False,
+        "apply_allowed": False,
+        "review_status": "needs_review",
+        "plan_hash": edit_plan.get("plan_hash"),
+        "next_test_id": extraction.get("next_test_id"),
+        "plan_edit_payload": dict(plan_payload),
+        "edit_plan": dict(edit_plan),
+        "next_workflow": [
+            "review_server_side_edit_plan",
+            "apply_only_after_human_or_policy_approval",
+            "rerun_next_test_id",
+            "diagnose_again_if_still_failing",
+        ],
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -1468,6 +1530,36 @@ def format_repair_edit_extraction_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_repair_edit_plan_summary(payload: Mapping[str, Any]) -> str:
+    edit_plan = require_mapping(payload.get("edit_plan"))
+    planned = [
+        item
+        for item in require_list(edit_plan.get("planned"))
+        if isinstance(item, dict)
+    ]
+    rejected = [
+        item
+        for item in require_list(edit_plan.get("rejected"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER repair edit plan",
+        f"source_artifact: {payload.get('source_artifact', '-')}",
+        f"plan_status: {payload.get('plan_status', '-')}",
+        f"ok: {bool(payload.get('ok'))}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"auto_applied: {payload.get('auto_applied', False)}",
+        f"apply_allowed: {payload.get('apply_allowed', False)}",
+        f"review_status: {payload.get('review_status', '-')}",
+        f"plan_hash: {payload.get('plan_hash', '-')}",
+        f"planned: {len(planned)}",
+        f"rejected: {len(rejected)}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    lines.extend(f"- {item.get('path', '-')}" for item in planned[:8])
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -1862,6 +1954,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Write only the plan-edit payload, suitable for --edits-file.",
     )
 
+    plan_repair_edits_parser = subparsers.add_parser(
+        "plan-repair-edits",
+        help=(
+            "Validate extracted repair edits through the server-side plan-edit "
+            "endpoint without applying them."
+        ),
+    )
+    plan_repair_edits_parser.add_argument("artifact")
+    plan_repair_edits_parser.add_argument("--max-files", type=int)
+    plan_repair_edits_parser.add_argument("--output")
+
     args = parser.parse_args(argv)
     if args.command is None:
         args.command = "capabilities"
@@ -1998,6 +2101,41 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(attempt, indent=2, sort_keys=True)
             if args.print_json
             else format_mvp_loop_repair_attempt_summary(attempt)
+        )
+    if args.command == "plan-repair-edits":
+        artifact_path = Path(args.artifact)
+        artifact = load_json_artifact(
+            str(artifact_path),
+            label="repair-edit extraction artifact",
+        )
+        extraction = normalize_repair_edit_extraction_artifact(artifact)
+        if extraction is None:
+            raise BiberAgentClientError(
+                "plan-repair-edits artifact must contain a saved repair-edit extraction JSON object."
+            )
+        plan_payload = build_plan_repair_edits_payload(
+            extraction,
+            max_files=args.max_files,
+        )
+        edit_plan = plan_workspace_edit(
+            base_url=base_url,
+            api_key=api_key,
+            payload=plan_payload,
+            timeout_seconds=args.timeout_seconds,
+        )
+        result = build_plan_repair_edits_result(
+            extraction_path=artifact_path,
+            extraction=extraction,
+            plan_payload=plan_payload,
+            edit_plan=edit_plan,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_edit_plan_summary(result)
         )
     if args.command == "capabilities":
         capabilities = fetch_capabilities(
