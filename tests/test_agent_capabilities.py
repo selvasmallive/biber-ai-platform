@@ -69,6 +69,10 @@ def test_agent_capabilities_describes_client_workflows(tmp_path: Path) -> None:
         for command in body["features"]["test_runner"]["commands"]
     }
     assert "python-compileall-api" in test_ids
+    assert "dotnet-test" in test_ids
+    assert "maven-test" in test_ids
+    assert "gradle-test" in test_ids
+    assert "gradle-wrapper-test" in test_ids
     assert "xriq-private-devnet-smoke" in test_ids
     presets = {preset["id"]: preset for preset in body["presets"]}
     xriq_template = presets["xriq_private_devnet_review"]["request_template"]

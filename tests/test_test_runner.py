@@ -48,6 +48,10 @@ def test_list_test_commands_exposes_fixed_allowlist(tmp_path: Path) -> None:
     ids = {command["test_id"] for command in commands}
 
     assert ids == {
+        "dotnet-test",
+        "gradle-test",
+        "gradle-wrapper-test",
+        "maven-test",
         "python-compileall-api",
         "pytest-core",
         "xriq-node-fixtures",
@@ -73,6 +77,25 @@ def test_dry_run_returns_command_without_executing(tmp_path: Path) -> None:
     assert result["exit_code"] is None
     assert result["cwd"] == str(tmp_path)
     assert result["command"][-3:] == ["compileall", "app", "src"]
+
+
+def test_dotnet_and_java_test_commands_are_allowlisted(tmp_path: Path) -> None:
+    settings = make_settings(tmp_path)
+
+    dotnet = run_test_command("dotnet-test", settings, dry_run=True)
+    maven = run_test_command("maven-test", settings, dry_run=True)
+    gradle = run_test_command("gradle-test", settings, dry_run=True)
+    gradle_wrapper = run_test_command("gradle-wrapper-test", settings, dry_run=True)
+
+    assert dotnet["command"] == ["dotnet", "test", "--nologo"]
+    assert dotnet["timeout_seconds"] == 300
+    assert maven["command"] == ["mvn", "test"]
+    assert gradle["command"] == ["gradle", "test"]
+    assert gradle_wrapper["command"] == ["./gradlew", "test"]
+    assert all(
+        result["executed"] is False
+        for result in (dotnet, maven, gradle, gradle_wrapper)
+    )
 
 
 def test_runner_executes_with_fixed_cwd_timeout_and_truncation(tmp_path: Path) -> None:

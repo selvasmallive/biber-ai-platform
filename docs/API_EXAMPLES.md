@@ -170,6 +170,13 @@ curl -X POST http://localhost:8000/v1/tests/run \
 
 Use `dry_run: true` to inspect the selected command without executing it.
 
+Current stack-oriented test IDs include:
+
+- `dotnet-test`: runs `dotnet test --nologo`
+- `maven-test`: runs `mvn test`
+- `gradle-test`: runs `gradle test`
+- `gradle-wrapper-test`: runs `./gradlew test`
+
 ## Diagnose Test Failure Output
 
 This endpoint turns raw test output into a compact, structured diagnosis for a
