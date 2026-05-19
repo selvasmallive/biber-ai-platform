@@ -53,6 +53,8 @@ def test_agent_capabilities_describes_client_workflows(tmp_path: Path) -> None:
     assert body["default_model"] == "biber-dev-core-v1"
     assert body["endpoints"]["create_session"] == "POST /v1/agent/sessions"
     assert body["features"]["repo_context"]["max_files"] == 7
+    assert body["features"]["repo_context"]["planner_supported"] is True
+    assert body["features"]["repo_context"]["plan_endpoint"] == "POST /v1/repo/context/plan"
     assert body["features"]["workspace_edit"]["dry_run_supported"] is True
     assert body["features"]["openai_mentor"]["configured"] is False
     assert body["features"]["xriq_private_devnet"]["context_supported"] is True

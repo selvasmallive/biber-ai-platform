@@ -115,6 +115,29 @@ class TestRunResponse(BaseModel):
     stderr_truncated: bool
 
 
+class RepoContextPlanRequest(BaseModel):
+    instruction: str | None = None
+    pinned_paths: list[str] = Field(default_factory=list, max_length=12)
+    changed_paths: list[str] = Field(default_factory=list, max_length=50)
+    max_files: int = Field(default=12, ge=1, le=50)
+    max_scan_files: int = Field(default=2000, ge=1, le=10000)
+
+
+class RepoContextCandidate(BaseModel):
+    path: str
+    reason: str
+    project_type: str | None = None
+    priority: int
+
+
+class RepoContextPlanResponse(BaseModel):
+    selected_paths: list[str]
+    detected_project_types: list[str]
+    candidates: list[RepoContextCandidate]
+    skipped: list[dict[str, str]]
+    summary: str
+
+
 class WorkspaceEditRequest(BaseModel):
     path: str = Field(min_length=1)
     old_text: str | None = None

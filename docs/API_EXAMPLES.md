@@ -44,6 +44,28 @@ curl -X POST http://localhost:8000/v1/chat \
 applies file-count and byte limits and rejects `.env`, private-key-looking
 files, cache directories, and paths outside the configured repo context root.
 
+## Plan Repo Context
+
+Client tools can ask BIBER to select a safe starter context before creating a
+chat or agent session. The planner is deterministic: it detects common stack
+signals, keeps pinned and changed files first, adds related tests and project
+manifests, and avoids secrets, dependency folders, build outputs, and binaries.
+
+```bash
+curl -X POST http://localhost:8000/v1/repo/context/plan \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "instruction": "Fix the WeatherController forecast route.",
+    "changed_paths": ["src/Example.Api/Controllers/WeatherController.cs"],
+    "pinned_paths": ["README.md"],
+    "max_files": 8
+  }'
+```
+
+Use the returned `selected_paths` as `repo_context_paths` for `/v1/chat` or
+`/v1/agent/sessions`.
+
 ## Queue Chat Job Instead Of Immediate Inference
 
 ```bash

@@ -26,7 +26,7 @@ from .github import (
 )
 from .llm import BiberChatService, MENTOR_TRIGGER_PHRASE
 from .model_registry import ModelRegistryError, build_model_registry
-from .repo_context import RepoContextError
+from .repo_context import RepoContextError, plan_repo_context
 from .schemas import (
     AgentSessionRequest,
     AgentSessionResponse,
@@ -43,6 +43,8 @@ from .schemas import (
     SaveToGitHubResponse,
     TestRunRequest,
     TestRunResponse,
+    RepoContextPlanRequest,
+    RepoContextPlanResponse,
     WorkspaceEditRequest,
     WorkspaceEditResponse,
 )
@@ -139,9 +141,11 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
         "features": {
             "repo_context": {
                 "enabled": True,
+                "plan_endpoint": "POST /v1/repo/context/plan",
                 "max_files": settings.repo_context_max_files,
                 "max_bytes_per_file": settings.repo_context_max_bytes_per_file,
                 "max_total_bytes": settings.repo_context_max_total_bytes,
+                "planner_supported": True,
             },
             "workspace_edit": {
                 "enabled": True,
@@ -284,6 +288,26 @@ async def agent_capabilities(
     settings: BiberSettings = Depends(get_settings),
 ) -> dict[str, object]:
     return _agent_capabilities(settings)
+
+
+@app.post("/v1/repo/context/plan", response_model=RepoContextPlanResponse)
+async def repo_context_plan(
+    request_body: RepoContextPlanRequest,
+    _: AuthContext = Depends(require_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> RepoContextPlanResponse:
+    try:
+        result = plan_repo_context(
+            root=settings.repo_context_root,
+            instruction=request_body.instruction,
+            pinned_paths=request_body.pinned_paths,
+            changed_paths=request_body.changed_paths,
+            max_files=min(request_body.max_files, settings.repo_context_max_files),
+            max_scan_files=request_body.max_scan_files,
+        )
+    except RepoContextError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return RepoContextPlanResponse.model_validate(result)
 
 
 @app.post("/v1/files/edit", response_model=WorkspaceEditResponse)

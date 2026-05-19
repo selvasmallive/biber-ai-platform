@@ -37,7 +37,7 @@ from app.github_client import (
 )
 from app.llm import BiberChatService, MENTOR_TRIGGER_PHRASE
 from app.model_registry import ModelRegistryError, build_model_registry
-from app.repo_context import RepoContextError
+from app.repo_context import RepoContextError, plan_repo_context
 from app.scheduler import scheduler
 from app.test_runner import (
     TestRunnerConfigurationError,
@@ -226,6 +226,29 @@ class TestRunResponse(BaseModel):
     stderr_truncated: bool
 
 
+class RepoContextPlanRequest(BaseModel):
+    instruction: str | None = None
+    pinned_paths: list[str] = Field(default_factory=list, max_length=12)
+    changed_paths: list[str] = Field(default_factory=list, max_length=50)
+    max_files: int = Field(default=12, ge=1, le=50)
+    max_scan_files: int = Field(default=2000, ge=1, le=10000)
+
+
+class RepoContextCandidate(BaseModel):
+    path: str
+    reason: str
+    project_type: str | None = None
+    priority: int
+
+
+class RepoContextPlanResponse(BaseModel):
+    selected_paths: list[str]
+    detected_project_types: list[str]
+    candidates: list[RepoContextCandidate]
+    skipped: list[dict[str, str]]
+    summary: str
+
+
 class WorkspaceEditRequest(BaseModel):
     path: str = Field(min_length=1)
     old_text: str | None = None
@@ -321,9 +344,11 @@ def _agent_capabilities() -> dict[str, object]:
         "features": {
             "repo_context": {
                 "enabled": True,
+                "plan_endpoint": "POST /v1/repo/context/plan",
                 "max_files": settings.repo_context_max_files,
                 "max_bytes_per_file": settings.repo_context_max_bytes_per_file,
                 "max_total_bytes": settings.repo_context_max_total_bytes,
+                "planner_supported": True,
             },
             "workspace_edit": {
                 "enabled": True,
@@ -449,6 +474,22 @@ def run_tests(req: TestRunRequest, auth=Depends(require_api_key)):
 @app.get("/v1/agent/capabilities")
 def agent_capabilities(auth=Depends(require_api_key)):
     return _agent_capabilities()
+
+
+@app.post("/v1/repo/context/plan", response_model=RepoContextPlanResponse)
+def repo_context_plan(req: RepoContextPlanRequest, auth=Depends(require_api_key)):
+    try:
+        result = plan_repo_context(
+            root=settings.repo_context_root,
+            instruction=req.instruction,
+            pinned_paths=req.pinned_paths,
+            changed_paths=req.changed_paths,
+            max_files=min(req.max_files, settings.repo_context_max_files),
+            max_scan_files=req.max_scan_files,
+        )
+    except RepoContextError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return RepoContextPlanResponse.model_validate(result)
 
 
 @app.post("/v1/files/edit", response_model=WorkspaceEditResponse)
