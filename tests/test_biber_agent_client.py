@@ -417,6 +417,55 @@ def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
     assert "artifact_path: /workspace/outputs/biber-mvp-loop.json" in output
 
 
+def test_run_show_mvp_loop_summarizes_local_artifact_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("show-mvp-loop should not resolve an API key")
+
+    artifact = tmp_path / "mvp-loop.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "artifact_path": str(artifact),
+                "selected_context_paths": ["README.md", "pyproject.toml"],
+                "steps": {
+                    "context_plan": {"summary": "Selected repo context."},
+                    "test_run": {
+                        "ok": True,
+                        "test_id": "python-compileall-api",
+                        "summary": "Test passed.",
+                    },
+                },
+                "test_ok": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(client.parse_args(["show-mvp-loop", str(artifact)]))
+
+    assert "BIBER MVP loop" in output
+    assert "ok: True" in output
+    assert "selected_context_paths:" in output
+    assert "- README.md" in output
+    assert "step_summaries:" in output
+    assert "- test_run ok=True summary=Test passed. test_id=python-compileall-api" in output
+
+
+def test_run_show_mvp_loop_json_returns_local_artifact(tmp_path: Path) -> None:
+    artifact = tmp_path / "mvp-loop.json"
+    payload = {"ok": True, "steps": {"context_plan": {}}, "selected_context_paths": []}
+    artifact.write_text(json.dumps(payload), encoding="utf-8")
+
+    output = client.run(client.parse_args(["--json", "show-mvp-loop", str(artifact)]))
+
+    assert json.loads(output) == payload
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 

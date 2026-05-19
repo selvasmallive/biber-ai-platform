@@ -602,6 +602,26 @@ except json.JSONDecodeError as exc:
     fail(f"agent client mvp-loop output artifact returned invalid JSON: {exc}")
 if saved_client_mvp_loop != client_mvp_loop:
     fail("agent client mvp-loop output artifact did not match stdout JSON")
+try:
+    client_mvp_loop_report = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "show-mvp-loop",
+            str(client_mvp_loop_output_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py show-mvp-loop failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py show-mvp-loop timed out: {exc}")
+if "BIBER MVP loop" not in client_mvp_loop_report:
+    fail(f"show-mvp-loop report omitted heading: {client_mvp_loop_report!r}")
+if str(client_mvp_loop_output_path) not in client_mvp_loop_report:
+    fail(f"show-mvp-loop report omitted artifact path: {client_mvp_loop_report!r}")
 if client_mvp_loop.get("ok") is not True:
     fail(f"agent client mvp-loop did not return ok=true: {client_mvp_loop!r}")
 client_mvp_steps = client_mvp_loop.get("steps")
@@ -621,6 +641,10 @@ client_mvp_loop_applied_path.unlink()
 write_artifact(
     "agent-client-mvp-loop.json",
     {"status": 0, "body": client_mvp_loop, "output": str(client_mvp_loop_output_path)},
+)
+write_artifact(
+    "agent-client-mvp-loop-report.json",
+    {"status": 0, "body": client_mvp_loop_report},
 )
 
 chat_payload = {
@@ -812,6 +836,7 @@ summary = {
     "agent_client_mvp_loop_path": client_mvp_loop_smoke_path,
     "agent_client_mvp_loop_output": str(client_mvp_loop_output_path),
     "agent_client_mvp_loop_steps": sorted(client_mvp_steps.keys()),
+    "agent_client_mvp_loop_report_ok": "BIBER MVP loop" in client_mvp_loop_report,
     "agent_client_mvp_loop_test_ok": client_mvp_loop.get("test_ok"),
     "agent_client_test_id": client_test_run.get("test_id"),
     "agent_client_test_ok": client_test_run.get("ok"),

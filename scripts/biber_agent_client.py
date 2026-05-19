@@ -518,6 +518,19 @@ def write_json_artifact(payload: Mapping[str, Any], output_path: str) -> str:
     return str(path)
 
 
+def load_json_artifact(artifact_path: str, *, label: str) -> dict[str, Any]:
+    path = Path(artifact_path)
+    try:
+        parsed = json.loads(path.read_text(encoding="utf-8-sig"))
+    except OSError as exc:
+        raise BiberAgentClientError(f"Could not read {label} {path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise BiberAgentClientError(f"{label} must be valid JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise BiberAgentClientError(f"{label} must contain a JSON object.")
+    return parsed
+
+
 def load_workspace_edits(
     *,
     edit_json_values: list[str] | None,
@@ -729,6 +742,33 @@ def format_mvp_loop_summary(payload: Mapping[str, Any]) -> str:
         lines.append(f"pull_request_url: {payload.get('pull_request_url')}")
     if payload.get("artifact_path"):
         lines.append(f"artifact_path: {payload.get('artifact_path')}")
+    return "\n".join(lines)
+
+
+def format_mvp_loop_artifact_summary(payload: Mapping[str, Any]) -> str:
+    selected_paths = [
+        str(path) for path in require_list(payload.get("selected_context_paths"))
+    ]
+    lines = [format_mvp_loop_summary(payload)]
+    if selected_paths:
+        lines.append("selected_context_paths:")
+        lines.extend(f"- {path}" for path in selected_paths)
+
+    step_summaries: list[str] = []
+    for name, step in require_mapping(payload.get("steps")).items():
+        if not isinstance(step, dict):
+            continue
+        parts = [f"- {name}"]
+        if "ok" in step:
+            parts.append(f"ok={step.get('ok')}")
+        if "summary" in step:
+            parts.append(f"summary={step.get('summary')}")
+        if "test_id" in step:
+            parts.append(f"test_id={step.get('test_id')}")
+        step_summaries.append(" ".join(parts))
+    if step_summaries:
+        lines.append("step_summaries:")
+        lines.extend(step_summaries)
     return "\n".join(lines)
 
 
@@ -1051,6 +1091,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Write the MVP loop JSON summary to this local artifact path.",
     )
 
+    show_mvp_loop = subparsers.add_parser(
+        "show-mvp-loop",
+        help="Summarize a saved local mvp-loop --output JSON artifact.",
+    )
+    show_mvp_loop.add_argument("artifact")
+
     args = parser.parse_args(argv)
     if args.command is None:
         args.command = "capabilities"
@@ -1058,6 +1104,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def run(args: argparse.Namespace) -> str:
+    if args.command == "show-mvp-loop":
+        artifact = load_json_artifact(args.artifact, label="mvp-loop artifact")
+        return (
+            json.dumps(artifact, indent=2, sort_keys=True)
+            if args.print_json
+            else format_mvp_loop_artifact_summary(artifact)
+        )
+
     api_key = resolve_api_key(args.api_key)
     base_url = args.base_url.rstrip("/")
     if args.command == "capabilities":
