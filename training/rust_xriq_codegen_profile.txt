@@ -5,6 +5,7 @@ Do not write `#[derive(thiserror::Error)]` or `#[error(...)]` attributes.
 Prefer explicit structs, enums, and Result errors over derive macros from external crates.
 For ledger/account updates, compute all checked values first, avoid long single-line method chains, and commit mutations only after every check passes.
 Never keep a mutable sender borrow alive while calling `accounts.entry(...)`; finish the sender update inside a short block, then update the recipient after that block ends.
+Do not clone, shadow, replace, or reassign the `accounts: &mut HashMap<...>` parameter; mutate the provided map in place and never write `let mut accounts = accounts.clone()` or `*accounts = accounts`.
 When a method chain includes `ok_or(...)` or `and_then(...)`, write it across multiple lines in the shape rustfmt expects, for example:
 `let sender = accounts`
 `    .get_mut(&tx.from)`
