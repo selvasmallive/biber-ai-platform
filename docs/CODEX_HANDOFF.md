@@ -171,6 +171,13 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP agent-client MVP-loop failure export commit pushed and
   Vast-verified:
   `ef0cd5e Export MVP loop failure review records`.
+- Latest Rust/XRIQ eval codegen-profile commits pushed and Vast-verified:
+  `176b3e4 Add Rust XRIQ eval codegen profile`,
+  `706448e Limit Rust XRIQ eval profile to ledger prompt`,
+  `5788422 Refine Rust XRIQ ledger eval profile`,
+  `bab1c38 Guide Rust XRIQ ledger borrow-safe output`,
+  `b694eaa Prevent cloned ledger map output in XRIQ eval`, and
+  `7e7b8d Clarify XRIQ ledger fee semantics in eval profile`.
 - Latest BIBER MVP repo-adaptation commits pushed and Vast-verified:
   `9126fdd Add BIBER repo adaptation plan` and
   `2efa65b Fix repo adaptation relative role detection`.
@@ -237,7 +244,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   `8c077d2`; BIBER agent-client MVP-loop artifact listing verification is
   current through `841dc8f`; BIBER agent-client failed MVP-loop artifact filter
   verification is current through `be89b78`; BIBER agent-client MVP-loop
-  failure-export verification is current through `ef0cd5e`.
+  failure-export verification is current through `ef0cd5e`; Rust/XRIQ live
+  codegen-profile eval verification is current through `7e7b8d`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
@@ -247,7 +255,24 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast checkout is fast-forwarded to `ef0cd5e`.
+  - Vast checkout is fast-forwarded to `7e7b8d`.
+  - The Rust/XRIQ codegen-profile checkpoints through `7e7b8d` required no
+    service restart because they changed only eval prompt/profile files,
+    tests, docs, and wrappers. vLLM stayed on pid `5802`; FastAPI stayed on
+    pid `53902`.
+  - Latest focused Vast verification for the Rust/XRIQ codegen-profile slice:
+    `/workspace/biber-venv/bin/python -m compileall training tests scripts`,
+    `bash -n scripts/vast_eval_rust_xriq_direct.sh`, focused pytest
+    `tests/test_live_model_eval.py tests/test_repo_adaptation_eval.py tests/test_repo_adaptation_plan.py -q`
+    with `18 passed`, and live
+    `BIBER_EVAL_FAIL_ON_VALIDATORS=0 bash scripts/vast_eval_rust_xriq_direct.sh`.
+    The final focused Rust/XRIQ eval wrote
+    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260519T125323Z.summary.json`
+    and reached `7/7` responses, `7/7` expectation checks, and `7/7` cargo
+    validators. The broad LoRA regression eval wrote
+    `/workspace/outputs/evals/biber-dev-core-lora-20260519T125356Z.summary.json`
+    and remained `18/18`. No OpenAI mentor call, credential rotation, service
+    restart, or additional GPU training was used for this checkpoint.
   - The `ef0cd5e` MVP-loop failure export checkpoint required no service
     restart because it changed only the stdlib client helper, smoke script,
     docs, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid `53902`.
@@ -737,16 +762,21 @@ serving the last broad-safe Rust/XRIQ adapter.
     content `ok` before the FastAPI-only restart; vLLM remained running.
 - Latest current Rust/XRIQ eval:
   - summary:
-    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260517T021032Z.summary.json`
+    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260519T125323Z.summary.json`
   - result: `7/7` responses, `7/7` substring expectations,
-    `6/7` cargo validators.
-  - remaining failure: `rust_xriq_apply_ledger_transaction` failed
-    `cargo fmt --check`. The generated code also used an external
-    `thiserror::Error` derive that is not available in the eval crate, so treat
-    the ledger prompt as not solved by the model yet.
+    `7/7` cargo validators.
+  - profile: `training/rust_xriq_codegen_profile.txt` is applied only to
+    `rust_xriq_apply_ledger_transaction` by default through
+    `scripts/vast_eval_rust_xriq_direct.sh`.
+  - improvement path: the profile moved the ledger prompt through rustfmt,
+    no-external-crate, borrow-checker, no-cloned-map, and fee-semantics
+    failures until the final live eval passed all cargo validators. Keep this
+    as an inference/eval profile first; do not start another QLoRA run unless a
+    future repeatable gap remains after profile plus deterministic repair-loop
+    options are exhausted.
 - Latest current broad eval:
   - summary:
-    `/workspace/outputs/evals/biber-dev-core-lora-20260517T021053Z.summary.json`
+    `/workspace/outputs/evals/biber-dev-core-lora-20260519T125356Z.summary.json`
   - result: `18/18` responses and `18/18` simple expectation checks.
 - Current canonical training dataset:
   - path: `/workspace/data/biber_train.jsonl`
@@ -775,10 +805,10 @@ serving the last broad-safe Rust/XRIQ adapter.
     completed, train loss about `0.6196`, reached `6/7` Rust/XRIQ validators,
     but still failed the ledger prompt; not promoted.
 - Conclusion: keep serving `biber-dev-core-lora-rust-xriq-400` for now because
-  it preserves the broad `18/18` baseline and ties the best current Rust/XRIQ
-  validator score at `6/7`. Do not chase more blind QLoRA runs for the ledger
-  prompt without first improving the eval design, prompt scaffolding, or
-  training-data strategy.
+  the targeted Rust/XRIQ codegen profile now reaches `7/7` cargo validators and
+  the served adapter still preserves the broad `18/18` baseline. Do not chase
+  more blind QLoRA runs for the ledger prompt without first improving eval
+  design, deterministic repair loops, or reviewed training-data strategy.
 - XRIQ prototype progress made after the last model eval:
   - `docs/XRIQ_TECHNICAL_SPEC.md` now makes the intended XRIQ advantages
     explicit: no mining, predictable fees, Rust-first implementation, clean
@@ -3718,31 +3748,33 @@ bash scripts/vast_train_qlora_tmux.sh /workspace/data/biber_train.jsonl
   - produced by a 100-step, two-epoch QLoRA run over the first 400 records of
     the Rust/XRIQ-targeted 1000-record dataset.
   - last confirmed served live as `biber-dev-core`.
-- Current broad live eval baseline after Rust/XRIQ retraining:
+- Current broad live eval baseline after Rust/XRIQ profile refinement:
   - runner: `bash scripts/vast_eval_lora_direct.sh`
   - result: `18/18` responses, `18/18` simple expectation checks passed.
   - summary:
-    `/workspace/outputs/evals/biber-dev-core-lora-20260517T000637Z.summary.json`
+    `/workspace/outputs/evals/biber-dev-core-lora-20260519T125356Z.summary.json`
   - detailed JSONL:
-    `/workspace/outputs/evals/biber-dev-core-lora-20260517T000637Z.jsonl`
+    `/workspace/outputs/evals/biber-dev-core-lora-20260519T125356Z.jsonl`
   - quality caveat: the current runner checks simple expected substrings or
     regexes. Treat the score as a regression signal, then add stronger
     execution/type/lint validators before trusting it as a quality score.
-- Current Rust/XRIQ eval baseline after the HashSet follow-up:
+- Current Rust/XRIQ eval baseline after the codegen-profile follow-up:
   - runner: `bash scripts/vast_eval_rust_xriq_direct.sh`
-  - result: `6/6` responses, `6/6` substring expectations, `6/6` cargo
+  - result: `7/7` responses, `7/7` substring expectations, `7/7` cargo
     validators.
   - summary:
-    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260517T001354Z.summary.json`
+    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260519T125323Z.summary.json`
   - detailed JSONL:
-    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260517T001354Z.jsonl`
-  - prior remaining failure, missing `use std::collections::HashSet;` in
-    `rust_xriq_mempool_insert`, is resolved for the current held-out eval.
+    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260519T125323Z.jsonl`
+  - the `rust_xriq_apply_ledger_transaction` prompt now uses
+    `training/rust_xriq_codegen_profile.txt` by default, while the rest of the
+    Rust/XRIQ eval remains unprefixed.
 - The Rust/XRIQ adapter is the current confirmed live candidate: the adapter
   training improved the Rust/XRIQ cargo baseline from `2/6` to `5/6` while
-  preserving the broad `18/18` regression baseline. After the HashSet source and
-  eval-prompt follow-up, the current live path reaches `6/6` cargo validators.
-  The HashSet follow-up did not change model weights.
+  preserving the broad `18/18` regression baseline. After the HashSet source,
+  eval-prompt, and targeted codegen-profile follow-ups, the current live path
+  reaches `7/7` cargo validators. These follow-ups did not change model
+  weights.
 - The current serving process holds about 14 GB on each 16 GB GPU. Before
   starting another QLoRA run on this instance, stop the direct services with
   `bash scripts/vast_stop_direct.sh`, or run training on a separate GPU.
@@ -4158,15 +4190,13 @@ BIBER_LORA_ADAPTER_DIR=/workspace/adapters/biber-dev-core-lora-rust-xriq-400 \
 bash scripts/vast_test_direct.sh
 ```
 
-4. Before any more GPU training, improve the Rust/XRIQ ledger evaluation and
-   prompt strategy. The current remaining failure is
-   `rust_xriq_apply_ledger_transaction`; the model needs stronger guidance for
-   rustfmt-clean output, no external crates in standalone evals, cloned-map
-   atomic commits, and checked nonce/fee/balance arithmetic.
-5. Consider adding a structured "BIBER codegen profile" prompt for Rust/XRIQ:
-   "standard library only, cargo fmt clean, no external crates unless listed,
-   compile before final answer, prefer cloned state for atomic ledger updates."
-   Test this through inference before another fine-tune.
+4. Treat the Rust/XRIQ ledger codegen profile as the current low-cost path for
+   this narrow model gap. It is already Vast-verified at `7/7` cargo validators
+   and applies only to `rust_xriq_apply_ledger_transaction` by default.
+5. If a future Rust/XRIQ eval regresses, prefer a deterministic repair loop
+   before GPU training: run `cargo fmt`, `cargo check`, and targeted tests,
+   feed the concise compiler/test failure back to the local model, and save
+   only reviewed failures as future training/eval candidates.
 6. Run the two current evals after any serving change:
 
 ```bash
