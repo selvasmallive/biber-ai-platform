@@ -190,6 +190,115 @@ write_artifact(
 )
 
 try:
+    client_tests_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-tests",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-tests failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-tests timed out: {exc}")
+try:
+    client_tests = json.loads(client_tests_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py list-tests returned invalid JSON: {exc}")
+client_commands = client_tests.get("commands")
+if not isinstance(client_commands, list):
+    fail(f"agent client list-tests did not return commands: {client_tests!r}")
+client_test_ids = {
+    command.get("test_id")
+    for command in client_commands
+    if isinstance(command, dict)
+}
+if "python-compileall-api" not in client_test_ids:
+    fail(f"agent client list-tests omitted python-compileall-api: {client_test_ids!r}")
+write_artifact(
+    "agent-client-list-tests.json",
+    {"status": 0, "body": client_tests},
+)
+
+try:
+    client_test_run_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "--timeout-seconds",
+            "180",
+            "run-test",
+            "--test-id",
+            "python-compileall-api",
+        ],
+        env=client_env,
+        text=True,
+        timeout=180,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py run-test failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py run-test timed out: {exc}")
+try:
+    client_test_run = json.loads(client_test_run_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py run-test returned invalid JSON: {exc}")
+if client_test_run.get("executed") is not True or client_test_run.get("ok") is not True:
+    fail(f"agent client run-test did not pass: {client_test_run!r}")
+write_artifact(
+    "agent-client-run-test.json",
+    {"status": 0, "body": client_test_run},
+)
+
+try:
+    client_diagnosis_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "diagnose-test",
+            "--test-id",
+            "dotnet-test",
+            "--command-part",
+            "dotnet",
+            "--command-part",
+            "test",
+            "--exit-code",
+            "1",
+            "--stdout",
+            "Example.cs(7,1): error CS1002: ; expected\n",
+            "--max-context-lines",
+            "40",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py diagnose-test failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py diagnose-test timed out: {exc}")
+try:
+    client_diagnosis = json.loads(client_diagnosis_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py diagnose-test returned invalid JSON: {exc}")
+if client_diagnosis.get("has_failure") is not True:
+    fail(f"agent client diagnose-test did not detect failure: {client_diagnosis!r}")
+if client_diagnosis.get("primary_category") != "compile_error":
+    fail(f"agent client diagnose-test returned wrong category: {client_diagnosis!r}")
+if client_diagnosis.get("detected_stack") != "dotnet":
+    fail(f"agent client diagnose-test returned wrong stack: {client_diagnosis!r}")
+write_artifact(
+    "agent-client-diagnose-test.json",
+    {"status": 0, "body": client_diagnosis},
+)
+
+try:
     client_session_output = subprocess.check_output(
         [
             sys.executable,
@@ -570,6 +679,10 @@ summary = {
     "agent_client_context_paths": selected_context_paths,
     "agent_client_edit_path": client_edit_smoke_path,
     "agent_client_edit_plan_hash": client_edit_plan_hash,
+    "agent_client_test_id": client_test_run.get("test_id"),
+    "agent_client_test_ok": client_test_run.get("ok"),
+    "agent_client_diagnosis_category": client_diagnosis.get("primary_category"),
+    "agent_client_diagnosis_stack": client_diagnosis.get("detected_stack"),
     "xriq_context_height": summary.get("current_height"),
     "github": github_result,
 }

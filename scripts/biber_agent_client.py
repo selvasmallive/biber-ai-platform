@@ -222,6 +222,54 @@ def apply_workspace_edit_plan(
     )
 
 
+def list_test_commands(
+    *,
+    base_url: str,
+    api_key: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/tests",
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def run_allowlisted_test(
+    *,
+    base_url: str,
+    api_key: str,
+    payload: Mapping[str, Any],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/tests/run",
+        method="POST",
+        payload=payload,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def diagnose_test_failure(
+    *,
+    base_url: str,
+    api_key: str,
+    payload: Mapping[str, Any],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/tests/diagnose",
+        method="POST",
+        payload=payload,
+        timeout_seconds=timeout_seconds,
+    )
+
+
 def require_mapping(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
@@ -398,6 +446,33 @@ def parse_json_object(value: str, *, label: str) -> dict[str, Any]:
     return parsed
 
 
+def parse_json_list(value: str, *, label: str) -> list[Any]:
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise BiberAgentClientError(f"{label} must be valid JSON: {exc}") from exc
+    if not isinstance(parsed, list):
+        raise BiberAgentClientError(f"{label} must be a JSON array.")
+    return parsed
+
+
+def load_text_argument(
+    *,
+    value: str | None,
+    file_path: str | None,
+    label: str,
+) -> str:
+    if value is not None and file_path:
+        raise BiberAgentClientError(f"Use either {label} or {label}-file, not both.")
+    if file_path:
+        path = Path(file_path)
+        try:
+            return path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise BiberAgentClientError(f"Could not read {label}-file {path}: {exc}") from exc
+    return value or ""
+
+
 def load_workspace_edits(
     *,
     edit_json_values: list[str] | None,
@@ -454,6 +529,146 @@ def build_workspace_edit_payload(
     if plan_hash:
         payload["plan_hash"] = plan_hash
     return payload
+
+
+def build_test_run_payload(*, test_id: str, dry_run: bool) -> dict[str, Any]:
+    payload: dict[str, Any] = {"test_id": test_id}
+    if dry_run:
+        payload["dry_run"] = True
+    return payload
+
+
+def build_test_diagnosis_payload(
+    *,
+    test_id: str | None,
+    command_json: str | None = None,
+    command_parts: list[str] | None = None,
+    exit_code: int | None,
+    timed_out: bool,
+    stdout: str,
+    stderr: str,
+    max_context_lines: int | None,
+) -> dict[str, Any]:
+    if command_json and command_parts:
+        raise BiberAgentClientError(
+            "Use either --command-json or repeated --command-part, not both."
+        )
+    command: list[str] = []
+    if command_json:
+        parsed_command = parse_json_list(command_json, label="--command-json")
+        if not all(isinstance(part, str) for part in parsed_command):
+            raise BiberAgentClientError("--command-json must contain only strings.")
+        command = parsed_command
+    elif command_parts:
+        command = command_parts
+
+    payload: dict[str, Any] = {
+        "command": command,
+        "timed_out": timed_out,
+        "stdout": stdout,
+        "stderr": stderr,
+    }
+    if test_id is not None:
+        payload["test_id"] = test_id
+    if exit_code is not None:
+        payload["exit_code"] = exit_code
+    if max_context_lines is not None:
+        payload["max_context_lines"] = max_context_lines
+    return payload
+
+
+def build_diagnosis_payload_from_test_run(
+    payload: Mapping[str, Any],
+    *,
+    max_context_lines: int | None,
+) -> dict[str, Any]:
+    diagnosis: dict[str, Any] = {
+        "test_id": payload.get("test_id"),
+        "command": require_list(payload.get("command")),
+        "exit_code": payload.get("exit_code"),
+        "timed_out": bool(payload.get("timed_out")),
+        "stdout": str(payload.get("stdout") or ""),
+        "stderr": str(payload.get("stderr") or ""),
+    }
+    if max_context_lines is not None:
+        diagnosis["max_context_lines"] = max_context_lines
+    return diagnosis
+
+
+def format_test_list_summary(payload: Mapping[str, Any]) -> str:
+    commands = [
+        command
+        for command in require_list(payload.get("commands"))
+        if isinstance(command, dict)
+    ]
+    lines = [f"BIBER allowlisted tests ({len(commands)})"]
+    for command in commands:
+        argv = " ".join(str(part) for part in require_list(command.get("command")))
+        lines.append(
+            " ".join(
+                [
+                    f"- {command.get('test_id', '-')}:",
+                    str(command.get("label", "-")),
+                    f"cwd={command.get('cwd', '-')}",
+                    f"command={argv or '-'}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
+def format_test_run_summary(payload: Mapping[str, Any]) -> str:
+    command = " ".join(str(part) for part in require_list(payload.get("command")))
+    lines = [
+        "BIBER test run",
+        f"test_id: {payload.get('test_id', '-')}",
+        f"label: {payload.get('label', '-')}",
+        f"executed: {bool(payload.get('executed'))}",
+        f"ok: {payload.get('ok')}",
+        f"exit_code: {payload.get('exit_code')}",
+        f"timed_out: {bool(payload.get('timed_out'))}",
+        f"duration_ms: {payload.get('duration_ms', 0)}",
+        f"cwd: {payload.get('cwd', '-')}",
+        f"command: {command or '-'}",
+    ]
+    diagnosis = payload.get("diagnosis")
+    if isinstance(diagnosis, dict):
+        lines.extend(
+            [
+                f"diagnosis: {diagnosis.get('summary', '-')}",
+                f"primary_category: {diagnosis.get('primary_category', '-')}",
+                f"detected_stack: {diagnosis.get('detected_stack', '-')}",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def format_test_diagnosis_summary(payload: Mapping[str, Any]) -> str:
+    signals = [
+        signal
+        for signal in require_list(payload.get("signals"))
+        if isinstance(signal, dict)
+    ]
+    lines = [
+        "BIBER test failure diagnosis",
+        f"has_failure: {bool(payload.get('has_failure'))}",
+        f"primary_category: {payload.get('primary_category', '-')}",
+        f"detected_stack: {payload.get('detected_stack', '-')}",
+        f"summary: {payload.get('summary', '-')}",
+        f"signals ({len(signals)}):",
+    ]
+    lines.extend(
+        (
+            f"- {signal.get('category', '-')} stack={signal.get('stack', '-')} "
+            f"line={signal.get('line_number')} evidence={signal.get('evidence', '-')}"
+        )
+        for signal in signals[:8]
+    )
+    actions = [str(action) for action in require_list(payload.get("suggested_next_actions"))]
+    if actions:
+        lines.append("suggested_next_actions:")
+        lines.extend(f"- {action}" for action in actions)
+    return "\n".join(lines)
 
 
 def format_workspace_edit_plan_summary(payload: Mapping[str, Any]) -> str:
@@ -593,6 +808,39 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     apply_edit.add_argument("--max-files", type=int)
     apply_edit.add_argument("--plan-hash", required=True)
 
+    subparsers.add_parser(
+        "list-tests",
+        help="List server-side allowlisted test commands.",
+    )
+
+    run_test = subparsers.add_parser(
+        "run-test",
+        help="Run one server-side allowlisted test command.",
+    )
+    run_test.add_argument("--test-id", required=True)
+    run_test.add_argument("--dry-run", action="store_true")
+    run_test.add_argument(
+        "--diagnose-on-failure",
+        action="store_true",
+        help="Call /v1/tests/diagnose when the test executes and fails.",
+    )
+    run_test.add_argument("--max-context-lines", type=int)
+
+    diagnose_test = subparsers.add_parser(
+        "diagnose-test",
+        help="Classify raw test output without calling a model.",
+    )
+    diagnose_test.add_argument("--test-id")
+    diagnose_test.add_argument("--command-json")
+    diagnose_test.add_argument("--command-part", action="append", default=None)
+    diagnose_test.add_argument("--exit-code", type=int)
+    diagnose_test.add_argument("--timed-out", action="store_true")
+    diagnose_test.add_argument("--stdout")
+    diagnose_test.add_argument("--stderr")
+    diagnose_test.add_argument("--stdout-file")
+    diagnose_test.add_argument("--stderr-file")
+    diagnose_test.add_argument("--max-context-lines", type=int)
+
     args = parser.parse_args(argv)
     if args.command is None:
         args.command = "capabilities"
@@ -727,6 +975,79 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_workspace_edit_apply_summary(result)
+        )
+    if args.command == "list-tests":
+        tests = list_test_commands(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(tests, indent=2, sort_keys=True)
+            if args.print_json
+            else format_test_list_summary(tests)
+        )
+    if args.command == "run-test":
+        result = run_allowlisted_test(
+            base_url=base_url,
+            api_key=api_key,
+            payload=build_test_run_payload(
+                test_id=args.test_id,
+                dry_run=args.dry_run,
+            ),
+            timeout_seconds=args.timeout_seconds,
+        )
+        if (
+            args.diagnose_on_failure
+            and result.get("executed") is True
+            and result.get("ok") is False
+        ):
+            diagnosis = diagnose_test_failure(
+                base_url=base_url,
+                api_key=api_key,
+                payload=build_diagnosis_payload_from_test_run(
+                    result,
+                    max_context_lines=args.max_context_lines,
+                ),
+                timeout_seconds=args.timeout_seconds,
+            )
+            result = dict(result)
+            result["diagnosis"] = diagnosis
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_test_run_summary(result)
+        )
+    if args.command == "diagnose-test":
+        stdout = load_text_argument(
+            value=args.stdout,
+            file_path=args.stdout_file,
+            label="--stdout",
+        )
+        stderr = load_text_argument(
+            value=args.stderr,
+            file_path=args.stderr_file,
+            label="--stderr",
+        )
+        diagnosis = diagnose_test_failure(
+            base_url=base_url,
+            api_key=api_key,
+            payload=build_test_diagnosis_payload(
+                test_id=args.test_id,
+                command_json=args.command_json,
+                command_parts=args.command_part,
+                exit_code=args.exit_code,
+                timed_out=args.timed_out,
+                stdout=stdout,
+                stderr=stderr,
+                max_context_lines=args.max_context_lines,
+            ),
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(diagnosis, indent=2, sort_keys=True)
+            if args.print_json
+            else format_test_diagnosis_summary(diagnosis)
         )
     raise BiberAgentClientError(f"unsupported command: {args.command}")
 

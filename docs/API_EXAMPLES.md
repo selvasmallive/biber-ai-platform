@@ -337,6 +337,15 @@ python scripts/biber_agent_client.py apply-edit \
   --edit-json '{"path":"generated/notes.md","new_text":"planned note\n","create_if_missing":true}' \
   --plan-hash <plan_hash-from-plan-edit> \
   --max-files 2
+python scripts/biber_agent_client.py list-tests
+python scripts/biber_agent_client.py run-test \
+  --test-id python-compileall-api \
+  --diagnose-on-failure
+python scripts/biber_agent_client.py diagnose-test \
+  --test-id dotnet-test \
+  --command-json '["dotnet","test"]' \
+  --exit-code 1 \
+  --stdout "Example.cs(7,1): error CS1002: ; expected"
 ```
 
 ## Prepare Repo-Specific BIBER Adaptation

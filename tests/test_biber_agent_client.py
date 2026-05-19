@@ -254,6 +254,89 @@ def test_format_workspace_edit_plan_and_apply_summaries() -> None:
     assert "docs/a.md changed=True" in apply_output
 
 
+def test_build_test_diagnosis_payload_accepts_command_json_and_files(tmp_path: Path) -> None:
+    stdout_file = tmp_path / "stdout.txt"
+    stdout_file.write_text("Example.cs(7,1): error CS1002: ; expected\n", encoding="utf-8")
+
+    stdout = client.load_text_argument(
+        value=None,
+        file_path=str(stdout_file),
+        label="--stdout",
+    )
+    payload = client.build_test_diagnosis_payload(
+        test_id="dotnet-test",
+        command_json=json.dumps(["dotnet", "test"]),
+        command_parts=None,
+        exit_code=1,
+        timed_out=False,
+        stdout=stdout,
+        stderr="",
+        max_context_lines=40,
+    )
+
+    assert payload == {
+        "test_id": "dotnet-test",
+        "command": ["dotnet", "test"],
+        "exit_code": 1,
+        "timed_out": False,
+        "stdout": "Example.cs(7,1): error CS1002: ; expected\n",
+        "stderr": "",
+        "max_context_lines": 40,
+    }
+
+
+def test_format_test_helpers_summarize_commands_runs_and_diagnosis() -> None:
+    test_list = client.format_test_list_summary(
+        {
+            "commands": [
+                {
+                    "test_id": "python-compileall-api",
+                    "label": "Python API compileall",
+                    "cwd": "/workspace/biber-ai-platform",
+                    "command": ["python", "-m", "compileall", "app", "src"],
+                }
+            ]
+        }
+    )
+    run_output = client.format_test_run_summary(
+        {
+            "test_id": "python-compileall-api",
+            "label": "Python API compileall",
+            "executed": True,
+            "ok": True,
+            "exit_code": 0,
+            "timed_out": False,
+            "duration_ms": 42,
+            "cwd": "/workspace/biber-ai-platform",
+            "command": ["python", "-m", "compileall", "app", "src"],
+        }
+    )
+    diagnosis_output = client.format_test_diagnosis_summary(
+        {
+            "has_failure": True,
+            "primary_category": "compile_error",
+            "detected_stack": "dotnet",
+            "summary": "Detected compile_error in dotnet output with 1 signal.",
+            "signals": [
+                {
+                    "category": "compile_error",
+                    "stack": "dotnet",
+                    "line_number": 1,
+                    "evidence": "error CS1002",
+                }
+            ],
+            "suggested_next_actions": ["Fix the reported compile error."],
+        }
+    )
+
+    assert "BIBER allowlisted tests (1)" in test_list
+    assert "python-compileall-api" in test_list
+    assert "BIBER test run" in run_output
+    assert "ok: True" in run_output
+    assert "BIBER test failure diagnosis" in diagnosis_output
+    assert "primary_category: compile_error" in diagnosis_output
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 
@@ -595,3 +678,180 @@ def test_run_apply_edit_json_requires_plan_hash_and_uses_client_workflow(
         "plan_hash": "c" * 64,
     }
     assert json.loads(output)["applied"][0]["path"] == "docs/a.md"
+
+
+def test_run_list_tests_json_uses_client_workflow(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_list_test_commands(
+        *,
+        base_url: str,
+        api_key: str,
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured.update(
+            {
+                "base_url": base_url,
+                "api_key": api_key,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return {"commands": [{"test_id": "python-compileall-api"}]}
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "list_test_commands", fake_list_test_commands)
+
+    args = client.parse_args(["--json", "list-tests"])
+
+    output = client.run(args)
+
+    assert captured["base_url"] == "http://127.0.0.1:8000"
+    assert json.loads(output)["commands"][0]["test_id"] == "python-compileall-api"
+
+
+def test_run_test_json_can_attach_diagnosis_on_failure(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_run_allowlisted_test(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["run_payload"] = payload
+        return {
+            "test_id": "dotnet-test",
+            "label": ".NET test",
+            "description": "Run dotnet test.",
+            "cwd": "/workspace/repo",
+            "command": ["dotnet", "test", "--nologo"],
+            "timeout_seconds": 300,
+            "executed": True,
+            "ok": False,
+            "exit_code": 1,
+            "timed_out": False,
+            "duration_ms": 10,
+            "stdout": "Example.cs(7,1): error CS1002: ; expected\n",
+            "stderr": "",
+            "stdout_truncated": False,
+            "stderr_truncated": False,
+        }
+
+    def fake_diagnose_test_failure(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["diagnosis_payload"] = payload
+        return {
+            "has_failure": True,
+            "primary_category": "compile_error",
+            "detected_stack": "dotnet",
+            "signals": [],
+            "relevant_output": "Example.cs(7,1): error CS1002: ; expected",
+            "suggested_next_actions": [],
+            "summary": "Detected compile_error in dotnet output with 1 signal.",
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "run_allowlisted_test", fake_run_allowlisted_test)
+    monkeypatch.setattr(client, "diagnose_test_failure", fake_diagnose_test_failure)
+
+    args = client.parse_args(
+        [
+            "--json",
+            "run-test",
+            "--test-id",
+            "dotnet-test",
+            "--diagnose-on-failure",
+            "--max-context-lines",
+            "30",
+        ]
+    )
+
+    output = client.run(args)
+
+    assert captured["run_payload"] == {"test_id": "dotnet-test"}
+    assert captured["diagnosis_payload"] == {
+        "test_id": "dotnet-test",
+        "command": ["dotnet", "test", "--nologo"],
+        "exit_code": 1,
+        "timed_out": False,
+        "stdout": "Example.cs(7,1): error CS1002: ; expected\n",
+        "stderr": "",
+        "max_context_lines": 30,
+    }
+    assert json.loads(output)["diagnosis"]["primary_category"] == "compile_error"
+
+
+def test_run_diagnose_test_json_uses_client_workflow(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_diagnose_test_failure(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured.update(
+            {
+                "base_url": base_url,
+                "api_key": api_key,
+                "payload": payload,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return {
+            "has_failure": True,
+            "primary_category": "compile_error",
+            "detected_stack": "dotnet",
+            "signals": [],
+            "relevant_output": "Example.cs(7,1): error CS1002: ; expected",
+            "suggested_next_actions": [],
+            "summary": "Detected compile_error in dotnet output with 1 signal.",
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "diagnose_test_failure", fake_diagnose_test_failure)
+
+    args = client.parse_args(
+        [
+            "--json",
+            "diagnose-test",
+            "--test-id",
+            "dotnet-test",
+            "--command-part",
+            "dotnet",
+            "--command-part",
+            "test",
+            "--exit-code",
+            "1",
+            "--stdout",
+            "Example.cs(7,1): error CS1002: ; expected\n",
+        ]
+    )
+
+    output = client.run(args)
+
+    assert captured["payload"] == {
+        "test_id": "dotnet-test",
+        "command": ["dotnet", "test"],
+        "exit_code": 1,
+        "timed_out": False,
+        "stdout": "Example.cs(7,1): error CS1002: ; expected\n",
+        "stderr": "",
+    }
+    assert json.loads(output)["detected_stack"] == "dotnet"
