@@ -306,6 +306,10 @@ explicitly supplied. Each completed session is persisted as a local JSON
 artifact under `BIBER_AGENT_SESSION_DIR`, or `/workspace/outputs/agent-sessions`
 on Vast.ai when the setting is omitted.
 
+When the allowlisted test step fails or times out, the persisted `test_run`
+step now includes a deterministic `diagnosis` object with the detected stack,
+failure category, concise relevant output, and suggested next actions.
+
 ```bash
 curl -X POST http://localhost:8000/v1/agent/sessions \
   -H "Authorization: Bearer dev-api-key-change-me" \

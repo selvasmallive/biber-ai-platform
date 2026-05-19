@@ -128,6 +128,28 @@ def _format_xriq_agent_context(overview: dict[str, object]) -> str:
     return "\n".join(fields)
 
 
+def _agent_test_step_output(test_result: dict[str, object]) -> dict[str, object]:
+    output = TestRunResponse.model_validate(test_result).model_dump()
+    if test_result.get("ok") is False or test_result.get("timed_out") is True:
+        output["diagnosis"] = diagnose_test_failure(
+            stdout=str(test_result.get("stdout") or ""),
+            stderr=str(test_result.get("stderr") or ""),
+            exit_code=(
+                int(test_result["exit_code"])
+                if isinstance(test_result.get("exit_code"), int)
+                else None
+            ),
+            timed_out=bool(test_result.get("timed_out")),
+            command=[
+                str(part)
+                for part in test_result.get("command", [])
+                if isinstance(part, str)
+            ],
+            test_id=str(test_result.get("test_id") or ""),
+        )
+    return output
+
+
 def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
     registry = build_model_registry(settings).as_response()
     default_model = str(registry.get("default_model") or settings.default_model)
@@ -520,7 +542,7 @@ async def run_agent_session(
             AgentSessionStep(
                 name="test_run",
                 status="ok" if test_result.get("ok") is not False else "failed",
-                output=TestRunResponse.model_validate(test_result).model_dump(),
+                output=_agent_test_step_output(test_result),
             )
         )
 

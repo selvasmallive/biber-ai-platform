@@ -174,6 +174,72 @@ def test_agent_session_can_skip_test_run(
     assert [step["name"] for step in response.json()["steps"]] == ["chat"]
 
 
+def test_agent_session_failed_test_includes_diagnosis(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    settings = make_settings(tmp_path)
+
+    class FakeChatService:
+        def __init__(self, injected_settings: BiberSettings) -> None:
+            pass
+
+        async def generate(
+            self,
+            request: ChatRequest,
+        ) -> tuple[str, str | None, dict[str, Any], str]:
+            return "Plan after failing test", None, {}, "biber-dev-core-v1"
+
+    def fake_test_command(
+        test_id: str,
+        injected_settings: BiberSettings,
+        *,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        return {
+            "test_id": test_id,
+            "label": ".NET tests",
+            "description": "Run focused .NET tests.",
+            "cwd": str(tmp_path),
+            "command": ["dotnet", "test"],
+            "timeout_seconds": 120,
+            "executed": True,
+            "ok": False,
+            "exit_code": 1,
+            "timed_out": False,
+            "duration_ms": 1,
+            "stdout": "Example.cs(7,1): error CS1002: ; expected\n",
+            "stderr": "",
+            "stdout_truncated": False,
+            "stderr_truncated": False,
+        }
+
+    monkeypatch.setattr(main_module, "BiberChatService", FakeChatService)
+    monkeypatch.setattr(main_module, "run_test_command", fake_test_command)
+    main_module.app.dependency_overrides[main_module.get_settings] = lambda: settings
+    try:
+        response = TestClient(main_module.app).post(
+            "/v1/agent/sessions",
+            json={"instruction": "Diagnose failed tests.", "test_id": "dotnet-test"},
+            headers={"x-api-key": "test-key"},
+        )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    test_step = body["steps"][1]
+    assert test_step["name"] == "test_run"
+    assert test_step["status"] == "failed"
+    diagnosis = test_step["output"]["diagnosis"]
+    assert diagnosis["detected_stack"] == "dotnet"
+    assert diagnosis["primary_category"] == "compile_error"
+    assert diagnosis["signals"][0]["evidence"].endswith("; expected")
+    assert Path(body["artifact_path"]).exists()
+    persisted = Path(body["artifact_path"]).read_text(encoding="utf-8")
+    assert '"diagnosis"' in persisted
+
+
 def test_agent_session_can_include_xriq_context(
     tmp_path: Path,
     monkeypatch,
