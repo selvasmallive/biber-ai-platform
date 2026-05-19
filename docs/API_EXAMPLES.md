@@ -325,6 +325,11 @@ python scripts/biber_agent_client.py create-session \
   --no-test
 python scripts/biber_agent_client.py list-sessions --limit 5
 python scripts/biber_agent_client.py get-session <session-id>
+python scripts/biber_agent_client.py plan-context \
+  --instruction "Fix the WeatherController forecast route." \
+  --pinned-path README.md \
+  --changed-path src/Example.Api/Controllers/WeatherController.cs \
+  --max-files 8
 ```
 
 ## Prepare Repo-Specific BIBER Adaptation

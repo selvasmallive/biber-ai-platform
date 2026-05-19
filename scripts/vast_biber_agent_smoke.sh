@@ -310,6 +310,44 @@ write_artifact(
     {"status": 0, "body": client_loaded_session},
 )
 
+try:
+    client_context_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "plan-context",
+            "--instruction",
+            "Plan a small BIBER agent client documentation change.",
+            "--pinned-path",
+            "README.md",
+            "--changed-path",
+            "docs/API_EXAMPLES.md",
+            "--max-files",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py plan-context failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py plan-context timed out: {exc}")
+try:
+    client_context_plan = json.loads(client_context_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py plan-context returned invalid JSON: {exc}")
+selected_context_paths = client_context_plan.get("selected_paths")
+if not isinstance(selected_context_paths, list):
+    fail(f"agent client plan-context did not return selected_paths: {client_context_plan!r}")
+if "README.md" not in selected_context_paths:
+    fail(f"agent client plan-context omitted pinned README.md: {selected_context_paths!r}")
+write_artifact(
+    "agent-client-plan-context.json",
+    {"status": 0, "body": client_context_plan},
+)
+
 chat_payload = {
     "language": "Rust",
     "model": "biber-dev-core-v1",
@@ -445,6 +483,7 @@ summary = {
     "agent_client_session_steps": client_session_step_names,
     "agent_client_listed_sessions": len(listed_sessions),
     "agent_client_loaded_session_id": client_loaded_session.get("id"),
+    "agent_client_context_paths": selected_context_paths,
     "xriq_context_height": summary.get("current_height"),
     "github": github_result,
 }

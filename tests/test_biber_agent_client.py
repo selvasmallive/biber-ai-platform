@@ -145,6 +145,38 @@ def test_format_session_list_summary_lists_recent_sessions() -> None:
     assert "steps=chat" in output
 
 
+def test_build_repo_context_payload_omits_unset_values() -> None:
+    payload = client.build_repo_context_payload(
+        instruction="Fix API docs.",
+        pinned_paths=["README.md"],
+        changed_paths=None,
+        max_files=4,
+        max_scan_files=None,
+    )
+
+    assert payload == {
+        "instruction": "Fix API docs.",
+        "pinned_paths": ["README.md"],
+        "max_files": 4,
+    }
+
+
+def test_format_repo_context_summary_lists_selected_paths_and_profiles() -> None:
+    output = client.format_repo_context_summary(
+        {
+            "summary": "Detected python.",
+            "selected_paths": ["README.md", "app/main.py"],
+            "detected_project_types": ["python"],
+            "stack_profiles": [{"id": "dotnet"}, {"id": "java"}],
+        }
+    )
+
+    assert "BIBER repo context plan" in output
+    assert "detected_project_types: python" in output
+    assert "stack_profiles: dotnet, java" in output
+    assert "- README.md" in output
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 
@@ -310,3 +342,73 @@ def test_run_get_session_json_uses_client_workflow(monkeypatch) -> None:
 
     assert captured["session_id"] == "session-1"
     assert json.loads(output)["id"] == "session-1"
+
+
+def test_run_plan_context_json_uses_client_workflow(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_fetch_capabilities(
+        *,
+        base_url: str,
+        api_key: str,
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        raise AssertionError("plan-context should not fetch capabilities")
+
+    def fake_plan_repo_context(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured.update(
+            {
+                "base_url": base_url,
+                "api_key": api_key,
+                "payload": payload,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return {
+            "selected_paths": ["README.md"],
+            "detected_project_types": ["python"],
+            "candidates": [],
+            "skipped": [],
+            "stack_profiles": [],
+            "summary": "Detected python.",
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "fetch_capabilities", fake_fetch_capabilities)
+    monkeypatch.setattr(client, "plan_repo_context", fake_plan_repo_context)
+
+    args = client.parse_args(
+        [
+            "--json",
+            "plan-context",
+            "--instruction",
+            "Plan docs update.",
+            "--pinned-path",
+            "README.md",
+            "--changed-path",
+            "docs/API_EXAMPLES.md",
+            "--max-files",
+            "4",
+        ]
+    )
+
+    output = client.run(args)
+
+    assert captured["base_url"] == "http://127.0.0.1:8000"
+    assert captured["api_key"] == "test-key"
+    assert captured["payload"] == {
+        "instruction": "Plan docs update.",
+        "pinned_paths": ["README.md"],
+        "changed_paths": ["docs/API_EXAMPLES.md"],
+        "max_files": 4,
+    }
+    assert json.loads(output)["selected_paths"] == ["README.md"]

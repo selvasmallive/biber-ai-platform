@@ -170,6 +170,23 @@ def get_agent_session(
     )
 
 
+def plan_repo_context(
+    *,
+    base_url: str,
+    api_key: str,
+    payload: Mapping[str, Any],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/repo/context/plan",
+        method="POST",
+        payload=payload,
+        timeout_seconds=timeout_seconds,
+    )
+
+
 def require_mapping(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
@@ -289,6 +306,53 @@ def format_session_list_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def build_repo_context_payload(
+    *,
+    instruction: str | None,
+    pinned_paths: list[str] | None,
+    changed_paths: list[str] | None,
+    max_files: int | None,
+    max_scan_files: int | None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    if instruction:
+        payload["instruction"] = instruction
+    if pinned_paths is not None:
+        payload["pinned_paths"] = pinned_paths
+    if changed_paths is not None:
+        payload["changed_paths"] = changed_paths
+    if max_files is not None:
+        payload["max_files"] = max_files
+    if max_scan_files is not None:
+        payload["max_scan_files"] = max_scan_files
+    return payload
+
+
+def format_repo_context_summary(payload: Mapping[str, Any]) -> str:
+    selected_paths = [str(path) for path in require_list(payload.get("selected_paths"))]
+    detected_project_types = [
+        str(project_type)
+        for project_type in require_list(payload.get("detected_project_types"))
+    ]
+    stack_profiles = [
+        str(profile.get("id"))
+        for profile in require_list(payload.get("stack_profiles"))
+        if isinstance(profile, dict) and profile.get("id")
+    ]
+    lines = [
+        "BIBER repo context plan",
+        f"summary: {payload.get('summary', '-')}",
+        (
+            "detected_project_types: "
+            f"{', '.join(detected_project_types) if detected_project_types else '-'}"
+        ),
+        f"stack_profiles: {', '.join(stack_profiles) if stack_profiles else '-'}",
+        f"selected_paths ({len(selected_paths)}):",
+    ]
+    lines.extend(f"- {path}" for path in selected_paths)
+    return "\n".join(lines)
+
+
 def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--base-url",
@@ -344,6 +408,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Load one persisted agent session by id.",
     )
     get_session.add_argument("session_id")
+
+    plan_context = subparsers.add_parser(
+        "plan-context",
+        help="Ask BIBER to select safe repo context paths for a task.",
+    )
+    plan_context.add_argument("--instruction")
+    plan_context.add_argument("--pinned-path", action="append", default=None)
+    plan_context.add_argument("--changed-path", action="append", default=None)
+    plan_context.add_argument("--max-files", type=int)
+    plan_context.add_argument("--max-scan-files", type=int)
 
     args = parser.parse_args(argv)
     if args.command is None:
@@ -419,6 +493,25 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(session, indent=2, sort_keys=True)
             if args.print_json
             else format_session_summary(session)
+        )
+    if args.command == "plan-context":
+        payload = build_repo_context_payload(
+            instruction=args.instruction,
+            pinned_paths=args.pinned_path,
+            changed_paths=args.changed_path,
+            max_files=args.max_files,
+            max_scan_files=args.max_scan_files,
+        )
+        plan = plan_repo_context(
+            base_url=base_url,
+            api_key=api_key,
+            payload=payload,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(plan, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repo_context_summary(plan)
         )
     raise BiberAgentClientError(f"unsupported command: {args.command}")
 
