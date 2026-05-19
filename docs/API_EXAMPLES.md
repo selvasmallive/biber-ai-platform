@@ -196,6 +196,18 @@ curl http://localhost:8000/v1/agent/capabilities \
   -H "Authorization: Bearer dev-api-key-change-me"
 ```
 
+The stdlib client helper can consume the same endpoint and create sessions from
+the advertised presets:
+
+```bash
+export BIBER_API_KEY=dev-api-key-change-me
+python scripts/biber_agent_client.py capabilities
+python scripts/biber_agent_client.py create-session \
+  --preset xriq_private_devnet_review \
+  --instruction "Review the next XRIQ private-devnet wallet/explorer step." \
+  --no-test
+```
+
 ## Run A Tracked Agent Session
 
 This endpoint wraps the existing MVP primitives into one tracked workflow:

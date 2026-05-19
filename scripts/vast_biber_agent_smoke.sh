@@ -37,12 +37,14 @@ export ARTIFACT_DIR
 export CHAT_MAX_TOKENS
 export GITHUB_MODE
 export SMOKE_ID
+export SCRIPT_DIR
 
 "$PYTHON_BIN" <<'PY'
 from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -56,6 +58,7 @@ artifact_dir = Path(os.environ["ARTIFACT_DIR"])
 chat_max_tokens = int(os.environ["CHAT_MAX_TOKENS"])
 github_mode = os.environ["GITHUB_MODE"].strip().lower()
 smoke_id = os.environ["SMOKE_ID"]
+script_dir = Path(os.environ["SCRIPT_DIR"])
 
 
 def fail(message: str) -> None:
@@ -151,6 +154,36 @@ preset_ids = {
 }
 if "xriq_private_devnet_review" not in preset_ids:
     fail(f"agent capabilities omitted XRIQ preset: {preset_ids!r}")
+
+client_env = os.environ.copy()
+client_env["BIBER_API_KEY"] = api_key
+client_env["BIBER_API_BASE_URL"] = api_base_url
+try:
+    client_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "capabilities",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py capabilities failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py capabilities timed out: {exc}")
+try:
+    client_capabilities = json.loads(client_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py capabilities returned invalid JSON: {exc}")
+if client_capabilities.get("service") != "biber-agent":
+    fail(f"agent client capabilities service was unexpected: {client_capabilities!r}")
+write_artifact(
+    "agent-client-capabilities.json",
+    {"status": 0, "body": client_capabilities},
+)
 
 chat_payload = {
     "language": "Rust",
