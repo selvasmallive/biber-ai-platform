@@ -55,9 +55,16 @@ paths and the existing Rust/XRIQ work.
 14. Cryptography concepts.
 15. Kubernetes.
 16. Distributed systems optimization.
-17. Other lower-priority languages and config formats, including generic SQL,
+17. TensorFlow / Keras ML engineering, including model code, dataset
+    preprocessing, training/evaluation scripts, GPU/CUDA troubleshooting,
+    TensorBoard workflows, SavedModel export, and inference APIs.
+18. Other lower-priority languages and config formats, including generic SQL,
     YAML, .NET, Spring Boot Java, Python expansion, and additional stacks as
     requested later.
+
+TensorFlow is a supported user-development capability track. It does not mean
+BIBER's own local coding model must be trained with TensorFlow; BIBER's own
+near-term model path remains Qwen/vLLM plus targeted LoRA/QLoRA on Vast.ai.
 
 ## Capability Loop For Each Priority
 

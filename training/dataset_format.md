@@ -28,6 +28,8 @@ Recommended categories:
 - video
 - audio
 - proctoring
+- tensorflow
+- ml_engineering
 
 Important:
 - Prefer verified examples with tests.

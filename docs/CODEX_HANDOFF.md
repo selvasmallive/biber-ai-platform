@@ -3557,8 +3557,15 @@ tail -f /workspace/biber-logs/vllm.log
   `docs/BIBER_CAPABILITY_ROADMAP.md`. After Rust/XRIQ, prioritize PostgreSQL,
   React, TypeScript, JavaScript, jQuery, CSS, HTML, Docker, GitHub Actions
   CI/CD, WASM, Bash scripts, security engineering, cryptography concepts,
-  Kubernetes, and distributed systems optimization before lower-priority
-  generic SQL, YAML, .NET, Spring Boot Java, Python expansion, or other stacks.
+  Kubernetes, distributed systems optimization, and TensorFlow/Keras ML
+  engineering before lower-priority generic SQL, YAML, .NET, Spring Boot Java,
+  Python expansion, or other stacks.
+- TensorFlow is now explicitly in scope as a user-development capability track:
+  BIBER should eventually help with TensorFlow/Keras model code, dataset
+  preprocessing, training/evaluation scripts, GPU/CUDA troubleshooting,
+  TensorBoard workflows, SavedModel export, and FastAPI-style inference APIs.
+  This does not change BIBER's own model-training stack; keep BIBER's own
+  near-term model path on Qwen/vLLM plus targeted LoRA/QLoRA on Vast.ai.
 - Apply the capability roadmap through inference/evals first and targeted GPU
   fine-tuning only for repeatable gaps. This preserves the cost-saving strategy:
   Vast.ai does the long GPU work, while Codex is used only where it preserves
@@ -3732,7 +3739,8 @@ bash scripts/xriq_private_devnet_smoke.sh
    `docs/BIBER_CAPABILITY_ROADMAP.md` in order: PostgreSQL, React, TypeScript,
    JavaScript, jQuery, CSS, HTML, Docker, GitHub Actions CI/CD, WASM, Bash,
    security engineering, cryptography concepts, Kubernetes, and distributed
-   systems optimization before lower-priority stacks.
+   systems optimization, then TensorFlow/Keras ML engineering before
+   lower-priority stacks.
 17. Add new training data only through approved/provenance-tracked sources, then
    validate and promote to `/workspace/data/biber_train.jsonl`.
 18. Keep the cost-saving pattern: Codex changes scripts, docs, evals, and
