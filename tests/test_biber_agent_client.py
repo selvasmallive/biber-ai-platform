@@ -126,6 +126,25 @@ def test_format_session_summary_lists_steps() -> None:
     assert "steps: xriq_context, chat" in output
 
 
+def test_format_session_list_summary_lists_recent_sessions() -> None:
+    output = client.format_session_list_summary(
+        {
+            "sessions": [
+                {
+                    "id": "session-1",
+                    "model": "biber-dev-core-v1",
+                    "steps": ["chat"],
+                    "artifact_path": "/workspace/outputs/agent-sessions/session-1.json",
+                }
+            ]
+        }
+    )
+
+    assert "BIBER agent sessions (1)" in output
+    assert "id=session-1" in output
+    assert "steps=chat" in output
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 
@@ -189,4 +208,105 @@ def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     assert captured_payload["repo_context_paths"] == ["README.md"]
     assert captured_payload["test_id"] is None
     assert captured_payload["max_tokens"] == 24
+    assert json.loads(output)["id"] == "session-1"
+
+
+def test_run_list_sessions_json_uses_client_workflow(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_fetch_capabilities(
+        *,
+        base_url: str,
+        api_key: str,
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        return sample_capabilities()
+
+    def fake_list_agent_sessions(
+        *,
+        base_url: str,
+        api_key: str,
+        limit: int | None,
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured.update(
+            {
+                "base_url": base_url,
+                "api_key": api_key,
+                "limit": limit,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return {
+            "sessions": [
+                {
+                    "id": "session-1",
+                    "model": "biber-dev-core-v1",
+                    "steps": ["chat"],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "fetch_capabilities", fake_fetch_capabilities)
+    monkeypatch.setattr(client, "list_agent_sessions", fake_list_agent_sessions)
+
+    args = client.parse_args(["--json", "list-sessions", "--limit", "3"])
+
+    output = client.run(args)
+
+    assert captured["base_url"] == "http://127.0.0.1:8000"
+    assert captured["api_key"] == "test-key"
+    assert captured["limit"] == 3
+    assert json.loads(output)["sessions"][0]["id"] == "session-1"
+
+
+def test_run_get_session_json_uses_client_workflow(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_fetch_capabilities(
+        *,
+        base_url: str,
+        api_key: str,
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        return sample_capabilities()
+
+    def fake_get_agent_session(
+        *,
+        base_url: str,
+        api_key: str,
+        session_id: str,
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured.update(
+            {
+                "base_url": base_url,
+                "api_key": api_key,
+                "session_id": session_id,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return {
+            "id": session_id,
+            "model": "biber-dev-core-v1",
+            "mentor_used": False,
+            "steps": [{"name": "chat"}],
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "fetch_capabilities", fake_fetch_capabilities)
+    monkeypatch.setattr(client, "get_agent_session", fake_get_agent_session)
+
+    args = client.parse_args(["--json", "get-session", "session-1"])
+
+    output = client.run(args)
+
+    assert captured["session_id"] == "session-1"
     assert json.loads(output)["id"] == "session-1"

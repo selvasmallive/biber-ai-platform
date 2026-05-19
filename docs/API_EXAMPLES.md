@@ -313,7 +313,8 @@ curl http://localhost:8000/v1/agent/capabilities \
 ```
 
 The stdlib client helper can consume the same endpoint and create sessions from
-the advertised presets:
+the advertised presets. It can also list and load persisted sessions for
+client UIs that need a lightweight work history.
 
 ```bash
 export BIBER_API_KEY=dev-api-key-change-me
@@ -322,6 +323,8 @@ python scripts/biber_agent_client.py create-session \
   --preset xriq_private_devnet_review \
   --instruction "Review the next XRIQ private-devnet wallet/explorer step." \
   --no-test
+python scripts/biber_agent_client.py list-sessions --limit 5
+python scripts/biber_agent_client.py get-session <session-id>
 ```
 
 ## Prepare Repo-Specific BIBER Adaptation

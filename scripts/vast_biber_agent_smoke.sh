@@ -239,6 +239,77 @@ write_artifact(
     {"status": 0, "body": client_session},
 )
 
+try:
+    client_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-sessions",
+            "--limit",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-sessions failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-sessions timed out: {exc}")
+try:
+    client_session_list = json.loads(client_list_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py list-sessions returned invalid JSON: {exc}")
+listed_sessions = client_session_list.get("sessions")
+if not isinstance(listed_sessions, list):
+    fail(f"agent client list-sessions did not return sessions: {client_session_list!r}")
+listed_session_ids = [
+    item.get("id")
+    for item in listed_sessions
+    if isinstance(item, dict)
+]
+if client_session.get("id") not in listed_session_ids:
+    fail(
+        "agent client list-sessions did not include created session: "
+        f"{listed_session_ids!r}"
+    )
+write_artifact(
+    "agent-client-list-sessions.json",
+    {"status": 0, "body": client_session_list},
+)
+
+try:
+    client_get_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "get-session",
+            str(client_session.get("id")),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py get-session failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py get-session timed out: {exc}")
+try:
+    client_loaded_session = json.loads(client_get_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py get-session returned invalid JSON: {exc}")
+if client_loaded_session.get("id") != client_session.get("id"):
+    fail(
+        "agent client get-session returned wrong id: "
+        f"{client_loaded_session.get('id')!r}"
+    )
+write_artifact(
+    "agent-client-get-session.json",
+    {"status": 0, "body": client_loaded_session},
+)
+
 chat_payload = {
     "language": "Rust",
     "model": "biber-dev-core-v1",
@@ -372,6 +443,8 @@ summary = {
     "agent_session_steps": step_names,
     "agent_client_session_id": client_session.get("id"),
     "agent_client_session_steps": client_session_step_names,
+    "agent_client_listed_sessions": len(listed_sessions),
+    "agent_client_loaded_session_id": client_loaded_session.get("id"),
     "xriq_context_height": summary.get("current_height"),
     "github": github_result,
 }

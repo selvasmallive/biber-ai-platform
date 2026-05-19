@@ -138,6 +138,38 @@ def create_agent_session(
     )
 
 
+def list_agent_sessions(
+    *,
+    base_url: str,
+    api_key: str,
+    limit: int | None,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/agent/sessions",
+        query={"limit": limit},
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def get_agent_session(
+    *,
+    base_url: str,
+    api_key: str,
+    session_id: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    quoted_id = urllib.parse.quote(session_id, safe="")
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path=f"/v1/agent/sessions/{quoted_id}",
+        timeout_seconds=timeout_seconds,
+    )
+
+
 def require_mapping(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
@@ -235,6 +267,28 @@ def format_session_summary(payload: Mapping[str, Any]) -> str:
     )
 
 
+def format_session_list_summary(payload: Mapping[str, Any]) -> str:
+    sessions = [
+        item
+        for item in require_list(payload.get("sessions"))
+        if isinstance(item, dict)
+    ]
+    lines = [f"BIBER agent sessions ({len(sessions)})"]
+    for session in sessions:
+        steps = require_list(session.get("steps"))
+        lines.append(
+            " ".join(
+                [
+                    f"id={session.get('id', '-')}",
+                    f"model={session.get('model', '-')}",
+                    f"steps={','.join(str(step) for step in steps) if steps else '-'}",
+                    f"artifact={session.get('artifact_path', '-')}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--base-url",
@@ -279,6 +333,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     session.add_argument("--include-xriq-context", action="store_true")
     session.add_argument("--max-tokens", type=int)
 
+    list_sessions = subparsers.add_parser(
+        "list-sessions",
+        help="List recent persisted agent sessions.",
+    )
+    list_sessions.add_argument("--limit", type=int, default=10)
+
+    get_session = subparsers.add_parser(
+        "get-session",
+        help="Load one persisted agent session by id.",
+    )
+    get_session.add_argument("session_id")
+
     args = parser.parse_args(argv)
     if args.command is None:
         args.command = "capabilities"
@@ -288,18 +354,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def run(args: argparse.Namespace) -> str:
     api_key = resolve_api_key(args.api_key)
     base_url = args.base_url.rstrip("/")
-    capabilities = fetch_capabilities(
-        base_url=base_url,
-        api_key=api_key,
-        timeout_seconds=args.timeout_seconds,
-    )
     if args.command == "capabilities":
+        capabilities = fetch_capabilities(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
         return (
             json.dumps(capabilities, indent=2, sort_keys=True)
             if args.print_json
             else format_capabilities_summary(capabilities)
         )
     if args.command == "create-session":
+        capabilities = fetch_capabilities(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
         include_xriq = True if args.include_xriq_context else None
         payload = build_session_payload(
             capabilities=capabilities,
@@ -318,6 +389,30 @@ def run(args: argparse.Namespace) -> str:
             base_url=base_url,
             api_key=api_key,
             payload=payload,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(session, indent=2, sort_keys=True)
+            if args.print_json
+            else format_session_summary(session)
+        )
+    if args.command == "list-sessions":
+        sessions = list_agent_sessions(
+            base_url=base_url,
+            api_key=api_key,
+            limit=args.limit,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(sessions, indent=2, sort_keys=True)
+            if args.print_json
+            else format_session_list_summary(sessions)
+        )
+    if args.command == "get-session":
+        session = get_agent_session(
+            base_url=base_url,
+            api_key=api_key,
+            session_id=args.session_id,
             timeout_seconds=args.timeout_seconds,
         )
         return (
