@@ -859,22 +859,22 @@ def normalize_repair_attempt_artifact(payload: Mapping[str, Any]) -> dict[str, A
 def extract_json_values_from_text(text: str, *, limit: int = 20) -> list[Any]:
     decoder = json.JSONDecoder()
     values: list[Any] = []
-    seen_spans: set[tuple[int, int]] = set()
-    for index, char in enumerate(text):
+    index = 0
+    while index < len(text):
+        char = text[index]
         if char not in "{[":
+            index += 1
             continue
         try:
             value, end = decoder.raw_decode(text[index:])
         except json.JSONDecodeError:
+            index += 1
             continue
-        span = (index, index + end)
-        if span in seen_spans:
-            continue
-        seen_spans.add(span)
         if isinstance(value, (dict, list)):
             values.append(value)
         if len(values) >= limit:
             break
+        index += max(end, 1)
     return values
 
 
