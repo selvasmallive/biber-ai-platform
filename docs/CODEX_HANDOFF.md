@@ -185,6 +185,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP agent-client repair-edit planning commit pushed and
   Vast-verified:
   `4c7aea5 Add repair edit planning helper`.
+- Latest BIBER MVP agent-client guarded repair-edit apply commit pushed and
+  Vast-verified:
+  `cfed893 Add guarded repair edit apply helper`.
 - Latest Rust/XRIQ eval codegen-profile commits pushed and Vast-verified:
   `176b3e4 Add Rust XRIQ eval codegen profile`,
   `706448e Limit Rust XRIQ eval profile to ledger prompt`,
@@ -224,7 +227,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   `07eb63f Add TensorFlow capability track`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `4c7aea5`. Full Rust/private-devnet
+- Vast code verification is current through `cfed893`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -263,8 +266,10 @@ serving the last broad-safe Rust/XRIQ adapter.
   `2e7a405`; BIBER agent-client local-model repair-attempt verification is
   current through `8b2d200`; BIBER agent-client repair-edit extraction
   verification is current through `c9ec3d7`; BIBER agent-client repair-edit
-  planning verification is current through `4c7aea5`; Rust/XRIQ live
-  codegen-profile eval verification is current through `7e7b8d`.
+  planning verification is current through `4c7aea5`; BIBER agent-client
+  guarded repair-edit apply verification is current through `cfed893`;
+  Rust/XRIQ live codegen-profile eval verification is current through
+  `7e7b8d`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
@@ -274,9 +279,31 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `4c7aea5`. If later docs-only
+  - Vast code verification is current through `cfed893`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `cfed893` guarded repair-edit apply checkpoint required no service
+    restart because it changed only the stdlib agent client, smoke script, docs,
+    and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid `53902`.
+  - Latest focused Vast verification for the BIBER agent-client guarded
+    repair-edit apply slice:
+    `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py tests/test_github_client.py tests/test_agent_session.py tests/test_agent_capabilities.py tests/test_test_runner.py tests/test_test_diagnosis.py tests/test_workspace_edit.py tests/test_repo_context.py -q`
+    with `99 passed`, live
+    `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS=24 BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=96 bash scripts/vast_biber_agent_smoke.sh`,
+    and `bash scripts/vast_status_direct.sh`.
+    The live smoke wrote artifacts under
+    `/workspace/outputs/biber-agent-smoke-20260519T141424Z-62970`, verified
+    `apply-repair-edits` against a successful repair-edit plan artifact, and
+    wrote
+    `/workspace/outputs/biber-agent-smoke-20260519T141424Z-62970/agent-client-mvp-loop-repair-edit-apply.json`
+    with `apply_status=applied`, `approval_received=true`,
+    `auto_applied=false`, `training_allowed=false`, and plan hash
+    `e638fa0067bdc412c4040475ea016ad4ee1cb164708ac43534a7877da3333983`.
+    The command still refuses to apply without `--approve`, and the smoke
+    applied only to its temporary `.biber-runtime` file. GitHub remained
+    skipped because `github_configured=false`.
   - The `4c7aea5` repair-edit planning checkpoint required no service restart
     because it changed only the stdlib agent client, smoke script, docs, and
     tests. vLLM stayed on pid `5802`; FastAPI stayed on pid `53902`.
@@ -4370,7 +4397,10 @@ bash scripts/xriq_private_devnet_smoke.sh
     has `extract-repair-edits`, which parses conservative JSON edit candidates
     from a repair-attempt artifact into a reviewable `plan-edit` payload while
     keeping `apply_allowed=false`, and `plan-repair-edits`, which sends that
-    payload through the server-side planner without applying changes.
+    payload through the server-side planner without applying changes. It now
+    also has `apply-repair-edits`, which applies a planned repair only when the
+    caller passes `--approve`; without that flag it refuses before API auth or
+    file changes.
    - Stack-specific test execution: keep execution allowlisted and predictable.
      The test runner now exposes `dotnet-test`, `maven-test`, `gradle-test`,
      and `gradle-wrapper-test` for target repos that already include the
@@ -4444,14 +4474,16 @@ bash scripts/xriq_private_devnet_smoke.sh
    edits automatically. It now also has `extract-repair-edits`, which creates a
    bounded `plan-edit` payload from conservative JSON repair proposals while
    keeping direct apply disabled, and `plan-repair-edits`, which validates that
-   payload through the server-side edit planner without applying changes. The
+   payload through the server-side edit planner without applying changes. It
+   now also has `apply-repair-edits`, which applies only a successful planned
+   repair artifact and only when the caller passes `--approve`. The
    repo-adaptation live eval wrapper and the conservative repo-adaptation
    failure-review helper are also live. Good next targets are running
    `mvp-loop`, `attempt-repair`, `extract-repair-edits`, and
-   `plan-repair-edits` against a real user repo when provided, adding a guarded
-   human/policy-approved apply step for planned repair edits, or manually
-   reviewing repeated failure candidates into verified examples only after a
-   real repo eval produces repeatable gaps.
+   `plan-repair-edits` against a real user repo when provided, using
+   `apply-repair-edits --approve` only after human/policy approval, rerunning
+   the selected test, and then manually reviewing repeated failure candidates
+   into verified examples only after a real repo eval produces repeatable gaps.
    Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
    market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
