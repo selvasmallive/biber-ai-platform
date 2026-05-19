@@ -140,9 +140,11 @@ serving the last broad-safe Rust/XRIQ adapter.
   `2efa65b Fix repo adaptation relative role detection`.
 - Latest BIBER MVP repo-context planner commit pushed and Vast-verified:
   `1cc790a Add BIBER repo context planner`.
+- Latest BIBER MVP multi-file edit planner commit pushed and Vast-verified:
+  `70e6320 Add BIBER multi-file edit planner`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `1cc790a`. Full Rust/private-devnet
+- Vast code verification is current through `70e6320`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -153,16 +155,27 @@ serving the last broad-safe Rust/XRIQ adapter.
   `51ad833`;
   BIBER agent-session API/persistence verification is current through
   `51ad833`; BIBER repo-adaptation verification is current through `2efa65b`;
-  BIBER repo-context planner verification is current through `1cc790a`.
+  BIBER repo-context planner verification is current through `1cc790a`;
+  BIBER multi-file edit planner verification is current through `70e6320`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `51098`
+  - FastAPI pid: `51376`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - The `70e6320` multi-file edit planner checkpoint required a FastAPI-only
+    restart because it added `POST /v1/files/edit/plan` and expanded
+    `GET /v1/agent/capabilities`. vLLM stayed on pid `5802`; FastAPI moved
+    from pid `51098` to pid `51376`.
+  - Latest focused Vast verification for the BIBER multi-file edit planner
+    slice:
+    `/workspace/biber-venv/bin/python -m compileall app src tests`, focused
+    pytest `tests/test_workspace_edit.py tests/test_agent_capabilities.py -q`
+    with `12 passed`, a live authenticated `POST /v1/files/edit/plan` smoke,
+    and a follow-up check confirming the planned create file was not written.
   - The `1cc790a` repo-context planner checkpoint required a FastAPI-only
     restart because it added `POST /v1/repo/context/plan` and expanded
     `GET /v1/agent/capabilities`. vLLM stayed on pid `5802`; FastAPI moved
@@ -1914,6 +1927,39 @@ serving the last broad-safe Rust/XRIQ adapter.
   - Restarted only the FastAPI process because API code changed. vLLM stayed
     running with pid `5802`. New FastAPI pid: `51098`.
   - No credential change, model training, or OpenAI mentor call was needed.
+- BIBER MVP multi-file edit planner checkpoint:
+  - Added deterministic `plan_workspace_edits` support in both the packaged
+    API and the current direct Vast app copy.
+  - Added authenticated `POST /v1/files/edit/plan`. The endpoint validates a
+    small batch of proposed edits without writing anything.
+  - The response returns accepted edit previews, rejected edit reasons,
+    old/new hashes, byte counts, replacement counts, simple risk markers,
+    touched-file count, and a concise summary.
+  - It reuses the existing single-file workspace edit guardrails: workspace
+    path bounds, denied secret/build/binary paths, byte limits, exact
+    replacement-count checks, and create-only-when-explicit behavior.
+  - It rejects duplicate target paths within the same plan and caps the plan
+    size through `max_files`/schema limits.
+  - `GET /v1/agent/capabilities` now advertises `edit_plan`,
+    `POST /v1/files/edit/plan`, and multi-file plan support.
+  - Added tests in `tests/test_workspace_edit.py` and
+    `tests/test_agent_capabilities.py`, and documented the endpoint in
+    `docs/API_EXAMPLES.md`.
+  - Local workstation verification passed with bundled Python
+    `compileall app src tests`, `git diff --check`, and a lightweight planner
+    smoke confirming no file was written. Local pytest is still unavailable in
+    the bundled workstation runtime.
+  - Pushed implementation commit:
+    `70e6320 Add BIBER multi-file edit planner`.
+  - Vast checkout was fast-forwarded to `70e6320`; Vast verification passed
+    with `/workspace/biber-venv/bin/python -m compileall app src tests`,
+    focused pytest
+    `tests/test_workspace_edit.py tests/test_agent_capabilities.py -q` with
+    `12 passed`, and a live authenticated edit-plan endpoint smoke.
+  - Restarted only the FastAPI process because API code changed. vLLM stayed
+    running with pid `5802`. New FastAPI pid: `51376`.
+  - Confirmed the live smoke's planned create file was not written.
+  - No credential change, model training, or OpenAI mentor call was needed.
 - XRIQ snapshot export/import checkpoint:
   - Added private-devnet `xriq-node snapshot-export` and
     `xriq-node snapshot-import`.
@@ -3273,7 +3319,9 @@ bash scripts/xriq_private_devnet_smoke.sh
      implemented and Vast-verified.
    - Safer multi-file editing: produce an edit plan, enforce workspace/path
      bounds, limit touched files, apply patch-style changes, and run formatting
-     or targeted tests after edits.
+     or targeted tests after edits. The first no-write multi-file planner
+     endpoint, `POST /v1/files/edit/plan`, is now implemented and
+     Vast-verified.
    - Better test-failure diagnosis loops: parse failures for `.NET`, Java,
      Rust, Node/React, and Python incrementally; classify compile/test/config
      failures; extract concise model context; rerun targeted tests; and save
@@ -3320,12 +3368,14 @@ bash scripts/xriq_private_devnet_smoke.sh
    metadata/eval scaffold in `training/repo_adaptation_plan.py` and
    `docs/BIBER_REPO_ADAPTATION.md`; use it against the user's actual target
    GitHub repo before considering Vast fine-tuning. The first repo-context
-   planner endpoint is live, so good next targets are adding a safe multi-file
-   edit-plan endpoint, adding a structured test-failure diagnosis parser for
-   `.NET`/Java/Rust/Python output, adding a live eval-run wrapper for generated
-   repo-adaptation prompts, or adding a client helper `create-session` live
-   smoke with a tiny max-token budget. Public XRIQ launch, exchange listing,
-   custody, liquidity, bridges, and market-facing work remain blocked.
+   planner endpoint is live, and the first no-write multi-file edit-plan
+   endpoint is live. Good next targets are adding a structured test-failure
+   diagnosis parser for `.NET`/Java/Rust/Python output, adding a cautious
+   multi-file apply transaction that requires a clean plan id/hash, adding a
+   live eval-run wrapper for generated repo-adaptation prompts, or adding a
+   client helper `create-session` live smoke with a tiny max-token budget.
+   Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
+   market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
