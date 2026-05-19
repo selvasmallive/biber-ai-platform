@@ -66,7 +66,7 @@ Future Codex sessions must default to a low-OpenAI-cost operating mode.
 
 ## Immediate Resume State
 
-As of the latest 2026-05-18 checkpoint, the Vast.ai deployment is healthy and
+As of the latest 2026-05-19 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Latest BIBER API/XRIQ wrapper commits pushed and Vast-verified:
@@ -147,9 +147,11 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP agent-session test-diagnosis commit pushed and
   Vast-verified:
   `3069a50 Add agent-session test diagnosis`.
+- Latest BIBER MVP `.NET`/Java test-command commit pushed and Vast-verified:
+  `c5f7235 Add dotnet and java test commands`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `3069a50`. Full Rust/private-devnet
+- Vast code verification is current through `c5f7235`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -164,16 +166,27 @@ serving the last broad-safe Rust/XRIQ adapter.
   BIBER multi-file edit planner verification is current through `70e6320`;
   BIBER test-failure diagnosis verification is current through `1fd510f`;
   BIBER agent-session embedded test-diagnosis verification is current through
-  `3069a50`.
+  `3069a50`; BIBER `.NET`/Java allowlisted test-command verification is
+  current through `c5f7235`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `51901`
+  - FastAPI pid: `52412`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - The `c5f7235` `.NET`/Java test-command checkpoint required a FastAPI-only
+    restart because the `/v1/tests` allowlist and agent-capability metadata
+    changed. vLLM stayed on pid `5802`; FastAPI moved from pid `51901` to
+    pid `52412`.
+  - Latest focused Vast verification for the BIBER `.NET`/Java stack
+    test-command slice:
+    `/workspace/biber-venv/bin/python -m compileall app src tests`, focused
+    pytest `tests/test_test_runner.py tests/test_agent_capabilities.py -q`
+    with `9 passed`, and a live authenticated `GET /v1/tests` smoke listing
+    `dotnet-test`, `maven-test`, `gradle-test`, and `gradle-wrapper-test`.
   - The `3069a50` agent-session test-diagnosis checkpoint required a
     FastAPI-only restart because tracked agent sessions now attach diagnosis
     output to failed or timed-out test steps. vLLM stayed on pid `5802`;
@@ -293,9 +306,11 @@ serving the last broad-safe Rust/XRIQ adapter.
     `pytest tests/test_xriq_preflight_api.py tests/test_xriq_private_devnet_client.py -q`
     with `24 passed`.
   - Latest BIBER test-runner smoke:
-    `GET /v1/tests` returned the four allowlisted commands and
-    `POST /v1/tests/run` with `test_id=python-compileall-api` returned
-    `200 OK`, `executed=true`, and `ok=true`.
+    authenticated `GET /v1/tests` now returns the stack-oriented
+    `dotnet-test`, `maven-test`, `gradle-test`, and `gradle-wrapper-test`
+    commands. Earlier `POST /v1/tests/run` with
+    `test_id=python-compileall-api` returned `200 OK`, `executed=true`, and
+    `ok=true`.
   - Latest BIBER workspace-edit smoke:
     `POST /v1/files/edit` with `create_if_missing=true` and `dry_run=true`
     returned `200 OK`, `created=true`, `changed=true`, and did not write a
@@ -2048,6 +2063,34 @@ serving the last broad-safe Rust/XRIQ adapter.
   - Restarted only the FastAPI process because API runtime logic changed. vLLM
     stayed running with pid `5802`. New FastAPI pid: `51901`.
   - No credential change, model training, or OpenAI mentor call was needed.
+- BIBER MVP `.NET`/Java allowlisted test-command checkpoint:
+  - Added fixed stack-oriented test-runner IDs to both the packaged API and the
+    direct Vast app copy:
+    `dotnet-test`, `maven-test`, `gradle-test`, and `gradle-wrapper-test`.
+  - These remain allowlisted commands, not arbitrary shell execution. They are
+    intended for target repos that already contain the relevant `.NET`, Maven,
+    or Gradle project/toolchain.
+  - Discovery and dry-run behavior are tested so agent clients can inspect the
+    exact command before executing it. Actual execution still depends on the
+    target repo and installed toolchain.
+  - Updated `GET /v1/agent/capabilities`, `GET /v1/tests`, focused tests in
+    `tests/test_test_runner.py` and `tests/test_agent_capabilities.py`, and
+    `docs/API_EXAMPLES.md`.
+  - Local workstation verification passed with bundled Python
+    `compileall app src tests`, `git diff --check`, and a dry-run smoke for
+    `dotnet-test`. Local pytest is still unavailable in the bundled
+    workstation runtime.
+  - Pushed implementation commit:
+    `c5f7235 Add dotnet and java test commands`.
+  - Vast checkout was fast-forwarded to `c5f7235`; Vast verification passed
+    with `/workspace/biber-venv/bin/python -m compileall app src tests`,
+    focused pytest
+    `tests/test_test_runner.py tests/test_agent_capabilities.py -q` with
+    `9 passed`, and a live authenticated `/v1/tests` smoke listing all four
+    new stack IDs.
+  - Restarted only the FastAPI process because the API command allowlist
+    changed. vLLM stayed running with pid `5802`. New FastAPI pid: `52412`.
+  - No credential change, model training, or OpenAI mentor call was needed.
 - XRIQ snapshot export/import checkpoint:
   - Added private-devnet `xriq-node snapshot-export` and
     `xriq-node snapshot-import`.
@@ -3416,6 +3459,10 @@ bash scripts/xriq_private_devnet_smoke.sh
      useful failure/fix pairs as future eval or training candidates. The first
      deterministic diagnosis endpoint, `POST /v1/tests/diagnose`, is now
      implemented and Vast-verified.
+   - Stack-specific test execution: keep execution allowlisted and predictable.
+     The test runner now exposes `dotnet-test`, `maven-test`, `gradle-test`,
+     and `gradle-wrapper-test` for target repos that already include the
+     matching project files and toolchains.
 13. Continue the XRIQ private-devnet prototype after the Rust/XRIQ model loop is
    stable. `xriq/` is already the separate Rust workspace inside this repo, and
    it is preferred over creating a second top-level Rust workspace unless the
@@ -3460,11 +3507,13 @@ bash scripts/xriq_private_devnet_smoke.sh
    GitHub repo before considering Vast fine-tuning. The first repo-context
    planner endpoint, no-write multi-file edit-plan endpoint, and deterministic
    test-failure diagnosis endpoint are live. Failed/timed-out agent-session
-   test steps now embed that diagnosis in the persisted session artifact. Good
+   test steps now embed that diagnosis in the persisted session artifact. The
+   test runner now includes `.NET` and Java stack IDs for target repos. Good
    next targets are adding a cautious multi-file apply transaction that requires
    a clean plan id/hash, adding a live eval-run wrapper for generated
-   repo-adaptation prompts, adding stack-specific `.NET`/Java allowed test
-   commands, or adding a client helper `create-session` live smoke with a tiny
+   repo-adaptation prompts, adding stack-aware repo-context presets for
+   `.NET`/Java projects, running the new test IDs against a real user repo when
+   provided, or adding a client helper `create-session` live smoke with a tiny
    max-token budget. Public XRIQ launch, exchange listing, custody, liquidity,
    bridges, and market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
