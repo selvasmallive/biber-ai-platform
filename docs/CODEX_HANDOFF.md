@@ -142,9 +142,11 @@ serving the last broad-safe Rust/XRIQ adapter.
   `1cc790a Add BIBER repo context planner`.
 - Latest BIBER MVP multi-file edit planner commit pushed and Vast-verified:
   `70e6320 Add BIBER multi-file edit planner`.
+- Latest BIBER MVP test-failure diagnosis commit pushed and Vast-verified:
+  `1fd510f Add BIBER test failure diagnosis`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `70e6320`. Full Rust/private-devnet
+- Vast code verification is current through `1fd510f`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -156,16 +158,27 @@ serving the last broad-safe Rust/XRIQ adapter.
   BIBER agent-session API/persistence verification is current through
   `51ad833`; BIBER repo-adaptation verification is current through `2efa65b`;
   BIBER repo-context planner verification is current through `1cc790a`;
-  BIBER multi-file edit planner verification is current through `70e6320`.
+  BIBER multi-file edit planner verification is current through `70e6320`;
+  BIBER test-failure diagnosis verification is current through `1fd510f`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `51376`
+  - FastAPI pid: `51639`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - The `1fd510f` test-failure diagnosis checkpoint required a FastAPI-only
+    restart because it added `POST /v1/tests/diagnose`, expanded
+    `GET /v1/agent/capabilities`, and updated the `pytest-core` allowlist.
+    vLLM stayed on pid `5802`; FastAPI moved from pid `51376` to pid `51639`.
+  - Latest focused Vast verification for the BIBER test-failure diagnosis
+    slice:
+    `/workspace/biber-venv/bin/python -m compileall app src tests`, focused
+    pytest `tests/test_test_diagnosis.py tests/test_agent_capabilities.py -q`
+    with `8 passed`, and a live authenticated `POST /v1/tests/diagnose` smoke
+    classifying a `.NET` `CS1002` compiler error as `compile_error`.
   - The `70e6320` multi-file edit planner checkpoint required a FastAPI-only
     restart because it added `POST /v1/files/edit/plan` and expanded
     `GET /v1/agent/capabilities`. vLLM stayed on pid `5802`; FastAPI moved
@@ -1960,6 +1973,42 @@ serving the last broad-safe Rust/XRIQ adapter.
     running with pid `5802`. New FastAPI pid: `51376`.
   - Confirmed the live smoke's planned create file was not written.
   - No credential change, model training, or OpenAI mentor call was needed.
+- BIBER MVP test-failure diagnosis checkpoint:
+  - Added deterministic `diagnose_test_failure` support in both the packaged
+    API and the current direct Vast app copy.
+  - Added authenticated `POST /v1/tests/diagnose`. The endpoint accepts
+    stdout/stderr, command, test id, exit code, timeout status, and a small
+    context-line budget. It does not call a model.
+  - The first parser classifies common `.NET`, Java/Maven/Gradle, Rust/Cargo,
+    Python/pytest, and Node/Jest/Vitest failure signals.
+  - Response fields include `has_failure`, `primary_category`,
+    `detected_stack`, structured signal evidence, `relevant_output`,
+    `suggested_next_actions`, and a concise summary.
+  - Supported categories include `timeout`, `compile_error`,
+    `missing_dependency`, `configuration_error`, `assertion_failure`,
+    `runtime_error`, `test_failure`, and `unknown`.
+  - `GET /v1/agent/capabilities` now advertises
+    `POST /v1/tests/diagnose`, supported stacks, and failure-diagnosis support.
+  - Added `tests/test_test_diagnosis.py`, updated
+    `tests/test_agent_capabilities.py`, added the diagnosis test to the
+    `pytest-core` allowlist in both `app/test_runner.py` and
+    `src/biber_api/test_runner.py`, and documented the endpoint in
+    `docs/API_EXAMPLES.md`.
+  - Local workstation verification passed with bundled Python
+    `compileall app src tests`, `git diff --check`, and a lightweight `.NET`
+    compiler-error diagnosis smoke. Local pytest is still unavailable in the
+    bundled workstation runtime.
+  - Pushed implementation commit:
+    `1fd510f Add BIBER test failure diagnosis`.
+  - Vast checkout was fast-forwarded to `1fd510f`; Vast verification passed
+    with `/workspace/biber-venv/bin/python -m compileall app src tests`,
+    focused pytest
+    `tests/test_test_diagnosis.py tests/test_agent_capabilities.py -q` with
+    `8 passed`, and a live authenticated diagnosis endpoint smoke.
+  - Restarted only the FastAPI process because API code and `pytest-core`
+    allowlist changed. vLLM stayed running with pid `5802`. New FastAPI pid:
+    `51639`.
+  - No credential change, model training, or OpenAI mentor call was needed.
 - XRIQ snapshot export/import checkpoint:
   - Added private-devnet `xriq-node snapshot-export` and
     `xriq-node snapshot-import`.
@@ -3325,7 +3374,9 @@ bash scripts/xriq_private_devnet_smoke.sh
    - Better test-failure diagnosis loops: parse failures for `.NET`, Java,
      Rust, Node/React, and Python incrementally; classify compile/test/config
      failures; extract concise model context; rerun targeted tests; and save
-     useful failure/fix pairs as future eval or training candidates.
+     useful failure/fix pairs as future eval or training candidates. The first
+     deterministic diagnosis endpoint, `POST /v1/tests/diagnose`, is now
+     implemented and Vast-verified.
 13. Continue the XRIQ private-devnet prototype after the Rust/XRIQ model loop is
    stable. `xriq/` is already the separate Rust workspace inside this repo, and
    it is preferred over creating a second top-level Rust workspace unless the
@@ -3369,13 +3420,13 @@ bash scripts/xriq_private_devnet_smoke.sh
    `docs/BIBER_REPO_ADAPTATION.md`; use it against the user's actual target
    GitHub repo before considering Vast fine-tuning. The first repo-context
    planner endpoint is live, and the first no-write multi-file edit-plan
-   endpoint is live. Good next targets are adding a structured test-failure
-   diagnosis parser for `.NET`/Java/Rust/Python output, adding a cautious
-   multi-file apply transaction that requires a clean plan id/hash, adding a
-   live eval-run wrapper for generated repo-adaptation prompts, or adding a
-   client helper `create-session` live smoke with a tiny max-token budget.
-   Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
-   market-facing work remain blocked.
+   endpoint is live, and the first deterministic test-failure diagnosis
+   endpoint is live. Good next targets are wiring diagnosis into agent-session
+   test steps, adding a cautious multi-file apply transaction that requires a
+   clean plan id/hash, adding a live eval-run wrapper for generated
+   repo-adaptation prompts, or adding a client helper `create-session` live
+   smoke with a tiny max-token budget. Public XRIQ launch, exchange listing,
+   custody, liquidity, bridges, and market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
