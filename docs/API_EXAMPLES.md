@@ -356,6 +356,21 @@ cd /workspace/biber-ai-platform
 bash scripts/vast_eval_repo_adaptation_direct.sh
 ```
 
+Group repeated failures into a human review queue before turning any of them
+into training records:
+
+```bash
+python training/repo_adaptation_failure_review.py \
+  --failures /workspace/outputs/evals/repo-adaptation-failures.jsonl \
+  --review-output /workspace/outputs/evals/repo-adaptation-failure-review.json \
+  --training-candidates-output /workspace/outputs/evals/repo-adaptation-training-candidates.jsonl \
+  --min-repeats 2
+```
+
+The helper writes candidate rows with `quality: needs_review` and an empty
+`output`; fill in a verified answer or patch before adding any row to the real
+training dataset.
+
 See `docs/BIBER_REPO_ADAPTATION.md` for the promotion rules.
 
 ## Run A Tracked Agent Session

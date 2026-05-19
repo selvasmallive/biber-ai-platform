@@ -33,6 +33,9 @@ Important:
 - Prefer verified examples with tests.
 - Avoid private/customer code unless you have permission.
 - Remove secrets.
+- Treat `quality: needs_review` repo-adaptation candidates as review queue
+  items only. They should keep `output` empty until a reviewer writes a
+  verified response, so they are not valid training data by accident.
 
 ## Validate Before Training
 

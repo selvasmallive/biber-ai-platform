@@ -56,6 +56,25 @@ The eval wrapper writes full results, a compact summary, and a failures JSONL.
 Use the failures file as a review queue. Do not fine-tune from it directly; keep
 only repeated, reviewed failures as curated training examples.
 
+## Review Repeated Failures
+
+Convert repeated eval failures into a compact human review queue before creating
+training data. The helper groups matching failures by prompt and missing
+expectations, marks runtime/API errors as blocked, and can write candidate JSONL
+records that are intentionally marked `quality: needs_review`.
+
+```bash
+python training/repo_adaptation_failure_review.py \
+  --failures /workspace/outputs/evals/repo-adaptation-failures.jsonl \
+  --review-output /workspace/outputs/evals/repo-adaptation-failure-review.json \
+  --training-candidates-output /workspace/outputs/evals/repo-adaptation-training-candidates.jsonl \
+  --min-repeats 2
+```
+
+The candidate file is not a training dataset yet: `output` is left empty so the
+dataset validator rejects it until a reviewer writes the verified answer or
+patch and changes the quality to `reviewed` or `verified`.
+
 ## Codex Mentor Role
 
 Codex/OpenAI should be used for:
