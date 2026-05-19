@@ -144,9 +144,12 @@ serving the last broad-safe Rust/XRIQ adapter.
   `70e6320 Add BIBER multi-file edit planner`.
 - Latest BIBER MVP test-failure diagnosis commit pushed and Vast-verified:
   `1fd510f Add BIBER test failure diagnosis`.
+- Latest BIBER MVP agent-session test-diagnosis commit pushed and
+  Vast-verified:
+  `3069a50 Add agent-session test diagnosis`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `1fd510f`. Full Rust/private-devnet
+- Vast code verification is current through `3069a50`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -159,16 +162,27 @@ serving the last broad-safe Rust/XRIQ adapter.
   `51ad833`; BIBER repo-adaptation verification is current through `2efa65b`;
   BIBER repo-context planner verification is current through `1cc790a`;
   BIBER multi-file edit planner verification is current through `70e6320`;
-  BIBER test-failure diagnosis verification is current through `1fd510f`.
+  BIBER test-failure diagnosis verification is current through `1fd510f`;
+  BIBER agent-session embedded test-diagnosis verification is current through
+  `3069a50`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `51639`
+  - FastAPI pid: `51901`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - The `3069a50` agent-session test-diagnosis checkpoint required a
+    FastAPI-only restart because tracked agent sessions now attach diagnosis
+    output to failed or timed-out test steps. vLLM stayed on pid `5802`;
+    FastAPI moved from pid `51639` to pid `51901`.
+  - Latest focused Vast verification for the BIBER agent-session
+    test-diagnosis slice:
+    `/workspace/biber-venv/bin/python -m compileall app src tests`, focused
+    pytest `tests/test_agent_session.py tests/test_test_diagnosis.py -q` with
+    `11 passed`, and final Vast status confirmed API health on pid `51901`.
   - The `1fd510f` test-failure diagnosis checkpoint required a FastAPI-only
     restart because it added `POST /v1/tests/diagnose`, expanded
     `GET /v1/agent/capabilities`, and updated the `pytest-core` allowlist.
@@ -2009,6 +2023,31 @@ serving the last broad-safe Rust/XRIQ adapter.
     allowlist changed. vLLM stayed running with pid `5802`. New FastAPI pid:
     `51639`.
   - No credential change, model training, or OpenAI mentor call was needed.
+- BIBER MVP agent-session test-diagnosis checkpoint:
+  - Tracked agent sessions now attach deterministic `diagnosis` output to the
+    persisted `test_run` step whenever an allowlisted test fails or times out.
+  - Passing tests and dry-run test steps remain unchanged; only failed/timed-out
+    test results get the extra compact diagnosis object.
+  - The embedded diagnosis includes detected stack, primary category,
+    structured signals, relevant output, suggested next actions, and summary.
+  - This makes the BIBER agent flow cheaper and more useful: client tools can
+    send one agent-session artifact back into the local model instead of doing a
+    separate failure-parsing pass.
+  - Added focused coverage in `tests/test_agent_session.py` and documented the
+    behavior in `docs/API_EXAMPLES.md`.
+  - Local workstation verification passed with bundled Python
+    `compileall app src tests` and `git diff --check`. Local pytest is still
+    unavailable in the bundled workstation runtime.
+  - Pushed implementation commit:
+    `3069a50 Add agent-session test diagnosis`.
+  - Vast checkout was fast-forwarded to `3069a50`; Vast verification passed
+    with `/workspace/biber-venv/bin/python -m compileall app src tests` and
+    focused pytest
+    `tests/test_agent_session.py tests/test_test_diagnosis.py -q` with
+    `11 passed`.
+  - Restarted only the FastAPI process because API runtime logic changed. vLLM
+    stayed running with pid `5802`. New FastAPI pid: `51901`.
+  - No credential change, model training, or OpenAI mentor call was needed.
 - XRIQ snapshot export/import checkpoint:
   - Added private-devnet `xriq-node snapshot-export` and
     `xriq-node snapshot-import`.
@@ -3419,14 +3458,15 @@ bash scripts/xriq_private_devnet_smoke.sh
    metadata/eval scaffold in `training/repo_adaptation_plan.py` and
    `docs/BIBER_REPO_ADAPTATION.md`; use it against the user's actual target
    GitHub repo before considering Vast fine-tuning. The first repo-context
-   planner endpoint is live, and the first no-write multi-file edit-plan
-   endpoint is live, and the first deterministic test-failure diagnosis
-   endpoint is live. Good next targets are wiring diagnosis into agent-session
-   test steps, adding a cautious multi-file apply transaction that requires a
-   clean plan id/hash, adding a live eval-run wrapper for generated
-   repo-adaptation prompts, or adding a client helper `create-session` live
-   smoke with a tiny max-token budget. Public XRIQ launch, exchange listing,
-   custody, liquidity, bridges, and market-facing work remain blocked.
+   planner endpoint, no-write multi-file edit-plan endpoint, and deterministic
+   test-failure diagnosis endpoint are live. Failed/timed-out agent-session
+   test steps now embed that diagnosis in the persisted session artifact. Good
+   next targets are adding a cautious multi-file apply transaction that requires
+   a clean plan id/hash, adding a live eval-run wrapper for generated
+   repo-adaptation prompts, adding stack-specific `.NET`/Java allowed test
+   commands, or adding a client helper `create-session` live smoke with a tiny
+   max-token budget. Public XRIQ launch, exchange listing, custody, liquidity,
+   bridges, and market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
