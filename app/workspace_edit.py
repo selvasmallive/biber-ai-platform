@@ -193,13 +193,13 @@ def apply_workspace_edit_plan(
 
     plan = plan_workspace_edits(edits=edits, settings=settings, max_files=max_files)
     actual_hash = str(plan["plan_hash"])
-    if not plan["ok"]:
-        raise WorkspaceEditError("Workspace edit apply requires a clean edit plan.")
     if actual_hash != normalized_expected_hash:
         raise WorkspaceEditError(
             "Workspace edit plan hash mismatch; re-run /v1/files/edit/plan "
             "against the current workspace state."
         )
+    if not plan["ok"]:
+        raise WorkspaceEditError("Workspace edit apply requires a clean edit plan.")
 
     root_path = _repo_root(settings)
     snapshots = _capture_apply_snapshots(plan["planned"], root_path)
