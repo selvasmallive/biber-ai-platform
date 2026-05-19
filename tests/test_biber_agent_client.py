@@ -692,6 +692,31 @@ def test_build_mvp_loop_repair_request_extracts_failure_context(tmp_path: Path) 
     assert repair["next_test_id"] == "dotnet-test"
 
 
+def test_build_repair_chat_payload_uses_local_model_without_mentor() -> None:
+    payload = client.build_repair_chat_payload(
+        repair_request={
+            "repair_prompt": "Fix the compile error.",
+            "selected_context_paths": ["README.md", "src/App.cs"],
+            "failure": {"detected_stack": "dotnet"},
+        },
+        model="biber-dev-core-v1",
+        max_tokens=256,
+        temperature=0.1,
+        use_mentor=False,
+    )
+
+    assert payload == {
+        "messages": [{"role": "user", "content": "Fix the compile error."}],
+        "task_type": "mvp_loop_repair",
+        "temperature": 0.1,
+        "use_mentor": False,
+        "repo_context_paths": ["README.md", "src/App.cs"],
+        "language": "C#/.NET",
+        "model": "biber-dev-core-v1",
+        "max_tokens": 256,
+    }
+
+
 def test_run_prepare_repair_writes_request_without_api_key(
     monkeypatch,
     tmp_path: Path,
@@ -754,6 +779,104 @@ def test_run_prepare_repair_writes_request_without_api_key(
     assert result["instruction"] == "Repair with the smallest safe edit."
     assert result["failure"]["detected_stack"] == "dotnet"
     assert result["training_allowed"] is False
+
+
+def test_run_attempt_repair_calls_local_model_and_writes_artifact(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        assert cli_api_key is None
+        return "test-key"
+
+    def fake_chat_with_biber(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured.update(
+            {
+                "base_url": base_url,
+                "api_key": api_key,
+                "payload": payload,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return {
+            "id": "chat-1",
+            "created_at": "2026-05-19T13:30:00+00:00",
+            "model": "biber-dev-core-v1",
+            "content": "Change src/App.cs to add the missing semicolon.",
+            "mentor_used": False,
+            "priority": 3,
+        }
+
+    failure = tmp_path / "failure-mvp-loop.json"
+    failure.write_text(
+        json.dumps(
+            {
+                "ok": False,
+                "instruction": "Fix a .NET compile error.",
+                "diagnosis_summary": "Detected compile_error in dotnet output.",
+                "steps": {
+                    "context_plan": {},
+                    "test_run": {
+                        "ok": False,
+                        "test_id": "dotnet-test",
+                        "command": ["dotnet", "test"],
+                        "exit_code": 1,
+                        "timed_out": False,
+                        "stdout": "Example.cs(7,1): error CS1002: ; expected\n",
+                    },
+                    "test_diagnosis": {
+                        "primary_category": "compile_error",
+                        "detected_stack": "dotnet",
+                        "summary": "Detected compile_error in dotnet output.",
+                        "suggested_next_actions": ["Fix compiler diagnostics first."],
+                    },
+                },
+                "selected_context_paths": ["README.md", "src/App.cs"],
+                "test_ok": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "repair-attempt.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "chat_with_biber", fake_chat_with_biber)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "attempt-repair",
+                str(failure),
+                "--model",
+                "biber-dev-core-v1",
+                "--max-tokens",
+                "128",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert captured["api_key"] == "test-key"
+    assert captured["payload"]["use_mentor"] is False
+    assert captured["payload"]["max_tokens"] == 128
+    assert captured["payload"]["repo_context_paths"] == ["README.md", "src/App.cs"]
+    assert result["repair_status"] == "model_repair_proposed"
+    assert result["auto_applied"] is False
+    assert result["training_allowed"] is False
+    assert result["model_response"]["mentor_used"] is False
+    assert result["repair_content"].startswith("Change src/App.cs")
 
 
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:

@@ -259,6 +259,23 @@ def run_allowlisted_test(
     )
 
 
+def chat_with_biber(
+    *,
+    base_url: str,
+    api_key: str,
+    payload: Mapping[str, Any],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/chat",
+        method="POST",
+        payload=payload,
+        timeout_seconds=timeout_seconds,
+    )
+
+
 def diagnose_test_failure(
     *,
     base_url: str,
@@ -755,6 +772,81 @@ def build_mvp_loop_repair_request(
     }
 
 
+def language_for_detected_stack(stack: object) -> str | None:
+    normalized = str(stack or "").strip().lower()
+    return {
+        "dotnet": "C#/.NET",
+        "java": "Java",
+        "rust": "Rust",
+        "python": "Python",
+        "node": "JavaScript/TypeScript",
+        "react": "React/TypeScript",
+    }.get(normalized)
+
+
+def build_repair_chat_payload(
+    *,
+    repair_request: Mapping[str, Any],
+    model: str | None,
+    max_tokens: int | None,
+    temperature: float,
+    use_mentor: bool,
+) -> dict[str, Any]:
+    failure = require_mapping(repair_request.get("failure"))
+    payload: dict[str, Any] = {
+        "messages": [
+            {
+                "role": "user",
+                "content": str(repair_request.get("repair_prompt") or ""),
+            }
+        ],
+        "task_type": "mvp_loop_repair",
+        "temperature": temperature,
+        "use_mentor": use_mentor,
+        "repo_context_paths": [
+            str(path)
+            for path in require_list(repair_request.get("selected_context_paths"))
+        ],
+    }
+    language = language_for_detected_stack(failure.get("detected_stack"))
+    if language:
+        payload["language"] = language
+    if model:
+        payload["model"] = model
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
+    return payload
+
+
+def build_repair_attempt_result(
+    *,
+    repair_request: Mapping[str, Any],
+    chat_payload: Mapping[str, Any],
+    model_response: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "source": "biber_mvp_loop_repair_attempt",
+        "repair_loop_version": "mvp-v1",
+        "repair_status": "model_repair_proposed",
+        "training_allowed": False,
+        "auto_applied": False,
+        "ready_for_edit_review": True,
+        "source_artifact": repair_request.get("source_artifact"),
+        "repair_request": dict(repair_request),
+        "chat_request": dict(chat_payload),
+        "model_response": dict(model_response),
+        "repair_content": str(model_response.get("content") or ""),
+        "next_test_id": repair_request.get("next_test_id"),
+        "next_workflow": [
+            "review_model_repair_content",
+            "convert_response_to_bounded_plan_edit_payload",
+            "run_plan_edit_then_apply_edit_if_hash_matches",
+            "rerun_next_test_id",
+            "diagnose_again_if_still_failing",
+        ],
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -1144,6 +1236,26 @@ def format_mvp_loop_repair_request_summary(payload: Mapping[str, Any]) -> str:
     )
 
 
+def format_mvp_loop_repair_attempt_summary(payload: Mapping[str, Any]) -> str:
+    repair_request = require_mapping(payload.get("repair_request"))
+    model_response = require_mapping(payload.get("model_response"))
+    return "\n".join(
+        [
+            "BIBER MVP loop repair attempt",
+            f"source_artifact: {payload.get('source_artifact', '-')}",
+            f"repair_status: {payload.get('repair_status', '-')}",
+            f"training_allowed: {payload.get('training_allowed', False)}",
+            f"auto_applied: {payload.get('auto_applied', False)}",
+            f"ready_for_edit_review: {payload.get('ready_for_edit_review', False)}",
+            f"model: {model_response.get('model', '-')}",
+            f"mentor_used: {model_response.get('mentor_used', False)}",
+            f"next_test_id: {payload.get('next_test_id') or '-'}",
+            f"repair_request_status: {repair_request.get('repair_status', '-')}",
+            f"artifact_path: {payload.get('artifact_path', '-')}",
+        ]
+    )
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -1501,6 +1613,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     prepare_repair.add_argument("--max-context-paths", type=int)
     prepare_repair.add_argument("--output")
 
+    attempt_repair = subparsers.add_parser(
+        "attempt-repair",
+        help=(
+            "Send a failed mvp-loop repair request to the local BIBER model and "
+            "save an inspectable proposal without applying edits."
+        ),
+    )
+    attempt_repair.add_argument("artifact")
+    attempt_repair.add_argument("--instruction")
+    attempt_repair.add_argument("--max-relevant-output-chars", type=int, default=4000)
+    attempt_repair.add_argument("--max-context-paths", type=int)
+    attempt_repair.add_argument("--model")
+    attempt_repair.add_argument("--max-tokens", type=int, default=700)
+    attempt_repair.add_argument("--temperature", type=float, default=0.2)
+    attempt_repair.add_argument(
+        "--use-mentor",
+        action="store_true",
+        help="Allow the OpenAI mentor path if server-side mentor config is enabled.",
+    )
+    attempt_repair.add_argument("--output")
+
     args = parser.parse_args(argv)
     if args.command is None:
         args.command = "capabilities"
@@ -1570,6 +1703,47 @@ def run(args: argparse.Namespace) -> str:
 
     api_key = resolve_api_key(args.api_key)
     base_url = args.base_url.rstrip("/")
+    if args.command == "attempt-repair":
+        artifact_path = Path(args.artifact)
+        artifact = load_json_artifact(str(artifact_path), label="mvp-loop artifact")
+        normalized = normalize_mvp_loop_artifact(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "attempt-repair artifact must contain a saved MVP loop JSON object."
+            )
+        repair_request = build_mvp_loop_repair_request(
+            path=artifact_path,
+            payload=normalized,
+            instruction=args.instruction,
+            max_relevant_output_chars=args.max_relevant_output_chars,
+            max_context_paths=args.max_context_paths,
+        )
+        chat_payload = build_repair_chat_payload(
+            repair_request=repair_request,
+            model=args.model,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            use_mentor=args.use_mentor,
+        )
+        model_response = chat_with_biber(
+            base_url=base_url,
+            api_key=api_key,
+            payload=chat_payload,
+            timeout_seconds=args.timeout_seconds,
+        )
+        attempt = build_repair_attempt_result(
+            repair_request=repair_request,
+            chat_payload=chat_payload,
+            model_response=model_response,
+        )
+        if args.output:
+            attempt["artifact_path"] = str(Path(args.output))
+            write_json_artifact(attempt, args.output)
+        return (
+            json.dumps(attempt, indent=2, sort_keys=True)
+            if args.print_json
+            else format_mvp_loop_repair_attempt_summary(attempt)
+        )
     if args.command == "capabilities":
         capabilities = fetch_capabilities(
             base_url=base_url,

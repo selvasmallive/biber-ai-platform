@@ -28,6 +28,7 @@ ARTIFACT_DIR="${BIBER_AGENT_SMOKE_ARTIFACT_DIR:-${BIBER_RUNTIME_ROOT}/outputs/bi
 API_BASE_URL="${BIBER_AGENT_SMOKE_URL:-http://127.0.0.1:${BIBER_API_PORT}}"
 CHAT_MAX_TOKENS="${BIBER_AGENT_SMOKE_CHAT_MAX_TOKENS:-64}"
 CLIENT_SESSION_MAX_TOKENS="${BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS:-24}"
+CLIENT_REPAIR_MAX_TOKENS="${BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS:-96}"
 GITHUB_MODE="${BIBER_AGENT_SMOKE_GITHUB:-skip}"
 
 mkdir -p "$ARTIFACT_DIR"
@@ -37,6 +38,7 @@ export API_KEY
 export ARTIFACT_DIR
 export CHAT_MAX_TOKENS
 export CLIENT_SESSION_MAX_TOKENS
+export CLIENT_REPAIR_MAX_TOKENS
 export GITHUB_MODE
 export SMOKE_ID
 export SCRIPT_DIR
@@ -59,6 +61,7 @@ api_key = os.environ["API_KEY"]
 artifact_dir = Path(os.environ["ARTIFACT_DIR"])
 chat_max_tokens = int(os.environ["CHAT_MAX_TOKENS"])
 client_session_max_tokens = int(os.environ["CLIENT_SESSION_MAX_TOKENS"])
+client_repair_max_tokens = int(os.environ["CLIENT_REPAIR_MAX_TOKENS"])
 github_mode = os.environ["GITHUB_MODE"].strip().lower()
 smoke_id = os.environ["SMOKE_ID"]
 script_dir = Path(os.environ["SCRIPT_DIR"])
@@ -68,6 +71,7 @@ client_mvp_loop_output_path = artifact_dir / "agent-client-mvp-loop-output.json"
 client_mvp_loop_failures_path = artifact_dir / "agent-client-mvp-loop-failures.jsonl"
 client_mvp_loop_repair_source_path = artifact_dir / "agent-client-repair-source-mvp-loop.json"
 client_mvp_loop_repair_output_path = artifact_dir / "agent-client-mvp-loop-repair-output.json"
+client_mvp_loop_repair_attempt_path = artifact_dir / "agent-client-mvp-loop-repair-attempt.json"
 
 
 def fail(message: str) -> None:
@@ -794,6 +798,61 @@ except json.JSONDecodeError as exc:
 if saved_client_mvp_loop_repair != client_mvp_loop_repair:
     fail("prepare-repair output artifact did not match stdout JSON")
 
+try:
+    client_mvp_loop_repair_attempt_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "--timeout-seconds",
+            "180",
+            "attempt-repair",
+            str(client_mvp_loop_repair_source_path),
+            "--instruction",
+            "Repair the synthetic compile error with the smallest safe edit.",
+            "--max-context-paths",
+            "2",
+            "--max-tokens",
+            str(client_repair_max_tokens),
+            "--output",
+            str(client_mvp_loop_repair_attempt_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=180,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py attempt-repair failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py attempt-repair timed out: {exc}")
+try:
+    client_mvp_loop_repair_attempt = json.loads(client_mvp_loop_repair_attempt_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py attempt-repair returned invalid JSON: {exc}")
+if client_mvp_loop_repair_attempt.get("repair_status") != "model_repair_proposed":
+    fail(f"attempt-repair returned unexpected status: {client_mvp_loop_repair_attempt!r}")
+if client_mvp_loop_repair_attempt.get("training_allowed") is not False:
+    fail(f"attempt-repair must keep training_allowed=false: {client_mvp_loop_repair_attempt!r}")
+if client_mvp_loop_repair_attempt.get("auto_applied") is not False:
+    fail(f"attempt-repair must not apply edits: {client_mvp_loop_repair_attempt!r}")
+attempt_model_response = client_mvp_loop_repair_attempt.get("model_response")
+if not isinstance(attempt_model_response, dict):
+    fail(f"attempt-repair omitted model_response: {client_mvp_loop_repair_attempt!r}")
+if attempt_model_response.get("mentor_used") is not False:
+    fail(f"attempt-repair unexpectedly used mentor: {client_mvp_loop_repair_attempt!r}")
+if not str(client_mvp_loop_repair_attempt.get("repair_content") or "").strip():
+    fail(f"attempt-repair returned empty repair_content: {client_mvp_loop_repair_attempt!r}")
+if not client_mvp_loop_repair_attempt_path.exists():
+    fail(f"attempt-repair did not write {client_mvp_loop_repair_attempt_path}")
+try:
+    saved_client_mvp_loop_repair_attempt = json.loads(
+        client_mvp_loop_repair_attempt_path.read_text(encoding="utf-8")
+    )
+except json.JSONDecodeError as exc:
+    fail(f"attempt-repair output artifact returned invalid JSON: {exc}")
+if saved_client_mvp_loop_repair_attempt != client_mvp_loop_repair_attempt:
+    fail("attempt-repair output artifact did not match stdout JSON")
+
 if client_mvp_loop.get("ok") is not True:
     fail(f"agent client mvp-loop did not return ok=true: {client_mvp_loop!r}")
 client_mvp_steps = client_mvp_loop.get("steps")
@@ -836,6 +895,15 @@ write_artifact(
         "status": 0,
         "body": client_mvp_loop_repair,
         "output": str(client_mvp_loop_repair_output_path),
+        "source": str(client_mvp_loop_repair_source_path),
+    },
+)
+write_artifact(
+    "agent-client-mvp-loop-repair-attempt.json",
+    {
+        "status": 0,
+        "body": client_mvp_loop_repair_attempt,
+        "output": str(client_mvp_loop_repair_attempt_path),
         "source": str(client_mvp_loop_repair_source_path),
     },
 )
@@ -1033,6 +1101,12 @@ summary = {
     "agent_client_mvp_loop_failed_list_count": len(client_mvp_loop_failed_artifacts),
     "agent_client_mvp_loop_failure_export": str(client_mvp_loop_failures_path),
     "agent_client_mvp_loop_failure_export_records": client_mvp_loop_failure_export.get("records"),
+    "agent_client_mvp_loop_repair_output": str(client_mvp_loop_repair_output_path),
+    "agent_client_mvp_loop_repair_status": client_mvp_loop_repair.get("repair_status"),
+    "agent_client_mvp_loop_repair_attempt": str(client_mvp_loop_repair_attempt_path),
+    "agent_client_mvp_loop_repair_attempt_status": client_mvp_loop_repair_attempt.get("repair_status"),
+    "agent_client_mvp_loop_repair_attempt_auto_applied": client_mvp_loop_repair_attempt.get("auto_applied"),
+    "agent_client_mvp_loop_repair_attempt_mentor_used": attempt_model_response.get("mentor_used"),
     "agent_client_mvp_loop_report_ok": "BIBER MVP loop" in client_mvp_loop_report,
     "agent_client_mvp_loop_test_ok": client_mvp_loop.get("test_ok"),
     "agent_client_test_id": client_test_run.get("test_id"),
