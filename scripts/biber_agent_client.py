@@ -2798,6 +2798,136 @@ def export_ready_repair_chain_eval_dataset(
     }
 
 
+def validate_ready_repair_chain_eval_dataset_records(
+    *,
+    jsonl_paths: list[str],
+    min_records: int,
+) -> dict[str, Any]:
+    if min_records < 1:
+        raise BiberAgentClientError("--min-records must be at least 1.")
+
+    records: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for jsonl_path in jsonl_paths:
+        for index, row in enumerate(
+            load_jsonl_artifact(
+                jsonl_path,
+                label="ready repair-chain eval dataset JSONL",
+            ),
+            start=1,
+        ):
+            if row.get("source") != "biber_mvp_loop_repair_chain_eval_dataset_record":
+                rejected.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "reason": "unsupported_source",
+                        "source": row.get("source"),
+                    }
+                )
+                continue
+
+            item = dict(row)
+            item["eval_dataset_jsonl_path"] = jsonl_path
+            item["eval_dataset_jsonl_index"] = index
+            records.append(item)
+
+            row_errors: list[str] = []
+            if row.get("eval_dataset_record") is not True:
+                row_errors.append("eval_dataset_record_must_be_true")
+            if row.get("eval_dataset_status") != "ready_for_eval_dataset_validation":
+                row_errors.append("unexpected_eval_dataset_status")
+            if row.get("approved_for_eval_dataset") is not True:
+                row_errors.append("approved_for_eval_dataset_must_be_true")
+            if row.get("eval_dataset_ready") is not True:
+                row_errors.append("eval_dataset_ready_must_be_true")
+            if row.get("requires_eval_dataset_validation") is not True:
+                row_errors.append("requires_eval_dataset_validation_must_be_true")
+            for key in (
+                "training_allowed",
+                "eligible_for_training",
+                "safe_to_train",
+                "github_save_ready",
+                "approved_for_training",
+                "auto_promoted",
+                "auto_saved",
+            ):
+                if row.get(key) is not False:
+                    row_errors.append(f"{key}_must_be_false")
+            for key in ("test_id", "plan_hash", "source_artifact"):
+                value = row.get(key)
+                if not isinstance(value, str) or not value.strip():
+                    row_errors.append(f"{key}_is_required")
+            if not isinstance(row.get("chain"), dict):
+                row_errors.append("chain_must_be_object")
+            if not isinstance(row.get("artifacts"), dict):
+                row_errors.append("artifacts_must_be_object")
+            if row_errors:
+                errors.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "test_id": row.get("test_id"),
+                        "plan_hash": row.get("plan_hash"),
+                        "reasons": row_errors,
+                    }
+                )
+
+    valid_records = len(records) - len(errors)
+    validation_ok = valid_records >= min_records and not errors and not rejected
+    groups_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for record in records:
+        key = (
+            str(record.get("test_id") or ""),
+            str(record.get("plan_hash") or ""),
+        )
+        group = groups_by_key.setdefault(
+            key,
+            {
+                "test_id": key[0],
+                "plan_hash": key[1],
+                "count": 0,
+                "source_artifacts": [],
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+            },
+        )
+        group["count"] += 1
+        group["source_artifacts"].append(record.get("source_artifact"))
+    groups = list(groups_by_key.values())
+    groups.sort(key=lambda item: (-int(item.get("count") or 0), str(item.get("test_id") or "")))
+
+    return {
+        "source": "biber_mvp_loop_ready_repair_chain_eval_dataset_validation",
+        "validation_status": "valid_eval_only" if validation_ok else "invalid_or_incomplete",
+        "ok": validation_ok,
+        "records": len(records),
+        "valid_records": valid_records,
+        "invalid_records": len(errors),
+        "rejected_records": len(rejected),
+        "min_records": min_records,
+        "groups": groups,
+        "eval_dataset_ready": validation_ok,
+        "requires_eval_dataset_validation": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "jsonl_paths": list(jsonl_paths),
+        "errors": errors,
+        "rejected": rejected,
+        "next_review_action": (
+            "convert_validated_records_to_held_out_eval_prompts_before_training"
+            if validation_ok
+            else "fix_eval_dataset_records_before_eval_or_training"
+        ),
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -3666,6 +3796,46 @@ def format_ready_repair_chain_eval_dataset_export_summary(
     )
 
 
+def format_ready_repair_chain_eval_dataset_validation_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    groups = [
+        item
+        for item in require_list(payload.get("groups"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER ready repair-chain eval dataset validation",
+        f"ok: {payload.get('ok', False)}",
+        f"validation_status: {payload.get('validation_status', '-')}",
+        f"records: {payload.get('records', 0)}",
+        f"valid_records: {payload.get('valid_records', 0)}",
+        f"invalid_records: {payload.get('invalid_records', 0)}",
+        f"rejected_records: {payload.get('rejected_records', 0)}",
+        f"min_records: {payload.get('min_records', 1)}",
+        f"groups: {len(groups)}",
+        f"eval_dataset_ready: {payload.get('eval_dataset_ready', False)}",
+        (
+            "requires_eval_dataset_validation: "
+            f"{payload.get('requires_eval_dataset_validation', True)}"
+        ),
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"approved_for_training: {payload.get('approved_for_training', False)}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    lines.extend(
+        (
+            f"- test_id={group.get('test_id', '-')} "
+            f"plan_hash={group.get('plan_hash', '-')} "
+            f"count={group.get('count', 0)}"
+        )
+        for group in groups[:8]
+    )
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -4207,6 +4377,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     export_ready_repair_chain_eval_dataset.add_argument("--output", required=True)
 
+    validate_ready_repair_chain_eval_dataset = subparsers.add_parser(
+        "validate-ready-repair-chain-eval-dataset",
+        help=(
+            "Validate repair-chain eval-dataset JSONL safety/provenance "
+            "without making it training-eligible."
+        ),
+    )
+    validate_ready_repair_chain_eval_dataset.add_argument("jsonl", nargs="+")
+    validate_ready_repair_chain_eval_dataset.add_argument(
+        "--min-records",
+        type=int,
+        default=1,
+    )
+    validate_ready_repair_chain_eval_dataset.add_argument("--output")
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -4515,6 +4700,21 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(export, indent=2, sort_keys=True)
             if args.print_json
             else format_ready_repair_chain_eval_dataset_export_summary(export)
+        )
+    if args.command == "validate-ready-repair-chain-eval-dataset":
+        validation = validate_ready_repair_chain_eval_dataset_records(
+            jsonl_paths=args.jsonl,
+            min_records=args.min_records,
+        )
+        if args.output:
+            validation["artifact_path"] = str(Path(args.output))
+            write_json_artifact(validation, args.output)
+        return (
+            json.dumps(validation, indent=2, sort_keys=True)
+            if args.print_json
+            else format_ready_repair_chain_eval_dataset_validation_summary(
+                validation
+            )
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)

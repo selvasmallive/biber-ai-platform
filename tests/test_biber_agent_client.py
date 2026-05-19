@@ -2718,6 +2718,109 @@ def test_run_export_ready_repair_chain_eval_dataset_without_api_key(
     assert rows[0]["artifacts"]["verification"] == "repair-verification.json"
 
 
+def test_run_validate_ready_repair_chain_eval_dataset_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "validate-ready-repair-chain-eval-dataset should not resolve an API key"
+        )
+
+    jsonl_path = tmp_path / "ready-repair-chain-eval-dataset.jsonl"
+    output_path = tmp_path / "ready-repair-chain-eval-dataset-validation.json"
+    records = [
+        {
+            "source": "biber_mvp_loop_repair_chain_eval_dataset_record",
+            "eval_dataset_record": True,
+            "eval_dataset_status": "ready_for_eval_dataset_validation",
+            "review_status": "eval_dataset_reviewed",
+            "quality": "eval_dataset_reviewed",
+            "decision": "approve_for_eval_dataset",
+            "approved_for_eval_dataset": True,
+            "eval_dataset_ready": True,
+            "requires_eval_dataset_validation": True,
+            "training_allowed": False,
+            "eligible_for_training": False,
+            "safe_to_train": False,
+            "github_save_ready": False,
+            "approved_for_training": False,
+            "auto_promoted": False,
+            "auto_saved": False,
+            "source_artifact": "repair-chain.json",
+            "plan_hash": "e" * 64,
+            "test_id": "python-compileall-api",
+            "chain": {"chain_status": "ready_for_human_review"},
+            "artifacts": {"verification": "repair-verification.json"},
+        },
+        {
+            "source": "biber_mvp_loop_repair_chain_eval_dataset_record",
+            "eval_dataset_record": True,
+            "eval_dataset_status": "ready_for_eval_dataset_validation",
+            "approved_for_eval_dataset": True,
+            "eval_dataset_ready": True,
+            "requires_eval_dataset_validation": True,
+            "training_allowed": True,
+            "eligible_for_training": False,
+            "safe_to_train": False,
+            "github_save_ready": False,
+            "approved_for_training": False,
+            "auto_promoted": False,
+            "auto_saved": False,
+            "source_artifact": "",
+            "plan_hash": "f" * 64,
+            "test_id": "rust-check",
+            "chain": {},
+            "artifacts": {},
+        },
+        {
+            "source": "other_source",
+            "eval_dataset_record": True,
+        },
+    ]
+    jsonl_path.write_text(
+        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "validate-ready-repair-chain-eval-dataset",
+                str(jsonl_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["source"] == "biber_mvp_loop_ready_repair_chain_eval_dataset_validation"
+    assert result["validation_status"] == "invalid_or_incomplete"
+    assert result["ok"] is False
+    assert result["records"] == 2
+    assert result["valid_records"] == 1
+    assert result["invalid_records"] == 1
+    assert result["rejected_records"] == 1
+    assert result["eval_dataset_ready"] is False
+    assert result["training_allowed"] is False
+    assert result["eligible_for_training"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+    assert result["errors"][0]["reasons"] == [
+        "training_allowed_must_be_false",
+        "source_artifact_is_required",
+    ]
+    assert result["rejected"][0]["reason"] == "unsupported_source"
+    assert result["groups"][0]["test_id"] == "python-compileall-api"
+    assert result["groups"][0]["approved_for_training"] is False
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 
