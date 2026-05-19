@@ -746,7 +746,7 @@ client_mvp_loop_repair_source = {
             "suggested_next_actions": ["Fix compiler diagnostics first."],
         },
     },
-    "selected_context_paths": ["README.md", "src/App.cs"],
+    "selected_context_paths": ["README.md", "docs/API_EXAMPLES.md"],
     "test_ok": False,
 }
 client_mvp_loop_repair_source_path.write_text(
