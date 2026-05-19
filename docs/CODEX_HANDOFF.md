@@ -138,9 +138,11 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP repo-adaptation commits pushed and Vast-verified:
   `9126fdd Add BIBER repo adaptation plan` and
   `2efa65b Fix repo adaptation relative role detection`.
+- Latest BIBER MVP repo-context planner commit pushed and Vast-verified:
+  `1cc790a Add BIBER repo context planner`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `2efa65b`. Full Rust/private-devnet
+- Vast code verification is current through `1cc790a`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -150,16 +152,29 @@ serving the last broad-safe Rust/XRIQ adapter.
   current through `179f58b`; BIBER agent-smoke verification is current through
   `51ad833`;
   BIBER agent-session API/persistence verification is current through
-  `51ad833`; BIBER repo-adaptation verification is current through `2efa65b`.
+  `51ad833`; BIBER repo-adaptation verification is current through `2efa65b`;
+  BIBER repo-context planner verification is current through `1cc790a`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `50843`
+  - FastAPI pid: `51098`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - The `1cc790a` repo-context planner checkpoint required a FastAPI-only
+    restart because it added `POST /v1/repo/context/plan` and expanded
+    `GET /v1/agent/capabilities`. vLLM stayed on pid `5802`; FastAPI moved
+    from pid `50843` to pid `51098`.
+  - Latest focused Vast verification for the BIBER repo-context planner slice:
+    `/workspace/biber-venv/bin/python -m compileall app src tests`, focused
+    pytest `tests/test_repo_context.py tests/test_agent_capabilities.py -q`
+    with `12 passed`, and a live authenticated
+    `POST /v1/repo/context/plan` smoke selecting
+    `docs/API_EXAMPLES.md`, `src/biber_api/repo_context.py`,
+    `tests/test_repo_context.py`, `pyproject.toml`, `xriq/Cargo.lock`, and
+    `xriq/Cargo.toml`.
   - The `2efa65b` repo-adaptation checkpoint required a FastAPI-only restart
     because it also updated the `pytest-core` allowlist served by the API.
     vLLM stayed on pid `5802`; FastAPI moved from pid `50453` to pid `50843`.
@@ -1868,6 +1883,37 @@ serving the last broad-safe Rust/XRIQ adapter.
     allowlist changed. vLLM stayed running with pid `5802`. New FastAPI pid:
     `50843`.
   - No credential change, model training, or OpenAI mentor call was needed.
+- BIBER MVP repo-context planner checkpoint:
+  - Added deterministic `plan_repo_context` support in both the packaged API
+    and the current direct Vast app copy.
+  - Added authenticated `POST /v1/repo/context/plan`. The endpoint returns
+    `selected_paths`, `detected_project_types`, candidate reasons/priorities,
+    skipped paths, and a concise summary. It does not return file contents.
+  - The planner keeps user-pinned paths first, then changed files, related
+    tests, project manifests, README files, and instruction-term matches.
+  - It detects starter stack signals for `.NET`, Java/Spring-style Gradle or
+    Maven repos, Rust, Node/React, and Python.
+  - It filters secret-looking paths, dependency folders, build outputs, common
+    binary suffixes, and paths outside `BIBER_REPO_CONTEXT_ROOT`.
+  - `GET /v1/agent/capabilities` now advertises planner support and the
+    `POST /v1/repo/context/plan` endpoint.
+  - Added tests in `tests/test_repo_context.py` and
+    `tests/test_agent_capabilities.py`, and documented the endpoint in
+    `docs/API_EXAMPLES.md`.
+  - Local workstation verification passed with bundled Python
+    `compileall app src tests`, `git diff --check`, and a lightweight planner
+    smoke. Local pytest is still unavailable in the bundled workstation
+    runtime.
+  - Pushed implementation commit:
+    `1cc790a Add BIBER repo context planner`.
+  - Vast checkout was fast-forwarded to `1cc790a`; Vast verification passed
+    with `/workspace/biber-venv/bin/python -m compileall app src tests`,
+    focused pytest
+    `tests/test_repo_context.py tests/test_agent_capabilities.py -q` with
+    `12 passed`, and a live authenticated planner endpoint smoke.
+  - Restarted only the FastAPI process because API code changed. vLLM stayed
+    running with pid `5802`. New FastAPI pid: `51098`.
+  - No credential change, model training, or OpenAI mentor call was needed.
 - XRIQ snapshot export/import checkpoint:
   - Added private-devnet `xriq-node snapshot-export` and
     `xriq-node snapshot-import`.
@@ -3222,7 +3268,9 @@ bash scripts/xriq_private_devnet_smoke.sh
    before broad language expansion:
    - More reliable repo-context selection: detect project type, include
      relevant manifests/config/tests/changed files, support pinned files, and
-     avoid secrets, dependency folders, build outputs, and binaries.
+     avoid secrets, dependency folders, build outputs, and binaries. The first
+     deterministic planner endpoint, `POST /v1/repo/context/plan`, is now
+     implemented and Vast-verified.
    - Safer multi-file editing: produce an edit plan, enforce workspace/path
      bounds, limit touched files, apply patch-style changes, and run formatting
      or targeted tests after edits.
@@ -3271,14 +3319,13 @@ bash scripts/xriq_private_devnet_smoke.sh
    create sessions from presets. Repo-specific adaptation now has a conservative
    metadata/eval scaffold in `training/repo_adaptation_plan.py` and
    `docs/BIBER_REPO_ADAPTATION.md`; use it against the user's actual target
-   GitHub repo before considering Vast fine-tuning. Good next targets are
-   adding a live eval-run wrapper for the generated repo-adaptation prompts,
-   small dashboard wallet/explorer polish such as latest-block transaction hash
-   buttons that fill the transaction lookup, adding a client helper
-   `create-session` live smoke with a tiny max-token budget, or adding safer
-   persisted dashboard settings later with database-backed users/API keys.
-   Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
-   market-facing work remain blocked.
+   GitHub repo before considering Vast fine-tuning. The first repo-context
+   planner endpoint is live, so good next targets are adding a safe multi-file
+   edit-plan endpoint, adding a structured test-failure diagnosis parser for
+   `.NET`/Java/Rust/Python output, adding a live eval-run wrapper for generated
+   repo-adaptation prompts, or adding a client helper `create-session` live
+   smoke with a tiny max-token budget. Public XRIQ launch, exchange listing,
+   custody, liquidity, bridges, and market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
