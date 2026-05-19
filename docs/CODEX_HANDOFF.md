@@ -144,6 +144,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP agent-client repo-context planning commit pushed and
   Vast-verified:
   `775b278 Add agent client repo context planning`.
+- Latest BIBER MVP agent-client workspace-edit commands commit pushed and
+  Vast-verified:
+  `12450e2 Add agent client workspace edit commands`.
 - Latest BIBER MVP repo-adaptation commits pushed and Vast-verified:
   `9126fdd Add BIBER repo adaptation plan` and
   `2efa65b Fix repo adaptation relative role detection`.
@@ -176,7 +179,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   `07eb63f Add TensorFlow capability track`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `775b278`. Full Rust/private-devnet
+- Vast code verification is current through `12450e2`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -200,7 +203,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
   `b8abdfb`; BIBER agent-client repo-context planning verification is current
-  through `775b278`.
+  through `775b278`; BIBER agent-client workspace-edit command verification is
+  current through `12450e2`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
@@ -210,6 +214,27 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - The `12450e2` agent-client workspace-edit command checkpoint required no
+    service restart because it changed only the stdlib client helper, smoke
+    script, docs, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid
+    `53902`.
+  - Latest focused Vast verification for the BIBER agent-client workspace-edit
+    command slice:
+    `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py tests/test_workspace_edit.py tests/test_agent_session.py tests/test_agent_capabilities.py tests/test_repo_context.py -q`
+    with `49 passed`, and live
+    `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS=24 bash scripts/vast_biber_agent_smoke.sh`.
+    The live smoke wrote artifacts under
+    `/workspace/outputs/biber-agent-smoke-20260519T110521Z-54464`, created a
+    stdlib-client session `ea849ac2-627c-4bb4-9547-185bf7b554b2`, created an
+    XRIQ-context session `f03f2123-2fa0-4cb7-b16a-e8e5d3c21d2a`, confirmed
+    `plan-context` selected `README.md`, `docs/API_EXAMPLES.md`,
+    `pyproject.toml`, `xriq/Cargo.lock`, and `xriq/Cargo.toml`, and verified
+    `plan-edit`/`apply-edit` through a temporary smoke path
+    `.biber-runtime/agent-client-edit-smoke-20260519T110521Z-54464.txt` with
+    plan hash
+    `f3204a5f2d64818d3cc416b4b2c61884b4244199aa656a8f0d0f7ddc777161ec`.
   - The `775b278` agent-client repo-context planning checkpoint required no
     service restart because it changed only the stdlib client helper, smoke
     script, docs, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid
@@ -2141,6 +2166,50 @@ serving the last broad-safe Rust/XRIQ adapter.
     `37f417a1-92da-4be3-b39d-f7b67f0a53c0`.
   - No service restart, credential change, model training, or OpenAI mentor
     call was needed.
+- BIBER MVP agent-client workspace-edit commands checkpoint:
+  - Added `plan-edit` and `apply-edit` to `scripts/biber_agent_client.py`.
+  - `plan-edit` wraps `POST /v1/files/edit/plan` with repeatable
+    `--edit-json`, optional `--edits-file`, and `--max-files`, then prints a
+    concise no-write edit plan or raw JSON with `--json`.
+  - `apply-edit` wraps `POST /v1/files/edit/apply` with the same edit inputs
+    plus required `--plan-hash`, preserving the server-side hash gate so stale
+    or altered edit plans are rejected.
+  - Edit files can contain one edit object, an array of edits, or an object with
+    an `edits` array. Inline `--edit-json` intentionally accepts one edit
+    object at a time to keep command-line usage explicit.
+  - Extended `scripts/vast_biber_agent_smoke.sh` so the live smoke now plans a
+    temporary workspace edit through the stdlib client, confirms planning does
+    not write the file, applies it with the returned hash, verifies exact
+    content, removes the smoke file, and writes
+    `agent-client-plan-edit.json` plus `agent-client-apply-edit.json`.
+  - Added focused unit coverage in `tests/test_biber_agent_client.py` and
+    documented the helper commands in `docs/API_EXAMPLES.md`.
+  - Local workstation verification passed with bundled Python
+    `compileall scripts tests` and `git diff --check`. Local `bash -n` could
+    not run because WSL has no installed distro on this workstation; the same
+    syntax check passed on Vast. Local pytest is still unavailable in the
+    bundled workstation runtime.
+  - Pushed implementation commit:
+    `12450e2 Add agent client workspace edit commands`.
+  - Vast checkout was fast-forwarded to `12450e2`; Vast verification passed
+    with `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py tests/test_workspace_edit.py tests/test_agent_session.py tests/test_agent_capabilities.py tests/test_repo_context.py -q`
+    with `49 passed`, and live
+    `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS=24 bash scripts/vast_biber_agent_smoke.sh`.
+  - Latest live smoke artifact:
+    `/workspace/outputs/biber-agent-smoke-20260519T110521Z-54464`.
+    It confirmed create/list/load session helpers, repo-context planning, and
+    safe workspace edit planning/apply through the real API. The temporary edit
+    path was
+    `.biber-runtime/agent-client-edit-smoke-20260519T110521Z-54464.txt`; plan
+    hash was
+    `f3204a5f2d64818d3cc416b4b2c61884b4244199aa656a8f0d0f7ddc777161ec`;
+    stdlib-client session id was
+    `ea849ac2-627c-4bb4-9547-185bf7b554b2`; XRIQ-context session id was
+    `f03f2123-2fa0-4cb7-b16a-e8e5d3c21d2a`.
+  - No service restart, credential change, model training, or OpenAI mentor
+    call was needed.
 - BIBER MVP repo-adaptation checkpoint:
   - Added `training/repo_adaptation_plan.py`, a conservative helper for
     preparing repo-specific BIBER adaptation work from a GitHub checkout or
@@ -3833,7 +3902,8 @@ bash scripts/xriq_private_devnet_smoke.sh
      or targeted tests after edits. The first no-write multi-file planner
      endpoint, `POST /v1/files/edit/plan`, is now implemented and
      Vast-verified. The first hash-gated apply endpoint,
-     `POST /v1/files/edit/apply`, is also implemented and Vast-verified.
+     `POST /v1/files/edit/apply`, is also implemented and Vast-verified. The
+     stdlib agent client now wraps both with `plan-edit` and `apply-edit`.
    - Better test-failure diagnosis loops: parse failures for `.NET`, Java,
      Rust, Node/React, and Python incrementally; classify compile/test/config
      failures; extract concise model context; rerun targeted tests; and save
@@ -3892,12 +3962,14 @@ bash scripts/xriq_private_devnet_smoke.sh
    test steps now embed that diagnosis in the persisted session artifact. The
    test runner now includes `.NET` and Java stack IDs for target repos. The
    repo-context planner now exposes `.NET` and Java stack profiles. The
-   hash-gated multi-file edit apply endpoint is live. The repo-adaptation live
-   eval wrapper and the conservative repo-adaptation failure-review helper are
-   also live. Good next targets are running the new stack profiles/test IDs
-   against a real user repo when provided, adding stdlib client helpers for
-   safe edit planning/apply, or manually reviewing repeated failure candidates
-   into verified examples only after a real repo eval produces repeatable gaps.
+   hash-gated multi-file edit apply endpoint is live, and the stdlib agent
+   client can now plan/apply those edits through the real API. The
+   repo-adaptation live eval wrapper and the conservative repo-adaptation
+   failure-review helper are also live. Good next targets are adding stdlib
+   client helpers for allowlisted test execution and test-failure diagnosis,
+   running the new stack profiles/test IDs against a real user repo when
+   provided, or manually reviewing repeated failure candidates into verified
+   examples only after a real repo eval produces repeatable gaps.
    Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
    market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
