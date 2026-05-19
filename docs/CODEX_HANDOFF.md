@@ -171,6 +171,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP agent-client MVP-loop failure export commit pushed and
   Vast-verified:
   `ef0cd5e Export MVP loop failure review records`.
+- Latest BIBER MVP agent-client repair-request helper commit pushed and
+  Vast-verified:
+  `2e7a405 Add MVP loop repair request helper`.
 - Latest Rust/XRIQ eval codegen-profile commits pushed and Vast-verified:
   `176b3e4 Add Rust XRIQ eval codegen profile`,
   `706448e Limit Rust XRIQ eval profile to ledger prompt`,
@@ -244,8 +247,10 @@ serving the last broad-safe Rust/XRIQ adapter.
   `8c077d2`; BIBER agent-client MVP-loop artifact listing verification is
   current through `841dc8f`; BIBER agent-client failed MVP-loop artifact filter
   verification is current through `be89b78`; BIBER agent-client MVP-loop
-  failure-export verification is current through `ef0cd5e`; Rust/XRIQ live
-  codegen-profile eval verification is current through `7e7b8d`.
+  failure-export verification is current through `ef0cd5e`; BIBER
+  agent-client repair-request helper verification is current through
+  `2e7a405`; Rust/XRIQ live codegen-profile eval verification is current
+  through `7e7b8d`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
@@ -255,9 +260,27 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast checkout was fast-forwarded through `ff558f6` for the latest
-    handoff/status checkpoint. If a later docs-only handoff commit exists, run
-    `git pull --ff-only origin main` on Vast before resuming.
+  - Vast code verification is current through `2e7a405`. If later docs-only
+    handoff commits exist, run `git pull --ff-only origin main` on Vast before
+    resuming.
+  - The `2e7a405` repair-request helper checkpoint required no service restart
+    because it changed only the stdlib agent client, smoke script, docs, and
+    tests. vLLM stayed on pid `5802`; FastAPI stayed on pid `53902`.
+  - Latest focused Vast verification for the BIBER agent-client repair-request
+    helper slice:
+    `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py tests/test_github_client.py tests/test_agent_session.py tests/test_agent_capabilities.py tests/test_test_runner.py tests/test_test_diagnosis.py tests/test_workspace_edit.py tests/test_repo_context.py -q`
+    with `89 passed`, and live
+    `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS=24 bash scripts/vast_biber_agent_smoke.sh`.
+    The live smoke wrote artifacts under
+    `/workspace/outputs/biber-agent-smoke-20260519T131740Z-62026`, verified the
+    new `prepare-repair` command against a synthetic failed MVP-loop artifact,
+    and wrote
+    `/workspace/outputs/biber-agent-smoke-20260519T131740Z-62026/agent-client-mvp-loop-repair-output.json`
+    with `repair_status=ready_for_local_model`, `training_allowed=false`,
+    `test_id=dotnet-test`, and `selected_context_paths=2`. GitHub remained
+    skipped because `github_configured=false`.
   - The Rust/XRIQ codegen-profile checkpoints through `7e7b8d` required no
     service restart because they changed only eval prompt/profile files,
     tests, docs, and wrappers. vLLM stayed on pid `5802`; FastAPI stayed on
@@ -4258,12 +4281,14 @@ bash scripts/xriq_private_devnet_smoke.sh
      stdlib agent client now wraps both with `plan-edit` and `apply-edit`.
    - Better test-failure diagnosis loops: parse failures for `.NET`, Java,
      Rust, Node/React, and Python incrementally; classify compile/test/config
-     failures; extract concise model context; rerun targeted tests; and save
-     useful failure/fix pairs as future eval or training candidates. The first
-     deterministic diagnosis endpoint, `POST /v1/tests/diagnose`, is now
-     implemented and Vast-verified. The stdlib agent client now wraps it with
-     `diagnose-test` and can attach it automatically to failed `run-test`
-     output.
+   failures; extract concise model context; rerun targeted tests; and save
+   useful failure/fix pairs as future eval or training candidates. The first
+   deterministic diagnosis endpoint, `POST /v1/tests/diagnose`, is now
+   implemented and Vast-verified. The stdlib agent client now wraps it with
+   `diagnose-test` and can attach it automatically to failed `run-test`
+    output. The stdlib agent client also has `prepare-repair`, which converts a
+    failed `mvp-loop` artifact into a bounded local-model repair request with
+    `training_allowed=false`.
    - Stack-specific test execution: keep execution allowlisted and predictable.
      The test runner now exposes `dotnet-test`, `maven-test`, `gradle-test`,
      and `gradle-wrapper-test` for target repos that already include the
@@ -4331,13 +4356,15 @@ bash scripts/xriq_private_devnet_smoke.sh
    client can also list/run allowlisted tests and diagnose test failures through
    the real API, and it now wraps GitHub save/draft-PR workflow commands while
    leaving credentials server-side. The stdlib client now has `mvp-loop` as a
-   single inspectable wrapper over the MVP repo workflow. The repo-adaptation
-   live eval wrapper and the conservative repo-adaptation failure-review helper
-   are also live. Good next targets are running `mvp-loop` and the stack
-   profiles/test IDs against a real user repo when provided, adding a small
-   saved loop artifact/history view if client UX needs it, or manually
-   reviewing repeated failure candidates into verified examples only after a
-   real repo eval produces repeatable gaps.
+   single inspectable wrapper over the MVP repo workflow, plus `prepare-repair`
+   to turn failed loop artifacts into local-model repair prompts without
+   approving them for training. The repo-adaptation live eval wrapper and the
+   conservative repo-adaptation failure-review helper are also live. Good next
+   targets are running `mvp-loop` and `prepare-repair` against a real user repo
+   when provided, adding a true local-model repair retry that feeds the repair
+   prompt into BIBER and then uses plan/apply/test safely, or manually reviewing
+   repeated failure candidates into verified examples only after a real repo
+   eval produces repeatable gaps.
    Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
    market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
