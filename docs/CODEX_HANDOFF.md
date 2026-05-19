@@ -255,7 +255,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast checkout is fast-forwarded to `7e7b8d`.
+  - Vast checkout was fast-forwarded through `ff558f6` for the latest
+    handoff/status checkpoint. If a later docs-only handoff commit exists, run
+    `git pull --ff-only origin main` on Vast before resuming.
   - The Rust/XRIQ codegen-profile checkpoints through `7e7b8d` required no
     service restart because they changed only eval prompt/profile files,
     tests, docs, and wrappers. vLLM stayed on pid `5802`; FastAPI stayed on
@@ -273,6 +275,10 @@ serving the last broad-safe Rust/XRIQ adapter.
     `/workspace/outputs/evals/biber-dev-core-lora-20260519T125356Z.summary.json`
     and remained `18/18`. No OpenAI mentor call, credential rotation, service
     restart, or additional GPU training was used for this checkpoint.
+  - After pushing the handoff checkpoint `ff558f6`, Vast was fast-forwarded and
+    `bash scripts/vast_status_direct.sh` confirmed API health, vLLM pid `5802`,
+    FastAPI pid `53902`, loopback binds, and served LoRA module
+    `biber-dev-core=/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
   - The `ef0cd5e` MVP-loop failure export checkpoint required no service
     restart because it changed only the stdlib client helper, smoke script,
     docs, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid `53902`.
