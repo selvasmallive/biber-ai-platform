@@ -1707,6 +1707,100 @@ def build_repair_chain_summary(
     }
 
 
+def normalize_repair_chain_summary_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_repair_chain_summary":
+        return dict(payload)
+    body = payload.get("body")
+    if (
+        isinstance(body, dict)
+        and body.get("source") == "biber_mvp_loop_repair_chain_summary"
+    ):
+        return dict(body)
+    return None
+
+
+def summarize_repair_chain_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    try:
+        modified_epoch = path.stat().st_mtime
+    except OSError:
+        modified_epoch = 0.0
+    statuses = payload.get("statuses")
+    if not isinstance(statuses, dict):
+        statuses = {}
+    return {
+        "path": str(path),
+        "chain_status": payload.get("chain_status"),
+        "ready_for_human_review": payload.get("ready_for_human_review") is True,
+        "chain_complete": payload.get("chain_complete") is True,
+        "verification_passed": payload.get("verification_passed") is True,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "plan_hash": payload.get("plan_hash"),
+        "test_id": payload.get("test_id"),
+        "review_records": int_count(statuses.get("review_records")),
+        "next_action": payload.get("next_action"),
+        "modified_epoch": modified_epoch,
+    }
+
+
+def list_repair_chain_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    ready_only: bool = False,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(f"Repair chain artifact directory does not exist: {root}")
+    if not root.is_dir():
+        raise BiberAgentClientError(f"Repair chain artifact path is not a directory: {root}")
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(str(path), label="repair-chain artifact")
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_repair_chain_summary_artifact(raw_payload)
+        if normalized is None:
+            continue
+        summary = summarize_repair_chain_artifact(path, normalized)
+        if ready_only and summary.get("ready_for_human_review") is not True:
+            continue
+        artifacts.append(summary)
+
+    artifacts.sort(key=lambda item: float(item.get("modified_epoch") or 0.0), reverse=True)
+    ready_count = sum(
+        1 for item in artifacts if item.get("ready_for_human_review") is True
+    )
+    return {
+        "source": "biber_mvp_loop_repair_chain_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "ready_only": ready_only,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "ready_for_human_review": ready_count,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "artifacts": artifacts[:limit],
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -2295,6 +2389,38 @@ def format_repair_chain_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_repair_chain_artifact_list_summary(payload: Mapping[str, Any]) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER repair chain artifacts",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"ready_only: {payload.get('ready_only', False)}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"ready_for_human_review: {payload.get('ready_for_human_review', 0)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+    ]
+    for artifact in artifacts:
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"status={artifact.get('chain_status', '-')}",
+                    f"ready={artifact.get('ready_for_human_review', False)}",
+                    f"test_id={artifact.get('test_id', '-')}",
+                    f"reviews={artifact.get('review_records', 0)}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -2681,6 +2807,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     show_repair_chain.add_argument("--review-summary")
     show_repair_chain.add_argument("--output")
 
+    list_repair_chains = subparsers.add_parser(
+        "list-repair-chains",
+        help=(
+            "List saved repair-chain summary artifacts under a directory "
+            "without resolving API auth."
+        ),
+    )
+    list_repair_chains.add_argument("directory")
+    list_repair_chains.add_argument("--pattern", default="*repair-chain*.json")
+    list_repair_chains.add_argument("--limit", type=int, default=10)
+    list_repair_chains.add_argument("--ready-only", action="store_true")
+    list_repair_chains.add_argument("--output")
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -2857,6 +2996,21 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(summary, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_chain_summary(summary)
+        )
+    if args.command == "list-repair-chains":
+        artifacts = list_repair_chain_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            ready_only=args.ready_only,
+        )
+        if args.output:
+            artifacts["artifact_path"] = str(Path(args.output))
+            write_json_artifact(artifacts, args.output)
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_artifact_list_summary(artifacts)
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)

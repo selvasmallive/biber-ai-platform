@@ -81,6 +81,7 @@ client_mvp_loop_repair_verify_path = artifact_dir / "agent-client-mvp-loop-repai
 client_mvp_loop_verified_repair_review_path = artifact_dir / "agent-client-mvp-loop-verified-repairs.jsonl"
 client_mvp_loop_verified_repair_review_summary_path = artifact_dir / "agent-client-mvp-loop-verified-repair-review.json"
 client_mvp_loop_repair_chain_path = artifact_dir / "agent-client-mvp-loop-repair-chain.json"
+client_mvp_loop_repair_chain_list_path = artifact_dir / "agent-client-mvp-loop-repair-chain-list.json"
 
 
 def fail(message: str) -> None:
@@ -1365,6 +1366,57 @@ write_artifact(
         "source": str(client_mvp_loop_repair_verify_path),
     },
 )
+try:
+    client_mvp_loop_repair_chain_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-repair-chains",
+            str(artifact_dir),
+            "--ready-only",
+            "--output",
+            str(client_mvp_loop_repair_chain_list_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-repair-chains failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-repair-chains timed out: {exc}")
+try:
+    client_mvp_loop_repair_chain_list = json.loads(
+        client_mvp_loop_repair_chain_list_output
+    )
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py list-repair-chains returned invalid JSON: {exc}")
+if client_mvp_loop_repair_chain_list.get("matched") != 1:
+    fail(f"list-repair-chains matched unexpected artifacts: {client_mvp_loop_repair_chain_list!r}")
+if client_mvp_loop_repair_chain_list.get("ready_for_human_review") != 1:
+    fail(f"list-repair-chains saw unexpected ready count: {client_mvp_loop_repair_chain_list!r}")
+if client_mvp_loop_repair_chain_list.get("training_allowed") is not False:
+    fail(f"list-repair-chains must keep training_allowed=false: {client_mvp_loop_repair_chain_list!r}")
+if client_mvp_loop_repair_chain_list.get("safe_to_train") is not False:
+    fail(f"list-repair-chains must keep safe_to_train=false: {client_mvp_loop_repair_chain_list!r}")
+chain_list_artifacts = client_mvp_loop_repair_chain_list.get("artifacts")
+if not isinstance(chain_list_artifacts, list) or len(chain_list_artifacts) != 1:
+    fail(f"list-repair-chains returned unexpected artifacts: {client_mvp_loop_repair_chain_list!r}")
+if chain_list_artifacts[0].get("path") != str(client_mvp_loop_repair_chain_path):
+    fail(f"list-repair-chains returned unexpected path: {client_mvp_loop_repair_chain_list!r}")
+if chain_list_artifacts[0].get("ready_for_human_review") is not True:
+    fail(f"list-repair-chains omitted readiness: {client_mvp_loop_repair_chain_list!r}")
+if not client_mvp_loop_repair_chain_list_path.exists():
+    fail(f"list-repair-chains did not write {client_mvp_loop_repair_chain_list_path}")
+try:
+    saved_client_mvp_loop_repair_chain_list = json.loads(
+        client_mvp_loop_repair_chain_list_path.read_text(encoding="utf-8")
+    )
+except json.JSONDecodeError as exc:
+    fail(f"list-repair-chains output artifact returned invalid JSON: {exc}")
+if saved_client_mvp_loop_repair_chain_list != client_mvp_loop_repair_chain_list:
+    fail("list-repair-chains output artifact did not match stdout JSON")
 
 chat_payload = {
     "language": "Rust",
@@ -1592,6 +1644,9 @@ summary = {
     "agent_client_mvp_loop_repair_chain_status": client_mvp_loop_repair_chain.get("chain_status"),
     "agent_client_mvp_loop_repair_chain_ready": client_mvp_loop_repair_chain.get("ready_for_human_review"),
     "agent_client_mvp_loop_repair_chain_safe_to_train": client_mvp_loop_repair_chain.get("safe_to_train"),
+    "agent_client_mvp_loop_repair_chain_list": str(client_mvp_loop_repair_chain_list_path),
+    "agent_client_mvp_loop_repair_chain_list_matched": client_mvp_loop_repair_chain_list.get("matched"),
+    "agent_client_mvp_loop_repair_chain_list_ready": client_mvp_loop_repair_chain_list.get("ready_for_human_review"),
     "agent_client_mvp_loop_report_ok": "BIBER MVP loop" in client_mvp_loop_report,
     "agent_client_mvp_loop_test_ok": client_mvp_loop.get("test_ok"),
     "agent_client_test_id": client_test_run.get("test_id"),
