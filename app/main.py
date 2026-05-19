@@ -37,7 +37,11 @@ from app.github_client import (
 )
 from app.llm import BiberChatService, MENTOR_TRIGGER_PHRASE
 from app.model_registry import ModelRegistryError, build_model_registry
-from app.repo_context import RepoContextError, plan_repo_context
+from app.repo_context import (
+    RepoContextError,
+    list_repo_context_stack_profiles,
+    plan_repo_context,
+)
 from app.scheduler import scheduler
 from app.test_runner import (
     TestRunnerConfigurationError,
@@ -271,11 +275,22 @@ class RepoContextCandidate(BaseModel):
     priority: int
 
 
+class RepoContextStackProfile(BaseModel):
+    id: str
+    label: str
+    recommended_test_ids: list[str]
+    manifest_patterns: list[str]
+    entrypoint_patterns: list[str]
+    related_test_patterns: list[str]
+    notes: list[str]
+
+
 class RepoContextPlanResponse(BaseModel):
     selected_paths: list[str]
     detected_project_types: list[str]
     candidates: list[RepoContextCandidate]
     skipped: list[dict[str, str]]
+    stack_profiles: list[RepoContextStackProfile]
     summary: str
 
 
@@ -435,6 +450,8 @@ def _agent_capabilities() -> dict[str, object]:
                 "max_bytes_per_file": settings.repo_context_max_bytes_per_file,
                 "max_total_bytes": settings.repo_context_max_total_bytes,
                 "planner_supported": True,
+                "stack_profiles_supported": True,
+                "stack_profiles": list_repo_context_stack_profiles(),
             },
             "workspace_edit": {
                 "enabled": True,

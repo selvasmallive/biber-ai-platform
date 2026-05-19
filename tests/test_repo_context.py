@@ -188,6 +188,53 @@ def test_plan_repo_context_selects_dotnet_changed_file_and_related_test(
     assert "src/Example.Api/Example.Api.csproj" in selected
     assert ".env" not in selected
     assert "bin/Debug/ignored.dll" not in selected
+    profiles = {profile["id"]: profile for profile in plan["stack_profiles"]}
+    assert profiles["dotnet"]["recommended_test_ids"] == ["dotnet-test"]
+    assert "Program.cs" in profiles["dotnet"]["entrypoint_patterns"]
+
+
+def test_plan_repo_context_selects_java_entrypoint_and_profile(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "README.md").write_text("# Java Example\n", encoding="utf-8")
+    (tmp_path / "pom.xml").write_text("<project />\n", encoding="utf-8")
+    application = (
+        tmp_path
+        / "src"
+        / "main"
+        / "java"
+        / "com"
+        / "example"
+        / "BillingApplication.java"
+    )
+    application.parent.mkdir(parents=True)
+    application.write_text("class BillingApplication {}\n", encoding="utf-8")
+    service = application.parent / "BillingService.java"
+    service.write_text("class BillingService {}\n", encoding="utf-8")
+    test = tmp_path / "src" / "test" / "java" / "com" / "example" / "BillingServiceTest.java"
+    test.parent.mkdir(parents=True)
+    test.write_text("class BillingServiceTest {}\n", encoding="utf-8")
+
+    plan = plan_repo_context(
+        root=str(tmp_path),
+        instruction="Fix BillingService invoice total logic.",
+        changed_paths=["src/main/java/com/example/BillingService.java"],
+        max_files=8,
+    )
+
+    assert "java" in plan["detected_project_types"]
+    selected = plan["selected_paths"]
+    assert "src/main/java/com/example/BillingService.java" in selected
+    assert "src/test/java/com/example/BillingServiceTest.java" in selected
+    assert "pom.xml" in selected
+    assert "src/main/java/com/example/BillingApplication.java" in selected
+    profiles = {profile["id"]: profile for profile in plan["stack_profiles"]}
+    assert profiles["java"]["recommended_test_ids"] == [
+        "maven-test",
+        "gradle-test",
+        "gradle-wrapper-test",
+    ]
+    assert "*Application.java" in profiles["java"]["entrypoint_patterns"]
 
 
 def test_plan_repo_context_rejects_secret_pinned_file(tmp_path: Path) -> None:
@@ -226,6 +273,7 @@ def test_repo_context_plan_endpoint_returns_selected_paths(tmp_path: Path) -> No
     assert body["selected_paths"][0] == "src/service.py"
     assert "python" in body["detected_project_types"]
     assert "tests/test_service.py" in body["selected_paths"]
+    assert body["stack_profiles"] == []
     assert body["summary"].startswith("Detected")
 
 

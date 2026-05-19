@@ -26,7 +26,11 @@ from .github import (
 )
 from .llm import BiberChatService, MENTOR_TRIGGER_PHRASE
 from .model_registry import ModelRegistryError, build_model_registry
-from .repo_context import RepoContextError, plan_repo_context
+from .repo_context import (
+    RepoContextError,
+    list_repo_context_stack_profiles,
+    plan_repo_context,
+)
 from .schemas import (
     AgentSessionRequest,
     AgentSessionResponse,
@@ -176,6 +180,8 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
                 "max_bytes_per_file": settings.repo_context_max_bytes_per_file,
                 "max_total_bytes": settings.repo_context_max_total_bytes,
                 "planner_supported": True,
+                "stack_profiles_supported": True,
+                "stack_profiles": list_repo_context_stack_profiles(),
             },
             "workspace_edit": {
                 "enabled": True,

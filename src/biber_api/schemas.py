@@ -158,11 +158,22 @@ class RepoContextCandidate(BaseModel):
     priority: int
 
 
+class RepoContextStackProfile(BaseModel):
+    id: str
+    label: str
+    recommended_test_ids: list[str]
+    manifest_patterns: list[str]
+    entrypoint_patterns: list[str]
+    related_test_patterns: list[str]
+    notes: list[str]
+
+
 class RepoContextPlanResponse(BaseModel):
     selected_paths: list[str]
     detected_project_types: list[str]
     candidates: list[RepoContextCandidate]
     skipped: list[dict[str, str]]
+    stack_profiles: list[RepoContextStackProfile]
     summary: str
 
 

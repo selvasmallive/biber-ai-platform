@@ -64,7 +64,10 @@ curl -X POST http://localhost:8000/v1/repo/context/plan \
 ```
 
 Use the returned `selected_paths` as `repo_context_paths` for `/v1/chat` or
-`/v1/agent/sessions`.
+`/v1/agent/sessions`. The response also includes stack profiles for detected
+`.NET` and Java projects, including preferred manifest/entrypoint patterns and
+the matching allowlisted test IDs such as `dotnet-test`, `maven-test`,
+`gradle-test`, and `gradle-wrapper-test`.
 
 ## Queue Chat Job Instead Of Immediate Inference
 

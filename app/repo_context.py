@@ -96,6 +96,46 @@ MANIFEST_NAMES = {
     "setup.py",
     "tsconfig.json",
 }
+STACK_CONTEXT_PROFILES = {
+    "dotnet": {
+        "id": "dotnet",
+        "label": ".NET / ASP.NET Core",
+        "recommended_test_ids": ["dotnet-test"],
+        "manifest_patterns": [
+            "*.sln",
+            "*.csproj",
+            "Directory.Build.props",
+            "Directory.Packages.props",
+            "global.json",
+        ],
+        "entrypoint_patterns": ["Program.cs", "Startup.cs"],
+        "related_test_patterns": ["*Tests.cs", "*Test.cs"],
+        "notes": [
+            "Prefer solution and project files before broad source context.",
+            "Pair changed C# files with matching test files when available.",
+            "Avoid appsettings files unless explicitly pinned because they can contain secrets.",
+        ],
+    },
+    "java": {
+        "id": "java",
+        "label": "Java / Spring Boot",
+        "recommended_test_ids": ["maven-test", "gradle-test", "gradle-wrapper-test"],
+        "manifest_patterns": [
+            "pom.xml",
+            "build.gradle",
+            "build.gradle.kts",
+            "settings.gradle",
+            "settings.gradle.kts",
+        ],
+        "entrypoint_patterns": ["*Application.java", "*Application.kt"],
+        "related_test_patterns": ["*Test.java", "*Tests.java", "*IT.java"],
+        "notes": [
+            "Prefer Maven or Gradle files before broad source context.",
+            "Include the Spring Boot application entrypoint when present.",
+            "Pair changed Java/Kotlin files with matching test files when available.",
+        ],
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -104,6 +144,33 @@ class _ContextCandidate:
     reason: str
     priority: int
     project_type: str | None = None
+
+
+def list_repo_context_stack_profiles(
+    project_types: list[str] | tuple[str, ...] | None = None,
+) -> list[dict[str, object]]:
+    selected_types = (
+        sorted(STACK_CONTEXT_PROFILES)
+        if project_types is None
+        else sorted(set(project_types))
+    )
+    profiles: list[dict[str, object]] = []
+    for project_type in selected_types:
+        profile = STACK_CONTEXT_PROFILES.get(project_type)
+        if profile is None:
+            continue
+        profiles.append(
+            {
+                "id": profile["id"],
+                "label": profile["label"],
+                "recommended_test_ids": list(profile["recommended_test_ids"]),
+                "manifest_patterns": list(profile["manifest_patterns"]),
+                "entrypoint_patterns": list(profile["entrypoint_patterns"]),
+                "related_test_patterns": list(profile["related_test_patterns"]),
+                "notes": list(profile["notes"]),
+            }
+        )
+    return profiles
 
 
 def build_repo_context_message(
@@ -298,6 +365,17 @@ def plan_repo_context(
                 priority=30,
             )
 
+    for relative, reason in _stack_entrypoint_files(
+        detected_project_types,
+        scanned_files,
+    ):
+        add_candidate(
+            relative,
+            reason=reason,
+            priority=35,
+            project_type=_project_type_for_source(relative),
+        )
+
     for relative in scanned_files:
         if relative.name.lower().startswith("readme"):
             add_candidate(relative, reason="repository overview", priority=40)
@@ -330,6 +408,7 @@ def plan_repo_context(
             for candidate in selected
         ],
         "skipped": skipped,
+        "stack_profiles": list_repo_context_stack_profiles(detected_project_types),
         "summary": summary,
     }
 
@@ -451,6 +530,26 @@ def _looks_like_test_path(path: Path) -> bool:
         or stem.endswith("test")
         or stem.endswith("tests")
     )
+
+
+def _stack_entrypoint_files(
+    detected_project_types: list[str],
+    scanned_files: list[Path],
+) -> list[tuple[Path, str]]:
+    project_types = set(detected_project_types)
+    matches: list[tuple[Path, str]] = []
+    for relative in scanned_files:
+        name = relative.name.lower()
+        path_text = relative.as_posix().lower()
+        if "dotnet" in project_types and name in {"program.cs", "startup.cs"}:
+            matches.append((relative, "dotnet entrypoint"))
+        if (
+            "java" in project_types
+            and "src/main/" in path_text
+            and (name.endswith("application.java") or name.endswith("application.kt"))
+        ):
+            matches.append((relative, "java application entrypoint"))
+    return sorted(matches, key=lambda item: item[0].as_posix())[:8]
 
 
 def _instruction_matched_files(instruction: str, scanned_files: list[Path]) -> list[Path]:
