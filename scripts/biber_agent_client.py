@@ -3113,6 +3113,154 @@ def export_ready_repair_chain_eval_prompts(
     }
 
 
+def is_repair_chain_heldout_eval_result(row: Mapping[str, Any]) -> bool:
+    prompt_id = str(row.get("id") or "")
+    return prompt_id.startswith("repair_chain_")
+
+
+def summarize_repair_chain_heldout_eval_result(
+    *,
+    row: Mapping[str, Any],
+    jsonl_path: str,
+    jsonl_index: int,
+) -> dict[str, Any]:
+    matched = [str(item) for item in require_list(row.get("matched_expectations"))]
+    missing = [str(item) for item in require_list(row.get("missing_expectations"))]
+    validation_ok = row.get("validation_ok")
+    passed = (
+        row.get("ok") is True
+        and row.get("expectation_ok") is True
+        and validation_ok is not False
+        and not row.get("error")
+    )
+    return {
+        "id": str(row.get("id") or ""),
+        "jsonl_path": jsonl_path,
+        "jsonl_index": jsonl_index,
+        "passed": passed,
+        "ok": row.get("ok") is True,
+        "expectation_ok": row.get("expectation_ok") is True,
+        "validation_ok": validation_ok,
+        "validation_skipped": row.get("validation_skipped") is True,
+        "model": row.get("model"),
+        "latency_seconds": row.get("latency_seconds"),
+        "matched_expectations": matched,
+        "missing_expectations": missing,
+        "error": row.get("error"),
+        "content_preview": compact_text(row.get("content"), max_chars=400),
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+    }
+
+
+def review_repair_chain_heldout_eval_results(
+    *,
+    jsonl_paths: list[str],
+    min_passes: int,
+    summary_path: str | None,
+) -> dict[str, Any]:
+    if min_passes < 1:
+        raise BiberAgentClientError("--min-passes must be at least 1.")
+
+    records: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for jsonl_path in jsonl_paths:
+        for index, row in enumerate(
+            load_jsonl_artifact(
+                jsonl_path,
+                label="repair-chain held-out eval result JSONL",
+            ),
+            start=1,
+        ):
+            if not is_repair_chain_heldout_eval_result(row):
+                rejected.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "reason": "unsupported_eval_result_id",
+                        "id": row.get("id"),
+                        "source": row.get("source"),
+                    }
+                )
+                continue
+            records.append(
+                summarize_repair_chain_heldout_eval_result(
+                    row=row,
+                    jsonl_path=jsonl_path,
+                    jsonl_index=index,
+                )
+            )
+
+    passed_records = sum(1 for record in records if record.get("passed") is True)
+    failed_records = len(records) - passed_records
+    expectation_failed_records = sum(
+        1 for record in records if record.get("expectation_ok") is not True
+    )
+    validation_failed_records = sum(
+        1 for record in records if record.get("validation_ok") is False
+    )
+    error_records = sum(1 for record in records if record.get("error"))
+    model_counts: dict[str, int] = {}
+    for record in records:
+        model = str(record.get("model") or "unknown")
+        model_counts[model] = model_counts.get(model, 0) + 1
+    records.sort(
+        key=lambda item: (
+            item.get("passed") is True,
+            str(item.get("id") or ""),
+            int(item.get("jsonl_index") or 0),
+        )
+    )
+
+    summary = load_json_artifact(
+        summary_path,
+        label="repair-chain held-out eval summary",
+    ) if summary_path else {}
+    review_ok = (
+        passed_records >= min_passes
+        and failed_records == 0
+        and len(rejected) == 0
+    )
+    return {
+        "source": "biber_mvp_loop_repair_chain_heldout_eval_review",
+        "review_status": (
+            "heldout_eval_passed" if review_ok else "heldout_eval_needs_review"
+        ),
+        "ok": review_ok,
+        "records": len(records),
+        "passed_records": passed_records,
+        "failed_records": failed_records,
+        "expectation_failed_records": expectation_failed_records,
+        "validation_failed_records": validation_failed_records,
+        "error_records": error_records,
+        "rejected_records": len(rejected),
+        "min_passes": min_passes,
+        "model_counts": model_counts,
+        "summary_path": summary_path,
+        "summary_prompts": summary.get("prompts"),
+        "summary_ok": summary.get("ok"),
+        "summary_failed": summary.get("failed"),
+        "summary_expectation_ok": summary.get("expectation_ok"),
+        "summary_expectation_failed": summary.get("expectation_failed"),
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "jsonl_paths": list(jsonl_paths),
+        "results": records,
+        "rejected": rejected,
+        "next_review_action": (
+            "manual_review_heldout_eval_before_training_or_model_promotion"
+        ),
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -4041,6 +4189,47 @@ def format_ready_repair_chain_eval_prompt_export_summary(
     )
 
 
+def format_repair_chain_heldout_eval_review_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    results = [
+        item
+        for item in require_list(payload.get("results"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER repair-chain held-out eval review",
+        f"ok: {payload.get('ok', False)}",
+        f"review_status: {payload.get('review_status', '-')}",
+        f"records: {payload.get('records', 0)}",
+        f"passed_records: {payload.get('passed_records', 0)}",
+        f"failed_records: {payload.get('failed_records', 0)}",
+        f"expectation_failed_records: {payload.get('expectation_failed_records', 0)}",
+        f"validation_failed_records: {payload.get('validation_failed_records', 0)}",
+        f"error_records: {payload.get('error_records', 0)}",
+        f"rejected_records: {payload.get('rejected_records', 0)}",
+        f"min_passes: {payload.get('min_passes', 1)}",
+        f"model_counts: {payload.get('model_counts', {})}",
+        f"summary_path: {payload.get('summary_path', '-')}",
+        f"eval_only: {payload.get('eval_only', True)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"approved_for_training: {payload.get('approved_for_training', False)}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    lines.extend(
+        (
+            f"- id={result.get('id', '-')} "
+            f"passed={result.get('passed', False)} "
+            f"expectation_ok={result.get('expectation_ok', False)} "
+            f"model={result.get('model', '-')}"
+        )
+        for result in results[:8]
+    )
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -4612,6 +4801,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     export_ready_repair_chain_eval_prompts.add_argument("--output", required=True)
 
+    review_repair_chain_heldout_eval_results = subparsers.add_parser(
+        "review-repair-chain-heldout-eval-results",
+        help=(
+            "Review repair-chain held-out live-eval results without promoting "
+            "them to training or GitHub save."
+        ),
+    )
+    review_repair_chain_heldout_eval_results.add_argument("jsonl", nargs="+")
+    review_repair_chain_heldout_eval_results.add_argument("--summary")
+    review_repair_chain_heldout_eval_results.add_argument(
+        "--min-passes",
+        type=int,
+        default=1,
+    )
+    review_repair_chain_heldout_eval_results.add_argument("--output")
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -4946,6 +5151,20 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(export, indent=2, sort_keys=True)
             if args.print_json
             else format_ready_repair_chain_eval_prompt_export_summary(export)
+        )
+    if args.command == "review-repair-chain-heldout-eval-results":
+        review = review_repair_chain_heldout_eval_results(
+            jsonl_paths=args.jsonl,
+            min_passes=args.min_passes,
+            summary_path=args.summary,
+        )
+        if args.output:
+            review["artifact_path"] = str(Path(args.output))
+            write_json_artifact(review, args.output)
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_heldout_eval_review_summary(review)
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)

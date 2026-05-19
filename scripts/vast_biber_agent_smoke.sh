@@ -94,6 +94,9 @@ client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_path = artifact_
 client_mvp_loop_ready_repair_chain_eval_dataset_path = artifact_dir / "agent-client-mvp-loop-ready-repair-chain-eval-dataset.jsonl"
 client_mvp_loop_ready_repair_chain_eval_dataset_validation_path = artifact_dir / "agent-client-mvp-loop-ready-repair-chain-eval-dataset-validation.json"
 client_mvp_loop_ready_repair_chain_eval_prompts_path = artifact_dir / "agent-client-mvp-loop-ready-repair-chain-eval-prompts.jsonl"
+client_mvp_loop_ready_repair_chain_heldout_eval_path = artifact_dir / "agent-client-mvp-loop-repair-chain-heldout-eval.jsonl"
+client_mvp_loop_ready_repair_chain_heldout_eval_summary_path = artifact_dir / "agent-client-mvp-loop-repair-chain-heldout-eval.summary.json"
+client_mvp_loop_ready_repair_chain_heldout_eval_review_path = artifact_dir / "agent-client-mvp-loop-repair-chain-heldout-eval-review.json"
 
 
 def fail(message: str) -> None:
@@ -2201,6 +2204,107 @@ write_artifact(
         "source": str(client_mvp_loop_ready_repair_chain_eval_dataset_path),
     },
 )
+heldout_eval_record = {
+    "id": eval_prompt_row.get("id"),
+    "ok": True,
+    "expectation_ok": True,
+    "validation_ok": None,
+    "validation_skipped": False,
+    "model": "biber-dev-core-v1",
+    "latency_seconds": 0.0,
+    "content": "Repair:\nsmall safe fix\nTest:\npython-compileall-api\nRisk:\nlow",
+    "matched_expectations": ["Repair", "Test", "Risk"],
+    "missing_expectations": [],
+    "error": None,
+}
+client_mvp_loop_ready_repair_chain_heldout_eval_path.write_text(
+    json.dumps(heldout_eval_record, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+client_mvp_loop_ready_repair_chain_heldout_eval_summary_path.write_text(
+    json.dumps(
+        {
+            "prompts": 1,
+            "ok": 1,
+            "failed": 0,
+            "expectation_ok": 1,
+            "expectation_failed": 0,
+        },
+        indent=2,
+        sort_keys=True,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+try:
+    client_mvp_loop_ready_repair_chain_heldout_eval_review_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "review-repair-chain-heldout-eval-results",
+            str(client_mvp_loop_ready_repair_chain_heldout_eval_path),
+            "--summary",
+            str(client_mvp_loop_ready_repair_chain_heldout_eval_summary_path),
+            "--output",
+            str(client_mvp_loop_ready_repair_chain_heldout_eval_review_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py review-repair-chain-heldout-eval-results failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py review-repair-chain-heldout-eval-results timed out: {exc}")
+try:
+    client_mvp_loop_ready_repair_chain_heldout_eval_review = json.loads(
+        client_mvp_loop_ready_repair_chain_heldout_eval_review_output
+    )
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py review-repair-chain-heldout-eval-results returned invalid JSON: {exc}")
+if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("ok") is not True:
+    fail(f"held-out eval review should pass synthetic smoke evidence: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("records") != 1:
+    fail(f"held-out eval review saw unexpected records: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("passed_records") != 1:
+    fail(f"held-out eval review saw unexpected passed count: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("failed_records") != 0:
+    fail(f"held-out eval review saw unexpected failures: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("eval_only") is not True:
+    fail(f"held-out eval review must mark eval_only=true: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("training_allowed") is not False:
+    fail(f"held-out eval review must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("safe_to_train") is not False:
+    fail(f"held-out eval review must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("github_save_ready") is not False:
+    fail(f"held-out eval review must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("approved_for_training") is not False:
+    fail(f"held-out eval review must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
+if not client_mvp_loop_ready_repair_chain_heldout_eval_review_path.exists():
+    fail(f"held-out eval review did not write {client_mvp_loop_ready_repair_chain_heldout_eval_review_path}")
+try:
+    saved_client_mvp_loop_ready_repair_chain_heldout_eval_review = json.loads(
+        client_mvp_loop_ready_repair_chain_heldout_eval_review_path.read_text(
+            encoding="utf-8"
+        )
+    )
+except json.JSONDecodeError as exc:
+    fail(f"held-out eval review output artifact was invalid JSON: {exc}")
+if (
+    saved_client_mvp_loop_ready_repair_chain_heldout_eval_review
+    != client_mvp_loop_ready_repair_chain_heldout_eval_review
+):
+    fail("held-out eval review output artifact did not match stdout JSON")
+write_artifact(
+    "agent-client-mvp-loop-repair-chain-heldout-eval-review-result.json",
+    {
+        "status": 0,
+        "body": client_mvp_loop_ready_repair_chain_heldout_eval_review,
+        "output": str(client_mvp_loop_ready_repair_chain_heldout_eval_review_path),
+        "source": str(client_mvp_loop_ready_repair_chain_heldout_eval_path),
+    },
+)
 
 chat_payload = {
     "language": "Rust",
@@ -2469,6 +2573,10 @@ summary = {
     "agent_client_mvp_loop_ready_repair_chain_eval_prompts": str(client_mvp_loop_ready_repair_chain_eval_prompts_path),
     "agent_client_mvp_loop_ready_repair_chain_eval_prompts_records": client_mvp_loop_ready_repair_chain_eval_prompts.get("records"),
     "agent_client_mvp_loop_ready_repair_chain_eval_prompts_eval_only": client_mvp_loop_ready_repair_chain_eval_prompts.get("eval_only"),
+    "agent_client_mvp_loop_ready_repair_chain_heldout_eval": str(client_mvp_loop_ready_repair_chain_heldout_eval_path),
+    "agent_client_mvp_loop_ready_repair_chain_heldout_eval_review": str(client_mvp_loop_ready_repair_chain_heldout_eval_review_path),
+    "agent_client_mvp_loop_ready_repair_chain_heldout_eval_review_ok": client_mvp_loop_ready_repair_chain_heldout_eval_review.get("ok"),
+    "agent_client_mvp_loop_ready_repair_chain_heldout_eval_review_passed": client_mvp_loop_ready_repair_chain_heldout_eval_review.get("passed_records"),
     "agent_client_mvp_loop_report_ok": "BIBER MVP loop" in client_mvp_loop_report,
     "agent_client_mvp_loop_test_ok": client_mvp_loop.get("test_ok"),
     "agent_client_test_id": client_test_run.get("test_id"),

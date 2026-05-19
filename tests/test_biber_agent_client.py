@@ -2936,6 +2936,113 @@ def test_run_export_ready_repair_chain_eval_prompts_without_api_key(
     assert "Repair, Test, Risk" in rows[0]["prompt"]
 
 
+def test_run_review_repair_chain_heldout_eval_results_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "review-repair-chain-heldout-eval-results should not resolve an API key"
+        )
+
+    jsonl_path = tmp_path / "heldout-results.jsonl"
+    summary_path = tmp_path / "heldout-summary.json"
+    output_path = tmp_path / "heldout-review.json"
+    records = [
+        {
+            "id": "repair_chain_python_compileall_api_abc123",
+            "ok": True,
+            "expectation_ok": True,
+            "validation_ok": None,
+            "validation_skipped": False,
+            "model": "biber-dev-core-v1",
+            "latency_seconds": 1.25,
+            "content": "Repair:\nsmall fix\nTest:\npython-compileall-api\nRisk:\nlow",
+            "matched_expectations": ["Repair", "Test", "Risk"],
+            "missing_expectations": [],
+            "error": None,
+        },
+        {
+            "id": "repair_chain_python_compileall_api_def456",
+            "ok": True,
+            "expectation_ok": False,
+            "validation_ok": None,
+            "validation_skipped": False,
+            "model": "biber-dev-core-v1",
+            "latency_seconds": 1.1,
+            "content": "Repair:\nsmall fix\nTest:\npython-compileall-api",
+            "matched_expectations": ["Repair", "Test"],
+            "missing_expectations": ["Risk"],
+            "error": None,
+        },
+        {
+            "id": "python_add_function",
+            "ok": True,
+            "expectation_ok": True,
+        },
+    ]
+    jsonl_path.write_text(
+        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+        encoding="utf-8",
+    )
+    summary_path.write_text(
+        json.dumps(
+            {
+                "prompts": 2,
+                "ok": 2,
+                "failed": 0,
+                "expectation_ok": 1,
+                "expectation_failed": 1,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-repair-chain-heldout-eval-results",
+                str(jsonl_path),
+                "--summary",
+                str(summary_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["source"] == "biber_mvp_loop_repair_chain_heldout_eval_review"
+    assert result["review_status"] == "heldout_eval_needs_review"
+    assert result["ok"] is False
+    assert result["records"] == 2
+    assert result["passed_records"] == 1
+    assert result["failed_records"] == 1
+    assert result["expectation_failed_records"] == 1
+    assert result["validation_failed_records"] == 0
+    assert result["error_records"] == 0
+    assert result["rejected_records"] == 1
+    assert result["model_counts"] == {"biber-dev-core-v1": 2}
+    assert result["summary_prompts"] == 2
+    assert result["summary_expectation_failed"] == 1
+    assert result["eval_only"] is True
+    assert result["training_allowed"] is False
+    assert result["eligible_for_training"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+    assert result["results"][0]["id"] == "repair_chain_python_compileall_api_def456"
+    assert result["results"][0]["passed"] is False
+    assert result["results"][0]["missing_expectations"] == ["Risk"]
+    assert result["rejected"][0]["reason"] == "unsupported_eval_result_id"
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 
