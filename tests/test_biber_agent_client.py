@@ -387,6 +387,34 @@ def test_build_github_payloads_and_summaries() -> None:
     )
 
 
+def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
+    output = client.format_mvp_loop_summary(
+        {
+            "ok": False,
+            "selected_context_paths": ["README.md"],
+            "edit_plan_hash": "a" * 64,
+            "test_ok": False,
+            "diagnosis_summary": "Detected compile_error in dotnet output.",
+            "github_url": "https://github.com/acme/repo/blob/main/generated/a.txt",
+            "pull_request_url": "https://github.com/acme/repo/pull/42",
+            "steps": {
+                "context_plan": {},
+                "edit_plan": {},
+                "test_run": {},
+                "test_diagnosis": {},
+                "github_save": {},
+                "github_pull_request": {},
+            },
+        }
+    )
+
+    assert "BIBER MVP loop" in output
+    assert "ok: False" in output
+    assert "selected_context_paths: 1" in output
+    assert "test_ok: False" in output
+    assert "pull_request_url: https://github.com/acme/repo/pull/42" in output
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 
@@ -1038,3 +1066,226 @@ def test_run_create_pr_json_uses_client_workflow(monkeypatch, tmp_path: Path) ->
         "draft": False,
     }
     assert json.loads(output)["number"] == 42
+
+
+def test_run_mvp_loop_json_chains_safe_workflow(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+    save_file = tmp_path / "save.txt"
+    save_file.write_text("BIBER saved output\n", encoding="utf-8")
+    pr_body_file = tmp_path / "pr-body.md"
+    pr_body_file.write_text("Ready for review.\n", encoding="utf-8")
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_plan_repo_context(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["context_payload"] = payload
+        return {
+            "selected_paths": ["README.md"],
+            "detected_project_types": ["python"],
+            "candidates": [],
+            "skipped": [],
+            "stack_profiles": [],
+            "summary": "Detected python.",
+        }
+
+    def fake_plan_workspace_edit(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["edit_plan_payload"] = payload
+        return {
+            "ok": True,
+            "plan_hash": "d" * 64,
+            "planned": [{"path": "generated/a.txt"}],
+            "rejected": [],
+            "files_touched": 1,
+            "summary": "Planned 1 edit.",
+        }
+
+    def fake_apply_workspace_edit_plan(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["edit_apply_payload"] = payload
+        return {
+            "ok": True,
+            "plan_hash": "d" * 64,
+            "applied": [{"path": "generated/a.txt", "changed": True}],
+            "files_touched": 1,
+            "summary": "Applied 1 edit.",
+        }
+
+    def fake_run_allowlisted_test(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["test_payload"] = payload
+        return {
+            "test_id": "dotnet-test",
+            "label": ".NET test",
+            "description": "Run dotnet test.",
+            "cwd": "/workspace/repo",
+            "command": ["dotnet", "test", "--nologo"],
+            "timeout_seconds": 300,
+            "executed": True,
+            "ok": False,
+            "exit_code": 1,
+            "timed_out": False,
+            "duration_ms": 10,
+            "stdout": "Example.cs(7,1): error CS1002: ; expected\n",
+            "stderr": "",
+            "stdout_truncated": False,
+            "stderr_truncated": False,
+        }
+
+    def fake_diagnose_test_failure(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["diagnosis_payload"] = payload
+        return {
+            "has_failure": True,
+            "primary_category": "compile_error",
+            "detected_stack": "dotnet",
+            "signals": [],
+            "relevant_output": "Example.cs(7,1): error CS1002: ; expected",
+            "suggested_next_actions": [],
+            "summary": "Detected compile_error in dotnet output with 1 signal.",
+        }
+
+    def fake_save_to_github(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["github_save_payload"] = payload
+        return {"url": "https://github.com/acme/biber/blob/biber/loop/generated/a.txt"}
+
+    def fake_create_github_pull_request(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["github_pr_payload"] = payload
+        return {"url": "https://github.com/acme/biber/pull/42", "number": 42}
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "plan_repo_context", fake_plan_repo_context)
+    monkeypatch.setattr(client, "plan_workspace_edit", fake_plan_workspace_edit)
+    monkeypatch.setattr(client, "apply_workspace_edit_plan", fake_apply_workspace_edit_plan)
+    monkeypatch.setattr(client, "run_allowlisted_test", fake_run_allowlisted_test)
+    monkeypatch.setattr(client, "diagnose_test_failure", fake_diagnose_test_failure)
+    monkeypatch.setattr(client, "save_to_github", fake_save_to_github)
+    monkeypatch.setattr(
+        client,
+        "create_github_pull_request",
+        fake_create_github_pull_request,
+    )
+
+    edit_json = json.dumps(
+        {"path": "generated/a.txt", "new_text": "hello\n", "create_if_missing": True}
+    )
+    args = client.parse_args(
+        [
+            "--json",
+            "mvp-loop",
+            "--instruction",
+            "Fix a .NET compile error.",
+            "--pinned-path",
+            "README.md",
+            "--changed-path",
+            "src/App.cs",
+            "--max-context-files",
+            "4",
+            "--edit-json",
+            edit_json,
+            "--apply-edits",
+            "--max-edit-files",
+            "2",
+            "--test-id",
+            "dotnet-test",
+            "--max-context-lines",
+            "30",
+            "--save-github-path",
+            "generated/a.txt",
+            "--save-content-file",
+            str(save_file),
+            "--github-owner",
+            "acme",
+            "--github-repo",
+            "biber",
+            "--github-branch",
+            "biber/loop",
+            "--github-base-branch",
+            "main",
+            "--create-branch-if-missing",
+            "--commit-message",
+            "Save MVP loop output",
+            "--create-pr",
+            "--pr-title",
+            "Save MVP loop output",
+            "--pr-body-file",
+            str(pr_body_file),
+        ]
+    )
+
+    output = client.run(args)
+    result = json.loads(output)
+
+    assert result["ok"] is False
+    assert result["selected_context_paths"] == ["README.md"]
+    assert set(result["steps"]) == {
+        "context_plan",
+        "edit_plan",
+        "edit_apply",
+        "test_run",
+        "test_diagnosis",
+        "github_save",
+        "github_pull_request",
+    }
+    assert captured["context_payload"] == {
+        "instruction": "Fix a .NET compile error.",
+        "pinned_paths": ["README.md"],
+        "changed_paths": ["src/App.cs"],
+        "max_files": 4,
+    }
+    assert captured["edit_apply_payload"] == {
+        "edits": [{"path": "generated/a.txt", "new_text": "hello\n", "create_if_missing": True}],
+        "max_files": 2,
+        "plan_hash": "d" * 64,
+    }
+    assert captured["test_payload"] == {"test_id": "dotnet-test"}
+    assert captured["diagnosis_payload"]["max_context_lines"] == 30
+    assert captured["github_save_payload"]["content"] == "BIBER saved output\n"
+    assert captured["github_pr_payload"] == {
+        "head": "biber/loop",
+        "base": "main",
+        "title": "Save MVP loop output",
+        "body": "Ready for review.\n",
+        "owner": "acme",
+        "repo": "biber",
+        "draft": True,
+    }

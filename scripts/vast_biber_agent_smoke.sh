@@ -63,6 +63,7 @@ github_mode = os.environ["GITHUB_MODE"].strip().lower()
 smoke_id = os.environ["SMOKE_ID"]
 script_dir = Path(os.environ["SCRIPT_DIR"])
 client_edit_smoke_path = f".biber-runtime/agent-client-edit-smoke-{smoke_id}.txt"
+client_mvp_loop_smoke_path = f".biber-runtime/agent-client-mvp-loop-smoke-{smoke_id}.txt"
 
 
 def fail(message: str) -> None:
@@ -541,6 +542,74 @@ write_artifact(
     {"status": 0, "body": client_edit_apply},
 )
 
+client_mvp_loop_edit = {
+    "path": client_mvp_loop_smoke_path,
+    "new_text": f"BIBER agent client MVP loop smoke {smoke_id}\n",
+    "create_if_missing": True,
+}
+if Path(client_mvp_loop_smoke_path).exists():
+    fail(f"agent client MVP loop smoke path already exists: {client_mvp_loop_smoke_path}")
+
+try:
+    client_mvp_loop_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "--timeout-seconds",
+            "180",
+            "mvp-loop",
+            "--instruction",
+            "Run a small MVP loop smoke with README.md context.",
+            "--pinned-path",
+            "README.md",
+            "--changed-path",
+            "docs/API_EXAMPLES.md",
+            "--max-context-files",
+            "5",
+            "--edit-json",
+            json.dumps(client_mvp_loop_edit),
+            "--apply-edits",
+            "--max-edit-files",
+            "2",
+            "--test-id",
+            "python-compileall-api",
+            "--max-context-lines",
+            "40",
+        ],
+        env=client_env,
+        text=True,
+        timeout=180,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py mvp-loop failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py mvp-loop timed out: {exc}")
+try:
+    client_mvp_loop = json.loads(client_mvp_loop_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py mvp-loop returned invalid JSON: {exc}")
+if client_mvp_loop.get("ok") is not True:
+    fail(f"agent client mvp-loop did not return ok=true: {client_mvp_loop!r}")
+client_mvp_steps = client_mvp_loop.get("steps")
+if not isinstance(client_mvp_steps, dict):
+    fail(f"agent client mvp-loop did not return steps: {client_mvp_loop!r}")
+for required_step in ("context_plan", "edit_plan", "edit_apply", "test_run"):
+    if required_step not in client_mvp_steps:
+        fail(f"agent client mvp-loop omitted {required_step}: {client_mvp_steps!r}")
+if client_mvp_loop.get("test_ok") is not True:
+    fail(f"agent client mvp-loop test did not pass: {client_mvp_loop!r}")
+client_mvp_loop_applied_path = Path(client_mvp_loop_smoke_path)
+if not client_mvp_loop_applied_path.exists():
+    fail(f"agent client mvp-loop did not write {client_mvp_loop_smoke_path}")
+if client_mvp_loop_applied_path.read_text(encoding="utf-8") != client_mvp_loop_edit["new_text"]:
+    fail(f"agent client mvp-loop wrote unexpected content to {client_mvp_loop_smoke_path}")
+client_mvp_loop_applied_path.unlink()
+write_artifact(
+    "agent-client-mvp-loop.json",
+    {"status": 0, "body": client_mvp_loop},
+)
+
 chat_payload = {
     "language": "Rust",
     "model": "biber-dev-core-v1",
@@ -727,6 +796,9 @@ summary = {
     "agent_client_context_paths": selected_context_paths,
     "agent_client_edit_path": client_edit_smoke_path,
     "agent_client_edit_plan_hash": client_edit_plan_hash,
+    "agent_client_mvp_loop_path": client_mvp_loop_smoke_path,
+    "agent_client_mvp_loop_steps": sorted(client_mvp_steps.keys()),
+    "agent_client_mvp_loop_test_ok": client_mvp_loop.get("test_ok"),
     "agent_client_test_id": client_test_run.get("test_id"),
     "agent_client_test_ok": client_test_run.get("ok"),
     "agent_client_diagnosis_category": client_diagnosis.get("primary_category"),

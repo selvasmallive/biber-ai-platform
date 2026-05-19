@@ -698,6 +698,27 @@ def format_github_pull_request_summary(payload: Mapping[str, Any]) -> str:
     )
 
 
+def format_mvp_loop_summary(payload: Mapping[str, Any]) -> str:
+    steps = require_mapping(payload.get("steps"))
+    lines = [
+        "BIBER MVP loop",
+        f"ok: {bool(payload.get('ok'))}",
+        f"selected_context_paths: {len(require_list(payload.get('selected_context_paths')))}",
+        f"steps: {', '.join(steps.keys()) if steps else '-'}",
+    ]
+    if payload.get("edit_plan_hash"):
+        lines.append(f"edit_plan_hash: {payload.get('edit_plan_hash')}")
+    if "test_ok" in payload:
+        lines.append(f"test_ok: {payload.get('test_ok')}")
+    if payload.get("diagnosis_summary"):
+        lines.append(f"diagnosis: {payload.get('diagnosis_summary')}")
+    if payload.get("github_url"):
+        lines.append(f"github_url: {payload.get('github_url')}")
+    if payload.get("pull_request_url"):
+        lines.append(f"pull_request_url: {payload.get('pull_request_url')}")
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -974,6 +995,45 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     create_pr.add_argument("--repo")
     create_pr.add_argument("--ready", action="store_true", help="Create a non-draft PR.")
 
+    mvp_loop = subparsers.add_parser(
+        "mvp-loop",
+        help=(
+            "Run a bounded MVP client flow: context, optional edits, optional "
+            "test/diagnosis, optional GitHub save/PR."
+        ),
+    )
+    mvp_loop.add_argument("--instruction", required=True)
+    mvp_loop.add_argument("--pinned-path", action="append", default=None)
+    mvp_loop.add_argument("--changed-path", action="append", default=None)
+    mvp_loop.add_argument("--max-context-files", type=int)
+    mvp_loop.add_argument("--max-scan-files", type=int)
+    mvp_loop.add_argument("--edit-json", action="append", default=None)
+    mvp_loop.add_argument("--edits-file")
+    mvp_loop.add_argument("--apply-edits", action="store_true")
+    mvp_loop.add_argument("--max-edit-files", type=int)
+    mvp_loop.add_argument("--test-id")
+    mvp_loop.add_argument("--test-dry-run", action="store_true")
+    mvp_loop.add_argument("--max-context-lines", type=int)
+    mvp_loop.add_argument("--save-github-path")
+    mvp_loop.add_argument("--save-content")
+    mvp_loop.add_argument("--save-content-file")
+    mvp_loop.add_argument("--github-owner")
+    mvp_loop.add_argument("--github-repo")
+    mvp_loop.add_argument("--github-branch", default="main")
+    mvp_loop.add_argument("--github-base-branch")
+    mvp_loop.add_argument("--create-branch-if-missing", action="store_true")
+    mvp_loop.add_argument(
+        "--commit-message",
+        default="Save BIBER MVP loop output",
+    )
+    mvp_loop.add_argument("--create-pr", action="store_true")
+    mvp_loop.add_argument("--pr-head")
+    mvp_loop.add_argument("--pr-base", default="main")
+    mvp_loop.add_argument("--pr-title")
+    mvp_loop.add_argument("--pr-body", default=None)
+    mvp_loop.add_argument("--pr-body-file")
+    mvp_loop.add_argument("--pr-ready", action="store_true")
+
     args = parser.parse_args(argv)
     if args.command is None:
         args.command = "capabilities"
@@ -1234,6 +1294,171 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_github_pull_request_summary(result)
+        )
+    if args.command == "mvp-loop":
+        steps: dict[str, Any] = {}
+        context_plan = plan_repo_context(
+            base_url=base_url,
+            api_key=api_key,
+            payload=build_repo_context_payload(
+                instruction=args.instruction,
+                pinned_paths=args.pinned_path,
+                changed_paths=args.changed_path,
+                max_files=args.max_context_files,
+                max_scan_files=args.max_scan_files,
+            ),
+            timeout_seconds=args.timeout_seconds,
+        )
+        steps["context_plan"] = context_plan
+
+        selected_context_paths = [
+            str(path) for path in require_list(context_plan.get("selected_paths"))
+        ]
+        summary: dict[str, Any] = {
+            "ok": True,
+            "selected_context_paths": selected_context_paths,
+            "steps": steps,
+        }
+
+        has_edits = bool(args.edit_json or args.edits_file)
+        if has_edits:
+            edits = load_workspace_edits(
+                edit_json_values=args.edit_json,
+                edits_file=args.edits_file,
+            )
+            edit_payload = build_workspace_edit_payload(
+                edits=edits,
+                max_files=args.max_edit_files,
+            )
+            edit_plan = plan_workspace_edit(
+                base_url=base_url,
+                api_key=api_key,
+                payload=edit_payload,
+                timeout_seconds=args.timeout_seconds,
+            )
+            steps["edit_plan"] = edit_plan
+            summary["edit_plan_hash"] = edit_plan.get("plan_hash")
+            if edit_plan.get("ok") is not True:
+                summary["ok"] = False
+            elif args.apply_edits:
+                plan_hash = str(edit_plan.get("plan_hash") or "")
+                if len(plan_hash) != 64:
+                    raise BiberAgentClientError(
+                        "mvp-loop edit plan returned an invalid plan_hash."
+                    )
+                edit_apply = apply_workspace_edit_plan(
+                    base_url=base_url,
+                    api_key=api_key,
+                    payload=build_workspace_edit_payload(
+                        edits=edits,
+                        max_files=args.max_edit_files,
+                        plan_hash=plan_hash,
+                    ),
+                    timeout_seconds=args.timeout_seconds,
+                )
+                steps["edit_apply"] = edit_apply
+                if edit_apply.get("ok") is not True:
+                    summary["ok"] = False
+        elif args.apply_edits:
+            raise BiberAgentClientError("--apply-edits requires --edit-json or --edits-file.")
+
+        if args.test_id:
+            test_run = run_allowlisted_test(
+                base_url=base_url,
+                api_key=api_key,
+                payload=build_test_run_payload(
+                    test_id=args.test_id,
+                    dry_run=args.test_dry_run,
+                ),
+                timeout_seconds=args.timeout_seconds,
+            )
+            steps["test_run"] = test_run
+            summary["test_ok"] = test_run.get("ok")
+            if test_run.get("executed") is True and test_run.get("ok") is False:
+                diagnosis = diagnose_test_failure(
+                    base_url=base_url,
+                    api_key=api_key,
+                    payload=build_diagnosis_payload_from_test_run(
+                        test_run,
+                        max_context_lines=args.max_context_lines,
+                    ),
+                    timeout_seconds=args.timeout_seconds,
+                )
+                steps["test_diagnosis"] = diagnosis
+                summary["diagnosis_summary"] = diagnosis.get("summary")
+                summary["ok"] = False
+
+        if args.save_github_path:
+            content = load_text_argument(
+                value=args.save_content,
+                file_path=args.save_content_file,
+                label="--save-content",
+            )
+            if not content:
+                raise BiberAgentClientError(
+                    "--save-github-path requires --save-content or --save-content-file."
+                )
+            github_save = save_to_github(
+                base_url=base_url,
+                api_key=api_key,
+                payload=build_github_save_payload(
+                    path=args.save_github_path,
+                    content=content,
+                    owner=args.github_owner,
+                    repo=args.github_repo,
+                    branch=args.github_branch,
+                    base_branch=args.github_base_branch,
+                    create_branch_if_missing=args.create_branch_if_missing,
+                    commit_message=args.commit_message,
+                ),
+                timeout_seconds=args.timeout_seconds,
+            )
+            steps["github_save"] = github_save
+            summary["github_url"] = github_save.get("url")
+        elif args.save_content or args.save_content_file:
+            raise BiberAgentClientError(
+                "--save-content and --save-content-file require --save-github-path."
+            )
+
+        if args.create_pr:
+            pr_head = args.pr_head or (
+                args.github_branch if args.save_github_path else None
+            )
+            if not pr_head:
+                raise BiberAgentClientError("--create-pr requires --pr-head.")
+            if pr_head == args.pr_base:
+                raise BiberAgentClientError("PR head and base branches must differ.")
+            if not args.pr_title:
+                raise BiberAgentClientError("--create-pr requires --pr-title.")
+            pr_body = load_text_argument(
+                value=args.pr_body,
+                file_path=args.pr_body_file,
+                label="--pr-body",
+            )
+            pull_request = create_github_pull_request(
+                base_url=base_url,
+                api_key=api_key,
+                payload=build_github_pull_request_payload(
+                    head=pr_head,
+                    base=args.pr_base,
+                    title=args.pr_title,
+                    body=pr_body,
+                    owner=args.github_owner,
+                    repo=args.github_repo,
+                    draft=not args.pr_ready,
+                ),
+                timeout_seconds=args.timeout_seconds,
+            )
+            steps["github_pull_request"] = pull_request
+            summary["pull_request_url"] = pull_request.get("url")
+            summary["pull_request_number"] = pull_request.get("number")
+        elif args.pr_head or args.pr_title or args.pr_body or args.pr_body_file:
+            raise BiberAgentClientError("PR arguments require --create-pr.")
+
+        return (
+            json.dumps(summary, indent=2, sort_keys=True)
+            if args.print_json
+            else format_mvp_loop_summary(summary)
         )
     raise BiberAgentClientError(f"unsupported command: {args.command}")
 
