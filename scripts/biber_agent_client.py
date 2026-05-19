@@ -1247,6 +1247,93 @@ def build_verify_repair_edits_result(
     }
 
 
+def normalize_repair_test_verification_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_repair_test_verification":
+        return dict(payload)
+    body = payload.get("body")
+    if (
+        isinstance(body, dict)
+        and body.get("source") == "biber_mvp_loop_repair_test_verification"
+    ):
+        return dict(body)
+    return None
+
+
+def build_verified_repair_review_record(
+    path: Path,
+    verification: Mapping[str, Any],
+) -> dict[str, Any]:
+    if (
+        verification.get("verification_status") != "passed"
+        or verification.get("ok") is not True
+    ):
+        raise BiberAgentClientError(
+            "export-verified-repair requires a passed repair verification artifact."
+        )
+    test_run = require_mapping(verification.get("test_run"))
+    command = [str(part) for part in require_list(test_run.get("command"))]
+    relevant_output = test_run.get("stdout") or test_run.get("stderr") or ""
+    return {
+        "source": "biber_mvp_loop_verified_repair",
+        "repair_loop_version": verification.get("repair_loop_version"),
+        "review_status": "needs_human_review",
+        "quality": "needs_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "auto_promoted": False,
+        "auto_saved": False,
+        "source_artifact": str(path),
+        "repair_apply_artifact": verification.get("source_artifact"),
+        "plan_hash": verification.get("plan_hash"),
+        "test_id": verification.get("test_id") or test_run.get("test_id"),
+        "verification": {
+            "verification_status": verification.get("verification_status"),
+            "ok": verification.get("ok"),
+            "test_id": verification.get("test_id") or test_run.get("test_id"),
+            "test_ok": test_run.get("ok"),
+            "exit_code": test_run.get("exit_code"),
+            "timed_out": bool(test_run.get("timed_out")),
+        },
+        "test": {
+            "label": test_run.get("label"),
+            "cwd": test_run.get("cwd"),
+            "command": command,
+            "duration_ms": test_run.get("duration_ms"),
+            "relevant_output": compact_text(relevant_output),
+        },
+        "next_review_action": "human_review_before_eval_or_training",
+    }
+
+
+def export_verified_repair_review(
+    *,
+    artifact_path: str,
+    output_path: str,
+) -> dict[str, Any]:
+    path = Path(artifact_path)
+    artifact = load_json_artifact(str(path), label="repair verification artifact")
+    verification = normalize_repair_test_verification_artifact(artifact)
+    if verification is None:
+        raise BiberAgentClientError(
+            "export-verified-repair artifact must contain a saved repair verification JSON object."
+        )
+    record = build_verified_repair_review_record(path, verification)
+    output = write_jsonl_artifact([record], output_path)
+    return {
+        "source": "biber_mvp_loop_verified_repair_export",
+        "records": 1,
+        "output": output,
+        "review_status": "needs_human_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "source_artifact": str(path),
+        "plan_hash": record.get("plan_hash"),
+        "test_id": record.get("test_id"),
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -1765,6 +1852,22 @@ def format_repair_test_verification_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_verified_repair_export_summary(payload: Mapping[str, Any]) -> str:
+    return "\n".join(
+        [
+            "BIBER verified repair export",
+            f"records: {payload.get('records', 0)}",
+            f"output: {payload.get('output', '-')}",
+            f"review_status: {payload.get('review_status', '-')}",
+            f"training_allowed: {payload.get('training_allowed', False)}",
+            f"eligible_for_training: {payload.get('eligible_for_training', False)}",
+            f"source_artifact: {payload.get('source_artifact', '-')}",
+            f"plan_hash: {payload.get('plan_hash', '-')}",
+            f"test_id: {payload.get('test_id', '-')}",
+        ]
+    )
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -2112,6 +2215,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     export_mvp_failures.add_argument("--pattern", default="*mvp-loop*.json")
     export_mvp_failures.add_argument("--limit", type=int, default=100)
 
+    export_verified_repair = subparsers.add_parser(
+        "export-verified-repair",
+        help=(
+            "Export one passed repair verification artifact to a JSONL human "
+            "review queue without making it training-eligible."
+        ),
+    )
+    export_verified_repair.add_argument("artifact")
+    export_verified_repair.add_argument("--output", required=True)
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -2245,6 +2358,16 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(export, indent=2, sort_keys=True)
             if args.print_json
             else format_mvp_loop_failure_export_summary(export)
+        )
+    if args.command == "export-verified-repair":
+        export = export_verified_repair_review(
+            artifact_path=args.artifact,
+            output_path=args.output,
+        )
+        return (
+            json.dumps(export, indent=2, sort_keys=True)
+            if args.print_json
+            else format_verified_repair_export_summary(export)
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)

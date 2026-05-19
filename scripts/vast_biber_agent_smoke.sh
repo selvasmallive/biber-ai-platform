@@ -78,6 +78,7 @@ client_mvp_loop_repair_edits_path = artifact_dir / "agent-client-mvp-loop-repair
 client_mvp_loop_repair_plan_path = artifact_dir / "agent-client-mvp-loop-repair-edit-plan.json"
 client_mvp_loop_repair_apply_path = artifact_dir / "agent-client-mvp-loop-repair-edit-apply.json"
 client_mvp_loop_repair_verify_path = artifact_dir / "agent-client-mvp-loop-repair-test-verification.json"
+client_mvp_loop_verified_repair_review_path = artifact_dir / "agent-client-mvp-loop-verified-repairs.jsonl"
 
 
 def fail(message: str) -> None:
@@ -1101,6 +1102,54 @@ except json.JSONDecodeError as exc:
     fail(f"verify-repair-edits output artifact returned invalid JSON: {exc}")
 if saved_client_mvp_loop_repair_verify != client_mvp_loop_repair_verify:
     fail("verify-repair-edits output artifact did not match stdout JSON")
+try:
+    client_mvp_loop_verified_repair_export_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "export-verified-repair",
+            str(client_mvp_loop_repair_verify_path),
+            "--output",
+            str(client_mvp_loop_verified_repair_review_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py export-verified-repair failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py export-verified-repair timed out: {exc}")
+try:
+    client_mvp_loop_verified_repair_export = json.loads(
+        client_mvp_loop_verified_repair_export_output
+    )
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py export-verified-repair returned invalid JSON: {exc}")
+if client_mvp_loop_verified_repair_export.get("records") != 1:
+    fail(f"export-verified-repair wrote unexpected records: {client_mvp_loop_verified_repair_export!r}")
+if client_mvp_loop_verified_repair_export.get("training_allowed") is not False:
+    fail(f"export-verified-repair must keep training_allowed=false: {client_mvp_loop_verified_repair_export!r}")
+if client_mvp_loop_verified_repair_export.get("eligible_for_training") is not False:
+    fail(f"export-verified-repair must not mark training eligibility: {client_mvp_loop_verified_repair_export!r}")
+if not client_mvp_loop_verified_repair_review_path.exists():
+    fail(f"export-verified-repair did not write {client_mvp_loop_verified_repair_review_path}")
+verified_repair_review_lines = client_mvp_loop_verified_repair_review_path.read_text(
+    encoding="utf-8"
+).splitlines()
+if len(verified_repair_review_lines) != 1:
+    fail(f"export-verified-repair wrote unexpected JSONL line count: {verified_repair_review_lines!r}")
+try:
+    verified_repair_review_row = json.loads(verified_repair_review_lines[0])
+except json.JSONDecodeError as exc:
+    fail(f"export-verified-repair wrote invalid JSONL: {exc}")
+if verified_repair_review_row.get("review_status") != "needs_human_review":
+    fail(f"export-verified-repair wrote unexpected review status: {verified_repair_review_row!r}")
+if verified_repair_review_row.get("eligible_for_training") is not False:
+    fail(f"verified repair row must not be training-eligible: {verified_repair_review_row!r}")
+if verified_repair_review_row.get("test_id") != "python-compileall-api":
+    fail(f"verified repair row used unexpected test id: {verified_repair_review_row!r}")
 client_mvp_loop_applied_path.unlink()
 write_artifact(
     "agent-client-mvp-loop.json",
@@ -1175,6 +1224,15 @@ write_artifact(
         "body": client_mvp_loop_repair_verify,
         "output": str(client_mvp_loop_repair_verify_path),
         "source": str(client_mvp_loop_repair_apply_path),
+    },
+)
+write_artifact(
+    "agent-client-mvp-loop-verified-repair-export.json",
+    {
+        "status": 0,
+        "body": client_mvp_loop_verified_repair_export,
+        "output": str(client_mvp_loop_verified_repair_review_path),
+        "source": str(client_mvp_loop_repair_verify_path),
     },
 )
 
@@ -1394,6 +1452,9 @@ summary = {
     "agent_client_mvp_loop_repair_verify_status": client_mvp_loop_repair_verify.get("verification_status"),
     "agent_client_mvp_loop_repair_verify_test_id": client_mvp_loop_repair_verify.get("test_id"),
     "agent_client_mvp_loop_repair_verify_auto_saved": client_mvp_loop_repair_verify.get("auto_saved"),
+    "agent_client_mvp_loop_verified_repair_review": str(client_mvp_loop_verified_repair_review_path),
+    "agent_client_mvp_loop_verified_repair_records": client_mvp_loop_verified_repair_export.get("records"),
+    "agent_client_mvp_loop_verified_repair_eligible_for_training": client_mvp_loop_verified_repair_export.get("eligible_for_training"),
     "agent_client_mvp_loop_report_ok": "BIBER MVP loop" in client_mvp_loop_report,
     "agent_client_mvp_loop_test_ok": client_mvp_loop.get("test_ok"),
     "agent_client_test_id": client_test_run.get("test_id"),

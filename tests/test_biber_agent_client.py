@@ -1475,6 +1475,101 @@ def test_run_verify_repair_edits_can_override_test_id_and_diagnose_failure(
     assert result["test_run"]["diagnosis"]["primary_category"] == "compile_error"
 
 
+def test_build_verified_repair_review_record_rejects_failed_verification(
+    tmp_path: Path,
+) -> None:
+    try:
+        client.build_verified_repair_review_record(
+            tmp_path / "repair-test-verification.json",
+            {
+                "source": "biber_mvp_loop_repair_test_verification",
+                "verification_status": "failed",
+                "ok": False,
+            },
+        )
+    except client.BiberAgentClientError as exc:
+        assert "passed repair verification" in str(exc)
+    else:
+        raise AssertionError("expected failed repair verification to be rejected")
+
+
+def test_run_export_verified_repair_writes_review_jsonl_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("export-verified-repair should not resolve an API key")
+
+    artifact = tmp_path / "repair-test-verification.json"
+    apply_artifact = tmp_path / "repair-edit-apply.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_test_verification",
+                "repair_loop_version": "mvp-v1",
+                "source_artifact": str(apply_artifact),
+                "verification_status": "passed",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "auto_saved": False,
+                "plan_hash": "a" * 64,
+                "test_id": "python-compileall-api",
+                "test_run": {
+                    "test_id": "python-compileall-api",
+                    "label": "Python compileall API",
+                    "executed": True,
+                    "ok": True,
+                    "exit_code": 0,
+                    "timed_out": False,
+                    "duration_ms": 12,
+                    "cwd": ".",
+                    "command": ["python", "-m", "compileall", "src"],
+                    "stdout": "",
+                    "stderr": "",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "verified-repairs.jsonl"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "export-verified-repair",
+                str(artifact),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+
+    assert result["source"] == "biber_mvp_loop_verified_repair_export"
+    assert result["records"] == 1
+    assert result["training_allowed"] is False
+    assert result["eligible_for_training"] is False
+    assert result["source_artifact"] == str(artifact)
+    assert rows[0]["source"] == "biber_mvp_loop_verified_repair"
+    assert rows[0]["review_status"] == "needs_human_review"
+    assert rows[0]["quality"] == "needs_review"
+    assert rows[0]["training_allowed"] is False
+    assert rows[0]["eligible_for_training"] is False
+    assert rows[0]["auto_promoted"] is False
+    assert rows[0]["auto_saved"] is False
+    assert rows[0]["source_artifact"] == str(artifact)
+    assert rows[0]["repair_apply_artifact"] == str(apply_artifact)
+    assert rows[0]["plan_hash"] == "a" * 64
+    assert rows[0]["test_id"] == "python-compileall-api"
+    assert rows[0]["verification"]["verification_status"] == "passed"
+    assert rows[0]["test"]["command"] == ["python", "-m", "compileall", "src"]
+    assert rows[0]["next_review_action"] == "human_review_before_eval_or_training"
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 
