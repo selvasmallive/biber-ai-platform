@@ -151,9 +151,13 @@ serving the last broad-safe Rust/XRIQ adapter.
   `c5f7235 Add dotnet and java test commands`.
 - Latest BIBER MVP repo-context stack-profile commit pushed and Vast-verified:
   `6050bd0 Add repo context stack profiles`.
+- Latest BIBER MVP hash-gated multi-file edit-apply commits pushed and
+  Vast-verified:
+  `0f9a450 Add hash-gated workspace edit apply` and
+  `79aad96 Fix stale workspace edit apply hash check`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `6050bd0`. Full Rust/private-devnet
+- Vast code verification is current through `79aad96`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -170,16 +174,27 @@ serving the last broad-safe Rust/XRIQ adapter.
   BIBER agent-session embedded test-diagnosis verification is current through
   `3069a50`; BIBER `.NET`/Java allowlisted test-command verification is
   current through `c5f7235`; BIBER repo-context stack-profile verification is
-  current through `6050bd0`.
+  current through `6050bd0`; BIBER hash-gated workspace edit-apply
+  verification is current through `79aad96`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `52785`
+  - FastAPI pid: `53128`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - The `79aad96` hash-gated workspace edit-apply checkpoint required a
+    FastAPI-only restart because it added `POST /v1/files/edit/apply`, added
+    `plan_hash` to edit plans, and expanded agent-capability metadata. vLLM
+    stayed on pid `5802`; FastAPI moved from pid `52785` to pid `53128`.
+  - Latest focused Vast verification for the BIBER hash-gated workspace
+    edit-apply slice:
+    `/workspace/biber-venv/bin/python -m compileall app src tests`, focused
+    pytest `tests/test_workspace_edit.py tests/test_agent_capabilities.py -q`
+    with `16 passed`, and a live authenticated plan/apply smoke that wrote and
+    then cleaned up `.biber-runtime/workspace-edit-apply-smoke.txt`.
   - The `6050bd0` repo-context stack-profile checkpoint required a
     FastAPI-only restart because `POST /v1/repo/context/plan` and
     `GET /v1/agent/capabilities` now return stack-profile metadata. vLLM
@@ -2136,6 +2151,36 @@ serving the last broad-safe Rust/XRIQ adapter.
   - Restarted only the FastAPI process because API response metadata changed.
     vLLM stayed running with pid `5802`. New FastAPI pid: `52785`.
   - No credential change, model training, or OpenAI mentor call was needed.
+- BIBER MVP hash-gated multi-file edit-apply checkpoint:
+  - Added `plan_hash` to `POST /v1/files/edit/plan` responses.
+  - Added authenticated `POST /v1/files/edit/apply`. The endpoint recomputes
+    the requested edit plan against the current workspace, requires the
+    supplied `plan_hash` to match, refuses dirty/rejected plans, and applies all
+    edits as one bounded transaction.
+  - If a file changed after planning, the apply endpoint returns a plan-hash
+    mismatch and writes nothing. If a write fails mid-apply, touched files are
+    rolled back from captured snapshots.
+  - `GET /v1/agent/capabilities` now advertises `edit_apply`,
+    `multi_file_apply_supported`, and `plan_hash_required`.
+  - Updated `src/biber_api/workspace_edit.py`, the direct Vast app copy,
+    schemas, tests, and `docs/API_EXAMPLES.md`.
+  - Local workstation verification passed with bundled Python
+    `compileall app src tests`, `git diff --check`, a matching-hash apply
+    smoke, and a stale-hash smoke. Local pytest is still unavailable in the
+    bundled workstation runtime.
+  - Pushed implementation/fix commits:
+    `0f9a450 Add hash-gated workspace edit apply` and
+    `79aad96 Fix stale workspace edit apply hash check`.
+  - Vast checkout was fast-forwarded to `79aad96`; Vast verification passed
+    with `/workspace/biber-venv/bin/python -m compileall app src tests`,
+    focused pytest
+    `tests/test_workspace_edit.py tests/test_agent_capabilities.py -q` with
+    `16 passed`, and a live authenticated plan/apply smoke using a temporary
+    `.biber-runtime/workspace-edit-apply-smoke.txt` file that was cleaned up.
+  - Restarted only the FastAPI process because API response metadata and route
+    surface changed. vLLM stayed running with pid `5802`. New FastAPI pid:
+    `53128`.
+  - No credential change, model training, or OpenAI mentor call was needed.
 - XRIQ snapshot export/import checkpoint:
   - Added private-devnet `xriq-node snapshot-export` and
     `xriq-node snapshot-import`.
@@ -3498,7 +3543,8 @@ bash scripts/xriq_private_devnet_smoke.sh
      bounds, limit touched files, apply patch-style changes, and run formatting
      or targeted tests after edits. The first no-write multi-file planner
      endpoint, `POST /v1/files/edit/plan`, is now implemented and
-     Vast-verified.
+     Vast-verified. The first hash-gated apply endpoint,
+     `POST /v1/files/edit/apply`, is also implemented and Vast-verified.
    - Better test-failure diagnosis loops: parse failures for `.NET`, Java,
      Rust, Node/React, and Python incrementally; classify compile/test/config
      failures; extract concise model context; rerun targeted tests; and save
@@ -3555,13 +3601,13 @@ bash scripts/xriq_private_devnet_smoke.sh
    test-failure diagnosis endpoint are live. Failed/timed-out agent-session
    test steps now embed that diagnosis in the persisted session artifact. The
    test runner now includes `.NET` and Java stack IDs for target repos. The
-   repo-context planner now exposes `.NET` and Java stack profiles. Good next
-   targets are adding a cautious multi-file apply transaction that requires a
-   clean plan id/hash, adding a live eval-run wrapper for generated
-   repo-adaptation prompts, running the new stack profiles/test IDs against a
-   real user repo when provided, or adding a client helper `create-session`
-   live smoke with a tiny max-token budget. Public XRIQ launch, exchange
-   listing, custody, liquidity, bridges, and market-facing work remain blocked.
+   repo-context planner now exposes `.NET` and Java stack profiles. The
+   hash-gated multi-file edit apply endpoint is live. Good next targets are
+   adding a live eval-run wrapper for generated repo-adaptation prompts,
+   running the new stack profiles/test IDs against a real user repo when
+   provided, or adding a client helper `create-session` live smoke with a tiny
+   max-token budget. Public XRIQ launch, exchange listing, custody, liquidity,
+   bridges, and market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
