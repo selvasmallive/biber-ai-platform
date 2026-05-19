@@ -531,6 +531,73 @@ def load_json_artifact(artifact_path: str, *, label: str) -> dict[str, Any]:
     return parsed
 
 
+def normalize_mvp_loop_artifact(payload: Mapping[str, Any]) -> dict[str, Any] | None:
+    if isinstance(payload.get("steps"), dict):
+        return dict(payload)
+    body = payload.get("body")
+    if isinstance(body, dict) and isinstance(body.get("steps"), dict):
+        return dict(body)
+    return None
+
+
+def summarize_mvp_loop_artifact(path: Path, payload: Mapping[str, Any]) -> dict[str, Any]:
+    steps = require_mapping(payload.get("steps"))
+    try:
+        modified_epoch = path.stat().st_mtime
+    except OSError:
+        modified_epoch = 0.0
+    summary: dict[str, Any] = {
+        "path": str(path),
+        "ok": bool(payload.get("ok")),
+        "test_ok": payload.get("test_ok"),
+        "selected_context_paths": len(require_list(payload.get("selected_context_paths"))),
+        "steps": list(steps.keys()),
+        "modified_epoch": modified_epoch,
+    }
+    for key in ("artifact_path", "github_url", "pull_request_url"):
+        if payload.get(key):
+            summary[key] = payload.get(key)
+    return summary
+
+
+def list_mvp_loop_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(f"MVP loop artifact directory does not exist: {root}")
+    if not root.is_dir():
+        raise BiberAgentClientError(f"MVP loop artifact path is not a directory: {root}")
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(str(path), label="mvp-loop artifact")
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_mvp_loop_artifact(raw_payload)
+        if normalized is None:
+            continue
+        artifacts.append(summarize_mvp_loop_artifact(path, normalized))
+
+    artifacts.sort(key=lambda item: float(item.get("modified_epoch") or 0.0), reverse=True)
+    return {
+        "directory": str(root),
+        "pattern": pattern,
+        "scanned": scanned,
+        "artifacts": artifacts[:limit],
+    }
+
+
 def load_workspace_edits(
     *,
     edit_json_values: list[str] | None,
@@ -769,6 +836,34 @@ def format_mvp_loop_artifact_summary(payload: Mapping[str, Any]) -> str:
     if step_summaries:
         lines.append("step_summaries:")
         lines.extend(step_summaries)
+    return "\n".join(lines)
+
+
+def format_mvp_loop_artifact_list_summary(payload: Mapping[str, Any]) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER MVP loop artifacts ({len(artifacts)})",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"scanned: {payload.get('scanned', 0)}",
+    ]
+    for artifact in artifacts:
+        steps = ", ".join(str(step) for step in require_list(artifact.get("steps")))
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"ok={artifact.get('ok')}",
+                    f"test_ok={artifact.get('test_ok')}",
+                    f"selected_context_paths={artifact.get('selected_context_paths', 0)}",
+                    f"steps={steps or '-'}",
+                ]
+            )
+        )
     return "\n".join(lines)
 
 
@@ -1097,6 +1192,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     show_mvp_loop.add_argument("artifact")
 
+    list_mvp_loops = subparsers.add_parser(
+        "list-mvp-loops",
+        help="List saved local mvp-loop JSON artifacts under a directory.",
+    )
+    list_mvp_loops.add_argument("directory")
+    list_mvp_loops.add_argument("--pattern", default="*mvp-loop*.json")
+    list_mvp_loops.add_argument("--limit", type=int, default=10)
+
     args = parser.parse_args(argv)
     if args.command is None:
         args.command = "capabilities"
@@ -1106,10 +1209,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def run(args: argparse.Namespace) -> str:
     if args.command == "show-mvp-loop":
         artifact = load_json_artifact(args.artifact, label="mvp-loop artifact")
+        normalized = normalize_mvp_loop_artifact(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "mvp-loop artifact must contain a saved MVP loop JSON object."
+            )
         return (
-            json.dumps(artifact, indent=2, sort_keys=True)
+            json.dumps(normalized, indent=2, sort_keys=True)
             if args.print_json
-            else format_mvp_loop_artifact_summary(artifact)
+            else format_mvp_loop_artifact_summary(normalized)
+        )
+    if args.command == "list-mvp-loops":
+        artifacts = list_mvp_loop_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+        )
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_mvp_loop_artifact_list_summary(artifacts)
         )
 
     api_key = resolve_api_key(args.api_key)

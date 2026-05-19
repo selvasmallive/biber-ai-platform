@@ -622,6 +622,38 @@ if "BIBER MVP loop" not in client_mvp_loop_report:
     fail(f"show-mvp-loop report omitted heading: {client_mvp_loop_report!r}")
 if str(client_mvp_loop_output_path) not in client_mvp_loop_report:
     fail(f"show-mvp-loop report omitted artifact path: {client_mvp_loop_report!r}")
+try:
+    client_mvp_loop_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-mvp-loops",
+            str(artifact_dir),
+            "--limit",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-mvp-loops failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-mvp-loops timed out: {exc}")
+try:
+    client_mvp_loop_list = json.loads(client_mvp_loop_list_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py list-mvp-loops returned invalid JSON: {exc}")
+client_mvp_loop_list_artifacts = client_mvp_loop_list.get("artifacts")
+if not isinstance(client_mvp_loop_list_artifacts, list):
+    fail(f"list-mvp-loops did not return artifacts: {client_mvp_loop_list!r}")
+if not any(
+    item.get("path") == str(client_mvp_loop_output_path)
+    for item in client_mvp_loop_list_artifacts
+    if isinstance(item, dict)
+):
+    fail(f"list-mvp-loops omitted {client_mvp_loop_output_path}: {client_mvp_loop_list!r}")
 if client_mvp_loop.get("ok") is not True:
     fail(f"agent client mvp-loop did not return ok=true: {client_mvp_loop!r}")
 client_mvp_steps = client_mvp_loop.get("steps")
@@ -645,6 +677,10 @@ write_artifact(
 write_artifact(
     "agent-client-mvp-loop-report.json",
     {"status": 0, "body": client_mvp_loop_report},
+)
+write_artifact(
+    "agent-client-mvp-loop-list.json",
+    {"status": 0, "body": client_mvp_loop_list},
 )
 
 chat_payload = {
@@ -836,6 +872,7 @@ summary = {
     "agent_client_mvp_loop_path": client_mvp_loop_smoke_path,
     "agent_client_mvp_loop_output": str(client_mvp_loop_output_path),
     "agent_client_mvp_loop_steps": sorted(client_mvp_steps.keys()),
+    "agent_client_mvp_loop_list_count": len(client_mvp_loop_list_artifacts),
     "agent_client_mvp_loop_report_ok": "BIBER MVP loop" in client_mvp_loop_report,
     "agent_client_mvp_loop_test_ok": client_mvp_loop.get("test_ok"),
     "agent_client_test_id": client_test_run.get("test_id"),

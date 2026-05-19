@@ -466,6 +466,73 @@ def test_run_show_mvp_loop_json_returns_local_artifact(tmp_path: Path) -> None:
     assert json.loads(output) == payload
 
 
+def test_run_list_mvp_loops_summarizes_local_artifacts_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("list-mvp-loops should not resolve an API key")
+
+    direct = tmp_path / "biber-mvp-loop.json"
+    direct.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "artifact_path": str(direct),
+                "selected_context_paths": ["README.md"],
+                "steps": {"context_plan": {}, "test_run": {"ok": True}},
+                "test_ok": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    wrapped = tmp_path / "nested" / "agent-client-mvp-loop.json"
+    wrapped.parent.mkdir()
+    wrapped.write_text(
+        json.dumps(
+            {
+                "status": 0,
+                "body": {
+                    "ok": False,
+                    "selected_context_paths": ["README.md", "pyproject.toml"],
+                    "steps": {"context_plan": {}, "test_run": {"ok": False}},
+                    "test_ok": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    noise = tmp_path / "agent-client-mvp-loop-report.json"
+    noise.write_text(json.dumps({"status": 0, "body": "not a loop"}), encoding="utf-8")
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(client.parse_args(["list-mvp-loops", str(tmp_path)]))
+
+    assert "BIBER MVP loop artifacts (2)" in output
+    assert str(direct) in output
+    assert str(wrapped) in output
+    assert str(noise) not in output
+
+
+def test_run_list_mvp_loops_json_returns_recent_artifacts(tmp_path: Path) -> None:
+    direct = tmp_path / "biber-mvp-loop.json"
+    direct.write_text(
+        json.dumps({"ok": True, "steps": {"context_plan": {}}, "selected_context_paths": []}),
+        encoding="utf-8",
+    )
+
+    output = client.run(
+        client.parse_args(["--json", "list-mvp-loops", str(tmp_path), "--limit", "1"])
+    )
+    result = json.loads(output)
+
+    assert result["directory"] == str(tmp_path)
+    assert result["pattern"] == "*mvp-loop*.json"
+    assert result["scanned"] == 1
+    assert len(result["artifacts"]) == 1
+    assert result["artifacts"][0]["path"] == str(direct)
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 
