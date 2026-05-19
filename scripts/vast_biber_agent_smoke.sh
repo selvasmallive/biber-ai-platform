@@ -88,6 +88,7 @@ client_mvp_loop_ready_repair_chain_decision_path = artifact_dir / "agent-client-
 client_mvp_loop_ready_repair_chain_decision_review_path = artifact_dir / "agent-client-mvp-loop-ready-repair-chain-decision-review.json"
 client_mvp_loop_ready_repair_chain_eval_decision_path = artifact_dir / "agent-client-mvp-loop-ready-repair-chain-eval-decisions.jsonl"
 client_mvp_loop_ready_repair_chain_eval_candidates_path = artifact_dir / "agent-client-mvp-loop-ready-repair-chain-eval-candidates.jsonl"
+client_mvp_loop_ready_repair_chain_eval_candidate_review_path = artifact_dir / "agent-client-mvp-loop-ready-repair-chain-eval-candidate-review.json"
 
 
 def fail(message: str) -> None:
@@ -1781,6 +1782,71 @@ write_artifact(
         "source": str(client_mvp_loop_ready_repair_chain_eval_decision_path),
     },
 )
+try:
+    client_mvp_loop_ready_repair_chain_eval_candidate_review_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "review-ready-repair-chain-eval-candidates",
+            str(client_mvp_loop_ready_repair_chain_eval_candidates_path),
+            "--output",
+            str(client_mvp_loop_ready_repair_chain_eval_candidate_review_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py review-ready-repair-chain-eval-candidates failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py review-ready-repair-chain-eval-candidates timed out: {exc}")
+try:
+    client_mvp_loop_ready_repair_chain_eval_candidate_review = json.loads(
+        client_mvp_loop_ready_repair_chain_eval_candidate_review_output
+    )
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py review-ready-repair-chain-eval-candidates returned invalid JSON: {exc}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("records") != 1:
+    fail(f"review-ready-repair-chain-eval-candidates saw unexpected records: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("ready_for_dataset_review") != 1:
+    fail(f"review-ready-repair-chain-eval-candidates saw unexpected dataset review count: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("eval_dataset_ready") is not False:
+    fail(f"review-ready-repair-chain-eval-candidates must keep eval_dataset_ready=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("requires_dataset_review") is not True:
+    fail(f"review-ready-repair-chain-eval-candidates must require dataset review: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("training_allowed") is not False:
+    fail(f"review-ready-repair-chain-eval-candidates must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("safe_to_train") is not False:
+    fail(f"review-ready-repair-chain-eval-candidates must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("github_save_ready") is not False:
+    fail(f"review-ready-repair-chain-eval-candidates must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("approved_for_training") is not False:
+    fail(f"review-ready-repair-chain-eval-candidates must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
+if not client_mvp_loop_ready_repair_chain_eval_candidate_review_path.exists():
+    fail(f"review-ready-repair-chain-eval-candidates did not write {client_mvp_loop_ready_repair_chain_eval_candidate_review_path}")
+try:
+    saved_client_mvp_loop_ready_repair_chain_eval_candidate_review = json.loads(
+        client_mvp_loop_ready_repair_chain_eval_candidate_review_path.read_text(
+            encoding="utf-8"
+        )
+    )
+except json.JSONDecodeError as exc:
+    fail(f"review-ready-repair-chain-eval-candidates output artifact returned invalid JSON: {exc}")
+if (
+    saved_client_mvp_loop_ready_repair_chain_eval_candidate_review
+    != client_mvp_loop_ready_repair_chain_eval_candidate_review
+):
+    fail("review-ready-repair-chain-eval-candidates output artifact did not match stdout JSON")
+write_artifact(
+    "agent-client-mvp-loop-ready-repair-chain-eval-candidate-review-result.json",
+    {
+        "status": 0,
+        "body": client_mvp_loop_ready_repair_chain_eval_candidate_review,
+        "output": str(client_mvp_loop_ready_repair_chain_eval_candidate_review_path),
+        "source": str(client_mvp_loop_ready_repair_chain_eval_candidates_path),
+    },
+)
 
 chat_payload = {
     "language": "Rust",
@@ -2028,6 +2094,10 @@ summary = {
     "agent_client_mvp_loop_ready_repair_chain_eval_candidate": str(client_mvp_loop_ready_repair_chain_eval_candidates_path),
     "agent_client_mvp_loop_ready_repair_chain_eval_candidate_records": client_mvp_loop_ready_repair_chain_eval_candidate.get("records"),
     "agent_client_mvp_loop_ready_repair_chain_eval_candidate_dataset_ready": client_mvp_loop_ready_repair_chain_eval_candidate.get("eval_dataset_ready"),
+    "agent_client_mvp_loop_ready_repair_chain_eval_candidate_review": str(client_mvp_loop_ready_repair_chain_eval_candidate_review_path),
+    "agent_client_mvp_loop_ready_repair_chain_eval_candidate_review_records": client_mvp_loop_ready_repair_chain_eval_candidate_review.get("records"),
+    "agent_client_mvp_loop_ready_repair_chain_eval_candidate_review_dataset_ready": client_mvp_loop_ready_repair_chain_eval_candidate_review.get("eval_dataset_ready"),
+    "agent_client_mvp_loop_ready_repair_chain_eval_candidate_review_ready": client_mvp_loop_ready_repair_chain_eval_candidate_review.get("ready_for_dataset_review"),
     "agent_client_mvp_loop_report_ok": "BIBER MVP loop" in client_mvp_loop_report,
     "agent_client_mvp_loop_test_ok": client_mvp_loop.get("test_ok"),
     "agent_client_test_id": client_test_run.get("test_id"),
