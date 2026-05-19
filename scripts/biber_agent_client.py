@@ -2542,6 +2542,119 @@ def record_ready_repair_chain_eval_candidate_decisions(
     }
 
 
+def review_ready_repair_chain_eval_dataset_decision_records(
+    *,
+    jsonl_paths: list[str],
+    min_repeat: int,
+) -> dict[str, Any]:
+    if min_repeat < 1:
+        raise BiberAgentClientError("--min-repeat must be at least 1.")
+
+    records: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for jsonl_path in jsonl_paths:
+        for index, row in enumerate(
+            load_jsonl_artifact(
+                jsonl_path,
+                label="ready repair-chain eval dataset decision JSONL",
+            ),
+            start=1,
+        ):
+            if row.get("source") == "biber_mvp_loop_repair_chain_eval_dataset_decision":
+                item = dict(row)
+                item["eval_dataset_decision_jsonl_path"] = jsonl_path
+                item["eval_dataset_decision_jsonl_index"] = index
+                records.append(item)
+            else:
+                rejected.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "reason": "unsupported_source",
+                        "source": row.get("source"),
+                    }
+                )
+
+    decision_counts: dict[str, int] = {}
+    groups_by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
+    eval_dataset_ready_records = 0
+    approved_for_eval_dataset_records = 0
+    for record in records:
+        decision = str(record.get("decision") or "missing")
+        decision_counts[decision] = decision_counts.get(decision, 0) + 1
+        if record.get("eval_dataset_ready") is True:
+            eval_dataset_ready_records += 1
+        if (
+            record.get("approved_for_eval_dataset") is True
+            or decision == "approve_for_eval_dataset"
+        ):
+            approved_for_eval_dataset_records += 1
+        key = (
+            str(record.get("test_id") or ""),
+            str(record.get("plan_hash") or ""),
+            decision,
+        )
+        group = groups_by_key.setdefault(
+            key,
+            {
+                "test_id": key[0],
+                "plan_hash": key[1],
+                "decision": key[2],
+                "count": 0,
+                "reviewers": [],
+                "source_artifacts": [],
+                "eval_dataset_ready": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+            },
+        )
+        group["count"] += 1
+        if record.get("eval_dataset_ready") is True:
+            group["eval_dataset_ready"] = True
+        reviewer = record.get("reviewer")
+        if reviewer and reviewer not in group["reviewers"]:
+            group["reviewers"].append(reviewer)
+        group["source_artifacts"].append(record.get("source_artifact"))
+    groups = [
+        group
+        for group in groups_by_key.values()
+        if int(group.get("count") or 0) >= min_repeat
+    ]
+    groups.sort(
+        key=lambda item: (
+            str(item.get("decision") or ""),
+            -int(item.get("count") or 0),
+            str(item.get("test_id") or ""),
+        )
+    )
+
+    return {
+        "source": "biber_mvp_loop_ready_repair_chain_eval_dataset_decision_review",
+        "review_status": "eval_dataset_decisions_need_final_dataset_export_review",
+        "records": len(records),
+        "rejected_records": len(rejected),
+        "decision_counts": decision_counts,
+        "defer_records": decision_counts.get("defer", 0),
+        "reject_records": decision_counts.get("reject", 0),
+        "approved_for_eval_dataset_records": approved_for_eval_dataset_records,
+        "eval_dataset_ready_records": eval_dataset_ready_records,
+        "min_repeat": min_repeat,
+        "groups": groups,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "jsonl_paths": list(jsonl_paths),
+        "rejected": rejected,
+        "next_review_action": (
+            "manual_final_eval_dataset_export_review_before_training"
+        ),
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -3345,6 +3458,47 @@ def format_ready_repair_chain_eval_candidate_decision_export_summary(
     )
 
 
+def format_ready_repair_chain_eval_dataset_decision_review_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    decision_counts = payload.get("decision_counts")
+    if not isinstance(decision_counts, dict):
+        decision_counts = {}
+    groups = [
+        item
+        for item in require_list(payload.get("groups"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER ready repair-chain eval dataset decision review",
+        f"records: {payload.get('records', 0)}",
+        f"rejected_records: {payload.get('rejected_records', 0)}",
+        f"defer_records: {payload.get('defer_records', 0)}",
+        f"reject_records: {payload.get('reject_records', 0)}",
+        f"approved_for_eval_dataset_records: {payload.get('approved_for_eval_dataset_records', 0)}",
+        f"eval_dataset_ready_records: {payload.get('eval_dataset_ready_records', 0)}",
+        f"decision_counts: {decision_counts}",
+        f"review_status: {payload.get('review_status', '-')}",
+        f"min_repeat: {payload.get('min_repeat', 1)}",
+        f"groups: {len(groups)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"approved_for_training: {payload.get('approved_for_training', False)}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    lines.extend(
+        (
+            f"- decision={group.get('decision', '-')} "
+            f"test_id={group.get('test_id', '-')} "
+            f"plan_hash={group.get('plan_hash', '-')} "
+            f"count={group.get('count', 0)}"
+        )
+        for group in groups[:8]
+    )
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -3856,6 +4010,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         required=True,
     )
 
+    review_ready_repair_chain_eval_dataset_decisions = subparsers.add_parser(
+        "review-ready-repair-chain-eval-dataset-decisions",
+        help=(
+            "Summarize repair-chain eval-dataset decision JSONL queues without "
+            "making them training-eligible."
+        ),
+    )
+    review_ready_repair_chain_eval_dataset_decisions.add_argument("jsonl", nargs="+")
+    review_ready_repair_chain_eval_dataset_decisions.add_argument(
+        "--min-repeat",
+        type=int,
+        default=1,
+    )
+    review_ready_repair_chain_eval_dataset_decisions.add_argument("--output")
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -4137,6 +4306,21 @@ def run(args: argparse.Namespace) -> str:
             if args.print_json
             else format_ready_repair_chain_eval_candidate_decision_export_summary(
                 decision
+            )
+        )
+    if args.command == "review-ready-repair-chain-eval-dataset-decisions":
+        review = review_ready_repair_chain_eval_dataset_decision_records(
+            jsonl_paths=args.jsonl,
+            min_repeat=args.min_repeat,
+        )
+        if args.output:
+            review["artifact_path"] = str(Path(args.output))
+            write_json_artifact(review, args.output)
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_ready_repair_chain_eval_dataset_decision_review_summary(
+                review
             )
         )
     if args.command == "prepare-repair":
