@@ -11,6 +11,9 @@ prototype from the current GPU-backed direct vLLM/FastAPI state.
   - BIBER MVP: local model API, model registry, repo context, file-edit/test
     workflows, GitHub save/PR path, and optional OpenAI mentor review only when
     it is worth the cost.
+  - BIBER MVP must now treat these Replit-replacement workflow capabilities as
+    first-class near-term goals: more reliable repo-context selection, safer
+    multi-file editing, and better structured test-failure diagnosis loops.
   - XRIQ private devnet: Rust-only private-devnet chain, replay startup, local
     runner/RPC tooling, wallet flow, explorer flow, and integration tests.
 - Delayed scope:
@@ -135,6 +138,8 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP repo-adaptation commits pushed and Vast-verified:
   `9126fdd Add BIBER repo adaptation plan` and
   `2efa65b Fix repo adaptation relative role detection`.
+- This handoff now makes reliable repo-context selection, safer multi-file
+  editing, and structured test-failure diagnosis explicit BIBER MVP goals.
 - Vast code verification is current through `2efa65b`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
@@ -3213,7 +3218,19 @@ bash -n scripts/xriq_private_devnet_smoke.sh
 bash scripts/xriq_private_devnet_smoke.sh
 ```
 
-12. Continue the XRIQ private-devnet prototype after the Rust/XRIQ model loop is
+12. Treat these as first-class BIBER MVP/Replit-replacement workflow goals
+   before broad language expansion:
+   - More reliable repo-context selection: detect project type, include
+     relevant manifests/config/tests/changed files, support pinned files, and
+     avoid secrets, dependency folders, build outputs, and binaries.
+   - Safer multi-file editing: produce an edit plan, enforce workspace/path
+     bounds, limit touched files, apply patch-style changes, and run formatting
+     or targeted tests after edits.
+   - Better test-failure diagnosis loops: parse failures for `.NET`, Java,
+     Rust, Node/React, and Python incrementally; classify compile/test/config
+     failures; extract concise model context; rerun targeted tests; and save
+     useful failure/fix pairs as future eval or training candidates.
+13. Continue the XRIQ private-devnet prototype after the Rust/XRIQ model loop is
    stable. `xriq/` is already the separate Rust workspace inside this repo, and
    it is preferred over creating a second top-level Rust workspace unless the
    project later needs independent release/versioning. The next protocol target
@@ -3262,35 +3279,35 @@ bash scripts/xriq_private_devnet_smoke.sh
    persisted dashboard settings later with database-backed users/API keys.
    Public XRIQ launch, exchange listing, custody, liquidity, bridges, and
    market-facing work remain blocked.
-13. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
+14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
-14. Use BIBER AI for XRIQ through inference first: spec drafting, Rust module
+15. Use BIBER AI for XRIQ through inference first: spec drafting, Rust module
    scaffolding, tests, review prompts, and private-devnet tooling. Fine-tune
    only after Rust/XRIQ evals show repeatable gaps.
-15. After the Rust/XRIQ baseline is stable, follow
+16. After the Rust/XRIQ baseline is stable, follow
    `docs/BIBER_CAPABILITY_ROADMAP.md` in order: PostgreSQL, React, TypeScript,
    JavaScript, jQuery, CSS, HTML, Docker, GitHub Actions CI/CD, WASM, Bash,
    security engineering, cryptography concepts, Kubernetes, and distributed
    systems optimization before lower-priority stacks.
-16. Add new training data only through approved/provenance-tracked sources, then
+17. Add new training data only through approved/provenance-tracked sources, then
    validate and promote to `/workspace/data/biber_train.jsonl`.
-17. Keep the cost-saving pattern: Codex changes scripts, docs, evals, and
+18. Keep the cost-saving pattern: Codex changes scripts, docs, evals, and
    diagnoses failures; Vast.ai runs long GPU jobs in `tmux`.
-18. Keep the API private over SSH tunnels unless credentials are deliberately
+19. Keep the API private over SSH tunnels unless credentials are deliberately
    rotated and public binding is intentionally enabled.
-19. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
-20. Add optional OpenAI mentor credentials to the server-side `.env` only if
+20. Keep the Vast.ai checkout fast-forwarded with local/GitHub `main`.
+21. Add optional OpenAI mentor credentials to the server-side `.env` only if
     desired and cost-approved. The code path is already gated by
     `BIBER_MENTOR_ENABLED=true`, `OPENAI_API_KEY`, `OPENAI_MODEL`, and the
     prompt phrase `Review with OpenAI mentor`.
-21. Add database-backed API keys and agent-client sessions per
+22. Add database-backed API keys and agent-client sessions per
     `docs/BIBER_AGENT_API_AND_MENTOR_STRATEGY.md`.
-22. Add a durable fine-grained GitHub token to Vast `.env` if persistent
+23. Add a durable fine-grained GitHub token to Vast `.env` if persistent
    generated-code save should stay enabled.
-23. Add Azure Blob connection string and test backups.
-24. Replace demo API key/passcode auth with database-backed credentials.
-25. Add real MySQL persistence and Redis worker integration.
+24. Add Azure Blob connection string and test backups.
+25. Replace demo API key/passcode auth with database-backed credentials.
+26. Add real MySQL persistence and Redis worker integration.
 
 ## Resume Prompt For A New Chat
 

@@ -139,6 +139,42 @@ Recommended end-user agent flow:
 The client should prefer sending focused file context over whole repositories.
 This controls token use and reduces accidental secret exposure.
 
+## Near-Term Replit-Replacement Workflow Goals
+
+To reduce paid Replit/OpenAI-style coding-agent usage, BIBER must prioritize
+the workflow pieces that make a local model useful on real repositories.
+
+1. More reliable repo-context selection:
+   - detect project type such as `.NET`, Java/Spring Boot, Rust, React, Node,
+     or Python
+   - include relevant manifests, config files, changed files, nearby tests, and
+     user-pinned files
+   - map source files to likely tests before asking the model to edit
+   - exclude secrets, dependency folders, build artifacts, binaries, and noisy
+     generated output
+   - produce a concise context summary so the client can show what BIBER used
+
+2. Safer multi-file editing:
+   - generate an edit plan before changing files
+   - enforce workspace and path bounds
+   - cap the number of files per operation unless the user approves more
+   - apply patch-style changes rather than uncontrolled rewrites
+   - run formatting and targeted tests after edits when the stack supports it
+   - keep GitHub save/PR as an explicit approval step
+
+3. Better test-failure diagnosis loops:
+   - parse common failure output for `.NET`, Maven/Gradle, Cargo, Node/React,
+     and pytest incrementally
+   - classify failures as compile errors, assertion failures, missing imports,
+     dependency/config issues, flaky tests, or environment problems
+   - send only concise, relevant failure context back to the model
+   - rerun targeted tests after a proposed fix
+   - save useful failure/fix pairs as future eval or fine-tuning candidates
+
+These are MVP workflow goals, not heavy model-training goals. Implement them
+incrementally with deterministic parsers and guardrails first; use fine-tuning
+only after the workflow exposes repeatable model gaps.
+
 ## OpenAI/Codex Mentor Strategy
 
 OpenAI/Codex should remain available as BIBER's mentor layer, not as the default

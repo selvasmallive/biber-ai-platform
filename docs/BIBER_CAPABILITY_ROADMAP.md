@@ -24,6 +24,19 @@ changes, review, and handoff updates.
 - Fine-tune only when evals show repeatable gaps or the user explicitly chooses
   a domain as the next product priority.
 
+## Cross-Cutting MVP Workflow Priorities
+
+Before broad language expansion, improve the reusable agent workflows that make
+BIBER a practical lower-cost Replit alternative:
+
+1. Reliable repo-context selection across stacks.
+2. Safe multi-file edit planning and patch application.
+3. Structured test-failure diagnosis and targeted retry loops.
+
+These workflow capabilities should serve every language below. Add stack
+specific details gradually, starting with the user's highest-value development
+paths and the existing Rust/XRIQ work.
+
 ## Priority Order
 
 1. Rust/XRIQ cryptocurrency blockchain development.
