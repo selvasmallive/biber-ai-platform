@@ -165,6 +165,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP agent-client MVP-loop artifact listing commit pushed and
   Vast-verified:
   `841dc8f Add MVP loop artifact listing`.
+- Latest BIBER MVP agent-client failed MVP-loop artifact filter commit pushed
+  and Vast-verified:
+  `be89b78 Filter failed MVP loop artifacts`.
 - Latest BIBER MVP repo-adaptation commits pushed and Vast-verified:
   `9126fdd Add BIBER repo adaptation plan` and
   `2efa65b Fix repo adaptation relative role detection`.
@@ -197,7 +200,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   `07eb63f Add TensorFlow capability track`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `841dc8f`. Full Rust/private-devnet
+- Vast code verification is current through `be89b78`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -229,7 +232,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   agent-client MVP-loop artifact verification is current through `38e3701`;
   BIBER agent-client MVP-loop artifact viewer verification is current through
   `8c077d2`; BIBER agent-client MVP-loop artifact listing verification is
-  current through `841dc8f`.
+  current through `841dc8f`; BIBER agent-client failed MVP-loop artifact filter
+  verification is current through `be89b78`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
@@ -239,7 +243,27 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast checkout is fast-forwarded to `841dc8f`.
+  - Vast checkout is fast-forwarded to `be89b78`.
+  - The `be89b78` failed MVP-loop artifact filter checkpoint required no
+    service restart because it changed only the stdlib client helper, smoke
+    script, docs, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid
+    `53902`.
+  - Latest focused Vast verification for the BIBER agent-client failed
+    MVP-loop artifact filter slice:
+    `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py tests/test_github_client.py tests/test_agent_session.py tests/test_agent_capabilities.py tests/test_test_runner.py tests/test_test_diagnosis.py tests/test_workspace_edit.py tests/test_repo_context.py -q`
+    with `86 passed`, and live
+    `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS=24 bash scripts/vast_biber_agent_smoke.sh`.
+    The live smoke wrote artifacts under
+    `/workspace/outputs/biber-agent-smoke-20260519T121958Z-55732`, created a
+    stdlib-client session `51a6bf1c-9061-4bb2-a43a-c33c2a272340`, created an
+    XRIQ-context session `aed7a24a-06f6-4ab4-b7c7-8d34c78bf68b`, verified
+    `mvp-loop --output` wrote
+    `/workspace/outputs/biber-agent-smoke-20260519T121958Z-55732/agent-client-mvp-loop-output.json`,
+    verified `list-mvp-loops` found one saved artifact, and verified
+    `list-mvp-loops --failed-only` returned zero artifacts for the successful
+    smoke run. GitHub remained skipped because `github_configured=false`.
   - The `841dc8f` agent-client MVP-loop artifact listing checkpoint required
     no service restart because it changed only the stdlib client helper, smoke
     script, docs, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid
