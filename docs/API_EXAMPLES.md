@@ -435,6 +435,9 @@ python scripts/biber_agent_client.py verify-repair-edits \
 python scripts/biber_agent_client.py export-verified-repair \
   /workspace/outputs/biber-mvp-loop-repair-test-verification.json \
   --output /workspace/outputs/biber-mvp-loop-verified-repairs.jsonl
+python scripts/biber_agent_client.py review-verified-repairs \
+  /workspace/outputs/biber-mvp-loop-verified-repairs.jsonl \
+  --output /workspace/outputs/biber-mvp-loop-verified-repair-review.json
 ```
 
 ## Prepare Repo-Specific BIBER Adaptation

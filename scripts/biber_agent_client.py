@@ -565,6 +565,31 @@ def load_json_artifact(artifact_path: str, *, label: str) -> dict[str, Any]:
     return parsed
 
 
+def load_jsonl_artifact(jsonl_path: str, *, label: str) -> list[dict[str, Any]]:
+    path = Path(jsonl_path)
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except OSError as exc:
+        raise BiberAgentClientError(f"Could not read {label} {path}: {exc}") from exc
+    records: list[dict[str, Any]] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            raise BiberAgentClientError(
+                f"{label} {path} line {line_number} must be valid JSON: {exc}"
+            ) from exc
+        if not isinstance(parsed, dict):
+            raise BiberAgentClientError(
+                f"{label} {path} line {line_number} must be a JSON object."
+            )
+        records.append(parsed)
+    return records
+
+
 def compact_text(value: object, *, max_chars: int = 2000) -> str:
     text = str(value or "")
     if len(text) <= max_chars:
@@ -1334,6 +1359,81 @@ def export_verified_repair_review(
     }
 
 
+def review_verified_repair_records(
+    *,
+    jsonl_paths: list[str],
+    min_repeat: int,
+) -> dict[str, Any]:
+    if min_repeat < 1:
+        raise BiberAgentClientError("--min-repeat must be at least 1.")
+    records: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for jsonl_path in jsonl_paths:
+        for index, row in enumerate(
+            load_jsonl_artifact(jsonl_path, label="verified repair JSONL"),
+            start=1,
+        ):
+            if row.get("source") == "biber_mvp_loop_verified_repair":
+                item = dict(row)
+                item["jsonl_path"] = jsonl_path
+                item["jsonl_index"] = index
+                records.append(item)
+            else:
+                rejected.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "reason": "unsupported_source",
+                        "source": row.get("source"),
+                    }
+                )
+
+    groups_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for record in records:
+        key = (
+            str(record.get("test_id") or ""),
+            str(record.get("plan_hash") or ""),
+        )
+        group = groups_by_key.setdefault(
+            key,
+            {
+                "test_id": key[0],
+                "plan_hash": key[1],
+                "count": 0,
+                "source_artifacts": [],
+                "review_statuses": [],
+                "eligible_for_training": False,
+            },
+        )
+        group["count"] += 1
+        group["source_artifacts"].append(record.get("source_artifact"))
+        group["review_statuses"].append(record.get("review_status"))
+    groups = [
+        group
+        for group in groups_by_key.values()
+        if int(group.get("count") or 0) >= min_repeat
+    ]
+    groups.sort(key=lambda item: (-int(item.get("count") or 0), str(item.get("test_id") or "")))
+
+    return {
+        "source": "biber_mvp_loop_verified_repair_review",
+        "review_status": "needs_human_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "auto_promoted": False,
+        "jsonl_paths": list(jsonl_paths),
+        "records": len(records),
+        "rejected_records": len(rejected),
+        "min_repeat": min_repeat,
+        "ready_for_human_review": len(records),
+        "groups": groups,
+        "rejected": rejected,
+        "next_review_action": (
+            "human_review_repeated_verified_repairs_before_eval_or_training"
+        ),
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -1868,6 +1968,35 @@ def format_verified_repair_export_summary(payload: Mapping[str, Any]) -> str:
     )
 
 
+def format_verified_repair_review_summary(payload: Mapping[str, Any]) -> str:
+    groups = [
+        item
+        for item in require_list(payload.get("groups"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER verified repair review",
+        f"records: {payload.get('records', 0)}",
+        f"rejected_records: {payload.get('rejected_records', 0)}",
+        f"ready_for_human_review: {payload.get('ready_for_human_review', 0)}",
+        f"review_status: {payload.get('review_status', '-')}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"eligible_for_training: {payload.get('eligible_for_training', False)}",
+        f"min_repeat: {payload.get('min_repeat', 1)}",
+        f"groups: {len(groups)}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    lines.extend(
+        (
+            f"- test_id={group.get('test_id', '-')} "
+            f"plan_hash={group.get('plan_hash', '-')} "
+            f"count={group.get('count', 0)}"
+        )
+        for group in groups[:8]
+    )
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -2225,6 +2354,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     export_verified_repair.add_argument("artifact")
     export_verified_repair.add_argument("--output", required=True)
 
+    review_verified_repairs = subparsers.add_parser(
+        "review-verified-repairs",
+        help=(
+            "Summarize verified repair JSONL review queues without making them "
+            "training-eligible."
+        ),
+    )
+    review_verified_repairs.add_argument("jsonl", nargs="+")
+    review_verified_repairs.add_argument("--min-repeat", type=int, default=1)
+    review_verified_repairs.add_argument("--output")
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -2368,6 +2508,19 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(export, indent=2, sort_keys=True)
             if args.print_json
             else format_verified_repair_export_summary(export)
+        )
+    if args.command == "review-verified-repairs":
+        review = review_verified_repair_records(
+            jsonl_paths=args.jsonl,
+            min_repeat=args.min_repeat,
+        )
+        if args.output:
+            review["artifact_path"] = str(Path(args.output))
+            write_json_artifact(review, args.output)
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_verified_repair_review_summary(review)
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)

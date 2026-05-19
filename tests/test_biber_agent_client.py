@@ -1570,6 +1570,84 @@ def test_run_export_verified_repair_writes_review_jsonl_without_api_key(
     assert rows[0]["next_review_action"] == "human_review_before_eval_or_training"
 
 
+def test_run_review_verified_repairs_summarizes_jsonl_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("review-verified-repairs should not resolve an API key")
+
+    jsonl_path = tmp_path / "verified-repairs.jsonl"
+    records = [
+        {
+            "source": "biber_mvp_loop_verified_repair",
+            "review_status": "needs_human_review",
+            "quality": "needs_review",
+            "training_allowed": False,
+            "eligible_for_training": False,
+            "auto_promoted": False,
+            "auto_saved": False,
+            "source_artifact": "repair-test-verification.json",
+            "repair_apply_artifact": "repair-edit-apply.json",
+            "plan_hash": "a" * 64,
+            "test_id": "python-compileall-api",
+            "verification": {
+                "verification_status": "passed",
+                "ok": True,
+                "test_ok": True,
+            },
+            "test": {
+                "command": ["python", "-m", "compileall", "src"],
+                "relevant_output": "",
+            },
+        },
+        {
+            "source": "other_source",
+            "test_id": "ignored",
+        },
+    ]
+    jsonl_path.write_text(
+        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "verified-repair-review.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-verified-repairs",
+                str(jsonl_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["source"] == "biber_mvp_loop_verified_repair_review"
+    assert result["records"] == 1
+    assert result["rejected_records"] == 1
+    assert result["ready_for_human_review"] == 1
+    assert result["training_allowed"] is False
+    assert result["eligible_for_training"] is False
+    assert result["auto_promoted"] is False
+    assert result["groups"] == [
+        {
+            "test_id": "python-compileall-api",
+            "plan_hash": "a" * 64,
+            "count": 1,
+            "source_artifacts": ["repair-test-verification.json"],
+            "review_statuses": ["needs_human_review"],
+            "eligible_for_training": False,
+        }
+    ]
+    assert result["rejected"][0]["reason"] == "unsupported_source"
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 
