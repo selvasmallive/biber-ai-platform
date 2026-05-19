@@ -159,9 +159,12 @@ serving the last broad-safe Rust/XRIQ adapter.
   Vast-verified:
   `8fca321 Add repo adaptation live eval wrapper` and
   `81b9dd5 Fix repo adaptation eval direct execution`.
+- Latest BIBER MVP repo-adaptation failure-review commit pushed and
+  Vast-verified:
+  `68479ad Add repo adaptation failure review`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `81b9dd5`. Full Rust/private-devnet
+- Vast code verification is current through `68479ad`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -180,16 +183,32 @@ serving the last broad-safe Rust/XRIQ adapter.
   current through `c5f7235`; BIBER repo-context stack-profile verification is
   current through `6050bd0`; BIBER hash-gated workspace edit-apply
   verification is current through `79aad96`; BIBER repo-adaptation live-eval
-  wrapper verification is current through `81b9dd5`.
+  wrapper verification is current through `81b9dd5`; BIBER repo-adaptation
+  failure-review verification is current through `68479ad`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `53552`
+  - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - The `68479ad` repo-adaptation failure-review checkpoint required a
+    FastAPI-only restart because the `pytest-core` allowlist changed. vLLM
+    stayed on pid `5802`; FastAPI moved from pid `53552` to pid `53902`.
+  - Latest focused Vast verification for the BIBER repo-adaptation
+    failure-review slice:
+    `/workspace/biber-venv/bin/python -m compileall training tests app src`,
+    focused pytest
+    `tests/test_repo_adaptation_failure_review.py tests/test_repo_adaptation_eval.py tests/test_repo_adaptation_plan.py tests/test_agent_capabilities.py -q`
+    with `13 passed`, and a live review smoke against
+    `/workspace/outputs/evals/repo-adaptation-smoke.failures.jsonl`.
+    The smoke wrote
+    `/workspace/outputs/evals/repo-adaptation-smoke.review.json` and
+    `/workspace/outputs/evals/repo-adaptation-smoke.training-candidates.jsonl`
+    with `quality=needs_review` and empty `output`, so it remains a review
+    item rather than trainable data.
   - The `81b9dd5` repo-adaptation live-eval wrapper checkpoint required a
     FastAPI-only restart because the `pytest-core` allowlist changed. vLLM
     stayed on pid `5802`; FastAPI moved from pid `53128` to pid `53552`.
@@ -2237,6 +2256,42 @@ serving the last broad-safe Rust/XRIQ adapter.
   - Restarted only the FastAPI process because `pytest-core` allowlist changed.
     vLLM stayed running with pid `5802`. New FastAPI pid: `53552`.
   - No credential change, model training, or OpenAI mentor call was needed.
+- BIBER MVP repo-adaptation failure-review checkpoint:
+  - Added `training/repo_adaptation_failure_review.py`, a conservative helper
+    that groups repo-adaptation eval failures by prompt, language, task type,
+    and missing expectations.
+  - The helper writes a compact review JSON and can write candidate JSONL rows
+    marked `quality: needs_review`. Candidate rows intentionally keep
+    `output` empty, so they are review queue items and must not be promoted to
+    `/workspace/data/biber_train.jsonl` until a reviewer writes a verified
+    answer or patch and changes the quality to `reviewed` or `verified`.
+  - Runtime/API errors and secret-like text are blocked from candidate
+    generation. The default repeat threshold is `--min-repeats 2`; the live
+    smoke used `--min-repeats 1` only to prove the wrapper on the existing
+    one-row smoke artifact.
+  - Added focused tests in `tests/test_repo_adaptation_failure_review.py`,
+    added that test to the `pytest-core` allowlist, and documented the workflow
+    in `docs/BIBER_REPO_ADAPTATION.md`, `docs/API_EXAMPLES.md`, and
+    `training/dataset_format.md`.
+  - Local workstation verification passed with bundled Python
+    `compileall training tests app src`, `git diff --check`, and a tiny
+    failure-review smoke. Local pytest is still unavailable in the bundled
+    workstation runtime.
+  - Pushed implementation commit:
+    `68479ad Add repo adaptation failure review`.
+  - Vast checkout was fast-forwarded to `68479ad`; Vast verification passed
+    with `/workspace/biber-venv/bin/python -m compileall training tests app src`
+    and focused pytest
+    `tests/test_repo_adaptation_failure_review.py tests/test_repo_adaptation_eval.py tests/test_repo_adaptation_plan.py tests/test_agent_capabilities.py -q`
+    with `13 passed`.
+  - Live smoke reviewed
+    `/workspace/outputs/evals/repo-adaptation-smoke.failures.jsonl` and wrote
+    `/workspace/outputs/evals/repo-adaptation-smoke.review.json` plus
+    `/workspace/outputs/evals/repo-adaptation-smoke.training-candidates.jsonl`.
+    The candidate row had `quality=needs_review` and an empty `output`.
+  - Restarted only the FastAPI process because `pytest-core` allowlist changed.
+    vLLM stayed running with pid `5802`. New FastAPI pid: `53902`.
+  - No credential change, model training, or OpenAI mentor call was needed.
 - XRIQ snapshot export/import checkpoint:
   - Added private-devnet `xriq-node snapshot-export` and
     `xriq-node snapshot-import`.
@@ -3660,12 +3715,13 @@ bash scripts/xriq_private_devnet_smoke.sh
    test runner now includes `.NET` and Java stack IDs for target repos. The
    repo-context planner now exposes `.NET` and Java stack profiles. The
    hash-gated multi-file edit apply endpoint is live. The repo-adaptation live
-   eval wrapper is also live. Good next targets are running the new stack
-   profiles/test IDs against a real user repo when provided, adding a client
-   helper `create-session` live smoke with a tiny max-token budget, or adding a
-   tiny failure-review helper that turns repeated repo-adaptation eval failures
-   into reviewed training candidates. Public XRIQ launch, exchange listing,
-   custody, liquidity, bridges, and market-facing work remain blocked.
+   eval wrapper and the conservative repo-adaptation failure-review helper are
+   also live. Good next targets are running the new stack profiles/test IDs
+   against a real user repo when provided, adding a client helper
+   `create-session` live smoke with a tiny max-token budget, or manually
+   reviewing repeated failure candidates into verified examples only after a
+   real repo eval produces repeatable gaps. Public XRIQ launch, exchange
+   listing, custody, liquidity, bridges, and market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
