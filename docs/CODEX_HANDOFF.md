@@ -149,9 +149,11 @@ serving the last broad-safe Rust/XRIQ adapter.
   `3069a50 Add agent-session test diagnosis`.
 - Latest BIBER MVP `.NET`/Java test-command commit pushed and Vast-verified:
   `c5f7235 Add dotnet and java test commands`.
+- Latest BIBER MVP repo-context stack-profile commit pushed and Vast-verified:
+  `6050bd0 Add repo context stack profiles`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `c5f7235`. Full Rust/private-devnet
+- Vast code verification is current through `6050bd0`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -167,16 +169,28 @@ serving the last broad-safe Rust/XRIQ adapter.
   BIBER test-failure diagnosis verification is current through `1fd510f`;
   BIBER agent-session embedded test-diagnosis verification is current through
   `3069a50`; BIBER `.NET`/Java allowlisted test-command verification is
-  current through `c5f7235`.
+  current through `c5f7235`; BIBER repo-context stack-profile verification is
+  current through `6050bd0`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
   - vLLM pid: `5802`
-  - FastAPI pid: `52412`
+  - FastAPI pid: `52785`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - The `6050bd0` repo-context stack-profile checkpoint required a
+    FastAPI-only restart because `POST /v1/repo/context/plan` and
+    `GET /v1/agent/capabilities` now return stack-profile metadata. vLLM
+    stayed on pid `5802`; FastAPI moved from pid `52412` to pid `52785`.
+  - Latest focused Vast verification for the BIBER repo-context stack-profile
+    slice:
+    `/workspace/biber-venv/bin/python -m compileall app src tests`, focused
+    pytest `tests/test_repo_context.py tests/test_agent_capabilities.py -q`
+    with `13 passed`, a live authenticated `GET /v1/agent/capabilities` smoke
+    listing `dotnet,java` repo-context profiles, and a live authenticated
+    `POST /v1/repo/context/plan` smoke confirming `stack_profiles` is present.
   - The `c5f7235` `.NET`/Java test-command checkpoint required a FastAPI-only
     restart because the `/v1/tests` allowlist and agent-capability metadata
     changed. vLLM stayed on pid `5802`; FastAPI moved from pid `51901` to
@@ -2091,6 +2105,37 @@ serving the last broad-safe Rust/XRIQ adapter.
   - Restarted only the FastAPI process because the API command allowlist
     changed. vLLM stayed running with pid `5802`. New FastAPI pid: `52412`.
   - No credential change, model training, or OpenAI mentor call was needed.
+- BIBER MVP repo-context stack-profile checkpoint:
+  - Added deterministic repo-context stack profiles for `.NET / ASP.NET Core`
+    and `Java / Spring Boot`.
+  - `POST /v1/repo/context/plan` now returns `stack_profiles` for detected
+    stacks. Profiles include preferred manifest patterns, entrypoint patterns,
+    related-test patterns, and matching allowlisted test IDs.
+  - `GET /v1/agent/capabilities` now advertises the supported repo-context
+    stack profiles so client tools can plan repo context before calling chat or
+    agent sessions.
+  - The planner now selects common stack entrypoints when present:
+    `.NET` `Program.cs`/`Startup.cs`, and Java/Spring
+    `*Application.java`/`*Application.kt` under `src/main`.
+  - The planner still avoids secrets and intentionally does not auto-include
+    appsettings/application config files because those can contain credentials.
+  - Added focused coverage in `tests/test_repo_context.py` and
+    `tests/test_agent_capabilities.py`; updated `docs/API_EXAMPLES.md`.
+  - Local workstation verification passed with bundled Python
+    `compileall app src tests`, `git diff --check`, and a lightweight Java
+    planner smoke. Local pytest is still unavailable in the bundled
+    workstation runtime.
+  - Pushed implementation commit:
+    `6050bd0 Add repo context stack profiles`.
+  - Vast checkout was fast-forwarded to `6050bd0`; Vast verification passed
+    with `/workspace/biber-venv/bin/python -m compileall app src tests`,
+    focused pytest
+    `tests/test_repo_context.py tests/test_agent_capabilities.py -q` with
+    `13 passed`, and live authenticated smokes for
+    `GET /v1/agent/capabilities` and `POST /v1/repo/context/plan`.
+  - Restarted only the FastAPI process because API response metadata changed.
+    vLLM stayed running with pid `5802`. New FastAPI pid: `52785`.
+  - No credential change, model training, or OpenAI mentor call was needed.
 - XRIQ snapshot export/import checkpoint:
   - Added private-devnet `xriq-node snapshot-export` and
     `xriq-node snapshot-import`.
@@ -3447,7 +3492,8 @@ bash scripts/xriq_private_devnet_smoke.sh
      relevant manifests/config/tests/changed files, support pinned files, and
      avoid secrets, dependency folders, build outputs, and binaries. The first
      deterministic planner endpoint, `POST /v1/repo/context/plan`, is now
-     implemented and Vast-verified.
+     implemented and Vast-verified. It now also returns `.NET` and Java stack
+     profiles and selects common stack entrypoints when present.
    - Safer multi-file editing: produce an edit plan, enforce workspace/path
      bounds, limit touched files, apply patch-style changes, and run formatting
      or targeted tests after edits. The first no-write multi-file planner
@@ -3508,14 +3554,14 @@ bash scripts/xriq_private_devnet_smoke.sh
    planner endpoint, no-write multi-file edit-plan endpoint, and deterministic
    test-failure diagnosis endpoint are live. Failed/timed-out agent-session
    test steps now embed that diagnosis in the persisted session artifact. The
-   test runner now includes `.NET` and Java stack IDs for target repos. Good
-   next targets are adding a cautious multi-file apply transaction that requires
-   a clean plan id/hash, adding a live eval-run wrapper for generated
-   repo-adaptation prompts, adding stack-aware repo-context presets for
-   `.NET`/Java projects, running the new test IDs against a real user repo when
-   provided, or adding a client helper `create-session` live smoke with a tiny
-   max-token budget. Public XRIQ launch, exchange listing, custody, liquidity,
-   bridges, and market-facing work remain blocked.
+   test runner now includes `.NET` and Java stack IDs for target repos. The
+   repo-context planner now exposes `.NET` and Java stack profiles. Good next
+   targets are adding a cautious multi-file apply transaction that requires a
+   clean plan id/hash, adding a live eval-run wrapper for generated
+   repo-adaptation prompts, running the new stack profiles/test IDs against a
+   real user repo when provided, or adding a client helper `create-session`
+   live smoke with a tiny max-token budget. Public XRIQ launch, exchange
+   listing, custody, liquidity, bridges, and market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
