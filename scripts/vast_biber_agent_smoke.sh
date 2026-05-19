@@ -65,6 +65,7 @@ script_dir = Path(os.environ["SCRIPT_DIR"])
 client_edit_smoke_path = f".biber-runtime/agent-client-edit-smoke-{smoke_id}.txt"
 client_mvp_loop_smoke_path = f".biber-runtime/agent-client-mvp-loop-smoke-{smoke_id}.txt"
 client_mvp_loop_output_path = artifact_dir / "agent-client-mvp-loop-output.json"
+client_mvp_loop_failures_path = artifact_dir / "agent-client-mvp-loop-failures.jsonl"
 
 
 def fail(message: str) -> None:
@@ -683,6 +684,39 @@ if not isinstance(client_mvp_loop_failed_artifacts, list):
     fail(f"list-mvp-loops --failed-only did not return artifacts: {client_mvp_loop_failed_list!r}")
 if client_mvp_loop_failed_artifacts:
     fail(f"successful mvp-loop smoke appeared in failed-only list: {client_mvp_loop_failed_list!r}")
+try:
+    client_mvp_loop_failure_export_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "export-mvp-failures",
+            str(artifact_dir),
+            "--output",
+            str(client_mvp_loop_failures_path),
+            "--limit",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py export-mvp-failures failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py export-mvp-failures timed out: {exc}")
+try:
+    client_mvp_loop_failure_export = json.loads(client_mvp_loop_failure_export_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py export-mvp-failures returned invalid JSON: {exc}")
+if client_mvp_loop_failure_export.get("records") != 0:
+    fail(f"successful smoke exported failure records: {client_mvp_loop_failure_export!r}")
+if client_mvp_loop_failure_export.get("training_allowed") is not False:
+    fail(f"failure export must remain training_allowed=false: {client_mvp_loop_failure_export!r}")
+if not client_mvp_loop_failures_path.exists():
+    fail(f"export-mvp-failures did not write {client_mvp_loop_failures_path}")
+if client_mvp_loop_failures_path.read_text(encoding="utf-8") != "":
+    fail(f"successful smoke wrote non-empty failure export: {client_mvp_loop_failures_path}")
 if client_mvp_loop.get("ok") is not True:
     fail(f"agent client mvp-loop did not return ok=true: {client_mvp_loop!r}")
 client_mvp_steps = client_mvp_loop.get("steps")
@@ -714,6 +748,10 @@ write_artifact(
 write_artifact(
     "agent-client-mvp-loop-failed-list.json",
     {"status": 0, "body": client_mvp_loop_failed_list},
+)
+write_artifact(
+    "agent-client-mvp-loop-failure-export.json",
+    {"status": 0, "body": client_mvp_loop_failure_export},
 )
 
 chat_payload = {
@@ -907,6 +945,8 @@ summary = {
     "agent_client_mvp_loop_steps": sorted(client_mvp_steps.keys()),
     "agent_client_mvp_loop_list_count": len(client_mvp_loop_list_artifacts),
     "agent_client_mvp_loop_failed_list_count": len(client_mvp_loop_failed_artifacts),
+    "agent_client_mvp_loop_failure_export": str(client_mvp_loop_failures_path),
+    "agent_client_mvp_loop_failure_export_records": client_mvp_loop_failure_export.get("records"),
     "agent_client_mvp_loop_report_ok": "BIBER MVP loop" in client_mvp_loop_report,
     "agent_client_mvp_loop_test_ok": client_mvp_loop.get("test_ok"),
     "agent_client_test_id": client_test_run.get("test_id"),

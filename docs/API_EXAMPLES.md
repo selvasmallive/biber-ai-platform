@@ -403,6 +403,9 @@ python scripts/biber_agent_client.py list-mvp-loops \
   /workspace/outputs \
   --failed-only \
   --limit 10
+python scripts/biber_agent_client.py export-mvp-failures \
+  /workspace/outputs \
+  --output /workspace/outputs/biber-mvp-loop-failures.jsonl
 ```
 
 ## Prepare Repo-Specific BIBER Adaptation

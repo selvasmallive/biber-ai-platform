@@ -569,6 +569,80 @@ def test_run_list_mvp_loops_failed_only_filters_successes(tmp_path: Path) -> Non
     assert [item["path"] for item in result["artifacts"]] == [str(failure)]
 
 
+def test_run_export_mvp_failures_writes_review_jsonl_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("export-mvp-failures should not resolve an API key")
+
+    success = tmp_path / "success-mvp-loop.json"
+    success.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "steps": {"context_plan": {}, "test_run": {"ok": True}},
+                "selected_context_paths": ["README.md"],
+                "test_ok": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    failure = tmp_path / "failure-mvp-loop.json"
+    failure.write_text(
+        json.dumps(
+            {
+                "ok": False,
+                "diagnosis_summary": "Detected compile_error in dotnet output.",
+                "steps": {
+                    "context_plan": {},
+                    "test_run": {
+                        "ok": False,
+                        "test_id": "dotnet-test",
+                        "exit_code": 1,
+                        "timed_out": False,
+                        "stdout": "Example.cs(7,1): error CS1002: ; expected\n",
+                    },
+                    "test_diagnosis": {
+                        "primary_category": "compile_error",
+                        "detected_stack": "dotnet",
+                        "summary": "Detected compile_error in dotnet output.",
+                    },
+                },
+                "selected_context_paths": ["README.md", "src/App.cs"],
+                "test_ok": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "mvp-loop-failures.jsonl"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "export-mvp-failures",
+                str(tmp_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    summary = json.loads(output)
+    rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+
+    assert summary["records"] == 1
+    assert summary["training_allowed"] is False
+    assert rows[0]["source"] == "biber_mvp_loop_failure"
+    assert rows[0]["review_status"] == "needs_review"
+    assert rows[0]["training_allowed"] is False
+    assert rows[0]["source_artifact"] == str(failure)
+    assert rows[0]["failure"]["test_id"] == "dotnet-test"
+    assert rows[0]["failure"]["primary_category"] == "compile_error"
+    assert rows[0]["selected_context_paths"] == ["README.md", "src/App.cs"]
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 

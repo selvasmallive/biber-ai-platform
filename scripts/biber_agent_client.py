@@ -518,6 +518,17 @@ def write_json_artifact(payload: Mapping[str, Any], output_path: str) -> str:
     return str(path)
 
 
+def write_jsonl_artifact(records: list[Mapping[str, Any]], output_path: str) -> str:
+    path = Path(output_path)
+    if path.parent != Path("."):
+        path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+        encoding="utf-8",
+    )
+    return str(path)
+
+
 def load_json_artifact(artifact_path: str, *, label: str) -> dict[str, Any]:
     path = Path(artifact_path)
     try:
@@ -529,6 +540,13 @@ def load_json_artifact(artifact_path: str, *, label: str) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise BiberAgentClientError(f"{label} must contain a JSON object.")
     return parsed
+
+
+def compact_text(value: object, *, max_chars: int = 2000) -> str:
+    text = str(value or "")
+    if len(text) <= max_chars:
+        return text
+    return text[-max_chars:]
 
 
 def normalize_mvp_loop_artifact(payload: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -562,6 +580,40 @@ def summarize_mvp_loop_artifact(path: Path, payload: Mapping[str, Any]) -> dict[
 
 def is_failed_mvp_loop_artifact(payload: Mapping[str, Any]) -> bool:
     return payload.get("ok") is not True or payload.get("test_ok") is False
+
+
+def build_mvp_loop_failure_record(path: Path, payload: Mapping[str, Any]) -> dict[str, Any]:
+    steps = require_mapping(payload.get("steps"))
+    test_run = require_mapping(steps.get("test_run"))
+    diagnosis = require_mapping(steps.get("test_diagnosis"))
+    relevant_output = (
+        diagnosis.get("relevant_output")
+        or test_run.get("stdout")
+        or test_run.get("stderr")
+        or ""
+    )
+    return {
+        "source": "biber_mvp_loop_failure",
+        "review_status": "needs_review",
+        "training_allowed": False,
+        "source_artifact": str(path),
+        "ok": payload.get("ok"),
+        "test_ok": payload.get("test_ok"),
+        "selected_context_paths": require_list(payload.get("selected_context_paths")),
+        "step_names": list(steps.keys()),
+        "edit_plan_hash": payload.get("edit_plan_hash"),
+        "failure": {
+            "diagnosis_summary": payload.get("diagnosis_summary")
+            or diagnosis.get("summary"),
+            "primary_category": diagnosis.get("primary_category"),
+            "detected_stack": diagnosis.get("detected_stack"),
+            "test_id": test_run.get("test_id"),
+            "exit_code": test_run.get("exit_code"),
+            "timed_out": bool(test_run.get("timed_out")),
+            "relevant_output": compact_text(relevant_output),
+        },
+        "next_review_action": "review_failure_before_eval_or_training",
+    }
 
 
 def list_mvp_loop_artifacts(
@@ -603,6 +655,50 @@ def list_mvp_loop_artifacts(
         "failed_only": failed_only,
         "scanned": scanned,
         "artifacts": artifacts[:limit],
+    }
+
+
+def export_mvp_loop_failures(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    output_path: str,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(f"MVP loop artifact directory does not exist: {root}")
+    if not root.is_dir():
+        raise BiberAgentClientError(f"MVP loop artifact path is not a directory: {root}")
+
+    scanned = 0
+    records: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(str(path), label="mvp-loop artifact")
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_mvp_loop_artifact(raw_payload)
+        if normalized is None or not is_failed_mvp_loop_artifact(normalized):
+            continue
+        records.append(build_mvp_loop_failure_record(path, normalized))
+
+    records.sort(key=lambda item: str(item.get("source_artifact", "")), reverse=True)
+    selected_records = records[:limit]
+    output = write_jsonl_artifact(selected_records, output_path)
+    return {
+        "directory": str(root),
+        "pattern": pattern,
+        "scanned": scanned,
+        "records": len(selected_records),
+        "output": output,
+        "review_status": "needs_review",
+        "training_allowed": False,
     }
 
 
@@ -874,6 +970,21 @@ def format_mvp_loop_artifact_list_summary(payload: Mapping[str, Any]) -> str:
             )
         )
     return "\n".join(lines)
+
+
+def format_mvp_loop_failure_export_summary(payload: Mapping[str, Any]) -> str:
+    return "\n".join(
+        [
+            "BIBER MVP loop failure export",
+            f"directory: {payload.get('directory', '-')}",
+            f"pattern: {payload.get('pattern', '-')}",
+            f"scanned: {payload.get('scanned', 0)}",
+            f"records: {payload.get('records', 0)}",
+            f"output: {payload.get('output', '-')}",
+            f"review_status: {payload.get('review_status', '-')}",
+            f"training_allowed: {payload.get('training_allowed', False)}",
+        ]
+    )
 
 
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
@@ -1214,6 +1325,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Only list saved loop artifacts where ok is false or the test failed.",
     )
 
+    export_mvp_failures = subparsers.add_parser(
+        "export-mvp-failures",
+        help="Export failed mvp-loop artifacts to a JSONL review queue.",
+    )
+    export_mvp_failures.add_argument("directory")
+    export_mvp_failures.add_argument("--output", required=True)
+    export_mvp_failures.add_argument("--pattern", default="*mvp-loop*.json")
+    export_mvp_failures.add_argument("--limit", type=int, default=100)
+
     args = parser.parse_args(argv)
     if args.command is None:
         args.command = "capabilities"
@@ -1244,6 +1364,18 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
             else format_mvp_loop_artifact_list_summary(artifacts)
+        )
+    if args.command == "export-mvp-failures":
+        export = export_mvp_loop_failures(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            output_path=args.output,
+        )
+        return (
+            json.dumps(export, indent=2, sort_keys=True)
+            if args.print_json
+            else format_mvp_loop_failure_export_summary(export)
         )
 
     api_key = resolve_api_key(args.api_key)
