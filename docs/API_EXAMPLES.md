@@ -424,6 +424,10 @@ python scripts/biber_agent_client.py plan-repair-edits \
   /workspace/outputs/biber-mvp-loop-repair-edit-extraction.json \
   --max-files 2 \
   --output /workspace/outputs/biber-mvp-loop-repair-edit-plan.json
+python scripts/biber_agent_client.py apply-repair-edits \
+  /workspace/outputs/biber-mvp-loop-repair-edit-plan.json \
+  --approve \
+  --output /workspace/outputs/biber-mvp-loop-repair-edit-apply.json
 ```
 
 ## Prepare Repo-Specific BIBER Adaptation

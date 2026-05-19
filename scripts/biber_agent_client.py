@@ -1098,6 +1098,77 @@ def build_plan_repair_edits_result(
     }
 
 
+def normalize_repair_edit_plan_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_repair_edit_plan":
+        return dict(payload)
+    body = payload.get("body")
+    if (
+        isinstance(body, dict)
+        and body.get("source") == "biber_mvp_loop_repair_edit_plan"
+    ):
+        return dict(body)
+    return None
+
+
+def build_apply_repair_edits_payload(plan: Mapping[str, Any]) -> dict[str, Any]:
+    if plan.get("plan_status") != "planned" or plan.get("ok") is not True:
+        raise BiberAgentClientError(
+            "apply-repair-edits requires a successful repair edit plan artifact."
+        )
+    plan_hash = plan.get("plan_hash")
+    if not isinstance(plan_hash, str) or not plan_hash:
+        raise BiberAgentClientError(
+            "apply-repair-edits requires a repair edit plan artifact with plan_hash."
+        )
+    edit_plan_hash = require_mapping(plan.get("edit_plan")).get("plan_hash")
+    if isinstance(edit_plan_hash, str) and edit_plan_hash != plan_hash:
+        raise BiberAgentClientError(
+            "apply-repair-edits requires matching top-level and edit_plan hashes."
+        )
+    plan_payload = require_mapping(plan.get("plan_edit_payload")).copy()
+    edits = require_list(plan_payload.get("edits"))
+    if not edits:
+        raise BiberAgentClientError(
+            "apply-repair-edits requires a repair edit plan artifact with edits."
+        )
+    plan_payload["plan_hash"] = plan_hash
+    return plan_payload
+
+
+def build_apply_repair_edits_result(
+    *,
+    plan_path: Path,
+    plan: Mapping[str, Any],
+    apply_payload: Mapping[str, Any],
+    edit_apply: Mapping[str, Any],
+) -> dict[str, Any]:
+    ok = edit_apply.get("ok") is True
+    return {
+        "source": "biber_mvp_loop_repair_edit_apply",
+        "repair_loop_version": "mvp-v1",
+        "source_artifact": str(plan_path),
+        "apply_status": "applied" if ok else "failed",
+        "ok": ok,
+        "training_allowed": False,
+        "auto_applied": False,
+        "approval_required": True,
+        "approval_received": True,
+        "apply_allowed": True,
+        "review_status": "approved_apply_succeeded" if ok else "approved_apply_failed",
+        "plan_hash": plan.get("plan_hash"),
+        "next_test_id": plan.get("next_test_id"),
+        "apply_payload": dict(apply_payload),
+        "edit_apply": dict(edit_apply),
+        "next_workflow": [
+            "rerun_next_test_id",
+            "diagnose_again_if_still_failing",
+            "save_successful_fix_as_verified_candidate_if_repeatable",
+        ],
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -1560,6 +1631,34 @@ def format_repair_edit_plan_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_repair_edit_apply_summary(payload: Mapping[str, Any]) -> str:
+    edit_apply = require_mapping(payload.get("edit_apply"))
+    applied = [
+        item
+        for item in require_list(edit_apply.get("applied"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER repair edit apply",
+        f"source_artifact: {payload.get('source_artifact', '-')}",
+        f"apply_status: {payload.get('apply_status', '-')}",
+        f"ok: {bool(payload.get('ok'))}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"auto_applied: {payload.get('auto_applied', False)}",
+        f"approval_required: {payload.get('approval_required', True)}",
+        f"approval_received: {payload.get('approval_received', False)}",
+        f"review_status: {payload.get('review_status', '-')}",
+        f"plan_hash: {payload.get('plan_hash', '-')}",
+        f"applied: {len(applied)}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    lines.extend(
+        f"- {item.get('path', '-')} changed={item.get('changed', False)}"
+        for item in applied[:8]
+    )
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -1965,6 +2064,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     plan_repair_edits_parser.add_argument("--max-files", type=int)
     plan_repair_edits_parser.add_argument("--output")
 
+    apply_repair_edits_parser = subparsers.add_parser(
+        "apply-repair-edits",
+        help=(
+            "Apply a planned repair edit only after explicit approval, using "
+            "the plan hash from a repair-edit plan artifact."
+        ),
+    )
+    apply_repair_edits_parser.add_argument("artifact")
+    apply_repair_edits_parser.add_argument(
+        "--approve",
+        action="store_true",
+        help="Required safety gate. Without this flag, no edits are applied.",
+    )
+    apply_repair_edits_parser.add_argument("--output")
+
     args = parser.parse_args(argv)
     if args.command is None:
         args.command = "capabilities"
@@ -2059,6 +2173,11 @@ def run(args: argparse.Namespace) -> str:
             else format_repair_edit_extraction_summary(extraction)
         )
 
+    if args.command == "apply-repair-edits" and not args.approve:
+        raise BiberAgentClientError(
+            "apply-repair-edits requires --approve before any files can be changed."
+        )
+
     api_key = resolve_api_key(args.api_key)
     base_url = args.base_url.rstrip("/")
     if args.command == "attempt-repair":
@@ -2136,6 +2255,38 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_edit_plan_summary(result)
+        )
+    if args.command == "apply-repair-edits":
+        artifact_path = Path(args.artifact)
+        artifact = load_json_artifact(
+            str(artifact_path),
+            label="repair-edit plan artifact",
+        )
+        plan = normalize_repair_edit_plan_artifact(artifact)
+        if plan is None:
+            raise BiberAgentClientError(
+                "apply-repair-edits artifact must contain a saved repair-edit plan JSON object."
+            )
+        apply_payload = build_apply_repair_edits_payload(plan)
+        edit_apply = apply_workspace_edit_plan(
+            base_url=base_url,
+            api_key=api_key,
+            payload=apply_payload,
+            timeout_seconds=args.timeout_seconds,
+        )
+        result = build_apply_repair_edits_result(
+            plan_path=artifact_path,
+            plan=plan,
+            apply_payload=apply_payload,
+            edit_apply=edit_apply,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_edit_apply_summary(result)
         )
     if args.command == "capabilities":
         capabilities = fetch_capabilities(
