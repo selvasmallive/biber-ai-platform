@@ -3394,6 +3394,131 @@ def record_repair_chain_heldout_eval_decisions(
     }
 
 
+def review_repair_chain_heldout_eval_decision_records(
+    *,
+    jsonl_paths: list[str],
+    min_repeat: int,
+) -> dict[str, Any]:
+    if min_repeat < 1:
+        raise BiberAgentClientError("--min-repeat must be at least 1.")
+
+    records: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for jsonl_path in jsonl_paths:
+        for index, row in enumerate(
+            load_jsonl_artifact(
+                jsonl_path,
+                label="repair-chain held-out eval decision JSONL",
+            ),
+            start=1,
+        ):
+            if row.get("source") == "biber_mvp_loop_repair_chain_heldout_eval_decision":
+                item = dict(row)
+                item["heldout_eval_decision_jsonl_path"] = jsonl_path
+                item["heldout_eval_decision_jsonl_index"] = index
+                records.append(item)
+            else:
+                rejected.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "reason": "unsupported_source",
+                        "source": row.get("source"),
+                    }
+                )
+
+    decision_counts: dict[str, int] = {}
+    baseline_candidate_ready_records = 0
+    accepted_for_baseline_records = 0
+    follow_up_records = 0
+    groups_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for record in records:
+        decision = str(record.get("decision") or "missing")
+        decision_counts[decision] = decision_counts.get(decision, 0) + 1
+        if record.get("baseline_candidate_ready") is True:
+            baseline_candidate_ready_records += 1
+        if record.get("accepted_for_baseline") is True:
+            accepted_for_baseline_records += 1
+        if record.get("requires_follow_up") is True:
+            follow_up_records += 1
+        result_ids = [
+            str(item)
+            for item in require_list(record.get("heldout_eval_result_ids"))
+            if item
+        ]
+        group_id = ",".join(result_ids) or str(record.get("heldout_eval_review_artifact") or "")
+        key = (decision, group_id)
+        group = groups_by_key.setdefault(
+            key,
+            {
+                "decision": key[0],
+                "heldout_eval_result_ids": result_ids,
+                "heldout_eval_review_artifacts": [],
+                "count": 0,
+                "reviewers": [],
+                "accepted_for_baseline": False,
+                "baseline_candidate_ready": False,
+                "requires_follow_up": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+            },
+        )
+        group["count"] += 1
+        if record.get("accepted_for_baseline") is True:
+            group["accepted_for_baseline"] = True
+        if record.get("baseline_candidate_ready") is True:
+            group["baseline_candidate_ready"] = True
+        if record.get("requires_follow_up") is True:
+            group["requires_follow_up"] = True
+        reviewer = record.get("reviewer")
+        if reviewer and reviewer not in group["reviewers"]:
+            group["reviewers"].append(reviewer)
+        artifact = record.get("heldout_eval_review_artifact")
+        if artifact and artifact not in group["heldout_eval_review_artifacts"]:
+            group["heldout_eval_review_artifacts"].append(artifact)
+
+    groups = [
+        group
+        for group in groups_by_key.values()
+        if int(group.get("count") or 0) >= min_repeat
+    ]
+    groups.sort(
+        key=lambda item: (
+            str(item.get("decision") or ""),
+            -int(item.get("count") or 0),
+            ",".join(str(value) for value in require_list(item.get("heldout_eval_result_ids"))),
+        )
+    )
+
+    return {
+        "source": "biber_mvp_loop_repair_chain_heldout_eval_decision_review",
+        "review_status": "heldout_eval_decision_summary_only",
+        "records": len(records),
+        "rejected_records": len(rejected),
+        "decision_counts": decision_counts,
+        "defer_records": decision_counts.get("defer", 0),
+        "reject_records": decision_counts.get("reject", 0),
+        "accepted_for_baseline_records": accepted_for_baseline_records,
+        "baseline_candidate_ready_records": baseline_candidate_ready_records,
+        "follow_up_records": follow_up_records,
+        "min_repeat": min_repeat,
+        "groups": groups,
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "jsonl_paths": list(jsonl_paths),
+        "rejected": rejected,
+        "next_review_action": (
+            "manual_baseline_review_or_more_heldout_eval_before_training"
+        ),
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -4388,6 +4513,51 @@ def format_repair_chain_heldout_eval_decision_export_summary(
     )
 
 
+def format_repair_chain_heldout_eval_decision_review_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    decision_counts = payload.get("decision_counts")
+    if not isinstance(decision_counts, dict):
+        decision_counts = {}
+    groups = [
+        item
+        for item in require_list(payload.get("groups"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER repair-chain held-out eval decision review",
+        f"records: {payload.get('records', 0)}",
+        f"rejected_records: {payload.get('rejected_records', 0)}",
+        f"defer_records: {payload.get('defer_records', 0)}",
+        f"reject_records: {payload.get('reject_records', 0)}",
+        f"accepted_for_baseline_records: {payload.get('accepted_for_baseline_records', 0)}",
+        (
+            "baseline_candidate_ready_records: "
+            f"{payload.get('baseline_candidate_ready_records', 0)}"
+        ),
+        f"follow_up_records: {payload.get('follow_up_records', 0)}",
+        f"decision_counts: {decision_counts}",
+        f"review_status: {payload.get('review_status', '-')}",
+        f"min_repeat: {payload.get('min_repeat', 1)}",
+        f"groups: {len(groups)}",
+        f"eval_only: {payload.get('eval_only', True)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"approved_for_training: {payload.get('approved_for_training', False)}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    lines.extend(
+        (
+            f"- decision={group.get('decision', '-')} "
+            f"count={group.get('count', 0)} "
+            f"baseline_ready={group.get('baseline_candidate_ready', False)}"
+        )
+        for group in groups[:8]
+    )
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -4993,6 +5163,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     record_repair_chain_heldout_eval_decision.add_argument("--limit", type=int, default=100)
     record_repair_chain_heldout_eval_decision.add_argument("--output", required=True)
 
+    review_repair_chain_heldout_eval_decisions = subparsers.add_parser(
+        "review-repair-chain-heldout-eval-decisions",
+        help=(
+            "Summarize held-out eval decision JSONL queues without training "
+            "or model promotion."
+        ),
+    )
+    review_repair_chain_heldout_eval_decisions.add_argument("jsonl", nargs="+")
+    review_repair_chain_heldout_eval_decisions.add_argument(
+        "--min-repeat",
+        type=int,
+        default=1,
+    )
+    review_repair_chain_heldout_eval_decisions.add_argument("--output")
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -5355,6 +5540,19 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(decision, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_chain_heldout_eval_decision_export_summary(decision)
+        )
+    if args.command == "review-repair-chain-heldout-eval-decisions":
+        review = review_repair_chain_heldout_eval_decision_records(
+            jsonl_paths=args.jsonl,
+            min_repeat=args.min_repeat,
+        )
+        if args.output:
+            review["artifact_path"] = str(Path(args.output))
+            write_json_artifact(review, args.output)
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_heldout_eval_decision_review_summary(review)
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)
