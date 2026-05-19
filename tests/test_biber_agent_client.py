@@ -643,6 +643,119 @@ def test_run_export_mvp_failures_writes_review_jsonl_without_api_key(
     assert rows[0]["selected_context_paths"] == ["README.md", "src/App.cs"]
 
 
+def test_build_mvp_loop_repair_request_extracts_failure_context(tmp_path: Path) -> None:
+    artifact = tmp_path / "failure-mvp-loop.json"
+    payload = {
+        "ok": False,
+        "instruction": "Fix the API compile error.",
+        "diagnosis_summary": "Detected compile_error in dotnet output.",
+        "steps": {
+            "context_plan": {},
+            "test_run": {
+                "ok": False,
+                "test_id": "dotnet-test",
+                "command": ["dotnet", "test"],
+                "exit_code": 1,
+                "timed_out": False,
+                "stdout": "before\nExample.cs(7,1): error CS1002: ; expected\n",
+            },
+            "test_diagnosis": {
+                "primary_category": "compile_error",
+                "detected_stack": "dotnet",
+                "summary": "Detected compile_error in dotnet output.",
+                "relevant_output": "Example.cs(7,1): error CS1002: ; expected\n",
+                "suggested_next_actions": ["Fix compiler diagnostics first."],
+            },
+        },
+        "selected_context_paths": ["README.md", "src/App.cs", "tests/AppTests.cs"],
+        "test_ok": False,
+    }
+
+    repair = client.build_mvp_loop_repair_request(
+        path=artifact,
+        payload=payload,
+        instruction=None,
+        max_relevant_output_chars=80,
+        max_context_paths=2,
+    )
+
+    assert repair["source"] == "biber_mvp_loop_repair_request"
+    assert repair["repair_status"] == "ready_for_local_model"
+    assert repair["training_allowed"] is False
+    assert repair["selected_context_paths"] == ["README.md", "src/App.cs"]
+    assert repair["selected_context_paths_truncated"] is True
+    assert repair["failure"]["test_id"] == "dotnet-test"
+    assert repair["failure"]["primary_category"] == "compile_error"
+    assert repair["failure"]["relevant_output"].endswith("; expected\n")
+    assert "Fix the API compile error." in repair["repair_prompt"]
+    assert "Fix compiler diagnostics first." in repair["repair_prompt"]
+    assert repair["next_test_id"] == "dotnet-test"
+
+
+def test_run_prepare_repair_writes_request_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("prepare-repair should not resolve an API key")
+
+    failure = tmp_path / "failure-mvp-loop.json"
+    failure.write_text(
+        json.dumps(
+            {
+                "ok": False,
+                "instruction": "Fix a .NET compile error.",
+                "diagnosis_summary": "Detected compile_error in dotnet output.",
+                "steps": {
+                    "context_plan": {},
+                    "test_run": {
+                        "ok": False,
+                        "test_id": "dotnet-test",
+                        "command": ["dotnet", "test"],
+                        "exit_code": 1,
+                        "timed_out": False,
+                        "stdout": "Example.cs(7,1): error CS1002: ; expected\n",
+                    },
+                    "test_diagnosis": {
+                        "primary_category": "compile_error",
+                        "detected_stack": "dotnet",
+                        "summary": "Detected compile_error in dotnet output.",
+                        "suggested_next_actions": ["Fix compiler diagnostics first."],
+                    },
+                },
+                "selected_context_paths": ["README.md", "src/App.cs"],
+                "test_ok": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "repair-request.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "prepare-repair",
+                str(failure),
+                "--instruction",
+                "Repair with the smallest safe edit.",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["artifact_path"] == str(output_path)
+    assert result["source_artifact"] == str(failure)
+    assert result["instruction"] == "Repair with the smallest safe edit."
+    assert result["failure"]["detected_stack"] == "dotnet"
+    assert result["training_allowed"] is False
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 

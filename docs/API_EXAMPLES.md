@@ -406,6 +406,10 @@ python scripts/biber_agent_client.py list-mvp-loops \
 python scripts/biber_agent_client.py export-mvp-failures \
   /workspace/outputs \
   --output /workspace/outputs/biber-mvp-loop-failures.jsonl
+python scripts/biber_agent_client.py prepare-repair \
+  /workspace/outputs/biber-mvp-loop.json \
+  --instruction "Repair the failed test with the smallest safe edit." \
+  --output /workspace/outputs/biber-mvp-loop-repair.json
 ```
 
 ## Prepare Repo-Specific BIBER Adaptation

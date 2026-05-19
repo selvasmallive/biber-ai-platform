@@ -15,6 +15,12 @@ from typing import Any
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
 API_KEY_ENV_NAMES = ("BIBER_API_KEY", "BIBER_TEST_API_KEY", "BIBER_DEMO_API_KEY")
+DEFAULT_REPAIR_INSTRUCTION = (
+    "Repair the failed BIBER MVP loop using the smallest safe code change. "
+    "Use the selected repository context, diagnosis, and relevant test output. "
+    "Return a concise repair plan with exact file edit suggestions where possible, "
+    "then name the test that should be rerun."
+)
 
 
 class BiberAgentClientError(RuntimeError):
@@ -616,6 +622,139 @@ def build_mvp_loop_failure_record(path: Path, payload: Mapping[str, Any]) -> dic
     }
 
 
+def build_repair_prompt(
+    *,
+    instruction: str,
+    original_instruction: object,
+    selected_context_paths: list[str],
+    failure: Mapping[str, Any],
+    suggested_next_actions: list[str],
+) -> str:
+    context_lines = "\n".join(f"- {path}" for path in selected_context_paths) or "- none"
+    action_lines = "\n".join(f"- {action}" for action in suggested_next_actions) or "- none"
+    command = " ".join(str(part) for part in require_list(failure.get("command"))) or "-"
+    return "\n".join(
+        [
+            "BIBER deterministic repair request.",
+            "",
+            "Goal:",
+            instruction,
+            "",
+            "Rules:",
+            "- Prefer the smallest safe edit that fixes the failing test.",
+            "- Do not change credentials, generated secrets, dependency folders, or unrelated files.",
+            "- Preserve the existing project style and use existing APIs/helpers.",
+            "- Return a patch-style or old_text/new_text edit proposal before explaining.",
+            "",
+            f"Original MVP instruction: {original_instruction or '-'}",
+            "",
+            "Selected repository context paths:",
+            context_lines,
+            "",
+            "Failed test:",
+            f"- test_id: {failure.get('test_id') or '-'}",
+            f"- command: {command}",
+            f"- exit_code: {failure.get('exit_code')}",
+            f"- timed_out: {bool(failure.get('timed_out'))}",
+            "",
+            "Diagnosis:",
+            f"- detected_stack: {failure.get('detected_stack') or '-'}",
+            f"- primary_category: {failure.get('primary_category') or '-'}",
+            f"- summary: {failure.get('diagnosis_summary') or '-'}",
+            "",
+            "Suggested next actions:",
+            action_lines,
+            "",
+            "Relevant output:",
+            str(failure.get("relevant_output") or ""),
+        ]
+    )
+
+
+def build_mvp_loop_repair_request(
+    *,
+    path: Path,
+    payload: Mapping[str, Any],
+    instruction: str | None,
+    max_relevant_output_chars: int,
+    max_context_paths: int | None,
+) -> dict[str, Any]:
+    if max_relevant_output_chars < 1:
+        raise BiberAgentClientError("--max-relevant-output-chars must be at least 1.")
+    if max_context_paths is not None and max_context_paths < 1:
+        raise BiberAgentClientError("--max-context-paths must be at least 1.")
+    if not is_failed_mvp_loop_artifact(payload):
+        raise BiberAgentClientError(
+            "prepare-repair requires a failed mvp-loop artifact."
+        )
+
+    steps = require_mapping(payload.get("steps"))
+    test_run = require_mapping(steps.get("test_run"))
+    diagnosis = require_mapping(steps.get("test_diagnosis"))
+    all_context_paths = [
+        str(item) for item in require_list(payload.get("selected_context_paths"))
+    ]
+    selected_context_paths = (
+        all_context_paths[:max_context_paths]
+        if max_context_paths is not None
+        else all_context_paths
+    )
+    relevant_output = (
+        diagnosis.get("relevant_output")
+        or test_run.get("stdout")
+        or test_run.get("stderr")
+        or ""
+    )
+    suggested_next_actions = [
+        str(item) for item in require_list(diagnosis.get("suggested_next_actions"))
+    ]
+    failure = {
+        "diagnosis_summary": payload.get("diagnosis_summary")
+        or diagnosis.get("summary"),
+        "primary_category": diagnosis.get("primary_category"),
+        "detected_stack": diagnosis.get("detected_stack"),
+        "test_id": test_run.get("test_id"),
+        "command": require_list(test_run.get("command")),
+        "exit_code": test_run.get("exit_code"),
+        "timed_out": bool(test_run.get("timed_out")),
+        "relevant_output": compact_text(
+            relevant_output,
+            max_chars=max_relevant_output_chars,
+        ),
+    }
+    repair_instruction = instruction or DEFAULT_REPAIR_INSTRUCTION
+    repair_prompt = build_repair_prompt(
+        instruction=repair_instruction,
+        original_instruction=payload.get("instruction"),
+        selected_context_paths=selected_context_paths,
+        failure=failure,
+        suggested_next_actions=suggested_next_actions,
+    )
+    return {
+        "source": "biber_mvp_loop_repair_request",
+        "repair_loop_version": "mvp-v1",
+        "repair_status": "ready_for_local_model",
+        "training_allowed": False,
+        "source_artifact": str(path),
+        "ok": False,
+        "instruction": repair_instruction,
+        "repair_prompt": repair_prompt,
+        "selected_context_paths": selected_context_paths,
+        "selected_context_paths_truncated": len(selected_context_paths)
+        < len(all_context_paths),
+        "failure": failure,
+        "suggested_next_actions": suggested_next_actions,
+        "next_test_id": test_run.get("test_id"),
+        "next_workflow": [
+            "send_repair_prompt_to_local_biber_model",
+            "convert_response_to_bounded_plan_edit_payload",
+            "run_plan_edit_then_apply_edit_if_hash_matches",
+            "rerun_next_test_id",
+            "diagnose_again_if_still_failing",
+        ],
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -987,6 +1126,24 @@ def format_mvp_loop_failure_export_summary(payload: Mapping[str, Any]) -> str:
     )
 
 
+def format_mvp_loop_repair_request_summary(payload: Mapping[str, Any]) -> str:
+    failure = require_mapping(payload.get("failure"))
+    return "\n".join(
+        [
+            "BIBER MVP loop repair request",
+            f"source_artifact: {payload.get('source_artifact', '-')}",
+            f"repair_status: {payload.get('repair_status', '-')}",
+            f"training_allowed: {payload.get('training_allowed', False)}",
+            f"selected_context_paths: {len(require_list(payload.get('selected_context_paths')))}",
+            f"test_id: {failure.get('test_id') or '-'}",
+            f"primary_category: {failure.get('primary_category') or '-'}",
+            f"detected_stack: {failure.get('detected_stack') or '-'}",
+            f"next_test_id: {payload.get('next_test_id') or '-'}",
+            f"artifact_path: {payload.get('artifact_path', '-')}",
+        ]
+    )
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -1334,6 +1491,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     export_mvp_failures.add_argument("--pattern", default="*mvp-loop*.json")
     export_mvp_failures.add_argument("--limit", type=int, default=100)
 
+    prepare_repair = subparsers.add_parser(
+        "prepare-repair",
+        help="Build a local-model repair request from a failed mvp-loop artifact.",
+    )
+    prepare_repair.add_argument("artifact")
+    prepare_repair.add_argument("--instruction")
+    prepare_repair.add_argument("--max-relevant-output-chars", type=int, default=4000)
+    prepare_repair.add_argument("--max-context-paths", type=int)
+    prepare_repair.add_argument("--output")
+
     args = parser.parse_args(argv)
     if args.command is None:
         args.command = "capabilities"
@@ -1376,6 +1543,29 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(export, indent=2, sort_keys=True)
             if args.print_json
             else format_mvp_loop_failure_export_summary(export)
+        )
+    if args.command == "prepare-repair":
+        artifact_path = Path(args.artifact)
+        artifact = load_json_artifact(str(artifact_path), label="mvp-loop artifact")
+        normalized = normalize_mvp_loop_artifact(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "prepare-repair artifact must contain a saved MVP loop JSON object."
+            )
+        repair = build_mvp_loop_repair_request(
+            path=artifact_path,
+            payload=normalized,
+            instruction=args.instruction,
+            max_relevant_output_chars=args.max_relevant_output_chars,
+            max_context_paths=args.max_context_paths,
+        )
+        if args.output:
+            repair["artifact_path"] = str(Path(args.output))
+            write_json_artifact(repair, args.output)
+        return (
+            json.dumps(repair, indent=2, sort_keys=True)
+            if args.print_json
+            else format_mvp_loop_repair_request_summary(repair)
         )
 
     api_key = resolve_api_key(args.api_key)
@@ -1653,6 +1843,7 @@ def run(args: argparse.Namespace) -> str:
         ]
         summary: dict[str, Any] = {
             "ok": True,
+            "instruction": args.instruction,
             "selected_context_paths": selected_context_paths,
             "steps": steps,
         }

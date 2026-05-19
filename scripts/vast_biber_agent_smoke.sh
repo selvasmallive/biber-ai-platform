@@ -66,6 +66,8 @@ client_edit_smoke_path = f".biber-runtime/agent-client-edit-smoke-{smoke_id}.txt
 client_mvp_loop_smoke_path = f".biber-runtime/agent-client-mvp-loop-smoke-{smoke_id}.txt"
 client_mvp_loop_output_path = artifact_dir / "agent-client-mvp-loop-output.json"
 client_mvp_loop_failures_path = artifact_dir / "agent-client-mvp-loop-failures.jsonl"
+client_mvp_loop_repair_source_path = artifact_dir / "agent-client-repair-source-mvp-loop.json"
+client_mvp_loop_repair_output_path = artifact_dir / "agent-client-mvp-loop-repair-output.json"
 
 
 def fail(message: str) -> None:
@@ -717,6 +719,81 @@ if not client_mvp_loop_failures_path.exists():
     fail(f"export-mvp-failures did not write {client_mvp_loop_failures_path}")
 if client_mvp_loop_failures_path.read_text(encoding="utf-8") != "":
     fail(f"successful smoke wrote non-empty failure export: {client_mvp_loop_failures_path}")
+
+client_mvp_loop_repair_source = {
+    "ok": False,
+    "instruction": "Fix a synthetic .NET compile error.",
+    "diagnosis_summary": "Detected compile_error in dotnet output.",
+    "steps": {
+        "context_plan": {},
+        "test_run": {
+            "ok": False,
+            "test_id": "dotnet-test",
+            "command": ["dotnet", "test"],
+            "exit_code": 1,
+            "timed_out": False,
+            "stdout": "Example.cs(7,1): error CS1002: ; expected\n",
+        },
+        "test_diagnosis": {
+            "primary_category": "compile_error",
+            "detected_stack": "dotnet",
+            "summary": "Detected compile_error in dotnet output.",
+            "relevant_output": "Example.cs(7,1): error CS1002: ; expected\n",
+            "suggested_next_actions": ["Fix compiler diagnostics first."],
+        },
+    },
+    "selected_context_paths": ["README.md", "src/App.cs"],
+    "test_ok": False,
+}
+client_mvp_loop_repair_source_path.write_text(
+    json.dumps(client_mvp_loop_repair_source, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+try:
+    client_mvp_loop_repair_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "prepare-repair",
+            str(client_mvp_loop_repair_source_path),
+            "--instruction",
+            "Repair the synthetic compile error with the smallest safe edit.",
+            "--output",
+            str(client_mvp_loop_repair_output_path),
+            "--max-context-paths",
+            "2",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py prepare-repair failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py prepare-repair timed out: {exc}")
+try:
+    client_mvp_loop_repair = json.loads(client_mvp_loop_repair_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py prepare-repair returned invalid JSON: {exc}")
+if client_mvp_loop_repair.get("repair_status") != "ready_for_local_model":
+    fail(f"prepare-repair returned unexpected status: {client_mvp_loop_repair!r}")
+if client_mvp_loop_repair.get("training_allowed") is not False:
+    fail(f"prepare-repair must keep training_allowed=false: {client_mvp_loop_repair!r}")
+repair_failure = client_mvp_loop_repair.get("failure")
+if not isinstance(repair_failure, dict) or repair_failure.get("test_id") != "dotnet-test":
+    fail(f"prepare-repair omitted test failure details: {client_mvp_loop_repair!r}")
+if not client_mvp_loop_repair_output_path.exists():
+    fail(f"prepare-repair did not write {client_mvp_loop_repair_output_path}")
+try:
+    saved_client_mvp_loop_repair = json.loads(
+        client_mvp_loop_repair_output_path.read_text(encoding="utf-8")
+    )
+except json.JSONDecodeError as exc:
+    fail(f"prepare-repair output artifact returned invalid JSON: {exc}")
+if saved_client_mvp_loop_repair != client_mvp_loop_repair:
+    fail("prepare-repair output artifact did not match stdout JSON")
+
 if client_mvp_loop.get("ok") is not True:
     fail(f"agent client mvp-loop did not return ok=true: {client_mvp_loop!r}")
 client_mvp_steps = client_mvp_loop.get("steps")
@@ -752,6 +829,15 @@ write_artifact(
 write_artifact(
     "agent-client-mvp-loop-failure-export.json",
     {"status": 0, "body": client_mvp_loop_failure_export},
+)
+write_artifact(
+    "agent-client-mvp-loop-repair.json",
+    {
+        "status": 0,
+        "body": client_mvp_loop_repair,
+        "output": str(client_mvp_loop_repair_output_path),
+        "source": str(client_mvp_loop_repair_source_path),
+    },
 )
 
 chat_payload = {
