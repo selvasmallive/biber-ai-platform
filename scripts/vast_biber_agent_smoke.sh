@@ -62,6 +62,7 @@ client_session_max_tokens = int(os.environ["CLIENT_SESSION_MAX_TOKENS"])
 github_mode = os.environ["GITHUB_MODE"].strip().lower()
 smoke_id = os.environ["SMOKE_ID"]
 script_dir = Path(os.environ["SCRIPT_DIR"])
+client_edit_smoke_path = f".biber-runtime/agent-client-edit-smoke-{smoke_id}.txt"
 
 
 def fail(message: str) -> None:
@@ -348,6 +349,89 @@ write_artifact(
     {"status": 0, "body": client_context_plan},
 )
 
+client_edit = {
+    "path": client_edit_smoke_path,
+    "new_text": f"BIBER agent client edit smoke {smoke_id}\n",
+    "create_if_missing": True,
+}
+if Path(client_edit_smoke_path).exists():
+    fail(f"agent client edit smoke path already exists: {client_edit_smoke_path}")
+
+try:
+    client_edit_plan_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "plan-edit",
+            "--edit-json",
+            json.dumps(client_edit),
+            "--max-files",
+            "2",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py plan-edit failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py plan-edit timed out: {exc}")
+try:
+    client_edit_plan = json.loads(client_edit_plan_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py plan-edit returned invalid JSON: {exc}")
+if client_edit_plan.get("ok") is not True:
+    fail(f"agent client plan-edit did not return ok=true: {client_edit_plan!r}")
+client_edit_plan_hash = client_edit_plan.get("plan_hash")
+if not isinstance(client_edit_plan_hash, str) or len(client_edit_plan_hash) != 64:
+    fail(f"agent client plan-edit returned invalid plan_hash: {client_edit_plan_hash!r}")
+if Path(client_edit_smoke_path).exists():
+    fail(f"agent client plan-edit unexpectedly wrote {client_edit_smoke_path}")
+write_artifact(
+    "agent-client-plan-edit.json",
+    {"status": 0, "body": client_edit_plan},
+)
+
+try:
+    client_edit_apply_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "apply-edit",
+            "--edit-json",
+            json.dumps(client_edit),
+            "--plan-hash",
+            client_edit_plan_hash,
+            "--max-files",
+            "2",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py apply-edit failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py apply-edit timed out: {exc}")
+try:
+    client_edit_apply = json.loads(client_edit_apply_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py apply-edit returned invalid JSON: {exc}")
+if client_edit_apply.get("ok") is not True:
+    fail(f"agent client apply-edit did not return ok=true: {client_edit_apply!r}")
+applied_path = Path(client_edit_smoke_path)
+if not applied_path.exists():
+    fail(f"agent client apply-edit did not write {client_edit_smoke_path}")
+if applied_path.read_text(encoding="utf-8") != client_edit["new_text"]:
+    fail(f"agent client apply-edit wrote unexpected content to {client_edit_smoke_path}")
+applied_path.unlink()
+write_artifact(
+    "agent-client-apply-edit.json",
+    {"status": 0, "body": client_edit_apply},
+)
+
 chat_payload = {
     "language": "Rust",
     "model": "biber-dev-core-v1",
@@ -484,6 +568,8 @@ summary = {
     "agent_client_listed_sessions": len(listed_sessions),
     "agent_client_loaded_session_id": client_loaded_session.get("id"),
     "agent_client_context_paths": selected_context_paths,
+    "agent_client_edit_path": client_edit_smoke_path,
+    "agent_client_edit_plan_hash": client_edit_plan_hash,
     "xriq_context_height": summary.get("current_height"),
     "github": github_result,
 }

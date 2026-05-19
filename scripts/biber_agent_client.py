@@ -9,6 +9,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 
@@ -187,6 +188,40 @@ def plan_repo_context(
     )
 
 
+def plan_workspace_edit(
+    *,
+    base_url: str,
+    api_key: str,
+    payload: Mapping[str, Any],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/files/edit/plan",
+        method="POST",
+        payload=payload,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def apply_workspace_edit_plan(
+    *,
+    base_url: str,
+    api_key: str,
+    payload: Mapping[str, Any],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/files/edit/apply",
+        method="POST",
+        payload=payload,
+        timeout_seconds=timeout_seconds,
+    )
+
+
 def require_mapping(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
@@ -353,6 +388,128 @@ def format_repo_context_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def parse_json_object(value: str, *, label: str) -> dict[str, Any]:
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise BiberAgentClientError(f"{label} must be valid JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise BiberAgentClientError(f"{label} must be a JSON object.")
+    return parsed
+
+
+def load_workspace_edits(
+    *,
+    edit_json_values: list[str] | None,
+    edits_file: str | None,
+) -> list[dict[str, Any]]:
+    edits: list[dict[str, Any]] = []
+    if edits_file:
+        path = Path(edits_file)
+        try:
+            parsed = json.loads(path.read_text(encoding="utf-8"))
+        except OSError as exc:
+            raise BiberAgentClientError(f"Could not read edits file {path}: {exc}") from exc
+        except json.JSONDecodeError as exc:
+            raise BiberAgentClientError(f"Edits file must be valid JSON: {exc}") from exc
+        if isinstance(parsed, dict) and isinstance(parsed.get("edits"), list):
+            raw_edits = parsed["edits"]
+        elif isinstance(parsed, list):
+            raw_edits = parsed
+        elif isinstance(parsed, dict):
+            raw_edits = [parsed]
+        else:
+            raise BiberAgentClientError(
+                "Edits file must contain a JSON object, a JSON array, or an object with edits."
+            )
+        for index, item in enumerate(raw_edits, start=1):
+            if not isinstance(item, dict):
+                raise BiberAgentClientError(
+                    f"Edits file item {index} must be a JSON object."
+                )
+            edits.append(item)
+
+    for raw in edit_json_values or []:
+        edit = parse_json_object(raw, label="--edit-json")
+        if isinstance(edit.get("edits"), list):
+            raise BiberAgentClientError(
+                "--edit-json must contain one edit object; use --edits-file for arrays."
+            )
+        edits.append(edit)
+
+    if not edits:
+        raise BiberAgentClientError("At least one --edit-json or --edits-file is required.")
+    return edits
+
+
+def build_workspace_edit_payload(
+    *,
+    edits: list[dict[str, Any]],
+    max_files: int | None,
+    plan_hash: str | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {"edits": edits}
+    if max_files is not None:
+        payload["max_files"] = max_files
+    if plan_hash:
+        payload["plan_hash"] = plan_hash
+    return payload
+
+
+def format_workspace_edit_plan_summary(payload: Mapping[str, Any]) -> str:
+    planned = [
+        item
+        for item in require_list(payload.get("planned"))
+        if isinstance(item, dict)
+    ]
+    rejected = [
+        item
+        for item in require_list(payload.get("rejected"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER workspace edit plan",
+        f"ok: {bool(payload.get('ok'))}",
+        f"plan_hash: {payload.get('plan_hash', '-')}",
+        f"summary: {payload.get('summary', '-')}",
+        f"planned ({len(planned)}):",
+    ]
+    lines.extend(
+        (
+            f"- {item.get('path', '-')} operation={item.get('operation', '-')} "
+            f"risk={item.get('risk_level', '-')} changed={item.get('changed', False)}"
+        )
+        for item in planned
+    )
+    if rejected:
+        lines.append(f"rejected ({len(rejected)}):")
+        lines.extend(
+            f"- {item.get('path', '-')} error={item.get('error', '-')}"
+            for item in rejected
+        )
+    return "\n".join(lines)
+
+
+def format_workspace_edit_apply_summary(payload: Mapping[str, Any]) -> str:
+    applied = [
+        item
+        for item in require_list(payload.get("applied"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER workspace edit apply",
+        f"ok: {bool(payload.get('ok'))}",
+        f"plan_hash: {payload.get('plan_hash', '-')}",
+        f"summary: {payload.get('summary', '-')}",
+        f"applied ({len(applied)}):",
+    ]
+    lines.extend(
+        f"- {item.get('path', '-')} changed={item.get('changed', False)}"
+        for item in applied
+    )
+    return "\n".join(lines)
+
+
 def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--base-url",
@@ -418,6 +575,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     plan_context.add_argument("--changed-path", action="append", default=None)
     plan_context.add_argument("--max-files", type=int)
     plan_context.add_argument("--max-scan-files", type=int)
+
+    plan_edit = subparsers.add_parser(
+        "plan-edit",
+        help="Validate a bounded workspace edit plan without writing files.",
+    )
+    plan_edit.add_argument("--edit-json", action="append", default=None)
+    plan_edit.add_argument("--edits-file")
+    plan_edit.add_argument("--max-files", type=int)
+
+    apply_edit = subparsers.add_parser(
+        "apply-edit",
+        help="Apply a clean workspace edit plan using a fresh plan hash.",
+    )
+    apply_edit.add_argument("--edit-json", action="append", default=None)
+    apply_edit.add_argument("--edits-file")
+    apply_edit.add_argument("--max-files", type=int)
+    apply_edit.add_argument("--plan-hash", required=True)
 
     args = parser.parse_args(argv)
     if args.command is None:
@@ -512,6 +686,47 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(plan, indent=2, sort_keys=True)
             if args.print_json
             else format_repo_context_summary(plan)
+        )
+    if args.command == "plan-edit":
+        edits = load_workspace_edits(
+            edit_json_values=args.edit_json,
+            edits_file=args.edits_file,
+        )
+        payload = build_workspace_edit_payload(
+            edits=edits,
+            max_files=args.max_files,
+        )
+        plan = plan_workspace_edit(
+            base_url=base_url,
+            api_key=api_key,
+            payload=payload,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(plan, indent=2, sort_keys=True)
+            if args.print_json
+            else format_workspace_edit_plan_summary(plan)
+        )
+    if args.command == "apply-edit":
+        edits = load_workspace_edits(
+            edit_json_values=args.edit_json,
+            edits_file=args.edits_file,
+        )
+        payload = build_workspace_edit_payload(
+            edits=edits,
+            max_files=args.max_files,
+            plan_hash=args.plan_hash,
+        )
+        result = apply_workspace_edit_plan(
+            base_url=base_url,
+            api_key=api_key,
+            payload=payload,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_workspace_edit_apply_summary(result)
         )
     raise BiberAgentClientError(f"unsupported command: {args.command}")
 

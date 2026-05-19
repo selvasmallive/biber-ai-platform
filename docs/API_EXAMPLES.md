@@ -330,6 +330,13 @@ python scripts/biber_agent_client.py plan-context \
   --pinned-path README.md \
   --changed-path src/Example.Api/Controllers/WeatherController.cs \
   --max-files 8
+python scripts/biber_agent_client.py plan-edit \
+  --edit-json '{"path":"generated/notes.md","new_text":"planned note\n","create_if_missing":true}' \
+  --max-files 2
+python scripts/biber_agent_client.py apply-edit \
+  --edit-json '{"path":"generated/notes.md","new_text":"planned note\n","create_if_missing":true}' \
+  --plan-hash <plan_hash-from-plan-edit> \
+  --max-files 2
 ```
 
 ## Prepare Repo-Specific BIBER Adaptation

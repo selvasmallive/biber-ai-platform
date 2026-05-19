@@ -177,6 +177,83 @@ def test_format_repo_context_summary_lists_selected_paths_and_profiles() -> None
     assert "- README.md" in output
 
 
+def test_load_workspace_edits_accepts_json_values_and_file(tmp_path: Path) -> None:
+    edits_file = tmp_path / "edits.json"
+    edits_file.write_text(
+        json.dumps(
+            {
+                "edits": [
+                    {
+                        "path": "docs/a.md",
+                        "new_text": "a\n",
+                        "create_if_missing": True,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    edits = client.load_workspace_edits(
+        edit_json_values=[
+            json.dumps(
+                {
+                    "path": "docs/b.md",
+                    "new_text": "b\n",
+                    "create_if_missing": True,
+                }
+            )
+        ],
+        edits_file=str(edits_file),
+    )
+
+    assert [edit["path"] for edit in edits] == ["docs/a.md", "docs/b.md"]
+
+
+def test_build_workspace_edit_payload_includes_plan_hash_for_apply() -> None:
+    payload = client.build_workspace_edit_payload(
+        edits=[{"path": "docs/a.md", "new_text": "a\n", "create_if_missing": True}],
+        max_files=2,
+        plan_hash="a" * 64,
+    )
+
+    assert payload["max_files"] == 2
+    assert payload["plan_hash"] == "a" * 64
+    assert payload["edits"][0]["path"] == "docs/a.md"
+
+
+def test_format_workspace_edit_plan_and_apply_summaries() -> None:
+    plan_output = client.format_workspace_edit_plan_summary(
+        {
+            "ok": True,
+            "plan_hash": "a" * 64,
+            "summary": "Planned 1 edit.",
+            "planned": [
+                {
+                    "path": "docs/a.md",
+                    "operation": "create",
+                    "risk_level": "medium",
+                    "changed": True,
+                }
+            ],
+            "rejected": [],
+        }
+    )
+    apply_output = client.format_workspace_edit_apply_summary(
+        {
+            "ok": True,
+            "plan_hash": "a" * 64,
+            "summary": "Applied 1 workspace edit.",
+            "applied": [{"path": "docs/a.md", "changed": True}],
+        }
+    )
+
+    assert "BIBER workspace edit plan" in plan_output
+    assert "docs/a.md operation=create" in plan_output
+    assert "BIBER workspace edit apply" in apply_output
+    assert "docs/a.md changed=True" in apply_output
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 
@@ -412,3 +489,109 @@ def test_run_plan_context_json_uses_client_workflow(monkeypatch) -> None:
         "max_files": 4,
     }
     assert json.loads(output)["selected_paths"] == ["README.md"]
+
+
+def test_run_plan_edit_json_uses_client_workflow(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_plan_workspace_edit(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured.update(
+            {
+                "base_url": base_url,
+                "api_key": api_key,
+                "payload": payload,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return {
+            "ok": True,
+            "plan_hash": "b" * 64,
+            "planned": [{"path": "docs/a.md"}],
+            "rejected": [],
+            "files_touched": 1,
+            "summary": "Planned 1 edit.",
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "plan_workspace_edit", fake_plan_workspace_edit)
+
+    edit_json = json.dumps(
+        {"path": "docs/a.md", "new_text": "a\n", "create_if_missing": True}
+    )
+    args = client.parse_args(["--json", "plan-edit", "--edit-json", edit_json])
+
+    output = client.run(args)
+
+    assert captured["payload"] == {
+        "edits": [{"path": "docs/a.md", "new_text": "a\n", "create_if_missing": True}]
+    }
+    assert json.loads(output)["plan_hash"] == "b" * 64
+
+
+def test_run_apply_edit_json_requires_plan_hash_and_uses_client_workflow(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_apply_workspace_edit_plan(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured.update(
+            {
+                "base_url": base_url,
+                "api_key": api_key,
+                "payload": payload,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return {
+            "ok": True,
+            "plan_hash": "c" * 64,
+            "applied": [{"path": "docs/a.md", "changed": True}],
+            "files_touched": 1,
+            "summary": "Applied 1 workspace edit.",
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "apply_workspace_edit_plan", fake_apply_workspace_edit_plan)
+
+    edit_json = json.dumps(
+        {"path": "docs/a.md", "new_text": "a\n", "create_if_missing": True}
+    )
+    args = client.parse_args(
+        [
+            "--json",
+            "apply-edit",
+            "--edit-json",
+            edit_json,
+            "--plan-hash",
+            "c" * 64,
+            "--max-files",
+            "2",
+        ]
+    )
+
+    output = client.run(args)
+
+    assert captured["payload"] == {
+        "edits": [{"path": "docs/a.md", "new_text": "a\n", "create_if_missing": True}],
+        "max_files": 2,
+        "plan_hash": "c" * 64,
+    }
+    assert json.loads(output)["applied"][0]["path"] == "docs/a.md"
