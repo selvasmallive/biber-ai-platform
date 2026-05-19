@@ -1801,6 +1801,103 @@ def list_repair_chain_artifacts(
     }
 
 
+def build_repair_chain_review_record(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    if (
+        payload.get("chain_status") != "ready_for_human_review"
+        or payload.get("ready_for_human_review") is not True
+    ):
+        raise BiberAgentClientError(
+            "export-ready-repair-chains requires ready repair-chain summary artifacts."
+        )
+    statuses = payload.get("statuses")
+    if not isinstance(statuses, dict):
+        statuses = {}
+    artifacts = payload.get("artifacts")
+    if not isinstance(artifacts, dict):
+        artifacts = {}
+    return {
+        "source": "biber_mvp_loop_repair_chain_review",
+        "repair_loop_version": payload.get("repair_loop_version"),
+        "review_status": "needs_human_review",
+        "quality": "needs_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "auto_promoted": False,
+        "auto_saved": False,
+        "github_save_ready": False,
+        "source_artifact": str(path),
+        "plan_hash": payload.get("plan_hash"),
+        "test_id": payload.get("test_id"),
+        "chain": {
+            "chain_status": payload.get("chain_status"),
+            "chain_complete": payload.get("chain_complete"),
+            "verification_passed": payload.get("verification_passed"),
+            "plan_hash_consistent": payload.get("plan_hash_consistent"),
+            "review_records": int_count(statuses.get("review_records")),
+            "ready_for_human_review": payload.get("ready_for_human_review"),
+        },
+        "artifacts": dict(artifacts),
+        "next_review_action": "human_review_repair_chain_before_github_or_training",
+    }
+
+
+def export_ready_repair_chain_reviews(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    output_path: str,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(f"Repair chain artifact directory does not exist: {root}")
+    if not root.is_dir():
+        raise BiberAgentClientError(f"Repair chain artifact path is not a directory: {root}")
+
+    scanned = 0
+    candidates: list[tuple[float, dict[str, Any]]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(str(path), label="repair-chain artifact")
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_repair_chain_summary_artifact(raw_payload)
+        if normalized is None or normalized.get("ready_for_human_review") is not True:
+            continue
+        try:
+            modified_epoch = path.stat().st_mtime
+        except OSError:
+            modified_epoch = 0.0
+        candidates.append((modified_epoch, build_repair_chain_review_record(path, normalized)))
+
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    records = [record for _, record in candidates[:limit]]
+    output = write_jsonl_artifact(records, output_path)
+    return {
+        "source": "biber_mvp_loop_ready_repair_chain_export",
+        "directory": str(root),
+        "pattern": pattern,
+        "scanned": scanned,
+        "records": len(records),
+        "output": output,
+        "review_status": "needs_human_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "next_review_action": "human_review_repair_chains_before_github_or_training",
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -2421,6 +2518,23 @@ def format_repair_chain_artifact_list_summary(payload: Mapping[str, Any]) -> str
     return "\n".join(lines)
 
 
+def format_ready_repair_chain_export_summary(payload: Mapping[str, Any]) -> str:
+    return "\n".join(
+        [
+            "BIBER ready repair-chain export",
+            f"directory: {payload.get('directory', '-')}",
+            f"pattern: {payload.get('pattern', '-')}",
+            f"scanned: {payload.get('scanned', 0)}",
+            f"records: {payload.get('records', 0)}",
+            f"output: {payload.get('output', '-')}",
+            f"review_status: {payload.get('review_status', '-')}",
+            f"training_allowed: {payload.get('training_allowed', False)}",
+            f"safe_to_train: {payload.get('safe_to_train', False)}",
+            f"github_save_ready: {payload.get('github_save_ready', False)}",
+        ]
+    )
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -2820,6 +2934,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     list_repair_chains.add_argument("--ready-only", action="store_true")
     list_repair_chains.add_argument("--output")
 
+    export_ready_repair_chains = subparsers.add_parser(
+        "export-ready-repair-chains",
+        help=(
+            "Export ready repair-chain summaries from a directory to a JSONL "
+            "human-review queue without training or GitHub save readiness."
+        ),
+    )
+    export_ready_repair_chains.add_argument("directory")
+    export_ready_repair_chains.add_argument("--pattern", default="*repair-chain*.json")
+    export_ready_repair_chains.add_argument("--limit", type=int, default=100)
+    export_ready_repair_chains.add_argument("--output", required=True)
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -3011,6 +3137,18 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_chain_artifact_list_summary(artifacts)
+        )
+    if args.command == "export-ready-repair-chains":
+        export = export_ready_repair_chain_reviews(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            output_path=args.output,
+        )
+        return (
+            json.dumps(export, indent=2, sort_keys=True)
+            if args.print_json
+            else format_ready_repair_chain_export_summary(export)
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)

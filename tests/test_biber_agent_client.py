@@ -1903,6 +1903,92 @@ def test_run_list_repair_chains_filters_ready_artifacts_without_api_key(
     assert result["artifacts"][0]["review_records"] == 2
 
 
+def test_run_export_ready_repair_chains_writes_review_jsonl_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("export-ready-repair-chains should not resolve an API key")
+
+    ready_path = tmp_path / "ready-repair-chain.json"
+    incomplete_path = tmp_path / "incomplete-repair-chain.json"
+    output_path = tmp_path / "ready-repair-chains.jsonl"
+    ready_payload = {
+        "source": "biber_mvp_loop_repair_chain_summary",
+        "repair_loop_version": "mvp-v1",
+        "chain_status": "ready_for_human_review",
+        "ready_for_human_review": True,
+        "chain_complete": True,
+        "verification_passed": True,
+        "plan_hash_consistent": True,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "plan_hash": "d" * 64,
+        "test_id": "python-compileall-api",
+        "statuses": {"review_records": 1},
+        "artifacts": {
+            "verification": "repair-verification.json",
+            "review_jsonl": ["verified-repairs.jsonl"],
+        },
+    }
+    ready_path.write_text(
+        json.dumps({"status": 0, "body": ready_payload}),
+        encoding="utf-8",
+    )
+    incomplete_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_summary",
+                "chain_status": "incomplete_or_needs_repair",
+                "ready_for_human_review": False,
+                "training_allowed": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "statuses": {"review_records": 0},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "export-ready-repair-chains",
+                str(tmp_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+
+    assert result["source"] == "biber_mvp_loop_ready_repair_chain_export"
+    assert result["scanned"] == 2
+    assert result["records"] == 1
+    assert result["training_allowed"] is False
+    assert result["eligible_for_training"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert rows[0]["source"] == "biber_mvp_loop_repair_chain_review"
+    assert rows[0]["review_status"] == "needs_human_review"
+    assert rows[0]["training_allowed"] is False
+    assert rows[0]["eligible_for_training"] is False
+    assert rows[0]["safe_to_train"] is False
+    assert rows[0]["github_save_ready"] is False
+    assert rows[0]["source_artifact"] == str(ready_path)
+    assert rows[0]["plan_hash"] == "d" * 64
+    assert rows[0]["test_id"] == "python-compileall-api"
+    assert rows[0]["chain"]["review_records"] == 1
+    assert rows[0]["artifacts"]["verification"] == "repair-verification.json"
+    assert rows[0]["next_review_action"] == (
+        "human_review_repair_chain_before_github_or_training"
+    )
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 
