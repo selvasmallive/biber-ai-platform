@@ -847,6 +847,195 @@ def build_repair_attempt_result(
     }
 
 
+def normalize_repair_attempt_artifact(payload: Mapping[str, Any]) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_repair_attempt":
+        return dict(payload)
+    body = payload.get("body")
+    if isinstance(body, dict) and body.get("source") == "biber_mvp_loop_repair_attempt":
+        return dict(body)
+    return None
+
+
+def extract_json_values_from_text(text: str, *, limit: int = 20) -> list[Any]:
+    decoder = json.JSONDecoder()
+    values: list[Any] = []
+    seen_spans: set[tuple[int, int]] = set()
+    for index, char in enumerate(text):
+        if char not in "{[":
+            continue
+        try:
+            value, end = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        span = (index, index + end)
+        if span in seen_spans:
+            continue
+        seen_spans.add(span)
+        if isinstance(value, (dict, list)):
+            values.append(value)
+        if len(values) >= limit:
+            break
+    return values
+
+
+def extract_edit_objects_from_value(value: Any) -> list[dict[str, Any]]:
+    if isinstance(value, dict):
+        edits = value.get("edits")
+        if isinstance(edits, list):
+            return [item for item in edits if isinstance(item, dict)]
+        return [value]
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, dict)]
+    return []
+
+
+def validate_repair_edit_candidate(
+    candidate: Mapping[str, Any],
+    *,
+    index: int,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    allowed_keys = {
+        "path",
+        "old_text",
+        "new_text",
+        "expected_replacements",
+        "create_if_missing",
+        "dry_run",
+    }
+    unknown_keys = sorted(str(key) for key in set(candidate) - allowed_keys)
+    if unknown_keys:
+        return None, {
+            "index": index,
+            "reason": "unknown_keys",
+            "unknown_keys": unknown_keys,
+        }
+
+    path = candidate.get("path")
+    if not isinstance(path, str) or not path.strip():
+        return None, {"index": index, "reason": "missing_path"}
+    clean_path = path.strip().replace("\\", "/")
+    path_parts = [part for part in clean_path.split("/") if part]
+    if (
+        clean_path.startswith("/")
+        or clean_path.startswith("~")
+        or ":" in clean_path
+        or ".." in path_parts
+    ):
+        return None, {
+            "index": index,
+            "reason": "unsafe_path",
+            "path": path,
+        }
+
+    if "new_text" not in candidate or not isinstance(candidate.get("new_text"), str):
+        return None, {"index": index, "reason": "missing_new_text", "path": path}
+
+    edit: dict[str, Any] = {
+        "path": clean_path,
+        "new_text": candidate.get("new_text"),
+    }
+    old_text = candidate.get("old_text")
+    if old_text is not None:
+        if not isinstance(old_text, str):
+            return None, {"index": index, "reason": "invalid_old_text", "path": path}
+        edit["old_text"] = old_text
+
+    expected_replacements = candidate.get("expected_replacements")
+    if expected_replacements is not None:
+        if (
+            isinstance(expected_replacements, bool)
+            or not isinstance(expected_replacements, int)
+            or expected_replacements < 1
+            or expected_replacements > 20
+        ):
+            return None, {
+                "index": index,
+                "reason": "invalid_expected_replacements",
+                "path": path,
+            }
+        edit["expected_replacements"] = expected_replacements
+
+    for key in ("create_if_missing", "dry_run"):
+        if key not in candidate:
+            continue
+        value = candidate.get(key)
+        if not isinstance(value, bool):
+            return None, {
+                "index": index,
+                "reason": f"invalid_{key}",
+                "path": path,
+            }
+        edit[key] = value
+    return edit, None
+
+
+def extract_repair_edits(
+    *,
+    path: Path,
+    payload: Mapping[str, Any],
+    max_edits: int,
+    max_files: int | None,
+) -> dict[str, Any]:
+    if max_edits < 1:
+        raise BiberAgentClientError("--max-edits must be at least 1.")
+    if max_files is not None and max_files < 1:
+        raise BiberAgentClientError("--max-files must be at least 1.")
+
+    content = str(payload.get("repair_content") or "")
+    if not content:
+        model_response = require_mapping(payload.get("model_response"))
+        content = str(model_response.get("content") or "")
+    json_values = extract_json_values_from_text(content)
+
+    accepted: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    candidate_index = 0
+    for value in json_values:
+        for candidate in extract_edit_objects_from_value(value):
+            candidate_index += 1
+            edit, rejection = validate_repair_edit_candidate(
+                candidate,
+                index=candidate_index,
+            )
+            if edit is not None:
+                accepted.append(edit)
+            elif rejection is not None:
+                rejected.append(rejection)
+            if len(accepted) >= max_edits:
+                break
+        if len(accepted) >= max_edits:
+            break
+
+    plan_edit_payload: dict[str, Any] = {"edits": accepted}
+    if max_files is not None:
+        plan_edit_payload["max_files"] = max_files
+    return {
+        "source": "biber_mvp_loop_repair_edit_extraction",
+        "repair_loop_version": "mvp-v1",
+        "source_artifact": str(path),
+        "extraction_status": "ready_for_plan_edit" if accepted else "no_valid_edits",
+        "ok": bool(accepted),
+        "training_allowed": False,
+        "auto_applied": False,
+        "apply_allowed": False,
+        "review_status": "needs_review",
+        "edits": accepted,
+        "rejected": rejected,
+        "json_values_found": len(json_values),
+        "max_edits": max_edits,
+        "max_files": max_files,
+        "plan_edit_payload": plan_edit_payload,
+        "next_test_id": payload.get("next_test_id"),
+        "next_workflow": [
+            "review_extracted_edits",
+            "run_plan_edit_with_plan_edit_payload",
+            "apply_only_after_human_or_policy_approval",
+            "rerun_next_test_id",
+            "diagnose_again_if_still_failing",
+        ],
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -1256,6 +1445,29 @@ def format_mvp_loop_repair_attempt_summary(payload: Mapping[str, Any]) -> str:
     )
 
 
+def format_repair_edit_extraction_summary(payload: Mapping[str, Any]) -> str:
+    edits = [item for item in require_list(payload.get("edits")) if isinstance(item, dict)]
+    rejected = [
+        item for item in require_list(payload.get("rejected")) if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER repair edit extraction",
+        f"source_artifact: {payload.get('source_artifact', '-')}",
+        f"extraction_status: {payload.get('extraction_status', '-')}",
+        f"ok: {bool(payload.get('ok'))}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"auto_applied: {payload.get('auto_applied', False)}",
+        f"apply_allowed: {payload.get('apply_allowed', False)}",
+        f"review_status: {payload.get('review_status', '-')}",
+        f"edits: {len(edits)}",
+        f"rejected: {len(rejected)}",
+        f"edits_output: {payload.get('edits_output', '-')}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    lines.extend(f"- {edit.get('path', '-')}" for edit in edits[:8])
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -1634,6 +1846,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     attempt_repair.add_argument("--output")
 
+    extract_repair_edits_parser = subparsers.add_parser(
+        "extract-repair-edits",
+        help=(
+            "Extract conservative JSON edit candidates from a repair-attempt "
+            "artifact for review and plan-edit validation."
+        ),
+    )
+    extract_repair_edits_parser.add_argument("artifact")
+    extract_repair_edits_parser.add_argument("--max-edits", type=int, default=3)
+    extract_repair_edits_parser.add_argument("--max-files", type=int)
+    extract_repair_edits_parser.add_argument("--output")
+    extract_repair_edits_parser.add_argument(
+        "--edits-output",
+        help="Write only the plan-edit payload, suitable for --edits-file.",
+    )
+
     args = parser.parse_args(argv)
     if args.command is None:
         args.command = "capabilities"
@@ -1699,6 +1927,33 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(repair, indent=2, sort_keys=True)
             if args.print_json
             else format_mvp_loop_repair_request_summary(repair)
+        )
+    if args.command == "extract-repair-edits":
+        artifact_path = Path(args.artifact)
+        artifact = load_json_artifact(str(artifact_path), label="repair-attempt artifact")
+        normalized = normalize_repair_attempt_artifact(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "extract-repair-edits artifact must contain a saved repair-attempt JSON object."
+            )
+        extraction = extract_repair_edits(
+            path=artifact_path,
+            payload=normalized,
+            max_edits=args.max_edits,
+            max_files=args.max_files,
+        )
+        if args.edits_output:
+            extraction["edits_output"] = write_json_artifact(
+                require_mapping(extraction.get("plan_edit_payload")),
+                args.edits_output,
+            )
+        if args.output:
+            extraction["artifact_path"] = str(Path(args.output))
+            write_json_artifact(extraction, args.output)
+        return (
+            json.dumps(extraction, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_edit_extraction_summary(extraction)
         )
 
     api_key = resolve_api_key(args.api_key)

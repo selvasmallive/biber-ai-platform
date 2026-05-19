@@ -415,6 +415,11 @@ python scripts/biber_agent_client.py attempt-repair \
   --instruction "Repair the failed test with the smallest safe edit." \
   --max-tokens 700 \
   --output /workspace/outputs/biber-mvp-loop-repair-attempt.json
+python scripts/biber_agent_client.py extract-repair-edits \
+  /workspace/outputs/biber-mvp-loop-repair-attempt.json \
+  --max-files 2 \
+  --output /workspace/outputs/biber-mvp-loop-repair-edit-extraction.json \
+  --edits-output /workspace/outputs/biber-mvp-loop-repair-edits.json
 ```
 
 ## Prepare Repo-Specific BIBER Adaptation

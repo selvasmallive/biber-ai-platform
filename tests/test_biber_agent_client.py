@@ -879,6 +879,138 @@ def test_run_attempt_repair_calls_local_model_and_writes_artifact(
     assert result["repair_content"].startswith("Change src/App.cs")
 
 
+def test_extract_repair_edits_accepts_json_edit_candidates(tmp_path: Path) -> None:
+    attempt = {
+        "source": "biber_mvp_loop_repair_attempt",
+        "repair_status": "model_repair_proposed",
+        "training_allowed": False,
+        "auto_applied": False,
+        "next_test_id": "dotnet-test",
+        "repair_content": (
+            "Use this edit:\n"
+            '{"path":"src/App.cs","old_text":"return a","new_text":"return a;","expected_replacements":1}'
+        ),
+    }
+
+    extraction = client.extract_repair_edits(
+        path=tmp_path / "repair-attempt.json",
+        payload=attempt,
+        max_edits=3,
+        max_files=2,
+    )
+
+    assert extraction["ok"] is True
+    assert extraction["extraction_status"] == "ready_for_plan_edit"
+    assert extraction["training_allowed"] is False
+    assert extraction["auto_applied"] is False
+    assert extraction["apply_allowed"] is False
+    assert extraction["review_status"] == "needs_review"
+    assert extraction["edits"] == [
+        {
+            "path": "src/App.cs",
+            "old_text": "return a",
+            "new_text": "return a;",
+            "expected_replacements": 1,
+        }
+    ]
+    assert extraction["plan_edit_payload"] == {
+        "edits": extraction["edits"],
+        "max_files": 2,
+    }
+    assert extraction["next_test_id"] == "dotnet-test"
+
+
+def test_extract_repair_edits_rejects_unsafe_candidates(tmp_path: Path) -> None:
+    attempt = {
+        "source": "biber_mvp_loop_repair_attempt",
+        "repair_content": json.dumps(
+            {
+                "edits": [
+                    {"path": "../secret.txt", "new_text": "bad\n"},
+                    {"path": "src/App.cs", "new_text": "ok\n", "extra": True},
+                ]
+            }
+        ),
+    }
+
+    extraction = client.extract_repair_edits(
+        path=tmp_path / "repair-attempt.json",
+        payload=attempt,
+        max_edits=3,
+        max_files=None,
+    )
+
+    assert extraction["ok"] is False
+    assert extraction["edits"] == []
+    assert [item["reason"] for item in extraction["rejected"]] == [
+        "unsafe_path",
+        "unknown_keys",
+    ]
+    assert extraction["plan_edit_payload"] == {"edits": []}
+
+
+def test_run_extract_repair_edits_writes_review_and_edits_files_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("extract-repair-edits should not resolve an API key")
+
+    artifact = tmp_path / "repair-attempt.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_attempt",
+                "repair_status": "model_repair_proposed",
+                "training_allowed": False,
+                "auto_applied": False,
+                "repair_content": json.dumps(
+                    {
+                        "edits": [
+                            {
+                                "path": "src/App.cs",
+                                "old_text": "return a",
+                                "new_text": "return a;",
+                                "expected_replacements": 1,
+                            }
+                        ]
+                    }
+                ),
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "repair-edit-extraction.json"
+    edits_path = tmp_path / "repair-edits.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "extract-repair-edits",
+                str(artifact),
+                "--max-files",
+                "2",
+                "--output",
+                str(output_path),
+                "--edits-output",
+                str(edits_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+    edits_payload = json.loads(edits_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["artifact_path"] == str(output_path)
+    assert result["edits_output"] == str(edits_path)
+    assert result["extraction_status"] == "ready_for_plan_edit"
+    assert edits_payload == result["plan_edit_payload"]
+    assert edits_payload["edits"][0]["path"] == "src/App.cs"
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 
