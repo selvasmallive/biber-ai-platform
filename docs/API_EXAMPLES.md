@@ -336,6 +336,26 @@ python training/repo_adaptation_plan.py \
   --eval-prompts-output /workspace/outputs/repo-adaptation-eval-prompts.jsonl
 ```
 
+Run those eval prompts against the currently served BIBER model before deciding
+whether fine-tuning is justified:
+
+```bash
+python training/repo_adaptation_eval.py \
+  --prompts /workspace/outputs/repo-adaptation-eval-prompts.jsonl \
+  --base-url http://127.0.0.1:8000 \
+  --env-file /workspace/biber-ai-platform/.env \
+  --output /workspace/outputs/evals/repo-adaptation-results.jsonl \
+  --summary /workspace/outputs/evals/repo-adaptation-summary.json \
+  --failures-output /workspace/outputs/evals/repo-adaptation-failures.jsonl
+```
+
+On the direct Vast deployment, the convenience wrapper is:
+
+```bash
+cd /workspace/biber-ai-platform
+bash scripts/vast_eval_repo_adaptation_direct.sh
+```
+
 See `docs/BIBER_REPO_ADAPTATION.md` for the promotion rules.
 
 ## Run A Tracked Agent Session

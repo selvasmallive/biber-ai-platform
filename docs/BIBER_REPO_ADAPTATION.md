@@ -30,6 +30,32 @@ The scanner skips common unsafe or noisy paths, including `.git`, `.env`,
 private-key-looking files, build outputs, `node_modules`, Rust `target`, binary
 archives, and files whose contents look like secrets.
 
+## Run The Repo-Specific Eval
+
+After generating the prompt JSONL, run it against the currently served BIBER
+model before considering fine-tuning:
+
+```bash
+python training/repo_adaptation_eval.py \
+  --prompts /workspace/outputs/repo-adaptation-eval-prompts.jsonl \
+  --base-url http://127.0.0.1:8000 \
+  --env-file /workspace/biber-ai-platform/.env \
+  --output /workspace/outputs/evals/repo-adaptation-results.jsonl \
+  --summary /workspace/outputs/evals/repo-adaptation-summary.json \
+  --failures-output /workspace/outputs/evals/repo-adaptation-failures.jsonl
+```
+
+On the direct Vast deployment, use the wrapper script:
+
+```bash
+cd /workspace/biber-ai-platform
+bash scripts/vast_eval_repo_adaptation_direct.sh
+```
+
+The eval wrapper writes full results, a compact summary, and a failures JSONL.
+Use the failures file as a review queue. Do not fine-tune from it directly; keep
+only repeated, reviewed failures as curated training examples.
+
 ## Codex Mentor Role
 
 Codex/OpenAI should be used for:

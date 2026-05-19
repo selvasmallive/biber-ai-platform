@@ -59,6 +59,7 @@ _TEST_COMMANDS: dict[str, TestCommandSpec] = {
             "tests/test_biber_agent_client.py",
             "tests/test_workspace_edit.py",
             "tests/test_github_client.py",
+            "tests/test_repo_adaptation_eval.py",
             "tests/test_repo_adaptation_plan.py",
             "tests/test_test_diagnosis.py",
             "tests/test_model_registry.py",
