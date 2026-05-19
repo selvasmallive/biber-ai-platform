@@ -5,9 +5,11 @@ from pathlib import Path
 
 from training.live_model_eval import (
     EvalPrompt,
+    apply_prompt_prefix,
     build_rust_eval_project,
     build_chat_payload,
     extract_code_for_language,
+    load_prompt_prefix,
     load_eval_prompts,
     read_env_file_value,
     run_code_validators,
@@ -62,6 +64,22 @@ def test_build_chat_payload_disables_mentor() -> None:
     assert payload["use_mentor"] is False
     assert payload["messages"][0]["role"] == "user"
     assert payload["messages"][0]["content"] == prompt.prompt
+
+
+def test_apply_prompt_prefix_prepends_profile_to_prompt() -> None:
+    prompt = EvalPrompt(id="rust_eval", prompt="Return only Rust code.")
+
+    updated = apply_prompt_prefix(prompt, "Use rustfmt-clean output.")
+
+    assert updated.id == prompt.id
+    assert updated.prompt == "Use rustfmt-clean output.\n\nTask:\nReturn only Rust code."
+
+
+def test_load_prompt_prefix_reads_trimmed_text(tmp_path: Path) -> None:
+    prefix = tmp_path / "prefix.txt"
+    prefix.write_text("  Use cargo fmt clean output.  \n", encoding="utf-8")
+
+    assert load_prompt_prefix(prefix) == "Use cargo fmt clean output."
 
 
 def test_read_env_file_value_handles_quoted_values(tmp_path: Path) -> None:

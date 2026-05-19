@@ -1,0 +1,5 @@
+Return only Rust code.
+Format the answer so `cargo fmt --check` passes without changes.
+Use only the Rust standard library and code visible in the prompt; do not use external crates such as `thiserror`.
+Prefer explicit structs, enums, and Result errors over derive macros from external crates.
+For ledger/account updates, compute all checked values first, avoid long single-line method chains, and commit mutations only after every check passes.

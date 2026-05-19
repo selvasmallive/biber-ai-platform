@@ -11,7 +11,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -134,6 +134,19 @@ def load_eval_prompts(path: Path) -> list[EvalPrompt]:
     if not prompts:
         raise ValueError(f"{path}: no evaluation prompts found")
     return prompts
+
+
+def load_prompt_prefix(path: Path | None) -> str:
+    if path is None:
+        return ""
+    return path.read_text(encoding="utf-8").strip()
+
+
+def apply_prompt_prefix(prompt: EvalPrompt, prefix: str) -> EvalPrompt:
+    clean_prefix = prefix.strip()
+    if not clean_prefix:
+        return prompt
+    return replace(prompt, prompt=f"{clean_prefix}\n\nTask:\n{prompt.prompt}")
 
 
 def score_expectations(content: str, expectations: tuple[str, ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:
@@ -425,12 +438,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--fail-on-failed-validators", action="store_true")
     parser.add_argument("--validator-work-dir", type=Path)
     parser.add_argument("--validator-timeout-seconds", type=float, default=30.0)
+    parser.add_argument("--prompt-prefix-file", type=Path)
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     prompts = load_eval_prompts(args.prompts)
+    prompt_prefix = load_prompt_prefix(args.prompt_prefix_file)
+    prompts = [apply_prompt_prefix(prompt, prompt_prefix) for prompt in prompts]
     if args.limit is not None:
         prompts = prompts[: args.limit]
 
@@ -470,6 +486,7 @@ def main(argv: list[str] | None = None) -> int:
         "validation_ok": validation_ok_count,
         "validation_failed": validation_count - validation_ok_count,
         "validation_skipped": validation_skipped_count,
+        "prompt_prefix_file": str(args.prompt_prefix_file) if args.prompt_prefix_file else None,
         "output": str(args.output),
         "summary": str(args.summary),
     }
