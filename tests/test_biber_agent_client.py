@@ -397,6 +397,7 @@ def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
             "diagnosis_summary": "Detected compile_error in dotnet output.",
             "github_url": "https://github.com/acme/repo/blob/main/generated/a.txt",
             "pull_request_url": "https://github.com/acme/repo/pull/42",
+            "artifact_path": "/workspace/outputs/biber-mvp-loop.json",
             "steps": {
                 "context_plan": {},
                 "edit_plan": {},
@@ -413,6 +414,7 @@ def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
     assert "selected_context_paths: 1" in output
     assert "test_ok: False" in output
     assert "pull_request_url: https://github.com/acme/repo/pull/42" in output
+    assert "artifact_path: /workspace/outputs/biber-mvp-loop.json" in output
 
 
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
@@ -1208,6 +1210,7 @@ def test_run_mvp_loop_json_chains_safe_workflow(monkeypatch, tmp_path: Path) -> 
     edit_json = json.dumps(
         {"path": "generated/a.txt", "new_text": "hello\n", "create_if_missing": True}
     )
+    output_path = tmp_path / "artifacts" / "mvp-loop.json"
     args = client.parse_args(
         [
             "--json",
@@ -1249,6 +1252,8 @@ def test_run_mvp_loop_json_chains_safe_workflow(monkeypatch, tmp_path: Path) -> 
             "Save MVP loop output",
             "--pr-body-file",
             str(pr_body_file),
+            "--output",
+            str(output_path),
         ]
     )
 
@@ -1256,6 +1261,8 @@ def test_run_mvp_loop_json_chains_safe_workflow(monkeypatch, tmp_path: Path) -> 
     result = json.loads(output)
 
     assert result["ok"] is False
+    assert result["artifact_path"] == str(output_path)
+    assert json.loads(output_path.read_text(encoding="utf-8")) == result
     assert result["selected_context_paths"] == ["README.md"]
     assert set(result["steps"]) == {
         "context_plan",

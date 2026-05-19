@@ -64,6 +64,7 @@ smoke_id = os.environ["SMOKE_ID"]
 script_dir = Path(os.environ["SCRIPT_DIR"])
 client_edit_smoke_path = f".biber-runtime/agent-client-edit-smoke-{smoke_id}.txt"
 client_mvp_loop_smoke_path = f".biber-runtime/agent-client-mvp-loop-smoke-{smoke_id}.txt"
+client_mvp_loop_output_path = artifact_dir / "agent-client-mvp-loop-output.json"
 
 
 def fail(message: str) -> None:
@@ -576,6 +577,8 @@ try:
             "python-compileall-api",
             "--max-context-lines",
             "40",
+            "--output",
+            str(client_mvp_loop_output_path),
         ],
         env=client_env,
         text=True,
@@ -589,6 +592,16 @@ try:
     client_mvp_loop = json.loads(client_mvp_loop_output)
 except json.JSONDecodeError as exc:
     fail(f"biber_agent_client.py mvp-loop returned invalid JSON: {exc}")
+if not client_mvp_loop_output_path.exists():
+    fail(f"agent client mvp-loop did not write output artifact {client_mvp_loop_output_path}")
+try:
+    saved_client_mvp_loop = json.loads(
+        client_mvp_loop_output_path.read_text(encoding="utf-8")
+    )
+except json.JSONDecodeError as exc:
+    fail(f"agent client mvp-loop output artifact returned invalid JSON: {exc}")
+if saved_client_mvp_loop != client_mvp_loop:
+    fail("agent client mvp-loop output artifact did not match stdout JSON")
 if client_mvp_loop.get("ok") is not True:
     fail(f"agent client mvp-loop did not return ok=true: {client_mvp_loop!r}")
 client_mvp_steps = client_mvp_loop.get("steps")
@@ -607,7 +620,7 @@ if client_mvp_loop_applied_path.read_text(encoding="utf-8") != client_mvp_loop_e
 client_mvp_loop_applied_path.unlink()
 write_artifact(
     "agent-client-mvp-loop.json",
-    {"status": 0, "body": client_mvp_loop},
+    {"status": 0, "body": client_mvp_loop, "output": str(client_mvp_loop_output_path)},
 )
 
 chat_payload = {
@@ -797,6 +810,7 @@ summary = {
     "agent_client_edit_path": client_edit_smoke_path,
     "agent_client_edit_plan_hash": client_edit_plan_hash,
     "agent_client_mvp_loop_path": client_mvp_loop_smoke_path,
+    "agent_client_mvp_loop_output": str(client_mvp_loop_output_path),
     "agent_client_mvp_loop_steps": sorted(client_mvp_steps.keys()),
     "agent_client_mvp_loop_test_ok": client_mvp_loop.get("test_ok"),
     "agent_client_test_id": client_test_run.get("test_id"),

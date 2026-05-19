@@ -507,6 +507,17 @@ def load_text_argument(
     return value or ""
 
 
+def write_json_artifact(payload: Mapping[str, Any], output_path: str) -> str:
+    path = Path(output_path)
+    if path.parent != Path("."):
+        path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return str(path)
+
+
 def load_workspace_edits(
     *,
     edit_json_values: list[str] | None,
@@ -716,6 +727,8 @@ def format_mvp_loop_summary(payload: Mapping[str, Any]) -> str:
         lines.append(f"github_url: {payload.get('github_url')}")
     if payload.get("pull_request_url"):
         lines.append(f"pull_request_url: {payload.get('pull_request_url')}")
+    if payload.get("artifact_path"):
+        lines.append(f"artifact_path: {payload.get('artifact_path')}")
     return "\n".join(lines)
 
 
@@ -1033,6 +1046,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     mvp_loop.add_argument("--pr-body", default=None)
     mvp_loop.add_argument("--pr-body-file")
     mvp_loop.add_argument("--pr-ready", action="store_true")
+    mvp_loop.add_argument(
+        "--output",
+        help="Write the MVP loop JSON summary to this local artifact path.",
+    )
 
     args = parser.parse_args(argv)
     if args.command is None:
@@ -1454,6 +1471,10 @@ def run(args: argparse.Namespace) -> str:
             summary["pull_request_number"] = pull_request.get("number")
         elif args.pr_head or args.pr_title or args.pr_body or args.pr_body_file:
             raise BiberAgentClientError("PR arguments require --create-pr.")
+
+        if args.output:
+            summary["artifact_path"] = str(Path(args.output))
+            write_json_artifact(summary, args.output)
 
         return (
             json.dumps(summary, indent=2, sort_keys=True)
