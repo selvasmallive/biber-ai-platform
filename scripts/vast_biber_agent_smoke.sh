@@ -77,6 +77,7 @@ client_mvp_loop_repair_extraction_path = artifact_dir / "agent-client-mvp-loop-r
 client_mvp_loop_repair_edits_path = artifact_dir / "agent-client-mvp-loop-repair-edits.json"
 client_mvp_loop_repair_plan_path = artifact_dir / "agent-client-mvp-loop-repair-edit-plan.json"
 client_mvp_loop_repair_apply_path = artifact_dir / "agent-client-mvp-loop-repair-edit-apply.json"
+client_mvp_loop_repair_verify_path = artifact_dir / "agent-client-mvp-loop-repair-test-verification.json"
 
 
 def fail(message: str) -> None:
@@ -866,7 +867,7 @@ client_mvp_loop_repair_extract_source = {
     "repair_status": "model_repair_proposed",
     "training_allowed": False,
     "auto_applied": False,
-    "next_test_id": "dotnet-test",
+    "next_test_id": "python-compileall-api",
     "repair_content": json.dumps(
         {
             "edits": [
@@ -1052,6 +1053,54 @@ if saved_client_mvp_loop_repair_apply != client_mvp_loop_repair_apply:
     fail("apply-repair-edits output artifact did not match stdout JSON")
 if client_mvp_loop_applied_path.read_text(encoding="utf-8") != client_mvp_loop_repair_apply_text:
     fail("apply-repair-edits wrote unexpected MVP loop smoke file content")
+try:
+    client_mvp_loop_repair_verify_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "--timeout-seconds",
+            "180",
+            "verify-repair-edits",
+            str(client_mvp_loop_repair_apply_path),
+            "--diagnose-on-failure",
+            "--output",
+            str(client_mvp_loop_repair_verify_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=180,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py verify-repair-edits failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py verify-repair-edits timed out: {exc}")
+try:
+    client_mvp_loop_repair_verify = json.loads(client_mvp_loop_repair_verify_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py verify-repair-edits returned invalid JSON: {exc}")
+if client_mvp_loop_repair_verify.get("verification_status") != "passed":
+    fail(f"verify-repair-edits returned unexpected status: {client_mvp_loop_repair_verify!r}")
+if client_mvp_loop_repair_verify.get("training_allowed") is not False:
+    fail(f"verify-repair-edits must keep training_allowed=false: {client_mvp_loop_repair_verify!r}")
+if client_mvp_loop_repair_verify.get("auto_applied") is not False:
+    fail(f"verify-repair-edits must not apply edits: {client_mvp_loop_repair_verify!r}")
+if client_mvp_loop_repair_verify.get("auto_saved") is not False:
+    fail(f"verify-repair-edits must not save automatically: {client_mvp_loop_repair_verify!r}")
+if client_mvp_loop_repair_verify.get("plan_hash") != client_mvp_loop_repair_apply.get("plan_hash"):
+    fail(f"verify-repair-edits used unexpected plan hash: {client_mvp_loop_repair_verify!r}")
+if client_mvp_loop_repair_verify.get("test_id") != "python-compileall-api":
+    fail(f"verify-repair-edits used unexpected test id: {client_mvp_loop_repair_verify!r}")
+if not client_mvp_loop_repair_verify_path.exists():
+    fail(f"verify-repair-edits did not write {client_mvp_loop_repair_verify_path}")
+try:
+    saved_client_mvp_loop_repair_verify = json.loads(
+        client_mvp_loop_repair_verify_path.read_text(encoding="utf-8")
+    )
+except json.JSONDecodeError as exc:
+    fail(f"verify-repair-edits output artifact returned invalid JSON: {exc}")
+if saved_client_mvp_loop_repair_verify != client_mvp_loop_repair_verify:
+    fail("verify-repair-edits output artifact did not match stdout JSON")
 client_mvp_loop_applied_path.unlink()
 write_artifact(
     "agent-client-mvp-loop.json",
@@ -1117,6 +1166,15 @@ write_artifact(
         "body": client_mvp_loop_repair_apply,
         "output": str(client_mvp_loop_repair_apply_path),
         "source": str(client_mvp_loop_repair_plan_path),
+    },
+)
+write_artifact(
+    "agent-client-mvp-loop-repair-test-verification.json",
+    {
+        "status": 0,
+        "body": client_mvp_loop_repair_verify,
+        "output": str(client_mvp_loop_repair_verify_path),
+        "source": str(client_mvp_loop_repair_apply_path),
     },
 )
 
@@ -1332,6 +1390,10 @@ summary = {
     "agent_client_mvp_loop_repair_apply_status": client_mvp_loop_repair_apply.get("apply_status"),
     "agent_client_mvp_loop_repair_apply_approval_received": client_mvp_loop_repair_apply.get("approval_received"),
     "agent_client_mvp_loop_repair_apply_auto_applied": client_mvp_loop_repair_apply.get("auto_applied"),
+    "agent_client_mvp_loop_repair_verify": str(client_mvp_loop_repair_verify_path),
+    "agent_client_mvp_loop_repair_verify_status": client_mvp_loop_repair_verify.get("verification_status"),
+    "agent_client_mvp_loop_repair_verify_test_id": client_mvp_loop_repair_verify.get("test_id"),
+    "agent_client_mvp_loop_repair_verify_auto_saved": client_mvp_loop_repair_verify.get("auto_saved"),
     "agent_client_mvp_loop_report_ok": "BIBER MVP loop" in client_mvp_loop_report,
     "agent_client_mvp_loop_test_ok": client_mvp_loop.get("test_ok"),
     "agent_client_test_id": client_test_run.get("test_id"),

@@ -1169,6 +1169,84 @@ def build_apply_repair_edits_result(
     }
 
 
+def normalize_repair_edit_apply_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_repair_edit_apply":
+        return dict(payload)
+    body = payload.get("body")
+    if (
+        isinstance(body, dict)
+        and body.get("source") == "biber_mvp_loop_repair_edit_apply"
+    ):
+        return dict(body)
+    return None
+
+
+def build_verify_repair_edits_payload(
+    repair_apply: Mapping[str, Any],
+    *,
+    test_id: str | None,
+    dry_run: bool,
+) -> dict[str, Any]:
+    if (
+        repair_apply.get("apply_status") != "applied"
+        or repair_apply.get("ok") is not True
+    ):
+        raise BiberAgentClientError(
+            "verify-repair-edits requires a successful repair edit apply artifact."
+        )
+    selected_test_id = test_id or repair_apply.get("next_test_id")
+    if not isinstance(selected_test_id, str) or not selected_test_id.strip():
+        raise BiberAgentClientError(
+            "verify-repair-edits requires next_test_id in the apply artifact or --test-id."
+        )
+    return build_test_run_payload(test_id=selected_test_id.strip(), dry_run=dry_run)
+
+
+def build_verify_repair_edits_result(
+    *,
+    apply_path: Path,
+    repair_apply: Mapping[str, Any],
+    test_payload: Mapping[str, Any],
+    test_run: Mapping[str, Any],
+) -> dict[str, Any]:
+    passed = test_run.get("executed") is True and test_run.get("ok") is True
+    if passed:
+        verification_status = "passed"
+    elif test_run.get("executed") is False:
+        verification_status = "not_executed"
+    else:
+        verification_status = "failed"
+    return {
+        "source": "biber_mvp_loop_repair_test_verification",
+        "repair_loop_version": "mvp-v1",
+        "source_artifact": str(apply_path),
+        "verification_status": verification_status,
+        "ok": passed,
+        "training_allowed": False,
+        "auto_applied": False,
+        "auto_saved": False,
+        "plan_hash": repair_apply.get("plan_hash"),
+        "test_id": test_payload.get("test_id"),
+        "test_payload": dict(test_payload),
+        "test_run": dict(test_run),
+        "next_workflow": (
+            [
+                "review_verified_repair",
+                "save_to_github_only_if_requested",
+                "record_verified_candidate_only_after_human_review",
+            ]
+            if passed
+            else [
+                "diagnose_test_failure",
+                "prepare_next_repair_request",
+                "do_not_save_or_train_from_unverified_repair",
+            ]
+        ),
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -1659,6 +1737,34 @@ def format_repair_edit_apply_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_repair_test_verification_summary(payload: Mapping[str, Any]) -> str:
+    test_run = require_mapping(payload.get("test_run"))
+    lines = [
+        "BIBER repair test verification",
+        f"source_artifact: {payload.get('source_artifact', '-')}",
+        f"verification_status: {payload.get('verification_status', '-')}",
+        f"ok: {bool(payload.get('ok'))}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"auto_applied: {payload.get('auto_applied', False)}",
+        f"auto_saved: {payload.get('auto_saved', False)}",
+        f"plan_hash: {payload.get('plan_hash', '-')}",
+        f"test_id: {payload.get('test_id', '-')}",
+        f"test_executed: {test_run.get('executed')}",
+        f"test_ok: {test_run.get('ok')}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    diagnosis = test_run.get("diagnosis")
+    if isinstance(diagnosis, dict):
+        lines.extend(
+            [
+                f"diagnosis: {diagnosis.get('summary', '-')}",
+                f"primary_category: {diagnosis.get('primary_category', '-')}",
+                f"detected_stack: {diagnosis.get('detected_stack', '-')}",
+            ]
+        )
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -2079,6 +2185,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     apply_repair_edits_parser.add_argument("--output")
 
+    verify_repair_edits_parser = subparsers.add_parser(
+        "verify-repair-edits",
+        help=(
+            "Rerun the selected allowlisted test after an approved repair apply "
+            "artifact, without saving or training from the result."
+        ),
+    )
+    verify_repair_edits_parser.add_argument("artifact")
+    verify_repair_edits_parser.add_argument("--test-id")
+    verify_repair_edits_parser.add_argument("--dry-run", action="store_true")
+    verify_repair_edits_parser.add_argument(
+        "--diagnose-on-failure",
+        action="store_true",
+        help="Call /v1/tests/diagnose when the rerun executes and fails.",
+    )
+    verify_repair_edits_parser.add_argument("--max-context-lines", type=int)
+    verify_repair_edits_parser.add_argument("--output")
+
     args = parser.parse_args(argv)
     if args.command is None:
         args.command = "capabilities"
@@ -2287,6 +2411,58 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_edit_apply_summary(result)
+        )
+    if args.command == "verify-repair-edits":
+        artifact_path = Path(args.artifact)
+        artifact = load_json_artifact(
+            str(artifact_path),
+            label="repair-edit apply artifact",
+        )
+        repair_apply = normalize_repair_edit_apply_artifact(artifact)
+        if repair_apply is None:
+            raise BiberAgentClientError(
+                "verify-repair-edits artifact must contain a saved repair-edit apply JSON object."
+            )
+        test_payload = build_verify_repair_edits_payload(
+            repair_apply,
+            test_id=args.test_id,
+            dry_run=args.dry_run,
+        )
+        test_run = run_allowlisted_test(
+            base_url=base_url,
+            api_key=api_key,
+            payload=test_payload,
+            timeout_seconds=args.timeout_seconds,
+        )
+        if (
+            args.diagnose_on_failure
+            and test_run.get("executed") is True
+            and test_run.get("ok") is False
+        ):
+            diagnosis = diagnose_test_failure(
+                base_url=base_url,
+                api_key=api_key,
+                payload=build_diagnosis_payload_from_test_run(
+                    test_run,
+                    max_context_lines=args.max_context_lines,
+                ),
+                timeout_seconds=args.timeout_seconds,
+            )
+            test_run = dict(test_run)
+            test_run["diagnosis"] = diagnosis
+        result = build_verify_repair_edits_result(
+            apply_path=artifact_path,
+            repair_apply=repair_apply,
+            test_payload=test_payload,
+            test_run=test_run,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_test_verification_summary(result)
         )
     if args.command == "capabilities":
         capabilities = fetch_capabilities(

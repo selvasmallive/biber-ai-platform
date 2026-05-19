@@ -1274,6 +1274,207 @@ def test_run_apply_repair_edits_calls_server_apply_after_approval(
     assert result["next_test_id"] == "dotnet-test"
 
 
+def test_build_verify_repair_edits_payload_requires_applied_artifact() -> None:
+    try:
+        client.build_verify_repair_edits_payload(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "apply_status": "failed",
+                "ok": False,
+                "next_test_id": "dotnet-test",
+            },
+            test_id=None,
+            dry_run=False,
+        )
+    except client.BiberAgentClientError as exc:
+        assert "successful repair edit apply" in str(exc)
+    else:
+        raise AssertionError("expected failed repair apply artifact to be rejected")
+
+
+def test_run_verify_repair_edits_uses_next_test_id_without_saving_or_training(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_run_allowlisted_test(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured.update(
+            {
+                "base_url": base_url,
+                "api_key": api_key,
+                "payload": payload,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return {
+            "test_id": payload["test_id"],
+            "label": "Python compileall API",
+            "executed": True,
+            "ok": True,
+            "exit_code": 0,
+            "timed_out": False,
+            "duration_ms": 42,
+            "cwd": ".",
+            "command": ["python", "-m", "compileall", "src"],
+            "stdout": "",
+            "stderr": "",
+        }
+
+    artifact = tmp_path / "repair-edit-apply.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "apply_status": "applied",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "auto_saved": False,
+                "approval_received": True,
+                "plan_hash": "f" * 64,
+                "next_test_id": "python-compileall-api",
+                "edit_apply": {
+                    "ok": True,
+                    "applied": [{"path": "src/App.cs", "changed": True}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "repair-test-verification.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "run_allowlisted_test", fake_run_allowlisted_test)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "verify-repair-edits",
+                str(artifact),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert captured["api_key"] == "test-key"
+    assert captured["payload"] == {"test_id": "python-compileall-api"}
+    assert result["source"] == "biber_mvp_loop_repair_test_verification"
+    assert result["verification_status"] == "passed"
+    assert result["ok"] is True
+    assert result["training_allowed"] is False
+    assert result["auto_applied"] is False
+    assert result["auto_saved"] is False
+    assert result["plan_hash"] == "f" * 64
+    assert result["test_id"] == "python-compileall-api"
+    assert result["test_run"]["ok"] is True
+
+
+def test_run_verify_repair_edits_can_override_test_id_and_diagnose_failure(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_run_allowlisted_test(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["run_payload"] = payload
+        return {
+            "test_id": payload["test_id"],
+            "label": "dotnet test",
+            "executed": True,
+            "ok": False,
+            "exit_code": 1,
+            "timed_out": False,
+            "duration_ms": 42,
+            "cwd": ".",
+            "command": ["dotnet", "test", "--nologo"],
+            "stdout": "Example.cs(7,1): error CS1002: ; expected\n",
+            "stderr": "",
+            "stdout_truncated": False,
+            "stderr_truncated": False,
+        }
+
+    def fake_diagnose_test_failure(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["diagnosis_payload"] = payload
+        return {
+            "has_failure": True,
+            "primary_category": "compile_error",
+            "detected_stack": "dotnet",
+            "signals": [],
+            "relevant_output": "Example.cs(7,1): error CS1002: ; expected",
+            "suggested_next_actions": [],
+            "summary": "Detected compile_error in dotnet output with 1 signal.",
+        }
+
+    artifact = tmp_path / "repair-edit-apply.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "apply_status": "applied",
+                "ok": True,
+                "plan_hash": "f" * 64,
+                "next_test_id": "python-compileall-api",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "run_allowlisted_test", fake_run_allowlisted_test)
+    monkeypatch.setattr(client, "diagnose_test_failure", fake_diagnose_test_failure)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "verify-repair-edits",
+                str(artifact),
+                "--test-id",
+                "dotnet-test",
+                "--diagnose-on-failure",
+                "--max-context-lines",
+                "30",
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert captured["run_payload"] == {"test_id": "dotnet-test"}
+    assert captured["diagnosis_payload"]["test_id"] == "dotnet-test"
+    assert captured["diagnosis_payload"]["max_context_lines"] == 30
+    assert result["verification_status"] == "failed"
+    assert result["ok"] is False
+    assert result["test_run"]["diagnosis"]["primary_category"] == "compile_error"
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 
