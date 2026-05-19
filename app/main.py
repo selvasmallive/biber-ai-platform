@@ -53,6 +53,7 @@ from app.test_diagnosis import SUPPORTED_STACKS, diagnose_test_failure
 from app.workspace_edit import (
     WorkspaceEditConfigurationError,
     WorkspaceEditError,
+    apply_workspace_edit_plan,
     apply_workspace_edit,
     plan_workspace_edits,
 )
@@ -340,10 +341,25 @@ class WorkspaceEditPlanRejection(BaseModel):
 
 class WorkspaceEditPlanResponse(BaseModel):
     ok: bool
+    plan_hash: str
     planned: list[WorkspaceEditPlanItem]
     rejected: list[WorkspaceEditPlanRejection]
     files_touched: int
     total_new_bytes: int
+    summary: str
+
+
+class WorkspaceEditApplyRequest(BaseModel):
+    edits: list[WorkspaceEditRequest] = Field(min_length=1, max_length=20)
+    plan_hash: str = Field(min_length=64, max_length=64)
+    max_files: int = Field(default=8, ge=1, le=20)
+
+
+class WorkspaceEditApplyResponse(BaseModel):
+    ok: bool
+    plan_hash: str
+    applied: list[WorkspaceEditResponse]
+    files_touched: int
     summary: str
 
 
@@ -439,6 +455,7 @@ def _agent_capabilities() -> dict[str, object]:
             "diagnose_test_failure": "POST /v1/tests/diagnose",
             "edit_file": "POST /v1/files/edit",
             "edit_plan": "POST /v1/files/edit/plan",
+            "edit_apply": "POST /v1/files/edit/apply",
             "github_save": "POST /v1/save/github",
             "github_pull_request": "POST /v1/github/pull-request",
         },
@@ -456,7 +473,10 @@ def _agent_capabilities() -> dict[str, object]:
             "workspace_edit": {
                 "enabled": True,
                 "plan_endpoint": "POST /v1/files/edit/plan",
+                "apply_endpoint": "POST /v1/files/edit/apply",
                 "multi_file_plan_supported": True,
+                "multi_file_apply_supported": True,
+                "plan_hash_required": True,
                 "max_plan_files": 8,
                 "dry_run_supported": True,
                 "max_file_bytes": settings.workspace_edit_max_file_bytes,
@@ -653,6 +673,25 @@ def plan_workspace_file_edits(
     except WorkspaceEditError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return WorkspaceEditPlanResponse.model_validate(result)
+
+
+@app.post("/v1/files/edit/apply", response_model=WorkspaceEditApplyResponse)
+def apply_workspace_file_edits(
+    req: WorkspaceEditApplyRequest,
+    auth=Depends(require_api_key),
+):
+    try:
+        result = apply_workspace_edit_plan(
+            edits=[edit.model_dump() for edit in req.edits],
+            expected_plan_hash=req.plan_hash,
+            settings=settings,
+            max_files=req.max_files,
+        )
+    except WorkspaceEditConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except WorkspaceEditError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return WorkspaceEditApplyResponse.model_validate(result)
 
 
 @app.get("/v1/agent/sessions")

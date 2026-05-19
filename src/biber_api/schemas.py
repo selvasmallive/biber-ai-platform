@@ -223,10 +223,25 @@ class WorkspaceEditPlanRejection(BaseModel):
 
 class WorkspaceEditPlanResponse(BaseModel):
     ok: bool
+    plan_hash: str
     planned: list[WorkspaceEditPlanItem]
     rejected: list[WorkspaceEditPlanRejection]
     files_touched: int
     total_new_bytes: int
+    summary: str
+
+
+class WorkspaceEditApplyRequest(BaseModel):
+    edits: list[WorkspaceEditRequest] = Field(min_length=1, max_length=20)
+    plan_hash: str = Field(min_length=64, max_length=64)
+    max_files: int = Field(default=8, ge=1, le=20)
+
+
+class WorkspaceEditApplyResponse(BaseModel):
+    ok: bool
+    plan_hash: str
+    applied: list[WorkspaceEditResponse]
+    files_touched: int
     summary: str
 
 

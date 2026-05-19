@@ -230,13 +230,44 @@ the file.
 This endpoint validates a small batch of proposed file edits without writing
 anything. Use it before asking a client tool to apply a multi-file patch. It
 returns accepted edit previews, rejected edit reasons, hashes, byte counts, and
-a simple risk marker.
+a simple risk marker. A clean plan also returns `plan_hash`; clients must send
+that exact hash to the apply endpoint.
 
 ```bash
 curl -X POST http://localhost:8000/v1/files/edit/plan \
   -H "Authorization: Bearer dev-api-key-change-me" \
   -H "Content-Type: application/json" \
   -d '{
+    "max_files": 4,
+    "edits": [
+      {
+        "path": "src/example.py",
+        "old_text": "return a + b",
+        "new_text": "return int(a) + int(b)",
+        "expected_replacements": 1
+      },
+      {
+        "path": "generated/notes.md",
+        "new_text": "planned note\n",
+        "create_if_missing": true
+      }
+    ]
+}'
+```
+
+## Apply A Planned Multi-File Edit
+
+This endpoint writes a small multi-file edit only after BIBER recomputes the
+plan and confirms the supplied `plan_hash` still matches the current workspace.
+If the hash is stale or the plan has rejected edits, nothing is written. If a
+write fails mid-apply, BIBER rolls back files it already touched.
+
+```bash
+curl -X POST http://localhost:8000/v1/files/edit/apply \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "plan_hash": "<plan_hash from /v1/files/edit/plan>",
     "max_files": 4,
     "edits": [
       {

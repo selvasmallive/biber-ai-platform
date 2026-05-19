@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -164,7 +165,7 @@ def plan_workspace_edits(
 
     total_new_bytes = sum(int(item["new_bytes"]) for item in planned)
     ok = bool(planned) and not rejected
-    return {
+    plan = {
         "ok": ok,
         "planned": planned,
         "rejected": rejected,
@@ -175,6 +176,126 @@ def plan_workspace_edits(
             f"total output size {total_new_bytes} bytes."
         ),
     }
+    plan["plan_hash"] = workspace_edit_plan_hash(plan)
+    return plan
+
+
+def apply_workspace_edit_plan(
+    *,
+    edits: list[dict[str, Any]],
+    expected_plan_hash: str,
+    settings: Settings,
+    max_files: int = 8,
+) -> dict[str, Any]:
+    normalized_expected_hash = expected_plan_hash.strip().lower()
+    if not normalized_expected_hash:
+        raise WorkspaceEditError("Workspace edit apply requires plan_hash.")
+
+    plan = plan_workspace_edits(edits=edits, settings=settings, max_files=max_files)
+    actual_hash = str(plan["plan_hash"])
+    if not plan["ok"]:
+        raise WorkspaceEditError("Workspace edit apply requires a clean edit plan.")
+    if actual_hash != normalized_expected_hash:
+        raise WorkspaceEditError(
+            "Workspace edit plan hash mismatch; re-run /v1/files/edit/plan "
+            "against the current workspace state."
+        )
+
+    root_path = _repo_root(settings)
+    snapshots = _capture_apply_snapshots(plan["planned"], root_path)
+    applied: list[dict[str, Any]] = []
+    try:
+        for edit in edits:
+            result = apply_workspace_edit(
+                path=str(edit.get("path") or ""),
+                old_text=edit.get("old_text"),
+                new_text=str(edit.get("new_text") or ""),
+                expected_replacements=int(edit.get("expected_replacements") or 1),
+                create_if_missing=bool(edit.get("create_if_missing")),
+                dry_run=False,
+                settings=settings,
+            )
+            applied.append(result)
+    except (OSError, WorkspaceEditError, TypeError, ValueError) as exc:
+        _restore_apply_snapshots(snapshots)
+        raise WorkspaceEditError(
+            f"Workspace edit apply failed and was rolled back: {exc}"
+        ) from exc
+
+    return {
+        "ok": True,
+        "plan_hash": actual_hash,
+        "applied": applied,
+        "files_touched": len(applied),
+        "summary": f"Applied {len(applied)} workspace edit(s).",
+    }
+
+
+def workspace_edit_plan_hash(plan: dict[str, Any]) -> str:
+    payload = {
+        "planned": [
+            {
+                "path": item["path"],
+                "operation": item["operation"],
+                "changed": item["changed"],
+                "replacements": item["replacements"],
+                "old_sha256": item["old_sha256"],
+                "new_sha256": item["new_sha256"],
+                "old_bytes": item["old_bytes"],
+                "new_bytes": item["new_bytes"],
+                "risk_level": item["risk_level"],
+            }
+            for item in plan.get("planned", [])
+        ],
+        "rejected": plan.get("rejected", []),
+        "files_touched": plan.get("files_touched", 0),
+        "total_new_bytes": plan.get("total_new_bytes", 0),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return sha256(encoded).hexdigest()
+
+
+def _capture_apply_snapshots(
+    planned: list[dict[str, Any]],
+    root_path: Path,
+) -> list[tuple[Path, bool, bytes]]:
+    snapshots: list[tuple[Path, bool, bytes]] = []
+    for item in planned:
+        candidate = _resolve_edit_path(str(item["path"]), root_path)
+        existed = candidate.exists()
+        operation = str(item.get("operation") or "")
+        if operation == "create" and existed:
+            raise WorkspaceEditError(
+                "Workspace edit target changed after planning; re-run the edit plan."
+            )
+        if operation != "create" and not existed:
+            raise WorkspaceEditError(
+                "Workspace edit target changed after planning; re-run the edit plan."
+            )
+        data = candidate.read_bytes() if existed else b""
+        actual_old_sha = sha256(data).hexdigest() if data else None
+        if actual_old_sha != item["old_sha256"]:
+            raise WorkspaceEditError(
+                "Workspace edit target changed after planning; re-run the edit plan."
+            )
+        snapshots.append((candidate, existed, data))
+    return snapshots
+
+
+def _restore_apply_snapshots(snapshots: list[tuple[Path, bool, bytes]]) -> None:
+    rollback_errors: list[str] = []
+    for candidate, existed, data in reversed(snapshots):
+        try:
+            if existed:
+                candidate.write_bytes(data)
+            elif candidate.exists():
+                candidate.unlink()
+        except OSError as exc:
+            rollback_errors.append(f"{candidate.name}: {exc}")
+    if rollback_errors:
+        raise WorkspaceEditError(
+            "Workspace edit rollback failed for: " + "; ".join(rollback_errors)
+        )
 
 
 def _replace_existing_file(

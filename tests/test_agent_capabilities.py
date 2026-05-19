@@ -54,6 +54,7 @@ def test_agent_capabilities_describes_client_workflows(tmp_path: Path) -> None:
     assert body["endpoints"]["create_session"] == "POST /v1/agent/sessions"
     assert body["endpoints"]["diagnose_test_failure"] == "POST /v1/tests/diagnose"
     assert body["endpoints"]["edit_plan"] == "POST /v1/files/edit/plan"
+    assert body["endpoints"]["edit_apply"] == "POST /v1/files/edit/apply"
     assert body["features"]["repo_context"]["max_files"] == 7
     assert body["features"]["repo_context"]["planner_supported"] is True
     assert body["features"]["repo_context"]["plan_endpoint"] == "POST /v1/repo/context/plan"
@@ -66,7 +67,10 @@ def test_agent_capabilities_describes_client_workflows(tmp_path: Path) -> None:
     assert "maven-test" in stack_profiles["java"]["recommended_test_ids"]
     assert body["features"]["workspace_edit"]["dry_run_supported"] is True
     assert body["features"]["workspace_edit"]["multi_file_plan_supported"] is True
+    assert body["features"]["workspace_edit"]["multi_file_apply_supported"] is True
+    assert body["features"]["workspace_edit"]["plan_hash_required"] is True
     assert body["features"]["workspace_edit"]["plan_endpoint"] == "POST /v1/files/edit/plan"
+    assert body["features"]["workspace_edit"]["apply_endpoint"] == "POST /v1/files/edit/apply"
     assert body["features"]["test_runner"]["failure_diagnosis_supported"] is True
     assert "dotnet" in body["features"]["test_runner"]["diagnosis_stacks"]
     assert body["features"]["openai_mentor"]["configured"] is False
