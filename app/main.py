@@ -45,6 +45,7 @@ from app.test_runner import (
     list_test_commands,
     run_test_command,
 )
+from app.test_diagnosis import SUPPORTED_STACKS, diagnose_test_failure
 from app.workspace_edit import (
     WorkspaceEditConfigurationError,
     WorkspaceEditError,
@@ -227,6 +228,34 @@ class TestRunResponse(BaseModel):
     stderr_truncated: bool
 
 
+class TestFailureDiagnosisRequest(BaseModel):
+    test_id: str | None = None
+    command: list[str] = Field(default_factory=list, max_length=20)
+    exit_code: int | None = None
+    timed_out: bool = False
+    stdout: str = ""
+    stderr: str = ""
+    max_context_lines: int = Field(default=80, ge=1, le=200)
+
+
+class TestFailureSignal(BaseModel):
+    category: str
+    stack: str
+    message: str
+    line_number: int | None = None
+    evidence: str
+
+
+class TestFailureDiagnosisResponse(BaseModel):
+    has_failure: bool
+    primary_category: str
+    detected_stack: str
+    signals: list[TestFailureSignal]
+    relevant_output: str
+    suggested_next_actions: list[str]
+    summary: str
+
+
 class RepoContextPlanRequest(BaseModel):
     instruction: str | None = None
     pinned_paths: list[str] = Field(default_factory=list, max_length=12)
@@ -370,6 +399,7 @@ def _agent_capabilities() -> dict[str, object]:
             "list_sessions": "GET /v1/agent/sessions",
             "get_session": "GET /v1/agent/sessions/{session_id}",
             "run_test": "POST /v1/tests/run",
+            "diagnose_test_failure": "POST /v1/tests/diagnose",
             "edit_file": "POST /v1/files/edit",
             "edit_plan": "POST /v1/files/edit/plan",
             "github_save": "POST /v1/save/github",
@@ -395,6 +425,9 @@ def _agent_capabilities() -> dict[str, object]:
             },
             "test_runner": {
                 "enabled": True,
+                "diagnosis_endpoint": "POST /v1/tests/diagnose",
+                "failure_diagnosis_supported": True,
+                "diagnosis_stacks": SUPPORTED_STACKS,
                 "commands": list_test_commands(settings),
             },
             "github_workflow": {
@@ -506,6 +539,23 @@ def run_tests(req: TestRunRequest, auth=Depends(require_api_key)):
     except TestRunnerConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return TestRunResponse.model_validate(result)
+
+
+@app.post("/v1/tests/diagnose", response_model=TestFailureDiagnosisResponse)
+def diagnose_tests(
+    req: TestFailureDiagnosisRequest,
+    auth=Depends(require_api_key),
+):
+    result = diagnose_test_failure(
+        stdout=req.stdout,
+        stderr=req.stderr,
+        exit_code=req.exit_code,
+        timed_out=req.timed_out,
+        command=req.command,
+        test_id=req.test_id,
+        max_context_lines=req.max_context_lines,
+    )
+    return TestFailureDiagnosisResponse.model_validate(result)
 
 
 @app.get("/v1/agent/capabilities")

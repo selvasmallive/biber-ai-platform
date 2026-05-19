@@ -115,6 +115,34 @@ class TestRunResponse(BaseModel):
     stderr_truncated: bool
 
 
+class TestFailureDiagnosisRequest(BaseModel):
+    test_id: str | None = None
+    command: list[str] = Field(default_factory=list, max_length=20)
+    exit_code: int | None = None
+    timed_out: bool = False
+    stdout: str = ""
+    stderr: str = ""
+    max_context_lines: int = Field(default=80, ge=1, le=200)
+
+
+class TestFailureSignal(BaseModel):
+    category: str
+    stack: str
+    message: str
+    line_number: int | None = None
+    evidence: str
+
+
+class TestFailureDiagnosisResponse(BaseModel):
+    has_failure: bool
+    primary_category: str
+    detected_stack: str
+    signals: list[TestFailureSignal]
+    relevant_output: str
+    suggested_next_actions: list[str]
+    summary: str
+
+
 class RepoContextPlanRequest(BaseModel):
     instruction: str | None = None
     pinned_paths: list[str] = Field(default_factory=list, max_length=12)

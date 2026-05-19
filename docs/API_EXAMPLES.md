@@ -170,6 +170,29 @@ curl -X POST http://localhost:8000/v1/tests/run \
 
 Use `dry_run: true` to inspect the selected command without executing it.
 
+## Diagnose Test Failure Output
+
+This endpoint turns raw test output into a compact, structured diagnosis for a
+client agent. It is deterministic and does not call a model. Use it after a
+failed test run to classify the likely failure type and collect concise context
+for BIBER.
+
+```bash
+curl -X POST http://localhost:8000/v1/tests/diagnose \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "test_id": "dotnet-test",
+    "command": ["dotnet", "test"],
+    "exit_code": 1,
+    "stdout": "Example.cs(7,1): error CS1002: ; expected\n",
+    "max_context_lines": 40
+  }'
+```
+
+The first version detects common `.NET`, Java/Maven/Gradle, Rust/Cargo,
+Python/pytest, and Node/Jest/Vitest failure signals.
+
 ## Apply A Bounded Workspace Edit
 
 This endpoint performs one exact text replacement in a workspace-relative text

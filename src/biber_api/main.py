@@ -41,6 +41,8 @@ from .schemas import (
     RuntimeStatus,
     SaveToGitHubRequest,
     SaveToGitHubResponse,
+    TestFailureDiagnosisRequest,
+    TestFailureDiagnosisResponse,
     TestRunRequest,
     TestRunResponse,
     RepoContextPlanRequest,
@@ -57,6 +59,7 @@ from .test_runner import (
     list_test_commands,
     run_test_command,
 )
+from .test_diagnosis import SUPPORTED_STACKS, diagnose_test_failure
 from .workspace_edit import (
     WorkspaceEditConfigurationError,
     WorkspaceEditError,
@@ -137,6 +140,7 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
             "list_sessions": "GET /v1/agent/sessions",
             "get_session": "GET /v1/agent/sessions/{session_id}",
             "run_test": "POST /v1/tests/run",
+            "diagnose_test_failure": "POST /v1/tests/diagnose",
             "edit_file": "POST /v1/files/edit",
             "edit_plan": "POST /v1/files/edit/plan",
             "github_save": "POST /v1/save/github",
@@ -162,6 +166,9 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
             },
             "test_runner": {
                 "enabled": True,
+                "diagnosis_endpoint": "POST /v1/tests/diagnose",
+                "failure_diagnosis_supported": True,
+                "diagnosis_stacks": SUPPORTED_STACKS,
                 "commands": list_test_commands(settings),
             },
             "github_workflow": {
@@ -287,6 +294,23 @@ async def run_tests(
     except TestRunnerConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return TestRunResponse.model_validate(result)
+
+
+@app.post("/v1/tests/diagnose", response_model=TestFailureDiagnosisResponse)
+async def diagnose_tests(
+    request_body: TestFailureDiagnosisRequest,
+    _: AuthContext = Depends(require_api_key),
+) -> TestFailureDiagnosisResponse:
+    result = diagnose_test_failure(
+        stdout=request_body.stdout,
+        stderr=request_body.stderr,
+        exit_code=request_body.exit_code,
+        timed_out=request_body.timed_out,
+        command=request_body.command,
+        test_id=request_body.test_id,
+        max_context_lines=request_body.max_context_lines,
+    )
+    return TestFailureDiagnosisResponse.model_validate(result)
 
 
 @app.get("/v1/agent/capabilities")
