@@ -8,6 +8,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Callable
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from training.live_model_eval import (
     EvalPrompt,
     EvalResult,
