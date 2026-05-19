@@ -45,9 +45,10 @@ Goal: verify whether current `biber-dev-core` can help write correct Rust.
 - Current Rust/XRIQ eval prompt file:
   `training/eval_prompts_rust_xriq.jsonl`.
 - Current Rust/XRIQ eval codegen profile:
-  `training/rust_xriq_codegen_profile.txt`. The Vast eval wrapper prepends
-  this profile by default so eval prompts reinforce rustfmt-clean, standalone
-  standard-library Rust before any future fine-tuning run.
+  `training/rust_xriq_codegen_profile.txt`. The Vast eval wrapper applies
+  this profile to the ledger eval prompt by default so the current weak spot
+  gets rustfmt-clean, standalone standard-library Rust guidance without
+  perturbing simpler prompts.
 - Current Vast Rust/XRIQ eval wrapper:
   `scripts/vast_eval_rust_xriq_direct.sh`.
 - The live eval runner supports cargo-backed validators that can run generated

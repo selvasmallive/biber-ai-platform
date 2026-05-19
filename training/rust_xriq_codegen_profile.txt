@@ -3,3 +3,12 @@ Format the answer so `cargo fmt --check` passes without changes.
 Use only the Rust standard library and code visible in the prompt; do not use external crates such as `thiserror`.
 Prefer explicit structs, enums, and Result errors over derive macros from external crates.
 For ledger/account updates, compute all checked values first, avoid long single-line method chains, and commit mutations only after every check passes.
+When a method chain includes `ok_or(...)` or `and_then(...)`, write it across multiple lines in the shape rustfmt expects, for example:
+`let sender = accounts`
+`    .get_mut(&tx.from)`
+`    .ok_or(LedgerError::MissingSender)?;`
+and:
+`let total = tx`
+`    .amount`
+`    .checked_add(tx.fee)`
+`    .ok_or(LedgerError::ArithmeticOverflow)?;`

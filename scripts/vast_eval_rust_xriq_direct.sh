@@ -15,6 +15,7 @@ export PATH="${CARGO_HOME}/bin:${PATH}"
 
 PROMPTS="${BIBER_RUST_XRIQ_EVAL_PROMPTS:-training/eval_prompts_rust_xriq.jsonl}"
 PROMPT_PREFIX="${BIBER_RUST_XRIQ_PROMPT_PREFIX:-training/rust_xriq_codegen_profile.txt}"
+PROMPT_PREFIX_IDS="${BIBER_RUST_XRIQ_PROMPT_PREFIX_IDS:-rust_xriq_apply_ledger_transaction}"
 EVAL_OUTPUT_DIR="${BIBER_EVAL_OUTPUT_DIR:-${BIBER_RUNTIME_ROOT}/outputs/evals}"
 VALIDATOR_WORK_DIR="${BIBER_EVAL_VALIDATOR_WORK_DIR:-${EVAL_OUTPUT_DIR}/validator-work}"
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -36,6 +37,11 @@ fi
 PROMPT_PREFIX_ARGS=()
 if [ -n "$PROMPT_PREFIX" ]; then
   PROMPT_PREFIX_ARGS+=(--prompt-prefix-file "$PROMPT_PREFIX")
+  if [ -n "$PROMPT_PREFIX_IDS" ]; then
+    for prompt_id in ${PROMPT_PREFIX_IDS//,/ }; do
+      PROMPT_PREFIX_ARGS+=(--prompt-prefix-id "$prompt_id")
+    done
+  fi
 fi
 
 log "Running Rust/XRIQ live BIBER eval with cargo validators"

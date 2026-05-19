@@ -439,6 +439,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--validator-work-dir", type=Path)
     parser.add_argument("--validator-timeout-seconds", type=float, default=30.0)
     parser.add_argument("--prompt-prefix-file", type=Path)
+    parser.add_argument("--prompt-prefix-id", action="append", default=None)
     return parser.parse_args(argv)
 
 
@@ -446,7 +447,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     prompts = load_eval_prompts(args.prompts)
     prompt_prefix = load_prompt_prefix(args.prompt_prefix_file)
-    prompts = [apply_prompt_prefix(prompt, prompt_prefix) for prompt in prompts]
+    prompt_prefix_ids = set(args.prompt_prefix_id or [])
+    prompts = [
+        apply_prompt_prefix(prompt, prompt_prefix)
+        if prompt_prefix and (not prompt_prefix_ids or prompt.id in prompt_prefix_ids)
+        else prompt
+        for prompt in prompts
+    ]
     if args.limit is not None:
         prompts = prompts[: args.limit]
 
@@ -487,6 +494,7 @@ def main(argv: list[str] | None = None) -> int:
         "validation_failed": validation_count - validation_ok_count,
         "validation_skipped": validation_skipped_count,
         "prompt_prefix_file": str(args.prompt_prefix_file) if args.prompt_prefix_file else None,
+        "prompt_prefix_ids": sorted(prompt_prefix_ids),
         "output": str(args.output),
         "summary": str(args.summary),
     }

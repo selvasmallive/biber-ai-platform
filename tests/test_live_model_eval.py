@@ -82,6 +82,80 @@ def test_load_prompt_prefix_reads_trimmed_text(tmp_path: Path) -> None:
     assert load_prompt_prefix(prefix) == "Use cargo fmt clean output."
 
 
+def test_main_applies_prompt_prefix_only_to_selected_ids(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    prompts = tmp_path / "prompts.jsonl"
+    output = tmp_path / "results.jsonl"
+    summary = tmp_path / "summary.json"
+    prefix = tmp_path / "prefix.txt"
+    prefix.write_text("Use rustfmt-clean output.", encoding="utf-8")
+    write_jsonl(
+        prompts,
+        [
+            {"id": "plain", "prompt": "Plain prompt."},
+            {"id": "ledger", "prompt": "Ledger prompt."},
+        ],
+    )
+    captured_prompts: list[str] = []
+
+    def fake_post_chat(*args, **kwargs):
+        prompt = args[2]
+        captured_prompts.append(prompt.prompt)
+        return EvalPrompt(
+            id=prompt.id,
+            prompt=prompt.prompt,
+        )
+
+    from training import live_model_eval
+
+    def fake_post_chat_result(
+        base_url,
+        api_key,
+        prompt,
+        timeout_seconds,
+        run_validators,
+        validator_work_dir,
+        validator_timeout_seconds,
+    ):
+        captured_prompts.append(prompt.prompt)
+        return live_model_eval.EvalResult(
+            id=prompt.id,
+            ok=True,
+            expectation_ok=True,
+            validation_ok=None,
+            validation_skipped=False,
+            model="test",
+            latency_seconds=0.0,
+            content="ok",
+            matched_expectations=(),
+            missing_expectations=(),
+        )
+
+    monkeypatch.setattr(live_model_eval, "post_chat", fake_post_chat_result)
+
+    assert live_model_eval.main(
+        [
+            "--prompts",
+            str(prompts),
+            "--output",
+            str(output),
+            "--summary",
+            str(summary),
+            "--prompt-prefix-file",
+            str(prefix),
+            "--prompt-prefix-id",
+            "ledger",
+        ]
+    ) == 0
+
+    assert captured_prompts == [
+        "Plain prompt.",
+        "Use rustfmt-clean output.\n\nTask:\nLedger prompt.",
+    ]
+
+
 def test_read_env_file_value_handles_quoted_values(tmp_path: Path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text('BIBER_DEMO_API_KEY="quoted-key"\nOTHER=value\n', encoding="utf-8")
