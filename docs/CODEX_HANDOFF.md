@@ -214,6 +214,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP ready repair-chain decision review commit pushed and
   Vast-verified:
   `6566caf Review ready repair chain decisions`.
+- Latest BIBER MVP repair-chain eval-candidate export commit pushed and
+  Vast-verified:
+  `415af7a Export repair chain eval candidates`.
 - Latest Rust/XRIQ eval codegen-profile commits pushed and Vast-verified:
   `176b3e4 Add Rust XRIQ eval codegen profile`,
   `706448e Limit Rust XRIQ eval profile to ledger prompt`,
@@ -253,7 +256,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   `07eb63f Add TensorFlow capability track`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `6566caf`. Full Rust/private-devnet
+- Vast code verification is current through `415af7a`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -304,7 +307,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   summary verification is current through `6c90400`; BIBER ready repair-chain
   decision recording verification is current through `dc76ae6`; BIBER ready
   repair-chain decision review verification is current through `6566caf`;
-  Rust/XRIQ live
+  BIBER repair-chain eval-candidate export verification is current through
+  `415af7a`; Rust/XRIQ live
   codegen-profile eval verification is current through `7e7b8d`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
@@ -315,9 +319,32 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `6566caf`. If later docs-only
+  - Vast code verification is current through `415af7a`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `415af7a` repair-chain eval-candidate export checkpoint required no
+    service restart because it changed only the stdlib agent client, smoke
+    script, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid
+    `53902`.
+  - Latest focused Vast verification for the BIBER repair-chain eval-candidate
+    export slice:
+    `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py tests/test_github_client.py tests/test_agent_session.py tests/test_agent_capabilities.py tests/test_test_runner.py tests/test_test_diagnosis.py tests/test_workspace_edit.py tests/test_repo_context.py -q`
+    with `112 passed`, live
+    `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS=24 BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=96 bash scripts/vast_biber_agent_smoke.sh`,
+    and `bash scripts/vast_status_direct.sh`.
+    The live smoke wrote artifacts under
+    `/workspace/outputs/biber-agent-smoke-20260519T170513Z-65165`, verified
+    `export-ready-repair-chain-eval-candidates` against a synthetic
+    `approve_for_eval` decision JSONL, and wrote
+    `/workspace/outputs/biber-agent-smoke-20260519T170513Z-65165/agent-client-mvp-loop-ready-repair-chain-eval-candidates.jsonl`
+    with `records=1`, `eval_candidates=1`, `eval_dataset_ready=false`,
+    `requires_dataset_review=true`, `safe_to_train=false`,
+    `training_allowed=false`, `github_save_ready=false`, and
+    `approved_for_training=false`. This remains an eval-candidate artifact
+    only; it does not create training data, save to GitHub, or approve public
+    XRIQ work. GitHub remained skipped because `github_configured=false`.
   - The `6566caf` ready repair-chain decision review checkpoint required no
     service restart because it changed only the stdlib agent client, smoke
     script, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid
@@ -4644,7 +4671,10 @@ bash scripts/xriq_private_devnet_smoke.sh
     defer/reject/approve-for-eval decision while still blocking automatic
     training and GitHub save promotion. It also has
     `review-ready-repair-chain-decisions`, which summarizes those human
-    decision queues while keeping `safe_to_train=false`.
+    decision queues while keeping `safe_to_train=false`, and
+    `export-ready-repair-chain-eval-candidates`, which exports only
+    `approve_for_eval` decisions into eval candidates while still requiring
+    dataset review and blocking training.
    - Stack-specific test execution: keep execution allowlisted and predictable.
      The test runner now exposes `dotnet-test`, `maven-test`, `gradle-test`,
      and `gradle-wrapper-test` for target repos that already include the
@@ -4740,7 +4770,10 @@ bash scripts/xriq_private_devnet_smoke.sh
    defer/reject/approve-for-eval decisions without making the chain eligible
    for training or GitHub save, and `review-ready-repair-chain-decisions`,
    which summarizes those decision queues before any future eval-dataset
-   curation. The repo-adaptation live eval wrapper and the conservative
+   curation, plus `export-ready-repair-chain-eval-candidates`, which exports
+   only `approve_for_eval` decisions as eval candidates while keeping
+   `eval_dataset_ready=false` and `training_allowed=false`. The
+   repo-adaptation live eval wrapper and the conservative
    repo-adaptation failure-review helper are also
    live. Good next targets are running the full repair sequence
    (`mvp-loop`, `attempt-repair`, `extract-repair-edits`, `plan-repair-edits`,
@@ -4749,9 +4782,10 @@ bash scripts/xriq_private_devnet_smoke.sh
    `show-repair-chain`, then `list-repair-chains --ready-only` and
    `export-ready-repair-chains`, then `review-ready-repair-chains`, then
    `record-ready-repair-chain-decision`, then
-   `review-ready-repair-chain-decisions`) against a real user repo when
-   provided, then manually reviewing repeated passed repairs into verified
-   examples only after a real repo eval produces repeatable gaps. Public XRIQ
+   `review-ready-repair-chain-decisions`, then
+   `export-ready-repair-chain-eval-candidates`) against a real user repo when
+   provided, then manually reviewing repeated passed repairs into verified eval
+   candidates only after a real repo eval produces repeatable gaps. Public XRIQ
    launch, exchange listing, custody, liquidity, bridges, and market-facing
    work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
