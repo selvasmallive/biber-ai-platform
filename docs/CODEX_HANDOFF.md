@@ -135,6 +135,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   `8a539de Add BIBER agent capabilities endpoint`.
 - Latest BIBER MVP agent-client helper commit pushed and Vast-verified:
   `51ad833 Add BIBER agent client helper`.
+- Latest BIBER MVP agent-client create-session smoke commit pushed and
+  Vast-verified:
+  `6317641 Add agent client create-session smoke`.
 - Latest BIBER MVP repo-adaptation commits pushed and Vast-verified:
   `9126fdd Add BIBER repo adaptation plan` and
   `2efa65b Fix repo adaptation relative role detection`.
@@ -162,9 +165,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP repo-adaptation failure-review commit pushed and
   Vast-verified:
   `68479ad Add repo adaptation failure review`.
+- Latest BIBER capability-roadmap TensorFlow docs commit pushed and
+  Vast-fast-forwarded:
+  `07eb63f Add TensorFlow capability track`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `68479ad`. Full Rust/private-devnet
+- Vast code verification is current through `6317641`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -184,7 +190,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   current through `6050bd0`; BIBER hash-gated workspace edit-apply
   verification is current through `79aad96`; BIBER repo-adaptation live-eval
   wrapper verification is current through `81b9dd5`; BIBER repo-adaptation
-  failure-review verification is current through `68479ad`.
+  failure-review verification is current through `68479ad`; BIBER agent-client
+  create-session smoke verification is current through `6317641`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
@@ -194,6 +201,21 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
+  - The `6317641` agent-client create-session smoke checkpoint required no
+    service restart because it changed only the smoke script, docs, and tests.
+    vLLM stayed on pid `5802`; FastAPI stayed on pid `53902`.
+  - Latest focused Vast verification for the BIBER agent-client
+    create-session smoke slice:
+    `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py tests/test_agent_session.py tests/test_agent_capabilities.py -q`
+    with `13 passed`, and live
+    `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS=24 bash scripts/vast_biber_agent_smoke.sh`.
+    The live smoke wrote artifacts under
+    `/workspace/outputs/biber-agent-smoke-20260519T100959Z-54048`, created a
+    stdlib-client session `9b57e6a5-07da-458c-803a-702db6577d32` with `chat`
+    step only, and created an XRIQ-context session
+    `562987a8-6003-4f21-b839-42ebefe28d2d` with `xriq_context` then `chat`.
   - The `68479ad` repo-adaptation failure-review checkpoint required a
     FastAPI-only restart because the `pytest-core` allowlist changed. vLLM
     stayed on pid `5802`; FastAPI moved from pid `53552` to pid `53902`.
@@ -1970,6 +1992,38 @@ serving the last broad-safe Rust/XRIQ adapter.
     `36c0098f-d4a6-4674-9e58-88925bfb3d31`, step order `xriq_context`, then
     `chat`, and `xriq_context_height=2`.
   - No credential change, model training, or OpenAI mentor call was needed.
+- BIBER MVP agent-client create-session smoke checkpoint:
+  - Extended `scripts/vast_biber_agent_smoke.sh` so the live smoke now calls
+    `scripts/biber_agent_client.py --json create-session` with
+    `--preset default_coding_session`, `--repo-context README.md`, `--no-test`,
+    and a small `--max-tokens` value.
+  - Added `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS`, defaulting to `24`,
+    so future live client-session smokes stay cheap on the local GPU.
+  - The smoke writes `agent-client-create-session.json` and records the
+    stdlib-client-created session id/steps in `summary.json`.
+  - Added focused unit coverage in `tests/test_biber_agent_client.py` for the
+    create-session CLI flow and documented the smoke coverage in
+    `docs/API_EXAMPLES.md`.
+  - Local workstation verification passed with bundled Python
+    `compileall scripts tests` and `git diff --check`. Local pytest is still
+    unavailable in the bundled workstation runtime.
+  - Pushed implementation commit:
+    `6317641 Add agent client create-session smoke`.
+  - Vast checkout was fast-forwarded to `6317641`; Vast verification passed
+    with `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py tests/test_agent_session.py tests/test_agent_capabilities.py -q`
+    with `13 passed`, and live
+    `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS=24 bash scripts/vast_biber_agent_smoke.sh`.
+  - Latest live smoke artifact:
+    `/workspace/outputs/biber-agent-smoke-20260519T100959Z-54048`.
+    It confirmed the stdlib helper can create a tracked session through the
+    real API: client session id `9b57e6a5-07da-458c-803a-702db6577d32` with
+    step `chat`, plus XRIQ-context session id
+    `562987a8-6003-4f21-b839-42ebefe28d2d` with steps `xriq_context`, then
+    `chat`.
+  - No service restart, credential change, model training, or OpenAI mentor
+    call was needed.
 - BIBER MVP repo-adaptation checkpoint:
   - Added `training/repo_adaptation_plan.py`, a conservative helper for
     preparing repo-specific BIBER adaptation work from a GitHub checkout or
@@ -3724,11 +3778,11 @@ bash scripts/xriq_private_devnet_smoke.sh
    hash-gated multi-file edit apply endpoint is live. The repo-adaptation live
    eval wrapper and the conservative repo-adaptation failure-review helper are
    also live. Good next targets are running the new stack profiles/test IDs
-   against a real user repo when provided, adding a client helper
-   `create-session` live smoke with a tiny max-token budget, or manually
-   reviewing repeated failure candidates into verified examples only after a
-   real repo eval produces repeatable gaps. Public XRIQ launch, exchange
-   listing, custody, liquidity, bridges, and market-facing work remain blocked.
+   against a real user repo when provided, adding stdlib client helpers for
+   listing/reading persisted agent sessions, or manually reviewing repeated
+   failure candidates into verified examples only after a real repo eval
+   produces repeatable gaps. Public XRIQ launch, exchange listing, custody,
+   liquidity, bridges, and market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
    readiness.
