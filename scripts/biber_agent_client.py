@@ -2185,6 +2185,131 @@ def review_ready_repair_chain_decision_records(
     }
 
 
+def build_ready_repair_chain_eval_candidate_record(
+    *,
+    record: Mapping[str, Any],
+    jsonl_path: str,
+    jsonl_index: int,
+) -> dict[str, Any]:
+    if record.get("source") != "biber_mvp_loop_repair_chain_decision":
+        raise BiberAgentClientError(
+            "export-ready-repair-chain-eval-candidates requires decision records."
+        )
+    if record.get("decision") != "approve_for_eval":
+        raise BiberAgentClientError(
+            "export-ready-repair-chain-eval-candidates only accepts approve_for_eval decisions."
+        )
+    if record.get("approved_for_eval") is not True:
+        raise BiberAgentClientError(
+            "export-ready-repair-chain-eval-candidates requires approved_for_eval=true."
+        )
+    chain = record.get("chain")
+    if not isinstance(chain, dict):
+        chain = {}
+    artifacts = record.get("artifacts")
+    if not isinstance(artifacts, dict):
+        artifacts = {}
+    return {
+        "source": "biber_mvp_loop_repair_chain_eval_candidate",
+        "eval_candidate": True,
+        "eval_status": "candidate_needs_dataset_review",
+        "requires_dataset_review": True,
+        "eval_dataset_ready": False,
+        "decision": "approve_for_eval",
+        "decision_status": record.get("decision_status"),
+        "reviewer": record.get("reviewer"),
+        "notes": record.get("notes"),
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "auto_saved": False,
+        "decision_jsonl_path": jsonl_path,
+        "decision_jsonl_index": jsonl_index,
+        "source_artifact": record.get("source_artifact"),
+        "plan_hash": record.get("plan_hash"),
+        "test_id": record.get("test_id"),
+        "chain": dict(chain),
+        "artifacts": dict(artifacts),
+        "next_review_action": "manual_eval_dataset_review_before_training",
+    }
+
+
+def export_ready_repair_chain_eval_candidates(
+    *,
+    jsonl_paths: list[str],
+    limit: int,
+    output_path: str,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+
+    records: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for jsonl_path in jsonl_paths:
+        for index, row in enumerate(
+            load_jsonl_artifact(jsonl_path, label="ready repair-chain decision JSONL"),
+            start=1,
+        ):
+            if row.get("source") != "biber_mvp_loop_repair_chain_decision":
+                rejected.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "reason": "unsupported_source",
+                        "source": row.get("source"),
+                    }
+                )
+                continue
+            if (
+                row.get("decision") != "approve_for_eval"
+                or row.get("approved_for_eval") is not True
+            ):
+                skipped.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "reason": "not_approved_for_eval",
+                        "decision": row.get("decision"),
+                    }
+                )
+                continue
+            if len(records) >= limit:
+                continue
+            records.append(
+                build_ready_repair_chain_eval_candidate_record(
+                    record=row,
+                    jsonl_path=jsonl_path,
+                    jsonl_index=index,
+                )
+            )
+
+    output = write_jsonl_artifact(records, output_path)
+    return {
+        "source": "biber_mvp_loop_ready_repair_chain_eval_candidate_export",
+        "records": len(records),
+        "skipped_records": len(skipped),
+        "rejected_records": len(rejected),
+        "output": output,
+        "eval_candidates": len(records),
+        "eval_dataset_ready": False,
+        "requires_dataset_review": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "jsonl_paths": list(jsonl_paths),
+        "skipped": skipped,
+        "rejected": rejected,
+        "next_review_action": "manual_eval_dataset_review_before_training",
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -2909,6 +3034,27 @@ def format_ready_repair_chain_decision_review_summary(
     return "\n".join(lines)
 
 
+def format_ready_repair_chain_eval_candidate_export_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    return "\n".join(
+        [
+            "BIBER ready repair-chain eval candidate export",
+            f"records: {payload.get('records', 0)}",
+            f"skipped_records: {payload.get('skipped_records', 0)}",
+            f"rejected_records: {payload.get('rejected_records', 0)}",
+            f"output: {payload.get('output', '-')}",
+            f"eval_candidates: {payload.get('eval_candidates', 0)}",
+            f"eval_dataset_ready: {payload.get('eval_dataset_ready', False)}",
+            f"requires_dataset_review: {payload.get('requires_dataset_review', True)}",
+            f"training_allowed: {payload.get('training_allowed', False)}",
+            f"safe_to_train: {payload.get('safe_to_train', False)}",
+            f"github_save_ready: {payload.get('github_save_ready', False)}",
+            f"approved_for_training: {payload.get('approved_for_training', False)}",
+        ]
+    )
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -3359,6 +3505,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     review_ready_repair_chain_decisions.add_argument("jsonl", nargs="+")
     review_ready_repair_chain_decisions.add_argument("--output")
 
+    export_ready_repair_chain_eval_candidates = subparsers.add_parser(
+        "export-ready-repair-chain-eval-candidates",
+        help=(
+            "Export approve_for_eval repair-chain decisions to an eval-candidate "
+            "JSONL without training or GitHub save promotion."
+        ),
+    )
+    export_ready_repair_chain_eval_candidates.add_argument("jsonl", nargs="+")
+    export_ready_repair_chain_eval_candidates.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+    )
+    export_ready_repair_chain_eval_candidates.add_argument("--output", required=True)
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -3601,6 +3762,17 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(decision_review, indent=2, sort_keys=True)
             if args.print_json
             else format_ready_repair_chain_decision_review_summary(decision_review)
+        )
+    if args.command == "export-ready-repair-chain-eval-candidates":
+        export = export_ready_repair_chain_eval_candidates(
+            jsonl_paths=args.jsonl,
+            limit=args.limit,
+            output_path=args.output,
+        )
+        return (
+            json.dumps(export, indent=2, sort_keys=True)
+            if args.print_json
+            else format_ready_repair_chain_eval_candidate_export_summary(export)
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)
