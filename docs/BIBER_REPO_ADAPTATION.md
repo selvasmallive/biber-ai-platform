@@ -152,6 +152,25 @@ queue is large and diverse enough, but it still keeps `training_allowed`,
 `safe_to_train`, and `approved_for_training` false. A separate explicit user
 approval is required before any Vast training job.
 
+After readiness reaches `manual_training_review_required`, create a manual
+pre-training review artifact. This summarizes provenance, duplicates,
+category balance, prompt variants, and the suggested training command, but it
+still does not approve or start training:
+
+```bash
+python training/repo_adaptation_training_review.py \
+  --dataset /workspace/data/repo_adaptation/reviewed_candidates.jsonl \
+  --review-output /workspace/outputs/evals/repo-adaptation-manual-training-review.json \
+  --min-records 50 \
+  --min-categories 4 \
+  --output-dir /workspace/adapters/biber-dev-core-repo-adapt-manual-review \
+  --session-name biber-repo-adapt-review
+```
+
+Only after this artifact says `ready_for_user_training_approval` should a future
+session ask the user for explicit approval to launch the separate Vast GPU
+training job. Do not infer approval from a generic "continue" message.
+
 ## Codex Mentor Role
 
 Codex/OpenAI should be used for:
