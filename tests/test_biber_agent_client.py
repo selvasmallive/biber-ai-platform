@@ -3970,6 +3970,112 @@ def test_run_export_repair_chain_training_candidates_writes_review_queue(
     assert rows[0]["metadata"]["heldout_eval_result_ids"] == ["result-a"]
 
 
+def test_run_review_repair_chain_training_candidates_blocks_empty_queue(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "review-repair-chain-training-candidates should not resolve an API key"
+        )
+
+    candidates_path = tmp_path / "training-candidates.jsonl"
+    review_path = tmp_path / "training-candidate-review.json"
+    candidates_path.write_text("", encoding="utf-8")
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-repair-chain-training-candidates",
+                str(candidates_path),
+                "--output",
+                str(review_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(review_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["source"] == "biber_mvp_loop_repair_chain_training_candidate_review"
+    assert result["review_status"] == "training_candidates_need_review"
+    assert result["records"] == 0
+    assert result["reviewed_records"] == 0
+    assert result["pending_review_records"] == 0
+    assert result["ready_for_dataset_validation"] is False
+    assert result["training_dataset_ready"] is False
+    assert result["hard_blockers"] == [
+        "no_training_candidate_records",
+        "below_min_ready_records",
+    ]
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["approved_for_training"] is False
+
+
+def test_run_review_repair_chain_training_candidates_ready_for_dataset_validation(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "review-repair-chain-training-candidates should not resolve an API key"
+        )
+
+    candidates_path = tmp_path / "training-candidates.jsonl"
+    record = {
+        "source": "biber_mvp_loop_repair_chain_training_candidate",
+        "instruction": "Fix the repeated repo bug.",
+        "input": "Repeated failure evidence.",
+        "output": "Verified answer.",
+        "category": "repo_adaptation",
+        "stack": ["repo_adaptation", "biber_repair_chain"],
+        "quality": "verified",
+        "review_required": False,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "approved_for_training": False,
+        "metadata": {
+            "readiness_artifact": "training-readiness.json",
+            "heldout_eval_result_ids": ["result-a"],
+        },
+    }
+    candidates_path.write_text(
+        json.dumps(record, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-repair-chain-training-candidates",
+                str(candidates_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["review_status"] == "training_candidates_ready_for_dataset_validation"
+    assert result["records"] == 1
+    assert result["reviewed_records"] == 1
+    assert result["pending_review_records"] == 0
+    assert result["empty_output_records"] == 0
+    assert result["unreviewed_quality_records"] == 0
+    assert result["quality_counts"] == {"verified": 1}
+    assert result["ready_for_dataset_validation"] is True
+    assert result["training_dataset_ready"] is False
+    assert result["hard_blockers"] == []
+    assert result["ready_records"][0]["quality"] == "verified"
+    assert result["ready_records"][0]["output_ready"] is True
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["approved_for_training"] is False
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 

@@ -4436,6 +4436,117 @@ def export_repair_chain_training_candidates(
     }
 
 
+def review_repair_chain_training_candidate_records(
+    *,
+    jsonl_paths: list[str],
+    min_ready: int,
+) -> dict[str, Any]:
+    if min_ready < 1:
+        raise BiberAgentClientError("--min-ready must be at least 1.")
+
+    records: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for jsonl_path in jsonl_paths:
+        for index, row in enumerate(
+            load_jsonl_artifact(
+                jsonl_path,
+                label="repair-chain training candidate JSONL",
+            ),
+            start=1,
+        ):
+            if row.get("source") == "biber_mvp_loop_repair_chain_training_candidate":
+                item = dict(row)
+                item["training_candidate_jsonl_path"] = jsonl_path
+                item["training_candidate_jsonl_index"] = index
+                records.append(item)
+            else:
+                rejected.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "reason": "unsupported_source",
+                        "source": row.get("source"),
+                    }
+                )
+
+    reviewed_records: list[dict[str, Any]] = []
+    pending_review_records: list[dict[str, Any]] = []
+    empty_output_records = 0
+    unreviewed_quality_records = 0
+    quality_counts: dict[str, int] = {}
+    for record in records:
+        quality = str(record.get("quality") or "missing")
+        quality_counts[quality] = quality_counts.get(quality, 0) + 1
+        output_ready = bool(str(record.get("output") or "").strip())
+        quality_ready = quality in {"reviewed", "verified"}
+        if not output_ready:
+            empty_output_records += 1
+        if not quality_ready:
+            unreviewed_quality_records += 1
+        summary = {
+            "jsonl_path": record.get("training_candidate_jsonl_path"),
+            "jsonl_index": record.get("training_candidate_jsonl_index"),
+            "quality": quality,
+            "output_ready": output_ready,
+            "quality_ready": quality_ready,
+            "review_required": record.get("review_required") is True,
+            "metadata": require_mapping(record.get("metadata")),
+        }
+        if output_ready and quality_ready:
+            reviewed_records.append(summary)
+        else:
+            pending_review_records.append(summary)
+
+    hard_blockers: list[str] = []
+    if not records:
+        hard_blockers.append("no_training_candidate_records")
+    if rejected:
+        hard_blockers.append("unsupported_candidate_records_present")
+    if empty_output_records:
+        hard_blockers.append("candidate_outputs_missing")
+    if unreviewed_quality_records:
+        hard_blockers.append("candidate_quality_not_reviewed")
+    if len(reviewed_records) < min_ready:
+        hard_blockers.append("below_min_ready_records")
+
+    ready_for_dataset_validation = not hard_blockers
+    review_status = (
+        "training_candidates_ready_for_dataset_validation"
+        if ready_for_dataset_validation
+        else "training_candidates_need_review"
+    )
+    return {
+        "source": "biber_mvp_loop_repair_chain_training_candidate_review",
+        "review_status": review_status,
+        "records": len(records),
+        "rejected_records": len(rejected),
+        "pending_review_records": len(pending_review_records),
+        "reviewed_records": len(reviewed_records),
+        "empty_output_records": empty_output_records,
+        "unreviewed_quality_records": unreviewed_quality_records,
+        "quality_counts": quality_counts,
+        "min_ready": min_ready,
+        "ready_for_dataset_validation": ready_for_dataset_validation,
+        "training_dataset_ready": False,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "jsonl_paths": list(jsonl_paths),
+        "ready_records": reviewed_records,
+        "pending_review": pending_review_records,
+        "rejected": rejected,
+        "hard_blockers": hard_blockers,
+        "next_review_action": (
+            "validate_reviewed_training_dataset_before_training"
+            if ready_for_dataset_validation
+            else "fill_candidate_outputs_and_mark_quality_reviewed_or_verified"
+        ),
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -5722,6 +5833,46 @@ def format_repair_chain_training_candidate_export_summary(
     return "\n".join(lines)
 
 
+def format_repair_chain_training_candidate_review_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    hard_blockers = [
+        str(item)
+        for item in require_list(payload.get("hard_blockers"))
+        if item
+    ]
+    quality_counts = payload.get("quality_counts")
+    if not isinstance(quality_counts, dict):
+        quality_counts = {}
+    lines = [
+        "BIBER repair-chain training candidate review",
+        f"review_status: {payload.get('review_status', '-')}",
+        f"records: {payload.get('records', 0)}",
+        f"reviewed_records: {payload.get('reviewed_records', 0)}",
+        f"pending_review_records: {payload.get('pending_review_records', 0)}",
+        f"empty_output_records: {payload.get('empty_output_records', 0)}",
+        f"unreviewed_quality_records: {payload.get('unreviewed_quality_records', 0)}",
+        f"rejected_records: {payload.get('rejected_records', 0)}",
+        f"quality_counts: {quality_counts}",
+        f"min_ready: {payload.get('min_ready', 1)}",
+        (
+            "ready_for_dataset_validation: "
+            f"{payload.get('ready_for_dataset_validation', False)}"
+        ),
+        f"training_dataset_ready: {payload.get('training_dataset_ready', False)}",
+        (
+            "hard_blockers: "
+            f"{', '.join(hard_blockers) if hard_blockers else '-'}"
+        ),
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"approved_for_training: {payload.get('approved_for_training', False)}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -6463,6 +6614,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         required=True,
     )
 
+    review_repair_chain_training_candidates_parser = subparsers.add_parser(
+        "review-repair-chain-training-candidates",
+        help=(
+            "Review repair-chain training candidate JSONL queues and report "
+            "whether they are ready for dataset validation."
+        ),
+    )
+    review_repair_chain_training_candidates_parser.add_argument("jsonl", nargs="+")
+    review_repair_chain_training_candidates_parser.add_argument(
+        "--min-ready",
+        type=int,
+        default=1,
+    )
+    review_repair_chain_training_candidates_parser.add_argument("--output")
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -6921,6 +7087,19 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(export, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_chain_training_candidate_export_summary(export)
+        )
+    if args.command == "review-repair-chain-training-candidates":
+        review = review_repair_chain_training_candidate_records(
+            jsonl_paths=args.jsonl,
+            min_ready=args.min_ready,
+        )
+        if args.output:
+            review["artifact_path"] = str(Path(args.output))
+            write_json_artifact(review, args.output)
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_training_candidate_review_summary(review)
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)
