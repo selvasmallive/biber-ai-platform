@@ -355,9 +355,11 @@ serving the last broad-safe Rust/XRIQ adapter.
   `3ef6834 Add repo adaptation training review gate`.
 - Latest Vast training approval guard commit pushed and Vast-verified:
   `b0d5f49 Require explicit approval for Vast training`.
+- Latest adapter promotion-review gate commit pushed and Vast-verified:
+  `1834035 Add adapter promotion review gate`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `b0d5f49`. Full Rust/private-devnet
+- Vast code verification is current through `1834035`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -385,7 +387,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   current through `299af9b`; BIBER repo-adaptation expanded/balanced prompt
   verification is current through `71e9f92`; BIBER repo-adaptation manual
   training-review gate verification is current through `3ef6834`; Vast
-  training approval guard verification is current through `b0d5f49`;
+  training approval guard verification is current through `b0d5f49`; adapter
+  promotion-review gate verification is current through `1834035`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -452,9 +455,19 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `b0d5f49`. If later docs-only
+  - Vast code verification is current through `1834035`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `1834035` adapter promotion-review gate checkpoint required no service
+    restart because it added only an offline promotion-review helper, focused
+    tests, and docs. vLLM stayed on pid `5802`; FastAPI stayed on pid `53902`.
+    Focused Vast verification passed pytest
+    `tests/test_adapter_promotion_review.py tests/test_repo_adaptation_training_review.py tests/test_repo_adaptation_dataset_readiness.py tests/test_training_dataset.py -q`
+    reporting `14 passed`. No adapter was trained, served, or promoted. The new
+    helper is `training/adapter_promotion_review.py`; after a future candidate
+    adapter is trained and evaluated, use it to require broad eval, Rust/XRIQ
+    validator eval, repo held-out improvement over baseline, and training
+    provenance before asking for explicit user promotion approval.
   - The `b0d5f49` Vast training approval guard checkpoint required no service
     restart because it changed only the training launcher, repo-adaptation
     review helper/test, and docs. vLLM stayed on pid `5802`; FastAPI stayed on
