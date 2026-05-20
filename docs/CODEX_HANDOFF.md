@@ -318,9 +318,11 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER repo-adaptation candidate decisions commit pushed and
   Vast-verified:
   `a53be7a Add repo adaptation candidate decisions`.
+- Latest BIBER repo-adaptation dataset-merge commit pushed and Vast-verified:
+  `436f955 Add repo adaptation dataset merge`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `a53be7a`. Full Rust/private-devnet
+- Vast code verification is current through `436f955`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -343,7 +345,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   failure-review verification is current through `68479ad`; BIBER
   repo-adaptation candidate review verification is current through `a1b9f5a`;
   BIBER repo-adaptation candidate decision verification is current through
-  `a53be7a`;
+  `a53be7a`; BIBER repo-adaptation dataset-merge verification is current
+  through `436f955`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -410,9 +413,29 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `a53be7a`. If later docs-only
+  - Vast code verification is current through `436f955`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `436f955` repo-adaptation dataset-merge checkpoint required no service
+    restart because it changed only Python helper/test/doc files. vLLM stayed
+    on pid `5802`; FastAPI stayed on pid `53902`. Focused Vast verification
+    passed with
+    `/workspace/biber-venv/bin/python -m compileall training tests` and pytest
+    `tests/test_repo_adaptation_dataset_merge.py tests/test_repo_adaptation_candidate_decisions.py tests/test_repo_adaptation_candidate_review.py tests/test_training_dataset.py -q`
+    reporting `16 passed`.
+  - The reviewed repo-adaptation rows were merged into the cumulative curated
+    queue at `/workspace/data/repo_adaptation/reviewed_candidates.jsonl`.
+    Merge review:
+    `/workspace/outputs/evals/repo-adapt-repeat-20260520T142227Z-70388.dataset-merge.review.json`.
+    Validation report:
+    `/workspace/outputs/evals/repo-adapt-repeat-20260520T142227Z-70388.curated-queue-validation.json`.
+    Result: `added_records=4`, `duplicate_records=0`, `total_records=4`,
+    `hard_blockers=[]`, validation `ok=true`, `errors=[]`, `warnings=[]`,
+    categories `bash=1`, `markdown=1`, `python=1`, `sql=1`, and qualities
+    `reviewed=4`. Training was not started; the merge review still keeps
+    `training_dataset_ready=false`, `training_allowed=false`,
+    `safe_to_train=false`, and `approved_for_training=false`. Next, collect
+    more repo-adaptation examples before any training run.
   - The `a53be7a` repo-adaptation candidate decision checkpoint required no
     service restart because it changed only Python helper/test/doc files. vLLM
     stayed on pid `5802`; FastAPI stayed on pid `53902`. Focused Vast
@@ -5611,10 +5634,12 @@ bash scripts/xriq_private_devnet_smoke.sh
    `/workspace/outputs/evals/repo-adapt-repeat-20260520T142227Z-70388.repeat-training-candidates.jsonl`.
    Those four rows have been manually reviewed into
    `/workspace/outputs/evals/repo-adapt-repeat-20260520T142227Z-70388.reviewed-candidates.jsonl`,
-   and validation passed with `ok=true`, `records=4`, and `errors=[]`. Next,
-   make an explicit promotion/merge decision before adding them to a larger
-   training dataset; do not start training from this small reviewed artifact
-   automatically. Public XRIQ launch, exchange
+   and validation passed with `ok=true`, `records=4`, and `errors=[]`. They
+   are now merged into the cumulative curated queue at
+   `/workspace/data/repo_adaptation/reviewed_candidates.jsonl`, which also
+   validates with `ok=true`, `records=4`, and `errors=[]`. Next, collect more
+   repo-adaptation examples before any training run; do not start training
+   from this small reviewed artifact automatically. Public XRIQ launch, exchange
    listing, custody, liquidity, bridges, and market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
