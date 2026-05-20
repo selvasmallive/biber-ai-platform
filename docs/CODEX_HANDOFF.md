@@ -484,8 +484,38 @@ serving the last broad-safe Rust/XRIQ adapter.
     `safe_to_train=false`, and `approved_for_training=false`. The first
     unfiltered batch attempt intentionally failed because the decision helper
     requires a decision for every input candidate; the passing run used the
-    4-row selected candidate file above. Next, review another small useful
-    batch from the remaining expanded candidates or collect more eval signal.
+    4-row selected candidate file above.
+  - Batch 2 of the expanded repo-adaptation candidates has also been manually
+    reviewed and merged. Selected candidates:
+    `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.batch2-selected-candidates.jsonl`.
+    Decisions:
+    `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.batch2-candidate-decisions.json`.
+    Reviewed rows:
+    `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.batch2-reviewed-candidates.jsonl`.
+    Decision review:
+    `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.batch2-candidate-decisions.review.json`
+    with `approved_records=4`, `records=4`, and `hard_blockers=[]`.
+    Candidate review:
+    `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.batch2-reviewed-candidate-review.json`
+    with `ready_records=4`, `records=4`, and `hard_blockers=[]`.
+    Reviewed-dataset validation:
+    `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.batch2-reviewed-dataset-validation.json`
+    with `ok=true`, `records=4`, and `errors=[]`. Merge review:
+    `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.batch2-dataset-merge.review.json`
+    with `added_records=4`, `duplicate_records=0`, `total_records=12`, and
+    `hard_blockers=[]`. Queue validation:
+    `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.batch2-curated-queue-validation.json`
+    with `ok=true`, `records=12`, `errors=[]`, categories `bash=1`,
+    `markdown=1`, `python=9`, `sql=1`, and qualities `reviewed=12`.
+    Readiness:
+    `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.batch2-curated-queue-readiness.json`
+    with `review_status=training_blocked`, `ready_records=12`,
+    `min_records=50`, `record_gap=38`,
+    `hard_blockers=["below_min_ready_records"]`,
+    `training_dataset_ready=false`, `training_allowed=false`,
+    `safe_to_train=false`, and `approved_for_training=false`. Training was not
+    started. Next, review another small useful batch from the remaining
+    expanded candidates or collect more eval signal.
   - The `299af9b` repo-adaptation dataset-readiness checkpoint required no
     service restart because it changed only Python helper/test/doc files. vLLM
     stayed on pid `5802`; FastAPI stayed on pid `53902`. Focused Vast
@@ -5730,12 +5760,12 @@ bash scripts/xriq_private_devnet_smoke.sh
    `record_gap=46`. Expanded prompt mode has now produced another repeatable
    failure candidate queue at
    `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.repeat-training-candidates.jsonl`
-   with `13` pending `needs_review` candidates and `0` ready rows. Batch 1 of
-   that queue reviewed and merged `4` Python rows, bringing the cumulative
-   queue to `8` reviewed rows. The latest readiness artifact is
-   `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.batch1-curated-queue-readiness.json`
-   and reports `training_blocked`, `ready_records=8`, `min_records=50`, and
-   `record_gap=42`. Next, manually review/fill another small useful batch or
+   with `13` pending `needs_review` candidates and `0` ready rows. Batch 1 and
+   batch 2 reviewed and merged `8` Python rows total, bringing the cumulative
+   queue to `12` reviewed rows. The latest readiness artifact is
+   `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.batch2-curated-queue-readiness.json`
+   and reports `training_blocked`, `ready_records=12`, `min_records=50`, and
+   `record_gap=38`. Next, manually review/fill another small useful batch or
    collect more eval signal; do not start training from unreviewed or tiny
    artifacts automatically. Public XRIQ launch, exchange
    listing, custody, liquidity, bridges, and market-facing work remain blocked.
