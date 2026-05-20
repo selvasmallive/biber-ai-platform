@@ -107,6 +107,7 @@ client_mvp_loop_repair_chain_training_readiness_path = artifact_dir / "agent-cli
 client_mvp_loop_repair_chain_training_candidates_path = artifact_dir / "agent-client-mvp-loop-repair-chain-training-candidates.jsonl"
 client_mvp_loop_repair_chain_training_candidate_review_path = artifact_dir / "agent-client-mvp-loop-repair-chain-training-candidate-review.json"
 client_mvp_loop_repair_chain_training_pipeline_path = artifact_dir / "agent-client-mvp-loop-repair-chain-training-pipeline.json"
+client_mvp_loop_repair_chain_training_pipeline_list_path = artifact_dir / "agent-client-mvp-loop-repair-chain-training-pipeline-list.json"
 
 
 def fail(message: str) -> None:
@@ -3000,6 +3001,77 @@ write_artifact(
     },
 )
 
+try:
+    client_mvp_loop_repair_chain_training_pipeline_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-repair-chain-training-pipelines",
+            str(artifact_dir),
+            "--output",
+            str(client_mvp_loop_repair_chain_training_pipeline_list_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-repair-chain-training-pipelines failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-repair-chain-training-pipelines timed out: {exc}")
+try:
+    client_mvp_loop_repair_chain_training_pipeline_list = json.loads(
+        client_mvp_loop_repair_chain_training_pipeline_list_output
+    )
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py list-repair-chain-training-pipelines returned invalid JSON: {exc}")
+pipeline_list_artifacts = client_mvp_loop_repair_chain_training_pipeline_list.get("artifacts") or []
+if client_mvp_loop_repair_chain_training_pipeline_list.get("matched") != 1:
+    fail(f"training pipeline list should match one current smoke artifact: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
+if client_mvp_loop_repair_chain_training_pipeline_list.get("blocked") != 1:
+    fail(f"training pipeline list should report one blocked artifact: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
+if client_mvp_loop_repair_chain_training_pipeline_list.get("ready_for_dataset_validation") != 0:
+    fail(f"training pipeline list should report zero dataset-ready artifacts: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
+if len(pipeline_list_artifacts) != 1:
+    fail(f"training pipeline list should return one artifact: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
+if pipeline_list_artifacts[0].get("path") != str(client_mvp_loop_repair_chain_training_pipeline_path):
+    fail(f"training pipeline list returned unexpected path: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
+if pipeline_list_artifacts[0].get("missing_or_blocked_step") != "baseline_ready_records":
+    fail(f"training pipeline list should preserve the blocked step: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
+if client_mvp_loop_repair_chain_training_pipeline_list.get("training_allowed") is not False:
+    fail(f"training pipeline list must keep training_allowed=false: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
+if client_mvp_loop_repair_chain_training_pipeline_list.get("safe_to_train") is not False:
+    fail(f"training pipeline list must keep safe_to_train=false: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
+if client_mvp_loop_repair_chain_training_pipeline_list.get("github_save_ready") is not False:
+    fail(f"training pipeline list must keep github_save_ready=false: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
+if client_mvp_loop_repair_chain_training_pipeline_list.get("approved_for_training") is not False:
+    fail(f"training pipeline list must keep approved_for_training=false: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
+if not client_mvp_loop_repair_chain_training_pipeline_list_path.exists():
+    fail(f"training pipeline list did not write {client_mvp_loop_repair_chain_training_pipeline_list_path}")
+try:
+    saved_client_mvp_loop_repair_chain_training_pipeline_list = json.loads(
+        client_mvp_loop_repair_chain_training_pipeline_list_path.read_text(
+            encoding="utf-8"
+        )
+    )
+except json.JSONDecodeError as exc:
+    fail(f"training pipeline list wrote invalid JSON: {exc}")
+if (
+    saved_client_mvp_loop_repair_chain_training_pipeline_list
+    != client_mvp_loop_repair_chain_training_pipeline_list
+):
+    fail("training pipeline list saved artifact differs from stdout JSON")
+write_artifact(
+    "agent-client-mvp-loop-repair-chain-training-pipeline-list-result.json",
+    {
+        "status": 0,
+        "body": client_mvp_loop_repair_chain_training_pipeline_list,
+        "output": str(client_mvp_loop_repair_chain_training_pipeline_list_path),
+        "source": str(artifact_dir),
+    },
+)
+
 chat_payload = {
     "language": "Rust",
     "model": "biber-dev-core-v1",
@@ -3307,6 +3379,10 @@ summary = {
     "agent_client_mvp_loop_repair_chain_training_pipeline_blocked_step": client_mvp_loop_repair_chain_training_pipeline.get("missing_or_blocked_step"),
     "agent_client_mvp_loop_repair_chain_training_pipeline_ready": client_mvp_loop_repair_chain_training_pipeline.get("ready_for_dataset_validation"),
     "agent_client_mvp_loop_repair_chain_training_pipeline_blockers": client_mvp_loop_repair_chain_training_pipeline.get("hard_blockers"),
+    "agent_client_mvp_loop_repair_chain_training_pipeline_list": str(client_mvp_loop_repair_chain_training_pipeline_list_path),
+    "agent_client_mvp_loop_repair_chain_training_pipeline_list_matched": client_mvp_loop_repair_chain_training_pipeline_list.get("matched"),
+    "agent_client_mvp_loop_repair_chain_training_pipeline_list_ready": client_mvp_loop_repair_chain_training_pipeline_list.get("ready_for_dataset_validation"),
+    "agent_client_mvp_loop_repair_chain_training_pipeline_list_blocked": client_mvp_loop_repair_chain_training_pipeline_list.get("blocked"),
     "agent_client_mvp_loop_report_ok": "BIBER MVP loop" in client_mvp_loop_report,
     "agent_client_mvp_loop_test_ok": client_mvp_loop.get("test_ok"),
     "agent_client_test_id": client_test_run.get("test_id"),

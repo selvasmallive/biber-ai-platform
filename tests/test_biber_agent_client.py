@@ -4233,6 +4233,107 @@ def test_run_review_repair_chain_training_pipeline_summarizes_blocked_gate(
     assert result["approved_for_training"] is False
 
 
+def test_run_list_repair_chain_training_pipelines_filters_ready_artifacts_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "list-repair-chain-training-pipelines should not resolve an API key"
+        )
+
+    blocked_dir = tmp_path / "blocked-smoke"
+    ready_dir = tmp_path / "ready-smoke"
+    blocked_dir.mkdir()
+    ready_dir.mkdir()
+    blocked_path = (
+        blocked_dir
+        / "agent-client-mvp-loop-repair-chain-training-pipeline.json"
+    )
+    ready_path = (
+        ready_dir
+        / "agent-client-mvp-loop-repair-chain-training-pipeline.json"
+    )
+    output_path = tmp_path / "training-pipeline-list.json"
+    blocked_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_training_pipeline_status",
+                "training_pipeline_status": "blocked",
+                "missing_or_blocked_step": "baseline_ready_records",
+                "artifact_dir": str(blocked_dir),
+                "baseline_ready_records": 0,
+                "training_candidate_records": 0,
+                "training_candidate_review_records": 0,
+                "ready_for_dataset_validation": False,
+                "hard_blockers": ["baseline_ready_records"],
+                "training_allowed": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    ready_payload = {
+        "source": "biber_mvp_loop_repair_chain_training_pipeline_status",
+        "training_pipeline_status": "ready_for_dataset_validation",
+        "missing_or_blocked_step": None,
+        "artifact_dir": str(ready_dir),
+        "baseline_ready_records": 2,
+        "training_candidate_records": 2,
+        "training_candidate_review_records": 2,
+        "ready_for_dataset_validation": True,
+        "hard_blockers": [],
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+    }
+    ready_path.write_text(
+        json.dumps({"status": 0, "body": ready_payload}, sort_keys=True),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "list-repair-chain-training-pipelines",
+                str(tmp_path),
+                "--ready-only",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["source"] == "biber_mvp_loop_repair_chain_training_pipeline_list"
+    assert result["scanned"] == 2
+    assert result["matched"] == 1
+    assert result["ready_for_dataset_validation"] == 1
+    assert result["blocked"] == 0
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+    assert result["artifacts"][0]["path"] == str(ready_path)
+    assert result["artifacts"][0]["training_pipeline_status"] == (
+        "ready_for_dataset_validation"
+    )
+    assert result["artifacts"][0]["baseline_ready_records"] == 2
+    assert result["artifacts"][0]["training_candidate_records"] == 2
+    assert result["artifacts"][0]["ready_for_dataset_validation"] is True
+    assert result["artifacts"][0]["training_allowed"] is False
+    assert result["artifacts"][0]["safe_to_train"] is False
+    assert result["artifacts"][0]["approved_for_training"] is False
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 

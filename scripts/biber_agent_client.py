@@ -4814,6 +4814,134 @@ def review_repair_chain_training_pipeline_status(
     }
 
 
+def normalize_repair_chain_training_pipeline_status_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_repair_chain_training_pipeline_status":
+        return dict(payload)
+    body = payload.get("body")
+    if (
+        isinstance(body, dict)
+        and body.get("source")
+        == "biber_mvp_loop_repair_chain_training_pipeline_status"
+    ):
+        return dict(body)
+    return None
+
+
+def summarize_repair_chain_training_pipeline_status_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    try:
+        modified_epoch = path.stat().st_mtime
+    except OSError:
+        modified_epoch = 0.0
+    hard_blockers = [
+        str(item)
+        for item in require_list(payload.get("hard_blockers"))
+        if item
+    ]
+    ready_for_dataset_validation = (
+        payload.get("ready_for_dataset_validation") is True
+        or payload.get("training_pipeline_status") == "ready_for_dataset_validation"
+    )
+    return {
+        "path": str(path),
+        "artifact_dir": payload.get("artifact_dir"),
+        "training_pipeline_status": payload.get("training_pipeline_status"),
+        "missing_or_blocked_step": payload.get("missing_or_blocked_step"),
+        "baseline_ready_records": int(payload.get("baseline_ready_records") or 0),
+        "training_candidate_records": int(
+            payload.get("training_candidate_records") or 0
+        ),
+        "training_candidate_review_records": int(
+            payload.get("training_candidate_review_records") or 0
+        ),
+        "ready_for_dataset_validation": ready_for_dataset_validation,
+        "hard_blockers": hard_blockers,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "modified_epoch": modified_epoch,
+    }
+
+
+def list_repair_chain_training_pipeline_statuses(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    ready_only: bool = False,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            f"Training pipeline artifact directory does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            f"Training pipeline artifact path is not a directory: {root}"
+        )
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="repair-chain training pipeline artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_repair_chain_training_pipeline_status_artifact(
+            raw_payload
+        )
+        if normalized is None:
+            continue
+        summary = summarize_repair_chain_training_pipeline_status_artifact(
+            path,
+            normalized,
+        )
+        if ready_only and summary.get("ready_for_dataset_validation") is not True:
+            continue
+        artifacts.append(summary)
+
+    artifacts.sort(key=lambda item: float(item.get("modified_epoch") or 0.0), reverse=True)
+    ready_count = sum(
+        1 for item in artifacts if item.get("ready_for_dataset_validation") is True
+    )
+    blocked_count = sum(
+        1 for item in artifacts if item.get("training_pipeline_status") == "blocked"
+    )
+    return {
+        "source": "biber_mvp_loop_repair_chain_training_pipeline_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "ready_only": ready_only,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "ready_for_dataset_validation": ready_count,
+        "blocked": blocked_count,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "artifacts": artifacts[:limit],
+        "next_review_action": (
+            "validate_reviewed_training_dataset_before_training"
+            if ready_count
+            else "collect_baseline_ready_decision_reviews_before_training"
+        ),
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -6182,6 +6310,52 @@ def format_repair_chain_training_pipeline_status_summary(
     return "\n".join(lines)
 
 
+def format_repair_chain_training_pipeline_list_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER repair-chain training pipeline artifacts",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"ready_only: {payload.get('ready_only', False)}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        (
+            "ready_for_dataset_validation: "
+            f"{payload.get('ready_for_dataset_validation', 0)}"
+        ),
+        f"blocked: {payload.get('blocked', 0)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+    ]
+    for artifact in artifacts:
+        blockers = [
+            str(item)
+            for item in require_list(artifact.get("hard_blockers"))
+            if item
+        ]
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"status={artifact.get('training_pipeline_status', '-')}",
+                    f"blocked_step={artifact.get('missing_or_blocked_step', '-')}",
+                    f"baseline_ready={artifact.get('baseline_ready_records', 0)}",
+                    f"candidates={artifact.get('training_candidate_records', 0)}",
+                    f"ready={artifact.get('ready_for_dataset_validation', False)}",
+                    f"blockers={','.join(blockers) if blockers else '-'}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -6951,6 +7125,29 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     review_repair_chain_training_pipeline_parser.add_argument("--output")
 
+    list_repair_chain_training_pipelines_parser = subparsers.add_parser(
+        "list-repair-chain-training-pipelines",
+        help=(
+            "List saved repair-chain training pipeline status artifacts under "
+            "a directory without resolving API auth or starting training."
+        ),
+    )
+    list_repair_chain_training_pipelines_parser.add_argument("directory")
+    list_repair_chain_training_pipelines_parser.add_argument(
+        "--pattern",
+        default="agent-client-mvp-loop-repair-chain-training-pipeline.json",
+    )
+    list_repair_chain_training_pipelines_parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+    )
+    list_repair_chain_training_pipelines_parser.add_argument(
+        "--ready-only",
+        action="store_true",
+    )
+    list_repair_chain_training_pipelines_parser.add_argument("--output")
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -7434,6 +7631,21 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(review, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_chain_training_pipeline_status_summary(review)
+        )
+    if args.command == "list-repair-chain-training-pipelines":
+        artifacts = list_repair_chain_training_pipeline_statuses(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            ready_only=args.ready_only,
+        )
+        if args.output:
+            artifacts["artifact_path"] = str(Path(args.output))
+            write_json_artifact(artifacts, args.output)
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_training_pipeline_list_summary(artifacts)
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)
