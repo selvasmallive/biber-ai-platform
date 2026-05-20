@@ -543,6 +543,65 @@ serving the last broad-safe Rust/XRIQ adapter.
     started. The balanced 14-candidate queue is now fully reviewed; next,
     collect at least 20 more reviewed examples before requesting any Vast
     training run.
+  - A wider balanced repo-adaptation local-model eval was run on Vast to gather
+    additional regression-test signal without OpenAI mentor calls or training.
+    Plan:
+    `/workspace/outputs/repo-adapt-balanced-wide-20260520T164735Z.plan.json`.
+    Prompts:
+    `/workspace/outputs/repo-adapt-balanced-wide-20260520T164735Z.prompts.jsonl`.
+    The 64-prompt batch covered Python `9`, SQL `3`, Markdown `9`, Bash `3`,
+    TOML `17`, JSON `7`, and Rust `16` prompts, with variants
+    `implementation_step=23`, `context_selection=23`, and
+    `regression_test=18`. First eval summary:
+    `/workspace/outputs/evals/repo-adapt-balanced-wide-20260520T164735Z.summary.json`
+    with `64/64` responses, `0` runtime/API failures, and `42/64`
+    expectation checks passed. Repeat eval summary:
+    `/workspace/outputs/evals/repo-adapt-balanced-wide-20260520T164735Z.repeat.summary.json`
+    with `64/64` responses, `0` runtime/API failures, and `40/64`
+    expectation checks passed. Repeat failure review:
+    `/workspace/outputs/evals/repo-adapt-balanced-wide-20260520T164735Z.repeat-review.json`
+    with `failures_seen=46`, `groups=26`, and `training_candidates=20`.
+    Candidate queue:
+    `/workspace/outputs/evals/repo-adapt-balanced-wide-20260520T164735Z.repeat-training-candidates.jsonl`.
+    Candidate review:
+    `/workspace/outputs/evals/repo-adapt-balanced-wide-20260520T164735Z.repeat-candidate-review.json`
+    with `records=20`, `ready_records=0`, and
+    `hard_blockers=["candidate_outputs_missing","candidate_quality_not_reviewed","candidate_validation_errors","below_min_ready_records"]`.
+    Training was not started.
+  - Batch 1 of the wide balanced repo-adaptation candidates has been manually
+    reviewed and merged. This batch selected the seven new regression-test
+    candidates from the 20-candidate queue; the remaining wide candidates are
+    repeat duplicates of earlier reviewed failure keys. Selected candidates:
+    `/workspace/outputs/evals/repo-adapt-balanced-wide-20260520T164735Z.batch1-selected-candidates.jsonl`.
+    Decisions:
+    `/workspace/outputs/evals/repo-adapt-balanced-wide-20260520T164735Z.batch1-candidate-decisions.json`.
+    Reviewed rows:
+    `/workspace/outputs/evals/repo-adapt-balanced-wide-20260520T164735Z.batch1-reviewed-candidates.jsonl`.
+    Decision review:
+    `/workspace/outputs/evals/repo-adapt-balanced-wide-20260520T164735Z.batch1-candidate-decisions.review.json`
+    with `approved_records=7`, `records=7`, and `hard_blockers=[]`.
+    Candidate review:
+    `/workspace/outputs/evals/repo-adapt-balanced-wide-20260520T164735Z.batch1-reviewed-candidate-review.json`
+    with `ready_records=7`, `records=7`, and `hard_blockers=[]`.
+    Reviewed-dataset validation:
+    `/workspace/outputs/evals/repo-adapt-balanced-wide-20260520T164735Z.batch1-reviewed-dataset-validation.json`
+    with `ok=true`, `records=7`, categories `python=2`, `sql=1`,
+    `toml=4`, and `errors=[]`. Merge review:
+    `/workspace/outputs/evals/repo-adapt-balanced-wide-20260520T164735Z.batch1-dataset-merge.review.json`
+    with `added_records=7`, `duplicate_records=0`, `total_records=37`,
+    and `hard_blockers=[]`. Queue validation:
+    `/workspace/outputs/evals/repo-adapt-balanced-wide-20260520T164735Z.batch1-curated-queue-validation.json`
+    with `ok=true`, `records=37`, `errors=[]`, categories `bash=3`,
+    `json=1`, `markdown=5`, `python=17`, `rust=2`, `sql=3`, `toml=6`,
+    and qualities `reviewed=37`. Readiness:
+    `/workspace/outputs/evals/repo-adapt-balanced-wide-20260520T164735Z.batch1-curated-queue-readiness.json`
+    with `review_status=training_blocked`, `ready_records=37`,
+    `min_records=50`, `record_gap=13`, `category_count=7`,
+    `hard_blockers=["below_min_ready_records"]`,
+    `training_dataset_ready=false`, `training_allowed=false`,
+    `safe_to_train=false`, and `approved_for_training=false`. Training was not
+    started. The next narrow step is to collect at least 13 more non-duplicate
+    reviewed repo-adaptation examples before requesting any Vast training run.
   - The `356872d` repo-adaptation expanded-prompt checkpoint required no
     service restart because it changed only Python helper/test/doc files. vLLM
     stayed on pid `5802`; FastAPI stayed on pid `53902`. Focused Vast
