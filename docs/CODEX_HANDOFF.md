@@ -371,9 +371,12 @@ serving the last broad-safe Rust/XRIQ adapter.
   `c38c0a7 Fail fast on stable candidate review`.
 - Latest candidate-review adapter-reload fix pushed and Vast-verified:
   `608252b Restart services when reviewing candidate adapter`.
+- Latest repo-adaptation anti-regression review helper commit pushed and
+  Vast-verified:
+  `08fdd59 Add repo adaptation regression review`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `608252b`. Full Rust/private-devnet
+- Vast code verification is current through `08fdd59`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -409,7 +412,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   current through `25cc41e`; repo held-out promotion margin gate verification
   is current through `600bff1`; candidate-review same-as-stable fast-fail
   guard verification is current through `c38c0a7`; candidate-review
-  adapter-reload verification is current through `608252b`;
+  adapter-reload verification is current through `608252b`; repo-adaptation
+  anti-regression review helper verification is current through `08fdd59`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -525,6 +529,22 @@ serving the last broad-safe Rust/XRIQ adapter.
     `/v1/models`, and chat smoke are OK. Current vLLM pid is `77494`, FastAPI
     pid is `77817`, and `/v1/models` shows served LoRA root
     `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
+  - `08fdd59` adds `training/repo_adaptation_regression_review.py`, which
+    converts blocked candidate broad/Rust eval regressions into a
+    human-review-only anti-regression queue. Vast verification passed
+    `/workspace/biber-venv/bin/python -m pytest tests/test_repo_adaptation_regression_review.py tests/test_repo_adaptation_candidate_review.py -q`
+    with `8 passed`. The helper was run against the corrected candidate eval
+    artifacts and wrote
+    `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/candidate-regression-review.json`
+    plus
+    `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-candidates.jsonl`.
+    It found `6` regressions and `6` anti-regression candidates. Follow-up
+    candidate review wrote
+    `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-candidate-review.json`
+    with `0/6` ready and `6` pending, so these rows are not training-ready.
+    Stable service was rechecked after the review-only step with
+    `bash scripts/vast_test_direct.sh`; `/v1/models` still shows the stable
+    `biber-dev-core-lora-rust-xriq-400` adapter.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
@@ -5847,6 +5867,14 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
+Current immediate next step: manually review the `6` pending anti-regression
+candidate rows in
+`/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-candidates.jsonl`.
+Fill only verified broad-safe and Rust/XRIQ compile-safe answers, then rerun
+`repo_adaptation_candidate_review.py`. Do not start another Vast QLoRA run until
+those rows are reviewed, validated/merged, readiness is rechecked, and the user
+explicitly approves training with `BIBER_TRAIN_APPROVED=1`.
+
 1. Keep `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` served unless a
    future adapter beats both gates: current Rust/XRIQ cargo validators and the
    broad regression eval.
@@ -6184,8 +6212,8 @@ bash scripts/xriq_private_devnet_smoke.sh
    those status artifacts so future sessions can find whether any run is ready
    before touching training. The repo-adaptation live eval wrapper and the
    conservative
-   repo-adaptation failure-review and candidate-review helpers are also
-   live. Good next targets are running the full repair sequence
+   repo-adaptation failure-review, candidate-review, and regression-review
+   helpers are also live. Good next targets are running the full repair sequence
    (`mvp-loop`, `attempt-repair`, `extract-repair-edits`, `plan-repair-edits`,
    approved `apply-repair-edits`, `verify-repair-edits`, and
    `export-verified-repair`, followed by `review-verified-repairs` and
