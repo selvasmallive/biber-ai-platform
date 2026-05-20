@@ -478,6 +478,38 @@ serving the last broad-safe Rust/XRIQ adapter.
     Training was not started; the next repo-adaptation step is to review these
     14 candidates in small batches and merge only verified rows into
     `/workspace/data/repo_adaptation/reviewed_candidates.jsonl`.
+  - Batch 1 of the balanced repo-adaptation candidates has been manually
+    reviewed and merged. Selected candidates:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch1-selected-candidates.jsonl`.
+    Decisions:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch1-candidate-decisions.json`.
+    Reviewed rows:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch1-reviewed-candidates.jsonl`.
+    Decision review:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch1-candidate-decisions.review.json`
+    with `approved_records=6`, `records=6`, and `hard_blockers=[]`.
+    Candidate review:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch1-reviewed-candidate-review.json`
+    with `ready_records=6`, `records=6`, and `hard_blockers=[]`.
+    Reviewed-dataset validation:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch1-reviewed-dataset-validation.json`
+    with `ok=true`, `records=6`, categories `bash=1`, `json=1`,
+    `markdown=1`, `rust=1`, `sql=1`, `toml=1`, and `errors=[]`.
+    Merge review:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch1-dataset-merge.review.json`
+    with `added_records=6`, `duplicate_records=0`, `total_records=23`,
+    and `hard_blockers=[]`. Queue validation:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch1-curated-queue-validation.json`
+    with `ok=true`, `records=23`, `errors=[]`, categories `bash=2`,
+    `json=1`, `markdown=2`, `python=14`, `rust=1`, `sql=2`, `toml=1`,
+    and qualities `reviewed=23`. Readiness:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch1-curated-queue-readiness.json`
+    with `review_status=training_blocked`, `ready_records=23`,
+    `min_records=50`, `record_gap=27`, `category_count=7`,
+    `hard_blockers=["below_min_ready_records"]`,
+    `training_dataset_ready=false`, `training_allowed=false`,
+    `safe_to_train=false`, and `approved_for_training=false`. Training was not
+    started. Eight balanced candidates remain for later small-batch review.
   - The `356872d` repo-adaptation expanded-prompt checkpoint required no
     service restart because it changed only Python helper/test/doc files. vLLM
     stayed on pid `5802`; FastAPI stayed on pid `53902`. Focused Vast
