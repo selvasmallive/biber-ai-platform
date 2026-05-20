@@ -91,6 +91,61 @@ def test_build_plan_expanded_prompt_mode_adds_prompt_variants(tmp_path: Path) ->
     assert all(prompt["prompt_mode"] == "expanded" for prompt in prompts)
 
 
+def test_build_plan_expanded_prompt_mode_balances_language_groups(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    (repo / "db").mkdir(parents=True)
+    (repo / "docs").mkdir()
+    (repo / "scripts").mkdir()
+    (repo / "src").mkdir()
+    (repo / "api").mkdir()
+    (repo / "api" / "main.py").write_text(
+        "def handler():\n    return 'ok'\n",
+        encoding="utf-8",
+    )
+    (repo / "db" / "schema.sql").write_text(
+        "create table account(id text primary key);\n",
+        encoding="utf-8",
+    )
+    (repo / "docs" / "API.md").write_text(
+        "# API\n",
+        encoding="utf-8",
+    )
+    (repo / "scripts" / "smoke.sh").write_text(
+        "set -e\n",
+        encoding="utf-8",
+    )
+    (repo / "src" / "wallet.rs").write_text(
+        "pub struct Wallet;\n",
+        encoding="utf-8",
+    )
+
+    plan = build_plan(
+        repo,
+        max_files=20,
+        max_file_bytes=1000,
+        max_prompts=5,
+        prompt_mode="expanded",
+    )
+    prompts = plan["suggested_eval_prompts"]
+
+    assert [prompt["prompt_variant"] for prompt in prompts] == [
+        "implementation_step",
+        "implementation_step",
+        "implementation_step",
+        "implementation_step",
+        "implementation_step",
+    ]
+    assert {prompt["language"] for prompt in prompts} == {
+        "Bash",
+        "Markdown",
+        "Python",
+        "Rust",
+        "SQL",
+    }
+
+
 def test_main_writes_plan_and_eval_jsonl(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()

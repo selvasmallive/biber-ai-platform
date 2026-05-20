@@ -38,8 +38,10 @@ python training/repo_adaptation_plan.py \
   --max-prompts 24
 ```
 
-Expanded mode emits multiple prompt variants per selected file, including
-context selection, regression-test planning, and risk/verification prompts.
+Expanded mode balances selected files by language/role group before repeating
+variants, then emits implementation, context-selection, regression-test, and
+risk/verification prompts. This keeps early eval batches from becoming
+Python-only when Rust, docs, shell, SQL, and other supported files are present.
 
 The scanner skips common unsafe or noisy paths, including `.git`, `.env`,
 private-key-looking files, build outputs, `node_modules`, Rust `target`, binary

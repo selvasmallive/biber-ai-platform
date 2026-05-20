@@ -64,6 +64,27 @@ Future Codex sessions must default to a low-OpenAI-cost operating mode.
   usage or to require a long open-ended agent session, pause and give the user a
   cost/risk estimate before proceeding.
 
+## Project Status Metrics Baseline
+
+Use this 2026-05-20 baseline for future percentage/status comparisons unless
+the user changes the project scope.
+
+- Focused non-production goal: BIBER MVP plus XRIQ private-devnet prototype.
+- Overall estimated completion: about `62%`.
+- BIBER local model/API/runtime: about `75%`.
+- Model swappability/config/registry: about `75%`.
+- Repo context/edit/test/GitHub workflow: about `65%`.
+- Repo-adaptation dataset/eval loop: about `40%`.
+- XRIQ private-devnet prototype: about `55%`.
+- Docs/handoff/cost-control discipline: about `85%`.
+- Remaining OpenAI/Codex key cost estimate from this point, excluding Vast GPU,
+  servers, production infrastructure, audits, public launch, and any separate
+  client-agent app:
+  - Disciplined/minimal: about `$400-$800`.
+  - Realistic working range: about `$800-$1,500`.
+  - Deep XRIQ/Rust debugging case: about `$1,500-$2,500`.
+  - Honest target while staying narrow: about `$800-$1,200`.
+
 ## Immediate Resume State
 
 As of the latest 2026-05-20 checkpoint, the Vast.ai deployment is healthy and

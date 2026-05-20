@@ -304,11 +304,25 @@ def build_expanded_eval_prompts(
     max_prompts: int,
 ) -> list[dict[str, Any]]:
     prompts: list[dict[str, Any]] = []
+    grouped_files: dict[tuple[str, str], list[RepoFileSummary]] = {}
+    group_order: list[tuple[str, str]] = []
     for file in files:
+        key = (file.language, file.role)
+        if key not in grouped_files:
+            grouped_files[key] = []
+            group_order.append(key)
+        grouped_files[key].append(file)
+
+    max_group_size = max((len(group) for group in grouped_files.values()), default=0)
+    for file_index in range(max_group_size):
         for variant in EXPANDED_PROMPT_VARIANTS:
-            prompts.append(build_expanded_prompt(file, variant))
-            if len(prompts) >= max_prompts:
-                return prompts
+            for key in group_order:
+                group = grouped_files[key]
+                if file_index >= len(group):
+                    continue
+                prompts.append(build_expanded_prompt(group[file_index], variant))
+                if len(prompts) >= max_prompts:
+                    return prompts
     return prompts
 
 
