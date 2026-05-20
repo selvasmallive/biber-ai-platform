@@ -35,7 +35,10 @@ PROMOTION_REVIEW_JSON="${BIBER_PROMOTION_REVIEW_JSON:-${SESSION_DIR}/candidate-p
 latest_file() {
   local dir="$1"
   local pattern="$2"
-  find "$dir" -maxdepth 1 -type f -name "$pattern" 2>/dev/null | sort | tail -n 1
+  find "$dir" -maxdepth 1 -type f -name "$pattern" -printf '%T@\t%p\n' 2>/dev/null \
+    | sort -n \
+    | tail -n 1 \
+    | cut -f2-
 }
 
 run_step() {
