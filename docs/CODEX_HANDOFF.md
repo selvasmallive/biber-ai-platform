@@ -350,9 +350,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER repo-adaptation balanced expanded-prompt commit pushed and
   Vast-verified:
   `71e9f92 Balance repo adaptation expanded prompts`.
+- Latest BIBER repo-adaptation manual training-review gate commit pushed and
+  Vast-verified:
+  `3ef6834 Add repo adaptation training review gate`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `71e9f92`. Full Rust/private-devnet
+- Vast code verification is current through `3ef6834`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -378,7 +381,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   `a53be7a`; BIBER repo-adaptation dataset-merge verification is current
   through `436f955`; BIBER repo-adaptation dataset-readiness verification is
   current through `299af9b`; BIBER repo-adaptation expanded/balanced prompt
-  verification is current through `71e9f92`;
+  verification is current through `71e9f92`; BIBER repo-adaptation manual
+  training-review gate verification is current through `3ef6834`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -445,9 +449,29 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `71e9f92`. If later docs-only
+  - Vast code verification is current through `3ef6834`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `3ef6834` repo-adaptation manual training-review gate checkpoint
+    required no service restart because it changed only Python helper/test/doc
+    files. vLLM stayed on pid `5802`; FastAPI stayed on pid `53902`. Focused
+    Vast verification passed with pytest
+    `tests/test_repo_adaptation_training_review.py tests/test_repo_adaptation_dataset_readiness.py tests/test_repo_adaptation_dataset_merge.py tests/test_repo_adaptation_candidate_review.py tests/test_training_dataset.py -q`
+    reporting `19 passed`.
+  - Manual pre-training review for the cumulative repo-adaptation queue has
+    been generated on Vast at
+    `/workspace/outputs/evals/repo-adapt-training-review-20260520T172453Z.json`.
+    Result: `review_status=ready_for_user_training_approval`,
+    `ready_records=50`, `records=50`, `record_gap=0`, categories `bash=5`,
+    `json=4`, `markdown=8`, `python=19`, `rust=5`, `sql=3`, `toml=6`,
+    qualities `reviewed=50`, and `hard_blockers=[]`.
+    `ready_for_user_training_approval=true`, but
+    `training_dataset_ready=false`, `training_allowed=false`,
+    `safe_to_train=false`, and `approved_for_training=false`. Training was not
+    started. The recommended command captured in the artifact is:
+    `BIBER_TRAIN_DATASET=/workspace/data/repo_adaptation/reviewed_candidates.jsonl BIBER_TRAIN_OUTPUT_DIR=/workspace/adapters/biber-dev-core-repo-adapt-20260520T172453Z BIBER_TRAIN_SESSION=biber-repo-adapt-20260520T172453Z BIBER_TRAIN_MIN_RECORDS=50 bash scripts/vast_train_qlora_tmux.sh /workspace/data/repo_adaptation/reviewed_candidates.jsonl`.
+    Do not run it until the user explicitly approves a separate Vast GPU
+    training run.
   - The `71e9f92` repo-adaptation balanced expanded-prompt checkpoint required
     no service restart because it changed only Python helper/test/doc files.
     vLLM stayed on pid `5802`; FastAPI stayed on pid `53902`. Focused Vast
