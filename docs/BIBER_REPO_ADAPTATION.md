@@ -75,6 +75,19 @@ The candidate file is not a training dataset yet: `output` is left empty so the
 dataset validator rejects it until a reviewer writes the verified answer or
 patch and changes the quality to `reviewed` or `verified`.
 
+Before promoting reviewed rows to any training dataset, check the candidate
+queue explicitly:
+
+```bash
+python training/repo_adaptation_candidate_review.py \
+  --candidates /workspace/outputs/evals/repo-adaptation-training-candidates.jsonl \
+  --review-output /workspace/outputs/evals/repo-adaptation-candidate-review.json \
+  --min-ready 1
+```
+
+This review only reports readiness for dataset validation. It does not start
+training, mark a dataset as trainable, or promote an adapter.
+
 ## Codex Mentor Role
 
 Codex/OpenAI should be used for:
