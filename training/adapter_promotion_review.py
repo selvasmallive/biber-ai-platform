@@ -113,8 +113,12 @@ def review_adapter_promotion(
     min_rust_expectation_ok: int,
     min_rust_validation_ok: int,
     min_repo_expectation_ok: int,
+    min_repo_improvement_delta: int,
     require_adapter_exists: bool,
 ) -> dict[str, Any]:
+    if min_repo_improvement_delta < 1:
+        raise ValueError("min_repo_improvement_delta must be at least 1.")
+
     generated_at = datetime.now(UTC).isoformat()
     training_review, training_review_error = load_json(training_review_path)
     broad_summary, broad_error = load_json(broad_summary_path)
@@ -298,20 +302,34 @@ def review_adapter_promotion(
 
     candidate_repo_score = int_value(repo_summary, "expectation_ok")
     baseline_repo_score = int_value(baseline_repo_summary, "expectation_ok")
+    required_repo_score = (
+        baseline_repo_score + min_repo_improvement_delta
+        if baseline_repo_score is not None
+        else None
+    )
     gates.append(
         gate(
             name="repo_baseline_improvement",
             ok=(
                 candidate_repo_score is not None
-                and baseline_repo_score is not None
-                and candidate_repo_score > baseline_repo_score
+                and required_repo_score is not None
+                and candidate_repo_score >= required_repo_score
             ),
-            blocker="repo_eval_did_not_improve_baseline",
+            blocker="repo_eval_improvement_below_margin",
             actual={
                 "candidate_expectation_ok": candidate_repo_score,
                 "baseline_expectation_ok": baseline_repo_score,
+                "delta": (
+                    candidate_repo_score - baseline_repo_score
+                    if candidate_repo_score is not None and baseline_repo_score is not None
+                    else None
+                ),
             },
-            required={"candidate_expectation_ok": "greater_than_baseline"},
+            required={
+                "candidate_expectation_ok": "baseline_plus_min_delta",
+                "min_repo_improvement_delta": min_repo_improvement_delta,
+                "required_candidate_expectation_ok": required_repo_score,
+            },
             summary=repo_summary_path,
         )
     )
@@ -386,6 +404,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--min-rust-expectation-ok", type=int, default=7)
     parser.add_argument("--min-rust-validation-ok", type=int, default=7)
     parser.add_argument("--min-repo-expectation-ok", type=int, default=1)
+    parser.add_argument("--min-repo-improvement-delta", type=int, default=5)
     parser.add_argument(
         "--skip-adapter-exists-check",
         action="store_true",
@@ -408,6 +427,7 @@ def main(argv: list[str] | None = None) -> int:
         min_rust_expectation_ok=args.min_rust_expectation_ok,
         min_rust_validation_ok=args.min_rust_validation_ok,
         min_repo_expectation_ok=args.min_repo_expectation_ok,
+        min_repo_improvement_delta=args.min_repo_improvement_delta,
         require_adapter_exists=not args.skip_adapter_exists_check,
     )
     args.review_output.parent.mkdir(parents=True, exist_ok=True)

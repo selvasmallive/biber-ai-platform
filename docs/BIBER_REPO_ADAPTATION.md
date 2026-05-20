@@ -191,7 +191,8 @@ and adapter comparison should run on Vast.
 Keep serving the current stable adapter unless the candidate:
 
 - passes the broad BIBER eval,
-- improves the repo-specific held-out eval,
+- improves the repo-specific held-out eval by at least the configured margin
+  over the stable baseline; the default margin is `5` expectation checks,
 - does not regress Rust/XRIQ prompts,
 - loads cleanly through vLLM, and
 - has its dataset/provenance recorded.
