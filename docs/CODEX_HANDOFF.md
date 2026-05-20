@@ -571,6 +571,36 @@ serving the last broad-safe Rust/XRIQ adapter.
     `bash=5`, `markdown=8`, `python=22`, `sql=3`, `rust=8`, `json=4`, and
     `toml=6`. It still has `training_allowed=false`,
     `safe_to_train=false`, and `approved_for_training=false`.
+  - After explicit user approval, the guarded separate Vast GPU QLoRA run was
+    started with `BIBER_TRAIN_APPROVED=1` from the manual training review
+    artifact. Serving was stopped first to free GPU memory. Training session:
+    `biber-repo-adapt-antireg-review-20260520`; dataset:
+    `/workspace/data/repo_adaptation/reviewed_candidates.jsonl`; output
+    adapter:
+    `/workspace/adapters/biber-dev-core-repo-adapt-antireg-review-20260520`;
+    log: `/workspace/outputs/qlora-20260520T220355Z.log`; run script:
+    `/workspace/outputs/qlora-20260520T220355Z.sh`. Training completed
+    successfully with `56` records, `7` steps, `train_loss=2.468`, and saved
+    `adapter_model.safetensors`.
+  - Post-training candidate review was run immediately with
+    `BIBER_CANDIDATE_ADAPTER_DIR=/workspace/adapters/biber-dev-core-repo-adapt-antireg-review-20260520`
+    and session
+    `repo-adapt-antireg-candidate-20260520T2205Z`. Artifacts are under
+    `/workspace/outputs/evals/repo-adapt-antireg-candidate-20260520T2205Z/`.
+    Results: stable repo held-out `128/128` responses and `77/128`
+    expectation checks; candidate broad eval `18/18` responses but only
+    `15/18` expectation checks; candidate Rust/XRIQ eval `7/7` responses and
+    `7/7` expectation checks but only `4/7` cargo validators; candidate repo
+    held-out `128/128` responses and `105/128` expectation checks. Promotion
+    review:
+    `/workspace/outputs/evals/repo-adapt-antireg-candidate-20260520T2205Z/candidate-promotion-review.json`
+    with `review_status=promotion_blocked`,
+    `hard_blockers=["broad_expectations_below_threshold","rust_validators_below_threshold"]`,
+    `promotion_allowed=false`, and no serving promotion. The wrapper restored
+    the stable adapter afterward, and
+    `bash scripts/vast_test_direct.sh` confirmed healthy serving on
+    `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` with current vLLM
+    pid `80777` and API pid `81099`.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
@@ -5893,14 +5923,12 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-Current immediate next step: ask the user whether to start the separate Vast GPU
-repo-adaptation QLoRA run from
-`/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-manual-training-review.json`.
-If the user explicitly approves training, use the guarded command from that
-artifact:
-`BIBER_TRAIN_APPROVED=1 BIBER_TRAIN_DATASET=/workspace/data/repo_adaptation/reviewed_candidates.jsonl BIBER_TRAIN_OUTPUT_DIR=/workspace/adapters/biber-dev-core-repo-adapt-antireg-review-20260520 BIBER_TRAIN_SESSION=biber-repo-adapt-antireg-review-20260520 BIBER_TRAIN_MIN_RECORDS=50 bash scripts/vast_train_qlora_tmux.sh /workspace/data/repo_adaptation/reviewed_candidates.jsonl`.
-Do not start the run from a generic "continue"; explicit user approval is
-required.
+Current immediate next step: do not train again. The anti-regression QLoRA
+candidate still failed broad and Rust/XRIQ promotion gates. Inspect
+`/workspace/outputs/evals/repo-adapt-antireg-candidate-20260520T2205Z/candidate-promotion-review.json`,
+`candidate-broad.jsonl`, and `candidate-rust-xriq.jsonl`, then improve the
+eval/prompt or dataset strategy before any additional training. Keep serving
+`/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 
 1. Keep `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` served unless a
    future adapter beats both gates: current Rust/XRIQ cargo validators and the
