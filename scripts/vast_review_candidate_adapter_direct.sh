@@ -19,6 +19,7 @@ SESSION="${BIBER_CANDIDATE_EVAL_SESSION:-candidate-adapter-${TIMESTAMP}}"
 SESSION_DIR="${BIBER_CANDIDATE_EVAL_DIR:-${EVAL_OUTPUT_DIR}/${SESSION}}"
 DRY_RUN="${BIBER_CANDIDATE_EVAL_DRY_RUN:-0}"
 RESTORE_STABLE="${BIBER_RESTORE_STABLE_AFTER_EVAL:-1}"
+ALLOW_STABLE_AS_CANDIDATE="${BIBER_ALLOW_STABLE_AS_CANDIDATE:-0}"
 
 BASELINE_REPO_SUMMARY="${BIBER_BASELINE_REPO_SUMMARY:-${SESSION_DIR}/stable-repo-heldout.summary.json}"
 BASELINE_REPO_OUTPUT="${BIBER_BASELINE_REPO_OUTPUT:-${SESSION_DIR}/stable-repo-heldout.jsonl}"
@@ -39,6 +40,17 @@ latest_file() {
     | sort -n \
     | tail -n 1 \
     | cut -f2-
+}
+
+canonical_path() {
+  local path="$1"
+  if command -v readlink >/dev/null 2>&1; then
+    readlink -f "$path"
+    return
+  fi
+  local dir
+  dir="$(cd "$(dirname "$path")" && pwd -P)"
+  printf '%s/%s\n' "$dir" "$(basename "$path")"
 }
 
 run_step() {
@@ -82,6 +94,15 @@ restore_stable_adapter() {
 [ -f "${CANDIDATE_ADAPTER}/adapter_config.json" ] || die "Candidate adapter missing adapter_config.json: ${CANDIDATE_ADAPTER}"
 [ -d "$STABLE_ADAPTER" ] || die "Stable adapter not found: ${STABLE_ADAPTER}"
 
+CANDIDATE_ADAPTER_CANONICAL="$(canonical_path "$CANDIDATE_ADAPTER")"
+STABLE_ADAPTER_CANONICAL="$(canonical_path "$STABLE_ADAPTER")"
+if [ "$CANDIDATE_ADAPTER_CANONICAL" = "$STABLE_ADAPTER_CANONICAL" ]; then
+  if [ "$ALLOW_STABLE_AS_CANDIDATE" != "1" ]; then
+    die "Candidate adapter matches the stable adapter. Set BIBER_ALLOW_STABLE_AS_CANDIDATE=1 only for an explicit smoke test."
+  fi
+  warn "Candidate adapter matches stable adapter; continuing only because BIBER_ALLOW_STABLE_AS_CANDIDATE=1."
+fi
+
 if [ -z "$TRAINING_REVIEW_JSON" ]; then
   TRAINING_REVIEW_JSON="$(latest_file "$EVAL_OUTPUT_DIR" "repo-adapt-training-review-*.json")"
 fi
@@ -106,6 +127,7 @@ Repo prompts:    ${REPO_EVAL_PROMPTS}
 Session dir:     ${SESSION_DIR}
 Dry run:         ${DRY_RUN}
 Restore stable:  ${RESTORE_STABLE}
+Allow same path: ${ALLOW_STABLE_AS_CANDIDATE}
 
 This script does not train or promote an adapter. It writes a promotion-review
 artifact and restores the stable adapter by default.

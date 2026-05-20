@@ -206,7 +206,9 @@ BIBER_CANDIDATE_ADAPTER_DIR=/workspace/adapters/biber-dev-core-repo-adapt-candid
   bash scripts/vast_review_candidate_adapter_direct.sh
 ```
 
-The wrapper restores the stable adapter by default. It runs the baseline
+The wrapper refuses to run when the candidate path is the same as the stable
+adapter path, unless `BIBER_ALLOW_STABLE_AS_CANDIDATE=1` is set for an explicit
+smoke test. It restores the stable adapter by default. It runs the baseline
 repo-held-out eval, candidate broad eval, candidate Rust/XRIQ validator eval,
 candidate repo-held-out eval, and then writes the promotion-review artifact.
 
