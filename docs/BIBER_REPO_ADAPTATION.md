@@ -211,6 +211,8 @@ adapter path, unless `BIBER_ALLOW_STABLE_AS_CANDIDATE=1` is set for an explicit
 smoke test. It restores the stable adapter by default. It runs the baseline
 repo-held-out eval, candidate broad eval, candidate Rust/XRIQ validator eval,
 candidate repo-held-out eval, and then writes the promotion-review artifact.
+The wrapper stops and restarts the local services when switching between the
+stable and candidate adapter so vLLM actually loads the intended LoRA.
 
 You can also write the promotion review directly when the eval summaries
 already exist:

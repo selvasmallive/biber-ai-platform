@@ -85,8 +85,15 @@ restore_stable_adapter() {
   if [ -d "$STABLE_ADAPTER" ]; then
     echo
     echo "Restoring stable adapter: ${STABLE_ADAPTER}"
+    bash "${SCRIPT_DIR}/vast_stop_direct.sh" || true
     BIBER_LORA_ADAPTER_DIR="$STABLE_ADAPTER" bash "${SCRIPT_DIR}/vast_start_lora_direct.sh" || true
   fi
+}
+
+start_adapter() {
+  local adapter_dir="$1"
+  run_step bash "${SCRIPT_DIR}/vast_stop_direct.sh"
+  run_step env BIBER_LORA_ADAPTER_DIR="$adapter_dir" bash "${SCRIPT_DIR}/vast_start_lora_direct.sh"
 }
 
 [ -n "$CANDIDATE_ADAPTER" ] || die "Set BIBER_CANDIDATE_ADAPTER_DIR to the candidate LoRA adapter path."
@@ -135,7 +142,7 @@ EOF
 
 trap restore_stable_adapter EXIT
 
-run_step env BIBER_LORA_ADAPTER_DIR="$STABLE_ADAPTER" bash "${SCRIPT_DIR}/vast_start_lora_direct.sh"
+start_adapter "$STABLE_ADAPTER"
 run_may_fail bash "${SCRIPT_DIR}/vast_test_direct.sh" || true
 run_may_fail "${VENV_DIR}/bin/python" training/repo_adaptation_eval.py \
   --prompts "$REPO_EVAL_PROMPTS" \
@@ -143,7 +150,7 @@ run_may_fail "${VENV_DIR}/bin/python" training/repo_adaptation_eval.py \
   --summary "$BASELINE_REPO_SUMMARY" \
   --failures-output "$BASELINE_REPO_FAILURES" || true
 
-if run_may_fail env BIBER_LORA_ADAPTER_DIR="$CANDIDATE_ADAPTER" bash "${SCRIPT_DIR}/vast_start_lora_direct.sh"; then
+if start_adapter "$CANDIDATE_ADAPTER"; then
   run_may_fail bash "${SCRIPT_DIR}/vast_test_direct.sh" || true
   run_may_fail env \
     BIBER_EVAL_OUTPUT_JSONL="$CANDIDATE_BROAD_OUTPUT" \
