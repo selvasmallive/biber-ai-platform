@@ -88,6 +88,21 @@ python training/repo_adaptation_candidate_review.py \
 This review only reports readiness for dataset validation. It does not start
 training, mark a dataset as trainable, or promote an adapter.
 
+When a reviewer approves a candidate, apply that decision through a separate
+decision file so the output and reviewer metadata are auditable:
+
+```bash
+python training/repo_adaptation_candidate_decisions.py \
+  --candidates /workspace/outputs/evals/repo-adaptation-training-candidates.jsonl \
+  --decisions /workspace/outputs/evals/repo-adaptation-candidate-decisions.json \
+  --output /workspace/outputs/evals/repo-adaptation-reviewed-candidates.jsonl \
+  --review-output /workspace/outputs/evals/repo-adaptation-candidate-decisions.review.json
+```
+
+Then rerun `repo_adaptation_candidate_review.py` against the reviewed output.
+Even a passing candidate review only means the rows are ready for dataset
+validation; it is still not approval to start training.
+
 ## Codex Mentor Role
 
 Codex/OpenAI should be used for:
