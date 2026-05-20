@@ -369,9 +369,11 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest candidate-review same-as-stable fast-fail guard pushed and
   Vast-verified:
   `c38c0a7 Fail fast on stable candidate review`.
+- Latest candidate-review adapter-reload fix pushed and Vast-verified:
+  `608252b Restart services when reviewing candidate adapter`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `c38c0a7`. Full Rust/private-devnet
+- Vast code verification is current through `608252b`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -406,7 +408,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   through `4f3bb4c`; adapter promotion same-as-stable blocker verification is
   current through `25cc41e`; repo held-out promotion margin gate verification
   is current through `600bff1`; candidate-review same-as-stable fast-fail
-  guard verification is current through `c38c0a7`;
+  guard verification is current through `c38c0a7`; candidate-review
+  adapter-reload verification is current through `608252b`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -469,13 +472,59 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Current agent-session artifact directory:
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
-  - vLLM pid: `5802`
-  - FastAPI pid: `53902`
+  - vLLM pid: `77494`
+  - FastAPI pid: `77817`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `c38c0a7`. If later docs-only
+  - Vast code verification is current through `608252b`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The user explicitly approved the separate Vast GPU repo-adaptation QLoRA
+    training run on 2026-05-20. Serving was stopped first to free GPU memory:
+    FastAPI pid `53902` and vLLM pid `5802` were stopped. The guarded command
+    used `BIBER_TRAIN_APPROVED=1` and started tmux session
+    `biber-repo-adapt-20260520T183028Z` with dataset
+    `/workspace/data/repo_adaptation/reviewed_candidates.jsonl`, output
+    adapter `/workspace/adapters/biber-dev-core-repo-adapt-20260520T183028Z`,
+    log `/workspace/outputs/qlora-20260520T194109Z.log`, and run script
+    `/workspace/outputs/qlora-20260520T194109Z.sh`. Training completed
+    successfully in the tmux job, saved the LoRA adapter, and the tmux session
+    exited. Training summary: `50` records, `7` steps, `train_loss=2.697`,
+    train runtime about `32s`.
+  - A first post-training candidate review run was attempted at
+    `/workspace/outputs/evals/repo-adapt-candidate-20260520T194218Z/`, but it
+    exposed a wrapper bug: vLLM was already running, so switching
+    `BIBER_LORA_ADAPTER_DIR` did not reload the candidate adapter. Treat
+    `/workspace/outputs/evals/repo-adapt-candidate-20260520T194218Z/candidate-promotion-review.json`
+    as superseded/inconclusive. It must not be used for promotion decisions.
+  - The `608252b` candidate-review adapter-reload fix required stopping and
+    restarting services when switching between stable and candidate adapters.
+    Vast verification passed `bash -n scripts/vast_review_candidate_adapter_direct.sh`,
+    then reran the post-training candidate review with forced reload:
+    `BIBER_CANDIDATE_ADAPTER_DIR=/workspace/adapters/biber-dev-core-repo-adapt-20260520T183028Z BIBER_CANDIDATE_EVAL_SESSION=repo-adapt-candidate-reloaded-20260520T195421Z bash scripts/vast_review_candidate_adapter_direct.sh`.
+    The wrapper verified stable serving first, then restarted vLLM/FastAPI with
+    the candidate adapter; `/v1/models` showed
+    `root=/workspace/adapters/biber-dev-core-repo-adapt-20260520T183028Z` for
+    the candidate eval. Artifacts are under
+    `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/`.
+    Results: stable repo held-out `128/128` responses and `77/128` expectation
+    checks; candidate broad eval `18/18` responses but only `15/18`
+    expectation checks; candidate Rust/XRIQ eval `7/7` responses and `7/7`
+    expectation checks but only `4/7` cargo validators; candidate repo held-out
+    `128/128` responses and `106/128` expectation checks. Promotion review:
+    `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/candidate-promotion-review.json`
+    with `review_status=promotion_blocked`,
+    `hard_blockers=["broad_expectations_below_threshold","rust_validators_below_threshold"]`,
+    `repo_baseline_improvement` passing with `delta=29`,
+    `promotion_allowed=false`, `safe_to_promote=false`, and
+    `serving_changed=false`. The candidate adapter is useful evidence for repo
+    adaptation, but must not be promoted because it regressed broad and
+    Rust/XRIQ gates.
+  - After the corrected candidate review, the wrapper restored stable serving.
+    `bash scripts/vast_test_direct.sh` confirmed `/health`, `/v1/runtime`,
+    `/v1/models`, and chat smoke are OK. Current vLLM pid is `77494`, FastAPI
+    pid is `77817`, and `/v1/models` shows served LoRA root
+    `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
