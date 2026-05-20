@@ -362,9 +362,11 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest candidate adapter review newest-artifact selection fix pushed and
   Vast-verified:
   `4f3bb4c Use newest artifacts in candidate adapter review`.
+- Latest adapter promotion same-as-stable blocker pushed and Vast-verified:
+  `25cc41e Block promotion of current stable adapter`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `4f3bb4c`. Full Rust/private-devnet
+- Vast code verification is current through `25cc41e`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -396,7 +398,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   promotion-review gate verification is current through `1834035`; Vast
   candidate adapter review wrapper verification is current through `426fcd3`;
   candidate adapter review newest-artifact selection verification is current
-  through `4f3bb4c`;
+  through `4f3bb4c`; adapter promotion same-as-stable blocker verification is
+  current through `25cc41e`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -463,9 +466,39 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `4f3bb4c`. If later docs-only
+  - Vast code verification is current through `25cc41e`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `25cc41e` adapter promotion same-as-stable blocker checkpoint required
+    no service restart for the code change. A real Vast wrapper validation was
+    run first with the current stable adapter as both stable and candidate:
+    `BIBER_CANDIDATE_ADAPTER_DIR=/workspace/adapters/biber-dev-core-lora-rust-xriq-400 BIBER_CANDIDATE_EVAL_SESSION=stable-as-candidate-20260520T185016Z bash scripts/vast_review_candidate_adapter_direct.sh`.
+    The wrapper used the newest repo prompts
+    `/workspace/outputs/repo-adapt-balanced-xwide-20260520T165801Z.prompts.jsonl`,
+    training review
+    `/workspace/outputs/evals/repo-adapt-training-review-20260520T183028Z.json`,
+    and wrote artifacts under
+    `/workspace/outputs/evals/stable-as-candidate-20260520T185016Z/`. Results:
+    stable repo held-out `128/128` responses and `73/128` expectation checks;
+    candidate broad eval `18/18` responses and `18/18` expectation checks;
+    candidate Rust/XRIQ eval `7/7` responses, `7/7` expectation checks, and
+    `7/7` cargo validators; candidate repo held-out `128/128` responses and
+    `76/128` expectation checks. This exposed nondeterministic repo-score drift:
+    the pre-fix artifact
+    `/workspace/outputs/evals/stable-as-candidate-20260520T185016Z/candidate-promotion-review.json`
+    is superseded and must not be used for promotion decisions.
+  - `25cc41e` adds an explicit `candidate_adapter_matches_stable` blocker.
+    Vast verification after fast-forward passed pytest
+    `tests/test_adapter_promotion_review.py tests/test_repo_adaptation_training_review.py tests/test_training_dataset.py -q`
+    reporting `11 passed`, then reran only the promotion-review command against
+    the existing stable-as-candidate eval summaries. The corrected artifact is
+    `/workspace/outputs/evals/stable-as-candidate-20260520T185016Z/candidate-promotion-review.same-adapter-blocked.json`
+    with `review_status=promotion_blocked`, `hard_blockers=["candidate_adapter_matches_stable"]`,
+    `promotion_allowed=false`, `safe_to_promote=false`, and
+    `serving_changed=false`. No training was started, no adapter was promoted,
+    and serving remains on
+    `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` with vLLM pid
+    `5802` and FastAPI pid `53902`.
   - The `4f3bb4c` candidate adapter review newest-artifact selection fix
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh`. vLLM stayed on pid
