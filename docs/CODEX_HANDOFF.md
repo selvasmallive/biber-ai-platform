@@ -470,9 +470,9 @@ serving the last broad-safe Rust/XRIQ adapter.
     Vast verification passed with pytest
     `tests/test_repo_adaptation_training_review.py tests/test_repo_adaptation_dataset_readiness.py tests/test_repo_adaptation_dataset_merge.py tests/test_repo_adaptation_candidate_review.py tests/test_training_dataset.py -q`
     reporting `19 passed`.
-  - Manual pre-training review for the cumulative repo-adaptation queue has
-    been generated on Vast at
-    `/workspace/outputs/evals/repo-adapt-training-review-20260520T172453Z.json`.
+  - Latest manual pre-training review for the cumulative repo-adaptation queue
+    has been regenerated on Vast after the approval-guard change at
+    `/workspace/outputs/evals/repo-adapt-training-review-20260520T183028Z.json`.
     Result: `review_status=ready_for_user_training_approval`,
     `ready_records=50`, `records=50`, `record_gap=0`, categories `bash=5`,
     `json=4`, `markdown=8`, `python=19`, `rust=5`, `sql=3`, `toml=6`,
@@ -481,12 +481,10 @@ serving the last broad-safe Rust/XRIQ adapter.
     `training_dataset_ready=false`, `training_allowed=false`,
     `safe_to_train=false`, and `approved_for_training=false`. Training was not
     started. The recommended command captured in the artifact is:
-    `BIBER_TRAIN_DATASET=/workspace/data/repo_adaptation/reviewed_candidates.jsonl BIBER_TRAIN_OUTPUT_DIR=/workspace/adapters/biber-dev-core-repo-adapt-20260520T172453Z BIBER_TRAIN_SESSION=biber-repo-adapt-20260520T172453Z BIBER_TRAIN_MIN_RECORDS=50 bash scripts/vast_train_qlora_tmux.sh /workspace/data/repo_adaptation/reviewed_candidates.jsonl`.
+    `BIBER_TRAIN_APPROVED=1 BIBER_TRAIN_DATASET=/workspace/data/repo_adaptation/reviewed_candidates.jsonl BIBER_TRAIN_OUTPUT_DIR=/workspace/adapters/biber-dev-core-repo-adapt-20260520T183028Z BIBER_TRAIN_SESSION=biber-repo-adapt-20260520T183028Z BIBER_TRAIN_MIN_RECORDS=50 bash scripts/vast_train_qlora_tmux.sh /workspace/data/repo_adaptation/reviewed_candidates.jsonl`.
     Do not run it until the user explicitly approves a separate Vast GPU
-    training run. Newer training-review artifacts and the training launcher
-    require `BIBER_TRAIN_APPROVED=1` in the same command after explicit
-    approval; prepend it to this captured command if this exact artifact is
-    used later.
+    training run. The training launcher requires `BIBER_TRAIN_APPROVED=1` in
+    the same command after explicit approval.
   - The `71e9f92` repo-adaptation balanced expanded-prompt checkpoint required
     no service restart because it changed only Python helper/test/doc files.
     vLLM stayed on pid `5802`; FastAPI stayed on pid `53902`. Focused Vast
