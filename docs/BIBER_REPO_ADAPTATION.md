@@ -103,6 +103,22 @@ Then rerun `repo_adaptation_candidate_review.py` against the reviewed output.
 Even a passing candidate review only means the rows are ready for dataset
 validation; it is still not approval to start training.
 
+After validation passes, merge reviewed rows into a cumulative curated queue
+instead of training from a tiny one-off artifact:
+
+```bash
+python training/repo_adaptation_dataset_merge.py \
+  --candidates /workspace/outputs/evals/repo-adaptation-reviewed-candidates.jsonl \
+  --output /workspace/data/repo_adaptation/reviewed_candidates.jsonl \
+  --review-output /workspace/outputs/evals/repo-adaptation-dataset-merge.review.json \
+  --min-total-records 1
+```
+
+This merge is idempotent and keeps `training_allowed`, `safe_to_train`, and
+`approved_for_training` false. Treat the curated queue as accumulation only;
+start training later only after enough reviewed examples exist and the user
+explicitly approves a training run.
+
 ## Codex Mentor Role
 
 Codex/OpenAI should be used for:
