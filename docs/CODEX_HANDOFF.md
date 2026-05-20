@@ -323,9 +323,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER repo-adaptation dataset-readiness commit pushed and
   Vast-verified:
   `299af9b Add repo adaptation dataset readiness review`.
+- Latest BIBER repo-adaptation expanded-prompt commit pushed and
+  Vast-verified:
+  `356872d Add expanded repo adaptation prompts`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `299af9b`. Full Rust/private-devnet
+- Vast code verification is current through `356872d`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -350,7 +353,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   BIBER repo-adaptation candidate decision verification is current through
   `a53be7a`; BIBER repo-adaptation dataset-merge verification is current
   through `436f955`; BIBER repo-adaptation dataset-readiness verification is
-  current through `299af9b`;
+  current through `299af9b`; BIBER repo-adaptation expanded-prompt
+  verification is current through `356872d`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -417,9 +421,40 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `299af9b`. If later docs-only
+  - Vast code verification is current through `356872d`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `356872d` repo-adaptation expanded-prompt checkpoint required no
+    service restart because it changed only Python helper/test/doc files. vLLM
+    stayed on pid `5802`; FastAPI stayed on pid `53902`. Focused Vast
+    verification passed with
+    `/workspace/biber-venv/bin/python -m compileall training tests` and pytest
+    `tests/test_repo_adaptation_plan.py tests/test_repo_adaptation_eval.py tests/test_repo_adaptation_failure_review.py tests/test_repo_adaptation_dataset_readiness.py tests/test_training_dataset.py -q`
+    reporting `20 passed`.
+  - Expanded repo-adaptation local-model eval artifacts now exist on the Vast
+    volume. Plan:
+    `/workspace/outputs/repo-adapt-expanded-20260520T155919Z.plan.json`.
+    Prompts:
+    `/workspace/outputs/repo-adapt-expanded-20260520T155919Z.prompts.jsonl`.
+    First eval summary:
+    `/workspace/outputs/evals/repo-adapt-expanded-20260520T155919Z.summary.json`
+    with `24/24` responses and `9/24` expectation checks passed. Repeat eval
+    summary:
+    `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.summary.json`
+    with `24/24` responses and `11/24` expectation checks passed.
+    Repeat failure review:
+    `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.repeat-review.json`
+    with `failures_seen=28`, `groups=15`, and `training_candidates=13`.
+    Candidate queue:
+    `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.repeat-training-candidates.jsonl`.
+    Candidate review:
+    `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.repeat-candidate-review.json`
+    with `records=13`, `ready_records=0`, `pending_review_records=13`,
+    `quality_counts={"needs_review":13}`, and
+    `hard_blockers=["candidate_outputs_missing","candidate_quality_not_reviewed","candidate_validation_errors","below_min_ready_records"]`.
+    Training was not started; these are review-only candidates. Next, manually
+    review/fill a small batch of the 13 candidates if useful, then rerun
+    candidate review, dataset validation, merge, and readiness.
   - The `299af9b` repo-adaptation dataset-readiness checkpoint required no
     service restart because it changed only Python helper/test/doc files. vLLM
     stayed on pid `5802`; FastAPI stayed on pid `53902`. Focused Vast
@@ -5661,9 +5696,13 @@ bash scripts/xriq_private_devnet_smoke.sh
    validates with `ok=true`, `records=4`, and `errors=[]`. Readiness review at
    `/workspace/outputs/evals/repo-adapt-repeat-20260520T142227Z-70388.curated-queue-readiness.json`
    reports `training_blocked`, `ready_records=4`, `min_records=50`, and
-   `record_gap=46`. Next, collect more repo-adaptation examples before any
-   training run; do not start training from this small reviewed artifact
-   automatically. Public XRIQ launch, exchange
+   `record_gap=46`. Expanded prompt mode has now produced another repeatable
+   failure candidate queue at
+   `/workspace/outputs/evals/repo-adapt-expanded-repeat-20260520T155919Z.repeat-training-candidates.jsonl`
+   with `13` pending `needs_review` candidates and `0` ready rows. Next,
+   manually review/fill a small batch of those candidates only if they are
+   useful, then validate/merge them; do not start training from unreviewed or
+   tiny artifacts automatically. Public XRIQ launch, exchange
    listing, custody, liquidity, bridges, and market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
