@@ -305,9 +305,13 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER capability-roadmap TensorFlow docs commit pushed and
   Vast-fast-forwarded:
   `07eb63f Add TensorFlow capability track`.
+- Latest BIBER repair-chain training pipeline status commits pushed and
+  Vast-verified:
+  `244ac7c Add repair chain training pipeline status` and
+  `76c4401 Surface training pipeline status in smoke summary`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `693a1ca`. Full Rust/private-devnet
+- Vast code verification is current through `76c4401`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -380,8 +384,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   verification is current through `c356d70`; BIBER repair-chain training
   candidate export verification is current through `966ba05`; BIBER
   repair-chain training candidate review verification is current through
-  `693a1ca`; Rust/XRIQ live codegen-profile eval verification is current
-  through `7e7b8d`.
+  `693a1ca`; BIBER repair-chain training pipeline status verification is
+  current through `76c4401`; Rust/XRIQ live codegen-profile eval verification
+  is current through `7e7b8d`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
@@ -391,9 +396,39 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `693a1ca`. If later docs-only
+  - Vast code verification is current through `76c4401`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `76c4401` repair-chain training pipeline status checkpoint required no
+    service restart because it changed only the stdlib agent client, smoke
+    script, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid
+    `53902`. Training was not started because the consolidated training
+    pipeline status remains `blocked` with
+    `missing_or_blocked_step=baseline_ready_records`.
+  - Latest focused Vast verification for the BIBER repair-chain training
+    pipeline status slice:
+    `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`,
+    `bash -n scripts/vast_eval_repair_chain_prompts_direct.sh`, focused pytest
+    `tests/test_live_model_eval.py tests/test_biber_agent_client.py tests/test_github_client.py tests/test_agent_session.py tests/test_agent_capabilities.py tests/test_test_runner.py tests/test_test_diagnosis.py tests/test_workspace_edit.py tests/test_repo_context.py -q`
+    with `144 passed` at `244ac7c`, followed by `76c4401` Vast
+    fast-forward, `bash -n scripts/vast_biber_agent_smoke.sh`, and live
+    `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS=24 BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=96 bash scripts/vast_biber_agent_smoke.sh`.
+    The latest smoke wrote artifacts under
+    `/workspace/outputs/biber-agent-smoke-20260520T140446Z-69910` and verified
+    `review-repair-chain-training-pipeline` against the current smoke
+    repair-chain artifacts. The pipeline artifact was
+    `/workspace/outputs/biber-agent-smoke-20260520T140446Z-69910/agent-client-mvp-loop-repair-chain-training-pipeline.json`
+    with `training_pipeline_status=blocked`,
+    `missing_or_blocked_step=baseline_ready_records`,
+    `baseline_ready_records=0`, `training_candidate_records=0`,
+    `ready_for_dataset_validation=false`,
+    `hard_blockers=["baseline_ready_records","no_baseline_ready_records","training_candidate_records","no_training_candidate_records","below_min_ready_records","dataset_validation_not_ready"]`,
+    `safe_to_train=false`, `training_allowed=false`, `github_save_ready=false`,
+    and `approved_for_training=false`. This is a no-model-call status report
+    only; it does not create a trainable dataset, start a Vast training job,
+    approve model promotion, save to GitHub, rotate credentials, or approve
+    public XRIQ work.
   - The `693a1ca` repair-chain training candidate review checkpoint required
     no service restart because it changed only the stdlib agent client, smoke
     script, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid
@@ -5263,7 +5298,11 @@ bash scripts/xriq_private_devnet_smoke.sh
     final JSONL. It also has `review-repair-chain-training-candidates`, which
     summarizes those candidate queues and reports whether any filled
     reviewed/verified rows are ready for dataset validation while still keeping
-    training and model promotion blocked.
+    training and model promotion blocked. It also has
+    `review-repair-chain-training-pipeline`, which reads the standard
+    repair-chain training artifacts from one smoke/output directory and reports
+    the current missing or blocked step without resolving API auth or starting
+    training.
    - Stack-specific test execution: keep execution allowlisted and predictable.
      The test runner now exposes `dotnet-test`, `maven-test`, `gradle-test`,
      and `gradle-wrapper-test` for target repos that already include the
@@ -5413,8 +5452,12 @@ bash scripts/xriq_private_devnet_smoke.sh
    `review-repair-chain-training-candidates` then checks whether any candidate
    rows have non-empty outputs and `quality` set to `reviewed` or `verified`;
    even when ready for dataset validation, it keeps `training_allowed=false`
-   and requires a separate validation/promote step before training. The
-   repo-adaptation live eval wrapper and the conservative
+   and requires a separate validation/promote step before training.
+   `review-repair-chain-training-pipeline` then summarizes the standard
+   artifacts in a single output directory and points to the next blocked step;
+   the current Vast smoke reports `baseline_ready_records` as the blocker, so
+   no training should start yet. The repo-adaptation live eval wrapper and the
+   conservative
    repo-adaptation failure-review helper are also
    live. Good next targets are running the full repair sequence
    (`mvp-loop`, `attempt-repair`, `extract-repair-edits`, `plan-repair-edits`,
@@ -5447,7 +5490,8 @@ bash scripts/xriq_private_devnet_smoke.sh
    `review-repair-chain-heldout-baseline-decisions`, then run
    `review-repair-chain-training-readiness`, then run
    `export-repair-chain-training-candidates`, then run
-   `review-repair-chain-training-candidates`, and
+   `review-repair-chain-training-candidates`, then run
+   `review-repair-chain-training-pipeline`, then
    manually
    review repeated passed repairs into verified eval candidates only after a
    real repo eval produces repeatable gaps. Public XRIQ launch, exchange
