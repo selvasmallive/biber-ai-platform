@@ -556,6 +556,21 @@ serving the last broad-safe Rust/XRIQ adapter.
     `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-reviewed-candidate-review.json`
     with `6/6` ready and `0` pending. These reviewed rows are ready for
     dataset validation/merge only; they are still not training approval.
+  - The reviewed anti-regression rows were merged into the cumulative curated
+    queue with `training/repo_adaptation_dataset_merge.py`. Merge review:
+    `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-dataset-merge.review.json`
+    with `6` added, `0` duplicates, and `56` total records in
+    `/workspace/data/repo_adaptation/reviewed_candidates.jsonl`. Dataset
+    readiness was rerun at
+    `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-curated-queue-readiness.json`
+    and reports `manual_training_review_required` with `56/50` ready records.
+    Manual pre-training review was then written to
+    `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-manual-training-review.json`
+    with `review_status=ready_for_user_training_approval`,
+    `ready_for_user_training_approval=true`, `hard_blockers=[]`, categories
+    `bash=5`, `markdown=8`, `python=22`, `sql=3`, `rust=8`, `json=4`, and
+    `toml=6`. It still has `training_allowed=false`,
+    `safe_to_train=false`, and `approved_for_training=false`.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
@@ -5878,12 +5893,14 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-Current immediate next step: merge the reviewed anti-regression rows from
-`/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-reviewed-candidates.jsonl`
-into `/workspace/data/repo_adaptation/reviewed_candidates.jsonl` with
-`training/repo_adaptation_dataset_merge.py`, then rerun dataset readiness. Do
-not start another Vast QLoRA run until readiness is rechecked and the user
-explicitly approves training with `BIBER_TRAIN_APPROVED=1`.
+Current immediate next step: ask the user whether to start the separate Vast GPU
+repo-adaptation QLoRA run from
+`/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-manual-training-review.json`.
+If the user explicitly approves training, use the guarded command from that
+artifact:
+`BIBER_TRAIN_APPROVED=1 BIBER_TRAIN_DATASET=/workspace/data/repo_adaptation/reviewed_candidates.jsonl BIBER_TRAIN_OUTPUT_DIR=/workspace/adapters/biber-dev-core-repo-adapt-antireg-review-20260520 BIBER_TRAIN_SESSION=biber-repo-adapt-antireg-review-20260520 BIBER_TRAIN_MIN_RECORDS=50 bash scripts/vast_train_qlora_tmux.sh /workspace/data/repo_adaptation/reviewed_candidates.jsonl`.
+Do not start the run from a generic "continue"; explicit user approval is
+required.
 
 1. Keep `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` served unless a
    future adapter beats both gates: current Rust/XRIQ cargo validators and the
