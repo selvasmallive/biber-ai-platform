@@ -130,6 +130,21 @@ def review_adapter_promotion(
 
     gates: list[dict[str, Any]] = []
 
+    candidate_resolved = candidate_adapter.resolve(strict=False)
+    stable_resolved = stable_adapter.resolve(strict=False)
+    gates.append(
+        gate(
+            name="candidate_differs_from_stable",
+            ok=candidate_resolved != stable_resolved,
+            blocker="candidate_adapter_matches_stable",
+            actual={
+                "candidate_adapter": str(candidate_resolved),
+                "stable_adapter": str(stable_resolved),
+            },
+            required={"candidate_adapter": "different_from_stable_adapter"},
+        )
+    )
+
     adapter_exists = candidate_adapter.is_dir()
     adapter_config_exists = (candidate_adapter / "adapter_config.json").is_file()
     gates.append(

@@ -130,6 +130,46 @@ def test_adapter_promotion_review_blocks_regressions_and_missing_repo_baseline(
     assert review["auto_promoted"] is False
 
 
+def test_adapter_promotion_review_blocks_same_candidate_and_stable_adapter(
+    tmp_path: Path,
+) -> None:
+    candidate = tmp_path / "same-adapter"
+    make_adapter(candidate)
+    training_review_path = tmp_path / "training-review.json"
+    broad_summary = tmp_path / "broad.summary.json"
+    rust_summary = tmp_path / "rust.summary.json"
+    repo_summary = tmp_path / "repo-candidate.summary.json"
+    baseline_repo_summary = tmp_path / "repo-baseline.summary.json"
+    write_json(training_review_path, training_review())
+    write_json(broad_summary, summary(prompts=18, ok=18, expectation_ok=18))
+    write_json(
+        rust_summary,
+        summary(prompts=7, ok=7, expectation_ok=7, validation_ok=7),
+    )
+    write_json(repo_summary, summary(prompts=10, ok=10, expectation_ok=8))
+    write_json(baseline_repo_summary, summary(prompts=10, ok=10, expectation_ok=7))
+
+    review = review_adapter_promotion(
+        candidate_adapter=candidate,
+        stable_adapter=candidate,
+        training_review_path=training_review_path,
+        broad_summary_path=broad_summary,
+        rust_summary_path=rust_summary,
+        repo_summary_path=repo_summary,
+        baseline_repo_summary_path=baseline_repo_summary,
+        min_broad_expectation_ok=18,
+        min_rust_expectation_ok=7,
+        min_rust_validation_ok=7,
+        min_repo_expectation_ok=1,
+        require_adapter_exists=True,
+    )
+
+    assert review["review_status"] == "promotion_blocked"
+    assert "candidate_adapter_matches_stable" in review["hard_blockers"]
+    assert review["promotion_allowed"] is False
+    assert review["serving_changed"] is False
+
+
 def test_main_writes_adapter_promotion_review(tmp_path: Path) -> None:
     candidate = tmp_path / "candidate"
     make_adapter(candidate)

@@ -195,6 +195,7 @@ Keep serving the current stable adapter unless the candidate:
 - does not regress Rust/XRIQ prompts,
 - loads cleanly through vLLM, and
 - has its dataset/provenance recorded.
+- is a different adapter path than the current stable adapter.
 
 After a candidate training run and evals complete, write a promotion-review
 artifact before leaving the candidate served:
