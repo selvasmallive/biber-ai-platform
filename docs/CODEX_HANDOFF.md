@@ -359,9 +359,12 @@ serving the last broad-safe Rust/XRIQ adapter.
   `1834035 Add adapter promotion review gate`.
 - Latest Vast candidate adapter review wrapper commit pushed and Vast-verified:
   `426fcd3 Add Vast candidate adapter review wrapper`.
+- Latest candidate adapter review newest-artifact selection fix pushed and
+  Vast-verified:
+  `4f3bb4c Use newest artifacts in candidate adapter review`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `426fcd3`. Full Rust/private-devnet
+- Vast code verification is current through `4f3bb4c`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -392,6 +395,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   training approval guard verification is current through `b0d5f49`; adapter
   promotion-review gate verification is current through `1834035`; Vast
   candidate adapter review wrapper verification is current through `426fcd3`;
+  candidate adapter review newest-artifact selection verification is current
+  through `4f3bb4c`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -458,9 +463,22 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `426fcd3`. If later docs-only
+  - Vast code verification is current through `4f3bb4c`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `4f3bb4c` candidate adapter review newest-artifact selection fix
+    required no service restart because it changed only
+    `scripts/vast_review_candidate_adapter_direct.sh`. vLLM stayed on pid
+    `5802`; FastAPI stayed on pid `53902`. Vast verification passed `bash -n
+    scripts/vast_review_candidate_adapter_direct.sh` plus dry-run wrapper
+    execution:
+    `BIBER_CANDIDATE_ADAPTER_DIR=/workspace/adapters/biber-dev-core-lora-rust-xriq-400 BIBER_CANDIDATE_EVAL_DRY_RUN=1 BIBER_CANDIDATE_EVAL_SESSION=dry-run-candidate-review-mtime bash scripts/vast_review_candidate_adapter_direct.sh`.
+    The dry-run selected the newest repo prompt artifact by modification time:
+    `/workspace/outputs/repo-adapt-balanced-xwide-20260520T165801Z.prompts.jsonl`.
+    It still selected training review
+    `/workspace/outputs/evals/repo-adapt-training-review-20260520T183028Z.json`,
+    printed the planned stable/candidate eval and promotion-review commands,
+    and did not train, serve, promote, run evals, or restart anything.
   - The `426fcd3` Vast candidate adapter review wrapper checkpoint required no
     service restart because it added only `scripts/vast_review_candidate_adapter_direct.sh`
     and docs. vLLM stayed on pid `5802`; FastAPI stayed on pid `53902`. Vast
