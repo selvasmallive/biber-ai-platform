@@ -364,9 +364,11 @@ serving the last broad-safe Rust/XRIQ adapter.
   `4f3bb4c Use newest artifacts in candidate adapter review`.
 - Latest adapter promotion same-as-stable blocker pushed and Vast-verified:
   `25cc41e Block promotion of current stable adapter`.
+- Latest repo held-out promotion margin gate pushed and Vast-verified:
+  `600bff1 Require repo eval improvement margin`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `25cc41e`. Full Rust/private-devnet
+- Vast code verification is current through `600bff1`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -399,7 +401,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   candidate adapter review wrapper verification is current through `426fcd3`;
   candidate adapter review newest-artifact selection verification is current
   through `4f3bb4c`; adapter promotion same-as-stable blocker verification is
-  current through `25cc41e`;
+  current through `25cc41e`; repo held-out promotion margin gate verification
+  is current through `600bff1`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -466,9 +469,24 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `25cc41e`. If later docs-only
+  - Vast code verification is current through `600bff1`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `600bff1` repo held-out promotion margin gate checkpoint required no
+    service restart because it changed only the offline adapter promotion
+    review helper, focused tests, and docs. Vast verification passed pytest
+    `tests/test_adapter_promotion_review.py tests/test_repo_adaptation_training_review.py tests/test_training_dataset.py -q`
+    reporting `12 passed`. It then reran only the promotion-review command
+    against the existing stable-as-candidate eval summaries with a different
+    placeholder candidate path and `--skip-adapter-exists-check`, writing
+    `/workspace/outputs/evals/stable-as-candidate-20260520T185016Z/candidate-promotion-review.margin-blocked.json`.
+    Result: `review_status=promotion_blocked`,
+    `hard_blockers=["repo_eval_improvement_below_margin"]`,
+    `candidate_expectation_ok=76`, `baseline_expectation_ok=73`, `delta=3`,
+    `min_repo_improvement_delta=5`, `required_candidate_expectation_ok=78`,
+    `promotion_allowed=false`, `safe_to_promote=false`, and
+    `serving_changed=false`. This is now the default guard against accepting
+    small repo held-out score drift as a real adapter improvement.
   - The `25cc41e` adapter promotion same-as-stable blocker checkpoint required
     no service restart for the code change. A real Vast wrapper validation was
     run first with the current stable adapter as both stable and candidate:
