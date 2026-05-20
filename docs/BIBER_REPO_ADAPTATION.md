@@ -233,3 +233,26 @@ adapter, and keeps `promotion_allowed`, `safe_to_promote`, and `auto_promoted`
 false. If every gate passes, it only marks the candidate
 `ready_for_user_promotion_approval`; a separate explicit user approval is still
 required before keeping the candidate served.
+
+## Review Candidate Regressions
+
+If a trained candidate improves the repo-held-out eval but fails the broad or
+Rust/XRIQ gates, do not train again immediately and do not promote it. First
+turn the failed broad/Rust rows into a small anti-regression review queue:
+
+```bash
+python training/repo_adaptation_regression_review.py \
+  --broad-results /workspace/outputs/evals/repo-adapt-candidate-session/candidate-broad.jsonl \
+  --rust-results /workspace/outputs/evals/repo-adapt-candidate-session/candidate-rust-xriq.jsonl \
+  --promotion-review /workspace/outputs/evals/repo-adapt-candidate-session/candidate-promotion-review.json \
+  --review-output /workspace/outputs/evals/repo-adapt-candidate-session/candidate-regression-review.json \
+  --anti-regression-candidates-output /workspace/outputs/evals/repo-adapt-candidate-session/anti-regression-candidates.jsonl
+```
+
+The helper rehydrates prompt metadata from `training/eval_prompts.jsonl` and
+`training/eval_prompts_rust_xriq.jsonl` by default. The exported rows use
+`quality: needs_review`, leave `output` empty, and keep `training_allowed`,
+`safe_to_train`, `approved_for_training`, and `auto_promoted` false. A reviewer
+must fill verified non-regressing answers, rerun
+`repo_adaptation_candidate_review.py`, validate/merge the rows, and get a
+separate explicit user training approval before any additional Vast QLoRA run.

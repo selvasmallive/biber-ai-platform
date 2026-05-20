@@ -15,6 +15,10 @@ from training.dataset_utils import DatasetIssue, validate_record
 
 
 READY_QUALITIES = {"reviewed", "verified"}
+REPO_ADAPTATION_CANDIDATE_SOURCES = {
+    "repo_adaptation_failure_review",
+    "repo_adaptation_adapter_regression_review",
+}
 
 
 def load_candidate_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -37,7 +41,7 @@ def is_repo_adaptation_candidate(row: dict[str, Any]) -> bool:
     metadata = row.get("metadata")
     if not isinstance(metadata, dict):
         metadata = {}
-    return metadata.get("source") == "repo_adaptation_failure_review"
+    return metadata.get("source") in REPO_ADAPTATION_CANDIDATE_SOURCES
 
 
 def issue_summary(issues: list[DatasetIssue]) -> list[dict[str, Any]]:

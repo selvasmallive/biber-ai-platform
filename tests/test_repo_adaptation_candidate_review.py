@@ -121,6 +121,30 @@ def test_review_rejects_unsupported_candidate_sources(tmp_path: Path) -> None:
     assert review["ready_for_dataset_validation"] is False
 
 
+def test_review_accepts_adapter_regression_review_source(tmp_path: Path) -> None:
+    candidates_path = tmp_path / "candidates.jsonl"
+    write_jsonl(
+        candidates_path,
+        [
+            candidate_record(
+                output="Return a minimal compile-safe implementation with a focused test.",
+                quality="reviewed",
+                source="repo_adaptation_adapter_regression_review",
+            )
+        ],
+    )
+
+    review = review_repo_adaptation_candidate_records(
+        candidate_paths=[candidates_path],
+        min_ready=1,
+    )
+
+    assert review["records"] == 1
+    assert review["ready_records"] == 1
+    assert review["rejected_records"] == 0
+    assert review["hard_blockers"] == []
+
+
 def test_main_writes_candidate_review(tmp_path: Path) -> None:
     candidates_path = tmp_path / "candidates.jsonl"
     review_path = tmp_path / "review.json"
