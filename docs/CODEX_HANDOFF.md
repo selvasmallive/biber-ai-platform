@@ -427,6 +427,28 @@ serving the last broad-safe Rust/XRIQ adapter.
     `github_save_ready=false`, and `approved_for_training=false`. Use
     `scripts/biber_agent_client.py --json list-repair-chain-training-pipelines /workspace/outputs --limit 10`
     on Vast to scan recent output directories before considering training.
+  - Repo-adaptation repeatability evidence was collected on Vast without
+    OpenAI and without starting training. First, the scanner confirmed all
+    existing repair-chain training pipeline artifacts remain blocked:
+    `matched=3`, `blocked=3`, `ready_for_dataset_validation=0`. Then
+    `training/repo_adaptation_plan.py` was run against
+    `/workspace/biber-ai-platform` with `--max-prompts 6`, writing
+    `/workspace/outputs/repo-adapt-20260520T142159Z-70342.plan.json` and
+    `/workspace/outputs/repo-adapt-20260520T142159Z-70342.prompts.jsonl`.
+    The same six prompts were evaluated twice through the local served BIBER
+    model:
+    `/workspace/outputs/evals/repo-adapt-20260520T142159Z-70342.summary.json`
+    and
+    `/workspace/outputs/evals/repo-adapt-repeat-20260520T142227Z-70388.summary.json`
+    both reported `ok=6`, `failed=0`, `expectation_ok=2`, and
+    `expectation_failed=4`. The combined repeated-failure review was written
+    to
+    `/workspace/outputs/evals/repo-adapt-repeat-20260520T142227Z-70388.repeat-review.json`
+    with `failures_seen=8`, `groups=4`, `min_repeats=2`, and
+    `training_candidates=4`; the review-only candidate JSONL was written to
+    `/workspace/outputs/evals/repo-adapt-repeat-20260520T142227Z-70388.repeat-training-candidates.jsonl`.
+    These candidates still have empty `output` fields and `quality=needs_review`;
+    they are evidence for human review only, not a trainable dataset.
   - The `76c4401` repair-chain training pipeline status checkpoint required no
     service restart because it changed only the stdlib agent client, smoke
     script, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid
@@ -5528,7 +5550,11 @@ bash scripts/xriq_private_devnet_smoke.sh
    `list-repair-chain-training-pipelines`, then
    manually
    review repeated passed repairs into verified eval candidates only after a
-   real repo eval produces repeatable gaps. Public XRIQ launch, exchange
+   real repo eval produces repeatable gaps. There is now a repeated
+   repo-adaptation failure-review artifact with four review-only candidates at
+   `/workspace/outputs/evals/repo-adapt-repeat-20260520T142227Z-70388.repeat-training-candidates.jsonl`;
+   next, review those rows and write verified `output` values only if they are
+   useful and safe. Public XRIQ launch, exchange
    listing, custody, liquidity, bridges, and market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
