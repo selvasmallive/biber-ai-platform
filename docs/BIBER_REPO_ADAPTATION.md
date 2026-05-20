@@ -26,6 +26,21 @@ The plan contains metadata only: selected file paths, hashes, language counts,
 role counts, skip reasons, and suggested eval prompts. It does not copy source
 code into the plan.
 
+Use the default `basic` prompt mode for quick smoke checks. Use expanded mode
+when collecting more repo-adaptation signal before any fine-tune:
+
+```bash
+python training/repo_adaptation_plan.py \
+  --repo-root /path/to/github/repo \
+  --output /workspace/outputs/repo-adaptation-plan-expanded.json \
+  --eval-prompts-output /workspace/outputs/repo-adaptation-eval-prompts-expanded.jsonl \
+  --prompt-mode expanded \
+  --max-prompts 24
+```
+
+Expanded mode emits multiple prompt variants per selected file, including
+context selection, regression-test planning, and risk/verification prompts.
+
 The scanner skips common unsafe or noisy paths, including `.git`, `.env`,
 private-key-looking files, build outputs, `node_modules`, Rust `target`, binary
 archives, and files whose contents look like secrets.

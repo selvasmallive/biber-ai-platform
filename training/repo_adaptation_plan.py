@@ -92,6 +92,13 @@ ROLE_HINTS = (
     ("mempool", "mempool"),
     ("consensus", "consensus"),
 )
+PROMPT_MODES = {"basic", "expanded"}
+EXPANDED_PROMPT_VARIANTS = (
+    "implementation_step",
+    "context_selection",
+    "regression_test",
+    "risk_and_verification",
+)
 SECRET_PATTERNS = (
     re.compile(r"gh[pousr]_[A-Za-z0-9_]{20,}"),
     re.compile(r"sk-[A-Za-z0-9_-]{20,}"),
@@ -136,6 +143,11 @@ def role_for(path: Path) -> str:
         if needle in lower_path:
             return role
     return "implementation"
+
+
+def safe_prompt_id(value: str) -> str:
+    prompt_id = re.sub(r"[^a-z0-9]+", "-", value.lower())
+    return prompt_id.strip("-") or "repo-adaptation"
 
 
 def has_possible_secret(text: str) -> bool:
@@ -193,7 +205,11 @@ def scan_repo(
     return summaries, skipped, scanned
 
 
-def build_eval_prompts(files: list[RepoFileSummary], *, max_prompts: int = 12) -> list[dict[str, Any]]:
+def build_basic_eval_prompts(
+    files: list[RepoFileSummary],
+    *,
+    max_prompts: int,
+) -> list[dict[str, Any]]:
     prompts: list[dict[str, Any]] = []
     seen_keys: set[tuple[str, str]] = set()
     for file in files:
@@ -201,8 +217,7 @@ def build_eval_prompts(files: list[RepoFileSummary], *, max_prompts: int = 12) -
         if key in seen_keys:
             continue
         seen_keys.add(key)
-        prompt_id = re.sub(r"[^a-z0-9]+", "-", f"repo-{file.language}-{file.role}".lower())
-        prompt_id = prompt_id.strip("-") or "repo-adaptation"
+        prompt_id = safe_prompt_id(f"repo-{file.language}-{file.role}")
         prompts.append(
             {
                 "id": prompt_id,
@@ -213,6 +228,8 @@ def build_eval_prompts(files: list[RepoFileSummary], *, max_prompts: int = 12) -
                 ),
                 "language": file.language,
                 "task_type": "repo_adaptation_eval",
+                "prompt_mode": "basic",
+                "prompt_variant": "implementation_step",
                 "temperature": 0.0,
                 "max_tokens": 256,
                 "expect_contains": [file.role],
@@ -223,13 +240,101 @@ def build_eval_prompts(files: list[RepoFileSummary], *, max_prompts: int = 12) -
     return prompts
 
 
+def build_expanded_prompt(file: RepoFileSummary, variant: str) -> dict[str, Any]:
+    path_hash = hashlib.sha256(file.path.encode("utf-8")).hexdigest()[:8]
+    prompt_id = safe_prompt_id(
+        f"repo-{file.language}-{file.role}-{variant}-{path_hash}"
+    )
+    common = {
+        "id": prompt_id,
+        "language": file.language,
+        "task_type": "repo_adaptation_eval",
+        "prompt_mode": "expanded",
+        "prompt_variant": variant,
+        "repo_path": file.path,
+        "temperature": 0.0,
+        "max_tokens": 320,
+    }
+    if variant == "context_selection":
+        return {
+            **common,
+            "prompt": (
+                "Using the repository conventions, list the smallest set of "
+                "repo context files or checks to inspect before changing "
+                f"`{file.path}`. Mention the target path and keep the answer "
+                "specific, test-oriented, and limited to safe read-only context."
+            ),
+            "expect_contains": [file.path, "test"],
+        }
+    if variant == "regression_test":
+        return {
+            **common,
+            "prompt": (
+                "Using the repository conventions, propose a focused regression "
+                f"test for a {file.role} change related to `{file.path}`. "
+                "Include the expected test command and the behavior that should "
+                "fail before the fix."
+            ),
+            "expect_contains": ["test", "command"],
+        }
+    if variant == "risk_and_verification":
+        return {
+            **common,
+            "prompt": (
+                "Using the repository conventions, identify the main regression "
+                f"risk for a {file.role} change related to `{file.path}` and "
+                "the narrow verification command to run after the change."
+            ),
+            "expect_contains": ["risk", "command"],
+        }
+    return {
+        **common,
+        "prompt": (
+            "Using the repository conventions, explain the safest next "
+            f"implementation step for a {file.role} change related to "
+            f"`{file.path}`. Keep the answer specific and test-oriented."
+        ),
+        "expect_contains": [file.role, "test"],
+    }
+
+
+def build_expanded_eval_prompts(
+    files: list[RepoFileSummary],
+    *,
+    max_prompts: int,
+) -> list[dict[str, Any]]:
+    prompts: list[dict[str, Any]] = []
+    for file in files:
+        for variant in EXPANDED_PROMPT_VARIANTS:
+            prompts.append(build_expanded_prompt(file, variant))
+            if len(prompts) >= max_prompts:
+                return prompts
+    return prompts
+
+
+def build_eval_prompts(
+    files: list[RepoFileSummary],
+    *,
+    max_prompts: int = 12,
+    prompt_mode: str = "basic",
+) -> list[dict[str, Any]]:
+    if prompt_mode == "basic":
+        return build_basic_eval_prompts(files, max_prompts=max_prompts)
+    if prompt_mode == "expanded":
+        return build_expanded_eval_prompts(files, max_prompts=max_prompts)
+    raise ValueError(f"Unsupported prompt_mode: {prompt_mode}")
+
+
 def build_plan(
     repo_root: Path,
     *,
     max_files: int,
     max_file_bytes: int,
     max_prompts: int,
+    prompt_mode: str = "basic",
 ) -> dict[str, Any]:
+    if prompt_mode not in PROMPT_MODES:
+        raise ValueError(f"prompt_mode must be one of {sorted(PROMPT_MODES)}.")
     files, skipped, scanned = scan_repo(
         repo_root,
         max_files=max_files,
@@ -237,11 +342,16 @@ def build_plan(
     )
     languages = Counter(file.language for file in files)
     roles = Counter(file.role for file in files)
-    eval_prompts = build_eval_prompts(files, max_prompts=max_prompts)
+    eval_prompts = build_eval_prompts(
+        files,
+        max_prompts=max_prompts,
+        prompt_mode=prompt_mode,
+    )
     return {
         "command": "biber-repo-adaptation-plan",
         "generated_at": datetime.now(UTC).isoformat(),
         "repo_root": str(repo_root.resolve()),
+        "prompt_mode": prompt_mode,
         "strategy": {
             "default": "repo_context_first",
             "fine_tune_only_after": [
@@ -288,6 +398,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-files", type=int, default=200)
     parser.add_argument("--max-file-bytes", type=int, default=200_000)
     parser.add_argument("--max-prompts", type=int, default=12)
+    parser.add_argument("--prompt-mode", choices=sorted(PROMPT_MODES), default="basic")
     args = parser.parse_args(argv)
 
     if not args.repo_root.exists() or not args.repo_root.is_dir():
@@ -297,6 +408,7 @@ def main(argv: list[str] | None = None) -> int:
         max_files=args.max_files,
         max_file_bytes=args.max_file_bytes,
         max_prompts=args.max_prompts,
+        prompt_mode=args.prompt_mode,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")

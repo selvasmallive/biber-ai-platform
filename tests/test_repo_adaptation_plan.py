@@ -54,7 +54,41 @@ def test_build_plan_has_strategy_and_eval_prompts(tmp_path: Path) -> None:
     assert plan["suggested_eval_prompts"]
     prompt = plan["suggested_eval_prompts"][0]
     assert prompt["task_type"] == "repo_adaptation_eval"
+    assert prompt["prompt_mode"] == "basic"
     assert "src/wallet.rs" in prompt["prompt"]
+
+
+def test_build_plan_expanded_prompt_mode_adds_prompt_variants(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src" / "wallet.rs").write_text(
+        "pub struct Wallet;\n",
+        encoding="utf-8",
+    )
+    (repo / "docs").mkdir()
+    (repo / "docs" / "API.md").write_text(
+        "# API\n",
+        encoding="utf-8",
+    )
+
+    plan = build_plan(
+        repo,
+        max_files=20,
+        max_file_bytes=1000,
+        max_prompts=6,
+        prompt_mode="expanded",
+    )
+    prompts = plan["suggested_eval_prompts"]
+    prompt_ids = [prompt["id"] for prompt in prompts]
+    variants = {prompt["prompt_variant"] for prompt in prompts}
+
+    assert plan["prompt_mode"] == "expanded"
+    assert len(prompts) == 6
+    assert len(prompt_ids) == len(set(prompt_ids))
+    assert {"implementation_step", "context_selection", "regression_test"}.issubset(
+        variants
+    )
+    assert all(prompt["prompt_mode"] == "expanded" for prompt in prompts)
 
 
 def test_main_writes_plan_and_eval_jsonl(tmp_path: Path) -> None:
@@ -83,4 +117,5 @@ def test_main_writes_plan_and_eval_jsonl(tmp_path: Path) -> None:
         if line.strip()
     ]
     assert plan["included_files"] == 1
+    assert plan["prompt_mode"] == "basic"
     assert prompts[0]["language"] == "Python"
