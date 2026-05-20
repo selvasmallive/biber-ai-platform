@@ -3830,6 +3830,146 @@ def test_run_review_repair_chain_training_readiness_marks_manual_review_ready(
     assert result["approved_for_training"] is False
 
 
+def test_run_export_repair_chain_training_candidates_blocks_unready_gate(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "export-repair-chain-training-candidates should not resolve an API key"
+        )
+
+    readiness_path = tmp_path / "training-readiness.json"
+    output_path = tmp_path / "training-candidates.jsonl"
+    readiness_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_training_readiness_review",
+                "review_status": "training_blocked",
+                "training_gate_status": "blocked",
+                "baseline_ready_records": 0,
+                "ready_for_manual_training_dataset_review": False,
+                "hard_blockers": ["no_baseline_ready_records"],
+                "baseline_ready_groups": [],
+                "training_allowed": False,
+                "safe_to_train": False,
+                "approved_for_training": False,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "export-repair-chain-training-candidates",
+                str(readiness_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert output_path.read_text(encoding="utf-8") == ""
+    assert result["source"] == "biber_mvp_loop_repair_chain_training_candidate_export"
+    assert result["export_status"] == "training_candidates_blocked"
+    assert result["records"] == 0
+    assert result["training_candidate_records"] == 0
+    assert result["supported_review_artifacts"] == 1
+    assert result["skipped_artifacts"] == 1
+    assert result["rejected_artifacts"] == 0
+    assert result["hard_blockers"] == ["no_baseline_ready_records"]
+    assert result["training_dataset_ready"] is False
+    assert result["requires_human_training_dataset_review"] is False
+    assert result["review_queue_only"] is True
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["approved_for_training"] is False
+
+
+def test_run_export_repair_chain_training_candidates_writes_review_queue(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "export-repair-chain-training-candidates should not resolve an API key"
+        )
+
+    readiness_path = tmp_path / "training-readiness.json"
+    output_path = tmp_path / "training-candidates.jsonl"
+    readiness_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_training_readiness_review",
+                "review_status": "baseline_ready_manual_training_review_required",
+                "training_gate_status": "manual_review_required",
+                "baseline_ready_records": 1,
+                "ready_for_manual_training_dataset_review": True,
+                "hard_blockers": [],
+                "baseline_ready_groups": [
+                    {
+                        "decision": "approve_as_baseline",
+                        "count": 2,
+                        "heldout_eval_result_ids": ["result-a"],
+                        "reviewers": ["baseline-reviewer"],
+                    }
+                ],
+                "training_allowed": False,
+                "safe_to_train": False,
+                "approved_for_training": False,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "export-repair-chain-training-candidates",
+                str(readiness_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    rows = [
+        json.loads(line)
+        for line in output_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert result["export_status"] == "training_candidates_need_human_review"
+    assert result["records"] == 1
+    assert result["training_candidate_records"] == 1
+    assert result["hard_blockers"] == []
+    assert result["training_dataset_ready"] is False
+    assert result["requires_human_training_dataset_review"] is True
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["approved_for_training"] is False
+    assert len(rows) == 1
+    assert rows[0]["source"] == "biber_mvp_loop_repair_chain_training_candidate"
+    assert rows[0]["quality"] == "needs_review"
+    assert rows[0]["output"] == ""
+    assert rows[0]["training_candidate_status"] == (
+        "needs_human_training_dataset_review"
+    )
+    assert rows[0]["training_allowed"] is False
+    assert rows[0]["safe_to_train"] is False
+    assert rows[0]["approved_for_training"] is False
+    assert rows[0]["metadata"]["readiness_artifact"] == str(readiness_path)
+    assert rows[0]["metadata"]["heldout_eval_result_ids"] == ["result-a"]
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 

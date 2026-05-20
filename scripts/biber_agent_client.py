@@ -4240,6 +4240,202 @@ def review_repair_chain_training_readiness(
     }
 
 
+def build_repair_chain_training_candidate_record(
+    *,
+    readiness_path: str,
+    readiness: Mapping[str, Any],
+    group: Mapping[str, Any],
+    group_index: int,
+) -> dict[str, Any]:
+    result_ids = [
+        str(item)
+        for item in require_list(group.get("heldout_eval_result_ids"))
+        if item
+    ]
+    reviewers = [
+        str(item)
+        for item in require_list(group.get("reviewers"))
+        if item
+    ]
+    group_json = json.dumps(group, indent=2, sort_keys=True)
+    return {
+        "instruction": (
+            "Review this BIBER repair-chain baseline evidence and write a "
+            "verified training answer only if it improves repo-specific coding "
+            "behavior without leaking private code or secrets."
+        ),
+        "input": (
+            "This is a BIBER repair-chain training candidate review item, not "
+            "a training record yet.\n"
+            f"readiness_artifact: {readiness_path}\n"
+            f"training_gate_status: {readiness.get('training_gate_status')}\n"
+            f"baseline_ready_records: {readiness.get('baseline_ready_records', 0)}\n"
+            f"group_index: {group_index}\n"
+            f"decision: {group.get('decision')}\n"
+            f"count: {group.get('count', 0)}\n"
+            f"heldout_eval_result_ids: {', '.join(result_ids) or 'none'}\n"
+            f"reviewers: {', '.join(reviewers) or 'none'}\n\n"
+            "Baseline-ready group JSON:\n"
+            f"{group_json}"
+        ),
+        "output": "",
+        "category": "repo_adaptation",
+        "stack": ["repo_adaptation", "biber_repair_chain"],
+        "quality": "needs_review",
+        "source": "biber_mvp_loop_repair_chain_training_candidate",
+        "training_candidate_status": "needs_human_training_dataset_review",
+        "review_required": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "metadata": {
+            "source": "biber_mvp_loop_repair_chain_training_candidate",
+            "readiness_artifact": readiness_path,
+            "group_index": group_index,
+            "decision": group.get("decision"),
+            "count": int(group.get("count") or 0),
+            "heldout_eval_result_ids": result_ids,
+            "reviewers": reviewers,
+            "review_required": True,
+            "promotion_rule": (
+                "Fill output with a verified answer, remove unsafe content, "
+                "change quality to reviewed or verified, validate the dataset, "
+                "and get explicit user approval before any Vast training job."
+            ),
+        },
+    }
+
+
+def export_repair_chain_training_candidates(
+    *,
+    readiness_paths: list[str],
+    output_path: str,
+    limit: int,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+
+    records: list[dict[str, Any]] = []
+    supported: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    blockers: list[str] = []
+    for readiness_path in readiness_paths:
+        readiness = load_json_artifact(
+            readiness_path,
+            label="repair-chain training readiness artifact",
+        )
+        if (
+            readiness.get("source")
+            != "biber_mvp_loop_repair_chain_training_readiness_review"
+        ):
+            rejected.append(
+                {
+                    "artifact_path": readiness_path,
+                    "reason": "unsupported_source",
+                    "source": readiness.get("source"),
+                }
+            )
+            blockers.append("unsupported_readiness_artifacts_present")
+            continue
+
+        readiness_blockers = [
+            str(item)
+            for item in require_list(readiness.get("hard_blockers"))
+            if item
+        ]
+        supported.append(
+            {
+                "artifact_path": readiness_path,
+                "training_gate_status": readiness.get("training_gate_status"),
+                "ready_for_manual_training_dataset_review": readiness.get(
+                    "ready_for_manual_training_dataset_review"
+                )
+                is True,
+                "baseline_ready_records": int(
+                    readiness.get("baseline_ready_records") or 0
+                ),
+                "hard_blockers": readiness_blockers,
+            }
+        )
+        if (
+            readiness.get("ready_for_manual_training_dataset_review") is not True
+            or readiness.get("training_gate_status") != "manual_review_required"
+            or readiness_blockers
+        ):
+            skipped.append(
+                {
+                    "artifact_path": readiness_path,
+                    "reason": "training_readiness_blocked",
+                    "training_gate_status": readiness.get("training_gate_status"),
+                    "hard_blockers": readiness_blockers,
+                }
+            )
+            blockers.extend(readiness_blockers or ["training_readiness_blocked"])
+            continue
+
+        for group_index, group in enumerate(
+            require_list(readiness.get("baseline_ready_groups")),
+            start=1,
+        ):
+            if len(records) >= limit:
+                break
+            if not isinstance(group, dict):
+                continue
+            records.append(
+                build_repair_chain_training_candidate_record(
+                    readiness_path=readiness_path,
+                    readiness=readiness,
+                    group=group,
+                    group_index=group_index,
+                )
+            )
+
+    output = write_jsonl_artifact(records, output_path)
+    unique_blockers = sorted({blocker for blocker in blockers if blocker})
+    export_status = (
+        "training_candidates_need_human_review"
+        if records
+        else "training_candidates_blocked"
+    )
+    return {
+        "source": "biber_mvp_loop_repair_chain_training_candidate_export",
+        "export_status": export_status,
+        "records": len(records),
+        "training_candidate_records": len(records),
+        "review_artifacts": len(readiness_paths),
+        "supported_review_artifacts": len(supported),
+        "rejected_artifacts": len(rejected),
+        "skipped_artifacts": len(skipped),
+        "output": output,
+        "quality": "needs_review" if records else None,
+        "training_dataset_ready": False,
+        "requires_human_training_dataset_review": bool(records),
+        "manual_review_required": bool(records),
+        "eval_only": False,
+        "review_queue_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "readiness_paths": list(readiness_paths),
+        "supported": supported,
+        "skipped": skipped,
+        "rejected": rejected,
+        "hard_blockers": unique_blockers,
+        "next_review_action": (
+            "fill_reviewed_training_candidate_outputs_before_validation_or_training"
+            if records
+            else "collect_baseline_ready_decision_reviews_before_training"
+        ),
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -5490,6 +5686,42 @@ def format_repair_chain_training_readiness_summary(
     return "\n".join(lines)
 
 
+def format_repair_chain_training_candidate_export_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    hard_blockers = [
+        str(item)
+        for item in require_list(payload.get("hard_blockers"))
+        if item
+    ]
+    lines = [
+        "BIBER repair-chain training candidate export",
+        f"export_status: {payload.get('export_status', '-')}",
+        f"records: {payload.get('records', 0)}",
+        f"training_candidate_records: {payload.get('training_candidate_records', 0)}",
+        f"review_artifacts: {payload.get('review_artifacts', 0)}",
+        f"supported_review_artifacts: {payload.get('supported_review_artifacts', 0)}",
+        f"skipped_artifacts: {payload.get('skipped_artifacts', 0)}",
+        f"rejected_artifacts: {payload.get('rejected_artifacts', 0)}",
+        (
+            "hard_blockers: "
+            f"{', '.join(hard_blockers) if hard_blockers else '-'}"
+        ),
+        (
+            "requires_human_training_dataset_review: "
+            f"{payload.get('requires_human_training_dataset_review', False)}"
+        ),
+        f"training_dataset_ready: {payload.get('training_dataset_ready', False)}",
+        f"review_queue_only: {payload.get('review_queue_only', True)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"approved_for_training: {payload.get('approved_for_training', False)}",
+        f"output: {payload.get('output', '-')}",
+    ]
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -6210,6 +6442,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     review_repair_chain_training_readiness_parser.add_argument("--output")
 
+    export_repair_chain_training_candidates_parser = subparsers.add_parser(
+        "export-repair-chain-training-candidates",
+        help=(
+            "Export human-review-only training candidate rows from training "
+            "readiness artifacts without making a trainable dataset."
+        ),
+    )
+    export_repair_chain_training_candidates_parser.add_argument(
+        "readiness_artifact",
+        nargs="+",
+    )
+    export_repair_chain_training_candidates_parser.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+    )
+    export_repair_chain_training_candidates_parser.add_argument(
+        "--output",
+        required=True,
+    )
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -6657,6 +6910,17 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(review, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_chain_training_readiness_summary(review)
+        )
+    if args.command == "export-repair-chain-training-candidates":
+        export = export_repair_chain_training_candidates(
+            readiness_paths=args.readiness_artifact,
+            output_path=args.output,
+            limit=args.limit,
+        )
+        return (
+            json.dumps(export, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_training_candidate_export_summary(export)
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)
