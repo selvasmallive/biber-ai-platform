@@ -195,3 +195,23 @@ Keep serving the current stable adapter unless the candidate:
 - does not regress Rust/XRIQ prompts,
 - loads cleanly through vLLM, and
 - has its dataset/provenance recorded.
+
+After a candidate training run and evals complete, write a promotion-review
+artifact before leaving the candidate served:
+
+```bash
+python training/adapter_promotion_review.py \
+  --candidate-adapter /workspace/adapters/biber-dev-core-repo-adapt-candidate \
+  --training-review /workspace/outputs/evals/repo-adaptation-manual-training-review.json \
+  --broad-summary /workspace/outputs/evals/candidate-broad.summary.json \
+  --rust-summary /workspace/outputs/evals/candidate-rust-xriq.summary.json \
+  --repo-summary /workspace/outputs/evals/candidate-repo-heldout.summary.json \
+  --baseline-repo-summary /workspace/outputs/evals/stable-repo-heldout.summary.json \
+  --review-output /workspace/outputs/evals/candidate-promotion-review.json
+```
+
+This helper is validation-only. It never restarts serving, never promotes an
+adapter, and keeps `promotion_allowed`, `safe_to_promote`, and `auto_promoted`
+false. If every gate passes, it only marks the candidate
+`ready_for_user_promotion_approval`; a separate explicit user approval is still
+required before keeping the candidate served.
