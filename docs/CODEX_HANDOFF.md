@@ -538,13 +538,24 @@ serving the last broad-safe Rust/XRIQ adapter.
     `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/candidate-regression-review.json`
     plus
     `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-candidates.jsonl`.
-    It found `6` regressions and `6` anti-regression candidates. Follow-up
-    candidate review wrote
+    It found `6` regressions and `6` anti-regression candidates. Initial
+    follow-up candidate review wrote
     `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-candidate-review.json`
     with `0/6` ready and `6` pending, so these rows are not training-ready.
     Stable service was rechecked after the review-only step with
     `bash scripts/vast_test_direct.sh`; `/v1/models` still shows the stable
     `biber-dev-core-lora-rust-xriq-400` adapter.
+  - The anti-regression candidates were manually reviewed through the existing
+    decision gate after explicit user approval to copy
+    `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-decisions.json`
+    to Vast. Decision application wrote
+    `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-reviewed-candidates.jsonl`
+    and
+    `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-decisions.review.json`
+    with `6/6` approved. Candidate review then wrote
+    `/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-reviewed-candidate-review.json`
+    with `6/6` ready and `0` pending. These reviewed rows are ready for
+    dataset validation/merge only; they are still not training approval.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
@@ -5867,12 +5878,11 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-Current immediate next step: manually review the `6` pending anti-regression
-candidate rows in
-`/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-candidates.jsonl`.
-Fill only verified broad-safe and Rust/XRIQ compile-safe answers, then rerun
-`repo_adaptation_candidate_review.py`. Do not start another Vast QLoRA run until
-those rows are reviewed, validated/merged, readiness is rechecked, and the user
+Current immediate next step: merge the reviewed anti-regression rows from
+`/workspace/outputs/evals/repo-adapt-candidate-reloaded-20260520T195421Z/anti-regression-reviewed-candidates.jsonl`
+into `/workspace/data/repo_adaptation/reviewed_candidates.jsonl` with
+`training/repo_adaptation_dataset_merge.py`, then rerun dataset readiness. Do
+not start another Vast QLoRA run until readiness is rechecked and the user
 explicitly approves training with `BIBER_TRAIN_APPROVED=1`.
 
 1. Keep `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` served unless a
