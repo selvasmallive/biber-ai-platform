@@ -200,6 +200,18 @@ After a candidate training run and evals complete, write a promotion-review
 artifact before leaving the candidate served:
 
 ```bash
+BIBER_CANDIDATE_ADAPTER_DIR=/workspace/adapters/biber-dev-core-repo-adapt-candidate \
+  bash scripts/vast_review_candidate_adapter_direct.sh
+```
+
+The wrapper restores the stable adapter by default. It runs the baseline
+repo-held-out eval, candidate broad eval, candidate Rust/XRIQ validator eval,
+candidate repo-held-out eval, and then writes the promotion-review artifact.
+
+You can also write the promotion review directly when the eval summaries
+already exist:
+
+```bash
 python training/adapter_promotion_review.py \
   --candidate-adapter /workspace/adapters/biber-dev-core-repo-adapt-candidate \
   --training-review /workspace/outputs/evals/repo-adaptation-manual-training-review.json \
