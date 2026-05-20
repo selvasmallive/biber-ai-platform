@@ -3246,6 +3246,134 @@ def test_run_review_repair_chain_heldout_eval_decisions_without_api_key(
     assert result["rejected"][0]["reason"] == "unsupported_source"
 
 
+def test_run_export_repair_chain_heldout_baseline_candidates_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "export-repair-chain-heldout-baseline-candidates should not resolve an API key"
+        )
+
+    jsonl_path = tmp_path / "heldout-decisions.jsonl"
+    output_path = tmp_path / "heldout-baseline-candidates.jsonl"
+    records = [
+        {
+            "source": "biber_mvp_loop_repair_chain_heldout_eval_decision",
+            "decision_status": "recorded",
+            "decision": "accept_for_baseline",
+            "review_status": "human_accept_for_baseline",
+            "reviewer": "baseline-reviewer",
+            "notes": "Candidate only.",
+            "accepted_for_baseline": True,
+            "baseline_candidate_ready": True,
+            "requires_follow_up": False,
+            "eval_only": True,
+            "training_allowed": False,
+            "eligible_for_training": False,
+            "safe_to_train": False,
+            "github_save_ready": False,
+            "approved_for_training": False,
+            "auto_promoted": False,
+            "heldout_eval_review_artifact": "heldout-review.json",
+            "heldout_eval_review_status": "heldout_eval_passed",
+            "heldout_eval_review_ok": True,
+            "heldout_eval_records": 1,
+            "heldout_eval_passed_records": 1,
+            "heldout_eval_failed_records": 0,
+            "heldout_eval_expectation_failed_records": 0,
+            "heldout_eval_rejected_records": 0,
+            "heldout_eval_model_counts": {"biber-dev-core-v1": 1},
+            "heldout_eval_summary_path": "heldout.summary.json",
+            "heldout_eval_result_jsonl_paths": ["heldout.jsonl"],
+            "heldout_eval_result_ids": [
+                "repair_chain_python_compileall_api_abc123"
+            ],
+        },
+        {
+            "source": "biber_mvp_loop_repair_chain_heldout_eval_decision",
+            "decision_status": "recorded",
+            "decision": "defer",
+            "review_status": "human_defer",
+            "reviewer": "second-reviewer",
+            "accepted_for_baseline": False,
+            "baseline_candidate_ready": False,
+            "requires_follow_up": True,
+            "eval_only": True,
+            "training_allowed": False,
+            "eligible_for_training": False,
+            "safe_to_train": False,
+            "github_save_ready": False,
+            "approved_for_training": False,
+            "auto_promoted": False,
+            "heldout_eval_review_artifact": "heldout-review-2.json",
+            "heldout_eval_result_ids": [
+                "repair_chain_rust_check_def456"
+            ],
+        },
+        {
+            "source": "other_source",
+            "decision": "accept_for_baseline",
+        },
+    ]
+    jsonl_path.write_text(
+        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "export-repair-chain-heldout-baseline-candidates",
+                str(jsonl_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+
+    assert result["source"] == "biber_mvp_loop_repair_chain_heldout_baseline_candidate_export"
+    assert result["records"] == 1
+    assert result["skipped_records"] == 1
+    assert result["rejected_records"] == 1
+    assert result["baseline_candidates"] == 1
+    assert result["accepted_for_baseline_records"] == 1
+    assert result["baseline_candidate_ready"] is True
+    assert result["baseline_ready"] is False
+    assert result["requires_baseline_review"] is True
+    assert result["eval_only"] is True
+    assert result["training_allowed"] is False
+    assert result["eligible_for_training"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+    assert result["skipped"][0]["reason"] == "not_accepted_for_baseline"
+    assert result["rejected"][0]["reason"] == "unsupported_source"
+    assert rows[0]["source"] == "biber_mvp_loop_repair_chain_heldout_baseline_candidate"
+    assert rows[0]["heldout_baseline_candidate"] is True
+    assert rows[0]["baseline_candidate_status"] == "candidate_needs_manual_baseline_review"
+    assert rows[0]["decision"] == "accept_for_baseline"
+    assert rows[0]["reviewer"] == "baseline-reviewer"
+    assert rows[0]["accepted_for_baseline"] is True
+    assert rows[0]["baseline_candidate_ready"] is True
+    assert rows[0]["baseline_ready"] is False
+    assert rows[0]["requires_baseline_review"] is True
+    assert rows[0]["eval_only"] is True
+    assert rows[0]["training_allowed"] is False
+    assert rows[0]["eligible_for_training"] is False
+    assert rows[0]["safe_to_train"] is False
+    assert rows[0]["github_save_ready"] is False
+    assert rows[0]["approved_for_training"] is False
+    assert rows[0]["heldout_eval_review_artifact"] == "heldout-review.json"
+    assert rows[0]["heldout_eval_result_ids"] == [
+        "repair_chain_python_compileall_api_abc123"
+    ]
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 

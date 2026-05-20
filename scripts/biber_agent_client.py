@@ -3519,6 +3519,155 @@ def review_repair_chain_heldout_eval_decision_records(
     }
 
 
+def build_repair_chain_heldout_baseline_candidate_record(
+    *,
+    record: Mapping[str, Any],
+    jsonl_path: str,
+    jsonl_index: int,
+) -> dict[str, Any]:
+    if record.get("source") != "biber_mvp_loop_repair_chain_heldout_eval_decision":
+        raise BiberAgentClientError(
+            "export-repair-chain-heldout-baseline-candidates requires held-out eval decision records."
+        )
+    if (
+        record.get("decision") != "accept_for_baseline"
+        or record.get("accepted_for_baseline") is not True
+        or record.get("baseline_candidate_ready") is not True
+    ):
+        raise BiberAgentClientError(
+            "export-repair-chain-heldout-baseline-candidates only accepts baseline-approved held-out eval decisions."
+        )
+    return {
+        "source": "biber_mvp_loop_repair_chain_heldout_baseline_candidate",
+        "heldout_baseline_candidate": True,
+        "baseline_candidate_status": "candidate_needs_manual_baseline_review",
+        "decision": "accept_for_baseline",
+        "decision_status": record.get("decision_status"),
+        "review_status": record.get("review_status"),
+        "reviewer": record.get("reviewer"),
+        "notes": record.get("notes"),
+        "accepted_for_baseline": True,
+        "baseline_candidate_ready": True,
+        "baseline_ready": False,
+        "requires_baseline_review": True,
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "auto_saved": False,
+        "heldout_eval_decision_jsonl_path": jsonl_path,
+        "heldout_eval_decision_jsonl_index": jsonl_index,
+        "heldout_eval_review_artifact": record.get("heldout_eval_review_artifact"),
+        "heldout_eval_review_status": record.get("heldout_eval_review_status"),
+        "heldout_eval_review_ok": record.get("heldout_eval_review_ok"),
+        "heldout_eval_records": record.get("heldout_eval_records"),
+        "heldout_eval_passed_records": record.get("heldout_eval_passed_records"),
+        "heldout_eval_failed_records": record.get("heldout_eval_failed_records"),
+        "heldout_eval_expectation_failed_records": record.get(
+            "heldout_eval_expectation_failed_records"
+        ),
+        "heldout_eval_rejected_records": record.get("heldout_eval_rejected_records"),
+        "heldout_eval_model_counts": require_mapping(
+            record.get("heldout_eval_model_counts")
+        ),
+        "heldout_eval_summary_path": record.get("heldout_eval_summary_path"),
+        "heldout_eval_result_jsonl_paths": require_list(
+            record.get("heldout_eval_result_jsonl_paths")
+        ),
+        "heldout_eval_result_ids": require_list(record.get("heldout_eval_result_ids")),
+        "next_review_action": (
+            "manual_baseline_comparison_before_training_or_model_promotion"
+        ),
+    }
+
+
+def export_repair_chain_heldout_baseline_candidates(
+    *,
+    jsonl_paths: list[str],
+    limit: int,
+    output_path: str,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+
+    records: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for jsonl_path in jsonl_paths:
+        for index, row in enumerate(
+            load_jsonl_artifact(
+                jsonl_path,
+                label="repair-chain held-out eval decision JSONL",
+            ),
+            start=1,
+        ):
+            if row.get("source") != "biber_mvp_loop_repair_chain_heldout_eval_decision":
+                rejected.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "reason": "unsupported_source",
+                        "source": row.get("source"),
+                    }
+                )
+                continue
+            if (
+                row.get("decision") != "accept_for_baseline"
+                or row.get("accepted_for_baseline") is not True
+                or row.get("baseline_candidate_ready") is not True
+            ):
+                skipped.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "reason": "not_accepted_for_baseline",
+                        "decision": row.get("decision"),
+                        "accepted_for_baseline": row.get("accepted_for_baseline"),
+                        "baseline_candidate_ready": row.get(
+                            "baseline_candidate_ready"
+                        ),
+                    }
+                )
+                continue
+            if len(records) >= limit:
+                continue
+            records.append(
+                build_repair_chain_heldout_baseline_candidate_record(
+                    record=row,
+                    jsonl_path=jsonl_path,
+                    jsonl_index=index,
+                )
+            )
+
+    output = write_jsonl_artifact(records, output_path)
+    return {
+        "source": "biber_mvp_loop_repair_chain_heldout_baseline_candidate_export",
+        "records": len(records),
+        "skipped_records": len(skipped),
+        "rejected_records": len(rejected),
+        "output": output,
+        "baseline_candidates": len(records),
+        "accepted_for_baseline_records": len(records),
+        "baseline_candidate_ready": len(records) > 0,
+        "baseline_ready": False,
+        "requires_baseline_review": len(records) > 0,
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "jsonl_paths": list(jsonl_paths),
+        "skipped": skipped,
+        "rejected": rejected,
+        "next_review_action": "manual_baseline_review_before_training",
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -4558,6 +4707,33 @@ def format_repair_chain_heldout_eval_decision_review_summary(
     return "\n".join(lines)
 
 
+def format_repair_chain_heldout_baseline_candidate_export_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    return "\n".join(
+        [
+            "BIBER repair-chain held-out baseline candidate export",
+            f"records: {payload.get('records', 0)}",
+            f"skipped_records: {payload.get('skipped_records', 0)}",
+            f"rejected_records: {payload.get('rejected_records', 0)}",
+            f"baseline_candidates: {payload.get('baseline_candidates', 0)}",
+            (
+                "accepted_for_baseline_records: "
+                f"{payload.get('accepted_for_baseline_records', 0)}"
+            ),
+            f"baseline_candidate_ready: {payload.get('baseline_candidate_ready', False)}",
+            f"baseline_ready: {payload.get('baseline_ready', False)}",
+            f"requires_baseline_review: {payload.get('requires_baseline_review', False)}",
+            f"eval_only: {payload.get('eval_only', True)}",
+            f"training_allowed: {payload.get('training_allowed', False)}",
+            f"safe_to_train: {payload.get('safe_to_train', False)}",
+            f"github_save_ready: {payload.get('github_save_ready', False)}",
+            f"approved_for_training: {payload.get('approved_for_training', False)}",
+            f"output: {payload.get('output', '-')}",
+        ]
+    )
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -5178,6 +5354,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     review_repair_chain_heldout_eval_decisions.add_argument("--output")
 
+    export_repair_chain_heldout_baseline_candidates = subparsers.add_parser(
+        "export-repair-chain-heldout-baseline-candidates",
+        help=(
+            "Export accepted held-out eval decisions into baseline candidates "
+            "without training or model promotion."
+        ),
+    )
+    export_repair_chain_heldout_baseline_candidates.add_argument("jsonl", nargs="+")
+    export_repair_chain_heldout_baseline_candidates.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+    )
+    export_repair_chain_heldout_baseline_candidates.add_argument(
+        "--output",
+        required=True,
+    )
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -5553,6 +5747,19 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(review, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_chain_heldout_eval_decision_review_summary(review)
+        )
+    if args.command == "export-repair-chain-heldout-baseline-candidates":
+        export = export_repair_chain_heldout_baseline_candidates(
+            jsonl_paths=args.jsonl,
+            limit=args.limit,
+            output_path=args.output,
+        )
+        return (
+            json.dumps(export, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_heldout_baseline_candidate_export_summary(
+                export
+            )
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)
