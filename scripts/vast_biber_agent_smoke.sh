@@ -100,6 +100,7 @@ client_mvp_loop_ready_repair_chain_heldout_eval_review_path = artifact_dir / "ag
 client_mvp_loop_ready_repair_chain_heldout_eval_decision_path = artifact_dir / "agent-client-mvp-loop-repair-chain-heldout-eval-decisions.jsonl"
 client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_path = artifact_dir / "agent-client-mvp-loop-repair-chain-heldout-eval-decision-review.json"
 client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_path = artifact_dir / "agent-client-mvp-loop-repair-chain-heldout-baseline-candidates.jsonl"
+client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path = artifact_dir / "agent-client-mvp-loop-repair-chain-heldout-baseline-candidate-review.json"
 
 
 def fail(message: str) -> None:
@@ -2521,6 +2522,75 @@ write_artifact(
         "source": str(client_mvp_loop_ready_repair_chain_heldout_eval_decision_path),
     },
 )
+try:
+    client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "review-repair-chain-heldout-baseline-candidates",
+            str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_path),
+            "--output",
+            str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py review-repair-chain-heldout-baseline-candidates failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py review-repair-chain-heldout-baseline-candidates timed out: {exc}")
+try:
+    client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review = json.loads(
+        client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_output
+    )
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py review-repair-chain-heldout-baseline-candidates returned invalid JSON: {exc}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("records") != 0:
+    fail(f"held-out baseline candidate review should see no smoke defer candidates: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("baseline_candidates") != 0:
+    fail(f"held-out baseline candidate review saw unexpected candidate count: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("baseline_candidate_ready_records") != 0:
+    fail(f"held-out baseline candidate review must keep ready records at zero for smoke defer: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("baseline_ready_records") != 0:
+    fail(f"held-out baseline candidate review must keep baseline ready records at zero: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("requires_baseline_review_records") != 0:
+    fail(f"held-out baseline candidate review should not require review when no candidates exist: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("eval_only") is not True:
+    fail(f"held-out baseline candidate review must mark eval_only=true: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("training_allowed") is not False:
+    fail(f"held-out baseline candidate review must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("safe_to_train") is not False:
+    fail(f"held-out baseline candidate review must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("github_save_ready") is not False:
+    fail(f"held-out baseline candidate review must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("approved_for_training") is not False:
+    fail(f"held-out baseline candidate review must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
+if not client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path.exists():
+    fail(f"held-out baseline candidate review did not write {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path}")
+try:
+    saved_client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review = json.loads(
+        client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path.read_text(
+            encoding="utf-8"
+        )
+    )
+except json.JSONDecodeError as exc:
+    fail(f"held-out baseline candidate review wrote invalid JSON: {exc}")
+if (
+    saved_client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review
+    != client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review
+):
+    fail("held-out baseline candidate review saved artifact differs from stdout JSON")
+write_artifact(
+    "agent-client-mvp-loop-repair-chain-heldout-baseline-candidate-review-result.json",
+    {
+        "status": 0,
+        "body": client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review,
+        "output": str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path),
+        "source": str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_path),
+    },
+)
 
 chat_payload = {
     "language": "Rust",
@@ -2803,6 +2873,9 @@ summary = {
     "agent_client_mvp_loop_ready_repair_chain_heldout_baseline_candidates": str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_path),
     "agent_client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_records": client_mvp_loop_ready_repair_chain_heldout_baseline_candidates.get("records"),
     "agent_client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_skipped": client_mvp_loop_ready_repair_chain_heldout_baseline_candidates.get("skipped_records"),
+    "agent_client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review": str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path),
+    "agent_client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_records": client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("records"),
+    "agent_client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_ready": client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("baseline_ready_records"),
     "agent_client_mvp_loop_report_ok": "BIBER MVP loop" in client_mvp_loop_report,
     "agent_client_mvp_loop_test_ok": client_mvp_loop.get("test_ok"),
     "agent_client_test_id": client_test_run.get("test_id"),
