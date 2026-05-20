@@ -250,6 +250,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP repair-chain held-out baseline candidate export commit
   pushed and Vast-verified:
   `e7f3fe5 Export heldout baseline candidates`.
+- Latest BIBER MVP repair-chain held-out baseline candidate review commit
+  pushed and Vast-verified:
+  `c1fdba8 Review heldout baseline candidates`.
 - Latest Rust/XRIQ eval codegen-profile commits pushed and Vast-verified:
   `176b3e4 Add Rust XRIQ eval codegen profile`,
   `706448e Limit Rust XRIQ eval profile to ledger prompt`,
@@ -289,7 +292,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   `07eb63f Add TensorFlow capability track`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `e7f3fe5`. Full Rust/private-devnet
+- Vast code verification is current through `c1fdba8`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -354,8 +357,10 @@ serving the last broad-safe Rust/XRIQ adapter.
   decision recording verification is current through `c254677`; BIBER
   repair-chain held-out eval decision review verification is current through
   `bf01ce2`; BIBER repair-chain held-out baseline candidate export
-  verification is current through `e7f3fe5`; Rust/XRIQ live codegen-profile
-  eval verification is current through `7e7b8d`.
+  verification is current through `e7f3fe5`; BIBER repair-chain held-out
+  baseline candidate review verification is current through `c1fdba8`;
+  Rust/XRIQ live codegen-profile eval verification is current through
+  `7e7b8d`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 - Current agent-session artifact directory:
@@ -365,9 +370,36 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `e7f3fe5`. If later docs-only
+  - Vast code verification is current through `c1fdba8`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `c1fdba8` repair-chain held-out baseline candidate review checkpoint
+    required no service restart because it changed only the stdlib agent
+    client, smoke script, and tests. vLLM stayed on pid `5802`; FastAPI stayed
+    on pid `53902`. Training was not started because the current held-out
+    baseline candidate queue has `records=0` and `baseline_ready_records=0`.
+  - Latest focused Vast verification for the BIBER repair-chain held-out
+    baseline candidate review slice:
+    `/workspace/biber-venv/bin/python -m compileall scripts tests app src`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`,
+    `bash -n scripts/vast_eval_repair_chain_prompts_direct.sh`, focused pytest
+    `tests/test_live_model_eval.py tests/test_biber_agent_client.py tests/test_github_client.py tests/test_agent_session.py tests/test_agent_capabilities.py tests/test_test_runner.py tests/test_test_diagnosis.py tests/test_workspace_edit.py tests/test_repo_context.py -q`
+    with `134 passed`, live
+    `BIBER_AGENT_SMOKE_CLIENT_SESSION_MAX_TOKENS=24 BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=96 bash scripts/vast_biber_agent_smoke.sh`,
+    and `bash scripts/vast_status_direct.sh`.
+    The smoke wrote artifacts under
+    `/workspace/outputs/biber-agent-smoke-20260520T014240Z-68223` and verified
+    `review-repair-chain-heldout-baseline-candidates` against the empty
+    baseline-candidate queue produced from the synthetic `defer` decision. The
+    review artifact was
+    `/workspace/outputs/biber-agent-smoke-20260520T014240Z-68223/agent-client-mvp-loop-repair-chain-heldout-baseline-candidate-review.json`
+    with `records=0`, `baseline_candidates=0`,
+    `baseline_candidate_ready_records=0`, `baseline_ready_records=0`,
+    `requires_baseline_review_records=0`, `eval_only=true`,
+    `safe_to_train=false`, `training_allowed=false`,
+    `github_save_ready=false`, and `approved_for_training=false`. This is
+    review evidence only; it does not create training data, approve model
+    promotion, save to GitHub, rotate credentials, or approve public XRIQ work.
   - The `e7f3fe5` repair-chain held-out baseline candidate export checkpoint
     required no service restart because it changed only the stdlib agent
     client, smoke script, and tests. vLLM stayed on pid `5802`; FastAPI stayed
@@ -5056,7 +5088,10 @@ bash scripts/xriq_private_devnet_smoke.sh
     `export-repair-chain-heldout-baseline-candidates`, which exports only
     `accept_for_baseline` held-out eval decisions into a baseline-candidate
     JSONL queue while still blocking training, GitHub save, and automatic model
-    promotion.
+    promotion. It also has
+    `review-repair-chain-heldout-baseline-candidates`, which summarizes those
+    baseline-candidate queues while still blocking training, GitHub save, and
+    automatic model promotion.
    - Stack-specific test execution: keep execution allowlisted and predictable.
      The test runner now exposes `dotnet-test`, `maven-test`, `gradle-test`,
      and `gradle-wrapper-test` for target repos that already include the
@@ -5184,7 +5219,10 @@ bash scripts/xriq_private_devnet_smoke.sh
    `export-repair-chain-heldout-baseline-candidates` then exports only accepted
    held-out decisions into baseline candidates that still require manual
    baseline review and still keep training, GitHub save, and automatic model
-   promotion blocked. The
+   promotion blocked.
+   `review-repair-chain-heldout-baseline-candidates` summarizes those
+   baseline-candidate queues and reports `baseline_ready_records` while still
+   blocking training and promotion. The
    repo-adaptation live eval wrapper and the conservative
    repo-adaptation failure-review helper are also
    live. Good next targets are running the full repair sequence
@@ -5209,7 +5247,9 @@ bash scripts/xriq_private_devnet_smoke.sh
    decision with `record-repair-chain-heldout-eval-decision`, then summarize
    that decision queue with `review-repair-chain-heldout-eval-decisions`, then
    export accepted baseline candidates with
-   `export-repair-chain-heldout-baseline-candidates`, and
+   `export-repair-chain-heldout-baseline-candidates`, then review those
+   baseline candidates with
+   `review-repair-chain-heldout-baseline-candidates`, and
    manually
    review repeated passed repairs into verified eval candidates only after a
    real repo eval produces repeatable gaps. Public XRIQ launch, exchange
