@@ -366,9 +366,12 @@ serving the last broad-safe Rust/XRIQ adapter.
   `25cc41e Block promotion of current stable adapter`.
 - Latest repo held-out promotion margin gate pushed and Vast-verified:
   `600bff1 Require repo eval improvement margin`.
+- Latest candidate-review same-as-stable fast-fail guard pushed and
+  Vast-verified:
+  `c38c0a7 Fail fast on stable candidate review`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `600bff1`. Full Rust/private-devnet
+- Vast code verification is current through `c38c0a7`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -402,7 +405,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   candidate adapter review newest-artifact selection verification is current
   through `4f3bb4c`; adapter promotion same-as-stable blocker verification is
   current through `25cc41e`; repo held-out promotion margin gate verification
-  is current through `600bff1`;
+  is current through `600bff1`; candidate-review same-as-stable fast-fail
+  guard verification is current through `c38c0a7`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -469,9 +473,22 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `600bff1`. If later docs-only
+  - Vast code verification is current through `c38c0a7`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
+    required no service restart because it changed only
+    `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
+    verification passed `bash -n scripts/vast_review_candidate_adapter_direct.sh`.
+    A default same-as-stable dry-run command now exits before any eval plan:
+    `BIBER_CANDIDATE_ADAPTER_DIR=/workspace/adapters/biber-dev-core-lora-rust-xriq-400 BIBER_CANDIDATE_EVAL_DRY_RUN=1 BIBER_CANDIDATE_EVAL_SESSION=should-fail-same-candidate bash scripts/vast_review_candidate_adapter_direct.sh`
+    and prints `Candidate adapter matches the stable adapter`. The explicit
+    smoke-test override still works:
+    `BIBER_CANDIDATE_ADAPTER_DIR=/workspace/adapters/biber-dev-core-lora-rust-xriq-400 BIBER_ALLOW_STABLE_AS_CANDIDATE=1 BIBER_CANDIDATE_EVAL_DRY_RUN=1 BIBER_CANDIDATE_EVAL_SESSION=allow-same-candidate-smoke bash scripts/vast_review_candidate_adapter_direct.sh`
+    prints `Allow same path: 1` and only emits the planned commands because
+    dry-run is enabled. No training was started, no evals ran, no adapter was
+    promoted, and serving remains on
+    `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
   - The `600bff1` repo held-out promotion margin gate checkpoint required no
     service restart because it changed only the offline adapter promotion
     review helper, focused tests, and docs. Vast verification passed pytest
