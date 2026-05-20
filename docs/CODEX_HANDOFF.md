@@ -347,9 +347,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER repo-adaptation expanded-prompt commit pushed and
   Vast-verified:
   `356872d Add expanded repo adaptation prompts`.
+- Latest BIBER repo-adaptation balanced expanded-prompt commit pushed and
+  Vast-verified:
+  `71e9f92 Balance repo adaptation expanded prompts`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `356872d`. Full Rust/private-devnet
+- Vast code verification is current through `71e9f92`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -374,8 +377,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   BIBER repo-adaptation candidate decision verification is current through
   `a53be7a`; BIBER repo-adaptation dataset-merge verification is current
   through `436f955`; BIBER repo-adaptation dataset-readiness verification is
-  current through `299af9b`; BIBER repo-adaptation expanded-prompt
-  verification is current through `356872d`;
+  current through `299af9b`; BIBER repo-adaptation expanded/balanced prompt
+  verification is current through `71e9f92`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -442,9 +445,39 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `356872d`. If later docs-only
+  - Vast code verification is current through `71e9f92`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `71e9f92` repo-adaptation balanced expanded-prompt checkpoint required
+    no service restart because it changed only Python helper/test/doc files.
+    vLLM stayed on pid `5802`; FastAPI stayed on pid `53902`. Focused Vast
+    verification passed with pytest
+    `tests/test_repo_adaptation_plan.py tests/test_repo_adaptation_eval.py tests/test_repo_adaptation_failure_review.py tests/test_repo_adaptation_dataset_readiness.py tests/test_training_dataset.py -q`
+    reporting `21 passed`.
+  - Balanced repo-adaptation local-model eval artifacts now exist on the Vast
+    volume. Plan:
+    `/workspace/outputs/repo-adapt-balanced-20260520T162646Z.plan.json`.
+    Prompts:
+    `/workspace/outputs/repo-adapt-balanced-20260520T162646Z.prompts.jsonl`.
+    The 32-prompt batch covered Python `6`, SQL `2`, Markdown `6`, Bash `2`,
+    TOML `7`, JSON `3`, and Rust `6` prompts. First eval summary:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.summary.json`
+    with `32/32` responses, `0` runtime/API failures, and `18/32`
+    expectation checks passed. Repeat eval summary:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.repeat.summary.json`
+    with `32/32` responses, `0` runtime/API failures, and `18/32`
+    expectation checks passed. Repeat failure review:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.repeat-review.json`
+    with `failures_seen=28`, `groups=14`, and `training_candidates=14`.
+    Candidate queue:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.repeat-training-candidates.jsonl`.
+    Candidate review:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.repeat-candidate-review.json`
+    with `records=14`, `ready_records=0`, `pending_review_records=14`, and
+    `hard_blockers=["candidate_outputs_missing","candidate_quality_not_reviewed","candidate_validation_errors","below_min_ready_records"]`.
+    Training was not started; the next repo-adaptation step is to review these
+    14 candidates in small batches and merge only verified rows into
+    `/workspace/data/repo_adaptation/reviewed_candidates.jsonl`.
   - The `356872d` repo-adaptation expanded-prompt checkpoint required no
     service restart because it changed only Python helper/test/doc files. vLLM
     stayed on pid `5802`; FastAPI stayed on pid `53902`. Focused Vast
