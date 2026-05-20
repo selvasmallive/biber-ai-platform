@@ -312,9 +312,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER repair-chain training pipeline listing commit pushed and
   Vast-verified:
   `c4abe43 List repair chain training pipeline statuses`.
+- Latest BIBER repo-adaptation candidate review commit pushed and
+  Vast-verified:
+  `a1b9f5a Add repo adaptation candidate review`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `c4abe43`. Full Rust/private-devnet
+- Vast code verification is current through `a1b9f5a`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -334,7 +337,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   current through `6050bd0`; BIBER hash-gated workspace edit-apply
   verification is current through `79aad96`; BIBER repo-adaptation live-eval
   wrapper verification is current through `81b9dd5`; BIBER repo-adaptation
-  failure-review verification is current through `68479ad`; BIBER agent-client
+  failure-review verification is current through `68479ad`; BIBER
+  repo-adaptation candidate review verification is current through `a1b9f5a`;
+  BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
   `b8abdfb`; BIBER agent-client repo-context planning verification is current
@@ -400,9 +405,29 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `53902`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `c4abe43`. If later docs-only
+  - Vast code verification is current through `a1b9f5a`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
+  - The `a1b9f5a` repo-adaptation candidate review checkpoint required no
+    service restart because it changed only Python helper/test/doc files. vLLM
+    stayed on pid `5802`; FastAPI stayed on pid `53902`. Training was not
+    started because the repeated repo-adaptation candidate queue still has
+    `ready_records=0` and `ready_for_dataset_validation=false`.
+  - Latest focused Vast verification for the BIBER repo-adaptation candidate
+    review slice:
+    `/workspace/biber-venv/bin/python -m compileall training tests` and focused
+    pytest
+    `tests/test_repo_adaptation_candidate_review.py tests/test_repo_adaptation_failure_review.py tests/test_repo_adaptation_eval.py tests/test_repo_adaptation_plan.py tests/test_training_dataset.py -q`
+    with `19 passed`. The new helper was then run against
+    `/workspace/outputs/evals/repo-adapt-repeat-20260520T142227Z-70388.repeat-training-candidates.jsonl`
+    and wrote
+    `/workspace/outputs/evals/repo-adapt-repeat-20260520T142227Z-70388.repeat-candidate-review.json`.
+    Result: `records=4`, `ready_records=0`, `pending_review_records=4`,
+    `ready_for_dataset_validation=false`,
+    `hard_blockers=["candidate_outputs_missing","candidate_quality_not_reviewed","candidate_validation_errors","below_min_ready_records"]`,
+    `training_dataset_ready=false`, `training_allowed=false`, and
+    `safe_to_train=false`. Do not train from these rows until verified outputs
+    are written and the candidate review passes.
   - The `c4abe43` repair-chain training pipeline listing checkpoint required
     no service restart because it changed only the stdlib agent client, smoke
     script, and tests. vLLM stayed on pid `5802`; FastAPI stayed on pid
@@ -5513,7 +5538,7 @@ bash scripts/xriq_private_devnet_smoke.sh
    those status artifacts so future sessions can find whether any run is ready
    before touching training. The repo-adaptation live eval wrapper and the
    conservative
-   repo-adaptation failure-review helper are also
+   repo-adaptation failure-review and candidate-review helpers are also
    live. Good next targets are running the full repair sequence
    (`mvp-loop`, `attempt-repair`, `extract-repair-edits`, `plan-repair-edits`,
    approved `apply-repair-edits`, `verify-repair-edits`, and
@@ -5553,8 +5578,10 @@ bash scripts/xriq_private_devnet_smoke.sh
    real repo eval produces repeatable gaps. There is now a repeated
    repo-adaptation failure-review artifact with four review-only candidates at
    `/workspace/outputs/evals/repo-adapt-repeat-20260520T142227Z-70388.repeat-training-candidates.jsonl`;
-   next, review those rows and write verified `output` values only if they are
-   useful and safe. Public XRIQ launch, exchange
+   `training/repo_adaptation_candidate_review.py` confirms that artifact is
+   not ready yet. Next, review those rows and write verified `output` values
+   only if they are useful and safe, then rerun the candidate review before
+   dataset validation. Public XRIQ launch, exchange
    listing, custody, liquidity, bridges, and market-facing work remain blocked.
 14. Keep reviewing and refining `docs/XRIQ_TECHNICAL_SPEC.md` as the prototype
    clarifies open decisions. Do not treat the private devnet as public launch
