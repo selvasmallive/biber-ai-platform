@@ -19,11 +19,22 @@ NUM_EPOCHS="${BIBER_TRAIN_NUM_EPOCHS:-}"
 MAX_SEQ_LENGTH="${BIBER_TRAIN_MAX_SEQ_LENGTH:-}"
 SAVE_STEPS="${BIBER_TRAIN_SAVE_STEPS:-}"
 LOGGING_STEPS="${BIBER_TRAIN_LOGGING_STEPS:-}"
+TRAIN_APPROVED="${BIBER_TRAIN_APPROVED:-0}"
 SESSION_TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 
 quote() {
   printf '%q' "$1"
 }
+
+if [ "$TRAIN_APPROVED" != "1" ]; then
+  cat >&2 <<EOF
+Training approval is required before starting a QLoRA tmux job.
+
+Set BIBER_TRAIN_APPROVED=1 only after the user explicitly approves a separate
+Vast GPU training run. Do not infer approval from a generic "continue" message.
+EOF
+  exit 1
+fi
 
 command -v tmux >/dev/null 2>&1 || {
   echo "tmux is required. Install it or run the training command manually." >&2

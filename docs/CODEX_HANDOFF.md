@@ -471,7 +471,10 @@ serving the last broad-safe Rust/XRIQ adapter.
     started. The recommended command captured in the artifact is:
     `BIBER_TRAIN_DATASET=/workspace/data/repo_adaptation/reviewed_candidates.jsonl BIBER_TRAIN_OUTPUT_DIR=/workspace/adapters/biber-dev-core-repo-adapt-20260520T172453Z BIBER_TRAIN_SESSION=biber-repo-adapt-20260520T172453Z BIBER_TRAIN_MIN_RECORDS=50 bash scripts/vast_train_qlora_tmux.sh /workspace/data/repo_adaptation/reviewed_candidates.jsonl`.
     Do not run it until the user explicitly approves a separate Vast GPU
-    training run.
+    training run. Newer training-review artifacts and the training launcher
+    require `BIBER_TRAIN_APPROVED=1` in the same command after explicit
+    approval; prepend it to this captured command if this exact artifact is
+    used later.
   - The `71e9f92` repo-adaptation balanced expanded-prompt checkpoint required
     no service restart because it changed only Python helper/test/doc files.
     vLLM stayed on pid `5802`; FastAPI stayed on pid `53902`. Focused Vast

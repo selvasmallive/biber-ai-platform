@@ -205,6 +205,7 @@ def review_repo_adaptation_training_dataset(
 
     ready_for_user_training_approval = not blockers
     suggested_command = (
+        "BIBER_TRAIN_APPROVED=1 "
         "BIBER_TRAIN_DATASET={dataset} "
         "BIBER_TRAIN_OUTPUT_DIR={output_dir} "
         "BIBER_TRAIN_SESSION={session_name} "

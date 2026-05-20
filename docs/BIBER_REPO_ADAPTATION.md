@@ -169,7 +169,9 @@ python training/repo_adaptation_training_review.py \
 
 Only after this artifact says `ready_for_user_training_approval` should a future
 session ask the user for explicit approval to launch the separate Vast GPU
-training job. Do not infer approval from a generic "continue" message.
+training job. Do not infer approval from a generic "continue" message. The
+tmux training launcher refuses to start unless `BIBER_TRAIN_APPROVED=1` is set
+in the same command after explicit user approval.
 
 ## Codex Mentor Role
 

@@ -90,7 +90,9 @@ def test_training_review_marks_ready_for_user_approval_without_enabling_training
     assert review["prompt_variants"]["context_selection"] == 1
     assert review["prompt_variants"]["regression_test"] == 1
     assert review["prompt_variants"]["risk_and_verification"] == 1
-    assert "scripts/vast_train_qlora_tmux.sh" in review["recommended_training"]["command"]
+    command = review["recommended_training"]["command"]
+    assert "BIBER_TRAIN_APPROVED=1" in command
+    assert "scripts/vast_train_qlora_tmux.sh" in command
     assert review["training_dataset_ready"] is False
     assert review["training_allowed"] is False
     assert review["safe_to_train"] is False
