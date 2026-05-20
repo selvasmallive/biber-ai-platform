@@ -509,7 +509,40 @@ serving the last broad-safe Rust/XRIQ adapter.
     `hard_blockers=["below_min_ready_records"]`,
     `training_dataset_ready=false`, `training_allowed=false`,
     `safe_to_train=false`, and `approved_for_training=false`. Training was not
-    started. Eight balanced candidates remain for later small-batch review.
+    started.
+  - Batch 2, the remaining balanced repo-adaptation candidates, has also been
+    manually reviewed and merged. Selected candidates:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch2-selected-candidates.jsonl`.
+    Decisions:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch2-candidate-decisions.json`.
+    Reviewed rows:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch2-reviewed-candidates.jsonl`.
+    Decision review:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch2-candidate-decisions.review.json`
+    with `approved_records=8`, `records=8`, and `hard_blockers=[]`.
+    Candidate review:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch2-reviewed-candidate-review.json`
+    with `ready_records=8`, `records=8`, and `hard_blockers=[]`.
+    Reviewed-dataset validation:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch2-reviewed-dataset-validation.json`
+    with `ok=true`, `records=8`, categories `bash=1`, `markdown=3`,
+    `python=2`, `rust=1`, `toml=1`, and `errors=[]`. Merge review:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch2-dataset-merge.review.json`
+    with `added_records=7`, `duplicate_records=1`, `total_records=30`,
+    and `hard_blockers=[]`. Queue validation:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch2-curated-queue-validation.json`
+    with `ok=true`, `records=30`, `errors=[]`, categories `bash=3`,
+    `json=1`, `markdown=5`, `python=15`, `rust=2`, `sql=2`, `toml=2`,
+    and qualities `reviewed=30`. Readiness:
+    `/workspace/outputs/evals/repo-adapt-balanced-20260520T162646Z.batch2-curated-queue-readiness.json`
+    with `review_status=training_blocked`, `ready_records=30`,
+    `min_records=50`, `record_gap=20`, `category_count=7`,
+    `hard_blockers=["below_min_ready_records"]`,
+    `training_dataset_ready=false`, `training_allowed=false`,
+    `safe_to_train=false`, and `approved_for_training=false`. Training was not
+    started. The balanced 14-candidate queue is now fully reviewed; next,
+    collect at least 20 more reviewed examples before requesting any Vast
+    training run.
   - The `356872d` repo-adaptation expanded-prompt checkpoint required no
     service restart because it changed only Python helper/test/doc files. vLLM
     stayed on pid `5802`; FastAPI stayed on pid `53902`. Focused Vast
