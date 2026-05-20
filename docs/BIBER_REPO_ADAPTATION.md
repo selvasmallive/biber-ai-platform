@@ -119,6 +119,22 @@ This merge is idempotent and keeps `training_allowed`, `safe_to_train`, and
 start training later only after enough reviewed examples exist and the user
 explicitly approves a training run.
 
+Before asking for a training run, write a readiness report for the cumulative
+queue:
+
+```bash
+python training/repo_adaptation_dataset_readiness.py \
+  --dataset /workspace/data/repo_adaptation/reviewed_candidates.jsonl \
+  --review-output /workspace/outputs/evals/repo-adaptation-dataset-readiness.review.json \
+  --min-records 50 \
+  --min-categories 4
+```
+
+The readiness report can say that manual training review is required after the
+queue is large and diverse enough, but it still keeps `training_allowed`,
+`safe_to_train`, and `approved_for_training` false. A separate explicit user
+approval is required before any Vast training job.
+
 ## Codex Mentor Role
 
 Codex/OpenAI should be used for:
