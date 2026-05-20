@@ -602,6 +602,69 @@ serving the last broad-safe Rust/XRIQ adapter.
     `safe_to_train=false`, and `approved_for_training=false`. Training was not
     started. The next narrow step is to collect at least 13 more non-duplicate
     reviewed repo-adaptation examples before requesting any Vast training run.
+  - A larger balanced repo-adaptation local-model eval was then run on Vast to
+    close the reviewed-example gap without OpenAI mentor calls or training.
+    Plan:
+    `/workspace/outputs/repo-adapt-balanced-xwide-20260520T165801Z.plan.json`.
+    Prompts:
+    `/workspace/outputs/repo-adapt-balanced-xwide-20260520T165801Z.prompts.jsonl`.
+    The 128-prompt batch covered Python `20`, SQL `8`, Markdown `20`,
+    Bash `8`, TOML `27`, JSON `15`, and Rust `30` prompts, with variants
+    `implementation_step=33`, `context_selection=33`, `regression_test=33`,
+    and `risk_and_verification=29`. First eval summary:
+    `/workspace/outputs/evals/repo-adapt-balanced-xwide-20260520T165801Z.summary.json`
+    with `128/128` responses, `0` runtime/API failures, and `75/128`
+    expectation checks passed. Repeat eval summary:
+    `/workspace/outputs/evals/repo-adapt-balanced-xwide-20260520T165801Z.repeat.summary.json`
+    with `128/128` responses, `0` runtime/API failures, and `77/128`
+    expectation checks passed. Repeat failure review:
+    `/workspace/outputs/evals/repo-adapt-balanced-xwide-20260520T165801Z.repeat-review.json`
+    with `failures_seen=104`, `groups=55`, and `training_candidates=49`.
+    Candidate queue:
+    `/workspace/outputs/evals/repo-adapt-balanced-xwide-20260520T165801Z.repeat-training-candidates.jsonl`.
+    Non-duplicate candidate queue:
+    `/workspace/outputs/evals/repo-adapt-balanced-xwide-20260520T165801Z.repeat-training-candidates.nonduplicate.jsonl`
+    with `27` rows across `bash=2`, `json=3`, `markdown=5`,
+    `python=2`, `rust=6`, `sql=2`, and `toml=7`. Candidate review:
+    `/workspace/outputs/evals/repo-adapt-balanced-xwide-20260520T165801Z.repeat-candidate-review.json`
+    with `records=49`, `ready_records=0`, and
+    `hard_blockers=["candidate_outputs_missing","candidate_quality_not_reviewed","candidate_validation_errors","below_min_ready_records"]`.
+    Training was not started.
+  - Batch 1 of the xwide balanced repo-adaptation candidates has been manually
+    reviewed and merged. This batch intentionally selected `13` verified
+    non-duplicate rows, just enough to reach the `50` reviewed-record readiness
+    threshold. Selected candidates:
+    `/workspace/outputs/evals/repo-adapt-balanced-xwide-20260520T165801Z.batch1-selected-candidates.jsonl`.
+    Decisions:
+    `/workspace/outputs/evals/repo-adapt-balanced-xwide-20260520T165801Z.batch1-candidate-decisions.json`.
+    Reviewed rows:
+    `/workspace/outputs/evals/repo-adapt-balanced-xwide-20260520T165801Z.batch1-reviewed-candidates.jsonl`.
+    Decision review:
+    `/workspace/outputs/evals/repo-adapt-balanced-xwide-20260520T165801Z.batch1-candidate-decisions.review.json`
+    with `approved_records=13`, `records=13`, and `hard_blockers=[]`.
+    Candidate review:
+    `/workspace/outputs/evals/repo-adapt-balanced-xwide-20260520T165801Z.batch1-reviewed-candidate-review.json`
+    with `ready_records=13`, `records=13`, and `hard_blockers=[]`.
+    Reviewed-dataset validation:
+    `/workspace/outputs/evals/repo-adapt-balanced-xwide-20260520T165801Z.batch1-reviewed-dataset-validation.json`
+    with `ok=true`, `records=13`, categories `bash=2`, `json=3`,
+    `markdown=3`, `python=2`, `rust=3`, and `errors=[]`. Merge review:
+    `/workspace/outputs/evals/repo-adapt-balanced-xwide-20260520T165801Z.batch1-dataset-merge.review.json`
+    with `added_records=13`, `duplicate_records=0`, `total_records=50`,
+    and `hard_blockers=[]`. Queue validation:
+    `/workspace/outputs/evals/repo-adapt-balanced-xwide-20260520T165801Z.batch1-curated-queue-validation.json`
+    with `ok=true`, `records=50`, `errors=[]`, categories `bash=5`,
+    `json=4`, `markdown=8`, `python=19`, `rust=5`, `sql=3`, `toml=6`,
+    and qualities `reviewed=50`. Readiness:
+    `/workspace/outputs/evals/repo-adapt-balanced-xwide-20260520T165801Z.batch1-curated-queue-readiness.json`
+    with `review_status=manual_training_review_required`,
+    `ready_records=50`, `min_records=50`, `record_gap=0`,
+    `category_count=7`, `hard_blockers=[]`,
+    `ready_for_manual_training_review=true`,
+    `training_dataset_ready=false`, `training_allowed=false`,
+    `safe_to_train=false`, and `approved_for_training=false`. Training was not
+    started. The next step is a manual training-dataset review and explicit
+    user approval before launching any separate Vast GPU training run.
   - The `356872d` repo-adaptation expanded-prompt checkpoint required no
     service restart because it changed only Python helper/test/doc files. vLLM
     stayed on pid `5802`; FastAPI stayed on pid `53902`. Focused Vast
