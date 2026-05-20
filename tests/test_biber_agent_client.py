@@ -3692,6 +3692,144 @@ def test_run_review_repair_chain_heldout_baseline_decisions_without_api_key(
     assert result["rejected"][0]["reason"] == "unsupported_source"
 
 
+def test_run_review_repair_chain_training_readiness_blocks_empty_baseline(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "review-repair-chain-training-readiness should not resolve an API key"
+        )
+
+    review_path = tmp_path / "heldout-baseline-decision-review.json"
+    output_path = tmp_path / "training-readiness-review.json"
+    review_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_heldout_baseline_decision_review",
+                "review_status": "heldout_baseline_decision_summary_only",
+                "records": 0,
+                "approved_as_baseline_records": 0,
+                "baseline_candidate_ready_records": 0,
+                "baseline_ready_records": 0,
+                "requires_baseline_review_records": 0,
+                "decision_counts": {},
+                "groups": [],
+                "eval_only": True,
+                "training_allowed": False,
+                "eligible_for_training": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+                "auto_promoted": False,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-repair-chain-training-readiness",
+                str(review_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["source"] == "biber_mvp_loop_repair_chain_training_readiness_review"
+    assert result["review_status"] == "training_blocked"
+    assert result["training_gate_status"] == "blocked"
+    assert result["supported_review_artifacts"] == 1
+    assert result["rejected_artifacts"] == 0
+    assert result["baseline_ready_records"] == 0
+    assert result["ready_for_manual_training_dataset_review"] is False
+    assert result["hard_blockers"] == ["no_baseline_ready_records"]
+    assert result["eval_only"] is True
+    assert result["training_allowed"] is False
+    assert result["eligible_for_training"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+    assert result["auto_promoted"] is False
+
+
+def test_run_review_repair_chain_training_readiness_marks_manual_review_ready(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "review-repair-chain-training-readiness should not resolve an API key"
+        )
+
+    review_path = tmp_path / "heldout-baseline-decision-review.json"
+    review_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_heldout_baseline_decision_review",
+                "review_status": "heldout_baseline_decision_summary_only",
+                "records": 2,
+                "approved_as_baseline_records": 2,
+                "baseline_candidate_ready_records": 2,
+                "baseline_ready_records": 2,
+                "requires_baseline_review_records": 0,
+                "decision_counts": {"approve_as_baseline": 2},
+                "groups": [
+                    {
+                        "decision": "approve_as_baseline",
+                        "count": 2,
+                        "baseline_ready": True,
+                        "heldout_eval_result_ids": ["result-a", "result-b"],
+                        "reviewers": ["baseline-reviewer"],
+                    }
+                ],
+                "eval_only": True,
+                "training_allowed": False,
+                "eligible_for_training": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+                "auto_promoted": False,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-repair-chain-training-readiness",
+                str(review_path),
+                "--min-baseline-ready",
+                "2",
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["review_status"] == "baseline_ready_manual_training_review_required"
+    assert result["training_gate_status"] == "manual_review_required"
+    assert result["baseline_ready_records"] == 2
+    assert result["ready_for_manual_training_dataset_review"] is True
+    assert result["hard_blockers"] == []
+    assert result["baseline_ready_groups"][0]["decision"] == "approve_as_baseline"
+    assert result["baseline_ready_groups"][0]["count"] == 2
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["approved_for_training"] is False
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 

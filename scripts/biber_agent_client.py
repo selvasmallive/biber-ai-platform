@@ -4076,6 +4076,170 @@ def review_repair_chain_heldout_baseline_decision_records(
     }
 
 
+def review_repair_chain_training_readiness(
+    *,
+    review_paths: list[str],
+    min_baseline_ready: int,
+) -> dict[str, Any]:
+    if min_baseline_ready < 1:
+        raise BiberAgentClientError("--min-baseline-ready must be at least 1.")
+
+    supported_reviews: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    unsafe_review_flags: list[dict[str, Any]] = []
+    baseline_ready_groups: list[dict[str, Any]] = []
+    totals = {
+        "records": 0,
+        "approved_as_baseline_records": 0,
+        "baseline_candidate_ready_records": 0,
+        "baseline_ready_records": 0,
+        "requires_baseline_review_records": 0,
+    }
+    for review_path in review_paths:
+        artifact = load_json_artifact(
+            review_path,
+            label="repair-chain held-out baseline decision review artifact",
+        )
+        if (
+            artifact.get("source")
+            != "biber_mvp_loop_repair_chain_heldout_baseline_decision_review"
+        ):
+            rejected.append(
+                {
+                    "artifact_path": review_path,
+                    "reason": "unsupported_source",
+                    "source": artifact.get("source"),
+                }
+            )
+            continue
+
+        flagged = [
+            flag
+            for flag in (
+                "training_allowed",
+                "safe_to_train",
+                "github_save_ready",
+                "approved_for_training",
+                "auto_promoted",
+            )
+            if artifact.get(flag) is True
+        ]
+        if flagged:
+            unsafe_review_flags.append(
+                {
+                    "artifact_path": review_path,
+                    "flags": flagged,
+                }
+            )
+
+        supported_reviews.append(
+            {
+                "artifact_path": review_path,
+                "records": int(artifact.get("records") or 0),
+                "approved_as_baseline_records": int(
+                    artifact.get("approved_as_baseline_records") or 0
+                ),
+                "baseline_candidate_ready_records": int(
+                    artifact.get("baseline_candidate_ready_records") or 0
+                ),
+                "baseline_ready_records": int(
+                    artifact.get("baseline_ready_records") or 0
+                ),
+                "requires_baseline_review_records": int(
+                    artifact.get("requires_baseline_review_records") or 0
+                ),
+                "decision_counts": require_mapping(artifact.get("decision_counts")),
+                "groups": len(require_list(artifact.get("groups"))),
+                "review_status": artifact.get("review_status"),
+            }
+        )
+        for key in totals:
+            totals[key] += int(artifact.get(key) or 0)
+        for group in require_list(artifact.get("groups")):
+            if not isinstance(group, dict) or group.get("baseline_ready") is not True:
+                continue
+            baseline_ready_groups.append(
+                {
+                    "artifact_path": review_path,
+                    "decision": group.get("decision"),
+                    "count": int(group.get("count") or 0),
+                    "heldout_eval_result_ids": require_list(
+                        group.get("heldout_eval_result_ids")
+                    ),
+                    "reviewers": require_list(group.get("reviewers")),
+                }
+            )
+
+    hard_blockers: list[str] = []
+    if not supported_reviews:
+        hard_blockers.append("no_supported_baseline_decision_reviews")
+    if rejected:
+        hard_blockers.append("unsupported_review_artifacts_present")
+    if unsafe_review_flags:
+        hard_blockers.append("input_review_has_training_or_promotion_flag")
+    if totals["baseline_ready_records"] <= 0:
+        hard_blockers.append("no_baseline_ready_records")
+    elif totals["baseline_ready_records"] < min_baseline_ready:
+        hard_blockers.append("below_min_baseline_ready_records")
+
+    ready_for_manual_training_dataset_review = not hard_blockers
+    review_status = (
+        "baseline_ready_manual_training_review_required"
+        if ready_for_manual_training_dataset_review
+        else "training_blocked"
+    )
+    training_gate_status = (
+        "manual_review_required"
+        if ready_for_manual_training_dataset_review
+        else "blocked"
+    )
+
+    return {
+        "source": "biber_mvp_loop_repair_chain_training_readiness_review",
+        "review_status": review_status,
+        "training_gate_status": training_gate_status,
+        "review_artifacts": len(review_paths),
+        "supported_review_artifacts": len(supported_reviews),
+        "rejected_artifacts": len(rejected),
+        "min_baseline_ready": min_baseline_ready,
+        "records": totals["records"],
+        "approved_as_baseline_records": totals["approved_as_baseline_records"],
+        "baseline_candidate_ready_records": totals[
+            "baseline_candidate_ready_records"
+        ],
+        "baseline_ready_records": totals["baseline_ready_records"],
+        "requires_baseline_review_records": totals[
+            "requires_baseline_review_records"
+        ],
+        "baseline_ready_groups": baseline_ready_groups,
+        "hard_blockers": hard_blockers,
+        "required_manual_actions": [
+            "human_training_dataset_review",
+            "explicit_user_approval_before_any_training_job",
+            "separate_vast_gpu_training_run_outside_codex_loop",
+        ],
+        "ready_for_manual_training_dataset_review": (
+            ready_for_manual_training_dataset_review
+        ),
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "review_paths": list(review_paths),
+        "reviews": supported_reviews,
+        "rejected": rejected,
+        "unsafe_review_flags": unsafe_review_flags,
+        "next_review_action": (
+            "manual_training_dataset_review_required_before_training"
+            if ready_for_manual_training_dataset_review
+            else "collect_baseline_ready_decision_reviews_before_training"
+        ),
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -5265,6 +5429,67 @@ def format_repair_chain_heldout_baseline_decision_review_summary(
     return "\n".join(lines)
 
 
+def format_repair_chain_training_readiness_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    hard_blockers = [
+        str(item)
+        for item in require_list(payload.get("hard_blockers"))
+        if item
+    ]
+    manual_actions = [
+        str(item)
+        for item in require_list(payload.get("required_manual_actions"))
+        if item
+    ]
+    ready_groups = [
+        item
+        for item in require_list(payload.get("baseline_ready_groups"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER repair-chain training readiness review",
+        f"review_status: {payload.get('review_status', '-')}",
+        f"training_gate_status: {payload.get('training_gate_status', '-')}",
+        f"review_artifacts: {payload.get('review_artifacts', 0)}",
+        f"supported_review_artifacts: {payload.get('supported_review_artifacts', 0)}",
+        f"rejected_artifacts: {payload.get('rejected_artifacts', 0)}",
+        f"min_baseline_ready: {payload.get('min_baseline_ready', 1)}",
+        f"baseline_ready_records: {payload.get('baseline_ready_records', 0)}",
+        (
+            "approved_as_baseline_records: "
+            f"{payload.get('approved_as_baseline_records', 0)}"
+        ),
+        (
+            "ready_for_manual_training_dataset_review: "
+            f"{payload.get('ready_for_manual_training_dataset_review', False)}"
+        ),
+        (
+            "hard_blockers: "
+            f"{', '.join(hard_blockers) if hard_blockers else '-'}"
+        ),
+        (
+            "required_manual_actions: "
+            f"{', '.join(manual_actions) if manual_actions else '-'}"
+        ),
+        f"eval_only: {payload.get('eval_only', True)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"approved_for_training: {payload.get('approved_for_training', False)}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    lines.extend(
+        (
+            f"- decision={group.get('decision', '-')} "
+            f"count={group.get('count', 0)} "
+            f"ids={','.join(str(item) for item in require_list(group.get('heldout_eval_result_ids')))}"
+        )
+        for group in ready_groups[:8]
+    )
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -5967,6 +6192,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     review_repair_chain_heldout_baseline_decisions.add_argument("--output")
 
+    review_repair_chain_training_readiness_parser = subparsers.add_parser(
+        "review-repair-chain-training-readiness",
+        help=(
+            "Summarize baseline decision-review artifacts and report whether "
+            "training is still blocked."
+        ),
+    )
+    review_repair_chain_training_readiness_parser.add_argument(
+        "review_artifact",
+        nargs="+",
+    )
+    review_repair_chain_training_readiness_parser.add_argument(
+        "--min-baseline-ready",
+        type=int,
+        default=1,
+    )
+    review_repair_chain_training_readiness_parser.add_argument("--output")
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -6401,6 +6644,19 @@ def run(args: argparse.Namespace) -> str:
             else format_repair_chain_heldout_baseline_decision_review_summary(
                 review
             )
+        )
+    if args.command == "review-repair-chain-training-readiness":
+        review = review_repair_chain_training_readiness(
+            review_paths=args.review_artifact,
+            min_baseline_ready=args.min_baseline_ready,
+        )
+        if args.output:
+            review["artifact_path"] = str(Path(args.output))
+            write_json_artifact(review, args.output)
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_training_readiness_summary(review)
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)
