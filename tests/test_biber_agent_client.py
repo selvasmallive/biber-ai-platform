@@ -4076,6 +4076,163 @@ def test_run_review_repair_chain_training_candidates_ready_for_dataset_validatio
     assert result["approved_for_training"] is False
 
 
+def test_run_review_repair_chain_training_pipeline_blocks_missing_artifacts(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "review-repair-chain-training-pipeline should not resolve an API key"
+        )
+
+    output_path = tmp_path / "training-pipeline.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-repair-chain-training-pipeline",
+                "--artifact-dir",
+                str(tmp_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["source"] == (
+        "biber_mvp_loop_repair_chain_training_pipeline_status"
+    )
+    assert result["training_pipeline_status"] == "blocked"
+    assert result["missing_or_blocked_step"] == "heldout_baseline_decision_review"
+    assert result["baseline_ready_records"] == 0
+    assert result["training_candidate_records"] == 0
+    assert result["ready_for_dataset_validation"] is False
+    assert "missing_or_invalid_baseline_decision_review" in result["hard_blockers"]
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["approved_for_training"] is False
+
+
+def test_run_review_repair_chain_training_pipeline_summarizes_blocked_gate(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "review-repair-chain-training-pipeline should not resolve an API key"
+        )
+
+    baseline_review_path = (
+        tmp_path
+        / "agent-client-mvp-loop-repair-chain-heldout-baseline-decision-review.json"
+    )
+    readiness_path = (
+        tmp_path
+        / "agent-client-mvp-loop-repair-chain-training-readiness.json"
+    )
+    candidates_path = (
+        tmp_path
+        / "agent-client-mvp-loop-repair-chain-training-candidates.jsonl"
+    )
+    candidate_review_path = (
+        tmp_path
+        / "agent-client-mvp-loop-repair-chain-training-candidate-review.json"
+    )
+    pipeline_path = tmp_path / "training-pipeline.json"
+    baseline_review_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_heldout_baseline_decision_review",
+                "review_status": "heldout_baseline_decision_summary_only",
+                "records": 0,
+                "baseline_ready_records": 0,
+                "groups": [],
+                "training_allowed": False,
+                "safe_to_train": False,
+                "approved_for_training": False,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    readiness_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_training_readiness_review",
+                "review_status": "training_blocked",
+                "training_gate_status": "blocked",
+                "baseline_ready_records": 0,
+                "ready_for_manual_training_dataset_review": False,
+                "hard_blockers": ["no_baseline_ready_records"],
+                "training_allowed": False,
+                "safe_to_train": False,
+                "approved_for_training": False,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    candidates_path.write_text("", encoding="utf-8")
+    candidate_review_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_training_candidate_review",
+                "review_status": "training_candidates_need_review",
+                "records": 0,
+                "ready_for_dataset_validation": False,
+                "hard_blockers": [
+                    "no_training_candidate_records",
+                    "below_min_ready_records",
+                ],
+                "training_allowed": False,
+                "safe_to_train": False,
+                "approved_for_training": False,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-repair-chain-training-pipeline",
+                "--artifact-dir",
+                str(tmp_path),
+                "--output",
+                str(pipeline_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert json.loads(pipeline_path.read_text(encoding="utf-8")) == result
+    assert result["training_pipeline_status"] == "blocked"
+    assert result["missing_or_blocked_step"] == "baseline_ready_records"
+    assert result["baseline_ready_records"] == 0
+    assert result["training_gate_status"] == "blocked"
+    assert result["training_candidate_records"] == 0
+    assert result["training_candidate_review_records"] == 0
+    assert result["ready_for_dataset_validation"] is False
+    assert "no_baseline_ready_records" in result["hard_blockers"]
+    assert "no_training_candidate_records" in result["hard_blockers"]
+    assert result["checks"][0]["ok"] is True
+    assert result["checks"][1]["ok"] is True
+    assert result["checks"][2]["ok"] is True
+    assert result["checks"][3]["ok"] is True
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+
+
 def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
     captured_payload: dict[str, object] = {}
 

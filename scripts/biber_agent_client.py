@@ -4547,6 +4547,273 @@ def review_repair_chain_training_candidate_records(
     }
 
 
+def load_optional_training_pipeline_json(
+    path: Path,
+    *,
+    label: str,
+    expected_source: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    check: dict[str, Any] = {
+        "id": label,
+        "path": str(path),
+        "present": path.exists(),
+        "ok": False,
+    }
+    if not path.exists():
+        check["reason"] = "missing"
+        return None, check
+    try:
+        artifact = load_json_artifact(str(path), label=label)
+    except BiberAgentClientError as exc:
+        check["reason"] = "invalid_json"
+        check["error"] = str(exc)
+        return None, check
+    source = artifact.get("source")
+    check["source"] = source
+    if source != expected_source:
+        check["reason"] = "unsupported_source"
+        return artifact, check
+    check["ok"] = True
+    return artifact, check
+
+
+def load_optional_training_pipeline_jsonl(
+    path: Path,
+    *,
+    label: str,
+    expected_source: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    check: dict[str, Any] = {
+        "id": label,
+        "path": str(path),
+        "present": path.exists(),
+        "ok": False,
+        "records": 0,
+        "rejected_records": 0,
+    }
+    if not path.exists():
+        check["reason"] = "missing"
+        return [], check
+    try:
+        rows = load_jsonl_artifact(str(path), label=label)
+    except BiberAgentClientError as exc:
+        check["reason"] = "invalid_jsonl"
+        check["error"] = str(exc)
+        return [], check
+    rejected = [
+        {
+            "jsonl_index": index,
+            "source": row.get("source"),
+            "reason": "unsupported_source",
+        }
+        for index, row in enumerate(rows, start=1)
+        if row.get("source") != expected_source
+    ]
+    check["records"] = len(rows)
+    check["rejected_records"] = len(rejected)
+    if rejected:
+        check["reason"] = "unsupported_source"
+        check["rejected"] = rejected[:8]
+        return rows, check
+    check["ok"] = True
+    return rows, check
+
+
+def review_repair_chain_training_pipeline_status(
+    *,
+    artifact_dir: str,
+) -> dict[str, Any]:
+    root = Path(artifact_dir)
+    artifact_paths = {
+        "heldout_baseline_decision_review": root
+        / "agent-client-mvp-loop-repair-chain-heldout-baseline-decision-review.json",
+        "training_readiness": root
+        / "agent-client-mvp-loop-repair-chain-training-readiness.json",
+        "training_candidates": root
+        / "agent-client-mvp-loop-repair-chain-training-candidates.jsonl",
+        "training_candidate_review": root
+        / "agent-client-mvp-loop-repair-chain-training-candidate-review.json",
+    }
+
+    baseline_review, baseline_check = load_optional_training_pipeline_json(
+        artifact_paths["heldout_baseline_decision_review"],
+        label="heldout_baseline_decision_review",
+        expected_source=(
+            "biber_mvp_loop_repair_chain_heldout_baseline_decision_review"
+        ),
+    )
+    readiness, readiness_check = load_optional_training_pipeline_json(
+        artifact_paths["training_readiness"],
+        label="training_readiness",
+        expected_source="biber_mvp_loop_repair_chain_training_readiness_review",
+    )
+    _candidate_rows, candidates_check = load_optional_training_pipeline_jsonl(
+        artifact_paths["training_candidates"],
+        label="training_candidates",
+        expected_source="biber_mvp_loop_repair_chain_training_candidate",
+    )
+    candidate_review, candidate_review_check = load_optional_training_pipeline_json(
+        artifact_paths["training_candidate_review"],
+        label="training_candidate_review",
+        expected_source="biber_mvp_loop_repair_chain_training_candidate_review",
+    )
+
+    baseline_ready_records = (
+        int(baseline_review.get("baseline_ready_records") or 0)
+        if baseline_review and baseline_check.get("ok") is True
+        else 0
+    )
+    readiness_baseline_ready_records = (
+        int(readiness.get("baseline_ready_records") or 0)
+        if readiness and readiness_check.get("ok") is True
+        else 0
+    )
+    readiness_hard_blockers = (
+        [
+            str(item)
+            for item in require_list(readiness.get("hard_blockers"))
+            if item
+        ]
+        if readiness and readiness_check.get("ok") is True
+        else []
+    )
+    candidate_review_hard_blockers = (
+        [
+            str(item)
+            for item in require_list(candidate_review.get("hard_blockers"))
+            if item
+        ]
+        if candidate_review and candidate_review_check.get("ok") is True
+        else []
+    )
+    candidate_review_records = (
+        int(candidate_review.get("records") or 0)
+        if candidate_review and candidate_review_check.get("ok") is True
+        else 0
+    )
+    ready_for_dataset_validation = (
+        bool(candidate_review.get("ready_for_dataset_validation"))
+        if candidate_review and candidate_review_check.get("ok") is True
+        else False
+    )
+
+    checks = [
+        {
+            **baseline_check,
+            "baseline_ready_records": baseline_ready_records,
+        },
+        {
+            **readiness_check,
+            "training_gate_status": (
+                readiness.get("training_gate_status")
+                if readiness and readiness_check.get("ok") is True
+                else None
+            ),
+            "ready_for_manual_training_dataset_review": (
+                readiness.get("ready_for_manual_training_dataset_review") is True
+                if readiness and readiness_check.get("ok") is True
+                else False
+            ),
+            "baseline_ready_records": readiness_baseline_ready_records,
+            "hard_blockers": readiness_hard_blockers,
+        },
+        candidates_check,
+        {
+            **candidate_review_check,
+            "records": candidate_review_records,
+            "ready_for_dataset_validation": ready_for_dataset_validation,
+            "hard_blockers": candidate_review_hard_blockers,
+        },
+    ]
+
+    hard_blockers: list[str] = []
+    if baseline_check.get("ok") is not True:
+        hard_blockers.append("missing_or_invalid_baseline_decision_review")
+    if readiness_check.get("ok") is not True:
+        hard_blockers.append("missing_or_invalid_training_readiness")
+    if candidates_check.get("ok") is not True:
+        hard_blockers.append("missing_or_invalid_training_candidates")
+    if candidate_review_check.get("ok") is not True:
+        hard_blockers.append("missing_or_invalid_training_candidate_review")
+    if baseline_ready_records <= 0:
+        hard_blockers.append("baseline_ready_records")
+    hard_blockers.extend(readiness_hard_blockers)
+    if int(candidates_check.get("records") or 0) <= 0:
+        hard_blockers.append("training_candidate_records")
+    hard_blockers.extend(candidate_review_hard_blockers)
+    if not ready_for_dataset_validation:
+        hard_blockers.append("dataset_validation_not_ready")
+    unique_blockers = list(dict.fromkeys(item for item in hard_blockers if item))
+
+    if baseline_check.get("ok") is not True:
+        missing_or_blocked_step = "heldout_baseline_decision_review"
+    elif baseline_ready_records <= 0:
+        missing_or_blocked_step = "baseline_ready_records"
+    elif readiness_check.get("ok") is not True:
+        missing_or_blocked_step = "training_readiness"
+    elif readiness_hard_blockers:
+        missing_or_blocked_step = readiness_hard_blockers[0]
+    elif candidates_check.get("ok") is not True:
+        missing_or_blocked_step = "training_candidates"
+    elif int(candidates_check.get("records") or 0) <= 0:
+        missing_or_blocked_step = "training_candidate_records"
+    elif candidate_review_check.get("ok") is not True:
+        missing_or_blocked_step = "training_candidate_review"
+    elif candidate_review_hard_blockers:
+        missing_or_blocked_step = candidate_review_hard_blockers[0]
+    elif not ready_for_dataset_validation:
+        missing_or_blocked_step = "dataset_validation_not_ready"
+    else:
+        missing_or_blocked_step = None
+
+    training_pipeline_status = (
+        "ready_for_dataset_validation"
+        if ready_for_dataset_validation and not unique_blockers
+        else "blocked"
+    )
+    return {
+        "source": "biber_mvp_loop_repair_chain_training_pipeline_status",
+        "review_status": "training_pipeline_status_summary_only",
+        "training_pipeline_status": training_pipeline_status,
+        "missing_or_blocked_step": missing_or_blocked_step,
+        "artifact_dir": str(root),
+        "artifact_paths": {
+            key: str(value)
+            for key, value in artifact_paths.items()
+        },
+        "checks": checks,
+        "baseline_ready_records": baseline_ready_records,
+        "readiness_baseline_ready_records": readiness_baseline_ready_records,
+        "training_gate_status": (
+            readiness.get("training_gate_status")
+            if readiness and readiness_check.get("ok") is True
+            else None
+        ),
+        "ready_for_manual_training_dataset_review": (
+            readiness.get("ready_for_manual_training_dataset_review") is True
+            if readiness and readiness_check.get("ok") is True
+            else False
+        ),
+        "training_candidate_records": int(candidates_check.get("records") or 0),
+        "training_candidate_review_records": candidate_review_records,
+        "ready_for_dataset_validation": ready_for_dataset_validation,
+        "hard_blockers": unique_blockers,
+        "eval_only": True,
+        "review_queue_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "next_review_action": (
+            "validate_reviewed_training_dataset_before_training"
+            if training_pipeline_status == "ready_for_dataset_validation"
+            else "collect_baseline_ready_decision_reviews_before_training"
+        ),
+    }
+
+
 def list_mvp_loop_artifacts(
     *,
     directory: str,
@@ -5873,6 +6140,48 @@ def format_repair_chain_training_candidate_review_summary(
     return "\n".join(lines)
 
 
+def format_repair_chain_training_pipeline_status_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    hard_blockers = [
+        str(item)
+        for item in require_list(payload.get("hard_blockers"))
+        if item
+    ]
+    lines = [
+        "BIBER repair-chain training pipeline status",
+        f"training_pipeline_status: {payload.get('training_pipeline_status', '-')}",
+        f"missing_or_blocked_step: {payload.get('missing_or_blocked_step', '-')}",
+        f"baseline_ready_records: {payload.get('baseline_ready_records', 0)}",
+        f"training_gate_status: {payload.get('training_gate_status', '-')}",
+        (
+            "ready_for_manual_training_dataset_review: "
+            f"{payload.get('ready_for_manual_training_dataset_review', False)}"
+        ),
+        f"training_candidate_records: {payload.get('training_candidate_records', 0)}",
+        (
+            "training_candidate_review_records: "
+            f"{payload.get('training_candidate_review_records', 0)}"
+        ),
+        (
+            "ready_for_dataset_validation: "
+            f"{payload.get('ready_for_dataset_validation', False)}"
+        ),
+        (
+            "hard_blockers: "
+            f"{', '.join(hard_blockers) if hard_blockers else '-'}"
+        ),
+        f"eval_only: {payload.get('eval_only', True)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"approved_for_training: {payload.get('approved_for_training', False)}",
+        f"artifact_dir: {payload.get('artifact_dir', '-')}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    return "\n".join(lines)
+
+
 def format_test_list_summary(payload: Mapping[str, Any]) -> str:
     commands = [
         command
@@ -6629,6 +6938,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     review_repair_chain_training_candidates_parser.add_argument("--output")
 
+    review_repair_chain_training_pipeline_parser = subparsers.add_parser(
+        "review-repair-chain-training-pipeline",
+        help=(
+            "Summarize the repair-chain training gate artifacts in one directory "
+            "without starting training."
+        ),
+    )
+    review_repair_chain_training_pipeline_parser.add_argument(
+        "--artifact-dir",
+        required=True,
+    )
+    review_repair_chain_training_pipeline_parser.add_argument("--output")
+
     prepare_repair = subparsers.add_parser(
         "prepare-repair",
         help="Build a local-model repair request from a failed mvp-loop artifact.",
@@ -7100,6 +7422,18 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(review, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_chain_training_candidate_review_summary(review)
+        )
+    if args.command == "review-repair-chain-training-pipeline":
+        review = review_repair_chain_training_pipeline_status(
+            artifact_dir=args.artifact_dir,
+        )
+        if args.output:
+            review["artifact_path"] = str(Path(args.output))
+            write_json_artifact(review, args.output)
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_training_pipeline_status_summary(review)
         )
     if args.command == "prepare-repair":
         artifact_path = Path(args.artifact)

@@ -106,6 +106,7 @@ client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path = artif
 client_mvp_loop_repair_chain_training_readiness_path = artifact_dir / "agent-client-mvp-loop-repair-chain-training-readiness.json"
 client_mvp_loop_repair_chain_training_candidates_path = artifact_dir / "agent-client-mvp-loop-repair-chain-training-candidates.jsonl"
 client_mvp_loop_repair_chain_training_candidate_review_path = artifact_dir / "agent-client-mvp-loop-repair-chain-training-candidate-review.json"
+client_mvp_loop_repair_chain_training_pipeline_path = artifact_dir / "agent-client-mvp-loop-repair-chain-training-pipeline.json"
 
 
 def fail(message: str) -> None:
@@ -2923,6 +2924,79 @@ write_artifact(
         "body": client_mvp_loop_repair_chain_training_candidate_review,
         "output": str(client_mvp_loop_repair_chain_training_candidate_review_path),
         "source": str(client_mvp_loop_repair_chain_training_candidates_path),
+    },
+)
+
+try:
+    client_mvp_loop_repair_chain_training_pipeline_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "review-repair-chain-training-pipeline",
+            "--artifact-dir",
+            str(artifact_dir),
+            "--output",
+            str(client_mvp_loop_repair_chain_training_pipeline_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py review-repair-chain-training-pipeline failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py review-repair-chain-training-pipeline timed out: {exc}")
+try:
+    client_mvp_loop_repair_chain_training_pipeline = json.loads(
+        client_mvp_loop_repair_chain_training_pipeline_output
+    )
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py review-repair-chain-training-pipeline returned invalid JSON: {exc}")
+if client_mvp_loop_repair_chain_training_pipeline.get("training_pipeline_status") != "blocked":
+    fail(f"training pipeline status should stay blocked for smoke artifacts: {client_mvp_loop_repair_chain_training_pipeline!r}")
+if client_mvp_loop_repair_chain_training_pipeline.get("missing_or_blocked_step") != "baseline_ready_records":
+    fail(f"training pipeline status should point to missing baseline-ready rows: {client_mvp_loop_repair_chain_training_pipeline!r}")
+if client_mvp_loop_repair_chain_training_pipeline.get("baseline_ready_records") != 0:
+    fail(f"training pipeline status must see zero baseline-ready rows: {client_mvp_loop_repair_chain_training_pipeline!r}")
+if client_mvp_loop_repair_chain_training_pipeline.get("training_candidate_records") != 0:
+    fail(f"training pipeline status must see zero candidate rows: {client_mvp_loop_repair_chain_training_pipeline!r}")
+if client_mvp_loop_repair_chain_training_pipeline.get("ready_for_dataset_validation") is not False:
+    fail(f"training pipeline status must not mark smoke artifacts dataset-ready: {client_mvp_loop_repair_chain_training_pipeline!r}")
+if "no_baseline_ready_records" not in (client_mvp_loop_repair_chain_training_pipeline.get("hard_blockers") or []):
+    fail(f"training pipeline status must preserve readiness blockers: {client_mvp_loop_repair_chain_training_pipeline!r}")
+if "no_training_candidate_records" not in (client_mvp_loop_repair_chain_training_pipeline.get("hard_blockers") or []):
+    fail(f"training pipeline status must preserve candidate-review blockers: {client_mvp_loop_repair_chain_training_pipeline!r}")
+if client_mvp_loop_repair_chain_training_pipeline.get("training_allowed") is not False:
+    fail(f"training pipeline status must keep training_allowed=false: {client_mvp_loop_repair_chain_training_pipeline!r}")
+if client_mvp_loop_repair_chain_training_pipeline.get("safe_to_train") is not False:
+    fail(f"training pipeline status must keep safe_to_train=false: {client_mvp_loop_repair_chain_training_pipeline!r}")
+if client_mvp_loop_repair_chain_training_pipeline.get("github_save_ready") is not False:
+    fail(f"training pipeline status must keep github_save_ready=false: {client_mvp_loop_repair_chain_training_pipeline!r}")
+if client_mvp_loop_repair_chain_training_pipeline.get("approved_for_training") is not False:
+    fail(f"training pipeline status must keep approved_for_training=false: {client_mvp_loop_repair_chain_training_pipeline!r}")
+if not client_mvp_loop_repair_chain_training_pipeline_path.exists():
+    fail(f"training pipeline status did not write {client_mvp_loop_repair_chain_training_pipeline_path}")
+try:
+    saved_client_mvp_loop_repair_chain_training_pipeline = json.loads(
+        client_mvp_loop_repair_chain_training_pipeline_path.read_text(
+            encoding="utf-8"
+        )
+    )
+except json.JSONDecodeError as exc:
+    fail(f"training pipeline status wrote invalid JSON: {exc}")
+if (
+    saved_client_mvp_loop_repair_chain_training_pipeline
+    != client_mvp_loop_repair_chain_training_pipeline
+):
+    fail("training pipeline status saved artifact differs from stdout JSON")
+write_artifact(
+    "agent-client-mvp-loop-repair-chain-training-pipeline-result.json",
+    {
+        "status": 0,
+        "body": client_mvp_loop_repair_chain_training_pipeline,
+        "output": str(client_mvp_loop_repair_chain_training_pipeline_path),
+        "source": str(artifact_dir),
     },
 )
 
