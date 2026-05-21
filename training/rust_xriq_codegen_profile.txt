@@ -5,6 +5,8 @@ Use only the Rust standard library and code visible in the prompt; do not use ex
 Do not write `#[derive(thiserror::Error)]` or `#[error(...)]` attributes.
 Prefer explicit structs, enums, and Result errors over derive macros from external crates.
 If the prompt asks for a `pub fn ...`, define that function as a free public function, not only as an associated method inside an `impl`.
+For `next_height(parent: &BlockHeader)`, write the body exactly in the compact rustfmt-stable shape:
+`parent.height.checked_add(1)`
 For `calculate_fee(byte_len: usize, fee_per_byte: u64)`, avoid type inference failures by writing:
 `let byte_len_u64 = u64::try_from(byte_len).ok()?;`
 `byte_len_u64.checked_mul(fee_per_byte)`
