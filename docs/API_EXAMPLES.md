@@ -532,6 +532,33 @@ python scripts/biber_agent_client.py list-verified-repair-reviews \
   /workspace/outputs \
   --ready-only \
   --limit 10
+python scripts/biber_agent_client.py show-repair-chain \
+  --mvp-loop /workspace/outputs/biber-mvp-loop.json \
+  --repair /workspace/outputs/biber-mvp-loop-repair.json \
+  --attempt /workspace/outputs/biber-mvp-loop-repair-attempt.json \
+  --extraction /workspace/outputs/biber-mvp-loop-repair-edit-extraction.json \
+  --plan /workspace/outputs/biber-mvp-loop-repair-edit-plan.json \
+  --apply /workspace/outputs/biber-mvp-loop-repair-edit-apply.json \
+  --verification /workspace/outputs/biber-mvp-loop-repair-test-verification.json \
+  --review-jsonl /workspace/outputs/biber-mvp-loop-verified-repairs.jsonl \
+  --review-summary /workspace/outputs/biber-mvp-loop-verified-repair-review.json \
+  --output /workspace/outputs/biber-mvp-loop-repair-chain.json
+python scripts/biber_agent_client.py list-repair-chains \
+  /workspace/outputs \
+  --ready-only \
+  --output /workspace/outputs/biber-mvp-loop-repair-chain-list.json
+python scripts/biber_agent_client.py export-ready-repair-chains \
+  /workspace/outputs \
+  --output /workspace/outputs/biber-mvp-loop-ready-repair-chains.jsonl
+python scripts/biber_agent_client.py review-ready-repair-chains \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chains.jsonl \
+  --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-review.json
+python scripts/biber_agent_client.py show-ready-repair-chain-review \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chain-review.json
+python scripts/biber_agent_client.py list-ready-repair-chain-reviews \
+  /workspace/outputs \
+  --ready-only \
+  --limit 10
 ```
 
 If `mvp-loop` is started with `--runtime-profile-id`, failed-loop repair

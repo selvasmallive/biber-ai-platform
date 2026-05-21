@@ -2187,6 +2187,124 @@ except json.JSONDecodeError as exc:
     fail(f"review-ready-repair-chains output artifact returned invalid JSON: {exc}")
 if saved_client_mvp_loop_ready_repair_chain_review != client_mvp_loop_ready_repair_chain_review:
     fail("review-ready-repair-chains output artifact did not match stdout JSON")
+try:
+    client_mvp_loop_ready_repair_chain_review_report = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "show-ready-repair-chain-review",
+            str(client_mvp_loop_ready_repair_chain_review_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py show-ready-repair-chain-review failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py show-ready-repair-chain-review timed out: {exc}")
+if "BIBER ready repair-chain review" not in client_mvp_loop_ready_repair_chain_review_report:
+    fail(
+        "show-ready-repair-chain-review report omitted heading: "
+        f"{client_mvp_loop_ready_repair_chain_review_report!r}"
+    )
+if (
+    str(client_mvp_loop_ready_repair_chain_review_path)
+    not in client_mvp_loop_ready_repair_chain_review_report
+):
+    fail(
+        "show-ready-repair-chain-review report omitted artifact path: "
+        f"{client_mvp_loop_ready_repair_chain_review_report!r}"
+    )
+if "ready_for_human_review: 1" not in client_mvp_loop_ready_repair_chain_review_report:
+    fail(
+        "show-ready-repair-chain-review report omitted review count: "
+        f"{client_mvp_loop_ready_repair_chain_review_report!r}"
+    )
+if "safe_to_train: False" not in client_mvp_loop_ready_repair_chain_review_report:
+    fail(
+        "show-ready-repair-chain-review report omitted safety guard: "
+        f"{client_mvp_loop_ready_repair_chain_review_report!r}"
+    )
+if "github_save_ready: False" not in client_mvp_loop_ready_repair_chain_review_report:
+    fail(
+        "show-ready-repair-chain-review report omitted GitHub guard: "
+        f"{client_mvp_loop_ready_repair_chain_review_report!r}"
+    )
+try:
+    client_mvp_loop_ready_repair_chain_review_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-ready-repair-chain-reviews",
+            str(artifact_dir),
+            "--ready-only",
+            "--limit",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-ready-repair-chain-reviews failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-ready-repair-chain-reviews timed out: {exc}")
+try:
+    client_mvp_loop_ready_repair_chain_review_list = json.loads(
+        client_mvp_loop_ready_repair_chain_review_list_output
+    )
+except json.JSONDecodeError as exc:
+    fail(
+        "biber_agent_client.py list-ready-repair-chain-reviews returned "
+        f"invalid JSON: {exc}"
+    )
+ready_chain_review_artifacts = client_mvp_loop_ready_repair_chain_review_list.get(
+    "artifacts"
+)
+if not isinstance(ready_chain_review_artifacts, list):
+    fail(
+        "list-ready-repair-chain-reviews did not return artifacts: "
+        f"{client_mvp_loop_ready_repair_chain_review_list!r}"
+    )
+if client_mvp_loop_ready_repair_chain_review_list.get("training_allowed") is not False:
+    fail(
+        "list-ready-repair-chain-reviews must keep training_allowed=false: "
+        f"{client_mvp_loop_ready_repair_chain_review_list!r}"
+    )
+if client_mvp_loop_ready_repair_chain_review_list.get("safe_to_train") is not False:
+    fail(
+        "list-ready-repair-chain-reviews must keep safe_to_train=false: "
+        f"{client_mvp_loop_ready_repair_chain_review_list!r}"
+    )
+if client_mvp_loop_ready_repair_chain_review_list.get("github_save_ready") is not False:
+    fail(
+        "list-ready-repair-chain-reviews must keep github_save_ready=false: "
+        f"{client_mvp_loop_ready_repair_chain_review_list!r}"
+    )
+matching_ready_chain_reviews = [
+    item
+    for item in ready_chain_review_artifacts
+    if isinstance(item, dict)
+    and item.get("path") == str(client_mvp_loop_ready_repair_chain_review_path)
+]
+if len(matching_ready_chain_reviews) != 1:
+    fail(
+        "list-ready-repair-chain-reviews omitted "
+        f"{client_mvp_loop_ready_repair_chain_review_path}: "
+        f"{client_mvp_loop_ready_repair_chain_review_list!r}"
+    )
+if matching_ready_chain_reviews[0].get("ready_for_human_review") != 1:
+    fail(
+        "list-ready-repair-chain-reviews returned unexpected review count: "
+        f"{client_mvp_loop_ready_repair_chain_review_list!r}"
+    )
+if matching_ready_chain_reviews[0].get("records") != 1:
+    fail(
+        "list-ready-repair-chain-reviews returned unexpected records: "
+        f"{client_mvp_loop_ready_repair_chain_review_list!r}"
+    )
 write_artifact(
     "agent-client-mvp-loop-ready-repair-chain-review.json",
     {
