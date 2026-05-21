@@ -454,9 +454,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER repair-chain training candidate review artifact inspection
   commit pushed and Vast-verified:
   `ae8c93b Add training candidate review inspection`.
+- Latest BIBER repair-chain training pipeline artifact inspection commit
+  pushed and Vast-verified:
+  `83162d7 Add training pipeline show inspection`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `ae8c93b`. Full Rust/private-devnet
+- Vast code verification is current through `83162d7`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -529,7 +532,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   verification is current through `33ed241`; BIBER repair-chain training
   readiness artifact inspection verification is current through `adf8b7d`;
   BIBER repair-chain training candidate review artifact inspection
-  verification is current through `ae8c93b`;
+  verification is current through `ae8c93b`; BIBER repair-chain training
+  pipeline artifact inspection verification is current through `83162d7`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -598,7 +602,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   `33ed241`; BIBER agent-client repair-chain training readiness artifact
   inspection verification is current through `adf8b7d`; BIBER agent-client
   repair-chain training candidate review artifact inspection verification is
-  current through `ae8c93b`; BIBER
+  current through `ae8c93b`; BIBER agent-client repair-chain training pipeline
+  artifact inspection verification is current through `83162d7`; BIBER
   repair-chain held-out eval prompt export verification is current through
   `16523ac`; BIBER repair-chain held-out eval runner verification is current
   through `95051e5`; BIBER repair-chain held-out eval result review
@@ -628,7 +633,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - `BIBER_RUNTIME_PROFILES_ENABLED=true`
-  - Vast code verification is current through `ae8c93b`. If later docs-only
+  - Vast code verification is current through `83162d7`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
   - The user explicitly approved the separate Vast GPU repo-adaptation QLoRA
@@ -1341,6 +1346,31 @@ serving the last broad-safe Rust/XRIQ adapter.
     `tests/test_biber_agent_client.py -q` with `134 passed`, and live
     `bash scripts/vast_biber_agent_smoke.sh`. Smoke artifact directory:
     `/workspace/outputs/biber-agent-smoke-20260521T181452Z-93895`. No training
+    was started, no candidate adapter was reloaded, and no adapter was
+    promoted; stable serving remains on
+    `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
+  - `83162d7` adds offline repair-chain training pipeline status artifact
+    inspection:
+    `show-repair-chain-training-pipeline` summarizes saved
+    `review-repair-chain-training-pipeline` JSON artifacts without resolving
+    API auth or recomputing the pipeline status. The existing
+    `list-repair-chain-training-pipelines` command continues to scan output
+    directories with optional `--ready-only` and `--limit` support. The show
+    command preserves the safety guards: `eval_only=true`,
+    `training_allowed=false`, `safe_to_train=false`,
+    `github_save_ready=false`, and `approved_for_training=false`.
+    `docs/API_EXAMPLES.md` now includes the training-pipeline review/show/list
+    sequence, and `scripts/vast_biber_agent_smoke.sh` verifies pipeline show
+    inspection before directory listing. Local verification passed
+    `git diff --check`, bundled Python syntax compilation, CLI help, and an
+    offline command smoke; local pytest was not available on this workstation,
+    and local `bash -n` remains blocked because WSL has no installed distro.
+    Vast was fast-forwarded to `83162d7`; verification passed
+    `. /venv/main/bin/activate`, `python -m py_compile scripts/biber_agent_client.py tests/test_biber_agent_client.py`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py -q` with `135 passed`, and live
+    `bash scripts/vast_biber_agent_smoke.sh`. Smoke artifact directory:
+    `/workspace/outputs/biber-agent-smoke-20260521T185344Z-94191`. No training
     was started, no candidate adapter was reloaded, and no adapter was
     promoted; stable serving remains on
     `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
@@ -2177,6 +2207,40 @@ serving the last broad-safe Rust/XRIQ adapter.
     `reviewed_records=0`, `ready_for_dataset_validation=false`,
     `training_dataset_ready=false`,
     `hard_blockers=["no_training_candidate_records","below_min_ready_records"]`,
+    `training_allowed=false`, `safe_to_train=false`,
+    `github_save_ready=false`, and `approved_for_training=false`. This is
+    offline inspection evidence only; it does not create training data, approve
+    model promotion, save to GitHub, rotate credentials, or approve public XRIQ
+    work.
+  - The `83162d7` repair-chain training pipeline status artifact inspection
+    checkpoint required no service restart because it changed only the stdlib
+    agent client, smoke script, tests, and API examples. vLLM stayed on pid
+    `84653`; FastAPI stayed on pid `85630`. Training was not started because
+    the smoke training-pipeline artifact still has
+    `training_pipeline_status=blocked`,
+    `missing_or_blocked_step=baseline_ready_records`, and
+    `hard_blockers=["baseline_ready_records","no_baseline_ready_records","training_candidate_records","no_training_candidate_records","below_min_ready_records","dataset_validation_not_ready"]`.
+  - Latest focused Vast verification for the BIBER repair-chain training
+    pipeline status artifact inspection slice:
+    local `py_compile` for `scripts/biber_agent_client.py` and
+    `tests/test_biber_agent_client.py`, local `git diff --check`, local CLI
+    help, and a local offline show/list smoke passed. Local pytest is still
+    unavailable on the Windows workstation (`No module named pytest`), and
+    local `bash -n` is blocked because WSL has no installed distro. Vast
+    verification passed `. /venv/main/bin/activate`,
+    `python -m py_compile scripts/biber_agent_client.py tests/test_biber_agent_client.py`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py -q` with `135 passed`, and live
+    `bash scripts/vast_biber_agent_smoke.sh`.
+    The smoke wrote artifacts under
+    `/workspace/outputs/biber-agent-smoke-20260521T185344Z-94191` and verified
+    `show-repair-chain-training-pipeline` against
+    `/workspace/outputs/biber-agent-smoke-20260521T185344Z-94191/agent-client-mvp-loop-repair-chain-training-pipeline.json`.
+    The pipeline artifact stayed at `training_pipeline_status=blocked`,
+    `missing_or_blocked_step=baseline_ready_records`,
+    `baseline_ready_records=0`, `training_candidate_records=0`,
+    `training_candidate_review_records=0`,
+    `ready_for_dataset_validation=false`, `eval_only=true`,
     `training_allowed=false`, `safe_to_train=false`,
     `github_save_ready=false`, and `approved_for_training=false`. This is
     offline inspection evidence only; it does not create training data, approve
@@ -7069,7 +7133,9 @@ bash scripts/xriq_private_devnet_smoke.sh
     `review-repair-chain-training-pipeline`, which reads the standard
     repair-chain training artifacts from one smoke/output directory and reports
     the current missing or blocked step without resolving API auth or starting
-    training. It also has `list-repair-chain-training-pipelines`, which scans
+    training, plus `show-repair-chain-training-pipeline`, which inspects saved
+    pipeline status artifacts offline without recomputing the review. It also
+    has `list-repair-chain-training-pipelines`, which scans
     output directories for saved pipeline status artifacts and reports how many
     are blocked versus ready for dataset validation.
    - Stack-specific test execution: keep execution allowlisted and predictable.
@@ -7260,6 +7326,8 @@ bash scripts/xriq_private_devnet_smoke.sh
    artifacts in a single output directory and points to the next blocked step;
    the current Vast smoke reports `baseline_ready_records` as the blocker, so
    no training should start yet.
+   `show-repair-chain-training-pipeline` inspects the saved pipeline status
+   artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
    those status artifacts so future sessions can find whether any run is ready
    before touching training. The repo-adaptation live eval wrapper and the
@@ -7314,7 +7382,8 @@ bash scripts/xriq_private_devnet_smoke.sh
    training-candidate review artifact with
    `show-repair-chain-training-candidate-review` and
    `list-repair-chain-training-candidate-reviews`, then run
-   `review-repair-chain-training-pipeline`, then run
+   `review-repair-chain-training-pipeline`, then inspect the saved pipeline
+   status artifact with `show-repair-chain-training-pipeline`, then run
    `list-repair-chain-training-pipelines`, then
    manually
    review repeated passed repairs into verified eval candidates only after a
