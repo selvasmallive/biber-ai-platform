@@ -1059,6 +1059,82 @@ def test_run_attempt_repair_inherits_mvp_loop_runtime_profiles(
     assert result["chat_request"]["runtime_profile_ids"] == ["rust-xriq-codegen"]
 
 
+def test_run_attempt_repair_accepts_prepared_repair_request(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_fetch_capabilities(
+        *,
+        base_url: str,
+        api_key: str,
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["capabilities_base_url"] = base_url
+        return sample_capabilities()
+
+    def fake_chat_with_biber(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["payload"] = payload
+        return {
+            "id": "chat-1",
+            "model": "biber-dev-core-v1",
+            "content": "Prepared repair proposal.",
+            "mentor_used": False,
+        }
+
+    repair_request = {
+        "source": "biber_mvp_loop_repair_request",
+        "repair_loop_version": "mvp-v1",
+        "repair_status": "ready_for_local_model",
+        "training_allowed": False,
+        "source_artifact": "/workspace/outputs/failure-mvp-loop.json",
+        "repair_prompt": "Fix the prepared Rust repair.",
+        "selected_context_paths": ["xriq/crates/xriq-ledger/src/lib.rs"],
+        "failure": {"detected_stack": "rust", "test_id": "cargo-test"},
+        "next_test_id": "cargo-test",
+        "runtime_profile_ids": ["rust-xriq-codegen"],
+    }
+    repair_path = tmp_path / "prepared-repair.json"
+    repair_path.write_text(json.dumps(repair_request), encoding="utf-8")
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "fetch_capabilities", fake_fetch_capabilities)
+    monkeypatch.setattr(client, "chat_with_biber", fake_chat_with_biber)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "attempt-repair",
+                str(repair_path),
+                "--max-tokens",
+                "128",
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert captured["payload"]["messages"][0]["content"] == (
+        "Fix the prepared Rust repair."
+    )
+    assert captured["payload"]["language"] == "Rust"
+    assert captured["payload"]["runtime_profile_ids"] == ["rust-xriq-codegen"]
+    assert result["repair_request"]["source_artifact"] == (
+        "/workspace/outputs/failure-mvp-loop.json"
+    )
+    assert result["repair_content"] == "Prepared repair proposal."
+
+
 def test_extract_repair_edits_accepts_json_edit_candidates(tmp_path: Path) -> None:
     attempt = {
         "source": "biber_mvp_loop_repair_attempt",

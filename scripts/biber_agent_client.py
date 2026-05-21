@@ -926,6 +926,32 @@ def build_mvp_loop_repair_request(
     return repair
 
 
+def build_or_load_repair_request(
+    *,
+    path: Path,
+    artifact: Mapping[str, Any],
+    instruction: str | None,
+    max_relevant_output_chars: int,
+    max_context_paths: int | None,
+) -> dict[str, Any]:
+    prepared = normalize_mvp_loop_repair_request_artifact(artifact)
+    if prepared is not None:
+        return prepared
+    mvp_loop = normalize_mvp_loop_artifact(artifact)
+    if mvp_loop is None:
+        raise BiberAgentClientError(
+            "attempt-repair artifact must contain a saved MVP loop JSON object "
+            "or a prepared repair request JSON object."
+        )
+    return build_mvp_loop_repair_request(
+        path=path,
+        payload=mvp_loop,
+        instruction=instruction,
+        max_relevant_output_chars=max_relevant_output_chars,
+        max_context_paths=max_context_paths,
+    )
+
+
 def language_for_detected_stack(stack: object) -> str | None:
     normalized = str(stack or "").strip().lower()
     return {
@@ -7312,8 +7338,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     attempt_repair = subparsers.add_parser(
         "attempt-repair",
         help=(
-            "Send a failed mvp-loop repair request to the local BIBER model and "
-            "save an inspectable proposal without applying edits."
+            "Send a failed mvp-loop artifact or prepared repair request to the "
+            "local BIBER model and save an inspectable proposal without "
+            "applying edits."
         ),
     )
     attempt_repair.add_argument("artifact")
@@ -7859,15 +7886,13 @@ def run(args: argparse.Namespace) -> str:
     base_url = args.base_url.rstrip("/")
     if args.command == "attempt-repair":
         artifact_path = Path(args.artifact)
-        artifact = load_json_artifact(str(artifact_path), label="mvp-loop artifact")
-        normalized = normalize_mvp_loop_artifact(artifact)
-        if normalized is None:
-            raise BiberAgentClientError(
-                "attempt-repair artifact must contain a saved MVP loop JSON object."
-            )
-        repair_request = build_mvp_loop_repair_request(
+        artifact = load_json_artifact(
+            str(artifact_path),
+            label="mvp-loop or repair request artifact",
+        )
+        repair_request = build_or_load_repair_request(
             path=artifact_path,
-            payload=normalized,
+            artifact=artifact,
             instruction=args.instruction,
             max_relevant_output_chars=args.max_relevant_output_chars,
             max_context_paths=args.max_context_paths,

@@ -470,8 +470,7 @@ python scripts/biber_agent_client.py prepare-repair \
   --instruction "Repair the failed test with the smallest safe edit." \
   --output /workspace/outputs/biber-mvp-loop-repair.json
 python scripts/biber_agent_client.py attempt-repair \
-  /workspace/outputs/biber-mvp-loop.json \
-  --instruction "Repair the failed test with the smallest safe edit." \
+  /workspace/outputs/biber-mvp-loop-repair.json \
   --max-tokens 700 \
   --output /workspace/outputs/biber-mvp-loop-repair-attempt.json
 python scripts/biber_agent_client.py extract-repair-edits \
@@ -501,7 +500,9 @@ python scripts/biber_agent_client.py review-verified-repairs \
 
 If `mvp-loop` is started with `--runtime-profile-id`, failed-loop repair
 requests and `attempt-repair` inherit those profile IDs unless you pass a
-different `--runtime-profile-id` to `attempt-repair`.
+different `--runtime-profile-id` to `attempt-repair`. `attempt-repair` accepts
+either the original failed `mvp-loop` artifact or the prepared
+`prepare-repair` artifact.
 
 ## Prepare Repo-Specific BIBER Adaptation
 
