@@ -1379,6 +1379,122 @@ def test_run_extract_repair_edits_writes_review_and_edits_files_without_api_key(
     assert edits_payload["edits"][0]["path"] == "src/App.cs"
 
 
+def test_run_show_repair_edit_extraction_summarizes_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("show-repair-edit-extraction should not resolve an API key")
+
+    artifact = tmp_path / "repair-edit-extraction.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_extraction",
+                "source_artifact": "/workspace/outputs/repair-attempt.json",
+                "extraction_status": "ready_for_plan_edit",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "apply_allowed": False,
+                "review_status": "needs_review",
+                "edits": [{"path": "src/App.cs", "new_text": "return a;"}],
+                "rejected": [{"reason": "unsafe_path"}],
+                "json_values_found": 2,
+                "next_test_id": "dotnet-test",
+                "artifact_path": str(artifact),
+                "edits_output": str(tmp_path / "repair-edits.json"),
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(["show-repair-edit-extraction", str(artifact)])
+    )
+
+    assert "BIBER repair edit extraction" in output
+    assert "extraction_status: ready_for_plan_edit" in output
+    assert "training_allowed: False" in output
+    assert "auto_applied: False" in output
+    assert "apply_allowed: False" in output
+    assert "edits: 1" in output
+    assert "rejected: 1" in output
+    assert "- src/App.cs" in output
+    assert str(artifact) in output
+
+
+def test_run_show_repair_edit_extraction_json_returns_local_artifact(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "repair-edit-extraction.json"
+    payload = {
+        "source": "biber_mvp_loop_repair_edit_extraction",
+        "extraction_status": "ready_for_plan_edit",
+        "ok": True,
+        "edits": [],
+        "rejected": [],
+    }
+    artifact.write_text(json.dumps({"body": payload}), encoding="utf-8")
+
+    output = client.run(
+        client.parse_args(["--json", "show-repair-edit-extraction", str(artifact)])
+    )
+
+    assert json.loads(output) == payload
+
+
+def test_run_list_repair_edit_extractions_summarizes_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("list-repair-edit-extractions should not resolve an API key")
+
+    ready = tmp_path / "agent-client-repair-edit-extraction.json"
+    ready.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_extraction",
+                "extraction_status": "ready_for_plan_edit",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "apply_allowed": False,
+                "review_status": "needs_review",
+                "edits": [{"path": "src/App.cs", "new_text": "return a;"}],
+                "rejected": [],
+                "json_values_found": 1,
+                "next_test_id": "dotnet-test",
+            }
+        ),
+        encoding="utf-8",
+    )
+    ignored = tmp_path / "ignored-repair-edit-extraction.json"
+    ignored.write_text(json.dumps({"source": "other"}), encoding="utf-8")
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "list-repair-edit-extractions",
+                str(tmp_path),
+                "--ready-only",
+                "--limit",
+                "5",
+            ]
+        )
+    )
+
+    assert "BIBER repair edit extraction artifacts (1)" in output
+    assert str(ready) in output
+    assert str(ignored) not in output
+    assert "ready_for_plan_edit: 1" in output
+    assert "training_allowed: False" in output
+    assert "apply_allowed: False" in output
+
+
 def test_build_plan_repair_edits_payload_rejects_empty_edits() -> None:
     try:
         client.build_plan_repair_edits_payload(

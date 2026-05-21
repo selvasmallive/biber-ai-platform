@@ -1327,6 +1327,103 @@ def normalize_repair_edit_extraction_artifact(
     return None
 
 
+def summarize_repair_edit_extraction_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    edits = [
+        item for item in require_list(payload.get("edits")) if isinstance(item, dict)
+    ]
+    rejected = [
+        item for item in require_list(payload.get("rejected")) if isinstance(item, dict)
+    ]
+    try:
+        modified_epoch = path.stat().st_mtime
+    except OSError:
+        modified_epoch = 0.0
+    summary: dict[str, Any] = {
+        "path": str(path),
+        "extraction_status": payload.get("extraction_status"),
+        "ok": payload.get("ok") is True,
+        "training_allowed": payload.get("training_allowed") is True,
+        "auto_applied": payload.get("auto_applied") is True,
+        "apply_allowed": payload.get("apply_allowed") is True,
+        "review_status": payload.get("review_status"),
+        "edits": len(edits),
+        "rejected": len(rejected),
+        "json_values_found": int_count(payload.get("json_values_found")),
+        "next_test_id": payload.get("next_test_id"),
+        "source_artifact": payload.get("source_artifact"),
+        "modified_epoch": modified_epoch,
+    }
+    if payload.get("artifact_path"):
+        summary["artifact_path"] = payload.get("artifact_path")
+    if payload.get("edits_output"):
+        summary["edits_output"] = payload.get("edits_output")
+    return summary
+
+
+def list_repair_edit_extraction_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    ready_only: bool = False,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            f"Repair edit extraction artifact directory does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            f"Repair edit extraction artifact path is not a directory: {root}"
+        )
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="repair-edit extraction artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_repair_edit_extraction_artifact(raw_payload)
+        if normalized is None:
+            continue
+        summary = summarize_repair_edit_extraction_artifact(path, normalized)
+        if ready_only and summary.get("extraction_status") != "ready_for_plan_edit":
+            continue
+        artifacts.append(summary)
+
+    artifacts.sort(key=lambda item: float(item.get("modified_epoch") or 0.0), reverse=True)
+    ready_count = sum(
+        1
+        for item in artifacts
+        if item.get("extraction_status") == "ready_for_plan_edit"
+    )
+    return {
+        "source": "biber_mvp_loop_repair_edit_extraction_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "ready_only": ready_only,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "ready_for_plan_edit": ready_count,
+        "training_allowed": False,
+        "auto_applied": False,
+        "apply_allowed": False,
+        "artifacts": artifacts[:limit],
+    }
+
+
 def build_plan_repair_edits_payload(
     extraction: Mapping[str, Any],
     *,
@@ -5667,6 +5764,42 @@ def format_repair_edit_extraction_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_repair_edit_extraction_artifact_list_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER repair edit extraction artifacts ({len(artifacts)})",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"ready_only: {payload.get('ready_only', False)}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"ready_for_plan_edit: {payload.get('ready_for_plan_edit', 0)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"auto_applied: {payload.get('auto_applied', False)}",
+        f"apply_allowed: {payload.get('apply_allowed', False)}",
+    ]
+    for artifact in artifacts:
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"status={artifact.get('extraction_status', '-')}",
+                    f"ok={artifact.get('ok', False)}",
+                    f"edits={artifact.get('edits', 0)}",
+                    f"rejected={artifact.get('rejected', 0)}",
+                    f"next_test_id={artifact.get('next_test_id') or '-'}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_repair_edit_plan_summary(payload: Mapping[str, Any]) -> str:
     edit_plan = require_mapping(payload.get("edit_plan"))
     planned = [
@@ -7029,6 +7162,30 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     list_repair_attempts.add_argument("--limit", type=int, default=10)
     list_repair_attempts.add_argument("--ready-only", action="store_true")
 
+    show_repair_edit_extraction = subparsers.add_parser(
+        "show-repair-edit-extraction",
+        help=(
+            "Summarize a saved extract-repair-edits JSON artifact without "
+            "resolving API auth."
+        ),
+    )
+    show_repair_edit_extraction.add_argument("artifact")
+
+    list_repair_edit_extractions = subparsers.add_parser(
+        "list-repair-edit-extractions",
+        help=(
+            "List saved extract-repair-edits JSON artifacts under a directory "
+            "without resolving API auth."
+        ),
+    )
+    list_repair_edit_extractions.add_argument("directory")
+    list_repair_edit_extractions.add_argument(
+        "--pattern",
+        default="*repair-edit-extraction*.json",
+    )
+    list_repair_edit_extractions.add_argument("--limit", type=int, default=10)
+    list_repair_edit_extractions.add_argument("--ready-only", action="store_true")
+
     export_mvp_failures = subparsers.add_parser(
         "export-mvp-failures",
         help="Export failed mvp-loop artifacts to a JSONL review queue.",
@@ -7630,6 +7787,34 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_attempt_artifact_list_summary(artifacts)
+        )
+    if args.command == "show-repair-edit-extraction":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="repair-edit extraction artifact",
+        )
+        normalized = normalize_repair_edit_extraction_artifact(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "repair-edit extraction artifact must contain a saved "
+                "extract-repair-edits JSON object."
+            )
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_edit_extraction_summary(normalized)
+        )
+    if args.command == "list-repair-edit-extractions":
+        artifacts = list_repair_edit_extraction_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            ready_only=args.ready_only,
+        )
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_edit_extraction_artifact_list_summary(artifacts)
         )
     if args.command == "export-mvp-failures":
         export = export_mvp_loop_failures(

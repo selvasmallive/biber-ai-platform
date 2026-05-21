@@ -1104,6 +1104,98 @@ if saved_client_mvp_loop_repair_extraction != client_mvp_loop_repair_extraction:
     fail("extract-repair-edits output artifact did not match stdout JSON")
 if saved_client_mvp_loop_repair_edits != client_mvp_loop_repair_extraction.get("plan_edit_payload"):
     fail("extract-repair-edits edits payload did not match plan_edit_payload")
+try:
+    client_mvp_loop_repair_extraction_report = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "show-repair-edit-extraction",
+            str(client_mvp_loop_repair_extraction_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py show-repair-edit-extraction failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py show-repair-edit-extraction timed out: {exc}")
+if "BIBER repair edit extraction" not in client_mvp_loop_repair_extraction_report:
+    fail(
+        "show-repair-edit-extraction report omitted heading: "
+        f"{client_mvp_loop_repair_extraction_report!r}"
+    )
+if str(client_mvp_loop_repair_extraction_path) not in client_mvp_loop_repair_extraction_report:
+    fail(
+        "show-repair-edit-extraction report omitted artifact path: "
+        f"{client_mvp_loop_repair_extraction_report!r}"
+    )
+if "apply_allowed: False" not in client_mvp_loop_repair_extraction_report:
+    fail(
+        "show-repair-edit-extraction report omitted apply guard: "
+        f"{client_mvp_loop_repair_extraction_report!r}"
+    )
+try:
+    client_mvp_loop_repair_extraction_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-repair-edit-extractions",
+            str(artifact_dir),
+            "--ready-only",
+            "--limit",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-repair-edit-extractions failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-repair-edit-extractions timed out: {exc}")
+try:
+    client_mvp_loop_repair_extraction_list = json.loads(
+        client_mvp_loop_repair_extraction_list_output
+    )
+except json.JSONDecodeError as exc:
+    fail(
+        "biber_agent_client.py list-repair-edit-extractions returned invalid JSON: "
+        f"{exc}"
+    )
+extraction_artifacts = client_mvp_loop_repair_extraction_list.get("artifacts")
+if not isinstance(extraction_artifacts, list):
+    fail(
+        "list-repair-edit-extractions did not return artifacts: "
+        f"{client_mvp_loop_repair_extraction_list!r}"
+    )
+if client_mvp_loop_repair_extraction_list.get("training_allowed") is not False:
+    fail(
+        "list-repair-edit-extractions must keep training_allowed=false: "
+        f"{client_mvp_loop_repair_extraction_list!r}"
+    )
+if client_mvp_loop_repair_extraction_list.get("apply_allowed") is not False:
+    fail(
+        "list-repair-edit-extractions must keep apply_allowed=false: "
+        f"{client_mvp_loop_repair_extraction_list!r}"
+    )
+matching_extractions = [
+    item
+    for item in extraction_artifacts
+    if isinstance(item, dict)
+    and item.get("path") == str(client_mvp_loop_repair_extraction_path)
+]
+if len(matching_extractions) != 1:
+    fail(
+        f"list-repair-edit-extractions omitted {client_mvp_loop_repair_extraction_path}: "
+        f"{client_mvp_loop_repair_extraction_list!r}"
+    )
+if matching_extractions[0].get("extraction_status") != "ready_for_plan_edit":
+    fail(
+        "list-repair-edit-extractions used unexpected extraction status: "
+        f"{client_mvp_loop_repair_extraction_list!r}"
+    )
 
 try:
     client_mvp_loop_repair_plan_output = subprocess.check_output(

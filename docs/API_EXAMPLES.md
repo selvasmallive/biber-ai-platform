@@ -484,6 +484,12 @@ python scripts/biber_agent_client.py extract-repair-edits \
   --max-files 2 \
   --output /workspace/outputs/biber-mvp-loop-repair-edit-extraction.json \
   --edits-output /workspace/outputs/biber-mvp-loop-repair-edits.json
+python scripts/biber_agent_client.py show-repair-edit-extraction \
+  /workspace/outputs/biber-mvp-loop-repair-edit-extraction.json
+python scripts/biber_agent_client.py list-repair-edit-extractions \
+  /workspace/outputs \
+  --ready-only \
+  --limit 10
 python scripts/biber_agent_client.py plan-repair-edits \
   /workspace/outputs/biber-mvp-loop-repair-edit-extraction.json \
   --max-files 2 \
