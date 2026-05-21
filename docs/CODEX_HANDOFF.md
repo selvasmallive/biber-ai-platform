@@ -442,9 +442,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER repair-chain held-out eval decision review artifact inspection
   commit pushed and Vast-verified:
   `570739f Add heldout eval decision review inspection`.
+- Latest BIBER repair-chain held-out baseline candidate review artifact
+  inspection commit pushed and Vast-verified:
+  `57d4e4b Add heldout baseline candidate review inspection`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `570739f`. Full Rust/private-devnet
+- Vast code verification is current through `57d4e4b`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -511,7 +514,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   through `083108b`; BIBER repair-chain held-out eval review artifact
   inspection verification is current through `647437f`; BIBER repair-chain
   held-out eval decision review artifact inspection verification is current
-  through `570739f`;
+  through `570739f`; BIBER repair-chain held-out baseline candidate review
+  artifact inspection verification is current through `57d4e4b`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -573,7 +577,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   `083108b`; BIBER agent-client repair-chain held-out eval review artifact
   inspection verification is current through `647437f`; BIBER agent-client
   repair-chain held-out eval decision review artifact inspection verification
-  is current through `570739f`; BIBER
+  is current through `570739f`; BIBER agent-client repair-chain held-out
+  baseline candidate review artifact inspection verification is current
+  through `57d4e4b`; BIBER
   repair-chain held-out eval prompt export verification is current through
   `16523ac`; BIBER repair-chain held-out eval runner verification is current
   through `95051e5`; BIBER repair-chain held-out eval result review
@@ -603,7 +609,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - `BIBER_RUNTIME_PROFILES_ENABLED=true`
-  - Vast code verification is current through `570739f`. If later docs-only
+  - Vast code verification is current through `57d4e4b`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
   - The user explicitly approved the separate Vast GPU repo-adaptation QLoRA
@@ -1215,6 +1221,32 @@ serving the last broad-safe Rust/XRIQ adapter.
     `cd /workspace/biber-ai-platform; BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=64 bash scripts/vast_biber_agent_smoke.sh`.
     Smoke artifact directory:
     `/workspace/outputs/biber-agent-smoke-20260521T170909Z-92648`. No training
+    was started, no candidate adapter was reloaded, and no adapter was
+    promoted; stable serving remains on
+    `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
+  - `57d4e4b` adds offline repair-chain held-out baseline candidate review
+    artifact inspection:
+    `show-repair-chain-heldout-baseline-candidate-review` summarizes saved
+    `review-repair-chain-heldout-baseline-candidates` JSON artifacts without
+    resolving API auth, and
+    `list-repair-chain-heldout-baseline-candidate-reviews` scans output
+    directories with optional `--candidate-ready-only` and `--limit` support.
+    The commands preserve the safety guards: `eval_only=true`,
+    `training_allowed=false`, `safe_to_train=false`,
+    `github_save_ready=false`, and `approved_for_training=false`.
+    `docs/API_EXAMPLES.md` now includes the held-out baseline-candidate
+    export/review/show/list sequence, and
+    `scripts/vast_biber_agent_smoke.sh` verifies baseline-candidate review
+    inspection before any manual baseline-candidate decision. Local
+    verification passed `git diff --check`, bundled Python syntax compilation,
+    and an offline command smoke; local pytest was not available on this
+    workstation, and local `bash -n` was blocked because WSL has no installed
+    distro. Vast was fast-forwarded to `57d4e4b`; verification passed
+    `. /venv/main/bin/activate`, `python -m py_compile scripts/biber_agent_client.py tests/test_biber_agent_client.py`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py -q` with `128 passed`, and live
+    `bash scripts/vast_biber_agent_smoke.sh`. Smoke artifact directory:
+    `/workspace/outputs/biber-agent-smoke-20260521T171749Z-92929`. No training
     was started, no candidate adapter was reloaded, and no adapter was
     promoted; stable serving remains on
     `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
@@ -1923,6 +1955,38 @@ serving the last broad-safe Rust/XRIQ adapter.
     and `approved_for_training=false`. This is a training-readiness gate only;
     it does not create training data, start a Vast training job, approve model
     promotion, save to GitHub, rotate credentials, or approve public XRIQ work.
+  - The `57d4e4b` repair-chain held-out baseline candidate review artifact
+    inspection checkpoint required no service restart because it changed only
+    the stdlib agent client, smoke script, tests, and API examples. vLLM stayed
+    on pid `84653`; FastAPI stayed on pid `85630`. Training was not started
+    because the smoke baseline-candidate review artifact still has `records=0`,
+    `baseline_candidates=0`, and `baseline_ready_records=0`.
+  - Latest focused Vast verification for the BIBER repair-chain held-out
+    baseline candidate review artifact inspection slice:
+    local `py_compile` for `scripts/biber_agent_client.py` and
+    `tests/test_biber_agent_client.py`, local `git diff --check`, and a local
+    offline show/list smoke passed. Local pytest is still unavailable on the
+    Windows workstation (`No module named pytest`), and local `bash -n` is
+    blocked because WSL has no installed distro. Vast verification passed
+    `. /venv/main/bin/activate`,
+    `python -m py_compile scripts/biber_agent_client.py tests/test_biber_agent_client.py`,
+    `bash -n scripts/vast_biber_agent_smoke.sh`, focused pytest
+    `tests/test_biber_agent_client.py -q` with `128 passed`, live
+    `bash scripts/vast_biber_agent_smoke.sh`, and
+    `bash scripts/vast_status_direct.sh`.
+    The smoke wrote artifacts under
+    `/workspace/outputs/biber-agent-smoke-20260521T171749Z-92929` and verified
+    `show-repair-chain-heldout-baseline-candidate-review` plus
+    `list-repair-chain-heldout-baseline-candidate-reviews` against
+    `/workspace/outputs/biber-agent-smoke-20260521T171749Z-92929/agent-client-mvp-loop-repair-chain-heldout-baseline-candidate-review.json`.
+    The review artifact stayed at `records=0`, `baseline_candidates=0`,
+    `baseline_candidate_ready_records=0`, `baseline_ready_records=0`,
+    `requires_baseline_review_records=0`, `eval_only=true`,
+    `safe_to_train=false`, `training_allowed=false`,
+    `github_save_ready=false`, and `approved_for_training=false`. This is
+    offline inspection evidence only; it does not create training data, approve
+    model promotion, save to GitHub, rotate credentials, or approve public XRIQ
+    work.
   - The `a045c63` repair-chain held-out baseline decision review checkpoint
     required no service restart because it changed only the stdlib agent
     client, smoke script, and tests. vLLM stayed on pid `5802`; FastAPI stayed
@@ -6774,7 +6838,11 @@ bash scripts/xriq_private_devnet_smoke.sh
     promotion. It also has
     `review-repair-chain-heldout-baseline-candidates`, which summarizes those
     baseline-candidate queues while still blocking training, GitHub save, and
-    automatic model promotion. It also has
+    automatic model promotion, plus
+    `show-repair-chain-heldout-baseline-candidate-review` and
+    `list-repair-chain-heldout-baseline-candidate-reviews`, which inspect saved
+    baseline-candidate review artifacts offline before any baseline-candidate
+    decision is recorded. It also has
     `record-repair-chain-heldout-baseline-candidate-decision`, which records a
     manual defer/reject/approve-as-baseline decision while still blocking
     training, GitHub save, and automatic model promotion. It also has
@@ -6948,6 +7016,10 @@ bash scripts/xriq_private_devnet_smoke.sh
    `review-repair-chain-heldout-baseline-candidates` summarizes those
    baseline-candidate queues and reports `baseline_ready_records` while still
    blocking training and promotion.
+   `show-repair-chain-heldout-baseline-candidate-review` and
+   `list-repair-chain-heldout-baseline-candidate-reviews` inspect saved
+   baseline-candidate review artifacts offline before any manual baseline
+   decision is recorded.
    `record-repair-chain-heldout-baseline-candidate-decision` records manual
    baseline decisions and can mark rows `baseline_ready=true`, but it still
    keeps `training_allowed=false`, `safe_to_train=false`,
@@ -7005,7 +7077,10 @@ bash scripts/xriq_private_devnet_smoke.sh
    export accepted baseline candidates with
    `export-repair-chain-heldout-baseline-candidates`, then review those
    baseline candidates with
-   `review-repair-chain-heldout-baseline-candidates`, then record manual
+   `review-repair-chain-heldout-baseline-candidates`, then inspect the saved
+   baseline-candidate review with
+   `show-repair-chain-heldout-baseline-candidate-review` and
+   `list-repair-chain-heldout-baseline-candidate-reviews`, then record manual
    baseline decisions with
    `record-repair-chain-heldout-baseline-candidate-decision`, then summarize
    those manual baseline decisions with
