@@ -654,6 +654,8 @@ try:
             "docs/API_EXAMPLES.md",
             "--max-context-files",
             "5",
+            "--runtime-profile-id",
+            "rust-xriq-codegen",
             "--edit-json",
             json.dumps(client_mvp_loop_edit),
             "--apply-edits",
@@ -688,6 +690,8 @@ except json.JSONDecodeError as exc:
     fail(f"agent client mvp-loop output artifact returned invalid JSON: {exc}")
 if saved_client_mvp_loop != client_mvp_loop:
     fail("agent client mvp-loop output artifact did not match stdout JSON")
+if client_mvp_loop.get("runtime_profile_ids") != ["rust-xriq-codegen"]:
+    fail(f"agent client mvp-loop did not preserve runtime profile ids: {client_mvp_loop!r}")
 try:
     client_mvp_loop_report = subprocess.check_output(
         [
@@ -708,6 +712,8 @@ if "BIBER MVP loop" not in client_mvp_loop_report:
     fail(f"show-mvp-loop report omitted heading: {client_mvp_loop_report!r}")
 if str(client_mvp_loop_output_path) not in client_mvp_loop_report:
     fail(f"show-mvp-loop report omitted artifact path: {client_mvp_loop_report!r}")
+if "runtime_profiles: rust-xriq-codegen" not in client_mvp_loop_report:
+    fail(f"show-mvp-loop report omitted runtime profiles: {client_mvp_loop_report!r}")
 try:
     client_mvp_loop_list_output = subprocess.check_output(
         [

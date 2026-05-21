@@ -742,6 +742,48 @@ def test_build_mvp_loop_repair_request_extracts_failure_context(tmp_path: Path) 
     assert repair["next_test_id"] == "dotnet-test"
 
 
+def test_build_mvp_loop_repair_request_keeps_runtime_profiles(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "failure-mvp-loop.json"
+    payload = {
+        "ok": False,
+        "instruction": "Fix an XRIQ Rust validator failure.",
+        "runtime_profile_ids": ["rust-xriq-codegen", "rust-xriq-codegen"],
+        "steps": {
+            "test_run": {
+                "ok": False,
+                "test_id": "cargo-test",
+                "command": ["cargo", "test"],
+                "exit_code": 1,
+                "timed_out": False,
+                "stdout": "error[E0502]: cannot borrow ledger as mutable\n",
+            },
+            "test_diagnosis": {
+                "primary_category": "compile_error",
+                "detected_stack": "rust",
+                "summary": "Detected Rust borrow-checker error.",
+                "suggested_next_actions": ["Fix the borrow before rerunning tests."],
+            },
+        },
+        "selected_context_paths": ["xriq/crates/xriq-ledger/src/lib.rs"],
+        "test_ok": False,
+    }
+
+    repair = client.build_mvp_loop_repair_request(
+        path=artifact,
+        payload=payload,
+        instruction=None,
+        max_relevant_output_chars=120,
+        max_context_paths=None,
+    )
+
+    assert repair["runtime_profile_ids"] == ["rust-xriq-codegen"]
+    assert "runtime_profiles: rust-xriq-codegen" in (
+        client.format_mvp_loop_repair_request_summary(repair)
+    )
+
+
 def test_build_repair_chat_payload_uses_local_model_without_mentor() -> None:
     payload = client.build_repair_chat_payload(
         repair_request={
@@ -927,6 +969,94 @@ def test_run_attempt_repair_calls_local_model_and_writes_artifact(
     assert result["training_allowed"] is False
     assert result["model_response"]["mentor_used"] is False
     assert result["repair_content"].startswith("Change src/App.cs")
+
+
+def test_run_attempt_repair_inherits_mvp_loop_runtime_profiles(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_fetch_capabilities(
+        *,
+        base_url: str,
+        api_key: str,
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["capabilities_base_url"] = base_url
+        return sample_capabilities()
+
+    def fake_chat_with_biber(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["payload"] = payload
+        return {
+            "id": "chat-1",
+            "model": "biber-dev-core-v1",
+            "content": "Use a scoped immutable borrow before mutating.",
+            "mentor_used": False,
+        }
+
+    failure = tmp_path / "failure-mvp-loop.json"
+    failure.write_text(
+        json.dumps(
+            {
+                "ok": False,
+                "instruction": "Fix an XRIQ Rust validator failure.",
+                "runtime_profile_ids": ["rust-xriq-codegen"],
+                "steps": {
+                    "test_run": {
+                        "ok": False,
+                        "test_id": "cargo-test",
+                        "command": ["cargo", "test"],
+                        "exit_code": 1,
+                        "timed_out": False,
+                        "stdout": "error[E0502]: cannot borrow ledger as mutable\n",
+                    },
+                    "test_diagnosis": {
+                        "primary_category": "compile_error",
+                        "detected_stack": "rust",
+                        "summary": "Detected Rust borrow-checker error.",
+                        "suggested_next_actions": [
+                            "Fix the borrow before rerunning tests."
+                        ],
+                    },
+                },
+                "selected_context_paths": ["xriq/crates/xriq-ledger/src/lib.rs"],
+                "test_ok": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "fetch_capabilities", fake_fetch_capabilities)
+    monkeypatch.setattr(client, "chat_with_biber", fake_chat_with_biber)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "attempt-repair",
+                str(failure),
+                "--max-tokens",
+                "128",
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert captured["capabilities_base_url"] == "http://127.0.0.1:8000"
+    assert captured["payload"]["runtime_profile_ids"] == ["rust-xriq-codegen"]
+    assert result["repair_request"]["runtime_profile_ids"] == ["rust-xriq-codegen"]
+    assert result["chat_request"]["runtime_profile_ids"] == ["rust-xriq-codegen"]
 
 
 def test_extract_repair_edits_accepts_json_edit_candidates(tmp_path: Path) -> None:
@@ -5130,6 +5260,15 @@ def test_run_mvp_loop_json_chains_safe_workflow(monkeypatch, tmp_path: Path) -> 
     def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
         return "test-key"
 
+    def fake_fetch_capabilities(
+        *,
+        base_url: str,
+        api_key: str,
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["capabilities_base_url"] = base_url
+        return sample_capabilities()
+
     def fake_plan_repo_context(
         *,
         base_url: str,
@@ -5245,6 +5384,7 @@ def test_run_mvp_loop_json_chains_safe_workflow(monkeypatch, tmp_path: Path) -> 
         return {"url": "https://github.com/acme/biber/pull/42", "number": 42}
 
     monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "fetch_capabilities", fake_fetch_capabilities)
     monkeypatch.setattr(client, "plan_repo_context", fake_plan_repo_context)
     monkeypatch.setattr(client, "plan_workspace_edit", fake_plan_workspace_edit)
     monkeypatch.setattr(client, "apply_workspace_edit_plan", fake_apply_workspace_edit_plan)
@@ -5273,6 +5413,10 @@ def test_run_mvp_loop_json_chains_safe_workflow(monkeypatch, tmp_path: Path) -> 
             "src/App.cs",
             "--max-context-files",
             "4",
+            "--runtime-profile-id",
+            "rust-xriq-codegen",
+            "--runtime-profile-id",
+            "rust-xriq-codegen",
             "--edit-json",
             edit_json,
             "--apply-edits",
@@ -5314,6 +5458,7 @@ def test_run_mvp_loop_json_chains_safe_workflow(monkeypatch, tmp_path: Path) -> 
     assert result["artifact_path"] == str(output_path)
     assert json.loads(output_path.read_text(encoding="utf-8")) == result
     assert result["selected_context_paths"] == ["README.md"]
+    assert result["runtime_profile_ids"] == ["rust-xriq-codegen"]
     assert set(result["steps"]) == {
         "context_plan",
         "edit_plan",

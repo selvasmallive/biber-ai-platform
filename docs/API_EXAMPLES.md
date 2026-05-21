@@ -439,6 +439,7 @@ python scripts/biber_agent_client.py mvp-loop \
   --pinned-path README.md \
   --changed-path src/Example.Api/Controllers/WeatherController.cs \
   --max-context-files 8 \
+  --runtime-profile-id rust-xriq-codegen \
   --edits-file /workspace/outputs/planned-edits.json \
   --apply-edits \
   --test-id dotnet-test \
@@ -497,6 +498,10 @@ python scripts/biber_agent_client.py review-verified-repairs \
   /workspace/outputs/biber-mvp-loop-verified-repairs.jsonl \
   --output /workspace/outputs/biber-mvp-loop-verified-repair-review.json
 ```
+
+If `mvp-loop` is started with `--runtime-profile-id`, failed-loop repair
+requests and `attempt-repair` inherit those profile IDs unless you pass a
+different `--runtime-profile-id` to `attempt-repair`.
 
 ## Prepare Repo-Specific BIBER Adaptation
 

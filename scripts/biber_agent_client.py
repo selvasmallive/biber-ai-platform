@@ -349,6 +349,12 @@ def dedupe_strings(values: list[str] | None) -> list[str] | None:
     return result
 
 
+def normalize_runtime_profile_ids(value: object) -> list[str] | None:
+    if value is None:
+        return None
+    return dedupe_strings([str(item) for item in require_list(value)])
+
+
 def get_preset(capabilities: Mapping[str, Any], preset_id: str) -> dict[str, Any]:
     for preset in require_list(capabilities.get("presets")):
         if isinstance(preset, dict) and preset.get("id") == preset_id:
@@ -745,13 +751,16 @@ def build_mvp_loop_failure_record(path: Path, payload: Mapping[str, Any]) -> dic
     steps = require_mapping(payload.get("steps"))
     test_run = require_mapping(steps.get("test_run"))
     diagnosis = require_mapping(steps.get("test_diagnosis"))
+    runtime_profile_ids = normalize_runtime_profile_ids(
+        payload.get("runtime_profile_ids")
+    )
     relevant_output = (
         diagnosis.get("relevant_output")
         or test_run.get("stdout")
         or test_run.get("stderr")
         or ""
     )
-    return {
+    record: dict[str, Any] = {
         "source": "biber_mvp_loop_failure",
         "review_status": "needs_review",
         "training_allowed": False,
@@ -773,6 +782,9 @@ def build_mvp_loop_failure_record(path: Path, payload: Mapping[str, Any]) -> dic
         },
         "next_review_action": "review_failure_before_eval_or_training",
     }
+    if runtime_profile_ids is not None:
+        record["runtime_profile_ids"] = runtime_profile_ids
+    return record
 
 
 def build_repair_prompt(
@@ -876,6 +888,9 @@ def build_mvp_loop_repair_request(
         ),
     }
     repair_instruction = instruction or DEFAULT_REPAIR_INSTRUCTION
+    runtime_profile_ids = normalize_runtime_profile_ids(
+        payload.get("runtime_profile_ids")
+    )
     repair_prompt = build_repair_prompt(
         instruction=repair_instruction,
         original_instruction=payload.get("instruction"),
@@ -883,7 +898,7 @@ def build_mvp_loop_repair_request(
         failure=failure,
         suggested_next_actions=suggested_next_actions,
     )
-    return {
+    repair: dict[str, Any] = {
         "source": "biber_mvp_loop_repair_request",
         "repair_loop_version": "mvp-v1",
         "repair_status": "ready_for_local_model",
@@ -906,6 +921,9 @@ def build_mvp_loop_repair_request(
             "diagnose_again_if_still_failing",
         ],
     }
+    if runtime_profile_ids is not None:
+        repair["runtime_profile_ids"] = runtime_profile_ids
+    return repair
 
 
 def language_for_detected_stack(stack: object) -> str | None:
@@ -5330,6 +5348,11 @@ def format_mvp_loop_summary(payload: Mapping[str, Any]) -> str:
         f"selected_context_paths: {len(require_list(payload.get('selected_context_paths')))}",
         f"steps: {', '.join(steps.keys()) if steps else '-'}",
     ]
+    runtime_profile_ids = normalize_runtime_profile_ids(
+        payload.get("runtime_profile_ids")
+    )
+    if runtime_profile_ids:
+        lines.append(f"runtime_profiles: {', '.join(runtime_profile_ids)}")
     if payload.get("edit_plan_hash"):
         lines.append(f"edit_plan_hash: {payload.get('edit_plan_hash')}")
     if "test_ok" in payload:
@@ -5418,20 +5441,24 @@ def format_mvp_loop_failure_export_summary(payload: Mapping[str, Any]) -> str:
 
 def format_mvp_loop_repair_request_summary(payload: Mapping[str, Any]) -> str:
     failure = require_mapping(payload.get("failure"))
-    return "\n".join(
-        [
-            "BIBER MVP loop repair request",
-            f"source_artifact: {payload.get('source_artifact', '-')}",
-            f"repair_status: {payload.get('repair_status', '-')}",
-            f"training_allowed: {payload.get('training_allowed', False)}",
-            f"selected_context_paths: {len(require_list(payload.get('selected_context_paths')))}",
-            f"test_id: {failure.get('test_id') or '-'}",
-            f"primary_category: {failure.get('primary_category') or '-'}",
-            f"detected_stack: {failure.get('detected_stack') or '-'}",
-            f"next_test_id: {payload.get('next_test_id') or '-'}",
-            f"artifact_path: {payload.get('artifact_path', '-')}",
-        ]
+    lines = [
+        "BIBER MVP loop repair request",
+        f"source_artifact: {payload.get('source_artifact', '-')}",
+        f"repair_status: {payload.get('repair_status', '-')}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"selected_context_paths: {len(require_list(payload.get('selected_context_paths')))}",
+        f"test_id: {failure.get('test_id') or '-'}",
+        f"primary_category: {failure.get('primary_category') or '-'}",
+        f"detected_stack: {failure.get('detected_stack') or '-'}",
+        f"next_test_id: {payload.get('next_test_id') or '-'}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    runtime_profile_ids = normalize_runtime_profile_ids(
+        payload.get("runtime_profile_ids")
     )
+    if runtime_profile_ids:
+        lines.append(f"runtime_profiles: {', '.join(runtime_profile_ids)}")
+    return "\n".join(lines)
 
 
 def format_mvp_loop_repair_attempt_summary(payload: Mapping[str, Any]) -> str:
@@ -6767,6 +6794,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     mvp_loop.add_argument("--changed-path", action="append", default=None)
     mvp_loop.add_argument("--max-context-files", type=int)
     mvp_loop.add_argument("--max-scan-files", type=int)
+    mvp_loop.add_argument("--runtime-profile-id", action="append", default=None)
     mvp_loop.add_argument("--edit-json", action="append", default=None)
     mvp_loop.add_argument("--edits-file")
     mvp_loop.add_argument("--apply-edits", action="store_true")
@@ -7844,7 +7872,15 @@ def run(args: argparse.Namespace) -> str:
             max_relevant_output_chars=args.max_relevant_output_chars,
             max_context_paths=args.max_context_paths,
         )
-        runtime_profile_ids = dedupe_strings(args.runtime_profile_id)
+        cli_runtime_profile_ids = dedupe_strings(args.runtime_profile_id)
+        inherited_runtime_profile_ids = normalize_runtime_profile_ids(
+            repair_request.get("runtime_profile_ids")
+        )
+        runtime_profile_ids = (
+            cli_runtime_profile_ids
+            if cli_runtime_profile_ids is not None
+            else inherited_runtime_profile_ids
+        )
         if runtime_profile_ids:
             capabilities = fetch_capabilities(
                 base_url=base_url,
@@ -8301,6 +8337,17 @@ def run(args: argparse.Namespace) -> str:
         )
     if args.command == "mvp-loop":
         steps: dict[str, Any] = {}
+        runtime_profile_ids = dedupe_strings(args.runtime_profile_id)
+        if runtime_profile_ids:
+            capabilities = fetch_capabilities(
+                base_url=base_url,
+                api_key=api_key,
+                timeout_seconds=args.timeout_seconds,
+            )
+            validate_runtime_profile_ids(
+                capabilities=capabilities,
+                runtime_profile_ids=runtime_profile_ids,
+            )
         context_plan = plan_repo_context(
             base_url=base_url,
             api_key=api_key,
@@ -8324,6 +8371,8 @@ def run(args: argparse.Namespace) -> str:
             "selected_context_paths": selected_context_paths,
             "steps": steps,
         }
+        if runtime_profile_ids is not None:
+            summary["runtime_profile_ids"] = runtime_profile_ids
 
         has_edits = bool(args.edit_json or args.edits_file)
         if has_edits:
