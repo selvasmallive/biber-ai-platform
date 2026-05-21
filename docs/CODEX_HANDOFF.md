@@ -7421,6 +7421,29 @@ bash scripts/xriq_private_devnet_smoke.sh
    `reason=real_repo_evidence_not_confirmed`. Use `defer` for fixture/smoke
    validation artifacts and reserve `approve_for_eval` for concrete real repo
    repair-chain evidence only.
+   On 2026-05-21, a bounded expanded repo-adaptation eval was run on the live
+   Vast local model against this real `biber-ai-platform` repo, without
+   OpenAI mentor calls and without training. Artifacts:
+   `/workspace/outputs/repo-adapt-realrepo-20260521T203421Z-95017.plan.json`,
+   `/workspace/outputs/repo-adapt-realrepo-20260521T203421Z-95017.prompts.jsonl`,
+   and `/workspace/outputs/evals/repo-adapt-realrepo-20260521T203421Z-95017/`.
+   It included `151` files, emitted `32` prompts, received `32/32` responses,
+   passed `17/32` expectation checks, and produced `15` single-occurrence
+   failure groups with `0` repeated training candidates. The current curated
+   repo-adaptation queue was rechecked at
+   `/workspace/outputs/evals/repo-adapt-realrepo-20260521T203421Z-95017/current-curated-queue-readiness.json`
+   and now reports `review_status=manual_training_review_required`,
+   `ready_records=56`, `min_records=50`, and `record_gap=0`.
+   A manual pre-training review artifact was then created at
+   `/workspace/outputs/evals/repo-adapt-training-approval-20260521T203547Z-95083/repo-adaptation-manual-training-review.json`.
+   It reports `review_status=ready_for_user_training_approval`,
+   `ready_records=56`, `category_count=7`, required category counts
+   `bash=5`, `markdown=8`, `python=22`, and `sql=3`, with
+   `hard_blockers=[]`. It still keeps `training_allowed=false`,
+   `safe_to_train=false`, and `approved_for_training=false`. Do not start
+   training from this review unless the user explicitly approves this guarded
+   command:
+   `BIBER_TRAIN_APPROVED=1 BIBER_TRAIN_DATASET=/workspace/data/repo_adaptation/reviewed_candidates.jsonl BIBER_TRAIN_OUTPUT_DIR=/workspace/adapters/biber-dev-core-repo-adapt-next-20260521T203547Z-95083 BIBER_TRAIN_SESSION=biber-repo-adapt-next-20260521T203547Z-95083 BIBER_TRAIN_MIN_RECORDS=50 bash scripts/vast_train_qlora_tmux.sh /workspace/data/repo_adaptation/reviewed_candidates.jsonl`.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
