@@ -559,6 +559,21 @@ python scripts/biber_agent_client.py list-ready-repair-chain-reviews \
   /workspace/outputs \
   --ready-only \
   --limit 10
+python scripts/biber_agent_client.py record-ready-repair-chain-decision \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chains.jsonl \
+  --decision defer \
+  --reviewer human-reviewer \
+  --notes "Needs one more review before eval curation." \
+  --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-decisions.jsonl
+python scripts/biber_agent_client.py review-ready-repair-chain-decisions \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chain-decisions.jsonl \
+  --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-decision-review.json
+python scripts/biber_agent_client.py show-ready-repair-chain-decision-review \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chain-decision-review.json
+python scripts/biber_agent_client.py list-ready-repair-chain-decision-reviews \
+  /workspace/outputs \
+  --decision defer \
+  --limit 10
 ```
 
 If `mvp-loop` is started with `--runtime-profile-id`, failed-loop repair

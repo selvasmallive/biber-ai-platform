@@ -3402,6 +3402,174 @@ def test_run_review_ready_repair_chain_decisions_summarizes_without_api_key(
     assert saved == result
 
 
+def test_run_show_ready_repair_chain_decision_review_summarizes_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "show-ready-repair-chain-decision-review should not resolve an API key"
+        )
+
+    artifact = tmp_path / "ready-repair-chain-decision-review.json"
+    payload = {
+        "source": "biber_mvp_loop_ready_repair_chain_decision_review",
+        "review_status": "decision_summary_only",
+        "records": 1,
+        "rejected_records": 0,
+        "decision_counts": {"defer": 1},
+        "defer_records": 1,
+        "reject_records": 0,
+        "approved_for_eval_records": 0,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "artifact_path": str(artifact),
+        "groups": [
+            {
+                "test_id": "python-compileall-api",
+                "plan_hash": "f" * 64,
+                "decision": "defer",
+                "count": 1,
+            }
+        ],
+    }
+    artifact.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(["show-ready-repair-chain-decision-review", str(artifact)])
+    )
+
+    assert "BIBER ready repair-chain decision review" in output
+    assert "records: 1" in output
+    assert "defer_records: 1" in output
+    assert "approved_for_eval_records: 0" in output
+    assert "training_allowed: False" in output
+    assert "safe_to_train: False" in output
+    assert "github_save_ready: False" in output
+    assert "approved_for_training: False" in output
+    assert "decision=defer" in output
+    assert "test_id=python-compileall-api" in output
+    assert str(artifact) in output
+
+
+def test_run_show_ready_repair_chain_decision_review_json_returns_local_artifact(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "ready-repair-chain-decision-review.json"
+    payload = {
+        "source": "biber_mvp_loop_ready_repair_chain_decision_review",
+        "review_status": "decision_summary_only",
+        "records": 1,
+        "decision_counts": {"defer": 1},
+        "groups": [],
+    }
+    artifact.write_text(json.dumps({"body": payload}), encoding="utf-8")
+
+    output = client.run(
+        client.parse_args(
+            ["--json", "show-ready-repair-chain-decision-review", str(artifact)]
+        )
+    )
+
+    assert json.loads(output) == payload
+
+
+def test_run_list_ready_repair_chain_decision_reviews_summarizes_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "list-ready-repair-chain-decision-reviews should not resolve an API key"
+        )
+
+    defer_review = tmp_path / "agent-client-ready-repair-chain-decision-review.json"
+    defer_review.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_ready_repair_chain_decision_review",
+                "review_status": "decision_summary_only",
+                "records": 1,
+                "rejected_records": 0,
+                "decision_counts": {"defer": 1},
+                "defer_records": 1,
+                "reject_records": 0,
+                "approved_for_eval_records": 0,
+                "training_allowed": False,
+                "eligible_for_training": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+                "auto_promoted": False,
+                "groups": [
+                    {
+                        "test_id": "python-compileall-api",
+                        "plan_hash": "f" * 64,
+                        "decision": "defer",
+                        "count": 1,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    approve_review = tmp_path / "approve-ready-repair-chain-decision-review.json"
+    approve_review.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_ready_repair_chain_decision_review",
+                "review_status": "decision_summary_only",
+                "records": 1,
+                "decision_counts": {"approve_for_eval": 1},
+                "defer_records": 0,
+                "approved_for_eval_records": 1,
+                "training_allowed": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+                "groups": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    ignored = tmp_path / "ignored-ready-repair-chain-decision-review.json"
+    ignored.write_text(json.dumps({"source": "other"}), encoding="utf-8")
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "list-ready-repair-chain-decision-reviews",
+                str(tmp_path),
+                "--decision",
+                "defer",
+                "--limit",
+                "5",
+            ]
+        )
+    )
+
+    assert "BIBER ready repair-chain decision review artifacts (1)" in output
+    assert str(defer_review) in output
+    assert str(approve_review) not in output
+    assert str(ignored) not in output
+    assert "decision: defer" in output
+    assert "records: 1" in output
+    assert "defer_records: 1" in output
+    assert "approved_for_eval_records: 0" in output
+    assert "training_allowed: False" in output
+    assert "safe_to_train: False" in output
+    assert "github_save_ready: False" in output
+    assert "approved_for_training: False" in output
+    assert "status=decision_summary_only" in output
+    assert "defer=1" in output
+
+
 def test_run_export_ready_repair_chain_eval_candidates_without_api_key(
     monkeypatch,
     tmp_path: Path,
