@@ -565,6 +565,9 @@ python scripts/biber_agent_client.py record-ready-repair-chain-decision \
   --reviewer human-reviewer \
   --notes "Needs one more review before eval curation." \
   --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-decisions.jsonl
+# To approve a real repo repair-chain for held-out eval curation, the reviewer
+# must explicitly confirm provenance:
+#   --decision approve_for_eval --evidence-source-type real_repo_candidate
 python scripts/biber_agent_client.py review-ready-repair-chain-decisions \
   /workspace/outputs/biber-mvp-loop-ready-repair-chain-decisions.jsonl \
   --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-decision-review.json

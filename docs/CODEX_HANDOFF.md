@@ -7413,6 +7413,14 @@ bash scripts/xriq_private_devnet_smoke.sh
    if someone accidentally records `approve_for_eval`. Real repo evidence is
    still classified as `real_repo_candidate`. This keeps fixture/smoke plumbing
    checks from flowing into held-out evals or future training queues.
+   A second guard now requires
+   `record-ready-repair-chain-decision --decision approve_for_eval` to include
+   `--evidence-source-type real_repo_candidate`; otherwise the decision command
+   fails before writing an eval-approval row. Export also skips legacy or
+   handcrafted approve rows that lack confirmed real-repo provenance with
+   `reason=real_repo_evidence_not_confirmed`. Use `defer` for fixture/smoke
+   validation artifacts and reserve `approve_for_eval` for concrete real repo
+   repair-chain evidence only.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for

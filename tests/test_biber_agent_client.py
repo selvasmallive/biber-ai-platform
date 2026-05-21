@@ -3300,8 +3300,10 @@ def test_run_record_ready_repair_chain_decision_writes_jsonl_without_api_key(
     assert rows[0]["review_status"] == "human_defer"
     assert rows[0]["reviewer"] == "human-reviewer"
     assert rows[0]["notes"] == "Needs target repo confirmation."
-    assert rows[0]["evidence_source_type"] == "real_repo_candidate"
-    assert rows[0]["evidence_source_ok_for_eval"] is True
+    assert rows[0]["evidence_source_type"] == "unconfirmed_real_repo_candidate"
+    assert rows[0]["evidence_source_declaration"] == "auto"
+    assert rows[0]["evidence_source_confirmed"] is False
+    assert rows[0]["evidence_source_ok_for_eval"] is False
     assert rows[0]["evidence_source_reasons"] == []
     assert rows[0]["training_allowed"] is False
     assert rows[0]["eligible_for_training"] is False
@@ -3315,6 +3317,77 @@ def test_run_record_ready_repair_chain_decision_writes_jsonl_without_api_key(
         "continue_human_review_before_github_or_training"
     )
     assert result["rejected"][0]["reason"] == "unsupported_source"
+
+
+def test_run_record_ready_repair_chain_approve_for_eval_requires_real_repo_source(
+    tmp_path: Path,
+) -> None:
+    jsonl_path = tmp_path / "ready-repair-chains.jsonl"
+    output_path = tmp_path / "ready-repair-chain-decisions.jsonl"
+    record = {
+        "source": "biber_mvp_loop_repair_chain_review",
+        "review_status": "needs_human_review",
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "source_artifact": "repair-chain.json",
+        "plan_hash": "f" * 64,
+        "test_id": "python-compileall-api",
+        "chain": {"chain_status": "ready_for_human_review"},
+        "artifacts": {"verification": "repair-verification.json"},
+    }
+    jsonl_path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+
+    try:
+        client.run(
+            client.parse_args(
+                [
+                    "record-ready-repair-chain-decision",
+                    str(jsonl_path),
+                    "--decision",
+                    "approve_for_eval",
+                    "--reviewer",
+                    "human-reviewer",
+                    "--output",
+                    str(output_path),
+                ]
+            )
+        )
+    except client.BiberAgentClientError as exc:
+        assert (
+            "approve_for_eval requires --evidence-source-type real_repo_candidate"
+            in str(exc)
+        )
+    else:
+        raise AssertionError("approve_for_eval without real repo provenance should fail")
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "record-ready-repair-chain-decision",
+                str(jsonl_path),
+                "--decision",
+                "approve_for_eval",
+                "--reviewer",
+                "human-reviewer",
+                "--evidence-source-type",
+                "real_repo_candidate",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+
+    assert result["records"] == 1
+    assert rows[0]["approved_for_eval"] is True
+    assert rows[0]["evidence_source_type"] == "real_repo_candidate"
+    assert rows[0]["evidence_source_declaration"] == "real_repo_candidate"
+    assert rows[0]["evidence_source_confirmed"] is True
+    assert rows[0]["evidence_source_ok_for_eval"] is True
+    assert rows[0]["evidence_source_reasons"] == []
 
 
 def test_run_review_ready_repair_chain_decisions_summarizes_without_api_key(
@@ -3598,6 +3671,11 @@ def test_run_export_ready_repair_chain_eval_candidates_without_api_key(
             "github_save_ready": False,
             "approved_for_eval": True,
             "approved_for_training": False,
+            "evidence_source_type": "real_repo_candidate",
+            "evidence_source_declaration": "real_repo_candidate",
+            "evidence_source_confirmed": True,
+            "evidence_source_ok_for_eval": True,
+            "evidence_source_reasons": [],
             "source_artifact": "repair-chain.json",
             "plan_hash": "c" * 64,
             "test_id": "python-compileall-api",
@@ -3649,6 +3727,7 @@ def test_run_export_ready_repair_chain_eval_candidates_without_api_key(
     assert result["skipped_records"] == 1
     assert result["rejected_records"] == 1
     assert result["blocked_non_real_repo_records"] == 0
+    assert result["blocked_unconfirmed_real_repo_records"] == 0
     assert result["eval_candidates"] == 1
     assert result["eval_dataset_ready"] is False
     assert result["requires_dataset_review"] is True
@@ -3666,6 +3745,8 @@ def test_run_export_ready_repair_chain_eval_candidates_without_api_key(
     assert rows[0]["decision"] == "approve_for_eval"
     assert rows[0]["reviewer"] == "human-reviewer"
     assert rows[0]["evidence_source_type"] == "real_repo_candidate"
+    assert rows[0]["evidence_source_declaration"] == "real_repo_candidate"
+    assert rows[0]["evidence_source_confirmed"] is True
     assert rows[0]["evidence_source_ok_for_eval"] is True
     assert rows[0]["evidence_source_reasons"] == []
     assert rows[0]["training_allowed"] is False
@@ -3702,6 +3783,11 @@ def test_run_export_ready_repair_chain_eval_candidates_blocks_fixture_evidence(
             "github_save_ready": False,
             "approved_for_eval": True,
             "approved_for_training": False,
+            "evidence_source_type": "real_repo_candidate",
+            "evidence_source_declaration": "real_repo_candidate",
+            "evidence_source_confirmed": True,
+            "evidence_source_ok_for_eval": True,
+            "evidence_source_reasons": [],
             "source_artifact": (
                 "/workspace/outputs/biber-real-repair-fixture-20260521T192710Z-94786/"
                 "agent-client-mvp-loop-real-fixture-repair-chain.json"
@@ -3739,15 +3825,73 @@ def test_run_export_ready_repair_chain_eval_candidates_blocks_fixture_evidence(
     assert result["records"] == 0
     assert result["skipped_records"] == 1
     assert result["blocked_non_real_repo_records"] == 1
+    assert result["blocked_unconfirmed_real_repo_records"] == 0
     assert output_path.read_text(encoding="utf-8") == ""
     assert result["skipped"][0]["reason"] == "non_real_repo_evidence"
     assert result["skipped"][0]["evidence_source_type"] == "fixture_or_smoke"
     assert result["skipped"][0]["evidence_source_reasons"] == [
-        "disposable_fixture_artifact"
+        "disposable_fixture_artifact",
+        "real_repo_declaration_conflicts_with_markers",
     ]
     assert result["training_allowed"] is False
     assert result["safe_to_train"] is False
     assert result["github_save_ready"] is False
+
+
+def test_run_export_ready_repair_chain_eval_candidates_blocks_unconfirmed_real_repo(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "export-ready-repair-chain-eval-candidates should not resolve an API key"
+        )
+
+    jsonl_path = tmp_path / "unconfirmed-repair-chain-decisions.jsonl"
+    output_path = tmp_path / "unconfirmed-repair-chain-eval-candidates.jsonl"
+    record = {
+        "source": "biber_mvp_loop_repair_chain_decision",
+        "decision_status": "recorded",
+        "decision": "approve_for_eval",
+        "review_status": "human_approve_for_eval",
+        "reviewer": "human-reviewer",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_eval": True,
+        "approved_for_training": False,
+        "source_artifact": "repair-chain.json",
+        "plan_hash": "f" * 64,
+        "test_id": "python-compileall-api",
+        "chain": {"chain_status": "ready_for_human_review"},
+        "artifacts": {"verification": "repair-verification.json"},
+    }
+    jsonl_path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "export-ready-repair-chain-eval-candidates",
+                str(jsonl_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["records"] == 0
+    assert result["skipped_records"] == 1
+    assert result["blocked_non_real_repo_records"] == 0
+    assert result["blocked_unconfirmed_real_repo_records"] == 1
+    assert output_path.read_text(encoding="utf-8") == ""
+    assert result["skipped"][0]["reason"] == "real_repo_evidence_not_confirmed"
+    assert result["skipped"][0]["evidence_source_type"] == (
+        "unconfirmed_real_repo_candidate"
+    )
 
 
 def test_run_review_ready_repair_chain_eval_candidates_without_api_key(

@@ -713,7 +713,11 @@ NON_REAL_REPAIR_EVIDENCE_MARKERS = {
 }
 
 
-def classify_repair_chain_evidence_source(record: Mapping[str, Any]) -> dict[str, Any]:
+def classify_repair_chain_evidence_source(
+    record: Mapping[str, Any],
+    *,
+    declared_source_type: str | None = None,
+) -> dict[str, Any]:
     values: list[str] = []
 
     def collect(value: object) -> None:
@@ -736,17 +740,34 @@ def classify_repair_chain_evidence_source(record: Mapping[str, Any]) -> dict[str
         }
     )
     joined = "\n".join(values)
+    declared = declared_source_type
+    if declared is None:
+        existing = record.get("evidence_source_type")
+        if existing in {"real_repo_candidate", "fixture_or_smoke"}:
+            declared = str(existing)
     reasons = [
         reason
         for marker, reason in NON_REAL_REPAIR_EVIDENCE_MARKERS.items()
         if marker in joined
     ]
+    if declared == "fixture_or_smoke":
+        reasons.append("declared_fixture_or_smoke")
+    if declared == "real_repo_candidate" and reasons:
+        reasons.append("real_repo_declaration_conflicts_with_markers")
     reasons = sorted(set(reasons))
+    confirmed_real_repo = declared == "real_repo_candidate" and not reasons
+    evidence_source_type = (
+        "fixture_or_smoke"
+        if reasons
+        else "real_repo_candidate"
+        if confirmed_real_repo
+        else "unconfirmed_real_repo_candidate"
+    )
     return {
-        "evidence_source_type": (
-            "fixture_or_smoke" if reasons else "real_repo_candidate"
-        ),
-        "evidence_source_ok_for_eval": not reasons,
+        "evidence_source_type": evidence_source_type,
+        "evidence_source_declaration": declared or "auto",
+        "evidence_source_confirmed": confirmed_real_repo,
+        "evidence_source_ok_for_eval": confirmed_real_repo,
         "evidence_source_reasons": reasons,
     }
 
@@ -2866,6 +2887,7 @@ def build_ready_repair_chain_decision_record(
     decision: str,
     reviewer: str,
     notes: str,
+    evidence_source_type: str,
 ) -> dict[str, Any]:
     if record.get("source") != "biber_mvp_loop_repair_chain_review":
         raise BiberAgentClientError(
@@ -2882,7 +2904,13 @@ def build_ready_repair_chain_decision_record(
     artifacts = record.get("artifacts")
     if not isinstance(artifacts, dict):
         artifacts = {}
-    provenance = classify_repair_chain_evidence_source(record)
+    declared_source_type = (
+        evidence_source_type if evidence_source_type != "auto" else None
+    )
+    provenance = classify_repair_chain_evidence_source(
+        record,
+        declared_source_type=declared_source_type,
+    )
     return {
         "source": "biber_mvp_loop_repair_chain_decision",
         "decision_status": "recorded",
@@ -2916,6 +2944,7 @@ def record_ready_repair_chain_decisions(
     decision: str,
     reviewer: str,
     notes: str,
+    evidence_source_type: str,
     limit: int,
     output_path: str,
 ) -> dict[str, Any]:
@@ -2925,6 +2954,14 @@ def record_ready_repair_chain_decisions(
         )
     if not reviewer.strip():
         raise BiberAgentClientError("--reviewer is required.")
+    if evidence_source_type not in {"auto", "real_repo_candidate", "fixture_or_smoke"}:
+        raise BiberAgentClientError(
+            "--evidence-source-type must be auto, real_repo_candidate, or fixture_or_smoke."
+        )
+    if decision == "approve_for_eval" and evidence_source_type != "real_repo_candidate":
+        raise BiberAgentClientError(
+            "approve_for_eval requires --evidence-source-type real_repo_candidate."
+        )
     if limit < 1:
         raise BiberAgentClientError("--limit must be at least 1.")
 
@@ -2955,6 +2992,7 @@ def record_ready_repair_chain_decisions(
                     decision=decision,
                     reviewer=reviewer.strip(),
                     notes=notes,
+                    evidence_source_type=evidence_source_type,
                 )
             )
 
@@ -3305,11 +3343,16 @@ def export_ready_repair_chain_eval_candidates(
                 continue
             provenance = classify_repair_chain_evidence_source(row)
             if provenance.get("evidence_source_ok_for_eval") is not True:
+                skip_reason = (
+                    "non_real_repo_evidence"
+                    if provenance.get("evidence_source_type") == "fixture_or_smoke"
+                    else "real_repo_evidence_not_confirmed"
+                )
                 skipped.append(
                     {
                         "jsonl_path": jsonl_path,
                         "jsonl_index": index,
-                        "reason": "non_real_repo_evidence",
+                        "reason": skip_reason,
                         "decision": row.get("decision"),
                         "evidence_source_type": provenance.get(
                             "evidence_source_type"
@@ -3338,6 +3381,11 @@ def export_ready_repair_chain_eval_candidates(
         "rejected_records": len(rejected),
         "blocked_non_real_repo_records": sum(
             1 for item in skipped if item.get("reason") == "non_real_repo_evidence"
+        ),
+        "blocked_unconfirmed_real_repo_records": sum(
+            1
+            for item in skipped
+            if item.get("reason") == "real_repo_evidence_not_confirmed"
         ),
         "output": output,
         "eval_candidates": len(records),
@@ -8776,6 +8824,10 @@ def format_ready_repair_chain_eval_candidate_export_summary(
                 "blocked_non_real_repo_records: "
                 f"{payload.get('blocked_non_real_repo_records', 0)}"
             ),
+            (
+                "blocked_unconfirmed_real_repo_records: "
+                f"{payload.get('blocked_unconfirmed_real_repo_records', 0)}"
+            ),
             f"output: {payload.get('output', '-')}",
             f"eval_candidates: {payload.get('eval_candidates', 0)}",
             f"eval_dataset_ready: {payload.get('eval_dataset_ready', False)}",
@@ -10659,6 +10711,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     record_ready_repair_chain_decision.add_argument("--reviewer", required=True)
     record_ready_repair_chain_decision.add_argument("--notes", default="")
+    record_ready_repair_chain_decision.add_argument(
+        "--evidence-source-type",
+        choices=["auto", "real_repo_candidate", "fixture_or_smoke"],
+        default="auto",
+        help=(
+            "Require explicit real_repo_candidate when recording approve_for_eval. "
+            "Use auto for defer/reject review bookkeeping."
+        ),
+    )
     record_ready_repair_chain_decision.add_argument("--limit", type=int, default=100)
     record_ready_repair_chain_decision.add_argument("--output", required=True)
 
@@ -11798,6 +11859,7 @@ def run(args: argparse.Namespace) -> str:
             decision=args.decision,
             reviewer=args.reviewer,
             notes=args.notes,
+            evidence_source_type=args.evidence_source_type,
             limit=args.limit,
             output_path=args.output,
         )
