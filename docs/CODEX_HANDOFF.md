@@ -433,9 +433,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER ready repair-chain eval-dataset validation artifact inspection
   commit pushed and Vast-verified:
   `572daec2 Add eval dataset validation inspection`.
+- Latest BIBER ready repair-chain eval prompt inspection commit pushed and
+  Vast-verified:
+  `083108b Add eval prompt inspection`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `572daec2`. Full Rust/private-devnet
+- Vast code verification is current through `083108b`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -498,6 +501,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   repair-chain eval-dataset decision review artifact inspection verification
   is current through `05f57486`; BIBER ready repair-chain eval-dataset
   validation artifact inspection verification is current through `572daec2`;
+  BIBER ready repair-chain eval prompt inspection verification is current
+  through `083108b`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -554,7 +559,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   export verification is current through `22566dc`; BIBER repair-chain
   eval-dataset validation verification is current through `78608bb`; BIBER
   agent-client ready repair-chain eval-dataset validation artifact inspection
-  verification is current through `572daec2`; BIBER
+  verification is current through `572daec2`; BIBER agent-client ready
+  repair-chain eval prompt inspection verification is current through
+  `083108b`; BIBER
   repair-chain held-out eval prompt export verification is current through
   `16523ac`; BIBER repair-chain held-out eval runner verification is current
   through `95051e5`; BIBER repair-chain held-out eval result review
@@ -584,7 +591,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - `BIBER_RUNTIME_PROFILES_ENABLED=true`
-  - Vast code verification is current through `572daec2`. If later docs-only
+  - Vast code verification is current through `083108b`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
   - The user explicitly approved the separate Vast GPU repo-adaptation QLoRA
@@ -1118,6 +1125,30 @@ serving the last broad-safe Rust/XRIQ adapter.
     `cd /workspace/biber-ai-platform; BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=64 bash scripts/vast_biber_agent_smoke.sh`.
     Smoke artifact directory:
     `/workspace/outputs/biber-agent-smoke-20260521T164203Z-91719`. No training
+    was started, no candidate adapter was reloaded, and no adapter was
+    promoted; stable serving remains on
+    `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
+  - `083108b` adds offline ready repair-chain held-out eval prompt inspection:
+    `show-ready-repair-chain-eval-prompts` validates one or more exported
+    prompt JSONL queues without resolving API auth, and
+    `list-ready-repair-chain-eval-prompts` scans output directories with
+    `--ready-only` and `--limit` support. The commands preserve the safety
+    guards: `eval_only=true`, `training_allowed=false`, `safe_to_train=false`,
+    `github_save_ready=false`, and `approved_for_training=false`.
+    `docs/API_EXAMPLES.md` now includes the prompt show/list sequence, and
+    `scripts/vast_biber_agent_smoke.sh` verifies prompt inspection before the
+    synthetic held-out eval review flow. Local verification passed
+    `git diff --check`, bundled Python syntax compilation, and an offline
+    command smoke; local pytest was not available on this workstation. Vast was
+    fast-forwarded to `083108b`; verification passed
+    `/workspace/biber-venv/bin/python -m py_compile /workspace/biber-ai-platform/scripts/biber_agent_client.py /workspace/biber-ai-platform/tests/test_biber_agent_client.py`,
+    `bash -n /workspace/biber-ai-platform/scripts/vast_biber_agent_smoke.sh`,
+    focused pytest with `PYTHONPATH=/workspace/biber-ai-platform` for
+    `tests/test_biber_agent_client.py tests/test_runtime_profiles.py tests/test_agent_capabilities.py -q`
+    with `127 passed`, and live
+    `cd /workspace/biber-ai-platform; BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=64 bash scripts/vast_biber_agent_smoke.sh`.
+    Smoke artifact directory:
+    `/workspace/outputs/biber-agent-smoke-20260521T165217Z-92040`. No training
     was started, no candidate adapter was reloaded, and no adapter was
     promoted; stable serving remains on
     `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
@@ -6472,7 +6503,11 @@ decision recording only after review,
 eval-dataset export only after review, `validate-ready-repair-chain-eval-dataset`,
 `show-ready-repair-chain-eval-dataset-validation`, and
 `list-ready-repair-chain-eval-dataset-validations`, then held-out eval prompt
-export only after validation inspection. Do not train again and do not promote
+export only after validation inspection with
+`export-ready-repair-chain-eval-prompts`, followed by
+`show-ready-repair-chain-eval-prompts` and
+`list-ready-repair-chain-eval-prompts` before any live held-out eval run. Do not
+train again and do not promote
 from a generic "continue". The API error-response and Rust/XRIQ codegen profiles
 are enabled on the live Vast API, exposed through
 `/v1/agent/capabilities`, and the stable served adapter has passed the
@@ -6638,7 +6673,10 @@ bash scripts/xriq_private_devnet_smoke.sh
     validation artifacts offline without API auth before held-out prompt
     export. It now also has `export-ready-repair-chain-eval-prompts`, which turns
     validated eval-dataset rows into live-eval-compatible held-out prompts
-    while keeping them out of training and GitHub-save paths. Vast now also
+    while keeping them out of training and GitHub-save paths, plus
+    `show-ready-repair-chain-eval-prompts` and
+    `list-ready-repair-chain-eval-prompts`, which inspect those prompt JSONL
+    queues offline before any live held-out eval run. Vast now also
     has `scripts/vast_eval_repair_chain_prompts_direct.sh`, which finds the
     latest exported repair-chain held-out prompt JSONL under `/workspace`
     outputs and runs it through `training/live_model_eval.py`. It now also has
@@ -6802,7 +6840,10 @@ bash scripts/xriq_private_devnet_smoke.sh
    eval-dataset queue without making it training-eligible, plus
    `export-ready-repair-chain-eval-prompts`, which converts validated
    eval-dataset rows into live-eval-compatible held-out prompts while keeping
-   them out of training and GitHub-save paths. The direct Vast runner
+   them out of training and GitHub-save paths, plus
+   `show-ready-repair-chain-eval-prompts` and
+   `list-ready-repair-chain-eval-prompts`, which inspect the exported prompt
+   queues offline before any live held-out eval run. The direct Vast runner
    `scripts/vast_eval_repair_chain_prompts_direct.sh` now scores the latest
    exported repair-chain held-out prompt JSONL through the current local BIBER
    API without using OpenAI, and `review-repair-chain-heldout-eval-results`
