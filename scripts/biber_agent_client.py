@@ -2062,6 +2062,109 @@ def normalize_verified_repair_review_artifact(
     return None
 
 
+def summarize_verified_repair_review_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    groups = [
+        item
+        for item in require_list(payload.get("groups"))
+        if isinstance(item, dict)
+    ]
+    try:
+        modified_epoch = path.stat().st_mtime
+    except OSError:
+        modified_epoch = 0.0
+    summary: dict[str, Any] = {
+        "path": str(path),
+        "review_status": payload.get("review_status"),
+        "records": int_count(payload.get("records")),
+        "rejected_records": int_count(payload.get("rejected_records")),
+        "ready_for_human_review": int_count(payload.get("ready_for_human_review")),
+        "groups": len(groups),
+        "min_repeat": max(1, int_count(payload.get("min_repeat") or 1)),
+        "training_allowed": payload.get("training_allowed") is True,
+        "eligible_for_training": payload.get("eligible_for_training") is True,
+        "auto_promoted": payload.get("auto_promoted") is True,
+        "jsonl_paths": [
+            str(item)
+            for item in require_list(payload.get("jsonl_paths"))
+            if isinstance(item, str)
+        ],
+        "modified_epoch": modified_epoch,
+    }
+    if payload.get("artifact_path"):
+        summary["artifact_path"] = payload.get("artifact_path")
+    return summary
+
+
+def list_verified_repair_review_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    ready_only: bool = False,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            f"Verified repair review artifact directory does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            f"Verified repair review artifact path is not a directory: {root}"
+        )
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="verified repair review artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_verified_repair_review_artifact(raw_payload)
+        if normalized is None:
+            continue
+        summary = summarize_verified_repair_review_artifact(path, normalized)
+        if ready_only and int_count(summary.get("ready_for_human_review")) < 1:
+            continue
+        artifacts.append(summary)
+
+    artifacts.sort(
+        key=lambda item: float(item.get("modified_epoch") or 0.0),
+        reverse=True,
+    )
+    return {
+        "source": "biber_mvp_loop_verified_repair_review_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "ready_only": ready_only,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "ready_artifacts": sum(
+            1
+            for item in artifacts
+            if int_count(item.get("ready_for_human_review")) > 0
+        ),
+        "records": sum(int_count(item.get("records")) for item in artifacts),
+        "ready_for_human_review": sum(
+            int_count(item.get("ready_for_human_review")) for item in artifacts
+        ),
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "auto_promoted": False,
+        "artifacts": artifacts[:limit],
+    }
+
+
 def load_repair_chain_artifact(
     *,
     artifact_path: str | None,
@@ -6302,6 +6405,44 @@ def format_verified_repair_review_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_verified_repair_review_artifact_list_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER verified repair review artifacts ({len(artifacts)})",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"ready_only: {payload.get('ready_only', False)}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"ready_artifacts: {payload.get('ready_artifacts', 0)}",
+        f"records: {payload.get('records', 0)}",
+        f"ready_for_human_review: {payload.get('ready_for_human_review', 0)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"eligible_for_training: {payload.get('eligible_for_training', False)}",
+        f"auto_promoted: {payload.get('auto_promoted', False)}",
+    ]
+    for artifact in artifacts:
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"status={artifact.get('review_status', '-')}",
+                    f"records={artifact.get('records', 0)}",
+                    f"ready={artifact.get('ready_for_human_review', 0)}",
+                    f"groups={artifact.get('groups', 0)}",
+                    f"min_repeat={artifact.get('min_repeat', 1)}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_repair_chain_summary(payload: Mapping[str, Any]) -> str:
     statuses = require_mapping(payload.get("statuses"))
     missing = [str(item) for item in require_list(payload.get("missing_artifacts"))]
@@ -7662,6 +7803,30 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     review_verified_repairs.add_argument("--min-repeat", type=int, default=1)
     review_verified_repairs.add_argument("--output")
 
+    show_verified_repair_review = subparsers.add_parser(
+        "show-verified-repair-review",
+        help=(
+            "Summarize a saved review-verified-repairs JSON artifact without "
+            "resolving API auth."
+        ),
+    )
+    show_verified_repair_review.add_argument("artifact")
+
+    list_verified_repair_reviews = subparsers.add_parser(
+        "list-verified-repair-reviews",
+        help=(
+            "List saved review-verified-repairs JSON artifacts under a "
+            "directory without resolving API auth."
+        ),
+    )
+    list_verified_repair_reviews.add_argument("directory")
+    list_verified_repair_reviews.add_argument(
+        "--pattern",
+        default="*verified-repair-review*.json",
+    )
+    list_verified_repair_reviews.add_argument("--limit", type=int, default=10)
+    list_verified_repair_reviews.add_argument("--ready-only", action="store_true")
+
     show_repair_chain = subparsers.add_parser(
         "show-repair-chain",
         help=(
@@ -8380,6 +8545,34 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(review, indent=2, sort_keys=True)
             if args.print_json
             else format_verified_repair_review_summary(review)
+        )
+    if args.command == "show-verified-repair-review":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="verified repair review artifact",
+        )
+        normalized = normalize_verified_repair_review_artifact(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "verified repair review artifact must contain a saved "
+                "review-verified-repairs JSON object."
+            )
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_verified_repair_review_summary(normalized)
+        )
+    if args.command == "list-verified-repair-reviews":
+        artifacts = list_verified_repair_review_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            ready_only=args.ready_only,
+        )
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_verified_repair_review_artifact_list_summary(artifacts)
         )
     if args.command == "show-repair-chain":
         summary = build_repair_chain_summary(

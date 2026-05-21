@@ -1748,6 +1748,117 @@ except json.JSONDecodeError as exc:
 if saved_client_mvp_loop_verified_repair_review != client_mvp_loop_verified_repair_review:
     fail("review-verified-repairs output artifact did not match stdout JSON")
 try:
+    client_mvp_loop_verified_repair_review_report = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "show-verified-repair-review",
+            str(client_mvp_loop_verified_repair_review_summary_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py show-verified-repair-review failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py show-verified-repair-review timed out: {exc}")
+if "BIBER verified repair review" not in client_mvp_loop_verified_repair_review_report:
+    fail(
+        "show-verified-repair-review report omitted heading: "
+        f"{client_mvp_loop_verified_repair_review_report!r}"
+    )
+if (
+    str(client_mvp_loop_verified_repair_review_summary_path)
+    not in client_mvp_loop_verified_repair_review_report
+):
+    fail(
+        "show-verified-repair-review report omitted artifact path: "
+        f"{client_mvp_loop_verified_repair_review_report!r}"
+    )
+if "ready_for_human_review: 1" not in client_mvp_loop_verified_repair_review_report:
+    fail(
+        "show-verified-repair-review report omitted review count: "
+        f"{client_mvp_loop_verified_repair_review_report!r}"
+    )
+if "training_allowed: False" not in client_mvp_loop_verified_repair_review_report:
+    fail(
+        "show-verified-repair-review report omitted training guard: "
+        f"{client_mvp_loop_verified_repair_review_report!r}"
+    )
+try:
+    client_mvp_loop_verified_repair_review_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-verified-repair-reviews",
+            str(artifact_dir),
+            "--ready-only",
+            "--limit",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-verified-repair-reviews failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-verified-repair-reviews timed out: {exc}")
+try:
+    client_mvp_loop_verified_repair_review_list = json.loads(
+        client_mvp_loop_verified_repair_review_list_output
+    )
+except json.JSONDecodeError as exc:
+    fail(
+        "biber_agent_client.py list-verified-repair-reviews returned "
+        f"invalid JSON: {exc}"
+    )
+verified_review_artifacts = client_mvp_loop_verified_repair_review_list.get(
+    "artifacts"
+)
+if not isinstance(verified_review_artifacts, list):
+    fail(
+        "list-verified-repair-reviews did not return artifacts: "
+        f"{client_mvp_loop_verified_repair_review_list!r}"
+    )
+if client_mvp_loop_verified_repair_review_list.get("training_allowed") is not False:
+    fail(
+        "list-verified-repair-reviews must keep training_allowed=false: "
+        f"{client_mvp_loop_verified_repair_review_list!r}"
+    )
+if (
+    client_mvp_loop_verified_repair_review_list.get("eligible_for_training")
+    is not False
+):
+    fail(
+        "list-verified-repair-reviews must not mark training eligibility: "
+        f"{client_mvp_loop_verified_repair_review_list!r}"
+    )
+matching_verified_reviews = [
+    item
+    for item in verified_review_artifacts
+    if isinstance(item, dict)
+    and item.get("path") == str(client_mvp_loop_verified_repair_review_summary_path)
+]
+if len(matching_verified_reviews) != 1:
+    fail(
+        "list-verified-repair-reviews omitted "
+        f"{client_mvp_loop_verified_repair_review_summary_path}: "
+        f"{client_mvp_loop_verified_repair_review_list!r}"
+    )
+if matching_verified_reviews[0].get("ready_for_human_review") != 1:
+    fail(
+        "list-verified-repair-reviews returned unexpected review count: "
+        f"{client_mvp_loop_verified_repair_review_list!r}"
+    )
+if matching_verified_reviews[0].get("records") != 1:
+    fail(
+        "list-verified-repair-reviews returned unexpected records: "
+        f"{client_mvp_loop_verified_repair_review_list!r}"
+    )
+try:
     client_mvp_loop_repair_chain_output = subprocess.check_output(
         [
             sys.executable,

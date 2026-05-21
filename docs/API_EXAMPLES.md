@@ -526,6 +526,12 @@ python scripts/biber_agent_client.py export-verified-repair \
 python scripts/biber_agent_client.py review-verified-repairs \
   /workspace/outputs/biber-mvp-loop-verified-repairs.jsonl \
   --output /workspace/outputs/biber-mvp-loop-verified-repair-review.json
+python scripts/biber_agent_client.py show-verified-repair-review \
+  /workspace/outputs/biber-mvp-loop-verified-repair-review.json
+python scripts/biber_agent_client.py list-verified-repair-reviews \
+  /workspace/outputs \
+  --ready-only \
+  --limit 10
 ```
 
 If `mvp-loop` is started with `--runtime-profile-id`, failed-loop repair
