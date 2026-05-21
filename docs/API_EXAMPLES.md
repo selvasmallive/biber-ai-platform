@@ -636,6 +636,22 @@ python scripts/biber_agent_client.py list-repair-chain-heldout-eval-reviews \
   /workspace/outputs/evals \
   --ok-only \
   --limit 10
+# Only record held-out eval decisions after manual review.
+python scripts/biber_agent_client.py record-repair-chain-heldout-eval-decision \
+  /workspace/outputs/evals/biber-repair-chain-heldout-review.json \
+  --decision defer \
+  --reviewer human-heldout-reviewer \
+  --notes "Deferred; not accepted as a training baseline." \
+  --output /workspace/outputs/evals/biber-repair-chain-heldout-decisions.jsonl
+python scripts/biber_agent_client.py review-repair-chain-heldout-eval-decisions \
+  /workspace/outputs/evals/biber-repair-chain-heldout-decisions.jsonl \
+  --output /workspace/outputs/evals/biber-repair-chain-heldout-decision-review.json
+python scripts/biber_agent_client.py show-repair-chain-heldout-eval-decision-review \
+  /workspace/outputs/evals/biber-repair-chain-heldout-decision-review.json
+python scripts/biber_agent_client.py list-repair-chain-heldout-eval-decision-reviews \
+  /workspace/outputs/evals \
+  --decision defer \
+  --limit 10
 ```
 
 If `mvp-loop` is started with `--runtime-profile-id`, failed-loop repair

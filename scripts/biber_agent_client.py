@@ -5355,6 +5355,176 @@ def review_repair_chain_heldout_eval_decision_records(
     }
 
 
+def normalize_repair_chain_heldout_eval_decision_review_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if (
+        payload.get("source")
+        == "biber_mvp_loop_repair_chain_heldout_eval_decision_review"
+    ):
+        return dict(payload)
+    body = payload.get("body")
+    if (
+        isinstance(body, dict)
+        and body.get("source")
+        == "biber_mvp_loop_repair_chain_heldout_eval_decision_review"
+    ):
+        normalized = dict(body)
+        if payload.get("output") and not normalized.get("artifact_path"):
+            normalized["artifact_path"] = payload.get("output")
+        return normalized
+    return None
+
+
+def summarize_repair_chain_heldout_eval_decision_review_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    decision_counts = payload.get("decision_counts")
+    if not isinstance(decision_counts, dict):
+        decision_counts = {}
+    groups = [
+        item
+        for item in require_list(payload.get("groups"))
+        if isinstance(item, dict)
+    ]
+    try:
+        modified_epoch = path.stat().st_mtime
+    except OSError:
+        modified_epoch = 0.0
+    summary: dict[str, Any] = {
+        "path": str(path),
+        "review_status": payload.get("review_status"),
+        "records": int_count(payload.get("records")),
+        "rejected_records": int_count(payload.get("rejected_records")),
+        "defer_records": int_count(payload.get("defer_records")),
+        "reject_records": int_count(payload.get("reject_records")),
+        "accepted_for_baseline_records": int_count(
+            payload.get("accepted_for_baseline_records")
+        ),
+        "baseline_candidate_ready_records": int_count(
+            payload.get("baseline_candidate_ready_records")
+        ),
+        "follow_up_records": int_count(payload.get("follow_up_records")),
+        "groups": len(groups),
+        "min_repeat": int_count(payload.get("min_repeat")) or 1,
+        "decision_counts": dict(decision_counts),
+        "eval_only": payload.get("eval_only") is True,
+        "training_allowed": payload.get("training_allowed") is True,
+        "eligible_for_training": payload.get("eligible_for_training") is True,
+        "safe_to_train": payload.get("safe_to_train") is True,
+        "github_save_ready": payload.get("github_save_ready") is True,
+        "approved_for_training": payload.get("approved_for_training") is True,
+        "auto_promoted": payload.get("auto_promoted") is True,
+        "jsonl_paths": [
+            str(item)
+            for item in require_list(payload.get("jsonl_paths"))
+            if isinstance(item, str)
+        ],
+        "modified_epoch": modified_epoch,
+    }
+    if payload.get("artifact_path"):
+        summary["artifact_path"] = payload.get("artifact_path")
+    return summary
+
+
+def list_repair_chain_heldout_eval_decision_review_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    decision: str | None = None,
+    baseline_ready_only: bool = False,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            "Repair-chain held-out eval decision review artifact directory "
+            f"does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            "Repair-chain held-out eval decision review artifact path is not a "
+            f"directory: {root}"
+        )
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="repair-chain held-out eval decision review artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_repair_chain_heldout_eval_decision_review_artifact(
+            raw_payload
+        )
+        if normalized is None:
+            continue
+        summary = summarize_repair_chain_heldout_eval_decision_review_artifact(
+            path,
+            normalized,
+        )
+        if decision:
+            decision_counts = summary.get("decision_counts")
+            if not isinstance(decision_counts, dict) or int_count(
+                decision_counts.get(decision)
+            ) < 1:
+                continue
+        if baseline_ready_only and int_count(
+            summary.get("baseline_candidate_ready_records")
+        ) < 1:
+            continue
+        artifacts.append(summary)
+
+    artifacts.sort(
+        key=lambda item: float(item.get("modified_epoch") or 0.0),
+        reverse=True,
+    )
+    return {
+        "source": "biber_mvp_loop_repair_chain_heldout_eval_decision_review_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "decision": decision,
+        "baseline_ready_only": baseline_ready_only,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "records": sum(int_count(item.get("records")) for item in artifacts),
+        "defer_records": sum(
+            int_count(item.get("defer_records")) for item in artifacts
+        ),
+        "reject_records": sum(
+            int_count(item.get("reject_records")) for item in artifacts
+        ),
+        "accepted_for_baseline_records": sum(
+            int_count(item.get("accepted_for_baseline_records"))
+            for item in artifacts
+        ),
+        "baseline_candidate_ready_records": sum(
+            int_count(item.get("baseline_candidate_ready_records"))
+            for item in artifacts
+        ),
+        "follow_up_records": sum(
+            int_count(item.get("follow_up_records")) for item in artifacts
+        ),
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "artifacts": artifacts[:limit],
+    }
+
+
 def build_repair_chain_heldout_baseline_candidate_record(
     *,
     record: Mapping[str, Any],
@@ -8400,6 +8570,55 @@ def format_repair_chain_heldout_eval_decision_review_summary(
     return "\n".join(lines)
 
 
+def format_repair_chain_heldout_eval_decision_review_artifact_list_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER repair-chain held-out eval decision review artifacts ({len(artifacts)})",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"decision: {payload.get('decision', '-')}",
+        f"baseline_ready_only: {payload.get('baseline_ready_only', False)}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"records: {payload.get('records', 0)}",
+        f"defer_records: {payload.get('defer_records', 0)}",
+        f"reject_records: {payload.get('reject_records', 0)}",
+        f"accepted_for_baseline_records: {payload.get('accepted_for_baseline_records', 0)}",
+        (
+            "baseline_candidate_ready_records: "
+            f"{payload.get('baseline_candidate_ready_records', 0)}"
+        ),
+        f"follow_up_records: {payload.get('follow_up_records', 0)}",
+        f"eval_only: {payload.get('eval_only', True)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"approved_for_training: {payload.get('approved_for_training', False)}",
+    ]
+    for artifact in artifacts:
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"status={artifact.get('review_status', '-')}",
+                    f"records={artifact.get('records', 0)}",
+                    f"defer={artifact.get('defer_records', 0)}",
+                    f"reject={artifact.get('reject_records', 0)}",
+                    f"accepted={artifact.get('accepted_for_baseline_records', 0)}",
+                    f"baseline_ready={artifact.get('baseline_candidate_ready_records', 0)}",
+                    f"groups={artifact.get('groups', 0)}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_repair_chain_heldout_baseline_candidate_export_summary(
     payload: Mapping[str, Any],
 ) -> str:
@@ -9779,6 +9998,41 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     review_repair_chain_heldout_eval_decisions.add_argument("--output")
 
+    show_repair_chain_heldout_eval_decision_review = subparsers.add_parser(
+        "show-repair-chain-heldout-eval-decision-review",
+        help=(
+            "Inspect a saved repair-chain held-out eval decision review "
+            "artifact without resolving API auth."
+        ),
+    )
+    show_repair_chain_heldout_eval_decision_review.add_argument("artifact")
+
+    list_repair_chain_heldout_eval_decision_reviews = subparsers.add_parser(
+        "list-repair-chain-heldout-eval-decision-reviews",
+        help=(
+            "List saved repair-chain held-out eval decision review artifacts "
+            "under a directory without resolving API auth."
+        ),
+    )
+    list_repair_chain_heldout_eval_decision_reviews.add_argument("directory")
+    list_repair_chain_heldout_eval_decision_reviews.add_argument(
+        "--pattern",
+        default="*heldout-eval-decision-review*.json",
+    )
+    list_repair_chain_heldout_eval_decision_reviews.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+    )
+    list_repair_chain_heldout_eval_decision_reviews.add_argument(
+        "--decision",
+        choices=["defer", "reject", "accept_for_baseline"],
+    )
+    list_repair_chain_heldout_eval_decision_reviews.add_argument(
+        "--baseline-ready-only",
+        action="store_true",
+    )
+
     export_repair_chain_heldout_baseline_candidates = subparsers.add_parser(
         "export-repair-chain-heldout-baseline-candidates",
         help=(
@@ -10709,6 +10963,40 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(review, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_chain_heldout_eval_decision_review_summary(review)
+        )
+    if args.command == "show-repair-chain-heldout-eval-decision-review":
+        raw_payload = load_json_artifact(
+            args.artifact,
+            label="repair-chain held-out eval decision review artifact",
+        )
+        review = normalize_repair_chain_heldout_eval_decision_review_artifact(
+            raw_payload
+        )
+        if review is None:
+            raise BiberAgentClientError(
+                "show-repair-chain-heldout-eval-decision-review requires a held-out eval decision review artifact."
+            )
+        if not review.get("artifact_path"):
+            review["artifact_path"] = str(Path(args.artifact))
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_heldout_eval_decision_review_summary(review)
+        )
+    if args.command == "list-repair-chain-heldout-eval-decision-reviews":
+        artifacts = list_repair_chain_heldout_eval_decision_review_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            decision=args.decision,
+            baseline_ready_only=args.baseline_ready_only,
+        )
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_heldout_eval_decision_review_artifact_list_summary(
+                artifacts
+            )
         )
     if args.command == "export-repair-chain-heldout-baseline-candidates":
         export = export_repair_chain_heldout_baseline_candidates(
