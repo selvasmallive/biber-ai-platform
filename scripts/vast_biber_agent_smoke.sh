@@ -3370,6 +3370,94 @@ if eval_prompt_row.get("training_allowed") is not False:
     fail(f"export-ready-repair-chain-eval-prompts row must keep training_allowed=false: {eval_prompt_row!r}")
 if eval_prompt_row.get("approved_for_training") is not False:
     fail(f"export-ready-repair-chain-eval-prompts row must not approve training: {eval_prompt_row!r}")
+try:
+    client_mvp_loop_ready_repair_chain_eval_prompts_show = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "show-ready-repair-chain-eval-prompts",
+            str(client_mvp_loop_ready_repair_chain_eval_prompts_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py show-ready-repair-chain-eval-prompts failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py show-ready-repair-chain-eval-prompts timed out: {exc}")
+for expected_text in [
+    "BIBER ready repair-chain eval prompts",
+    "ok: True",
+    "eval_prompts: 1",
+    "eval_prompt_ready_records: 1",
+    "training_allowed: False",
+    str(client_mvp_loop_ready_repair_chain_eval_prompts_path),
+]:
+    if expected_text not in client_mvp_loop_ready_repair_chain_eval_prompts_show:
+        fail(
+            "show-ready-repair-chain-eval-prompts summary missing "
+            f"{expected_text!r}: {client_mvp_loop_ready_repair_chain_eval_prompts_show}"
+        )
+try:
+    client_mvp_loop_ready_repair_chain_eval_prompts_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-ready-repair-chain-eval-prompts",
+            str(client_mvp_loop_ready_repair_chain_eval_prompts_path.parent),
+            "--ready-only",
+            "--limit",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-ready-repair-chain-eval-prompts failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-ready-repair-chain-eval-prompts timed out: {exc}")
+try:
+    client_mvp_loop_ready_repair_chain_eval_prompts_list = json.loads(
+        client_mvp_loop_ready_repair_chain_eval_prompts_list_output
+    )
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py list-ready-repair-chain-eval-prompts returned invalid JSON: {exc}")
+if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("records") != 1:
+    fail(f"list-ready-repair-chain-eval-prompts saw unexpected records: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("valid_records") != 1:
+    fail(f"list-ready-repair-chain-eval-prompts saw unexpected valid count: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("eval_prompts") != 1:
+    fail(f"list-ready-repair-chain-eval-prompts saw unexpected prompt count: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("eval_prompt_ready_records") != 1:
+    fail(f"list-ready-repair-chain-eval-prompts saw unexpected ready count: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("training_allowed") is not False:
+    fail(f"list-ready-repair-chain-eval-prompts must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("safe_to_train") is not False:
+    fail(f"list-ready-repair-chain-eval-prompts must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("github_save_ready") is not False:
+    fail(f"list-ready-repair-chain-eval-prompts must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("approved_for_training") is not False:
+    fail(f"list-ready-repair-chain-eval-prompts must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
+client_mvp_loop_ready_repair_chain_eval_prompt_artifacts = (
+    client_mvp_loop_ready_repair_chain_eval_prompts_list.get("artifacts")
+)
+if not isinstance(client_mvp_loop_ready_repair_chain_eval_prompt_artifacts, list):
+    fail(f"list-ready-repair-chain-eval-prompts returned invalid artifacts: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
+matching_eval_prompt_artifacts = [
+    artifact
+    for artifact in client_mvp_loop_ready_repair_chain_eval_prompt_artifacts
+    if artifact.get("path") == str(client_mvp_loop_ready_repair_chain_eval_prompts_path)
+]
+if len(matching_eval_prompt_artifacts) != 1:
+    fail(f"list-ready-repair-chain-eval-prompts did not return the saved artifact once: {client_mvp_loop_ready_repair_chain_eval_prompt_artifacts!r}")
+matching_eval_prompt_artifact = matching_eval_prompt_artifacts[0]
+if matching_eval_prompt_artifact.get("ok") is not True:
+    fail(f"list-ready-repair-chain-eval-prompts artifact ok flag was unexpected: {matching_eval_prompt_artifact!r}")
+if matching_eval_prompt_artifact.get("eval_prompts") != 1:
+    fail(f"list-ready-repair-chain-eval-prompts artifact prompt count was unexpected: {matching_eval_prompt_artifact!r}")
 write_artifact(
     "agent-client-mvp-loop-ready-repair-chain-eval-prompts-result.json",
     {

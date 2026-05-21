@@ -620,6 +620,12 @@ python scripts/biber_agent_client.py list-ready-repair-chain-eval-dataset-valida
 python scripts/biber_agent_client.py export-ready-repair-chain-eval-prompts \
   /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-dataset.jsonl \
   --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-prompts.jsonl
+python scripts/biber_agent_client.py show-ready-repair-chain-eval-prompts \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-prompts.jsonl
+python scripts/biber_agent_client.py list-ready-repair-chain-eval-prompts \
+  /workspace/outputs \
+  --ready-only \
+  --limit 10
 ```
 
 If `mvp-loop` is started with `--runtime-profile-id`, failed-loop repair

@@ -4845,6 +4845,240 @@ def test_run_export_ready_repair_chain_eval_prompts_without_api_key(
     assert "Repair, Test, Risk" in rows[0]["prompt"]
 
 
+def test_run_show_ready_repair_chain_eval_prompts_summarizes_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "show-ready-repair-chain-eval-prompts should not resolve an API key"
+        )
+
+    jsonl_path = tmp_path / "ready-repair-chain-eval-prompts.jsonl"
+    records = [
+        {
+            "source": "biber_mvp_loop_repair_chain_eval_prompt",
+            "id": "repair_chain_python_compileall_api_abc123",
+            "language": "Python",
+            "task_type": "mvp_loop_repair_eval",
+            "prompt": "Repair:\nTest:\nRisk:",
+            "expect_contains": ["Repair", "Test", "Risk"],
+            "eval_prompt_ready": True,
+            "eval_only": True,
+            "training_allowed": False,
+            "eligible_for_training": False,
+            "safe_to_train": False,
+            "github_save_ready": False,
+            "approved_for_training": False,
+            "auto_promoted": False,
+            "source_artifact": "repair-chain.json",
+            "plan_hash": "c" * 64,
+            "test_id": "python-compileall-api",
+        },
+        {
+            "source": "biber_mvp_loop_repair_chain_eval_prompt",
+            "id": "repair_chain_rust_check_def456",
+            "language": "Rust",
+            "task_type": "mvp_loop_repair_eval",
+            "prompt": "",
+            "expect_contains": [],
+            "eval_prompt_ready": True,
+            "eval_only": True,
+            "training_allowed": True,
+            "eligible_for_training": False,
+            "safe_to_train": False,
+            "github_save_ready": False,
+            "approved_for_training": False,
+            "auto_promoted": False,
+            "source_artifact": "repair-chain-2.json",
+            "plan_hash": "d" * 64,
+            "test_id": "rust-check",
+        },
+        {
+            "source": "other_source",
+        },
+    ]
+    jsonl_path.write_text(
+        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "show-ready-repair-chain-eval-prompts",
+                str(jsonl_path),
+            ]
+        )
+    )
+
+    assert "BIBER ready repair-chain eval prompts" in output
+    assert "ok: False" in output
+    assert "inspection_status: eval_prompts_need_review" in output
+    assert "records: 2" in output
+    assert "valid_records: 1" in output
+    assert "invalid_records: 1" in output
+    assert "rejected_records: 1" in output
+    assert "eval_prompts: 2" in output
+    assert "eval_prompt_ready_records: 2" in output
+    assert "training_allowed: False" in output
+    assert "safe_to_train: False" in output
+    assert "github_save_ready: False" in output
+    assert "approved_for_training: False" in output
+    assert "python-compileall-api" in output
+    assert "c" * 64 in output
+    assert str(jsonl_path) in output
+
+
+def test_run_show_ready_repair_chain_eval_prompts_json_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "show-ready-repair-chain-eval-prompts should not resolve an API key"
+        )
+
+    jsonl_path = tmp_path / "ready-repair-chain-eval-prompts.jsonl"
+    record = {
+        "source": "biber_mvp_loop_repair_chain_eval_prompt",
+        "id": "repair_chain_python_compileall_api_abc123",
+        "language": "Python",
+        "task_type": "mvp_loop_repair_eval",
+        "prompt": "Repair:\nTest:\nRisk:",
+        "expect_contains": ["Repair", "Test", "Risk"],
+        "eval_prompt_ready": True,
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "source_artifact": "repair-chain.json",
+        "plan_hash": "e" * 64,
+        "test_id": "python-compileall-api",
+    }
+    jsonl_path.write_text(json.dumps(record, sort_keys=True) + "\n", encoding="utf-8")
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "show-ready-repair-chain-eval-prompts",
+                str(jsonl_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["source"] == "biber_mvp_loop_ready_repair_chain_eval_prompt_inspection"
+    assert result["inspection_status"] == "eval_prompts_ready"
+    assert result["ok"] is True
+    assert result["records"] == 1
+    assert result["valid_records"] == 1
+    assert result["invalid_records"] == 0
+    assert result["rejected_records"] == 0
+    assert result["eval_prompts"] == 1
+    assert result["eval_prompt_ready_records"] == 1
+    assert result["language_counts"] == {"Python": 1}
+    assert result["task_type_counts"] == {"mvp_loop_repair_eval": 1}
+    assert result["eval_only"] is True
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+
+
+def test_run_list_ready_repair_chain_eval_prompts_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "list-ready-repair-chain-eval-prompts should not resolve an API key"
+        )
+
+    ready_artifact = tmp_path / "ready-repair-chain-eval-prompts-1.jsonl"
+    invalid_artifact = tmp_path / "ready-repair-chain-eval-prompts-2.jsonl"
+    ready_artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_eval_prompt",
+                "id": "repair_chain_python_compileall_api_abc123",
+                "language": "Python",
+                "task_type": "mvp_loop_repair_eval",
+                "prompt": "Repair:\nTest:\nRisk:",
+                "expect_contains": ["Repair", "Test", "Risk"],
+                "eval_prompt_ready": True,
+                "eval_only": True,
+                "training_allowed": False,
+                "eligible_for_training": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+                "auto_promoted": False,
+                "source_artifact": "repair-chain.json",
+                "plan_hash": "f" * 64,
+                "test_id": "python-compileall-api",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    invalid_artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_eval_prompt",
+                "id": "repair_chain_rust_check_def456",
+                "task_type": "mvp_loop_repair_eval",
+                "prompt": "",
+                "expect_contains": [],
+                "eval_prompt_ready": True,
+                "eval_only": True,
+                "training_allowed": True,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "list-ready-repair-chain-eval-prompts",
+                str(tmp_path),
+                "--ready-only",
+                "--limit",
+                "5",
+            ]
+        )
+    )
+
+    assert "BIBER ready repair-chain eval prompt artifacts (1)" in output
+    assert str(ready_artifact) in output
+    assert str(invalid_artifact) not in output
+    assert "ready_only: True" in output
+    assert "ok_artifacts: 1" in output
+    assert "records: 1" in output
+    assert "valid_records: 1" in output
+    assert "invalid_records: 0" in output
+    assert "eval_prompts: 1" in output
+    assert "eval_prompt_ready_records: 1" in output
+    assert "training_allowed: False" in output
+    assert "safe_to_train: False" in output
+    assert "github_save_ready: False" in output
+    assert "approved_for_training: False" in output
+    assert "status=eval_prompts_ready" in output
+    assert "ok=True" in output
+    assert "groups=1" in output
+
+
 def test_run_review_repair_chain_heldout_eval_results_without_api_key(
     monkeypatch,
     tmp_path: Path,

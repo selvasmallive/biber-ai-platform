@@ -4516,6 +4516,273 @@ def export_ready_repair_chain_eval_prompts(
     }
 
 
+def validate_ready_repair_chain_eval_prompt_row(
+    row: Mapping[str, Any],
+) -> list[str]:
+    row_errors: list[str] = []
+    if row.get("source") != "biber_mvp_loop_repair_chain_eval_prompt":
+        row_errors.append("unexpected_source")
+    if row.get("eval_prompt_ready") is not True:
+        row_errors.append("eval_prompt_ready_must_be_true")
+    if row.get("eval_only") is not True:
+        row_errors.append("eval_only_must_be_true")
+    for key in (
+        "training_allowed",
+        "eligible_for_training",
+        "safe_to_train",
+        "github_save_ready",
+        "approved_for_training",
+        "auto_promoted",
+    ):
+        if row.get(key) is not False:
+            row_errors.append(f"{key}_must_be_false")
+    for key in ("id", "task_type", "prompt"):
+        value = row.get(key)
+        if not isinstance(value, str) or not value.strip():
+            row_errors.append(f"{key}_is_required")
+    if not require_list(row.get("expect_contains")):
+        row_errors.append("expect_contains_is_required")
+    return row_errors
+
+
+def inspect_ready_repair_chain_eval_prompt_records(
+    *,
+    jsonl_paths: list[str],
+    min_records: int,
+) -> dict[str, Any]:
+    if min_records < 1:
+        raise BiberAgentClientError("--min-records must be at least 1.")
+
+    records: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for jsonl_path in jsonl_paths:
+        for index, row in enumerate(
+            load_jsonl_artifact(
+                jsonl_path,
+                label="ready repair-chain eval prompt JSONL",
+            ),
+            start=1,
+        ):
+            if row.get("source") != "biber_mvp_loop_repair_chain_eval_prompt":
+                rejected.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "reason": "unsupported_source",
+                        "source": row.get("source"),
+                    }
+                )
+                continue
+
+            item = dict(row)
+            item["eval_prompt_jsonl_path"] = jsonl_path
+            item["eval_prompt_jsonl_index"] = index
+            records.append(item)
+
+            row_errors = validate_ready_repair_chain_eval_prompt_row(row)
+            if row_errors:
+                errors.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "id": row.get("id"),
+                        "test_id": row.get("test_id"),
+                        "plan_hash": row.get("plan_hash"),
+                        "reasons": row_errors,
+                    }
+                )
+
+    valid_records = len(records) - len(errors)
+    inspection_ok = valid_records >= min_records and not errors and not rejected
+    language_counts: dict[str, int] = {}
+    task_type_counts: dict[str, int] = {}
+    prompt_ids: list[str] = []
+    groups_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for record in records:
+        language = str(record.get("language") or "unknown")
+        task_type = str(record.get("task_type") or "unknown")
+        language_counts[language] = language_counts.get(language, 0) + 1
+        task_type_counts[task_type] = task_type_counts.get(task_type, 0) + 1
+        if record.get("id"):
+            prompt_ids.append(str(record.get("id")))
+        key = (
+            str(record.get("test_id") or ""),
+            str(record.get("plan_hash") or ""),
+        )
+        group = groups_by_key.setdefault(
+            key,
+            {
+                "test_id": key[0],
+                "plan_hash": key[1],
+                "count": 0,
+                "prompt_ids": [],
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+            },
+        )
+        group["count"] += 1
+        if record.get("id"):
+            group["prompt_ids"].append(record.get("id"))
+    groups = list(groups_by_key.values())
+    groups.sort(key=lambda item: (-int(item.get("count") or 0), str(item.get("test_id") or "")))
+
+    return {
+        "source": "biber_mvp_loop_ready_repair_chain_eval_prompt_inspection",
+        "inspection_status": "eval_prompts_ready" if inspection_ok else "eval_prompts_need_review",
+        "ok": inspection_ok,
+        "records": len(records),
+        "valid_records": valid_records,
+        "invalid_records": len(errors),
+        "rejected_records": len(rejected),
+        "eval_prompts": len(records),
+        "eval_prompt_ready_records": sum(
+            1 for record in records if record.get("eval_prompt_ready") is True
+        ),
+        "min_records": min_records,
+        "language_counts": language_counts,
+        "task_type_counts": task_type_counts,
+        "prompt_ids": prompt_ids,
+        "groups": groups,
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "jsonl_paths": list(jsonl_paths),
+        "errors": errors,
+        "rejected": rejected,
+        "next_review_action": (
+            "run_held_out_eval_before_training_or_model_promotion"
+            if inspection_ok
+            else "fix_eval_prompt_records_before_held_out_eval"
+        ),
+    }
+
+
+def summarize_ready_repair_chain_eval_prompt_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    groups = [
+        item
+        for item in require_list(payload.get("groups"))
+        if isinstance(item, dict)
+    ]
+    try:
+        modified_epoch = path.stat().st_mtime
+    except OSError:
+        modified_epoch = 0.0
+    summary: dict[str, Any] = {
+        "path": str(path),
+        "inspection_status": payload.get("inspection_status"),
+        "ok": payload.get("ok") is True,
+        "records": int_count(payload.get("records")),
+        "valid_records": int_count(payload.get("valid_records")),
+        "invalid_records": int_count(payload.get("invalid_records")),
+        "rejected_records": int_count(payload.get("rejected_records")),
+        "eval_prompts": int_count(payload.get("eval_prompts")),
+        "eval_prompt_ready_records": int_count(
+            payload.get("eval_prompt_ready_records")
+        ),
+        "groups": len(groups),
+        "min_records": int_count(payload.get("min_records")) or 1,
+        "eval_only": payload.get("eval_only") is True,
+        "training_allowed": payload.get("training_allowed") is True,
+        "eligible_for_training": payload.get("eligible_for_training") is True,
+        "safe_to_train": payload.get("safe_to_train") is True,
+        "github_save_ready": payload.get("github_save_ready") is True,
+        "approved_for_training": payload.get("approved_for_training") is True,
+        "auto_promoted": payload.get("auto_promoted") is True,
+        "language_counts": require_mapping(payload.get("language_counts")),
+        "task_type_counts": require_mapping(payload.get("task_type_counts")),
+        "modified_epoch": modified_epoch,
+    }
+    return summary
+
+
+def list_ready_repair_chain_eval_prompt_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    ready_only: bool = False,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            f"Ready repair-chain eval prompt directory does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            f"Ready repair-chain eval prompt path is not a directory: {root}"
+        )
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            inspection = inspect_ready_repair_chain_eval_prompt_records(
+                jsonl_paths=[str(path)],
+                min_records=1,
+            )
+        except BiberAgentClientError:
+            continue
+        summary = summarize_ready_repair_chain_eval_prompt_artifact(
+            path,
+            inspection,
+        )
+        if ready_only and summary.get("ok") is not True:
+            continue
+        artifacts.append(summary)
+
+    artifacts.sort(
+        key=lambda item: float(item.get("modified_epoch") or 0.0),
+        reverse=True,
+    )
+    return {
+        "source": "biber_mvp_loop_ready_repair_chain_eval_prompt_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "ready_only": ready_only,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "ok_artifacts": sum(1 for item in artifacts if item.get("ok") is True),
+        "records": sum(int_count(item.get("records")) for item in artifacts),
+        "valid_records": sum(
+            int_count(item.get("valid_records")) for item in artifacts
+        ),
+        "invalid_records": sum(
+            int_count(item.get("invalid_records")) for item in artifacts
+        ),
+        "rejected_records": sum(
+            int_count(item.get("rejected_records")) for item in artifacts
+        ),
+        "eval_prompts": sum(
+            int_count(item.get("eval_prompts")) for item in artifacts
+        ),
+        "eval_prompt_ready_records": sum(
+            int_count(item.get("eval_prompt_ready_records")) for item in artifacts
+        ),
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "artifacts": artifacts[:limit],
+    }
+
+
 def is_repair_chain_heldout_eval_result(row: Mapping[str, Any]) -> bool:
     prompt_id = str(row.get("id") or "")
     return prompt_id.startswith("repair_chain_")
@@ -7718,6 +7985,91 @@ def format_ready_repair_chain_eval_prompt_export_summary(
     )
 
 
+def format_ready_repair_chain_eval_prompt_inspection_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    groups = [
+        item
+        for item in require_list(payload.get("groups"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER ready repair-chain eval prompts",
+        f"ok: {payload.get('ok', False)}",
+        f"inspection_status: {payload.get('inspection_status', '-')}",
+        f"records: {payload.get('records', 0)}",
+        f"valid_records: {payload.get('valid_records', 0)}",
+        f"invalid_records: {payload.get('invalid_records', 0)}",
+        f"rejected_records: {payload.get('rejected_records', 0)}",
+        f"eval_prompts: {payload.get('eval_prompts', 0)}",
+        f"eval_prompt_ready_records: {payload.get('eval_prompt_ready_records', 0)}",
+        f"min_records: {payload.get('min_records', 1)}",
+        f"language_counts: {payload.get('language_counts', {})}",
+        f"task_type_counts: {payload.get('task_type_counts', {})}",
+        f"groups: {len(groups)}",
+        f"eval_only: {payload.get('eval_only', True)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"approved_for_training: {payload.get('approved_for_training', False)}",
+        f"jsonl_paths: {payload.get('jsonl_paths', [])}",
+    ]
+    lines.extend(
+        (
+            f"- test_id={group.get('test_id', '-')} "
+            f"plan_hash={group.get('plan_hash', '-')} "
+            f"count={group.get('count', 0)}"
+        )
+        for group in groups[:8]
+    )
+    return "\n".join(lines)
+
+
+def format_ready_repair_chain_eval_prompt_artifact_list_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER ready repair-chain eval prompt artifacts ({len(artifacts)})",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"ready_only: {payload.get('ready_only', False)}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"ok_artifacts: {payload.get('ok_artifacts', 0)}",
+        f"records: {payload.get('records', 0)}",
+        f"valid_records: {payload.get('valid_records', 0)}",
+        f"invalid_records: {payload.get('invalid_records', 0)}",
+        f"rejected_records: {payload.get('rejected_records', 0)}",
+        f"eval_prompts: {payload.get('eval_prompts', 0)}",
+        f"eval_prompt_ready_records: {payload.get('eval_prompt_ready_records', 0)}",
+        f"eval_only: {payload.get('eval_only', True)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"approved_for_training: {payload.get('approved_for_training', False)}",
+    ]
+    for artifact in artifacts:
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"status={artifact.get('inspection_status', '-')}",
+                    f"ok={artifact.get('ok', False)}",
+                    f"records={artifact.get('records', 0)}",
+                    f"valid={artifact.get('valid_records', 0)}",
+                    f"eval_prompts={artifact.get('eval_prompts', 0)}",
+                    f"groups={artifact.get('groups', 0)}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_repair_chain_heldout_eval_review_summary(
     payload: Mapping[str, Any],
 ) -> str:
@@ -9092,6 +9444,42 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     export_ready_repair_chain_eval_prompts.add_argument("--output", required=True)
 
+    show_ready_repair_chain_eval_prompts = subparsers.add_parser(
+        "show-ready-repair-chain-eval-prompts",
+        help=(
+            "Inspect a ready repair-chain eval prompt JSONL queue without "
+            "resolving API auth."
+        ),
+    )
+    show_ready_repair_chain_eval_prompts.add_argument("jsonl", nargs="+")
+    show_ready_repair_chain_eval_prompts.add_argument(
+        "--min-records",
+        type=int,
+        default=1,
+    )
+
+    list_ready_repair_chain_eval_prompts = subparsers.add_parser(
+        "list-ready-repair-chain-eval-prompts",
+        help=(
+            "List ready repair-chain eval prompt JSONL queues under a directory "
+            "without resolving API auth."
+        ),
+    )
+    list_ready_repair_chain_eval_prompts.add_argument("directory")
+    list_ready_repair_chain_eval_prompts.add_argument(
+        "--pattern",
+        default="*ready-repair-chain-eval-prompts*.jsonl",
+    )
+    list_ready_repair_chain_eval_prompts.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+    )
+    list_ready_repair_chain_eval_prompts.add_argument(
+        "--ready-only",
+        action="store_true",
+    )
+
     review_repair_chain_heldout_eval_results = subparsers.add_parser(
         "review-repair-chain-heldout-eval-results",
         help=(
@@ -9973,6 +10361,32 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(export, indent=2, sort_keys=True)
             if args.print_json
             else format_ready_repair_chain_eval_prompt_export_summary(export)
+        )
+    if args.command == "show-ready-repair-chain-eval-prompts":
+        inspection = inspect_ready_repair_chain_eval_prompt_records(
+            jsonl_paths=args.jsonl,
+            min_records=args.min_records,
+        )
+        return (
+            json.dumps(inspection, indent=2, sort_keys=True)
+            if args.print_json
+            else format_ready_repair_chain_eval_prompt_inspection_summary(
+                inspection
+            )
+        )
+    if args.command == "list-ready-repair-chain-eval-prompts":
+        artifacts = list_ready_repair_chain_eval_prompt_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            ready_only=args.ready_only,
+        )
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_ready_repair_chain_eval_prompt_artifact_list_summary(
+                artifacts
+            )
         )
     if args.command == "review-repair-chain-heldout-eval-results":
         review = review_repair_chain_heldout_eval_results(
