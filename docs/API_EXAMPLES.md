@@ -626,6 +626,16 @@ python scripts/biber_agent_client.py list-ready-repair-chain-eval-prompts \
   /workspace/outputs \
   --ready-only \
   --limit 10
+python scripts/biber_agent_client.py review-repair-chain-heldout-eval-results \
+  /workspace/outputs/evals/biber-repair-chain-heldout.jsonl \
+  --summary /workspace/outputs/evals/biber-repair-chain-heldout.summary.json \
+  --output /workspace/outputs/evals/biber-repair-chain-heldout-review.json
+python scripts/biber_agent_client.py show-repair-chain-heldout-eval-review \
+  /workspace/outputs/evals/biber-repair-chain-heldout-review.json
+python scripts/biber_agent_client.py list-repair-chain-heldout-eval-reviews \
+  /workspace/outputs/evals \
+  --ok-only \
+  --limit 10
 ```
 
 If `mvp-loop` is started with `--runtime-profile-id`, failed-loop repair

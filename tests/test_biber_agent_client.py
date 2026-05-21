@@ -5186,6 +5186,183 @@ def test_run_review_repair_chain_heldout_eval_results_without_api_key(
     assert result["rejected"][0]["reason"] == "unsupported_eval_result_id"
 
 
+def test_run_show_repair_chain_heldout_eval_review_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "show-repair-chain-heldout-eval-review should not resolve an API key"
+        )
+
+    review_path = tmp_path / "repair-chain-heldout-eval-review.json"
+    review_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_heldout_eval_review",
+                "review_status": "heldout_eval_passed",
+                "ok": True,
+                "records": 1,
+                "passed_records": 1,
+                "failed_records": 0,
+                "expectation_failed_records": 0,
+                "validation_failed_records": 0,
+                "error_records": 0,
+                "rejected_records": 0,
+                "min_passes": 1,
+                "model_counts": {"biber-dev-core-v1": 1},
+                "summary_path": "heldout.summary.json",
+                "eval_only": True,
+                "training_allowed": False,
+                "eligible_for_training": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+                "auto_promoted": False,
+                "jsonl_paths": ["heldout.jsonl"],
+                "results": [
+                    {
+                        "id": "repair_chain_python_compileall_api_abc123",
+                        "passed": True,
+                        "expectation_ok": True,
+                        "model": "biber-dev-core-v1",
+                    }
+                ],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "show-repair-chain-heldout-eval-review",
+                str(review_path),
+            ]
+        )
+    )
+
+    assert "BIBER repair-chain held-out eval review" in output
+    assert "ok: True" in output
+    assert "review_status: heldout_eval_passed" in output
+    assert "records: 1" in output
+    assert "passed_records: 1" in output
+    assert "failed_records: 0" in output
+    assert "model_counts: {'biber-dev-core-v1': 1}" in output
+    assert "eval_only: True" in output
+    assert "training_allowed: False" in output
+    assert "safe_to_train: False" in output
+    assert "github_save_ready: False" in output
+    assert "approved_for_training: False" in output
+    assert f"artifact_path: {review_path}" in output
+    assert "repair_chain_python_compileall_api_abc123" in output
+
+
+def test_run_list_repair_chain_heldout_eval_reviews_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "list-repair-chain-heldout-eval-reviews should not resolve an API key"
+        )
+
+    ok_artifact = tmp_path / "repair-chain-heldout-eval-review-ok.json"
+    failed_artifact = tmp_path / "repair-chain-heldout-eval-review-failed.json"
+    wrapped_artifact = tmp_path / "agent-client-mvp-loop-repair-chain-heldout-eval-review-result.json"
+    ok_review = {
+        "source": "biber_mvp_loop_repair_chain_heldout_eval_review",
+        "review_status": "heldout_eval_passed",
+        "ok": True,
+        "records": 1,
+        "passed_records": 1,
+        "failed_records": 0,
+        "expectation_failed_records": 0,
+        "validation_failed_records": 0,
+        "error_records": 0,
+        "rejected_records": 0,
+        "min_passes": 1,
+        "model_counts": {"biber-dev-core-v1": 1},
+        "summary_path": "heldout.summary.json",
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "jsonl_paths": ["heldout.jsonl"],
+        "results": [
+            {
+                "id": "repair_chain_python_compileall_api_abc123",
+                "passed": True,
+            }
+        ],
+    }
+    failed_review = {
+        **ok_review,
+        "review_status": "heldout_eval_needs_review",
+        "ok": False,
+        "passed_records": 0,
+        "failed_records": 1,
+        "expectation_failed_records": 1,
+    }
+    wrapped_artifact.write_text(
+        json.dumps(
+            {
+                "status": 0,
+                "body": ok_review,
+                "output": str(ok_artifact),
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    failed_artifact.write_text(
+        json.dumps(failed_review, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "list-repair-chain-heldout-eval-reviews",
+                str(tmp_path),
+                "--ok-only",
+                "--limit",
+                "5",
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["source"] == "biber_mvp_loop_repair_chain_heldout_eval_review_list"
+    assert result["ok_only"] is True
+    assert result["matched"] == 1
+    assert result["ok_artifacts"] == 1
+    assert result["records"] == 1
+    assert result["passed_records"] == 1
+    assert result["failed_records"] == 0
+    assert result["expectation_failed_records"] == 0
+    assert result["model_counts"] == {"biber-dev-core-v1": 1}
+    assert result["eval_only"] is True
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+    assert len(result["artifacts"]) == 1
+    assert result["artifacts"][0]["path"] == str(wrapped_artifact)
+    assert result["artifacts"][0]["artifact_path"] == str(ok_artifact)
+    assert result["artifacts"][0]["review_status"] == "heldout_eval_passed"
+    assert result["artifacts"][0]["ok"] is True
+
+
 def test_run_record_repair_chain_heldout_eval_decision_without_api_key(
     monkeypatch,
     tmp_path: Path,

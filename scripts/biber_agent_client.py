@@ -4931,6 +4931,172 @@ def review_repair_chain_heldout_eval_results(
     }
 
 
+def normalize_repair_chain_heldout_eval_review_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_repair_chain_heldout_eval_review":
+        return dict(payload)
+    body = payload.get("body")
+    if (
+        isinstance(body, dict)
+        and body.get("source") == "biber_mvp_loop_repair_chain_heldout_eval_review"
+    ):
+        normalized = dict(body)
+        if payload.get("output") and not normalized.get("artifact_path"):
+            normalized["artifact_path"] = payload.get("output")
+        return normalized
+    return None
+
+
+def summarize_repair_chain_heldout_eval_review_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    results = [
+        item
+        for item in require_list(payload.get("results"))
+        if isinstance(item, dict)
+    ]
+    result_ids = [
+        str(item.get("id"))
+        for item in results
+        if item.get("id")
+    ]
+    try:
+        modified_epoch = path.stat().st_mtime
+    except OSError:
+        modified_epoch = 0.0
+    summary: dict[str, Any] = {
+        "path": str(path),
+        "review_status": payload.get("review_status"),
+        "ok": payload.get("ok") is True,
+        "records": int_count(payload.get("records")),
+        "passed_records": int_count(payload.get("passed_records")),
+        "failed_records": int_count(payload.get("failed_records")),
+        "expectation_failed_records": int_count(
+            payload.get("expectation_failed_records")
+        ),
+        "validation_failed_records": int_count(
+            payload.get("validation_failed_records")
+        ),
+        "error_records": int_count(payload.get("error_records")),
+        "rejected_records": int_count(payload.get("rejected_records")),
+        "min_passes": int_count(payload.get("min_passes")) or 1,
+        "result_count": len(results),
+        "result_ids": result_ids,
+        "model_counts": require_mapping(payload.get("model_counts")),
+        "summary_path": payload.get("summary_path"),
+        "jsonl_paths": [
+            str(item)
+            for item in require_list(payload.get("jsonl_paths"))
+            if isinstance(item, str)
+        ],
+        "eval_only": payload.get("eval_only") is True,
+        "training_allowed": payload.get("training_allowed") is True,
+        "eligible_for_training": payload.get("eligible_for_training") is True,
+        "safe_to_train": payload.get("safe_to_train") is True,
+        "github_save_ready": payload.get("github_save_ready") is True,
+        "approved_for_training": payload.get("approved_for_training") is True,
+        "auto_promoted": payload.get("auto_promoted") is True,
+        "modified_epoch": modified_epoch,
+    }
+    if payload.get("artifact_path"):
+        summary["artifact_path"] = payload.get("artifact_path")
+    return summary
+
+
+def list_repair_chain_heldout_eval_review_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    ok_only: bool = False,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            f"Repair-chain held-out eval review artifact directory does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            f"Repair-chain held-out eval review artifact path is not a directory: {root}"
+        )
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    model_counts: dict[str, int] = {}
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="repair-chain held-out eval review artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_repair_chain_heldout_eval_review_artifact(raw_payload)
+        if normalized is None:
+            continue
+        if not normalized.get("artifact_path"):
+            normalized["artifact_path"] = str(path)
+        summary = summarize_repair_chain_heldout_eval_review_artifact(
+            path,
+            normalized,
+        )
+        if ok_only and summary.get("ok") is not True:
+            continue
+        for model, count in require_mapping(summary.get("model_counts")).items():
+            model_key = str(model)
+            model_counts[model_key] = model_counts.get(model_key, 0) + int_count(count)
+        artifacts.append(summary)
+
+    artifacts.sort(
+        key=lambda item: float(item.get("modified_epoch") or 0.0),
+        reverse=True,
+    )
+    return {
+        "source": "biber_mvp_loop_repair_chain_heldout_eval_review_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "ok_only": ok_only,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "ok_artifacts": sum(1 for item in artifacts if item.get("ok") is True),
+        "records": sum(int_count(item.get("records")) for item in artifacts),
+        "passed_records": sum(
+            int_count(item.get("passed_records")) for item in artifacts
+        ),
+        "failed_records": sum(
+            int_count(item.get("failed_records")) for item in artifacts
+        ),
+        "expectation_failed_records": sum(
+            int_count(item.get("expectation_failed_records")) for item in artifacts
+        ),
+        "validation_failed_records": sum(
+            int_count(item.get("validation_failed_records")) for item in artifacts
+        ),
+        "error_records": sum(
+            int_count(item.get("error_records")) for item in artifacts
+        ),
+        "rejected_records": sum(
+            int_count(item.get("rejected_records")) for item in artifacts
+        ),
+        "model_counts": model_counts,
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "artifacts": artifacts[:limit],
+    }
+
+
 def build_repair_chain_heldout_eval_decision_record(
     *,
     review: Mapping[str, Any],
@@ -8111,6 +8277,59 @@ def format_repair_chain_heldout_eval_review_summary(
     return "\n".join(lines)
 
 
+def format_repair_chain_heldout_eval_review_artifact_list_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER repair-chain held-out eval review artifacts ({len(artifacts)})",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"ok_only: {payload.get('ok_only', False)}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"ok_artifacts: {payload.get('ok_artifacts', 0)}",
+        f"records: {payload.get('records', 0)}",
+        f"passed_records: {payload.get('passed_records', 0)}",
+        f"failed_records: {payload.get('failed_records', 0)}",
+        (
+            "expectation_failed_records: "
+            f"{payload.get('expectation_failed_records', 0)}"
+        ),
+        (
+            "validation_failed_records: "
+            f"{payload.get('validation_failed_records', 0)}"
+        ),
+        f"error_records: {payload.get('error_records', 0)}",
+        f"rejected_records: {payload.get('rejected_records', 0)}",
+        f"model_counts: {payload.get('model_counts', {})}",
+        f"eval_only: {payload.get('eval_only', True)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"approved_for_training: {payload.get('approved_for_training', False)}",
+    ]
+    for artifact in artifacts:
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"status={artifact.get('review_status', '-')}",
+                    f"ok={artifact.get('ok', False)}",
+                    f"records={artifact.get('records', 0)}",
+                    f"passed={artifact.get('passed_records', 0)}",
+                    f"failed={artifact.get('failed_records', 0)}",
+                    f"results={artifact.get('result_count', 0)}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_repair_chain_heldout_eval_decision_export_summary(
     payload: Mapping[str, Any],
 ) -> str:
@@ -9496,6 +9715,37 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     review_repair_chain_heldout_eval_results.add_argument("--output")
 
+    show_repair_chain_heldout_eval_review = subparsers.add_parser(
+        "show-repair-chain-heldout-eval-review",
+        help=(
+            "Inspect a saved repair-chain held-out eval review artifact "
+            "without resolving API auth."
+        ),
+    )
+    show_repair_chain_heldout_eval_review.add_argument("artifact")
+
+    list_repair_chain_heldout_eval_reviews = subparsers.add_parser(
+        "list-repair-chain-heldout-eval-reviews",
+        help=(
+            "List saved repair-chain held-out eval review artifacts under a "
+            "directory without resolving API auth."
+        ),
+    )
+    list_repair_chain_heldout_eval_reviews.add_argument("directory")
+    list_repair_chain_heldout_eval_reviews.add_argument(
+        "--pattern",
+        default="*heldout-eval-review*.json",
+    )
+    list_repair_chain_heldout_eval_reviews.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+    )
+    list_repair_chain_heldout_eval_reviews.add_argument(
+        "--ok-only",
+        action="store_true",
+    )
+
     record_repair_chain_heldout_eval_decision = subparsers.add_parser(
         "record-repair-chain-heldout-eval-decision",
         help=(
@@ -10401,6 +10651,37 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(review, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_chain_heldout_eval_review_summary(review)
+        )
+    if args.command == "show-repair-chain-heldout-eval-review":
+        raw_payload = load_json_artifact(
+            args.artifact,
+            label="repair-chain held-out eval review artifact",
+        )
+        review = normalize_repair_chain_heldout_eval_review_artifact(raw_payload)
+        if review is None:
+            raise BiberAgentClientError(
+                "show-repair-chain-heldout-eval-review requires a held-out eval review artifact."
+            )
+        if not review.get("artifact_path"):
+            review["artifact_path"] = str(Path(args.artifact))
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_heldout_eval_review_summary(review)
+        )
+    if args.command == "list-repair-chain-heldout-eval-reviews":
+        artifacts = list_repair_chain_heldout_eval_review_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            ok_only=args.ok_only,
+        )
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_heldout_eval_review_artifact_list_summary(
+                artifacts
+            )
         )
     if args.command == "record-repair-chain-heldout-eval-decision":
         decision = record_repair_chain_heldout_eval_decisions(
