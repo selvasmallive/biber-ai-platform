@@ -415,9 +415,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER repair-test verification artifact inspection commit pushed and
   Vast-verified:
   `ad901453 Add repair test verification inspection`.
+- Latest BIBER verified repair review artifact inspection commit pushed and
+  Vast-verified:
+  `4c79b104 Add verified repair review inspection`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `ad901453`. Full Rust/private-devnet
+- Vast code verification is current through `4c79b104`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -471,7 +474,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   inspection verification is current through `e311321`; BIBER repair-edit
   apply artifact inspection verification is current through `15d1544`; BIBER
   repair-test verification artifact inspection verification is current through
-  `ad901453`;
+  `ad901453`; BIBER verified repair review artifact inspection verification is
+  current through `4c79b104`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -503,7 +507,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   BIBER agent-client repair-test verification is current through `2ae4a02`;
   BIBER verified repair review export verification is current through
   `9b22ef5`; BIBER verified repair review summary verification is current
-  through `caabb32`; BIBER repair-chain summary verification is current
+  through `caabb32`; BIBER agent-client verified repair review artifact
+  inspection verification is current through `4c79b104`; BIBER repair-chain
+  summary verification is current
   through `6af885c`; BIBER repair-chain artifact listing verification is
   current through `a4799fe`; BIBER ready repair-chain review export
   verification is current through `559c30d`; BIBER ready repair-chain review
@@ -933,6 +939,28 @@ serving the last broad-safe Rust/XRIQ adapter.
     `cd /workspace/biber-ai-platform; BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=64 bash scripts/vast_biber_agent_smoke.sh`.
     Smoke artifact directory:
     `/workspace/outputs/biber-agent-smoke-20260521T153607Z-89865`. No training
+    was started, no candidate adapter was reloaded, and no adapter was
+    promoted; stable serving remains on
+    `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
+  - `4c79b104` adds offline verified repair review artifact inspection:
+    `show-verified-repair-review` summarizes saved `review-verified-repairs`
+    JSON artifacts without resolving API auth, and
+    `list-verified-repair-reviews` scans output directories with an optional
+    `--ready-only` filter. `docs/API_EXAMPLES.md` now places those commands
+    after `review-verified-repairs`, and `scripts/vast_biber_agent_smoke.sh`
+    verifies the no-auth review-summary inspection path before the repair-chain
+    summary. Local verification passed `git diff --check`, bundled Python
+    syntax compilation, and an offline command smoke; local pytest was not
+    available on this workstation. Vast was fast-forwarded to `4c79b104`;
+    verification passed
+    `/workspace/biber-venv/bin/python -m py_compile /workspace/biber-ai-platform/scripts/biber_agent_client.py /workspace/biber-ai-platform/tests/test_biber_agent_client.py`,
+    `bash -n /workspace/biber-ai-platform/scripts/vast_biber_agent_smoke.sh`,
+    focused pytest with `PYTHONPATH=/workspace/biber-ai-platform` for
+    `tests/test_biber_agent_client.py tests/test_runtime_profiles.py tests/test_agent_capabilities.py -q`
+    with `109 passed`, and live
+    `cd /workspace/biber-ai-platform; BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=64 bash scripts/vast_biber_agent_smoke.sh`.
+    Smoke artifact directory:
+    `/workspace/outputs/biber-agent-smoke-20260521T154545Z-90163`. No training
     was started, no candidate adapter was reloaded, and no adapter was
     promoted; stable serving remains on
     `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
@@ -6267,10 +6295,11 @@ path if repair artifacts need review: `show-repair-attempt`,
 `apply-repair-edits --approve` only after review, `show-repair-edit-apply`,
 `list-repair-edit-applies`, then `verify-repair-edits`,
 `show-repair-test-verification`, `list-repair-test-verifications`, and finally
-`export-verified-repair` / review only for passed verification artifacts. Do
-not train again and do not promote from a generic "continue". The API
-error-response and Rust/XRIQ codegen profiles are enabled on the live Vast API,
-exposed through
+`export-verified-repair`, `review-verified-repairs`,
+`show-verified-repair-review`, `list-verified-repair-reviews`, then the
+existing `show-repair-chain` / `list-repair-chains` review path. Do not train
+again and do not promote from a generic "continue". The API error-response and
+Rust/XRIQ codegen profiles are enabled on the live Vast API, exposed through
 `/v1/agent/capabilities`, and the stable served adapter has passed the
 profile-enabled client/eval baseline. If model promotion is desired, ask the
 user for explicit candidate-promotion approval using
@@ -6548,7 +6577,9 @@ bash scripts/xriq_private_devnet_smoke.sh
    `export-verified-repair`, which exports a passed verification into a JSONL
    human-review queue without training eligibility, and
    `review-verified-repairs`, which summarizes those queues for human review
-   while keeping them out of training. It now also has `show-repair-chain`,
+   while keeping them out of training, plus `show-verified-repair-review` and
+   `list-verified-repair-reviews`, which inspect saved review-summary
+   artifacts without resolving API auth. It now also has `show-repair-chain`,
    which summarizes the full saved repair-artifact chain and confirms whether
    it is ready for human review while still blocking automatic training or
    GitHub save readiness, and `list-repair-chains`, which scans saved artifact
