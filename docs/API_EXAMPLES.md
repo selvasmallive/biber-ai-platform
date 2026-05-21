@@ -663,6 +663,21 @@ python scripts/biber_agent_client.py show-repair-chain-heldout-baseline-candidat
 python scripts/biber_agent_client.py list-repair-chain-heldout-baseline-candidate-reviews \
   /workspace/outputs/evals \
   --limit 10
+# Only record baseline decisions after manual baseline review.
+python scripts/biber_agent_client.py record-repair-chain-heldout-baseline-candidate-decision \
+  /workspace/outputs/evals/biber-repair-chain-heldout-baseline-candidates.jsonl \
+  --decision approve_as_baseline \
+  --reviewer human-baseline-reviewer \
+  --notes "Approved as baseline evidence only; still not training data." \
+  --output /workspace/outputs/evals/biber-repair-chain-heldout-baseline-decisions.jsonl
+python scripts/biber_agent_client.py review-repair-chain-heldout-baseline-decisions \
+  /workspace/outputs/evals/biber-repair-chain-heldout-baseline-decisions.jsonl \
+  --output /workspace/outputs/evals/biber-repair-chain-heldout-baseline-decision-review.json
+python scripts/biber_agent_client.py show-repair-chain-heldout-baseline-decision-review \
+  /workspace/outputs/evals/biber-repair-chain-heldout-baseline-decision-review.json
+python scripts/biber_agent_client.py list-repair-chain-heldout-baseline-decision-reviews \
+  /workspace/outputs/evals \
+  --limit 10
 ```
 
 If `mvp-loop` is started with `--runtime-profile-id`, failed-loop repair

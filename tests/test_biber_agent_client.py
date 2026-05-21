@@ -6388,6 +6388,210 @@ def test_run_review_repair_chain_heldout_baseline_decisions_without_api_key(
     assert result["rejected"][0]["reason"] == "unsupported_source"
 
 
+def test_run_show_repair_chain_heldout_baseline_decision_review_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "show-repair-chain-heldout-baseline-decision-review should not resolve an API key"
+        )
+
+    review_path = tmp_path / "heldout-baseline-decision-review.json"
+    review_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_heldout_baseline_decision_review",
+                "review_status": "heldout_baseline_decision_summary_only",
+                "records": 2,
+                "rejected_records": 0,
+                "decision_counts": {"approve_as_baseline": 2},
+                "defer_records": 0,
+                "reject_records": 0,
+                "approved_as_baseline_records": 2,
+                "baseline_candidate_ready_records": 2,
+                "baseline_ready_records": 2,
+                "requires_baseline_review_records": 0,
+                "min_repeat": 1,
+                "groups": [
+                    {
+                        "decision": "approve_as_baseline",
+                        "count": 2,
+                        "approved_as_baseline": True,
+                        "baseline_candidate_ready": True,
+                        "baseline_ready": True,
+                        "requires_baseline_review": False,
+                    }
+                ],
+                "eval_only": True,
+                "training_allowed": False,
+                "eligible_for_training": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+                "auto_promoted": False,
+                "jsonl_paths": ["heldout-baseline-decisions.jsonl"],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "show-repair-chain-heldout-baseline-decision-review",
+                str(review_path),
+            ]
+        )
+    )
+
+    assert "BIBER repair-chain held-out baseline decision review" in output
+    assert "records: 2" in output
+    assert "approved_as_baseline_records: 2" in output
+    assert "baseline_candidate_ready_records: 2" in output
+    assert "baseline_ready_records: 2" in output
+    assert "requires_baseline_review_records: 0" in output
+    assert "decision_counts: {'approve_as_baseline': 2}" in output
+    assert "eval_only: True" in output
+    assert "training_allowed: False" in output
+    assert "safe_to_train: False" in output
+    assert "github_save_ready: False" in output
+    assert "approved_for_training: False" in output
+    assert f"artifact_path: {review_path}" in output
+
+
+def test_run_list_repair_chain_heldout_baseline_decision_reviews_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "list-repair-chain-heldout-baseline-decision-reviews should not resolve an API key"
+        )
+
+    ready_artifact = tmp_path / "heldout-baseline-decision-review-ready.json"
+    defer_artifact = tmp_path / "heldout-baseline-decision-review-defer.json"
+    wrapped_artifact = (
+        tmp_path
+        / "agent-client-mvp-loop-repair-chain-heldout-baseline-decision-review-result.json"
+    )
+    ready_review = {
+        "source": "biber_mvp_loop_repair_chain_heldout_baseline_decision_review",
+        "review_status": "heldout_baseline_decision_summary_only",
+        "records": 2,
+        "rejected_records": 0,
+        "decision_counts": {"approve_as_baseline": 2},
+        "defer_records": 0,
+        "reject_records": 0,
+        "approved_as_baseline_records": 2,
+        "baseline_candidate_ready_records": 2,
+        "baseline_ready_records": 2,
+        "requires_baseline_review_records": 0,
+        "min_repeat": 1,
+        "groups": [
+            {
+                "decision": "approve_as_baseline",
+                "count": 2,
+                "approved_as_baseline": True,
+                "baseline_candidate_ready": True,
+                "baseline_ready": True,
+                "requires_baseline_review": False,
+            }
+        ],
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "jsonl_paths": ["heldout-baseline-decisions.jsonl"],
+    }
+    defer_review = {
+        **ready_review,
+        "records": 1,
+        "decision_counts": {"defer": 1},
+        "defer_records": 1,
+        "approved_as_baseline_records": 0,
+        "baseline_candidate_ready_records": 1,
+        "baseline_ready_records": 0,
+        "requires_baseline_review_records": 1,
+        "groups": [
+            {
+                "decision": "defer",
+                "count": 1,
+                "approved_as_baseline": False,
+                "baseline_candidate_ready": True,
+                "baseline_ready": False,
+                "requires_baseline_review": True,
+            }
+        ],
+    }
+    wrapped_artifact.write_text(
+        json.dumps(
+            {
+                "status": 0,
+                "body": ready_review,
+                "output": str(ready_artifact),
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    defer_artifact.write_text(
+        json.dumps(defer_review, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "list-repair-chain-heldout-baseline-decision-reviews",
+                str(tmp_path),
+                "--decision",
+                "approve_as_baseline",
+                "--baseline-ready-only",
+                "--limit",
+                "5",
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert (
+        result["source"]
+        == "biber_mvp_loop_repair_chain_heldout_baseline_decision_review_list"
+    )
+    assert result["decision"] == "approve_as_baseline"
+    assert result["baseline_ready_only"] is True
+    assert result["matched"] == 1
+    assert result["records"] == 2
+    assert result["rejected_records"] == 0
+    assert result["defer_records"] == 0
+    assert result["approved_as_baseline_records"] == 2
+    assert result["baseline_candidate_ready_records"] == 2
+    assert result["baseline_ready_records"] == 2
+    assert result["requires_baseline_review_records"] == 0
+    assert result["eval_only"] is True
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+    assert len(result["artifacts"]) == 1
+    assert result["artifacts"][0]["path"] == str(wrapped_artifact)
+    assert result["artifacts"][0]["artifact_path"] == str(ready_artifact)
+    assert result["artifacts"][0]["decision_counts"] == {
+        "approve_as_baseline": 2
+    }
+    assert result["artifacts"][0]["baseline_ready_records"] == 2
+
+
 def test_run_review_repair_chain_training_readiness_blocks_empty_baseline(
     monkeypatch,
     tmp_path: Path,

@@ -4243,6 +4243,92 @@ if (
     != client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review
 ):
     fail("held-out baseline decision review saved artifact differs from stdout JSON")
+try:
+    client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_show = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "show-repair-chain-heldout-baseline-decision-review",
+            str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py show-repair-chain-heldout-baseline-decision-review failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py show-repair-chain-heldout-baseline-decision-review timed out: {exc}")
+for expected in [
+    "BIBER repair-chain held-out baseline decision review",
+    "records: 0",
+    "approved_as_baseline_records: 0",
+    "baseline_ready_records: 0",
+    "eval_only: True",
+    "training_allowed: False",
+    str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path),
+]:
+    if expected not in client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_show:
+        fail(
+            "held-out baseline decision review show output missed "
+            f"{expected!r}: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_show}"
+        )
+try:
+    client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-repair-chain-heldout-baseline-decision-reviews",
+            str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path.parent),
+            "--limit",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-repair-chain-heldout-baseline-decision-reviews failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-repair-chain-heldout-baseline-decision-reviews timed out: {exc}")
+try:
+    client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list = json.loads(
+        client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list_output
+    )
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py list-repair-chain-heldout-baseline-decision-reviews returned invalid JSON: {exc}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("records") != 0:
+    fail(f"held-out baseline decision review list should see no smoke defer records: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("approved_as_baseline_records") != 0:
+    fail(f"held-out baseline decision review list must not approve smoke defer evidence: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("baseline_ready_records") != 0:
+    fail(f"held-out baseline decision review list must keep baseline ready records at zero: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("requires_baseline_review_records") != 0:
+    fail(f"held-out baseline decision review list should not require review when no rows exist: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("training_allowed") is not False:
+    fail(f"held-out baseline decision review list must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("safe_to_train") is not False:
+    fail(f"held-out baseline decision review list must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("github_save_ready") is not False:
+    fail(f"held-out baseline decision review list must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
+if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("approved_for_training") is not False:
+    fail(f"held-out baseline decision review list must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
+matching_baseline_decision_review_artifacts = [
+    item
+    for item in client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get(
+        "artifacts",
+        [],
+    )
+    if item.get("path") == str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path)
+]
+if len(matching_baseline_decision_review_artifacts) != 1:
+    fail(
+        "held-out baseline decision review list did not include exactly one "
+        f"saved review artifact: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}"
+    )
+if matching_baseline_decision_review_artifacts[0].get("baseline_ready_records") != 0:
+    fail(f"held-out baseline decision review list artifact should have zero baseline-ready records: {matching_baseline_decision_review_artifacts[0]!r}")
 write_artifact(
     "agent-client-mvp-loop-repair-chain-heldout-baseline-decision-review-result.json",
     {
