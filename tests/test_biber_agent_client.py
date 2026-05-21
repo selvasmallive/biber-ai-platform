@@ -1600,6 +1600,129 @@ def test_run_plan_repair_edits_calls_server_plan_without_apply(
     assert result["next_test_id"] == "dotnet-test"
 
 
+def test_run_show_repair_edit_plan_summarizes_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("show-repair-edit-plan should not resolve an API key")
+
+    artifact = tmp_path / "repair-edit-plan.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_plan",
+                "source_artifact": "/workspace/outputs/repair-edit-extraction.json",
+                "plan_status": "planned",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "apply_allowed": False,
+                "review_status": "needs_review",
+                "plan_hash": "f" * 64,
+                "next_test_id": "dotnet-test",
+                "artifact_path": str(artifact),
+                "plan_edit_payload": {
+                    "edits": [{"path": "src/App.cs", "new_text": "return a;"}]
+                },
+                "edit_plan": {
+                    "ok": True,
+                    "plan_hash": "f" * 64,
+                    "planned": [{"path": "src/App.cs", "operation": "edit"}],
+                    "rejected": [{"path": "src/Bad.cs", "reason": "missing_old_text"}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(client.parse_args(["show-repair-edit-plan", str(artifact)]))
+
+    assert "BIBER repair edit plan" in output
+    assert "plan_status: planned" in output
+    assert "training_allowed: False" in output
+    assert "auto_applied: False" in output
+    assert "apply_allowed: False" in output
+    assert f"plan_hash: {'f' * 64}" in output
+    assert "planned: 1" in output
+    assert "rejected: 1" in output
+    assert "- src/App.cs" in output
+    assert str(artifact) in output
+
+
+def test_run_show_repair_edit_plan_json_returns_local_artifact(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "repair-edit-plan.json"
+    payload = {
+        "source": "biber_mvp_loop_repair_edit_plan",
+        "plan_status": "planned",
+        "ok": True,
+        "edit_plan": {},
+    }
+    artifact.write_text(json.dumps({"body": payload}), encoding="utf-8")
+
+    output = client.run(
+        client.parse_args(["--json", "show-repair-edit-plan", str(artifact)])
+    )
+
+    assert json.loads(output) == payload
+
+
+def test_run_list_repair_edit_plans_summarizes_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("list-repair-edit-plans should not resolve an API key")
+
+    planned = tmp_path / "agent-client-repair-edit-plan.json"
+    planned.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_plan",
+                "plan_status": "planned",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "apply_allowed": False,
+                "review_status": "needs_review",
+                "plan_hash": "a" * 64,
+                "next_test_id": "dotnet-test",
+                "edit_plan": {
+                    "planned": [{"path": "src/App.cs", "operation": "edit"}],
+                    "rejected": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    ignored = tmp_path / "ignored-repair-edit-plan.json"
+    ignored.write_text(json.dumps({"source": "other"}), encoding="utf-8")
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "list-repair-edit-plans",
+                str(tmp_path),
+                "--planned-only",
+                "--limit",
+                "5",
+            ]
+        )
+    )
+
+    assert "BIBER repair edit plan artifacts (1)" in output
+    assert str(planned) in output
+    assert str(ignored) not in output
+    assert "planned: 1" in output
+    assert "training_allowed: False" in output
+    assert "apply_allowed: False" in output
+    assert f"plan_hash={'a' * 64}" in output
+
+
 def test_build_apply_repair_edits_payload_rejects_unplanned_artifact() -> None:
     try:
         client.build_apply_repair_edits_payload(

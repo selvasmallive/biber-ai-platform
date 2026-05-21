@@ -1246,6 +1246,95 @@ if saved_client_mvp_loop_repair_plan != client_mvp_loop_repair_plan:
     fail("plan-repair-edits output artifact did not match stdout JSON")
 if Path(client_mvp_loop_smoke_path).read_text(encoding="utf-8") != client_mvp_loop_edit["new_text"]:
     fail("plan-repair-edits unexpectedly changed the MVP loop smoke file")
+try:
+    client_mvp_loop_repair_plan_report = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "show-repair-edit-plan",
+            str(client_mvp_loop_repair_plan_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py show-repair-edit-plan failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py show-repair-edit-plan timed out: {exc}")
+if "BIBER repair edit plan" not in client_mvp_loop_repair_plan_report:
+    fail(
+        "show-repair-edit-plan report omitted heading: "
+        f"{client_mvp_loop_repair_plan_report!r}"
+    )
+if str(client_mvp_loop_repair_plan_path) not in client_mvp_loop_repair_plan_report:
+    fail(
+        "show-repair-edit-plan report omitted artifact path: "
+        f"{client_mvp_loop_repair_plan_report!r}"
+    )
+if "apply_allowed: False" not in client_mvp_loop_repair_plan_report:
+    fail(
+        "show-repair-edit-plan report omitted apply guard: "
+        f"{client_mvp_loop_repair_plan_report!r}"
+    )
+if str(client_mvp_loop_repair_plan.get("plan_hash")) not in client_mvp_loop_repair_plan_report:
+    fail(
+        "show-repair-edit-plan report omitted plan hash: "
+        f"{client_mvp_loop_repair_plan_report!r}"
+    )
+try:
+    client_mvp_loop_repair_plan_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-repair-edit-plans",
+            str(artifact_dir),
+            "--planned-only",
+            "--limit",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-repair-edit-plans failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-repair-edit-plans timed out: {exc}")
+try:
+    client_mvp_loop_repair_plan_list = json.loads(client_mvp_loop_repair_plan_list_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py list-repair-edit-plans returned invalid JSON: {exc}")
+plan_artifacts = client_mvp_loop_repair_plan_list.get("artifacts")
+if not isinstance(plan_artifacts, list):
+    fail(f"list-repair-edit-plans did not return artifacts: {client_mvp_loop_repair_plan_list!r}")
+if client_mvp_loop_repair_plan_list.get("training_allowed") is not False:
+    fail(
+        "list-repair-edit-plans must keep training_allowed=false: "
+        f"{client_mvp_loop_repair_plan_list!r}"
+    )
+if client_mvp_loop_repair_plan_list.get("apply_allowed") is not False:
+    fail(
+        "list-repair-edit-plans must keep apply_allowed=false: "
+        f"{client_mvp_loop_repair_plan_list!r}"
+    )
+matching_plans = [
+    item
+    for item in plan_artifacts
+    if isinstance(item, dict)
+    and item.get("path") == str(client_mvp_loop_repair_plan_path)
+]
+if len(matching_plans) != 1:
+    fail(
+        f"list-repair-edit-plans omitted {client_mvp_loop_repair_plan_path}: "
+        f"{client_mvp_loop_repair_plan_list!r}"
+    )
+if matching_plans[0].get("plan_hash") != client_mvp_loop_repair_plan.get("plan_hash"):
+    fail(
+        "list-repair-edit-plans omitted plan hash: "
+        f"{client_mvp_loop_repair_plan_list!r}"
+    )
 
 if client_mvp_loop.get("ok") is not True:
     fail(f"agent client mvp-loop did not return ok=true: {client_mvp_loop!r}")
