@@ -4530,6 +4530,206 @@ def test_run_validate_ready_repair_chain_eval_dataset_without_api_key(
     assert result["groups"][0]["approved_for_training"] is False
 
 
+def test_run_show_ready_repair_chain_eval_dataset_validation_summarizes_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "show-ready-repair-chain-eval-dataset-validation should not resolve an API key"
+        )
+
+    artifact = tmp_path / "ready-repair-chain-eval-dataset-validation.json"
+    payload = {
+        "source": "biber_mvp_loop_ready_repair_chain_eval_dataset_validation",
+        "validation_status": "valid_eval_only",
+        "ok": True,
+        "records": 1,
+        "valid_records": 1,
+        "invalid_records": 0,
+        "rejected_records": 0,
+        "min_records": 1,
+        "eval_dataset_ready": True,
+        "requires_eval_dataset_validation": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "artifact_path": str(artifact),
+        "groups": [
+            {
+                "test_id": "python-compileall-api",
+                "plan_hash": "a" * 64,
+                "count": 1,
+            }
+        ],
+    }
+    artifact.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "show-ready-repair-chain-eval-dataset-validation",
+                str(artifact),
+            ]
+        )
+    )
+
+    assert "BIBER ready repair-chain eval dataset validation" in output
+    assert "ok: True" in output
+    assert "validation_status: valid_eval_only" in output
+    assert "records: 1" in output
+    assert "valid_records: 1" in output
+    assert "invalid_records: 0" in output
+    assert "eval_dataset_ready: True" in output
+    assert "training_allowed: False" in output
+    assert "safe_to_train: False" in output
+    assert "github_save_ready: False" in output
+    assert "approved_for_training: False" in output
+    assert "python-compileall-api" in output
+    assert "a" * 64 in output
+    assert str(artifact) in output
+
+
+def test_run_show_ready_repair_chain_eval_dataset_validation_json_wrapper_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "show-ready-repair-chain-eval-dataset-validation should not resolve an API key"
+        )
+
+    artifact = tmp_path / "agent-client-ready-repair-chain-eval-dataset-validation.json"
+    body = {
+        "source": "biber_mvp_loop_ready_repair_chain_eval_dataset_validation",
+        "validation_status": "valid_eval_only",
+        "ok": True,
+        "records": 1,
+        "valid_records": 1,
+        "invalid_records": 0,
+        "rejected_records": 0,
+        "eval_dataset_ready": True,
+        "requires_eval_dataset_validation": True,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "groups": [],
+    }
+    artifact.write_text(
+        json.dumps({"status": 0, "body": body}, sort_keys=True),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "show-ready-repair-chain-eval-dataset-validation",
+                str(artifact),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result == body
+
+
+def test_run_list_ready_repair_chain_eval_dataset_validations_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "list-ready-repair-chain-eval-dataset-validations should not resolve an API key"
+        )
+
+    ok_artifact = tmp_path / "ready-repair-chain-eval-dataset-validation-1.json"
+    invalid_artifact = tmp_path / "ready-repair-chain-eval-dataset-validation-2.json"
+    ignored_artifact = tmp_path / "ready-repair-chain-eval-dataset-validation-ignored.json"
+    ok_artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_ready_repair_chain_eval_dataset_validation",
+                "validation_status": "valid_eval_only",
+                "ok": True,
+                "records": 1,
+                "valid_records": 1,
+                "invalid_records": 0,
+                "rejected_records": 0,
+                "eval_dataset_ready": True,
+                "requires_eval_dataset_validation": True,
+                "training_allowed": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+                "groups": [{"test_id": "python-compileall-api", "count": 1}],
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    invalid_artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_ready_repair_chain_eval_dataset_validation",
+                "validation_status": "invalid_or_incomplete",
+                "ok": False,
+                "records": 1,
+                "valid_records": 0,
+                "invalid_records": 1,
+                "rejected_records": 0,
+                "eval_dataset_ready": False,
+                "requires_eval_dataset_validation": True,
+                "training_allowed": False,
+                "groups": [],
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    ignored_artifact.write_text(
+        json.dumps({"source": "other_source"}, sort_keys=True),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "list-ready-repair-chain-eval-dataset-validations",
+                str(tmp_path),
+                "--ok-only",
+                "--limit",
+                "5",
+            ]
+        )
+    )
+
+    assert "BIBER ready repair-chain eval-dataset validation artifacts (1)" in output
+    assert str(ok_artifact) in output
+    assert str(invalid_artifact) not in output
+    assert str(ignored_artifact) not in output
+    assert "ok_only: True" in output
+    assert "ok_artifacts: 1" in output
+    assert "records: 1" in output
+    assert "valid_records: 1" in output
+    assert "invalid_records: 0" in output
+    assert "eval_dataset_ready: True" in output
+    assert "training_allowed: False" in output
+    assert "safe_to_train: False" in output
+    assert "github_save_ready: False" in output
+    assert "approved_for_training: False" in output
+    assert "status=valid_eval_only" in output
+    assert "ok=True" in output
+    assert "groups=1" in output
+
+
 def test_run_export_ready_repair_chain_eval_prompts_without_api_key(
     monkeypatch,
     tmp_path: Path,

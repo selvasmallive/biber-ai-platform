@@ -4195,6 +4195,149 @@ def validate_ready_repair_chain_eval_dataset_records(
     }
 
 
+def normalize_ready_repair_chain_eval_dataset_validation_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_ready_repair_chain_eval_dataset_validation":
+        return dict(payload)
+    body = payload.get("body")
+    if (
+        isinstance(body, dict)
+        and body.get("source")
+        == "biber_mvp_loop_ready_repair_chain_eval_dataset_validation"
+    ):
+        return dict(body)
+    return None
+
+
+def summarize_ready_repair_chain_eval_dataset_validation_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    groups = [
+        item
+        for item in require_list(payload.get("groups"))
+        if isinstance(item, dict)
+    ]
+    try:
+        modified_epoch = path.stat().st_mtime
+    except OSError:
+        modified_epoch = 0.0
+    summary: dict[str, Any] = {
+        "path": str(path),
+        "validation_status": payload.get("validation_status"),
+        "ok": payload.get("ok") is True,
+        "records": int_count(payload.get("records")),
+        "valid_records": int_count(payload.get("valid_records")),
+        "invalid_records": int_count(payload.get("invalid_records")),
+        "rejected_records": int_count(payload.get("rejected_records")),
+        "groups": len(groups),
+        "min_records": int_count(payload.get("min_records")) or 1,
+        "eval_dataset_ready": payload.get("eval_dataset_ready") is True,
+        "requires_eval_dataset_validation": (
+            payload.get("requires_eval_dataset_validation") is True
+        ),
+        "training_allowed": payload.get("training_allowed") is True,
+        "eligible_for_training": payload.get("eligible_for_training") is True,
+        "safe_to_train": payload.get("safe_to_train") is True,
+        "github_save_ready": payload.get("github_save_ready") is True,
+        "approved_for_training": payload.get("approved_for_training") is True,
+        "auto_promoted": payload.get("auto_promoted") is True,
+        "jsonl_paths": [
+            str(item)
+            for item in require_list(payload.get("jsonl_paths"))
+            if isinstance(item, str)
+        ],
+        "modified_epoch": modified_epoch,
+    }
+    if payload.get("artifact_path"):
+        summary["artifact_path"] = payload.get("artifact_path")
+    return summary
+
+
+def list_ready_repair_chain_eval_dataset_validation_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    ok_only: bool = False,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            "Ready repair-chain eval-dataset validation artifact directory does "
+            f"not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            "Ready repair-chain eval-dataset validation artifact path is not a "
+            f"directory: {root}"
+        )
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="ready repair-chain eval-dataset validation artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_ready_repair_chain_eval_dataset_validation_artifact(
+            raw_payload
+        )
+        if normalized is None:
+            continue
+        summary = summarize_ready_repair_chain_eval_dataset_validation_artifact(
+            path,
+            normalized,
+        )
+        if ok_only and summary.get("ok") is not True:
+            continue
+        artifacts.append(summary)
+
+    artifacts.sort(
+        key=lambda item: float(item.get("modified_epoch") or 0.0),
+        reverse=True,
+    )
+    return {
+        "source": "biber_mvp_loop_ready_repair_chain_eval_dataset_validation_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "ok_only": ok_only,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "ok_artifacts": sum(1 for item in artifacts if item.get("ok") is True),
+        "records": sum(int_count(item.get("records")) for item in artifacts),
+        "valid_records": sum(
+            int_count(item.get("valid_records")) for item in artifacts
+        ),
+        "invalid_records": sum(
+            int_count(item.get("invalid_records")) for item in artifacts
+        ),
+        "rejected_records": sum(
+            int_count(item.get("rejected_records")) for item in artifacts
+        ),
+        "eval_dataset_ready": any(
+            item.get("eval_dataset_ready") is True for item in artifacts
+        ),
+        "requires_eval_dataset_validation": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "artifacts": artifacts[:limit],
+    }
+
+
 def slugify_eval_prompt_id(value: object) -> str:
     cleaned = "".join(
         char.lower() if char.isalnum() else "_"
@@ -7508,6 +7651,53 @@ def format_ready_repair_chain_eval_dataset_validation_summary(
     return "\n".join(lines)
 
 
+def format_ready_repair_chain_eval_dataset_validation_artifact_list_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER ready repair-chain eval-dataset validation artifacts ({len(artifacts)})",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"ok_only: {payload.get('ok_only', False)}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"ok_artifacts: {payload.get('ok_artifacts', 0)}",
+        f"records: {payload.get('records', 0)}",
+        f"valid_records: {payload.get('valid_records', 0)}",
+        f"invalid_records: {payload.get('invalid_records', 0)}",
+        f"rejected_records: {payload.get('rejected_records', 0)}",
+        f"eval_dataset_ready: {payload.get('eval_dataset_ready', False)}",
+        (
+            "requires_eval_dataset_validation: "
+            f"{payload.get('requires_eval_dataset_validation', True)}"
+        ),
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"approved_for_training: {payload.get('approved_for_training', False)}",
+    ]
+    for artifact in artifacts:
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"status={artifact.get('validation_status', '-')}",
+                    f"ok={artifact.get('ok', False)}",
+                    f"records={artifact.get('records', 0)}",
+                    f"valid={artifact.get('valid_records', 0)}",
+                    f"invalid={artifact.get('invalid_records', 0)}",
+                    f"groups={artifact.get('groups', 0)}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_ready_repair_chain_eval_prompt_export_summary(
     payload: Mapping[str, Any],
 ) -> str:
@@ -8856,6 +9046,37 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     validate_ready_repair_chain_eval_dataset.add_argument("--output")
 
+    show_ready_repair_chain_eval_dataset_validation = subparsers.add_parser(
+        "show-ready-repair-chain-eval-dataset-validation",
+        help=(
+            "Show a saved validate-ready-repair-chain-eval-dataset JSON "
+            "artifact without resolving API auth."
+        ),
+    )
+    show_ready_repair_chain_eval_dataset_validation.add_argument("artifact")
+
+    list_ready_repair_chain_eval_dataset_validations = subparsers.add_parser(
+        "list-ready-repair-chain-eval-dataset-validations",
+        help=(
+            "List saved validate-ready-repair-chain-eval-dataset JSON artifacts "
+            "under a directory without resolving API auth."
+        ),
+    )
+    list_ready_repair_chain_eval_dataset_validations.add_argument("directory")
+    list_ready_repair_chain_eval_dataset_validations.add_argument(
+        "--pattern",
+        default="*ready-repair-chain-eval-dataset-validation*.json",
+    )
+    list_ready_repair_chain_eval_dataset_validations.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+    )
+    list_ready_repair_chain_eval_dataset_validations.add_argument(
+        "--ok-only",
+        action="store_true",
+    )
+
     export_ready_repair_chain_eval_prompts = subparsers.add_parser(
         "export-ready-repair-chain-eval-prompts",
         help=(
@@ -9706,6 +9927,40 @@ def run(args: argparse.Namespace) -> str:
             if args.print_json
             else format_ready_repair_chain_eval_dataset_validation_summary(
                 validation
+            )
+        )
+    if args.command == "show-ready-repair-chain-eval-dataset-validation":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="ready repair-chain eval-dataset validation artifact",
+        )
+        normalized = normalize_ready_repair_chain_eval_dataset_validation_artifact(
+            artifact
+        )
+        if normalized is None:
+            raise BiberAgentClientError(
+                "ready repair-chain eval-dataset validation artifact must contain "
+                "a saved validate-ready-repair-chain-eval-dataset JSON object."
+            )
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_ready_repair_chain_eval_dataset_validation_summary(
+                normalized
+            )
+        )
+    if args.command == "list-ready-repair-chain-eval-dataset-validations":
+        artifacts = list_ready_repair_chain_eval_dataset_validation_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            ok_only=args.ok_only,
+        )
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_ready_repair_chain_eval_dataset_validation_artifact_list_summary(
+                artifacts
             )
         )
     if args.command == "export-ready-repair-chain-eval-prompts":

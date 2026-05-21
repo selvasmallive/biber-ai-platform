@@ -3211,6 +3211,96 @@ if (
     != client_mvp_loop_ready_repair_chain_eval_dataset_validation
 ):
     fail("validate-ready-repair-chain-eval-dataset output artifact did not match stdout JSON")
+try:
+    client_mvp_loop_ready_repair_chain_eval_dataset_validation_show = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "show-ready-repair-chain-eval-dataset-validation",
+            str(client_mvp_loop_ready_repair_chain_eval_dataset_validation_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py show-ready-repair-chain-eval-dataset-validation failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py show-ready-repair-chain-eval-dataset-validation timed out: {exc}")
+for expected_text in [
+    "BIBER ready repair-chain eval dataset validation",
+    "ok: True",
+    "valid_records: 1",
+    "eval_dataset_ready: True",
+    "training_allowed: False",
+    str(client_mvp_loop_ready_repair_chain_eval_dataset_validation_path),
+]:
+    if expected_text not in client_mvp_loop_ready_repair_chain_eval_dataset_validation_show:
+        fail(
+            "show-ready-repair-chain-eval-dataset-validation summary missing "
+            f"{expected_text!r}: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_show}"
+        )
+try:
+    client_mvp_loop_ready_repair_chain_eval_dataset_validation_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-ready-repair-chain-eval-dataset-validations",
+            str(client_mvp_loop_ready_repair_chain_eval_dataset_validation_path.parent),
+            "--ok-only",
+            "--limit",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-ready-repair-chain-eval-dataset-validations failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-ready-repair-chain-eval-dataset-validations timed out: {exc}")
+try:
+    client_mvp_loop_ready_repair_chain_eval_dataset_validation_list = json.loads(
+        client_mvp_loop_ready_repair_chain_eval_dataset_validation_list_output
+    )
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py list-ready-repair-chain-eval-dataset-validations returned invalid JSON: {exc}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("records") != 1:
+    fail(f"list-ready-repair-chain-eval-dataset-validations saw unexpected records: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("valid_records") != 1:
+    fail(f"list-ready-repair-chain-eval-dataset-validations saw unexpected valid count: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("invalid_records") != 0:
+    fail(f"list-ready-repair-chain-eval-dataset-validations saw unexpected invalid count: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("ok_artifacts") != 1:
+    fail(f"list-ready-repair-chain-eval-dataset-validations saw unexpected ok artifact count: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("eval_dataset_ready") is not True:
+    fail(f"list-ready-repair-chain-eval-dataset-validations must keep eval_dataset_ready=true for valid artifact: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("training_allowed") is not False:
+    fail(f"list-ready-repair-chain-eval-dataset-validations must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("safe_to_train") is not False:
+    fail(f"list-ready-repair-chain-eval-dataset-validations must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("github_save_ready") is not False:
+    fail(f"list-ready-repair-chain-eval-dataset-validations must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("approved_for_training") is not False:
+    fail(f"list-ready-repair-chain-eval-dataset-validations must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
+client_mvp_loop_ready_repair_chain_eval_dataset_validation_artifacts = (
+    client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("artifacts")
+)
+if not isinstance(client_mvp_loop_ready_repair_chain_eval_dataset_validation_artifacts, list):
+    fail(f"list-ready-repair-chain-eval-dataset-validations returned invalid artifacts: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
+matching_eval_dataset_validation_artifacts = [
+    artifact
+    for artifact in client_mvp_loop_ready_repair_chain_eval_dataset_validation_artifacts
+    if artifact.get("path") == str(client_mvp_loop_ready_repair_chain_eval_dataset_validation_path)
+]
+if len(matching_eval_dataset_validation_artifacts) != 1:
+    fail(f"list-ready-repair-chain-eval-dataset-validations did not return the saved artifact once: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_artifacts!r}")
+matching_eval_dataset_validation_artifact = matching_eval_dataset_validation_artifacts[0]
+if matching_eval_dataset_validation_artifact.get("ok") is not True:
+    fail(f"list-ready-repair-chain-eval-dataset-validations artifact ok flag was unexpected: {matching_eval_dataset_validation_artifact!r}")
+if matching_eval_dataset_validation_artifact.get("valid_records") != 1:
+    fail(f"list-ready-repair-chain-eval-dataset-validations artifact valid count was unexpected: {matching_eval_dataset_validation_artifact!r}")
 write_artifact(
     "agent-client-mvp-loop-ready-repair-chain-eval-dataset-validation-result.json",
     {
