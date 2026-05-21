@@ -390,9 +390,11 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER agent-client runtime-profile ID support commit pushed and
   Vast-verified:
   `66a44f6 Add runtime profile IDs to BIBER client`.
+- Latest Vast runtime-profile enabled smoke commit pushed and Vast-verified:
+  `3e1a097 Add Vast runtime profile smoke`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `66a44f6`. Full Rust/private-devnet
+- Vast code verification is current through `3e1a097`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -435,7 +437,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   through `426f602`; BIBER runtime-profile contract verification is current
   through `6fd6f1a`; Vast API-only restart and enhanced smoke verification is
   current through `2c40099`; BIBER agent-client runtime-profile ID verification
-  is current through `66a44f6`;
+  is current through `66a44f6`; Vast runtime-profile enabled smoke verification
+  is current through `3e1a097`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -499,10 +502,11 @@ serving the last broad-safe Rust/XRIQ adapter.
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
   - vLLM pid: `84653`
-  - FastAPI pid: `85189`
+  - FastAPI pid: `85630`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `66a44f6`. If later docs-only
+  - `BIBER_RUNTIME_PROFILES_ENABLED=true`
+  - Vast code verification is current through `3e1a097`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
   - The user explicitly approved the separate Vast GPU repo-adaptation QLoRA
@@ -667,8 +671,9 @@ serving the last broad-safe Rust/XRIQ adapter.
     feature in both `src/biber_api` and the live `app` server path. Requests can
     include `runtime_profile_ids` with `api-error-response` and/or
     `rust-xriq-codegen`, but the server injects them only when
-    `BIBER_RUNTIME_PROFILES_ENABLED=true`. The current live server keeps this
-    disabled by default, so stable model behavior is unchanged.
+    `BIBER_RUNTIME_PROFILES_ENABLED=true`. This initially shipped disabled by
+    default; the current live Vast API now has it explicitly enabled after user
+    approval, as recorded below.
   - `2a4b713` adds `scripts/vast_restart_api_direct.sh`, which restarts only
     FastAPI and leaves the vLLM/GPU model process running. `2c40099` extends
     `scripts/vast_test_direct.sh` to smoke-test `/v1/agent/capabilities`.
@@ -692,6 +697,23 @@ serving the last broad-safe Rust/XRIQ adapter.
     with `88 passed`, `bash -n scripts/vast_biber_agent_smoke.sh`, and live
     agent smoke with artifact directory
     `/workspace/outputs/biber-agent-smoke-20260521T040322Z-85400`.
+  - The user explicitly approved enabling live runtime profiles on
+    2026-05-21. `BIBER_RUNTIME_PROFILES_ENABLED=true` was written to the Vast
+    `.env`, then only FastAPI was restarted with
+    `bash scripts/vast_restart_api_direct.sh`; vLLM stayed running on pid
+    `84653`, and the new FastAPI pid is `85630`. `3e1a097` adds
+    `scripts/vast_runtime_profile_smoke.sh`. Vast verification passed
+    `bash -n scripts/vast_runtime_profile_smoke.sh`, then live smoke with
+    `BIBER_RUNTIME_PROFILE_SMOKE_CHAT_MAX_TOKENS=120` and
+    `BIBER_RUNTIME_PROFILE_SMOKE_SESSION_MAX_TOKENS=60`. Smoke artifacts are in
+    `/workspace/outputs/runtime-profile-smoke-20260521T043017Z-85678`; the
+    capability check reported `runtime_profiles_enabled=true`, profile IDs
+    `api-error-response` and `rust-xriq-codegen`, Rust direct chat content
+    starting with `BIBER_RUNTIME_PROFILE_RUST_OK`, tracked session content
+    starting with `BIBER_RUNTIME_PROFILE_SESSION_OK`, API error content with
+    `status` and `detail`, and `mentor_used=false` for all profile smoke calls.
+    No training was started and no adapter was promoted; stable serving remains
+    on `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
@@ -6014,16 +6036,15 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-Current immediate next step: do not train again. The API error-response and
-Rust/XRIQ codegen profiles are now codified as opt-in runtime profiles, exposed
-through `/v1/agent/capabilities`, and disabled by default with
-`BIBER_RUNTIME_PROFILES_ENABLED=false`. Next, decide whether to enable that
-profile contract for live inference and ask the user for explicit promotion
-approval using
+Current immediate next step: do not train again and do not promote from a
+generic "continue". The API error-response and Rust/XRIQ codegen profiles are
+now enabled on the live Vast API, exposed through `/v1/agent/capabilities`, and
+smoke-tested with `scripts/vast_runtime_profile_smoke.sh`. Next, use the stable
+served adapter plus runtime profiles for a short profile-enabled client/eval
+baseline, or ask the user for explicit candidate-promotion approval using
 `/workspace/outputs/evals/profiled-antireg-candidate-20260521T0315Z/profiled-candidate-promotion-review.json`.
-Do not promote from a generic "continue"; serving must remain on
-`/workspace/adapters/biber-dev-core-lora-rust-xriq-400` unless the user
-explicitly approves candidate promotion.
+Serving must remain on `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`
+unless the user explicitly approves candidate promotion.
 
 1. Keep `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` served unless a
    future adapter beats both gates: current Rust/XRIQ cargo validators and the
@@ -6045,10 +6066,10 @@ BIBER_LORA_ADAPTER_DIR=/workspace/adapters/biber-dev-core-lora-rust-xriq-400 \
 bash scripts/vast_test_direct.sh
 ```
 
-4. Treat the opt-in runtime profiles as the current low-cost path for this
-   narrow model gap. They are available through `runtime_profile_ids` but are
-   injected only when `BIBER_RUNTIME_PROFILES_ENABLED=true`. Do not enable them
-   or promote the profiled candidate without explicit user approval.
+4. Treat runtime profiles as the current low-cost path for this narrow model
+   gap. They are now enabled live with `BIBER_RUNTIME_PROFILES_ENABLED=true`;
+   verify with `bash scripts/vast_runtime_profile_smoke.sh` after API restarts.
+   Do not promote the profiled candidate without explicit user approval.
 5. If a future Rust/XRIQ eval regresses, prefer a deterministic repair loop
    before GPU training: run `cargo fmt`, `cargo check`, and targeted tests,
    feed the concise compiler/test failure back to the local model, and save
