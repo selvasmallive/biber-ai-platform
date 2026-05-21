@@ -374,9 +374,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest repo-adaptation anti-regression review helper commit pushed and
   Vast-verified:
   `08fdd59 Add repo adaptation regression review`.
+- Latest repo-adaptation training-outcome review helper commit pushed and
+  Vast-verified:
+  `77837d2 Add repo adaptation training outcome review`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `08fdd59`. Full Rust/private-devnet
+- Vast code verification is current through `77837d2`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -414,6 +417,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   guard verification is current through `c38c0a7`; candidate-review
   adapter-reload verification is current through `608252b`; repo-adaptation
   anti-regression review helper verification is current through `08fdd59`;
+  repo-adaptation training-outcome review helper verification is current
+  through `77837d2`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -601,6 +606,22 @@ serving the last broad-safe Rust/XRIQ adapter.
     `bash scripts/vast_test_direct.sh` confirmed healthy serving on
     `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` with current vLLM
     pid `80777` and API pid `81099`.
+  - `77837d2` adds `training/repo_adaptation_training_outcome_review.py`, which
+    checks whether a training run actually fixed the reviewed anti-regression
+    rows it was trained on. Vast verification passed
+    `/workspace/biber-venv/bin/python -m pytest tests/test_repo_adaptation_training_outcome_review.py -q`
+    with `3 passed`. The helper was run against the anti-regression candidate
+    artifacts and wrote
+    `/workspace/outputs/evals/repo-adapt-antireg-candidate-20260520T2205Z/training-outcome-review.json`.
+    The review reports `review_status=training_strategy_blocked`,
+    `current_failed_rows=6`, `persistent_trained_failures=6`,
+    `learned_reviewed_candidate_ids=[]`, and
+    `next_review_action=change_prompt_or_dataset_strategy_before_more_training`.
+    The persistent IDs are `api_error_shape`,
+    `api_missing_key_error_shape`, `api_rate_limit_error_shape`,
+    `rust_xriq_fee_calculation`, `rust_xriq_next_height`, and
+    `rust_xriq_validate_transaction`. Do not start another QLoRA run from this
+    artifact pattern.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
@@ -5925,9 +5946,9 @@ tail -f /workspace/biber-logs/vllm.log
 
 Current immediate next step: do not train again. The anti-regression QLoRA
 candidate still failed broad and Rust/XRIQ promotion gates. Inspect
-`/workspace/outputs/evals/repo-adapt-antireg-candidate-20260520T2205Z/candidate-promotion-review.json`,
-`candidate-broad.jsonl`, and `candidate-rust-xriq.jsonl`, then improve the
-eval/prompt or dataset strategy before any additional training. Keep serving
+`/workspace/outputs/evals/repo-adapt-antireg-candidate-20260520T2205Z/training-outcome-review.json`.
+Since all 6 trained anti-regression rows persisted, improve the prompt/profile
+or dataset strategy before any additional training. Keep serving
 `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
 
 1. Keep `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` served unless a
