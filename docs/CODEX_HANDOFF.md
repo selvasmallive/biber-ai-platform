@@ -387,9 +387,12 @@ serving the last broad-safe Rust/XRIQ adapter.
   Vast-verified:
   `2a4b713 Add Vast API-only restart helper` and
   `2c40099 Check agent capabilities in Vast smoke`.
+- Latest BIBER agent-client runtime-profile ID support commit pushed and
+  Vast-verified:
+  `66a44f6 Add runtime profile IDs to BIBER client`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `2c40099`. Full Rust/private-devnet
+- Vast code verification is current through `66a44f6`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -431,7 +434,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   through `77837d2`; profiled regression eval path verification is current
   through `426f602`; BIBER runtime-profile contract verification is current
   through `6fd6f1a`; Vast API-only restart and enhanced smoke verification is
-  current through `2c40099`;
+  current through `2c40099`; BIBER agent-client runtime-profile ID verification
+  is current through `66a44f6`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -498,7 +502,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   - FastAPI pid: `85189`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `2c40099`. If later docs-only
+  - Vast code verification is current through `66a44f6`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
   - The user explicitly approved the separate Vast GPU repo-adaptation QLoRA
@@ -674,6 +678,20 @@ serving the last broad-safe Rust/XRIQ adapter.
     with `20 passed`, and live `bash scripts/vast_test_direct.sh`. The live
     capability smoke reported runtime profiles available, `enabled=false`, and
     the XRIQ preset requesting `["rust-xriq-codegen"]`.
+  - `66a44f6` adds `--runtime-profile-id` support to
+    `scripts/biber_agent_client.py` for direct `chat`, tracked
+    `create-session`, and repair-attempt chat payloads. The client validates
+    requested profile IDs against `/v1/agent/capabilities` before sending them,
+    dedupes repeated IDs, and keeps mentor use opt-in. `docs/API_EXAMPLES.md`
+    now shows direct chat and session examples with `rust-xriq-codegen`.
+    `scripts/vast_biber_agent_smoke.sh` now includes runtime-profile client
+    coverage for direct chat and create-session. Vast verification passed
+    `/workspace/biber-venv/bin/python -m compileall scripts tests`, focused
+    pytest
+    `tests/test_biber_agent_client.py tests/test_runtime_profiles.py tests/test_agent_capabilities.py -q`
+    with `88 passed`, `bash -n scripts/vast_biber_agent_smoke.sh`, and live
+    agent smoke with artifact directory
+    `/workspace/outputs/biber-agent-smoke-20260521T040322Z-85400`.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
