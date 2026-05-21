@@ -1115,7 +1115,10 @@ def list_repair_attempt_artifacts(
             continue
         artifacts.append(summary)
 
-    artifacts.sort(key=lambda item: float(item.get("modified_epoch") or 0.0), reverse=True)
+    artifacts.sort(
+        key=lambda item: float(item.get("modified_epoch") or 0.0),
+        reverse=True,
+    )
     ready_count = sum(
         1 for item in artifacts if item.get("ready_for_edit_review") is True
     )
@@ -1808,6 +1811,93 @@ def normalize_repair_test_verification_artifact(
     ):
         return dict(body)
     return None
+
+
+def summarize_repair_test_verification_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    test_run = require_mapping(payload.get("test_run"))
+    try:
+        modified_epoch = path.stat().st_mtime
+    except OSError:
+        modified_epoch = 0.0
+    summary: dict[str, Any] = {
+        "path": str(path),
+        "verification_status": payload.get("verification_status"),
+        "ok": payload.get("ok") is True,
+        "training_allowed": payload.get("training_allowed") is True,
+        "auto_applied": payload.get("auto_applied") is True,
+        "auto_saved": payload.get("auto_saved") is True,
+        "plan_hash": payload.get("plan_hash"),
+        "test_id": payload.get("test_id"),
+        "test_executed": test_run.get("executed"),
+        "test_ok": test_run.get("ok"),
+        "source_artifact": payload.get("source_artifact"),
+        "modified_epoch": modified_epoch,
+    }
+    if payload.get("artifact_path"):
+        summary["artifact_path"] = payload.get("artifact_path")
+    return summary
+
+
+def list_repair_test_verification_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    passed_only: bool = False,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            f"Repair test verification artifact directory does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            f"Repair test verification artifact path is not a directory: {root}"
+        )
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="repair test verification artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_repair_test_verification_artifact(raw_payload)
+        if normalized is None:
+            continue
+        summary = summarize_repair_test_verification_artifact(path, normalized)
+        if passed_only and summary.get("verification_status") != "passed":
+            continue
+        artifacts.append(summary)
+
+    artifacts.sort(key=lambda item: float(item.get("modified_epoch") or 0.0), reverse=True)
+    passed_count = sum(
+        1 for item in artifacts if item.get("verification_status") == "passed"
+    )
+    return {
+        "source": "biber_mvp_loop_repair_test_verification_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "passed_only": passed_only,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "passed": passed_count,
+        "training_allowed": False,
+        "auto_applied": False,
+        "auto_saved": False,
+        "artifacts": artifacts[:limit],
+    }
 
 
 def build_verified_repair_review_record(
@@ -6130,6 +6220,43 @@ def format_repair_test_verification_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_repair_test_verification_artifact_list_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER repair test verification artifacts ({len(artifacts)})",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"passed_only: {payload.get('passed_only', False)}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"passed: {payload.get('passed', 0)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"auto_applied: {payload.get('auto_applied', False)}",
+        f"auto_saved: {payload.get('auto_saved', False)}",
+    ]
+    for artifact in artifacts:
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"status={artifact.get('verification_status', '-')}",
+                    f"ok={artifact.get('ok', False)}",
+                    f"test_id={artifact.get('test_id') or '-'}",
+                    f"test_executed={artifact.get('test_executed')}",
+                    f"test_ok={artifact.get('test_ok')}",
+                    f"plan_hash={artifact.get('plan_hash') or '-'}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_verified_repair_export_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(
         [
@@ -7478,6 +7605,33 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     list_repair_edit_applies.add_argument("--limit", type=int, default=10)
     list_repair_edit_applies.add_argument("--applied-only", action="store_true")
 
+    show_repair_test_verification = subparsers.add_parser(
+        "show-repair-test-verification",
+        help=(
+            "Summarize a saved verify-repair-edits JSON artifact without "
+            "resolving API auth."
+        ),
+    )
+    show_repair_test_verification.add_argument("artifact")
+
+    list_repair_test_verifications = subparsers.add_parser(
+        "list-repair-test-verifications",
+        help=(
+            "List saved verify-repair-edits JSON artifacts under a directory "
+            "without resolving API auth."
+        ),
+    )
+    list_repair_test_verifications.add_argument("directory")
+    list_repair_test_verifications.add_argument(
+        "--pattern",
+        default="*repair-test-verification*.json",
+    )
+    list_repair_test_verifications.add_argument("--limit", type=int, default=10)
+    list_repair_test_verifications.add_argument(
+        "--passed-only",
+        action="store_true",
+    )
+
     export_mvp_failures = subparsers.add_parser(
         "export-mvp-failures",
         help="Export failed mvp-loop artifacts to a JSONL review queue.",
@@ -8163,6 +8317,34 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_edit_apply_artifact_list_summary(artifacts)
+        )
+    if args.command == "show-repair-test-verification":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="repair test verification artifact",
+        )
+        normalized = normalize_repair_test_verification_artifact(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "repair test verification artifact must contain a saved "
+                "verify-repair-edits JSON object."
+            )
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_test_verification_summary(normalized)
+        )
+    if args.command == "list-repair-test-verifications":
+        artifacts = list_repair_test_verification_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            passed_only=args.passed_only,
+        )
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_test_verification_artifact_list_summary(artifacts)
         )
     if args.command == "export-mvp-failures":
         export = export_mvp_loop_failures(

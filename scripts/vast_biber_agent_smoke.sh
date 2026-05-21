@@ -1544,6 +1544,119 @@ except json.JSONDecodeError as exc:
 if saved_client_mvp_loop_repair_verify != client_mvp_loop_repair_verify:
     fail("verify-repair-edits output artifact did not match stdout JSON")
 try:
+    client_mvp_loop_repair_verify_report = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "show-repair-test-verification",
+            str(client_mvp_loop_repair_verify_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py show-repair-test-verification failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py show-repair-test-verification timed out: {exc}")
+if "BIBER repair test verification" not in client_mvp_loop_repair_verify_report:
+    fail(
+        "show-repair-test-verification report omitted heading: "
+        f"{client_mvp_loop_repair_verify_report!r}"
+    )
+if str(client_mvp_loop_repair_verify_path) not in client_mvp_loop_repair_verify_report:
+    fail(
+        "show-repair-test-verification report omitted artifact path: "
+        f"{client_mvp_loop_repair_verify_report!r}"
+    )
+if "verification_status: passed" not in client_mvp_loop_repair_verify_report:
+    fail(
+        "show-repair-test-verification report omitted verification status: "
+        f"{client_mvp_loop_repair_verify_report!r}"
+    )
+if "auto_saved: False" not in client_mvp_loop_repair_verify_report:
+    fail(
+        "show-repair-test-verification report omitted auto-save state: "
+        f"{client_mvp_loop_repair_verify_report!r}"
+    )
+if (
+    str(client_mvp_loop_repair_verify.get("plan_hash"))
+    not in client_mvp_loop_repair_verify_report
+):
+    fail(
+        "show-repair-test-verification report omitted plan hash: "
+        f"{client_mvp_loop_repair_verify_report!r}"
+    )
+try:
+    client_mvp_loop_repair_verify_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-repair-test-verifications",
+            str(artifact_dir),
+            "--passed-only",
+            "--limit",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-repair-test-verifications failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-repair-test-verifications timed out: {exc}")
+try:
+    client_mvp_loop_repair_verify_list = json.loads(
+        client_mvp_loop_repair_verify_list_output
+    )
+except json.JSONDecodeError as exc:
+    fail(
+        "biber_agent_client.py list-repair-test-verifications returned "
+        f"invalid JSON: {exc}"
+    )
+verify_artifacts = client_mvp_loop_repair_verify_list.get("artifacts")
+if not isinstance(verify_artifacts, list):
+    fail(
+        "list-repair-test-verifications did not return artifacts: "
+        f"{client_mvp_loop_repair_verify_list!r}"
+    )
+if client_mvp_loop_repair_verify_list.get("training_allowed") is not False:
+    fail(
+        "list-repair-test-verifications must keep training_allowed=false: "
+        f"{client_mvp_loop_repair_verify_list!r}"
+    )
+if client_mvp_loop_repair_verify_list.get("auto_saved") is not False:
+    fail(
+        "list-repair-test-verifications must keep auto_saved=false: "
+        f"{client_mvp_loop_repair_verify_list!r}"
+    )
+matching_verifications = [
+    item
+    for item in verify_artifacts
+    if isinstance(item, dict)
+    and item.get("path") == str(client_mvp_loop_repair_verify_path)
+]
+if len(matching_verifications) != 1:
+    fail(
+        "list-repair-test-verifications omitted "
+        f"{client_mvp_loop_repair_verify_path}: "
+        f"{client_mvp_loop_repair_verify_list!r}"
+    )
+if matching_verifications[0].get("verification_status") != "passed":
+    fail(
+        "list-repair-test-verifications returned unexpected status: "
+        f"{client_mvp_loop_repair_verify_list!r}"
+    )
+if matching_verifications[0].get(
+    "plan_hash"
+) != client_mvp_loop_repair_verify.get("plan_hash"):
+    fail(
+        "list-repair-test-verifications omitted plan hash: "
+        f"{client_mvp_loop_repair_verify_list!r}"
+    )
+try:
     client_mvp_loop_verified_repair_export_output = subprocess.check_output(
         [
             sys.executable,

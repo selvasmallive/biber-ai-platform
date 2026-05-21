@@ -2205,6 +2205,131 @@ def test_run_verify_repair_edits_can_override_test_id_and_diagnose_failure(
     assert result["test_run"]["diagnosis"]["primary_category"] == "compile_error"
 
 
+def test_run_show_repair_test_verification_summarizes_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "show-repair-test-verification should not resolve an API key"
+        )
+
+    artifact = tmp_path / "repair-test-verification.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_test_verification",
+                "source_artifact": "/workspace/outputs/repair-edit-apply.json",
+                "verification_status": "passed",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "auto_saved": False,
+                "plan_hash": "f" * 64,
+                "test_id": "python-compileall-api",
+                "artifact_path": str(artifact),
+                "test_run": {
+                    "executed": True,
+                    "ok": True,
+                    "exit_code": 0,
+                    "command": ["python", "-m", "compileall", "src"],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(["show-repair-test-verification", str(artifact)])
+    )
+
+    assert "BIBER repair test verification" in output
+    assert "verification_status: passed" in output
+    assert "training_allowed: False" in output
+    assert "auto_applied: False" in output
+    assert "auto_saved: False" in output
+    assert f"plan_hash: {'f' * 64}" in output
+    assert "test_id: python-compileall-api" in output
+    assert "test_executed: True" in output
+    assert "test_ok: True" in output
+    assert str(artifact) in output
+
+
+def test_run_show_repair_test_verification_json_returns_local_artifact(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "repair-test-verification.json"
+    payload = {
+        "source": "biber_mvp_loop_repair_test_verification",
+        "verification_status": "passed",
+        "ok": True,
+        "test_run": {"executed": True, "ok": True},
+    }
+    artifact.write_text(json.dumps({"body": payload}), encoding="utf-8")
+
+    output = client.run(
+        client.parse_args(["--json", "show-repair-test-verification", str(artifact)])
+    )
+
+    assert json.loads(output) == payload
+
+
+def test_run_list_repair_test_verifications_summarizes_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "list-repair-test-verifications should not resolve an API key"
+        )
+
+    passed = tmp_path / "agent-client-repair-test-verification.json"
+    passed.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_test_verification",
+                "source_artifact": "/workspace/outputs/repair-edit-apply.json",
+                "verification_status": "passed",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "auto_saved": False,
+                "plan_hash": "a" * 64,
+                "test_id": "python-compileall-api",
+                "test_run": {"executed": True, "ok": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    ignored = tmp_path / "ignored-repair-test-verification.json"
+    ignored.write_text(json.dumps({"source": "other"}), encoding="utf-8")
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "list-repair-test-verifications",
+                str(tmp_path),
+                "--passed-only",
+                "--limit",
+                "5",
+            ]
+        )
+    )
+
+    assert "BIBER repair test verification artifacts (1)" in output
+    assert str(passed) in output
+    assert str(ignored) not in output
+    assert "passed: 1" in output
+    assert "training_allowed: False" in output
+    assert "auto_applied: False" in output
+    assert "auto_saved: False" in output
+    assert "status=passed" in output
+    assert "test_id=python-compileall-api" in output
+    assert f"plan_hash={'a' * 64}" in output
+
+
 def test_build_verified_repair_review_record_rejects_failed_verification(
     tmp_path: Path,
 ) -> None:
