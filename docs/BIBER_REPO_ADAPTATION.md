@@ -256,3 +256,23 @@ The helper rehydrates prompt metadata from `training/eval_prompts.jsonl` and
 must fill verified non-regressing answers, rerun
 `repo_adaptation_candidate_review.py`, validate/merge the rows, and get a
 separate explicit user training approval before any additional Vast QLoRA run.
+
+## Review Training Outcome
+
+After a candidate has been trained and the promotion review is still blocked,
+check whether the exact rows it was trained to fix are still failing. This
+prevents repeated GPU runs on the same ineffective training pattern:
+
+```bash
+python training/repo_adaptation_training_outcome_review.py \
+  --current-broad-results /workspace/outputs/evals/repo-adapt-candidate-session/candidate-broad.jsonl \
+  --current-rust-results /workspace/outputs/evals/repo-adapt-candidate-session/candidate-rust-xriq.jsonl \
+  --reviewed-candidates /workspace/outputs/evals/repo-adapt-candidate-session/anti-regression-reviewed-candidates.jsonl \
+  --promotion-review /workspace/outputs/evals/repo-adapt-candidate-session/candidate-promotion-review.json \
+  --previous-regression-review /workspace/outputs/evals/repo-adapt-candidate-session/candidate-regression-review.json \
+  --review-output /workspace/outputs/evals/repo-adapt-candidate-session/training-outcome-review.json
+```
+
+If the review reports `training_strategy_blocked`, stop training and change the
+prompt/profile/eval contract or dataset strategy first. Keep serving the stable
+adapter until broad and Rust/XRIQ gates both pass.
