@@ -11,7 +11,8 @@ if [ -z "$API_KEY" ]; then
 fi
 
 TMP_JSON="$(mktemp)"
-trap 'rm -f "$TMP_JSON"' EXIT
+TMP_CAPABILITIES_JSON="$(mktemp)"
+trap 'rm -f "$TMP_JSON" "$TMP_CAPABILITIES_JSON"' EXIT
 
 cat > "$TMP_JSON" <<'JSON'
 {
@@ -32,6 +33,39 @@ echo
 
 echo "Runtime:"
 curl -fsS -H "Authorization: Bearer ${API_KEY}" "http://127.0.0.1:${BIBER_API_PORT}/v1/runtime"
+echo
+
+echo "Agent capabilities:"
+curl -fsS \
+  -H "Authorization: Bearer ${API_KEY}" \
+  "http://127.0.0.1:${BIBER_API_PORT}/v1/agent/capabilities" \
+  > "$TMP_CAPABILITIES_JSON"
+"${VENV_DIR}/bin/python" - "$TMP_CAPABILITIES_JSON" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    capabilities = json.load(handle)
+
+features = capabilities.get("features", {})
+presets = {
+    preset.get("id"): preset
+    for preset in capabilities.get("presets", [])
+    if isinstance(preset, dict)
+}
+xriq_template = (
+    presets.get("xriq_private_devnet_review", {}).get("request_template", {})
+)
+print(
+    json.dumps(
+        {
+            "runtime_profiles": features.get("runtime_profiles"),
+            "xriq_runtime_profile_ids": xriq_template.get("runtime_profile_ids"),
+        },
+        sort_keys=True,
+    )
+)
+PY
 echo
 
 echo "vLLM models:"
