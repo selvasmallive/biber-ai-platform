@@ -7390,6 +7390,22 @@ bash scripts/xriq_private_devnet_smoke.sh
    `candidate_outputs_missing`, so no training should start yet. The single
    controlled row is smoke metadata only and must not be manually filled just
    to clear the gate.
+   A disposable Vast fixture repair-chain run was completed on 2026-05-21 at
+   `/workspace/outputs/biber-real-repair-fixture-20260521T192710Z-94786`
+   using a temporary API rooted at that fixture repo and the live local vLLM
+   model. It created a real Python compile failure, ran `mvp-loop`,
+   `prepare-repair`, `attempt-repair`, `extract-repair-edits`,
+   `plan-repair-edits`, approved `apply-repair-edits` only inside the
+   disposable fixture, and `verify-repair-edits`. Readback confirmed
+   extraction `ready_for_plan_edit`, plan/apply `ok=true`, verification
+   `passed`, and repair-chain `chain_status=ready_for_human_review` with
+   `verification_passed=true`, `training_allowed=false`,
+   `safe_to_train=false`, and `github_save_ready=false`. A ready repair-chain
+   decision was recorded as `defer` in
+   `/workspace/outputs/biber-real-repair-fixture-20260521T192710Z-94786/agent-client-mvp-loop-real-fixture-ready-repair-chain-decision-review.json`;
+   this fixture validates plumbing only and must not be approved for eval,
+   GitHub save, or training. The temporary API process was stopped and the live
+   API/vLLM service was not changed.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
