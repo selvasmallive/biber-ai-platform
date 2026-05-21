@@ -7164,6 +7164,182 @@ def test_run_review_repair_chain_training_candidates_ready_for_dataset_validatio
     assert result["approved_for_training"] is False
 
 
+def test_run_show_repair_chain_training_candidate_review_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "show-repair-chain-training-candidate-review should not resolve an API key"
+        )
+
+    review_path = tmp_path / "training-candidate-review.json"
+    review_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_training_candidate_review",
+                "review_status": "training_candidates_need_review",
+                "records": 1,
+                "reviewed_records": 0,
+                "pending_review_records": 1,
+                "empty_output_records": 1,
+                "unreviewed_quality_records": 1,
+                "rejected_records": 0,
+                "quality_counts": {"needs_review": 1},
+                "min_ready": 1,
+                "ready_for_dataset_validation": False,
+                "training_dataset_ready": False,
+                "hard_blockers": [
+                    "candidate_outputs_missing",
+                    "candidate_quality_not_reviewed",
+                    "below_min_ready_records",
+                ],
+                "jsonl_paths": ["training-candidates.jsonl"],
+                "training_allowed": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "show-repair-chain-training-candidate-review",
+                str(review_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["source"] == "biber_mvp_loop_repair_chain_training_candidate_review"
+    assert result["artifact_path"] == str(review_path)
+    assert result["review_status"] == "training_candidates_need_review"
+    assert result["records"] == 1
+    assert result["reviewed_records"] == 0
+    assert result["pending_review_records"] == 1
+    assert result["ready_for_dataset_validation"] is False
+    assert result["training_dataset_ready"] is False
+    assert "candidate_outputs_missing" in result["hard_blockers"]
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+
+
+def test_run_list_repair_chain_training_candidate_reviews_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "list-repair-chain-training-candidate-reviews should not resolve an API key"
+        )
+
+    blocked_path = tmp_path / "blocked-training-candidate-review.json"
+    ready_path = tmp_path / "ready-training-candidate-review.json"
+    blocked_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_training_candidate_review",
+                "review_status": "training_candidates_need_review",
+                "records": 0,
+                "reviewed_records": 0,
+                "pending_review_records": 0,
+                "empty_output_records": 0,
+                "unreviewed_quality_records": 0,
+                "rejected_records": 0,
+                "min_ready": 1,
+                "ready_for_dataset_validation": False,
+                "training_dataset_ready": False,
+                "hard_blockers": [
+                    "no_training_candidate_records",
+                    "below_min_ready_records",
+                ],
+                "training_allowed": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    ready_payload = {
+        "source": "biber_mvp_loop_repair_chain_training_candidate_review",
+        "review_status": "training_candidates_ready_for_dataset_validation",
+        "records": 2,
+        "reviewed_records": 2,
+        "pending_review_records": 0,
+        "empty_output_records": 0,
+        "unreviewed_quality_records": 0,
+        "rejected_records": 0,
+        "min_ready": 1,
+        "ready_for_dataset_validation": True,
+        "training_dataset_ready": False,
+        "hard_blockers": [],
+        "jsonl_paths": ["training-candidates.jsonl"],
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+    }
+    ready_path.write_text(
+        json.dumps(
+            {
+                "status": 0,
+                "body": ready_payload,
+                "output": str(ready_path.with_suffix(".saved.json")),
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "list-repair-chain-training-candidate-reviews",
+                str(tmp_path),
+                "--ready-only",
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["source"] == (
+        "biber_mvp_loop_repair_chain_training_candidate_review_list"
+    )
+    assert result["scanned"] == 2
+    assert result["matched"] == 1
+    assert result["records"] == 2
+    assert result["reviewed_records"] == 2
+    assert result["pending_review_records"] == 0
+    assert result["ready_for_dataset_validation_records"] == 1
+    assert result["blocked_records"] == 0
+    assert result["training_dataset_ready"] is False
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+    assert len(result["artifacts"]) == 1
+    assert result["artifacts"][0]["path"] == str(ready_path)
+    assert result["artifacts"][0]["artifact_path"] == str(
+        ready_path.with_suffix(".saved.json")
+    )
+    assert result["artifacts"][0]["ready_for_dataset_validation"] is True
+    assert result["artifacts"][0]["training_allowed"] is False
+    assert result["artifacts"][0]["safe_to_train"] is False
+    assert result["artifacts"][0]["approved_for_training"] is False
+
+
 def test_run_review_repair_chain_training_pipeline_blocks_missing_artifacts(
     monkeypatch,
     tmp_path: Path,

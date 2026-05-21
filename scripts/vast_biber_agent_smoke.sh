@@ -4613,6 +4613,92 @@ if (
     != client_mvp_loop_repair_chain_training_candidate_review
 ):
     fail("training candidate review saved artifact differs from stdout JSON")
+try:
+    client_mvp_loop_repair_chain_training_candidate_review_show = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "show-repair-chain-training-candidate-review",
+            str(client_mvp_loop_repair_chain_training_candidate_review_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py show-repair-chain-training-candidate-review failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py show-repair-chain-training-candidate-review timed out: {exc}")
+for expected in [
+    "BIBER repair-chain training candidate review",
+    "review_status: training_candidates_need_review",
+    "records: 0",
+    "ready_for_dataset_validation: False",
+    "hard_blockers: no_training_candidate_records, below_min_ready_records",
+    "training_allowed: False",
+    str(client_mvp_loop_repair_chain_training_candidate_review_path),
+]:
+    if expected not in client_mvp_loop_repair_chain_training_candidate_review_show:
+        fail(
+            "training candidate review show output missed "
+            f"{expected!r}: {client_mvp_loop_repair_chain_training_candidate_review_show}"
+        )
+try:
+    client_mvp_loop_repair_chain_training_candidate_review_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-repair-chain-training-candidate-reviews",
+            str(client_mvp_loop_repair_chain_training_candidate_review_path.parent),
+            "--limit",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-repair-chain-training-candidate-reviews failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-repair-chain-training-candidate-reviews timed out: {exc}")
+try:
+    client_mvp_loop_repair_chain_training_candidate_review_list = json.loads(
+        client_mvp_loop_repair_chain_training_candidate_review_list_output
+    )
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py list-repair-chain-training-candidate-reviews returned invalid JSON: {exc}")
+if client_mvp_loop_repair_chain_training_candidate_review_list.get("records") != 0:
+    fail(f"training candidate review list should see zero smoke records: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
+if client_mvp_loop_repair_chain_training_candidate_review_list.get("reviewed_records") != 0:
+    fail(f"training candidate review list should see zero reviewed records: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
+if client_mvp_loop_repair_chain_training_candidate_review_list.get("ready_for_dataset_validation_records") != 0:
+    fail(f"training candidate review list must not mark smoke artifacts ready for dataset validation: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
+if client_mvp_loop_repair_chain_training_candidate_review_list.get("blocked_records") != 1:
+    fail(f"training candidate review list should report one blocked smoke artifact: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
+if client_mvp_loop_repair_chain_training_candidate_review_list.get("training_allowed") is not False:
+    fail(f"training candidate review list must keep training_allowed=false: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
+if client_mvp_loop_repair_chain_training_candidate_review_list.get("safe_to_train") is not False:
+    fail(f"training candidate review list must keep safe_to_train=false: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
+if client_mvp_loop_repair_chain_training_candidate_review_list.get("github_save_ready") is not False:
+    fail(f"training candidate review list must keep github_save_ready=false: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
+if client_mvp_loop_repair_chain_training_candidate_review_list.get("approved_for_training") is not False:
+    fail(f"training candidate review list must keep approved_for_training=false: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
+matching_training_candidate_review_artifacts = [
+    item
+    for item in client_mvp_loop_repair_chain_training_candidate_review_list.get(
+        "artifacts",
+        [],
+    )
+    if item.get("path") == str(client_mvp_loop_repair_chain_training_candidate_review_path)
+]
+if len(matching_training_candidate_review_artifacts) != 1:
+    fail(
+        "training candidate review list did not include exactly one saved "
+        f"review artifact: {client_mvp_loop_repair_chain_training_candidate_review_list!r}"
+    )
+if matching_training_candidate_review_artifacts[0].get("ready_for_dataset_validation") is not False:
+    fail(f"training candidate review list artifact should stay dataset-validation blocked: {matching_training_candidate_review_artifacts[0]!r}")
 write_artifact(
     "agent-client-mvp-loop-repair-chain-training-candidate-review-result.json",
     {
