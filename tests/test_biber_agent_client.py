@@ -5969,6 +5969,193 @@ def test_run_review_repair_chain_heldout_baseline_candidates_without_api_key(
     assert result["rejected"][0]["reason"] == "unsupported_source"
 
 
+def test_run_show_repair_chain_heldout_baseline_candidate_review_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "show-repair-chain-heldout-baseline-candidate-review should not resolve an API key"
+        )
+
+    review_path = tmp_path / "heldout-baseline-candidate-review.json"
+    review_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_heldout_baseline_candidate_review",
+                "review_status": "heldout_baseline_candidate_summary_only",
+                "records": 1,
+                "rejected_records": 0,
+                "baseline_candidates": 1,
+                "decision_counts": {"accept_for_baseline": 1},
+                "accepted_for_baseline_records": 1,
+                "baseline_candidate_ready_records": 1,
+                "baseline_ready_records": 0,
+                "requires_baseline_review_records": 1,
+                "min_repeat": 1,
+                "groups": [
+                    {
+                        "decision": "accept_for_baseline",
+                        "count": 1,
+                        "baseline_candidate_ready": True,
+                        "baseline_ready": False,
+                        "requires_baseline_review": True,
+                    }
+                ],
+                "eval_only": True,
+                "training_allowed": False,
+                "eligible_for_training": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+                "auto_promoted": False,
+                "jsonl_paths": ["heldout-baseline-candidates.jsonl"],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "show-repair-chain-heldout-baseline-candidate-review",
+                str(review_path),
+            ]
+        )
+    )
+
+    assert "BIBER repair-chain held-out baseline candidate review" in output
+    assert "records: 1" in output
+    assert "baseline_candidates: 1" in output
+    assert "accepted_for_baseline_records: 1" in output
+    assert "baseline_candidate_ready_records: 1" in output
+    assert "baseline_ready_records: 0" in output
+    assert "requires_baseline_review_records: 1" in output
+    assert "decision_counts: {'accept_for_baseline': 1}" in output
+    assert "eval_only: True" in output
+    assert "training_allowed: False" in output
+    assert "safe_to_train: False" in output
+    assert "github_save_ready: False" in output
+    assert "approved_for_training: False" in output
+    assert f"artifact_path: {review_path}" in output
+
+
+def test_run_list_repair_chain_heldout_baseline_candidate_reviews_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "list-repair-chain-heldout-baseline-candidate-reviews should not resolve an API key"
+        )
+
+    candidate_artifact = tmp_path / "heldout-baseline-candidate-review-ready.json"
+    empty_artifact = tmp_path / "heldout-baseline-candidate-review-empty.json"
+    wrapped_artifact = (
+        tmp_path
+        / "agent-client-mvp-loop-repair-chain-heldout-baseline-candidate-review-result.json"
+    )
+    candidate_review = {
+        "source": "biber_mvp_loop_repair_chain_heldout_baseline_candidate_review",
+        "review_status": "heldout_baseline_candidate_summary_only",
+        "records": 1,
+        "rejected_records": 0,
+        "baseline_candidates": 1,
+        "decision_counts": {"accept_for_baseline": 1},
+        "accepted_for_baseline_records": 1,
+        "baseline_candidate_ready_records": 1,
+        "baseline_ready_records": 0,
+        "requires_baseline_review_records": 1,
+        "min_repeat": 1,
+        "groups": [
+            {
+                "decision": "accept_for_baseline",
+                "count": 1,
+                "baseline_candidate_ready": True,
+                "baseline_ready": False,
+                "requires_baseline_review": True,
+            }
+        ],
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "jsonl_paths": ["heldout-baseline-candidates.jsonl"],
+    }
+    empty_review = {
+        **candidate_review,
+        "records": 0,
+        "baseline_candidates": 0,
+        "decision_counts": {},
+        "accepted_for_baseline_records": 0,
+        "baseline_candidate_ready_records": 0,
+        "baseline_ready_records": 0,
+        "requires_baseline_review_records": 0,
+        "groups": [],
+    }
+    wrapped_artifact.write_text(
+        json.dumps(
+            {
+                "status": 0,
+                "body": candidate_review,
+                "output": str(candidate_artifact),
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    empty_artifact.write_text(
+        json.dumps(empty_review, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "list-repair-chain-heldout-baseline-candidate-reviews",
+                str(tmp_path),
+                "--candidate-ready-only",
+                "--limit",
+                "5",
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert (
+        result["source"]
+        == "biber_mvp_loop_repair_chain_heldout_baseline_candidate_review_list"
+    )
+    assert result["candidate_ready_only"] is True
+    assert result["matched"] == 1
+    assert result["records"] == 1
+    assert result["rejected_records"] == 0
+    assert result["baseline_candidates"] == 1
+    assert result["accepted_for_baseline_records"] == 1
+    assert result["baseline_candidate_ready_records"] == 1
+    assert result["baseline_ready_records"] == 0
+    assert result["requires_baseline_review_records"] == 1
+    assert result["eval_only"] is True
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+    assert len(result["artifacts"]) == 1
+    assert result["artifacts"][0]["path"] == str(wrapped_artifact)
+    assert result["artifacts"][0]["artifact_path"] == str(candidate_artifact)
+    assert result["artifacts"][0]["decision_counts"] == {"accept_for_baseline": 1}
+    assert result["artifacts"][0]["baseline_candidate_ready_records"] == 1
+
+
 def test_run_record_repair_chain_heldout_baseline_candidate_decision_without_api_key(
     monkeypatch,
     tmp_path: Path,

@@ -5799,6 +5799,174 @@ def review_repair_chain_heldout_baseline_candidate_records(
     }
 
 
+def normalize_repair_chain_heldout_baseline_candidate_review_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if (
+        payload.get("source")
+        == "biber_mvp_loop_repair_chain_heldout_baseline_candidate_review"
+    ):
+        return dict(payload)
+    body = payload.get("body")
+    if (
+        isinstance(body, dict)
+        and body.get("source")
+        == "biber_mvp_loop_repair_chain_heldout_baseline_candidate_review"
+    ):
+        normalized = dict(body)
+        if payload.get("output") and not normalized.get("artifact_path"):
+            normalized["artifact_path"] = payload.get("output")
+        return normalized
+    return None
+
+
+def summarize_repair_chain_heldout_baseline_candidate_review_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    decision_counts = payload.get("decision_counts")
+    if not isinstance(decision_counts, dict):
+        decision_counts = {}
+    groups = [
+        item
+        for item in require_list(payload.get("groups"))
+        if isinstance(item, dict)
+    ]
+    try:
+        modified_epoch = path.stat().st_mtime
+    except OSError:
+        modified_epoch = 0.0
+    summary: dict[str, Any] = {
+        "path": str(path),
+        "review_status": payload.get("review_status"),
+        "records": int_count(payload.get("records")),
+        "rejected_records": int_count(payload.get("rejected_records")),
+        "baseline_candidates": int_count(payload.get("baseline_candidates")),
+        "accepted_for_baseline_records": int_count(
+            payload.get("accepted_for_baseline_records")
+        ),
+        "baseline_candidate_ready_records": int_count(
+            payload.get("baseline_candidate_ready_records")
+        ),
+        "baseline_ready_records": int_count(payload.get("baseline_ready_records")),
+        "requires_baseline_review_records": int_count(
+            payload.get("requires_baseline_review_records")
+        ),
+        "groups": len(groups),
+        "min_repeat": int_count(payload.get("min_repeat")) or 1,
+        "decision_counts": dict(decision_counts),
+        "eval_only": payload.get("eval_only") is True,
+        "training_allowed": payload.get("training_allowed") is True,
+        "eligible_for_training": payload.get("eligible_for_training") is True,
+        "safe_to_train": payload.get("safe_to_train") is True,
+        "github_save_ready": payload.get("github_save_ready") is True,
+        "approved_for_training": payload.get("approved_for_training") is True,
+        "auto_promoted": payload.get("auto_promoted") is True,
+        "jsonl_paths": [
+            str(item)
+            for item in require_list(payload.get("jsonl_paths"))
+            if isinstance(item, str)
+        ],
+        "modified_epoch": modified_epoch,
+    }
+    if payload.get("artifact_path"):
+        summary["artifact_path"] = payload.get("artifact_path")
+    return summary
+
+
+def list_repair_chain_heldout_baseline_candidate_review_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    candidate_ready_only: bool = False,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            "Repair-chain held-out baseline candidate review artifact directory "
+            f"does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            "Repair-chain held-out baseline candidate review artifact path is "
+            f"not a directory: {root}"
+        )
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="repair-chain held-out baseline candidate review artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_repair_chain_heldout_baseline_candidate_review_artifact(
+            raw_payload
+        )
+        if normalized is None:
+            continue
+        summary = summarize_repair_chain_heldout_baseline_candidate_review_artifact(
+            path,
+            normalized,
+        )
+        if candidate_ready_only and int_count(
+            summary.get("baseline_candidate_ready_records")
+        ) < 1:
+            continue
+        artifacts.append(summary)
+
+    artifacts.sort(
+        key=lambda item: float(item.get("modified_epoch") or 0.0),
+        reverse=True,
+    )
+    return {
+        "source": "biber_mvp_loop_repair_chain_heldout_baseline_candidate_review_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "candidate_ready_only": candidate_ready_only,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "records": sum(int_count(item.get("records")) for item in artifacts),
+        "rejected_records": sum(
+            int_count(item.get("rejected_records")) for item in artifacts
+        ),
+        "baseline_candidates": sum(
+            int_count(item.get("baseline_candidates")) for item in artifacts
+        ),
+        "accepted_for_baseline_records": sum(
+            int_count(item.get("accepted_for_baseline_records"))
+            for item in artifacts
+        ),
+        "baseline_candidate_ready_records": sum(
+            int_count(item.get("baseline_candidate_ready_records"))
+            for item in artifacts
+        ),
+        "baseline_ready_records": sum(
+            int_count(item.get("baseline_ready_records")) for item in artifacts
+        ),
+        "requires_baseline_review_records": sum(
+            int_count(item.get("requires_baseline_review_records"))
+            for item in artifacts
+        ),
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "artifacts": artifacts[:limit],
+    }
+
+
 def build_repair_chain_heldout_baseline_decision_record(
     *,
     record: Mapping[str, Any],
@@ -8694,6 +8862,67 @@ def format_repair_chain_heldout_baseline_candidate_review_summary(
     return "\n".join(lines)
 
 
+def format_repair_chain_heldout_baseline_candidate_review_artifact_list_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        (
+            "BIBER repair-chain held-out baseline candidate review artifacts "
+            f"({len(artifacts)})"
+        ),
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"candidate_ready_only: {payload.get('candidate_ready_only', False)}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"records: {payload.get('records', 0)}",
+        f"rejected_records: {payload.get('rejected_records', 0)}",
+        f"baseline_candidates: {payload.get('baseline_candidates', 0)}",
+        f"accepted_for_baseline_records: {payload.get('accepted_for_baseline_records', 0)}",
+        (
+            "baseline_candidate_ready_records: "
+            f"{payload.get('baseline_candidate_ready_records', 0)}"
+        ),
+        f"baseline_ready_records: {payload.get('baseline_ready_records', 0)}",
+        (
+            "requires_baseline_review_records: "
+            f"{payload.get('requires_baseline_review_records', 0)}"
+        ),
+        f"eval_only: {payload.get('eval_only', True)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"approved_for_training: {payload.get('approved_for_training', False)}",
+    ]
+    for artifact in artifacts:
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"status={artifact.get('review_status', '-')}",
+                    f"records={artifact.get('records', 0)}",
+                    f"candidates={artifact.get('baseline_candidates', 0)}",
+                    (
+                        "candidate_ready="
+                        f"{artifact.get('baseline_candidate_ready_records', 0)}"
+                    ),
+                    f"baseline_ready={artifact.get('baseline_ready_records', 0)}",
+                    (
+                        "requires_review="
+                        f"{artifact.get('requires_baseline_review_records', 0)}"
+                    ),
+                    f"groups={artifact.get('groups', 0)}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_repair_chain_heldout_baseline_decision_export_summary(
     payload: Mapping[str, Any],
 ) -> str:
@@ -10066,6 +10295,37 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     review_repair_chain_heldout_baseline_candidates.add_argument("--output")
 
+    show_repair_chain_heldout_baseline_candidate_review = subparsers.add_parser(
+        "show-repair-chain-heldout-baseline-candidate-review",
+        help=(
+            "Show a held-out baseline candidate review artifact without "
+            "training or model promotion."
+        ),
+    )
+    show_repair_chain_heldout_baseline_candidate_review.add_argument("artifact")
+
+    list_repair_chain_heldout_baseline_candidate_reviews = subparsers.add_parser(
+        "list-repair-chain-heldout-baseline-candidate-reviews",
+        help=(
+            "List held-out baseline candidate review artifacts without "
+            "training or model promotion."
+        ),
+    )
+    list_repair_chain_heldout_baseline_candidate_reviews.add_argument("directory")
+    list_repair_chain_heldout_baseline_candidate_reviews.add_argument(
+        "--pattern",
+        default="*heldout-baseline-candidate-review*.json",
+    )
+    list_repair_chain_heldout_baseline_candidate_reviews.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+    )
+    list_repair_chain_heldout_baseline_candidate_reviews.add_argument(
+        "--candidate-ready-only",
+        action="store_true",
+    )
+
     record_repair_chain_heldout_baseline_candidate_decision = subparsers.add_parser(
         "record-repair-chain-heldout-baseline-candidate-decision",
         help=(
@@ -11024,6 +11284,41 @@ def run(args: argparse.Namespace) -> str:
             if args.print_json
             else format_repair_chain_heldout_baseline_candidate_review_summary(
                 review
+            )
+        )
+    if args.command == "show-repair-chain-heldout-baseline-candidate-review":
+        raw_payload = load_json_artifact(
+            args.artifact,
+            label="repair-chain held-out baseline candidate review artifact",
+        )
+        review = normalize_repair_chain_heldout_baseline_candidate_review_artifact(
+            raw_payload
+        )
+        if review is None:
+            raise BiberAgentClientError(
+                "Artifact is not a repair-chain held-out baseline candidate review."
+            )
+        if not review.get("artifact_path"):
+            review["artifact_path"] = str(Path(args.artifact))
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_heldout_baseline_candidate_review_summary(
+                review
+            )
+        )
+    if args.command == "list-repair-chain-heldout-baseline-candidate-reviews":
+        artifacts = list_repair_chain_heldout_baseline_candidate_review_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            candidate_ready_only=args.candidate_ready_only,
+        )
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_heldout_baseline_candidate_review_artifact_list_summary(
+                artifacts
             )
         )
     if args.command == "record-repair-chain-heldout-baseline-candidate-decision":

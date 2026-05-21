@@ -652,6 +652,17 @@ python scripts/biber_agent_client.py list-repair-chain-heldout-eval-decision-rev
   /workspace/outputs/evals \
   --decision defer \
   --limit 10
+python scripts/biber_agent_client.py export-repair-chain-heldout-baseline-candidates \
+  /workspace/outputs/evals/biber-repair-chain-heldout-decisions.jsonl \
+  --output /workspace/outputs/evals/biber-repair-chain-heldout-baseline-candidates.jsonl
+python scripts/biber_agent_client.py review-repair-chain-heldout-baseline-candidates \
+  /workspace/outputs/evals/biber-repair-chain-heldout-baseline-candidates.jsonl \
+  --output /workspace/outputs/evals/biber-repair-chain-heldout-baseline-candidate-review.json
+python scripts/biber_agent_client.py show-repair-chain-heldout-baseline-candidate-review \
+  /workspace/outputs/evals/biber-repair-chain-heldout-baseline-candidate-review.json
+python scripts/biber_agent_client.py list-repair-chain-heldout-baseline-candidate-reviews \
+  /workspace/outputs/evals \
+  --limit 10
 ```
 
 If `mvp-loop` is started with `--runtime-profile-id`, failed-loop repair
