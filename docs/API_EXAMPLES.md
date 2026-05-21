@@ -352,6 +352,22 @@ bash scripts/vast_biber_agent_smoke.sh
 To include GitHub save and draft-PR creation, configure GitHub credentials on
 the server first, then run with `BIBER_AGENT_SMOKE_GITHUB=1`.
 
+## Run The Stable Profile Baseline
+
+On Vast.ai, this script verifies the current stable adapter with runtime
+profiles enabled. It checks live status, runs the runtime-profile client smoke,
+runs the broad API-error profile eval, and runs the Rust/XRIQ eval with cargo
+validators. It does not train, reload a candidate adapter, or promote an
+adapter.
+
+```bash
+cd /workspace/biber-ai-platform
+bash scripts/vast_profile_baseline_direct.sh
+```
+
+The combined summary is written under
+`/workspace/outputs/profile-baseline-*/profile-baseline.summary.json`.
+
 ## Discover Agent Capabilities
 
 Client tools can call this endpoint before creating sessions. It returns the
