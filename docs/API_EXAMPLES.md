@@ -371,9 +371,17 @@ client UIs that need a lightweight work history.
 ```bash
 export BIBER_API_KEY=dev-api-key-change-me
 python scripts/biber_agent_client.py capabilities
+python scripts/biber_agent_client.py chat \
+  --message "Return one concise Rust helper review note." \
+  --language Rust \
+  --task-type xriq_private_devnet_review \
+  --repo-context README.md \
+  --runtime-profile-id rust-xriq-codegen \
+  --max-tokens 80
 python scripts/biber_agent_client.py create-session \
   --preset xriq_private_devnet_review \
   --instruction "Review the next XRIQ private-devnet wallet/explorer step." \
+  --runtime-profile-id rust-xriq-codegen \
   --no-test
 python scripts/biber_agent_client.py list-sessions --limit 5
 python scripts/biber_agent_client.py get-session <session-id>

@@ -335,11 +335,87 @@ def require_list(value: object) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
+def dedupe_strings(values: list[str] | None) -> list[str] | None:
+    if values is None:
+        return None
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        item = value.strip()
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        result.append(item)
+    return result
+
+
 def get_preset(capabilities: Mapping[str, Any], preset_id: str) -> dict[str, Any]:
     for preset in require_list(capabilities.get("presets")):
         if isinstance(preset, dict) and preset.get("id") == preset_id:
             return preset
     raise BiberAgentClientError(f"Unknown preset: {preset_id}")
+
+
+def available_runtime_profile_ids(capabilities: Mapping[str, Any]) -> set[str]:
+    features = require_mapping(capabilities.get("features"))
+    runtime_profiles = require_mapping(features.get("runtime_profiles"))
+    profiles = require_list(runtime_profiles.get("available_profiles"))
+    return {
+        str(profile.get("id"))
+        for profile in profiles
+        if isinstance(profile, dict) and profile.get("id")
+    }
+
+
+def validate_runtime_profile_ids(
+    *,
+    capabilities: Mapping[str, Any],
+    runtime_profile_ids: list[str] | None,
+) -> None:
+    if not runtime_profile_ids:
+        return
+    available = available_runtime_profile_ids(capabilities)
+    if not available:
+        raise BiberAgentClientError("Server does not advertise runtime profiles.")
+    unknown = sorted(set(runtime_profile_ids) - available)
+    if unknown:
+        raise BiberAgentClientError(
+            "Unknown runtime profile id(s): "
+            f"{', '.join(unknown)}. Available: {', '.join(sorted(available))}."
+        )
+
+
+def build_chat_payload(
+    *,
+    message: str,
+    model: str | None = None,
+    language: str | None = None,
+    task_type: str | None = None,
+    repo_context_paths: list[str] | None = None,
+    runtime_profile_ids: list[str] | None = None,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    use_mentor: bool = False,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "messages": [{"role": "user", "content": message}],
+        "use_mentor": use_mentor,
+    }
+    if model:
+        payload["model"] = model
+    if language:
+        payload["language"] = language
+    if task_type:
+        payload["task_type"] = task_type
+    if repo_context_paths is not None:
+        payload["repo_context_paths"] = repo_context_paths
+    if runtime_profile_ids is not None:
+        payload["runtime_profile_ids"] = runtime_profile_ids
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
+    if temperature is not None:
+        payload["temperature"] = temperature
+    return payload
 
 
 def build_session_payload(
@@ -351,6 +427,7 @@ def build_session_payload(
     language: str | None = None,
     task_type: str | None = None,
     repo_context_paths: list[str] | None = None,
+    runtime_profile_ids: list[str] | None = None,
     test_id: str | None = None,
     no_test: bool = False,
     include_xriq_context: bool | None = None,
@@ -367,6 +444,8 @@ def build_session_payload(
         template["task_type"] = task_type
     if repo_context_paths is not None:
         template["repo_context_paths"] = repo_context_paths
+    if runtime_profile_ids is not None:
+        template["runtime_profile_ids"] = runtime_profile_ids
     if no_test:
         template["test_id"] = None
     elif isinstance(test_id, str):
@@ -393,6 +472,12 @@ def format_capabilities_summary(payload: Mapping[str, Any]) -> str:
     ]
     xriq = require_mapping(features.get("xriq_private_devnet"))
     mentor = require_mapping(features.get("openai_mentor"))
+    runtime_profiles = require_mapping(features.get("runtime_profiles"))
+    runtime_profile_ids = [
+        str(profile.get("id"))
+        for profile in require_list(runtime_profiles.get("available_profiles"))
+        if isinstance(profile, dict) and profile.get("id")
+    ]
     lines = [
         "BIBER agent capabilities",
         f"service: {payload.get('service', '-')}",
@@ -402,8 +487,23 @@ def format_capabilities_summary(payload: Mapping[str, Any]) -> str:
         f"tests: {', '.join(tests) if tests else '-'}",
         f"xriq_context: {bool(xriq.get('context_supported'))}",
         f"mentor_configured: {bool(mentor.get('configured'))}",
+        f"runtime_profiles_enabled: {bool(runtime_profiles.get('enabled'))}",
+        f"runtime_profiles: {', '.join(runtime_profile_ids) if runtime_profile_ids else '-'}",
     ]
     return "\n".join(lines)
+
+
+def format_chat_summary(payload: Mapping[str, Any]) -> str:
+    return "\n".join(
+        [
+            "BIBER chat response",
+            f"id: {payload.get('id', '-')}",
+            f"model: {payload.get('model', '-')}",
+            f"mentor_used: {payload.get('mentor_used', False)}",
+            "content:",
+            str(payload.get("content") or ""),
+        ]
+    )
 
 
 def format_session_summary(payload: Mapping[str, Any]) -> str:
@@ -827,6 +927,7 @@ def build_repair_chat_payload(
     max_tokens: int | None,
     temperature: float,
     use_mentor: bool,
+    runtime_profile_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     failure = require_mapping(repair_request.get("failure"))
     payload: dict[str, Any] = {
@@ -851,6 +952,8 @@ def build_repair_chat_payload(
         payload["model"] = model
     if max_tokens is not None:
         payload["max_tokens"] = max_tokens
+    if runtime_profile_ids is not None:
+        payload["runtime_profile_ids"] = runtime_profile_ids
     return payload
 
 
@@ -6515,6 +6618,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     subparsers.add_parser("capabilities", help="Discover BIBER agent capabilities.")
 
+    chat = subparsers.add_parser(
+        "chat",
+        help="Send one direct /v1/chat request to BIBER.",
+    )
+    chat.add_argument("--message")
+    chat.add_argument("--message-file")
+    chat.add_argument("--model")
+    chat.add_argument("--language")
+    chat.add_argument("--task-type")
+    chat.add_argument("--repo-context", action="append", default=None)
+    chat.add_argument("--runtime-profile-id", action="append", default=None)
+    chat.add_argument("--max-tokens", type=int)
+    chat.add_argument("--temperature", type=float, default=0.2)
+    chat.add_argument(
+        "--use-mentor",
+        action="store_true",
+        help="Allow OpenAI mentor use when the server is configured and the prompt requests it.",
+    )
+
     session = subparsers.add_parser(
         "create-session",
         help="Create a tracked agent session from a discovered preset.",
@@ -6525,6 +6647,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     session.add_argument("--language")
     session.add_argument("--task-type")
     session.add_argument("--repo-context", action="append", default=None)
+    session.add_argument("--runtime-profile-id", action="append", default=None)
     session.add_argument("--test-id")
     session.add_argument("--no-test", action="store_true")
     session.add_argument("--include-xriq-context", action="store_true")
@@ -7172,6 +7295,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     attempt_repair.add_argument("--model")
     attempt_repair.add_argument("--max-tokens", type=int, default=700)
     attempt_repair.add_argument("--temperature", type=float, default=0.2)
+    attempt_repair.add_argument("--runtime-profile-id", action="append", default=None)
     attempt_repair.add_argument(
         "--use-mentor",
         action="store_true",
@@ -7720,12 +7844,24 @@ def run(args: argparse.Namespace) -> str:
             max_relevant_output_chars=args.max_relevant_output_chars,
             max_context_paths=args.max_context_paths,
         )
+        runtime_profile_ids = dedupe_strings(args.runtime_profile_id)
+        if runtime_profile_ids:
+            capabilities = fetch_capabilities(
+                base_url=base_url,
+                api_key=api_key,
+                timeout_seconds=args.timeout_seconds,
+            )
+            validate_runtime_profile_ids(
+                capabilities=capabilities,
+                runtime_profile_ids=runtime_profile_ids,
+            )
         chat_payload = build_repair_chat_payload(
             repair_request=repair_request,
             model=args.model,
             max_tokens=args.max_tokens,
             temperature=args.temperature,
             use_mentor=args.use_mentor,
+            runtime_profile_ids=runtime_profile_ids,
         )
         model_response = chat_with_biber(
             base_url=base_url,
@@ -7876,11 +8012,56 @@ def run(args: argparse.Namespace) -> str:
             if args.print_json
             else format_capabilities_summary(capabilities)
         )
+    if args.command == "chat":
+        runtime_profile_ids = dedupe_strings(args.runtime_profile_id)
+        if runtime_profile_ids:
+            capabilities = fetch_capabilities(
+                base_url=base_url,
+                api_key=api_key,
+                timeout_seconds=args.timeout_seconds,
+            )
+            validate_runtime_profile_ids(
+                capabilities=capabilities,
+                runtime_profile_ids=runtime_profile_ids,
+            )
+        message = load_text_argument(
+            value=args.message,
+            file_path=args.message_file,
+            label="--message",
+        )
+        if not message:
+            raise BiberAgentClientError("chat requires --message or --message-file.")
+        response = chat_with_biber(
+            base_url=base_url,
+            api_key=api_key,
+            payload=build_chat_payload(
+                message=message,
+                model=args.model,
+                language=args.language,
+                task_type=args.task_type,
+                repo_context_paths=args.repo_context,
+                runtime_profile_ids=runtime_profile_ids,
+                max_tokens=args.max_tokens,
+                temperature=args.temperature,
+                use_mentor=args.use_mentor,
+            ),
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(response, indent=2, sort_keys=True)
+            if args.print_json
+            else format_chat_summary(response)
+        )
     if args.command == "create-session":
         capabilities = fetch_capabilities(
             base_url=base_url,
             api_key=api_key,
             timeout_seconds=args.timeout_seconds,
+        )
+        runtime_profile_ids = dedupe_strings(args.runtime_profile_id)
+        validate_runtime_profile_ids(
+            capabilities=capabilities,
+            runtime_profile_ids=runtime_profile_ids,
         )
         include_xriq = True if args.include_xriq_context else None
         payload = build_session_payload(
@@ -7891,6 +8072,7 @@ def run(args: argparse.Namespace) -> str:
             language=args.language,
             task_type=args.task_type,
             repo_context_paths=args.repo_context,
+            runtime_profile_ids=runtime_profile_ids,
             test_id=args.test_id,
             no_test=args.no_test,
             include_xriq_context=include_xriq,

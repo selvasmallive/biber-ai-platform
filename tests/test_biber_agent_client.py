@@ -19,6 +19,13 @@ def sample_capabilities() -> dict[str, object]:
         "features": {
             "openai_mentor": {"configured": False},
             "xriq_private_devnet": {"context_supported": True},
+            "runtime_profiles": {
+                "enabled": False,
+                "available_profiles": [
+                    {"id": "api-error-response"},
+                    {"id": "rust-xriq-codegen"},
+                ],
+            },
             "test_runner": {
                 "commands": [
                     {"test_id": "python-compileall-api"},
@@ -33,6 +40,7 @@ def sample_capabilities() -> dict[str, object]:
                     "model": "biber-dev-core-v1",
                     "task_type": "agent_session",
                     "use_mentor": False,
+                    "runtime_profile_ids": [],
                     "include_xriq_context": False,
                     "test_id": "python-compileall-api",
                 },
@@ -44,6 +52,7 @@ def sample_capabilities() -> dict[str, object]:
                     "language": "Rust",
                     "task_type": "xriq_private_devnet_review",
                     "use_mentor": False,
+                    "runtime_profile_ids": ["rust-xriq-codegen"],
                     "include_xriq_context": True,
                     "test_id": "python-compileall-api",
                 },
@@ -72,6 +81,44 @@ def test_format_capabilities_summary_includes_presets_and_tests() -> None:
     assert "python-compileall-api" in output
     assert "xriq_context: True" in output
     assert "mentor_configured: False" in output
+    assert "runtime_profiles_enabled: False" in output
+    assert "api-error-response" in output
+    assert "rust-xriq-codegen" in output
+
+
+def test_build_chat_payload_includes_runtime_profiles() -> None:
+    payload = client.build_chat_payload(
+        message="Return ok.",
+        language="Rust",
+        task_type="xriq_private_devnet_review",
+        repo_context_paths=["README.md"],
+        runtime_profile_ids=["rust-xriq-codegen"],
+        max_tokens=32,
+        temperature=0.1,
+    )
+
+    assert payload == {
+        "messages": [{"role": "user", "content": "Return ok."}],
+        "use_mentor": False,
+        "language": "Rust",
+        "task_type": "xriq_private_devnet_review",
+        "repo_context_paths": ["README.md"],
+        "runtime_profile_ids": ["rust-xriq-codegen"],
+        "max_tokens": 32,
+        "temperature": 0.1,
+    }
+
+
+def test_validate_runtime_profile_ids_rejects_unknown_ids() -> None:
+    try:
+        client.validate_runtime_profile_ids(
+            capabilities=sample_capabilities(),
+            runtime_profile_ids=["missing-profile"],
+        )
+    except client.BiberAgentClientError as exc:
+        assert "Unknown runtime profile id" in str(exc)
+    else:
+        raise AssertionError("expected unknown runtime profile id to fail")
 
 
 def test_build_session_payload_uses_discovered_preset() -> None:
@@ -89,6 +136,7 @@ def test_build_session_payload_uses_discovered_preset() -> None:
     assert payload["task_type"] == "xriq_private_devnet_review"
     assert payload["include_xriq_context"] is True
     assert payload["repo_context_paths"] == ["README.md"]
+    assert payload["runtime_profile_ids"] == ["rust-xriq-codegen"]
     assert payload["test_id"] is None
     assert payload["max_tokens"] == 128
 
@@ -100,12 +148,14 @@ def test_build_session_payload_allows_overrides() -> None:
         instruction="Plan a TypeScript change.",
         language="TypeScript",
         task_type="frontend_review",
+        runtime_profile_ids=["api-error-response"],
         test_id="pytest-core",
         include_xriq_context=True,
     )
 
     assert payload["language"] == "TypeScript"
     assert payload["task_type"] == "frontend_review"
+    assert payload["runtime_profile_ids"] == ["api-error-response"]
     assert payload["test_id"] == "pytest-core"
     assert payload["include_xriq_context"] is True
 
@@ -4385,6 +4435,10 @@ def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
             "Say ok.",
             "--repo-context",
             "README.md",
+            "--runtime-profile-id",
+            "rust-xriq-codegen",
+            "--runtime-profile-id",
+            "rust-xriq-codegen",
             "--no-test",
             "--max-tokens",
             "24",
@@ -4395,9 +4449,88 @@ def test_run_create_session_json_uses_client_workflow(monkeypatch) -> None:
 
     assert captured_payload["instruction"] == "Say ok."
     assert captured_payload["repo_context_paths"] == ["README.md"]
+    assert captured_payload["runtime_profile_ids"] == ["rust-xriq-codegen"]
     assert captured_payload["test_id"] is None
     assert captured_payload["max_tokens"] == 24
     assert json.loads(output)["id"] == "session-1"
+
+
+def test_run_chat_json_sends_runtime_profile_ids(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_fetch_capabilities(
+        *,
+        base_url: str,
+        api_key: str,
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["capabilities_base_url"] = base_url
+        return sample_capabilities()
+
+    def fake_chat_with_biber(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured.update(
+            {
+                "base_url": base_url,
+                "api_key": api_key,
+                "payload": payload,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return {
+            "id": "chat-1",
+            "model": "biber-dev-core-v1",
+            "content": "ok",
+            "mentor_used": False,
+            "priority": 3,
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "fetch_capabilities", fake_fetch_capabilities)
+    monkeypatch.setattr(client, "chat_with_biber", fake_chat_with_biber)
+
+    args = client.parse_args(
+        [
+            "--json",
+            "chat",
+            "--message",
+            "Return ok.",
+            "--language",
+            "Rust",
+            "--task-type",
+            "xriq_private_devnet_review",
+            "--repo-context",
+            "README.md",
+            "--runtime-profile-id",
+            "rust-xriq-codegen",
+            "--max-tokens",
+            "24",
+        ]
+    )
+
+    output = client.run(args)
+
+    assert captured["capabilities_base_url"] == "http://127.0.0.1:8000"
+    assert captured["api_key"] == "test-key"
+    assert captured["payload"] == {
+        "messages": [{"role": "user", "content": "Return ok."}],
+        "use_mentor": False,
+        "language": "Rust",
+        "task_type": "xriq_private_devnet_review",
+        "repo_context_paths": ["README.md"],
+        "runtime_profile_ids": ["rust-xriq-codegen"],
+        "max_tokens": 24,
+        "temperature": 0.2,
+    }
+    assert json.loads(output)["id"] == "chat-1"
 
 
 def test_run_list_sessions_json_uses_client_workflow(monkeypatch) -> None:

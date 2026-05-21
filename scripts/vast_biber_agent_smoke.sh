@@ -344,6 +344,47 @@ write_artifact(
 )
 
 try:
+    client_chat_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "--timeout-seconds",
+            "180",
+            "chat",
+            "--message",
+            "Return only: BIBER_AGENT_CLIENT_CHAT_OK",
+            "--language",
+            "Rust",
+            "--task-type",
+            "xriq_private_devnet_review",
+            "--runtime-profile-id",
+            "rust-xriq-codegen",
+            "--max-tokens",
+            str(client_session_max_tokens),
+        ],
+        env=client_env,
+        text=True,
+        timeout=180,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py chat failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py chat timed out: {exc}")
+try:
+    client_chat = json.loads(client_chat_output)
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py chat returned invalid JSON: {exc}")
+if client_chat.get("mentor_used") is not False:
+    fail("agent client chat unexpectedly used mentor")
+if not str(client_chat.get("content") or "").strip():
+    fail(f"agent client chat returned empty content: {client_chat!r}")
+write_artifact(
+    "agent-client-chat.json",
+    {"status": 0, "body": client_chat},
+)
+
+try:
     client_session_output = subprocess.check_output(
         [
             sys.executable,
@@ -361,6 +402,8 @@ try:
             ),
             "--repo-context",
             "README.md",
+            "--runtime-profile-id",
+            "rust-xriq-codegen",
             "--no-test",
             "--max-tokens",
             str(client_session_max_tokens),
