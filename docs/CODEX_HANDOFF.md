@@ -377,9 +377,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest repo-adaptation training-outcome review helper commit pushed and
   Vast-verified:
   `77837d2 Add repo adaptation training outcome review`.
+- Latest profiled regression eval path commits pushed and Vast-verified:
+  `e428d7b Add profiled regression eval path` and
+  `426f602 Refine Rust profile for next height`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `77837d2`. Full Rust/private-devnet
+- Vast code verification is current through `426f602`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -418,7 +421,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   adapter-reload verification is current through `608252b`; repo-adaptation
   anti-regression review helper verification is current through `08fdd59`;
   repo-adaptation training-outcome review helper verification is current
-  through `77837d2`;
+  through `77837d2`; profiled regression eval path verification is current
+  through `426f602`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -622,6 +626,30 @@ serving the last broad-safe Rust/XRIQ adapter.
     `rust_xriq_fee_calculation`, `rust_xriq_next_height`, and
     `rust_xriq_validate_transaction`. Do not start another QLoRA run from this
     artifact pattern.
+  - `e428d7b` adds optional prompt-prefix support to
+    `scripts/vast_eval_lora_direct.sh` plus
+    `training/api_error_response_profile.txt`, and `426f602` refines
+    `training/rust_xriq_codegen_profile.txt` for the `next_height` rustfmt
+    shape. Vast syntax verification passed `bash -n scripts/vast_eval_lora_direct.sh`.
+    A profile experiment was run against the blocked candidate adapter
+    `/workspace/adapters/biber-dev-core-repo-adapt-antireg-review-20260520`
+    without promotion. Profiled broad eval artifact:
+    `/workspace/outputs/evals/profiled-antireg-candidate-20260521T0300Z/candidate-profiled-broad.summary.json`
+    with `18/18` expectation checks. Initial profiled Rust eval reached
+    `6/7` validators; after `426f602`, rerun artifact
+    `/workspace/outputs/evals/profiled-antireg-candidate-20260521T0315Z/candidate-profiled-rust-xriq.summary.json`
+    reached `7/7` expectation checks and `7/7` cargo validators. The wrapper
+    restored stable serving afterward, and `bash scripts/vast_test_direct.sh`
+    confirmed `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` is still
+    served.
+  - A profile-aware offline promotion review was written at
+    `/workspace/outputs/evals/profiled-antireg-candidate-20260521T0315Z/profiled-candidate-promotion-review.json`
+    using the profiled broad/Rust summaries and the existing candidate/stable
+    repo-held-out summaries. It reports
+    `review_status=ready_for_user_promotion_approval` and `hard_blockers=[]`.
+    This does not promote or change serving. Treat it as eligible only if the
+    API error-response profile and expanded Rust/XRIQ profile are accepted as
+    part of the BIBER runtime/eval contract.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
@@ -5944,12 +5972,14 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-Current immediate next step: do not train again. The anti-regression QLoRA
-candidate still failed broad and Rust/XRIQ promotion gates. Inspect
-`/workspace/outputs/evals/repo-adapt-antireg-candidate-20260520T2205Z/training-outcome-review.json`.
-Since all 6 trained anti-regression rows persisted, improve the prompt/profile
-or dataset strategy before any additional training. Keep serving
-`/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
+Current immediate next step: do not train again. Decide whether the API
+error-response profile and expanded Rust/XRIQ codegen profile should become
+part of the BIBER runtime/eval contract. If yes, ask the user for explicit
+promotion approval using
+`/workspace/outputs/evals/profiled-antireg-candidate-20260521T0315Z/profiled-candidate-promotion-review.json`.
+Do not promote from a generic "continue"; serving must remain on
+`/workspace/adapters/biber-dev-core-lora-rust-xriq-400` unless the user
+explicitly approves candidate promotion.
 
 1. Keep `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` served unless a
    future adapter beats both gates: current Rust/XRIQ cargo validators and the
