@@ -832,6 +832,7 @@ client_mvp_loop_repair_source = {
         },
     },
     "selected_context_paths": ["README.md", "docs/API_EXAMPLES.md"],
+    "runtime_profile_ids": ["rust-xriq-codegen"],
     "test_ok": False,
 }
 client_mvp_loop_repair_source_path.write_text(
@@ -869,6 +870,8 @@ if client_mvp_loop_repair.get("repair_status") != "ready_for_local_model":
     fail(f"prepare-repair returned unexpected status: {client_mvp_loop_repair!r}")
 if client_mvp_loop_repair.get("training_allowed") is not False:
     fail(f"prepare-repair must keep training_allowed=false: {client_mvp_loop_repair!r}")
+if client_mvp_loop_repair.get("runtime_profile_ids") != ["rust-xriq-codegen"]:
+    fail(f"prepare-repair did not preserve runtime profile ids: {client_mvp_loop_repair!r}")
 repair_failure = client_mvp_loop_repair.get("failure")
 if not isinstance(repair_failure, dict) or repair_failure.get("test_id") != "dotnet-test":
     fail(f"prepare-repair omitted test failure details: {client_mvp_loop_repair!r}")
