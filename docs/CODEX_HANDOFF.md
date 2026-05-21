@@ -424,9 +424,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER ready repair-chain decision review artifact inspection commit
   pushed and Vast-verified:
   `86e84477 Add ready repair chain decision review inspection`.
+- Latest BIBER ready repair-chain eval-candidate review artifact inspection
+  commit pushed and Vast-verified:
+  `3ac6544d Add ready repair chain eval candidate review inspection`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `86e84477`. Full Rust/private-devnet
+- Vast code verification is current through `3ac6544d`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -484,7 +487,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   current through `4c79b104`; BIBER ready repair-chain review artifact
   inspection verification is current through `02573955`; BIBER ready
   repair-chain decision review artifact inspection verification is current
-  through `86e84477`;
+  through `86e84477`; BIBER ready repair-chain eval-candidate review artifact
+  inspection verification is current through `3ac6544d`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -531,7 +535,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   verification is current through `86e84477`;
   BIBER repair-chain eval-candidate export verification is current through
   `415af7a`; BIBER repair-chain eval-candidate review verification is current
-  through `4d4ddca`; BIBER repair-chain eval-dataset decision verification is
+  through `4d4ddca`; BIBER agent-client ready repair-chain eval-candidate
+  review artifact inspection verification is current through `3ac6544d`;
+  BIBER repair-chain eval-dataset decision verification is
   current through `bb6fdc0`; BIBER repair-chain eval-dataset decision review
   verification is current through `f600ab0`; BIBER repair-chain eval-dataset
   export verification is current through `22566dc`; BIBER repair-chain
@@ -565,7 +571,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - `BIBER_RUNTIME_PROFILES_ENABLED=true`
-  - Vast code verification is current through `1a1b9aa`. If later docs-only
+  - Vast code verification is current through `3ac6544d`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
   - The user explicitly approved the separate Vast GPU repo-adaptation QLoRA
@@ -1019,6 +1025,32 @@ serving the last broad-safe Rust/XRIQ adapter.
     `cd /workspace/biber-ai-platform; BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=64 bash scripts/vast_biber_agent_smoke.sh`.
     Smoke artifact directory:
     `/workspace/outputs/biber-agent-smoke-20260521T161615Z-90765`. No training
+    was started, no candidate adapter was reloaded, and no adapter was
+    promoted; stable serving remains on
+    `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
+  - `3ac6544d` adds offline ready repair-chain eval-candidate review artifact
+    inspection: `show-ready-repair-chain-eval-candidate-review` summarizes
+    saved `review-ready-repair-chain-eval-candidates` JSON artifacts without
+    resolving API auth, and `list-ready-repair-chain-eval-candidate-reviews`
+    scans output directories with an optional `--ready-only` filter. The
+    command preserves the training guards:
+    `eval_dataset_ready=false`, `training_allowed=false`,
+    `safe_to_train=false`, `github_save_ready=false`, and
+    `approved_for_training=false`. `docs/API_EXAMPLES.md` now includes the
+    eval-candidate export/review/show/list sequence, and
+    `scripts/vast_biber_agent_smoke.sh` verifies the no-auth eval-candidate
+    review inspection path before dataset-review decision recording. Local
+    verification passed `git diff --check`, bundled Python syntax compilation,
+    and an offline command smoke; local pytest was not available on this
+    workstation. Vast was fast-forwarded to `3ac6544d`; verification passed
+    `/workspace/biber-venv/bin/python -m py_compile /workspace/biber-ai-platform/scripts/biber_agent_client.py /workspace/biber-ai-platform/tests/test_biber_agent_client.py`,
+    `bash -n /workspace/biber-ai-platform/scripts/vast_biber_agent_smoke.sh`,
+    focused pytest with `PYTHONPATH=/workspace/biber-ai-platform` for
+    `tests/test_biber_agent_client.py tests/test_runtime_profiles.py tests/test_agent_capabilities.py -q`
+    with `118 passed`, and live
+    `cd /workspace/biber-ai-platform; BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=64 bash scripts/vast_biber_agent_smoke.sh`.
+    Smoke artifact directory:
+    `/workspace/outputs/biber-agent-smoke-20260521T162408Z-91083`. No training
     was started, no candidate adapter was reloaded, and no adapter was
     promoted; stable serving remains on
     `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
@@ -6361,10 +6393,14 @@ existing `show-repair-chain` / `list-repair-chains` review path,
 manual decision recording only after review,
 `review-ready-repair-chain-decisions`,
 `show-ready-repair-chain-decision-review`,
-`list-ready-repair-chain-decision-reviews`, then eval-candidate export only for
-explicit `approve_for_eval` decisions. Do not train again and do not promote
-from a generic "continue". The API error-response and Rust/XRIQ codegen
-profiles are enabled on the live Vast API, exposed through
+`list-ready-repair-chain-decision-reviews`, then
+`export-ready-repair-chain-eval-candidates` only for explicit
+`approve_for_eval` decisions, `review-ready-repair-chain-eval-candidates`,
+`show-ready-repair-chain-eval-candidate-review`, and
+`list-ready-repair-chain-eval-candidate-reviews`, then manual dataset-review
+decision recording only after review. Do not train again and do not promote from
+a generic "continue". The API error-response and Rust/XRIQ codegen profiles are
+enabled on the live Vast API, exposed through
 `/v1/agent/capabilities`, and the stable served adapter has passed the
 profile-enabled client/eval baseline. If model promotion is desired, ask the
 user for explicit candidate-promotion approval using
@@ -6504,6 +6540,10 @@ bash scripts/xriq_private_devnet_smoke.sh
     dataset review and blocking training. It also has
     `review-ready-repair-chain-eval-candidates`, which summarizes those eval
     candidate queues while keeping `eval_dataset_ready=false`. It also has
+    `show-ready-repair-chain-eval-candidate-review` and
+    `list-ready-repair-chain-eval-candidate-reviews`, which inspect saved
+    eval-candidate review artifacts offline without API auth before any
+    dataset-review decision is recorded. It also has
     `record-ready-repair-chain-eval-candidate-decision`, which records a
     manual dataset-review decision and can mark eval-dataset readiness while
     still blocking training and GitHub save promotion, and
