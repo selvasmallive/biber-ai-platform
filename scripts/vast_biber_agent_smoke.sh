@@ -2986,6 +2986,93 @@ if (
     != client_mvp_loop_ready_repair_chain_eval_dataset_decision_review
 ):
     fail("review-ready-repair-chain-eval-dataset-decisions output artifact did not match stdout JSON")
+try:
+    client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_show = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "show-ready-repair-chain-eval-dataset-decision-review",
+            str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py show-ready-repair-chain-eval-dataset-decision-review failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py show-ready-repair-chain-eval-dataset-decision-review timed out: {exc}")
+for expected_text in [
+    "BIBER ready repair-chain eval dataset decision review",
+    "approved_for_eval_dataset_records: 1",
+    "eval_dataset_ready_records: 1",
+    "training_allowed: False",
+    str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_path),
+]:
+    if expected_text not in client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_show:
+        fail(
+            "show-ready-repair-chain-eval-dataset-decision-review summary missing "
+            f"{expected_text!r}: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_show}"
+        )
+try:
+    client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-ready-repair-chain-eval-dataset-decision-reviews",
+            str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_path.parent),
+            "--decision",
+            "approve_for_eval_dataset",
+            "--ready-only",
+            "--limit",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-ready-repair-chain-eval-dataset-decision-reviews failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-ready-repair-chain-eval-dataset-decision-reviews timed out: {exc}")
+try:
+    client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list = json.loads(
+        client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list_output
+    )
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py list-ready-repair-chain-eval-dataset-decision-reviews returned invalid JSON: {exc}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("records") != 1:
+    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews saw unexpected records: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("approved_for_eval_dataset_records") != 1:
+    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews saw unexpected approval count: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("eval_dataset_ready_records") != 1:
+    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews saw unexpected eval-ready count: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("training_allowed") is not False:
+    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("safe_to_train") is not False:
+    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("github_save_ready") is not False:
+    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("approved_for_training") is not False:
+    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
+client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_artifacts = (
+    client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("artifacts")
+)
+if not isinstance(client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_artifacts, list):
+    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews returned invalid artifacts: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
+matching_eval_dataset_decision_review_artifacts = [
+    artifact
+    for artifact in client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_artifacts
+    if artifact.get("path") == str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_path)
+]
+if len(matching_eval_dataset_decision_review_artifacts) != 1:
+    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews did not return the saved artifact once: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_artifacts!r}")
+matching_eval_dataset_decision_review_artifact = matching_eval_dataset_decision_review_artifacts[0]
+if matching_eval_dataset_decision_review_artifact.get("eval_dataset_ready_records") != 1:
+    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews artifact eval-ready count was unexpected: {matching_eval_dataset_decision_review_artifact!r}")
+if matching_eval_dataset_decision_review_artifact.get("approved_for_eval_dataset_records") != 1:
+    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews artifact approval count was unexpected: {matching_eval_dataset_decision_review_artifact!r}")
 write_artifact(
     "agent-client-mvp-loop-ready-repair-chain-eval-dataset-decision-review-result.json",
     {

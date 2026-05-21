@@ -588,6 +588,23 @@ python scripts/biber_agent_client.py list-ready-repair-chain-eval-candidate-revi
   /workspace/outputs \
   --ready-only \
   --limit 10
+# Only record eval-dataset readiness after manual dataset review.
+python scripts/biber_agent_client.py record-ready-repair-chain-eval-candidate-decision \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-candidates.jsonl \
+  --decision approve_for_eval_dataset \
+  --reviewer human-dataset-reviewer \
+  --notes "Approved for held-out eval dataset only; not training data." \
+  --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-dataset-decisions.jsonl
+python scripts/biber_agent_client.py review-ready-repair-chain-eval-dataset-decisions \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-dataset-decisions.jsonl \
+  --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-dataset-decision-review.json
+python scripts/biber_agent_client.py show-ready-repair-chain-eval-dataset-decision-review \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-dataset-decision-review.json
+python scripts/biber_agent_client.py list-ready-repair-chain-eval-dataset-decision-reviews \
+  /workspace/outputs \
+  --decision approve_for_eval_dataset \
+  --ready-only \
+  --limit 10
 ```
 
 If `mvp-loop` is started with `--runtime-profile-id`, failed-loop repair
