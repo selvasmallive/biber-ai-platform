@@ -1881,6 +1881,129 @@ def test_run_apply_repair_edits_calls_server_apply_after_approval(
     assert result["next_test_id"] == "dotnet-test"
 
 
+def test_run_show_repair_edit_apply_summarizes_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("show-repair-edit-apply should not resolve an API key")
+
+    artifact = tmp_path / "repair-edit-apply.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "source_artifact": "/workspace/outputs/repair-edit-plan.json",
+                "apply_status": "applied",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "approval_required": True,
+                "approval_received": True,
+                "apply_allowed": True,
+                "review_status": "approved_apply_succeeded",
+                "plan_hash": "f" * 64,
+                "next_test_id": "dotnet-test",
+                "artifact_path": str(artifact),
+                "edit_apply": {
+                    "ok": True,
+                    "plan_hash": "f" * 64,
+                    "applied": [{"path": "src/App.cs", "changed": True}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(client.parse_args(["show-repair-edit-apply", str(artifact)]))
+
+    assert "BIBER repair edit apply" in output
+    assert "apply_status: applied" in output
+    assert "training_allowed: False" in output
+    assert "auto_applied: False" in output
+    assert "approval_required: True" in output
+    assert "approval_received: True" in output
+    assert f"plan_hash: {'f' * 64}" in output
+    assert "applied: 1" in output
+    assert "- src/App.cs changed=True" in output
+    assert str(artifact) in output
+
+
+def test_run_show_repair_edit_apply_json_returns_local_artifact(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "repair-edit-apply.json"
+    payload = {
+        "source": "biber_mvp_loop_repair_edit_apply",
+        "apply_status": "applied",
+        "ok": True,
+        "edit_apply": {},
+    }
+    artifact.write_text(json.dumps({"body": payload}), encoding="utf-8")
+
+    output = client.run(
+        client.parse_args(["--json", "show-repair-edit-apply", str(artifact)])
+    )
+
+    assert json.loads(output) == payload
+
+
+def test_run_list_repair_edit_applies_summarizes_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("list-repair-edit-applies should not resolve an API key")
+
+    applied = tmp_path / "agent-client-repair-edit-apply.json"
+    applied.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "apply_status": "applied",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "approval_required": True,
+                "approval_received": True,
+                "apply_allowed": True,
+                "review_status": "approved_apply_succeeded",
+                "plan_hash": "a" * 64,
+                "next_test_id": "dotnet-test",
+                "edit_apply": {
+                    "applied": [{"path": "src/App.cs", "changed": True}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    ignored = tmp_path / "ignored-repair-edit-apply.json"
+    ignored.write_text(json.dumps({"source": "other"}), encoding="utf-8")
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "list-repair-edit-applies",
+                str(tmp_path),
+                "--applied-only",
+                "--limit",
+                "5",
+            ]
+        )
+    )
+
+    assert "BIBER repair edit apply artifacts (1)" in output
+    assert str(applied) in output
+    assert str(ignored) not in output
+    assert "applied: 1" in output
+    assert "training_allowed: False" in output
+    assert "auto_applied: False" in output
+    assert "approval_received=True" in output
+    assert f"plan_hash={'a' * 64}" in output
+
+
 def test_build_verify_repair_edits_payload_requires_applied_artifact() -> None:
     try:
         client.build_verify_repair_edits_payload(

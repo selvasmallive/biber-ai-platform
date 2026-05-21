@@ -504,6 +504,12 @@ python scripts/biber_agent_client.py apply-repair-edits \
   /workspace/outputs/biber-mvp-loop-repair-edit-plan.json \
   --approve \
   --output /workspace/outputs/biber-mvp-loop-repair-edit-apply.json
+python scripts/biber_agent_client.py show-repair-edit-apply \
+  /workspace/outputs/biber-mvp-loop-repair-edit-apply.json
+python scripts/biber_agent_client.py list-repair-edit-applies \
+  /workspace/outputs \
+  --applied-only \
+  --limit 10
 python scripts/biber_agent_client.py verify-repair-edits \
   /workspace/outputs/biber-mvp-loop-repair-edit-apply.json \
   --diagnose-on-failure \
