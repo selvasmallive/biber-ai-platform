@@ -436,9 +436,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER ready repair-chain eval prompt inspection commit pushed and
   Vast-verified:
   `083108b Add eval prompt inspection`.
+- Latest BIBER repair-chain held-out eval review artifact inspection commit
+  pushed and Vast-verified:
+  `647437f Add heldout eval review inspection`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `083108b`. Full Rust/private-devnet
+- Vast code verification is current through `647437f`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -502,7 +505,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   is current through `05f57486`; BIBER ready repair-chain eval-dataset
   validation artifact inspection verification is current through `572daec2`;
   BIBER ready repair-chain eval prompt inspection verification is current
-  through `083108b`;
+  through `083108b`; BIBER repair-chain held-out eval review artifact
+  inspection verification is current through `647437f`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -561,7 +565,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   agent-client ready repair-chain eval-dataset validation artifact inspection
   verification is current through `572daec2`; BIBER agent-client ready
   repair-chain eval prompt inspection verification is current through
-  `083108b`; BIBER
+  `083108b`; BIBER agent-client repair-chain held-out eval review artifact
+  inspection verification is current through `647437f`; BIBER
   repair-chain held-out eval prompt export verification is current through
   `16523ac`; BIBER repair-chain held-out eval runner verification is current
   through `95051e5`; BIBER repair-chain held-out eval result review
@@ -591,7 +596,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - `BIBER_RUNTIME_PROFILES_ENABLED=true`
-  - Vast code verification is current through `083108b`. If later docs-only
+  - Vast code verification is current through `647437f`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
   - The user explicitly approved the separate Vast GPU repo-adaptation QLoRA
@@ -1149,6 +1154,32 @@ serving the last broad-safe Rust/XRIQ adapter.
     `cd /workspace/biber-ai-platform; BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=64 bash scripts/vast_biber_agent_smoke.sh`.
     Smoke artifact directory:
     `/workspace/outputs/biber-agent-smoke-20260521T165217Z-92040`. No training
+    was started, no candidate adapter was reloaded, and no adapter was
+    promoted; stable serving remains on
+    `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
+  - `647437f` adds offline repair-chain held-out eval review artifact
+    inspection:
+    `show-repair-chain-heldout-eval-review` summarizes saved
+    `review-repair-chain-heldout-eval-results` JSON artifacts without
+    resolving API auth, and `list-repair-chain-heldout-eval-reviews` scans
+    output directories with `--ok-only` and `--limit` support. The commands
+    preserve the safety guards: `eval_only=true`, `training_allowed=false`,
+    `safe_to_train=false`, `github_save_ready=false`, and
+    `approved_for_training=false`. `docs/API_EXAMPLES.md` now includes the
+    held-out review/show/list sequence, and
+    `scripts/vast_biber_agent_smoke.sh` verifies held-out review inspection
+    before recording a synthetic held-out eval decision. Local verification
+    passed `git diff --check`, bundled Python syntax compilation, and an
+    offline command smoke; local pytest was not available on this workstation.
+    Vast was fast-forwarded to `647437f`; verification passed
+    `/workspace/biber-venv/bin/python -m py_compile /workspace/biber-ai-platform/scripts/biber_agent_client.py /workspace/biber-ai-platform/tests/test_biber_agent_client.py`,
+    `bash -n /workspace/biber-ai-platform/scripts/vast_biber_agent_smoke.sh`,
+    focused pytest with `PYTHONPATH=/workspace/biber-ai-platform` for
+    `tests/test_biber_agent_client.py tests/test_runtime_profiles.py tests/test_agent_capabilities.py -q`
+    with `129 passed`, and live
+    `cd /workspace/biber-ai-platform; BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=64 bash scripts/vast_biber_agent_smoke.sh`.
+    Smoke artifact directory:
+    `/workspace/outputs/biber-agent-smoke-20260521T165957Z-92343`. No training
     was started, no candidate adapter was reloaded, and no adapter was
     promoted; stable serving remains on
     `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
@@ -6506,8 +6537,12 @@ eval-dataset export only after review, `validate-ready-repair-chain-eval-dataset
 export only after validation inspection with
 `export-ready-repair-chain-eval-prompts`, followed by
 `show-ready-repair-chain-eval-prompts` and
-`list-ready-repair-chain-eval-prompts` before any live held-out eval run. Do not
-train again and do not promote
+`list-ready-repair-chain-eval-prompts`, then a live held-out eval run through
+`scripts/vast_eval_repair_chain_prompts_direct.sh` when needed, then
+`review-repair-chain-heldout-eval-results`, followed by
+`show-repair-chain-heldout-eval-review` and
+`list-repair-chain-heldout-eval-reviews` before any manual held-out eval
+decision is recorded. Do not train again and do not promote
 from a generic "continue". The API error-response and Rust/XRIQ codegen profiles
 are enabled on the live Vast API, exposed through
 `/v1/agent/capabilities`, and the stable served adapter has passed the
@@ -6682,7 +6717,10 @@ bash scripts/xriq_private_devnet_smoke.sh
     outputs and runs it through `training/live_model_eval.py`. It now also has
     `review-repair-chain-heldout-eval-results`, which reviews those live-eval
     result JSONL artifacts and optional summary JSON without making them
-    training-eligible, and `record-repair-chain-heldout-eval-decision`, which
+    training-eligible, plus `show-repair-chain-heldout-eval-review` and
+    `list-repair-chain-heldout-eval-reviews`, which inspect saved held-out eval
+    review artifacts offline before any manual decision is recorded, and
+    `record-repair-chain-heldout-eval-decision`, which
     records defer/reject/accept-for-baseline decisions while still blocking
     training, GitHub save, and automatic model promotion. It also has
     `review-repair-chain-heldout-eval-decisions`, which summarizes those
@@ -6848,7 +6886,10 @@ bash scripts/xriq_private_devnet_smoke.sh
    exported repair-chain held-out prompt JSONL through the current local BIBER
    API without using OpenAI, and `review-repair-chain-heldout-eval-results`
    summarizes those result JSONL artifacts as eval-only pass/fail evidence
-   before any human review. `record-repair-chain-heldout-eval-decision` then
+   before any human review. `show-repair-chain-heldout-eval-review` and
+   `list-repair-chain-heldout-eval-reviews` inspect the saved review artifacts
+   offline before any baseline decision is recorded.
+   `record-repair-chain-heldout-eval-decision` then
    records a manual decision such as `defer`, `reject`, or
    `accept_for_baseline` while keeping `training_allowed=false`,
    `safe_to_train=false`, and `github_save_ready=false`.
@@ -6908,7 +6949,10 @@ bash scripts/xriq_private_devnet_smoke.sh
    provided, then run
    `bash scripts/vast_eval_repair_chain_prompts_direct.sh` on the held-out
    prompt JSONL, then run `review-repair-chain-heldout-eval-results` on the
-   result JSONL and summary, then record a defer/reject/accept-for-baseline
+   result JSONL and summary, then inspect it with
+   `show-repair-chain-heldout-eval-review` and
+   `list-repair-chain-heldout-eval-reviews`, then record a
+   defer/reject/accept-for-baseline
    decision with `record-repair-chain-heldout-eval-decision`, then summarize
    that decision queue with `review-repair-chain-heldout-eval-decisions`, then
    export accepted baseline candidates with
