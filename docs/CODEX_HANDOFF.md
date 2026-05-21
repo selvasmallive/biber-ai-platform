@@ -827,7 +827,11 @@ serving the last broad-safe Rust/XRIQ adapter.
     Smoke artifact directory:
     `/workspace/outputs/biber-agent-smoke-20260521T143304Z-88594`. The final
     Vast checkout was `593d035`. No training was started, no candidate adapter
-    was reloaded, and no adapter was promoted.
+    was reloaded, and no adapter was promoted. After the handoff-only commit
+    was pushed and Vast was fast-forwarded to `b84fae7`, final status check
+    showed vLLM pid `84653`, FastAPI pid `85630`, API bind
+    `127.0.0.1:8000`, vLLM bind `127.0.0.1:8001`, and served LoRA root
+    `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
