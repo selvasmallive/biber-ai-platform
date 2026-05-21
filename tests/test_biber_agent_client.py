@@ -516,6 +516,118 @@ def test_run_show_mvp_loop_json_returns_local_artifact(tmp_path: Path) -> None:
     assert json.loads(output) == payload
 
 
+def test_run_show_repair_attempt_summarizes_local_artifact_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("show-repair-attempt should not resolve an API key")
+
+    artifact = tmp_path / "repair-attempt.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_attempt",
+                "repair_status": "model_repair_proposed",
+                "training_allowed": False,
+                "auto_applied": False,
+                "ready_for_edit_review": True,
+                "source_artifact": "/workspace/outputs/failure-mvp-loop.json",
+                "repair_request": {"repair_status": "ready_for_local_model"},
+                "chat_request": {"runtime_profile_ids": ["rust-xriq-codegen"]},
+                "model_response": {
+                    "model": "biber-dev-core",
+                    "mentor_used": False,
+                },
+                "repair_content": "Use the smallest safe edit.",
+                "next_test_id": "cargo-test-workspace",
+                "artifact_path": str(artifact),
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(client.parse_args(["show-repair-attempt", str(artifact)]))
+
+    assert "BIBER MVP loop repair attempt" in output
+    assert "repair_status: model_repair_proposed" in output
+    assert "training_allowed: False" in output
+    assert "auto_applied: False" in output
+    assert "model: biber-dev-core" in output
+    assert "mentor_used: False" in output
+    assert "runtime_profiles: rust-xriq-codegen" in output
+    assert "repair_content_preview:" in output
+    assert str(artifact) in output
+
+
+def test_run_show_repair_attempt_json_returns_local_artifact(tmp_path: Path) -> None:
+    artifact = tmp_path / "repair-attempt.json"
+    payload = {
+        "source": "biber_mvp_loop_repair_attempt",
+        "repair_status": "model_repair_proposed",
+        "training_allowed": False,
+        "auto_applied": False,
+        "model_response": {},
+    }
+    artifact.write_text(json.dumps({"body": payload}), encoding="utf-8")
+
+    output = client.run(
+        client.parse_args(["--json", "show-repair-attempt", str(artifact)])
+    )
+
+    assert json.loads(output) == payload
+
+
+def test_run_list_repair_attempts_summarizes_local_artifacts_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("list-repair-attempts should not resolve an API key")
+
+    ready = tmp_path / "agent-client-repair-attempt.json"
+    ready.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_attempt",
+                "repair_status": "model_repair_proposed",
+                "training_allowed": False,
+                "auto_applied": False,
+                "ready_for_edit_review": True,
+                "chat_request": {"runtime_profile_ids": ["rust-xriq-codegen"]},
+                "model_response": {
+                    "model": "biber-dev-core",
+                    "mentor_used": False,
+                },
+                "next_test_id": "cargo-test-workspace",
+            }
+        ),
+        encoding="utf-8",
+    )
+    ignored = tmp_path / "other-repair-attempt.json"
+    ignored.write_text(json.dumps({"source": "other"}), encoding="utf-8")
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "list-repair-attempts",
+                str(tmp_path),
+                "--ready-only",
+                "--limit",
+                "5",
+            ]
+        )
+    )
+
+    assert "BIBER repair attempt artifacts (1)" in output
+    assert str(ready) in output
+    assert str(ignored) not in output
+    assert "runtime_profiles=rust-xriq-codegen" in output
+    assert "training_allowed: False" in output
+
+
 def test_run_list_mvp_loops_summarizes_local_artifacts_without_api_key(
     monkeypatch,
     tmp_path: Path,

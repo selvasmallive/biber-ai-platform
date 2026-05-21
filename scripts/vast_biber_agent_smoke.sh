@@ -933,6 +933,95 @@ except json.JSONDecodeError as exc:
     fail(f"attempt-repair output artifact returned invalid JSON: {exc}")
 if saved_client_mvp_loop_repair_attempt != client_mvp_loop_repair_attempt:
     fail("attempt-repair output artifact did not match stdout JSON")
+try:
+    client_mvp_loop_repair_attempt_report = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "show-repair-attempt",
+            str(client_mvp_loop_repair_attempt_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py show-repair-attempt failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py show-repair-attempt timed out: {exc}")
+if "BIBER MVP loop repair attempt" not in client_mvp_loop_repair_attempt_report:
+    fail(
+        "show-repair-attempt report omitted heading: "
+        f"{client_mvp_loop_repair_attempt_report!r}"
+    )
+if str(client_mvp_loop_repair_attempt_path) not in client_mvp_loop_repair_attempt_report:
+    fail(
+        "show-repair-attempt report omitted artifact path: "
+        f"{client_mvp_loop_repair_attempt_report!r}"
+    )
+if "runtime_profiles: rust-xriq-codegen" not in client_mvp_loop_repair_attempt_report:
+    fail(
+        "show-repair-attempt report omitted runtime profiles: "
+        f"{client_mvp_loop_repair_attempt_report!r}"
+    )
+try:
+    client_mvp_loop_repair_attempt_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-repair-attempts",
+            str(artifact_dir),
+            "--ready-only",
+            "--limit",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-repair-attempts failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-repair-attempts timed out: {exc}")
+try:
+    client_mvp_loop_repair_attempt_list = json.loads(
+        client_mvp_loop_repair_attempt_list_output
+    )
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py list-repair-attempts returned invalid JSON: {exc}")
+attempt_artifacts = client_mvp_loop_repair_attempt_list.get("artifacts")
+if not isinstance(attempt_artifacts, list):
+    fail(
+        "list-repair-attempts did not return artifacts: "
+        f"{client_mvp_loop_repair_attempt_list!r}"
+    )
+if client_mvp_loop_repair_attempt_list.get("training_allowed") is not False:
+    fail(
+        "list-repair-attempts must keep training_allowed=false: "
+        f"{client_mvp_loop_repair_attempt_list!r}"
+    )
+if client_mvp_loop_repair_attempt_list.get("auto_applied") is not False:
+    fail(
+        "list-repair-attempts must keep auto_applied=false: "
+        f"{client_mvp_loop_repair_attempt_list!r}"
+    )
+matching_attempts = [
+    item
+    for item in attempt_artifacts
+    if isinstance(item, dict)
+    and item.get("path") == str(client_mvp_loop_repair_attempt_path)
+]
+if len(matching_attempts) != 1:
+    fail(
+        f"list-repair-attempts omitted {client_mvp_loop_repair_attempt_path}: "
+        f"{client_mvp_loop_repair_attempt_list!r}"
+    )
+if matching_attempts[0].get("runtime_profile_ids") != ["rust-xriq-codegen"]:
+    fail(
+        "list-repair-attempts omitted runtime profiles: "
+        f"{client_mvp_loop_repair_attempt_list!r}"
+    )
 
 client_mvp_loop_repair_apply_text = (
     client_mvp_loop_edit["new_text"].rstrip("\n") + " repair-plan-only\n"

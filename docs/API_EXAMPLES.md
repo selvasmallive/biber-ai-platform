@@ -473,6 +473,12 @@ python scripts/biber_agent_client.py attempt-repair \
   /workspace/outputs/biber-mvp-loop-repair.json \
   --max-tokens 700 \
   --output /workspace/outputs/biber-mvp-loop-repair-attempt.json
+python scripts/biber_agent_client.py show-repair-attempt \
+  /workspace/outputs/biber-mvp-loop-repair-attempt.json
+python scripts/biber_agent_client.py list-repair-attempts \
+  /workspace/outputs \
+  --ready-only \
+  --limit 10
 python scripts/biber_agent_client.py extract-repair-edits \
   /workspace/outputs/biber-mvp-loop-repair-attempt.json \
   --max-files 2 \

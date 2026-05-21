@@ -1039,6 +1039,100 @@ def normalize_repair_attempt_artifact(payload: Mapping[str, Any]) -> dict[str, A
     return None
 
 
+def repair_attempt_runtime_profile_ids(payload: Mapping[str, Any]) -> list[str] | None:
+    chat_request = require_mapping(payload.get("chat_request"))
+    repair_request = require_mapping(payload.get("repair_request"))
+    for source in (chat_request, repair_request, payload):
+        runtime_profile_ids = normalize_runtime_profile_ids(
+            source.get("runtime_profile_ids")
+        )
+        if runtime_profile_ids:
+            return runtime_profile_ids
+    return None
+
+
+def summarize_repair_attempt_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    model_response = require_mapping(payload.get("model_response"))
+    try:
+        modified_epoch = path.stat().st_mtime
+    except OSError:
+        modified_epoch = 0.0
+    summary: dict[str, Any] = {
+        "path": str(path),
+        "repair_status": payload.get("repair_status"),
+        "training_allowed": payload.get("training_allowed") is True,
+        "auto_applied": payload.get("auto_applied") is True,
+        "ready_for_edit_review": payload.get("ready_for_edit_review") is True,
+        "model": model_response.get("model"),
+        "mentor_used": model_response.get("mentor_used") is True,
+        "next_test_id": payload.get("next_test_id"),
+        "source_artifact": payload.get("source_artifact"),
+        "runtime_profile_ids": repair_attempt_runtime_profile_ids(payload) or [],
+        "modified_epoch": modified_epoch,
+    }
+    if payload.get("artifact_path"):
+        summary["artifact_path"] = payload.get("artifact_path")
+    return summary
+
+
+def list_repair_attempt_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    ready_only: bool = False,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            f"Repair attempt artifact directory does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            f"Repair attempt artifact path is not a directory: {root}"
+        )
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(str(path), label="repair-attempt artifact")
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_repair_attempt_artifact(raw_payload)
+        if normalized is None:
+            continue
+        summary = summarize_repair_attempt_artifact(path, normalized)
+        if ready_only and summary.get("ready_for_edit_review") is not True:
+            continue
+        artifacts.append(summary)
+
+    artifacts.sort(key=lambda item: float(item.get("modified_epoch") or 0.0), reverse=True)
+    ready_count = sum(
+        1 for item in artifacts if item.get("ready_for_edit_review") is True
+    )
+    return {
+        "source": "biber_mvp_loop_repair_attempt_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "ready_only": ready_only,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "ready_for_edit_review": ready_count,
+        "training_allowed": False,
+        "auto_applied": False,
+        "artifacts": artifacts[:limit],
+    }
+
+
 def extract_json_values_from_text(text: str, *, limit: int = 20) -> list[Any]:
     decoder = json.JSONDecoder()
     values: list[Any] = []
@@ -5490,21 +5584,64 @@ def format_mvp_loop_repair_request_summary(payload: Mapping[str, Any]) -> str:
 def format_mvp_loop_repair_attempt_summary(payload: Mapping[str, Any]) -> str:
     repair_request = require_mapping(payload.get("repair_request"))
     model_response = require_mapping(payload.get("model_response"))
-    return "\n".join(
-        [
-            "BIBER MVP loop repair attempt",
-            f"source_artifact: {payload.get('source_artifact', '-')}",
-            f"repair_status: {payload.get('repair_status', '-')}",
-            f"training_allowed: {payload.get('training_allowed', False)}",
-            f"auto_applied: {payload.get('auto_applied', False)}",
-            f"ready_for_edit_review: {payload.get('ready_for_edit_review', False)}",
-            f"model: {model_response.get('model', '-')}",
-            f"mentor_used: {model_response.get('mentor_used', False)}",
-            f"next_test_id: {payload.get('next_test_id') or '-'}",
-            f"repair_request_status: {repair_request.get('repair_status', '-')}",
-            f"artifact_path: {payload.get('artifact_path', '-')}",
-        ]
-    )
+    lines = [
+        "BIBER MVP loop repair attempt",
+        f"source_artifact: {payload.get('source_artifact', '-')}",
+        f"repair_status: {payload.get('repair_status', '-')}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"auto_applied: {payload.get('auto_applied', False)}",
+        f"ready_for_edit_review: {payload.get('ready_for_edit_review', False)}",
+        f"model: {model_response.get('model', '-')}",
+        f"mentor_used: {model_response.get('mentor_used', False)}",
+        f"next_test_id: {payload.get('next_test_id') or '-'}",
+        f"repair_request_status: {repair_request.get('repair_status', '-')}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    runtime_profile_ids = repair_attempt_runtime_profile_ids(payload)
+    if runtime_profile_ids:
+        lines.append(f"runtime_profiles: {', '.join(runtime_profile_ids)}")
+    repair_content = compact_text(payload.get("repair_content"), max_chars=240).strip()
+    if repair_content:
+        lines.append("repair_content_preview:")
+        lines.append(repair_content)
+    return "\n".join(lines)
+
+
+def format_repair_attempt_artifact_list_summary(payload: Mapping[str, Any]) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER repair attempt artifacts ({len(artifacts)})",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"ready_only: {payload.get('ready_only', False)}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"ready_for_edit_review: {payload.get('ready_for_edit_review', 0)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"auto_applied: {payload.get('auto_applied', False)}",
+    ]
+    for artifact in artifacts:
+        runtime_profiles = ", ".join(
+            str(item) for item in require_list(artifact.get("runtime_profile_ids"))
+        )
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"status={artifact.get('repair_status', '-')}",
+                    f"ready={artifact.get('ready_for_edit_review', False)}",
+                    f"model={artifact.get('model', '-')}",
+                    f"mentor_used={artifact.get('mentor_used', False)}",
+                    f"next_test_id={artifact.get('next_test_id') or '-'}",
+                    f"runtime_profiles={runtime_profiles or '-'}",
+                ]
+            )
+        )
+    return "\n".join(lines)
 
 
 def format_repair_edit_extraction_summary(payload: Mapping[str, Any]) -> str:
@@ -6871,6 +7008,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Only list saved loop artifacts where ok is false or the test failed.",
     )
 
+    show_repair_attempt = subparsers.add_parser(
+        "show-repair-attempt",
+        help=(
+            "Summarize a saved attempt-repair JSON artifact without resolving "
+            "API auth."
+        ),
+    )
+    show_repair_attempt.add_argument("artifact")
+
+    list_repair_attempts = subparsers.add_parser(
+        "list-repair-attempts",
+        help=(
+            "List saved attempt-repair JSON artifacts under a directory "
+            "without resolving API auth."
+        ),
+    )
+    list_repair_attempts.add_argument("directory")
+    list_repair_attempts.add_argument("--pattern", default="*repair-attempt*.json")
+    list_repair_attempts.add_argument("--limit", type=int, default=10)
+    list_repair_attempts.add_argument("--ready-only", action="store_true")
+
     export_mvp_failures = subparsers.add_parser(
         "export-mvp-failures",
         help="Export failed mvp-loop artifacts to a JSONL review queue.",
@@ -7448,6 +7606,30 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
             else format_mvp_loop_artifact_list_summary(artifacts)
+        )
+    if args.command == "show-repair-attempt":
+        artifact = load_json_artifact(args.artifact, label="repair-attempt artifact")
+        normalized = normalize_repair_attempt_artifact(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "repair-attempt artifact must contain a saved attempt-repair JSON object."
+            )
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_mvp_loop_repair_attempt_summary(normalized)
+        )
+    if args.command == "list-repair-attempts":
+        artifacts = list_repair_attempt_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            ready_only=args.ready_only,
+        )
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_attempt_artifact_list_summary(artifacts)
         )
     if args.command == "export-mvp-failures":
         export = export_mvp_loop_failures(
