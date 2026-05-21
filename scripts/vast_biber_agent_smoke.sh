@@ -4772,6 +4772,38 @@ if (
     != client_mvp_loop_repair_chain_training_pipeline
 ):
     fail("training pipeline status saved artifact differs from stdout JSON")
+try:
+    client_mvp_loop_repair_chain_training_pipeline_show = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "show-repair-chain-training-pipeline",
+            str(client_mvp_loop_repair_chain_training_pipeline_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py show-repair-chain-training-pipeline failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py show-repair-chain-training-pipeline timed out: {exc}")
+for expected in [
+    "BIBER repair-chain training pipeline status",
+    "training_pipeline_status: blocked",
+    "missing_or_blocked_step: baseline_ready_records",
+    "baseline_ready_records: 0",
+    "training_candidate_records: 0",
+    "ready_for_dataset_validation: False",
+    "hard_blockers: baseline_ready_records, no_baseline_ready_records, training_candidate_records, no_training_candidate_records, below_min_ready_records, dataset_validation_not_ready",
+    "training_allowed: False",
+    str(client_mvp_loop_repair_chain_training_pipeline_path),
+]:
+    if expected not in client_mvp_loop_repair_chain_training_pipeline_show:
+        fail(
+            "training pipeline show output missed "
+            f"{expected!r}: {client_mvp_loop_repair_chain_training_pipeline_show}"
+        )
 write_artifact(
     "agent-client-mvp-loop-repair-chain-training-pipeline-result.json",
     {

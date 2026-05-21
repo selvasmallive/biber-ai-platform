@@ -700,6 +700,8 @@ python scripts/biber_agent_client.py list-repair-chain-training-candidate-review
 python scripts/biber_agent_client.py review-repair-chain-training-pipeline \
   --artifact-dir /workspace/outputs/evals \
   --output /workspace/outputs/evals/biber-repair-chain-training-pipeline.json
+python scripts/biber_agent_client.py show-repair-chain-training-pipeline \
+  /workspace/outputs/evals/biber-repair-chain-training-pipeline.json
 python scripts/biber_agent_client.py list-repair-chain-training-pipelines \
   /workspace/outputs/evals \
   --limit 10

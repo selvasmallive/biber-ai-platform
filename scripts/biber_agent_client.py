@@ -7527,7 +7527,10 @@ def normalize_repair_chain_training_pipeline_status_artifact(
         and body.get("source")
         == "biber_mvp_loop_repair_chain_training_pipeline_status"
     ):
-        return dict(body)
+        normalized = dict(body)
+        if payload.get("output") and not normalized.get("artifact_path"):
+            normalized["artifact_path"] = payload.get("output")
+        return normalized
     return None
 
 
@@ -7548,7 +7551,7 @@ def summarize_repair_chain_training_pipeline_status_artifact(
         payload.get("ready_for_dataset_validation") is True
         or payload.get("training_pipeline_status") == "ready_for_dataset_validation"
     )
-    return {
+    summary: dict[str, Any] = {
         "path": str(path),
         "artifact_dir": payload.get("artifact_dir"),
         "training_pipeline_status": payload.get("training_pipeline_status"),
@@ -7568,6 +7571,9 @@ def summarize_repair_chain_training_pipeline_status_artifact(
         "approved_for_training": False,
         "modified_epoch": modified_epoch,
     }
+    if payload.get("artifact_path"):
+        summary["artifact_path"] = payload.get("artifact_path")
+    return summary
 
 
 def list_repair_chain_training_pipeline_statuses(
@@ -11260,6 +11266,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     review_repair_chain_training_pipeline_parser.add_argument("--output")
 
+    show_repair_chain_training_pipeline_parser = subparsers.add_parser(
+        "show-repair-chain-training-pipeline",
+        help=(
+            "Show a saved repair-chain training pipeline status artifact "
+            "without resolving API auth or starting training."
+        ),
+    )
+    show_repair_chain_training_pipeline_parser.add_argument("artifact")
+
     list_repair_chain_training_pipelines_parser = subparsers.add_parser(
         "list-repair-chain-training-pipelines",
         help=(
@@ -12314,6 +12329,25 @@ def run(args: argparse.Namespace) -> str:
         if args.output:
             review["artifact_path"] = str(Path(args.output))
             write_json_artifact(review, args.output)
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_training_pipeline_status_summary(review)
+        )
+    if args.command == "show-repair-chain-training-pipeline":
+        raw_payload = load_json_artifact(
+            args.artifact,
+            label="repair-chain training pipeline artifact",
+        )
+        review = normalize_repair_chain_training_pipeline_status_artifact(
+            raw_payload
+        )
+        if review is None:
+            raise BiberAgentClientError(
+                "Artifact is not a repair-chain training pipeline status."
+            )
+        if not review.get("artifact_path"):
+            review["artifact_path"] = str(Path(args.artifact))
         return (
             json.dumps(review, indent=2, sort_keys=True)
             if args.print_json

@@ -7497,6 +7497,84 @@ def test_run_review_repair_chain_training_pipeline_summarizes_blocked_gate(
     assert result["approved_for_training"] is False
 
 
+def test_run_show_repair_chain_training_pipeline_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "show-repair-chain-training-pipeline should not resolve an API key"
+        )
+
+    pipeline_path = tmp_path / "training-pipeline.json"
+    saved_path = tmp_path / "training-pipeline.saved.json"
+    pipeline_payload = {
+        "source": "biber_mvp_loop_repair_chain_training_pipeline_status",
+        "review_status": "training_pipeline_status_summary_only",
+        "training_pipeline_status": "blocked",
+        "missing_or_blocked_step": "baseline_ready_records",
+        "artifact_dir": str(tmp_path),
+        "baseline_ready_records": 0,
+        "readiness_baseline_ready_records": 0,
+        "training_gate_status": "blocked",
+        "ready_for_manual_training_dataset_review": False,
+        "training_candidate_records": 0,
+        "training_candidate_review_records": 0,
+        "ready_for_dataset_validation": False,
+        "hard_blockers": [
+            "baseline_ready_records",
+            "no_baseline_ready_records",
+            "training_candidate_records",
+            "no_training_candidate_records",
+            "below_min_ready_records",
+            "dataset_validation_not_ready",
+        ],
+        "eval_only": True,
+        "review_queue_only": True,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+    }
+    pipeline_path.write_text(
+        json.dumps(
+            {
+                "status": 0,
+                "body": pipeline_payload,
+                "output": str(saved_path),
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "show-repair-chain-training-pipeline",
+                str(pipeline_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["source"] == "biber_mvp_loop_repair_chain_training_pipeline_status"
+    assert result["artifact_path"] == str(saved_path)
+    assert result["training_pipeline_status"] == "blocked"
+    assert result["missing_or_blocked_step"] == "baseline_ready_records"
+    assert result["baseline_ready_records"] == 0
+    assert result["training_candidate_records"] == 0
+    assert result["training_candidate_review_records"] == 0
+    assert result["ready_for_dataset_validation"] is False
+    assert "no_baseline_ready_records" in result["hard_blockers"]
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+
+
 def test_run_list_repair_chain_training_pipelines_filters_ready_artifacts_without_api_key(
     monkeypatch,
     tmp_path: Path,
