@@ -394,9 +394,12 @@ serving the last broad-safe Rust/XRIQ adapter.
   `3e1a097 Add Vast runtime profile smoke`.
 - Latest Vast stable profile-baseline script commit pushed and Vast-verified:
   `3e44edc Add Vast profile baseline script`.
+- Latest BIBER MVP-loop runtime-profile carry-through commit pushed and
+  Vast-verified:
+  `abc836e Carry runtime profiles through MVP repairs`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `3e44edc`. Full Rust/private-devnet
+- Vast code verification is current through `abc836e`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -441,7 +444,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   current through `2c40099`; BIBER agent-client runtime-profile ID verification
   is current through `66a44f6`; Vast runtime-profile enabled smoke verification
   is current through `3e1a097`; Vast stable profile-baseline script
-  verification is current through `3e44edc`;
+  verification is current through `3e44edc`; BIBER agent-client MVP-loop
+  runtime-profile repair carry-through verification is current through
+  `abc836e`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -509,7 +514,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - `BIBER_RUNTIME_PROFILES_ENABLED=true`
-  - Vast code verification is current through `3e44edc`. If later docs-only
+  - Vast code verification is current through `abc836e`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
   - The user explicitly approved the separate Vast GPU repo-adaptation QLoRA
@@ -752,6 +757,26 @@ serving the last broad-safe Rust/XRIQ adapter.
     `adapter_promoted=false`. Current service remains stable on vLLM pid
     `84653`, FastAPI pid `85630`, and
     `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
+  - `abc836e` adds profile carry-through to the stdlib BIBER MVP loop. The
+    `mvp-loop` command now accepts `--runtime-profile-id`, validates requested
+    profile IDs against `/v1/agent/capabilities`, records them in the saved
+    loop artifact, includes them in failed-loop export records and
+    `prepare-repair` artifacts, and lets `attempt-repair` inherit them unless
+    the user passes replacement `--runtime-profile-id` values. `docs/API_EXAMPLES.md`
+    now shows the mvp-loop profile argument and notes the inheritance behavior.
+    `scripts/vast_biber_agent_smoke.sh` now verifies the saved loop artifact
+    and `show-mvp-loop` report preserve `rust-xriq-codegen`. Local verification
+    passed bundled-Python syntax compilation; local pytest was not available on
+    this workstation. Vast verification passed
+    `/workspace/biber-venv/bin/python -m py_compile scripts/biber_agent_client.py tests/test_biber_agent_client.py`,
+    focused pytest
+    `tests/test_biber_agent_client.py tests/test_runtime_profiles.py tests/test_agent_capabilities.py -q`
+    with `90 passed`, `bash -n scripts/vast_biber_agent_smoke.sh`, and live
+    `BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=64 bash scripts/vast_biber_agent_smoke.sh`.
+    Smoke artifact directory:
+    `/workspace/outputs/biber-agent-smoke-20260521T140446Z-87997`. No training
+    was started, no candidate adapter was reloaded, and no adapter was
+    promoted.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
@@ -6179,7 +6204,9 @@ bash scripts/xriq_private_devnet_smoke.sh
     failed `mvp-loop` artifact into a bounded local-model repair request with
     `training_allowed=false`, and `attempt-repair`, which sends that bounded
     request to the local BIBER model through `/v1/chat` with mentor disabled by
-    default and saves an inspectable proposal without applying edits. It also
+    default and saves an inspectable proposal without applying edits. `mvp-loop`
+    can now record runtime profile IDs and repair attempts inherit those
+    profiles unless explicitly overridden. It also
     has `extract-repair-edits`, which parses conservative JSON edit candidates
     from a repair-attempt artifact into a reviewable `plan-edit` payload while
     keeping `apply_allowed=false`, and `plan-repair-edits`, which sends that
