@@ -457,6 +457,10 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER repair-chain training pipeline artifact inspection commit
   pushed and Vast-verified:
   `83162d7 Add training pipeline show inspection`.
+- Latest controlled BIBER repair-chain baseline-candidate evidence directory
+  on Vast:
+  `/workspace/outputs/biber-baseline-candidate-20260521T190501Z-94473`.
+  This is baseline-ready evidence only, not a training approval.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
 - Vast code verification is current through `83162d7`. Full Rust/private-devnet
@@ -2246,6 +2250,53 @@ serving the last broad-safe Rust/XRIQ adapter.
     offline inspection evidence only; it does not create training data, approve
     model promotion, save to GitHub, rotate credentials, or approve public XRIQ
     work.
+  - Controlled baseline-candidate evidence was created on Vast at
+    `/workspace/outputs/biber-baseline-candidate-20260521T190501Z-94473` from
+    the passing smoke held-out eval review
+    `/workspace/outputs/biber-agent-smoke-20260521T185344Z-94191/agent-client-mvp-loop-repair-chain-heldout-eval-review.json`.
+    The held-out eval review had `records=1`, `passed_records=1`,
+    `expectation_failed_records=0`, `error_records=0`, `ok=true`, and all
+    training/promotion/GitHub flags false. A controlled Codex review recorded
+    `accept_for_baseline`, exported one held-out baseline candidate, then
+    recorded `approve_as_baseline` as baseline evidence only. Resulting
+    baseline decision review:
+    `/workspace/outputs/biber-baseline-candidate-20260521T190501Z-94473/agent-client-mvp-loop-repair-chain-heldout-baseline-decision-review.json`
+    with `records=1`, `approved_as_baseline_records=1`,
+    `baseline_candidate_ready_records=1`, `baseline_ready_records=1`, and
+    `training_allowed=false`.
+  - The controlled training-readiness artifact is
+    `/workspace/outputs/biber-baseline-candidate-20260521T190501Z-94473/agent-client-mvp-loop-repair-chain-training-readiness.json`.
+    It reports `review_status=baseline_ready_manual_training_review_required`,
+    `training_gate_status=manual_review_required`,
+    `baseline_ready_records=1`, `ready_for_manual_training_dataset_review=true`,
+    `hard_blockers=[]`, `training_allowed=false`, `safe_to_train=false`, and
+    `approved_for_training=false`. This moved the controlled evidence path
+    past the previous `no_baseline_ready_records` blocker, but still does not
+    authorize training.
+  - The controlled training-candidate queue is
+    `/workspace/outputs/biber-baseline-candidate-20260521T190501Z-94473/agent-client-mvp-loop-repair-chain-training-candidates.jsonl`.
+    It contains one human-review-only candidate row with empty `output`,
+    `quality=needs_review`, and `review_required=true`. The candidate review
+    artifact
+    `/workspace/outputs/biber-baseline-candidate-20260521T190501Z-94473/agent-client-mvp-loop-repair-chain-training-candidate-review.json`
+    reports `records=1`, `pending_review_records=1`, `reviewed_records=0`,
+    `empty_output_records=1`, `unreviewed_quality_records=1`,
+    `ready_for_dataset_validation=false`, and
+    `hard_blockers=["candidate_outputs_missing","candidate_quality_not_reviewed","below_min_ready_records"]`.
+  - The controlled training-pipeline artifact is
+    `/workspace/outputs/biber-baseline-candidate-20260521T190501Z-94473/agent-client-mvp-loop-repair-chain-training-pipeline.json`.
+    It reports `training_pipeline_status=blocked`,
+    `missing_or_blocked_step=candidate_outputs_missing`,
+    `baseline_ready_records=1`, `training_gate_status=manual_review_required`,
+    `training_candidate_records=1`, `training_candidate_review_records=1`,
+    `ready_for_manual_training_dataset_review=true`,
+    `ready_for_dataset_validation=false`,
+    `hard_blockers=["candidate_outputs_missing","candidate_quality_not_reviewed","below_min_ready_records","dataset_validation_not_ready"]`,
+    and all training/promotion/GitHub flags false. Next narrow step is manual
+    training-candidate review: fill the candidate `output` with a verified
+    answer only if it is actually useful, set `quality` to `reviewed` or
+    `verified`, rerun candidate review and dataset validation, and still
+    require explicit user approval before any Vast training job.
   - The `a045c63` repair-chain held-out baseline decision review checkpoint
     required no service restart because it changed only the stdlib agent
     client, smoke script, and tests. vLLM stayed on pid `5802`; FastAPI stayed
@@ -7323,9 +7374,12 @@ bash scripts/xriq_private_devnet_smoke.sh
    candidate-review artifacts offline before any training-pipeline or dataset
    validation decision.
    `review-repair-chain-training-pipeline` then summarizes the standard
-   artifacts in a single output directory and points to the next blocked step;
-   the current Vast smoke reports `baseline_ready_records` as the blocker, so
-   no training should start yet.
+   artifacts in a single output directory and points to the next blocked step.
+   The latest standard Vast smoke still reports `baseline_ready_records` as the
+   blocker, while the controlled baseline-candidate evidence directory
+   `/workspace/outputs/biber-baseline-candidate-20260521T190501Z-94473`
+   reports `baseline_ready_records=1` and is now blocked at
+   `candidate_outputs_missing`, so no training should start yet.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
@@ -7384,11 +7438,11 @@ bash scripts/xriq_private_devnet_smoke.sh
    `list-repair-chain-training-candidate-reviews`, then run
    `review-repair-chain-training-pipeline`, then inspect the saved pipeline
    status artifact with `show-repair-chain-training-pipeline`, then run
-   `list-repair-chain-training-pipelines`, then
-   manually
-   review repeated passed repairs into verified eval candidates only after a
-   real repo eval produces repeatable gaps. There is now a repeated
-   repo-adaptation failure-review artifact with four review-only candidates at
+   `list-repair-chain-training-pipelines`, then manually fill and review the
+   training-candidate `output` only for genuinely useful evidence, rerun
+   `review-repair-chain-training-candidates`, validate a reviewed dataset, and
+   require explicit user approval before any Vast training job. There is now a
+   repeated repo-adaptation failure-review artifact with four review-only candidates at
    `/workspace/outputs/evals/repo-adapt-repeat-20260520T142227Z-70388.repeat-training-candidates.jsonl`.
    Those four rows have been manually reviewed into
    `/workspace/outputs/evals/repo-adapt-repeat-20260520T142227Z-70388.reviewed-candidates.jsonl`,
