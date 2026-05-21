@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-05-20
+Last updated: 2026-05-21
 
 ## Current Goal
 
@@ -380,9 +380,16 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest profiled regression eval path commits pushed and Vast-verified:
   `e428d7b Add profiled regression eval path` and
   `426f602 Refine Rust profile for next height`.
+- Latest BIBER runtime-profile contract commits pushed and Vast-verified:
+  `cf4b621 Add BIBER runtime profile contract` and
+  `6fd6f1a Mirror runtime profiles in live app`.
+- Latest Vast API-only restart helper and capability-smoke commits pushed and
+  Vast-verified:
+  `2a4b713 Add Vast API-only restart helper` and
+  `2c40099 Check agent capabilities in Vast smoke`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `426f602`. Full Rust/private-devnet
+- Vast code verification is current through `2c40099`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -422,7 +429,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   anti-regression review helper verification is current through `08fdd59`;
   repo-adaptation training-outcome review helper verification is current
   through `77837d2`; profiled regression eval path verification is current
-  through `426f602`;
+  through `426f602`; BIBER runtime-profile contract verification is current
+  through `6fd6f1a`; Vast API-only restart and enhanced smoke verification is
+  current through `2c40099`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -485,11 +494,11 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Current agent-session artifact directory:
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
-  - vLLM pid: `77494`
-  - FastAPI pid: `77817`
+  - vLLM pid: `84653`
+  - FastAPI pid: `85189`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
-  - Vast code verification is current through `608252b`. If later docs-only
+  - Vast code verification is current through `2c40099`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
   - The user explicitly approved the separate Vast GPU repo-adaptation QLoRA
@@ -650,6 +659,21 @@ serving the last broad-safe Rust/XRIQ adapter.
     This does not promote or change serving. Treat it as eligible only if the
     API error-response profile and expanded Rust/XRIQ profile are accepted as
     part of the BIBER runtime/eval contract.
+  - `cf4b621` and `6fd6f1a` codify that profile contract as an opt-in runtime
+    feature in both `src/biber_api` and the live `app` server path. Requests can
+    include `runtime_profile_ids` with `api-error-response` and/or
+    `rust-xriq-codegen`, but the server injects them only when
+    `BIBER_RUNTIME_PROFILES_ENABLED=true`. The current live server keeps this
+    disabled by default, so stable model behavior is unchanged.
+  - `2a4b713` adds `scripts/vast_restart_api_direct.sh`, which restarts only
+    FastAPI and leaves the vLLM/GPU model process running. `2c40099` extends
+    `scripts/vast_test_direct.sh` to smoke-test `/v1/agent/capabilities`.
+    Vast verification passed `bash -n scripts/vast_restart_api_direct.sh`,
+    `bash -n scripts/vast_test_direct.sh`, focused pytest
+    `tests/test_runtime_profiles.py tests/test_agent_capabilities.py tests/test_repo_context.py tests/test_openai_mentor_trigger.py -q`
+    with `20 passed`, and live `bash scripts/vast_test_direct.sh`. The live
+    capability smoke reported runtime profiles available, `enabled=false`, and
+    the XRIQ preset requesting `["rust-xriq-codegen"]`.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
@@ -5972,10 +5996,12 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-Current immediate next step: do not train again. Decide whether the API
-error-response profile and expanded Rust/XRIQ codegen profile should become
-part of the BIBER runtime/eval contract. If yes, ask the user for explicit
-promotion approval using
+Current immediate next step: do not train again. The API error-response and
+Rust/XRIQ codegen profiles are now codified as opt-in runtime profiles, exposed
+through `/v1/agent/capabilities`, and disabled by default with
+`BIBER_RUNTIME_PROFILES_ENABLED=false`. Next, decide whether to enable that
+profile contract for live inference and ask the user for explicit promotion
+approval using
 `/workspace/outputs/evals/profiled-antireg-candidate-20260521T0315Z/profiled-candidate-promotion-review.json`.
 Do not promote from a generic "continue"; serving must remain on
 `/workspace/adapters/biber-dev-core-lora-rust-xriq-400` unless the user
@@ -6001,9 +6027,10 @@ BIBER_LORA_ADAPTER_DIR=/workspace/adapters/biber-dev-core-lora-rust-xriq-400 \
 bash scripts/vast_test_direct.sh
 ```
 
-4. Treat the Rust/XRIQ ledger codegen profile as the current low-cost path for
-   this narrow model gap. It is already Vast-verified at `7/7` cargo validators
-   and applies only to `rust_xriq_apply_ledger_transaction` by default.
+4. Treat the opt-in runtime profiles as the current low-cost path for this
+   narrow model gap. They are available through `runtime_profile_ids` but are
+   injected only when `BIBER_RUNTIME_PROFILES_ENABLED=true`. Do not enable them
+   or promote the profiled candidate without explicit user approval.
 5. If a future Rust/XRIQ eval regresses, prefer a deterministic repair loop
    before GPU training: run `cargo fmt`, `cargo check`, and targeted tests,
    feed the concise compiler/test failure back to the local model, and save
