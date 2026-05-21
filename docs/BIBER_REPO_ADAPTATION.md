@@ -276,3 +276,27 @@ python training/repo_adaptation_training_outcome_review.py \
 If the review reports `training_strategy_blocked`, stop training and change the
 prompt/profile/eval contract or dataset strategy first. Keep serving the stable
 adapter until broad and Rust/XRIQ gates both pass.
+
+## Profile Before More Training
+
+Before another QLoRA run, test whether prompt profiles solve the persistent
+gaps at inference time. The broad eval wrapper accepts optional prompt-prefix
+settings:
+
+```bash
+BIBER_EVAL_PROMPT_PREFIX=training/api_error_response_profile.txt \
+BIBER_EVAL_PROMPT_PREFIX_IDS=api_error_shape,api_rate_limit_error_shape,api_missing_key_error_shape \
+  bash scripts/vast_eval_lora_direct.sh
+```
+
+For Rust/XRIQ, extend `BIBER_RUST_XRIQ_PROMPT_PREFIX_IDS` when testing whether
+the Rust codegen profile fixes non-ledger validator failures:
+
+```bash
+BIBER_RUST_XRIQ_PROMPT_PREFIX_IDS=rust_xriq_validate_transaction,rust_xriq_fee_calculation,rust_xriq_next_height,rust_xriq_apply_ledger_transaction \
+  BIBER_EVAL_FAIL_ON_VALIDATORS=0 \
+  bash scripts/vast_eval_rust_xriq_direct.sh
+```
+
+Treat this as an experiment unless the candidate is also checked by the normal
+promotion review and the stable adapter remains healthy.

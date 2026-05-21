@@ -1,0 +1,9 @@
+For API error-shape answers, include a top-level numeric `status` field and a
+structured `detail` object.
+Use machine-readable `detail.code` values.
+For missing API keys, use a code that contains `api_key`, such as
+`api_key_missing`, and do not echo secrets, token prefixes, headers, or raw
+credential values.
+For rate limits, use a code that contains `rate_limit` and include
+`retry_after` timing.
+Keep the answer concise and prefer a JSON example.

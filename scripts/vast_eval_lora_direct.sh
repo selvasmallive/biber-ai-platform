@@ -10,6 +10,8 @@ ensure_runtime_dirs
 [ -x "${VENV_DIR}/bin/python" ] || die "Virtualenv not found at ${VENV_DIR}. Run scripts/vast_bootstrap_direct.sh first."
 
 PROMPTS="${BIBER_EVAL_PROMPTS:-training/eval_prompts.jsonl}"
+PROMPT_PREFIX="${BIBER_EVAL_PROMPT_PREFIX:-}"
+PROMPT_PREFIX_IDS="${BIBER_EVAL_PROMPT_PREFIX_IDS:-}"
 EVAL_OUTPUT_DIR="${BIBER_EVAL_OUTPUT_DIR:-${BIBER_RUNTIME_ROOT}/outputs/evals}"
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUTPUT_JSONL="${BIBER_EVAL_OUTPUT_JSONL:-${EVAL_OUTPUT_DIR}/biber-dev-core-lora-${TIMESTAMP}.jsonl}"
@@ -22,9 +24,20 @@ fi
 
 mkdir -p "$EVAL_OUTPUT_DIR"
 
+PROMPT_PREFIX_ARGS=()
+if [ -n "$PROMPT_PREFIX" ]; then
+  PROMPT_PREFIX_ARGS+=(--prompt-prefix-file "$PROMPT_PREFIX")
+  if [ -n "$PROMPT_PREFIX_IDS" ]; then
+    for prompt_id in ${PROMPT_PREFIX_IDS//,/ }; do
+      PROMPT_PREFIX_ARGS+=(--prompt-prefix-id "$prompt_id")
+    done
+  fi
+fi
+
 log "Running live BIBER LoRA eval"
 "${VENV_DIR}/bin/python" training/live_model_eval.py \
   --prompts "$PROMPTS" \
+  "${PROMPT_PREFIX_ARGS[@]}" \
   --base-url "http://127.0.0.1:${BIBER_API_PORT}" \
   --api-key "$API_KEY" \
   --output "$OUTPUT_JSONL" \
