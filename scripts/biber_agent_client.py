@@ -6594,6 +6594,189 @@ def review_repair_chain_training_readiness(
     }
 
 
+def normalize_repair_chain_training_readiness_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_repair_chain_training_readiness_review":
+        return dict(payload)
+    body = payload.get("body")
+    if (
+        isinstance(body, dict)
+        and body.get("source") == "biber_mvp_loop_repair_chain_training_readiness_review"
+    ):
+        normalized = dict(body)
+        if payload.get("output") and not normalized.get("artifact_path"):
+            normalized["artifact_path"] = payload.get("output")
+        return normalized
+    return None
+
+
+def summarize_repair_chain_training_readiness_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    hard_blockers = [
+        str(item)
+        for item in require_list(payload.get("hard_blockers"))
+        if item
+    ]
+    ready_groups = [
+        item
+        for item in require_list(payload.get("baseline_ready_groups"))
+        if isinstance(item, dict)
+    ]
+    try:
+        modified_epoch = path.stat().st_mtime
+    except OSError:
+        modified_epoch = 0.0
+    summary: dict[str, Any] = {
+        "path": str(path),
+        "review_status": payload.get("review_status"),
+        "training_gate_status": payload.get("training_gate_status"),
+        "review_artifacts": int_count(payload.get("review_artifacts")),
+        "supported_review_artifacts": int_count(
+            payload.get("supported_review_artifacts")
+        ),
+        "rejected_artifacts": int_count(payload.get("rejected_artifacts")),
+        "min_baseline_ready": int_count(payload.get("min_baseline_ready")) or 1,
+        "records": int_count(payload.get("records")),
+        "approved_as_baseline_records": int_count(
+            payload.get("approved_as_baseline_records")
+        ),
+        "baseline_candidate_ready_records": int_count(
+            payload.get("baseline_candidate_ready_records")
+        ),
+        "baseline_ready_records": int_count(payload.get("baseline_ready_records")),
+        "requires_baseline_review_records": int_count(
+            payload.get("requires_baseline_review_records")
+        ),
+        "baseline_ready_groups": len(ready_groups),
+        "hard_blockers": hard_blockers,
+        "ready_for_manual_training_dataset_review": (
+            payload.get("ready_for_manual_training_dataset_review") is True
+        ),
+        "eval_only": payload.get("eval_only") is True,
+        "training_allowed": payload.get("training_allowed") is True,
+        "eligible_for_training": payload.get("eligible_for_training") is True,
+        "safe_to_train": payload.get("safe_to_train") is True,
+        "github_save_ready": payload.get("github_save_ready") is True,
+        "approved_for_training": payload.get("approved_for_training") is True,
+        "auto_promoted": payload.get("auto_promoted") is True,
+        "review_paths": [
+            str(item)
+            for item in require_list(payload.get("review_paths"))
+            if isinstance(item, str)
+        ],
+        "modified_epoch": modified_epoch,
+    }
+    if payload.get("artifact_path"):
+        summary["artifact_path"] = payload.get("artifact_path")
+    return summary
+
+
+def list_repair_chain_training_readiness_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    ready_only: bool = False,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            "Repair-chain training readiness artifact directory does not exist: "
+            f"{root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            "Repair-chain training readiness artifact path is not a directory: "
+            f"{root}"
+        )
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="repair-chain training readiness artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_repair_chain_training_readiness_artifact(raw_payload)
+        if normalized is None:
+            continue
+        summary = summarize_repair_chain_training_readiness_artifact(
+            path,
+            normalized,
+        )
+        if ready_only and summary.get("ready_for_manual_training_dataset_review") is not True:
+            continue
+        artifacts.append(summary)
+
+    artifacts.sort(
+        key=lambda item: float(item.get("modified_epoch") or 0.0),
+        reverse=True,
+    )
+    return {
+        "source": "biber_mvp_loop_repair_chain_training_readiness_review_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "ready_only": ready_only,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "review_artifacts": sum(
+            int_count(item.get("review_artifacts")) for item in artifacts
+        ),
+        "supported_review_artifacts": sum(
+            int_count(item.get("supported_review_artifacts"))
+            for item in artifacts
+        ),
+        "rejected_artifacts": sum(
+            int_count(item.get("rejected_artifacts")) for item in artifacts
+        ),
+        "records": sum(int_count(item.get("records")) for item in artifacts),
+        "approved_as_baseline_records": sum(
+            int_count(item.get("approved_as_baseline_records"))
+            for item in artifacts
+        ),
+        "baseline_candidate_ready_records": sum(
+            int_count(item.get("baseline_candidate_ready_records"))
+            for item in artifacts
+        ),
+        "baseline_ready_records": sum(
+            int_count(item.get("baseline_ready_records")) for item in artifacts
+        ),
+        "requires_baseline_review_records": sum(
+            int_count(item.get("requires_baseline_review_records"))
+            for item in artifacts
+        ),
+        "ready_for_manual_training_dataset_review_records": sum(
+            1
+            for item in artifacts
+            if item.get("ready_for_manual_training_dataset_review") is True
+        ),
+        "blocked_records": sum(
+            1
+            for item in artifacts
+            if item.get("training_gate_status") == "blocked"
+        ),
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "artifacts": artifacts[:limit],
+    }
+
+
 def build_repair_chain_training_candidate_record(
     *,
     readiness_path: str,
@@ -9302,6 +9485,73 @@ def format_repair_chain_training_readiness_summary(
     return "\n".join(lines)
 
 
+def format_repair_chain_training_readiness_artifact_list_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER repair-chain training readiness artifacts ({len(artifacts)})",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"ready_only: {payload.get('ready_only', False)}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"review_artifacts: {payload.get('review_artifacts', 0)}",
+        f"supported_review_artifacts: {payload.get('supported_review_artifacts', 0)}",
+        f"rejected_artifacts: {payload.get('rejected_artifacts', 0)}",
+        f"records: {payload.get('records', 0)}",
+        f"approved_as_baseline_records: {payload.get('approved_as_baseline_records', 0)}",
+        (
+            "baseline_candidate_ready_records: "
+            f"{payload.get('baseline_candidate_ready_records', 0)}"
+        ),
+        f"baseline_ready_records: {payload.get('baseline_ready_records', 0)}",
+        (
+            "requires_baseline_review_records: "
+            f"{payload.get('requires_baseline_review_records', 0)}"
+        ),
+        (
+            "ready_for_manual_training_dataset_review_records: "
+            f"{payload.get('ready_for_manual_training_dataset_review_records', 0)}"
+        ),
+        f"blocked_records: {payload.get('blocked_records', 0)}",
+        f"eval_only: {payload.get('eval_only', True)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"github_save_ready: {payload.get('github_save_ready', False)}",
+        f"approved_for_training: {payload.get('approved_for_training', False)}",
+    ]
+    for artifact in artifacts:
+        hard_blockers = [
+            str(item)
+            for item in require_list(artifact.get("hard_blockers"))
+            if item
+        ]
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"status={artifact.get('review_status', '-')}",
+                    f"gate={artifact.get('training_gate_status', '-')}",
+                    f"baseline_ready={artifact.get('baseline_ready_records', 0)}",
+                    (
+                        "manual_review_ready="
+                        f"{artifact.get('ready_for_manual_training_dataset_review', False)}"
+                    ),
+                    (
+                        "hard_blockers="
+                        f"{','.join(hard_blockers) if hard_blockers else '-'}"
+                    ),
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_repair_chain_training_candidate_export_summary(
     payload: Mapping[str, Any],
 ) -> str:
@@ -10671,6 +10921,37 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     review_repair_chain_training_readiness_parser.add_argument("--output")
 
+    show_repair_chain_training_readiness_parser = subparsers.add_parser(
+        "show-repair-chain-training-readiness",
+        help=(
+            "Show a repair-chain training readiness artifact without starting "
+            "training."
+        ),
+    )
+    show_repair_chain_training_readiness_parser.add_argument("artifact")
+
+    list_repair_chain_training_readiness_parser = subparsers.add_parser(
+        "list-repair-chain-training-readiness",
+        help=(
+            "List repair-chain training readiness artifacts without starting "
+            "training."
+        ),
+    )
+    list_repair_chain_training_readiness_parser.add_argument("directory")
+    list_repair_chain_training_readiness_parser.add_argument(
+        "--pattern",
+        default="*training-readiness*.json",
+    )
+    list_repair_chain_training_readiness_parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+    )
+    list_repair_chain_training_readiness_parser.add_argument(
+        "--ready-only",
+        action="store_true",
+    )
+
     export_repair_chain_training_candidates_parser = subparsers.add_parser(
         "export-repair-chain-training-candidates",
         help=(
@@ -11678,6 +11959,37 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(review, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_chain_training_readiness_summary(review)
+        )
+    if args.command == "show-repair-chain-training-readiness":
+        raw_payload = load_json_artifact(
+            args.artifact,
+            label="repair-chain training readiness artifact",
+        )
+        review = normalize_repair_chain_training_readiness_artifact(raw_payload)
+        if review is None:
+            raise BiberAgentClientError(
+                "Artifact is not a repair-chain training readiness review."
+            )
+        if not review.get("artifact_path"):
+            review["artifact_path"] = str(Path(args.artifact))
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_training_readiness_summary(review)
+        )
+    if args.command == "list-repair-chain-training-readiness":
+        artifacts = list_repair_chain_training_readiness_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            ready_only=args.ready_only,
+        )
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_training_readiness_artifact_list_summary(
+                artifacts
+            )
         )
     if args.command == "export-repair-chain-training-candidates":
         export = export_repair_chain_training_candidates(

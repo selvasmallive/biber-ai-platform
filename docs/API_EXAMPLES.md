@@ -678,6 +678,14 @@ python scripts/biber_agent_client.py show-repair-chain-heldout-baseline-decision
 python scripts/biber_agent_client.py list-repair-chain-heldout-baseline-decision-reviews \
   /workspace/outputs/evals \
   --limit 10
+python scripts/biber_agent_client.py review-repair-chain-training-readiness \
+  /workspace/outputs/evals/biber-repair-chain-heldout-baseline-decision-review.json \
+  --output /workspace/outputs/evals/biber-repair-chain-training-readiness.json
+python scripts/biber_agent_client.py show-repair-chain-training-readiness \
+  /workspace/outputs/evals/biber-repair-chain-training-readiness.json
+python scripts/biber_agent_client.py list-repair-chain-training-readiness \
+  /workspace/outputs/evals \
+  --limit 10
 ```
 
 If `mvp-loop` is started with `--runtime-profile-id`, failed-loop repair

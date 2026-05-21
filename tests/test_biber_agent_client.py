@@ -6730,6 +6730,194 @@ def test_run_review_repair_chain_training_readiness_marks_manual_review_ready(
     assert result["approved_for_training"] is False
 
 
+def test_run_show_repair_chain_training_readiness_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "show-repair-chain-training-readiness should not resolve an API key"
+        )
+
+    readiness_path = tmp_path / "training-readiness.json"
+    readiness_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_training_readiness_review",
+                "review_status": "baseline_ready_manual_training_review_required",
+                "training_gate_status": "manual_review_required",
+                "review_artifacts": 1,
+                "supported_review_artifacts": 1,
+                "rejected_artifacts": 0,
+                "min_baseline_ready": 2,
+                "records": 2,
+                "approved_as_baseline_records": 2,
+                "baseline_candidate_ready_records": 2,
+                "baseline_ready_records": 2,
+                "requires_baseline_review_records": 0,
+                "baseline_ready_groups": [
+                    {
+                        "decision": "approve_as_baseline",
+                        "count": 2,
+                        "heldout_eval_result_ids": ["result-a", "result-b"],
+                    }
+                ],
+                "hard_blockers": [],
+                "required_manual_actions": ["human_training_dataset_review"],
+                "ready_for_manual_training_dataset_review": True,
+                "eval_only": True,
+                "training_allowed": False,
+                "eligible_for_training": False,
+                "safe_to_train": False,
+                "github_save_ready": False,
+                "approved_for_training": False,
+                "auto_promoted": False,
+                "review_paths": ["heldout-baseline-decision-review.json"],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "show-repair-chain-training-readiness",
+                str(readiness_path),
+            ]
+        )
+    )
+
+    assert "BIBER repair-chain training readiness review" in output
+    assert "review_status: baseline_ready_manual_training_review_required" in output
+    assert "training_gate_status: manual_review_required" in output
+    assert "baseline_ready_records: 2" in output
+    assert "approved_as_baseline_records: 2" in output
+    assert "ready_for_manual_training_dataset_review: True" in output
+    assert "hard_blockers: -" in output
+    assert "eval_only: True" in output
+    assert "training_allowed: False" in output
+    assert "safe_to_train: False" in output
+    assert "github_save_ready: False" in output
+    assert "approved_for_training: False" in output
+    assert f"artifact_path: {readiness_path}" in output
+
+
+def test_run_list_repair_chain_training_readiness_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "list-repair-chain-training-readiness should not resolve an API key"
+        )
+
+    ready_artifact = tmp_path / "training-readiness-ready.json"
+    blocked_artifact = tmp_path / "training-readiness-blocked.json"
+    wrapped_artifact = tmp_path / "agent-client-mvp-loop-repair-chain-training-readiness-result.json"
+    ready_review = {
+        "source": "biber_mvp_loop_repair_chain_training_readiness_review",
+        "review_status": "baseline_ready_manual_training_review_required",
+        "training_gate_status": "manual_review_required",
+        "review_artifacts": 1,
+        "supported_review_artifacts": 1,
+        "rejected_artifacts": 0,
+        "min_baseline_ready": 2,
+        "records": 2,
+        "approved_as_baseline_records": 2,
+        "baseline_candidate_ready_records": 2,
+        "baseline_ready_records": 2,
+        "requires_baseline_review_records": 0,
+        "baseline_ready_groups": [
+            {
+                "decision": "approve_as_baseline",
+                "count": 2,
+                "heldout_eval_result_ids": ["result-a", "result-b"],
+            }
+        ],
+        "hard_blockers": [],
+        "required_manual_actions": ["human_training_dataset_review"],
+        "ready_for_manual_training_dataset_review": True,
+        "eval_only": True,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "auto_promoted": False,
+        "review_paths": ["heldout-baseline-decision-review.json"],
+    }
+    blocked_review = {
+        **ready_review,
+        "review_status": "training_blocked",
+        "training_gate_status": "blocked",
+        "records": 0,
+        "approved_as_baseline_records": 0,
+        "baseline_candidate_ready_records": 0,
+        "baseline_ready_records": 0,
+        "baseline_ready_groups": [],
+        "hard_blockers": ["no_baseline_ready_records"],
+        "ready_for_manual_training_dataset_review": False,
+    }
+    wrapped_artifact.write_text(
+        json.dumps(
+            {
+                "status": 0,
+                "body": ready_review,
+                "output": str(ready_artifact),
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    blocked_artifact.write_text(
+        json.dumps(blocked_review, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "list-repair-chain-training-readiness",
+                str(tmp_path),
+                "--ready-only",
+                "--limit",
+                "5",
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["source"] == "biber_mvp_loop_repair_chain_training_readiness_review_list"
+    assert result["ready_only"] is True
+    assert result["matched"] == 1
+    assert result["review_artifacts"] == 1
+    assert result["supported_review_artifacts"] == 1
+    assert result["rejected_artifacts"] == 0
+    assert result["records"] == 2
+    assert result["approved_as_baseline_records"] == 2
+    assert result["baseline_candidate_ready_records"] == 2
+    assert result["baseline_ready_records"] == 2
+    assert result["requires_baseline_review_records"] == 0
+    assert result["ready_for_manual_training_dataset_review_records"] == 1
+    assert result["blocked_records"] == 0
+    assert result["eval_only"] is True
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
+    assert result["approved_for_training"] is False
+    assert len(result["artifacts"]) == 1
+    assert result["artifacts"][0]["path"] == str(wrapped_artifact)
+    assert result["artifacts"][0]["artifact_path"] == str(ready_artifact)
+    assert result["artifacts"][0]["baseline_ready_records"] == 2
+    assert result["artifacts"][0]["ready_for_manual_training_dataset_review"] is True
+
+
 def test_run_export_repair_chain_training_candidates_blocks_unready_gate(
     monkeypatch,
     tmp_path: Path,
