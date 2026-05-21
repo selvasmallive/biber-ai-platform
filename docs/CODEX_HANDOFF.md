@@ -399,9 +399,13 @@ serving the last broad-safe Rust/XRIQ adapter.
   `abc836e Carry runtime profiles through MVP repairs`.
 - Latest BIBER prepared repair-attempt commit pushed and Vast-verified:
   `1a1b9aa Allow prepared repair attempts`.
+- Latest BIBER repair-attempt artifact inspection commits pushed and
+  Vast-verified:
+  `3a689d8 Add repair attempt artifact inspection` and
+  `593d035 Preserve runtime profile in repair smoke fixture`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `1a1b9aa`. Full Rust/private-devnet
+- Vast code verification is current through `593d035`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -449,7 +453,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   verification is current through `3e44edc`; BIBER agent-client MVP-loop
   runtime-profile repair carry-through verification is current through
   `abc836e`; BIBER prepared repair-attempt verification is current through
-  `1a1b9aa`;
+  `1a1b9aa`; BIBER repair-attempt artifact inspection verification is current
+  through `593d035`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -467,7 +472,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   failure-export verification is current through `ef0cd5e`; BIBER
   agent-client repair-request helper verification is current through
   `2e7a405`; BIBER agent-client local-model repair-attempt verification is
-  current through `8b2d200`; BIBER agent-client repair-edit extraction
+  current through `8b2d200`; BIBER agent-client repair-attempt artifact
+  inspection verification is current through `593d035`; BIBER agent-client
+  repair-edit extraction
   verification is current through `c9ec3d7`; BIBER agent-client repair-edit
   planning verification is current through `4c7aea5`; BIBER agent-client
   guarded repair-edit apply verification is current through `cfed893`;
@@ -798,6 +805,29 @@ serving the last broad-safe Rust/XRIQ adapter.
     `/workspace/outputs/biber-agent-smoke-20260521T141417Z-88172`. No training
     was started, no candidate adapter was reloaded, and no adapter was
     promoted.
+  - `3a689d8` adds offline repair-attempt artifact inspection to the stdlib
+    client: `show-repair-attempt` summarizes saved `attempt-repair` JSON
+    without resolving API auth, and `list-repair-attempts` scans an output
+    directory for saved attempt artifacts with an optional `--ready-only`
+    filter. `docs/API_EXAMPLES.md` now places both commands between
+    `attempt-repair` and `extract-repair-edits`. `593d035` tightens the Vast
+    smoke fixture so the synthetic failed loop preserves `rust-xriq-codegen`
+    through `prepare-repair`, `attempt-repair`, `show-repair-attempt`, and
+    `list-repair-attempts`. Local verification passed bundled-Python syntax
+    compilation and an offline command smoke; local pytest was not available on
+    this workstation, and local `bash` could not run because WSL has no
+    installed distro. Vast verification passed
+    `/workspace/biber-venv/bin/python -m py_compile /workspace/biber-ai-platform/scripts/biber_agent_client.py /workspace/biber-ai-platform/tests/test_biber_agent_client.py`,
+    focused pytest with absolute paths and `PYTHONPATH=/workspace/biber-ai-platform`
+    for
+    `tests/test_biber_agent_client.py tests/test_runtime_profiles.py tests/test_agent_capabilities.py -q`
+    with `94 passed`, `bash -n /workspace/biber-ai-platform/scripts/vast_biber_agent_smoke.sh`,
+    and live
+    `cd /workspace/biber-ai-platform; BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=64 bash scripts/vast_biber_agent_smoke.sh`.
+    Smoke artifact directory:
+    `/workspace/outputs/biber-agent-smoke-20260521T143304Z-88594`. The final
+    Vast checkout was `593d035`. No training was started, no candidate adapter
+    was reloaded, and no adapter was promoted.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
@@ -6120,12 +6150,15 @@ tail -f /workspace/biber-logs/vllm.log
 
 ## Recommended Next Steps
 
-Current immediate next step: do not train again and do not promote from a
-generic "continue". The API error-response and Rust/XRIQ codegen profiles are
-now enabled on the live Vast API, exposed through `/v1/agent/capabilities`, and
-the stable served adapter has passed the profile-enabled client/eval baseline.
-Next, either continue narrow BIBER MVP client workflow work on top of the
-stable adapter, or ask the user for explicit candidate-promotion approval using
+Current immediate next step: continue narrow BIBER MVP client workflow work on
+top of the stable adapter, starting from the offline repair-attempt inspection
+path if repair artifacts need review: `show-repair-attempt`,
+`list-repair-attempts`, then `extract-repair-edits`. Do not train again and do
+not promote from a generic "continue". The API error-response and Rust/XRIQ
+codegen profiles are enabled on the live Vast API, exposed through
+`/v1/agent/capabilities`, and the stable served adapter has passed the
+profile-enabled client/eval baseline. If model promotion is desired, ask the
+user for explicit candidate-promotion approval using
 `/workspace/outputs/evals/profiled-antireg-candidate-20260521T0315Z/profiled-candidate-promotion-review.json`.
 Serving must remain on `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`
 unless the user explicitly approves candidate promotion.
