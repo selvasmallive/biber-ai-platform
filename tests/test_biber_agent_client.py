@@ -3300,6 +3300,9 @@ def test_run_record_ready_repair_chain_decision_writes_jsonl_without_api_key(
     assert rows[0]["review_status"] == "human_defer"
     assert rows[0]["reviewer"] == "human-reviewer"
     assert rows[0]["notes"] == "Needs target repo confirmation."
+    assert rows[0]["evidence_source_type"] == "real_repo_candidate"
+    assert rows[0]["evidence_source_ok_for_eval"] is True
+    assert rows[0]["evidence_source_reasons"] == []
     assert rows[0]["training_allowed"] is False
     assert rows[0]["eligible_for_training"] is False
     assert rows[0]["safe_to_train"] is False
@@ -3645,6 +3648,7 @@ def test_run_export_ready_repair_chain_eval_candidates_without_api_key(
     assert result["records"] == 1
     assert result["skipped_records"] == 1
     assert result["rejected_records"] == 1
+    assert result["blocked_non_real_repo_records"] == 0
     assert result["eval_candidates"] == 1
     assert result["eval_dataset_ready"] is False
     assert result["requires_dataset_review"] is True
@@ -3661,6 +3665,9 @@ def test_run_export_ready_repair_chain_eval_candidates_without_api_key(
     assert rows[0]["requires_dataset_review"] is True
     assert rows[0]["decision"] == "approve_for_eval"
     assert rows[0]["reviewer"] == "human-reviewer"
+    assert rows[0]["evidence_source_type"] == "real_repo_candidate"
+    assert rows[0]["evidence_source_ok_for_eval"] is True
+    assert rows[0]["evidence_source_reasons"] == []
     assert rows[0]["training_allowed"] is False
     assert rows[0]["eligible_for_training"] is False
     assert rows[0]["safe_to_train"] is False
@@ -3668,6 +3675,79 @@ def test_run_export_ready_repair_chain_eval_candidates_without_api_key(
     assert rows[0]["approved_for_training"] is False
     assert rows[0]["source_artifact"] == "repair-chain.json"
     assert rows[0]["artifacts"]["verification"] == "repair-verification.json"
+
+
+def test_run_export_ready_repair_chain_eval_candidates_blocks_fixture_evidence(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "export-ready-repair-chain-eval-candidates should not resolve an API key"
+        )
+
+    jsonl_path = tmp_path / "fixture-repair-chain-decisions.jsonl"
+    output_path = tmp_path / "fixture-repair-chain-eval-candidates.jsonl"
+    records = [
+        {
+            "source": "biber_mvp_loop_repair_chain_decision",
+            "decision_status": "recorded",
+            "decision": "approve_for_eval",
+            "review_status": "human_approve_for_eval",
+            "reviewer": "human-reviewer",
+            "notes": "Accidentally approved disposable fixture evidence.",
+            "training_allowed": False,
+            "eligible_for_training": False,
+            "safe_to_train": False,
+            "github_save_ready": False,
+            "approved_for_eval": True,
+            "approved_for_training": False,
+            "source_artifact": (
+                "/workspace/outputs/biber-real-repair-fixture-20260521T192710Z-94786/"
+                "agent-client-mvp-loop-real-fixture-repair-chain.json"
+            ),
+            "plan_hash": "e" * 64,
+            "test_id": "python-compileall-api",
+            "chain": {"chain_status": "ready_for_human_review"},
+            "artifacts": {
+                "verification": (
+                    "/workspace/outputs/biber-real-repair-fixture-20260521T192710Z-94786/"
+                    "agent-client-mvp-loop-real-fixture-repair-test-verification.json"
+                )
+            },
+        }
+    ]
+    jsonl_path.write_text(
+        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "export-ready-repair-chain-eval-candidates",
+                str(jsonl_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["records"] == 0
+    assert result["skipped_records"] == 1
+    assert result["blocked_non_real_repo_records"] == 1
+    assert output_path.read_text(encoding="utf-8") == ""
+    assert result["skipped"][0]["reason"] == "non_real_repo_evidence"
+    assert result["skipped"][0]["evidence_source_type"] == "fixture_or_smoke"
+    assert result["skipped"][0]["evidence_source_reasons"] == [
+        "disposable_fixture_artifact"
+    ]
+    assert result["training_allowed"] is False
+    assert result["safe_to_train"] is False
+    assert result["github_save_ready"] is False
 
 
 def test_run_review_ready_repair_chain_eval_candidates_without_api_key(

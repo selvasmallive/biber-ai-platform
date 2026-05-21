@@ -575,7 +575,9 @@ python scripts/biber_agent_client.py list-ready-repair-chain-decision-reviews \
   --decision defer \
   --limit 10
 # Only run the eval-candidate export for decision rows approved with
-# --decision approve_for_eval.
+# --decision approve_for_eval. The export also blocks known fixture/smoke
+# evidence, even if it was accidentally approved, so held-out evals come from
+# real repo repair-chain evidence.
 python scripts/biber_agent_client.py export-ready-repair-chain-eval-candidates \
   /workspace/outputs/biber-mvp-loop-ready-repair-chain-decisions.jsonl \
   --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-candidates.jsonl

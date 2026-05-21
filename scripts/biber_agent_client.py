@@ -703,6 +703,54 @@ def compact_text(value: object, *, max_chars: int = 2000) -> str:
     return text[-max_chars:]
 
 
+NON_REAL_REPAIR_EVIDENCE_MARKERS = {
+    "biber-real-repair-fixture": "disposable_fixture_artifact",
+    "agent-client-mvp-loop-smoke": "smoke_artifact",
+    "biber-agent-smoke": "smoke_artifact",
+    "biber-baseline-candidate": "controlled_baseline_artifact",
+    "smoke metadata": "smoke_metadata",
+    "smoke-only": "smoke_only_artifact",
+}
+
+
+def classify_repair_chain_evidence_source(record: Mapping[str, Any]) -> dict[str, Any]:
+    values: list[str] = []
+
+    def collect(value: object) -> None:
+        if isinstance(value, str):
+            values.append(value.lower())
+        elif isinstance(value, Mapping):
+            for nested_value in value.values():
+                collect(nested_value)
+        elif isinstance(value, list | tuple):
+            for nested_value in value:
+                collect(nested_value)
+
+    collect(
+        {
+            "source_artifact": record.get("source_artifact"),
+            "jsonl_path": record.get("jsonl_path"),
+            "decision_jsonl_path": record.get("decision_jsonl_path"),
+            "notes": record.get("notes"),
+            "artifacts": record.get("artifacts"),
+        }
+    )
+    joined = "\n".join(values)
+    reasons = [
+        reason
+        for marker, reason in NON_REAL_REPAIR_EVIDENCE_MARKERS.items()
+        if marker in joined
+    ]
+    reasons = sorted(set(reasons))
+    return {
+        "evidence_source_type": (
+            "fixture_or_smoke" if reasons else "real_repo_candidate"
+        ),
+        "evidence_source_ok_for_eval": not reasons,
+        "evidence_source_reasons": reasons,
+    }
+
+
 def normalize_mvp_loop_artifact(payload: Mapping[str, Any]) -> dict[str, Any] | None:
     if isinstance(payload.get("steps"), dict):
         return dict(payload)
@@ -2524,11 +2572,18 @@ def build_repair_chain_review_record(
     artifacts = payload.get("artifacts")
     if not isinstance(artifacts, dict):
         artifacts = {}
+    provenance = classify_repair_chain_evidence_source(
+        {
+            "source_artifact": str(path),
+            "artifacts": artifacts,
+        }
+    )
     return {
         "source": "biber_mvp_loop_repair_chain_review",
         "repair_loop_version": payload.get("repair_loop_version"),
         "review_status": "needs_human_review",
         "quality": "needs_review",
+        **provenance,
         "training_allowed": False,
         "eligible_for_training": False,
         "safe_to_train": False,
@@ -2827,6 +2882,7 @@ def build_ready_repair_chain_decision_record(
     artifacts = record.get("artifacts")
     if not isinstance(artifacts, dict):
         artifacts = {}
+    provenance = classify_repair_chain_evidence_source(record)
     return {
         "source": "biber_mvp_loop_repair_chain_decision",
         "decision_status": "recorded",
@@ -2834,6 +2890,7 @@ def build_ready_repair_chain_decision_record(
         "review_status": f"human_{decision}",
         "reviewer": reviewer,
         "notes": notes,
+        **provenance,
         "training_allowed": False,
         "eligible_for_training": False,
         "safe_to_train": False,
@@ -3176,12 +3233,14 @@ def build_ready_repair_chain_eval_candidate_record(
     artifacts = record.get("artifacts")
     if not isinstance(artifacts, dict):
         artifacts = {}
+    provenance = classify_repair_chain_evidence_source(record)
     return {
         "source": "biber_mvp_loop_repair_chain_eval_candidate",
         "eval_candidate": True,
         "eval_status": "candidate_needs_dataset_review",
         "requires_dataset_review": True,
         "eval_dataset_ready": False,
+        **provenance,
         "decision": "approve_for_eval",
         "decision_status": record.get("decision_status"),
         "reviewer": record.get("reviewer"),
@@ -3244,6 +3303,23 @@ def export_ready_repair_chain_eval_candidates(
                     }
                 )
                 continue
+            provenance = classify_repair_chain_evidence_source(row)
+            if provenance.get("evidence_source_ok_for_eval") is not True:
+                skipped.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "reason": "non_real_repo_evidence",
+                        "decision": row.get("decision"),
+                        "evidence_source_type": provenance.get(
+                            "evidence_source_type"
+                        ),
+                        "evidence_source_reasons": provenance.get(
+                            "evidence_source_reasons"
+                        ),
+                    }
+                )
+                continue
             if len(records) >= limit:
                 continue
             records.append(
@@ -3260,6 +3336,9 @@ def export_ready_repair_chain_eval_candidates(
         "records": len(records),
         "skipped_records": len(skipped),
         "rejected_records": len(rejected),
+        "blocked_non_real_repo_records": sum(
+            1 for item in skipped if item.get("reason") == "non_real_repo_evidence"
+        ),
         "output": output,
         "eval_candidates": len(records),
         "eval_dataset_ready": False,
@@ -8693,6 +8772,10 @@ def format_ready_repair_chain_eval_candidate_export_summary(
             f"records: {payload.get('records', 0)}",
             f"skipped_records: {payload.get('skipped_records', 0)}",
             f"rejected_records: {payload.get('rejected_records', 0)}",
+            (
+                "blocked_non_real_repo_records: "
+                f"{payload.get('blocked_non_real_repo_records', 0)}"
+            ),
             f"output: {payload.get('output', '-')}",
             f"eval_candidates: {payload.get('eval_candidates', 0)}",
             f"eval_dataset_ready: {payload.get('eval_dataset_ready', False)}",

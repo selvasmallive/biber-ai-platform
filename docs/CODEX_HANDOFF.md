@@ -7406,6 +7406,13 @@ bash scripts/xriq_private_devnet_smoke.sh
    this fixture validates plumbing only and must not be approved for eval,
    GitHub save, or training. The temporary API process was stopped and the live
    API/vLLM service was not changed.
+   Follow-up hardening added a client-side provenance guard to
+   `export-ready-repair-chain-eval-candidates`: known disposable fixture,
+   smoke, and controlled-baseline artifact paths are classified as
+   `fixture_or_smoke` and skipped with `reason=non_real_repo_evidence`, even
+   if someone accidentally records `approve_for_eval`. Real repo evidence is
+   still classified as `real_repo_candidate`. This keeps fixture/smoke plumbing
+   checks from flowing into held-out evals or future training queues.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
