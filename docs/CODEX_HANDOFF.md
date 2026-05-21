@@ -392,9 +392,11 @@ serving the last broad-safe Rust/XRIQ adapter.
   `66a44f6 Add runtime profile IDs to BIBER client`.
 - Latest Vast runtime-profile enabled smoke commit pushed and Vast-verified:
   `3e1a097 Add Vast runtime profile smoke`.
+- Latest Vast stable profile-baseline script commit pushed and Vast-verified:
+  `3e44edc Add Vast profile baseline script`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `3e1a097`. Full Rust/private-devnet
+- Vast code verification is current through `3e44edc`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -438,7 +440,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   through `6fd6f1a`; Vast API-only restart and enhanced smoke verification is
   current through `2c40099`; BIBER agent-client runtime-profile ID verification
   is current through `66a44f6`; Vast runtime-profile enabled smoke verification
-  is current through `3e1a097`;
+  is current through `3e1a097`; Vast stable profile-baseline script
+  verification is current through `3e44edc`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -506,7 +509,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - `BIBER_RUNTIME_PROFILES_ENABLED=true`
-  - Vast code verification is current through `3e1a097`. If later docs-only
+  - Vast code verification is current through `3e44edc`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
   - The user explicitly approved the separate Vast GPU repo-adaptation QLoRA
@@ -734,6 +737,21 @@ serving the last broad-safe Rust/XRIQ adapter.
     Current service remains stable: vLLM pid `84653`, FastAPI pid `85630`,
     served LoRA root `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`,
     and `BIBER_RUNTIME_PROFILES_ENABLED=true`.
+  - `3e44edc` adds `scripts/vast_profile_baseline_direct.sh` and documents it
+    in `docs/API_EXAMPLES.md`. This wraps the stable runtime-profile smoke,
+    broad API-profile eval, and Rust/XRIQ cargo-validator eval into one
+    repeatable Vast command. Vast verification passed
+    `bash -n scripts/vast_profile_baseline_direct.sh` and live
+    `bash scripts/vast_profile_baseline_direct.sh`. Artifact directory:
+    `/workspace/outputs/profile-baseline-20260521T135337Z-86922`. Combined
+    summary:
+    `/workspace/outputs/profile-baseline-20260521T135337Z-86922/profile-baseline.summary.json`
+    with `broad_ok=true`, `broad_expectation_ok=18`,
+    `rust_xriq_ok=true`, `rust_xriq_validation_ok=7`,
+    `training_started=false`, `candidate_reloaded=false`, and
+    `adapter_promoted=false`. Current service remains stable on vLLM pid
+    `84653`, FastAPI pid `85630`, and
+    `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
@@ -6088,8 +6106,11 @@ bash scripts/vast_test_direct.sh
 
 4. Treat runtime profiles as the current low-cost path for this narrow model
    gap. They are now enabled live with `BIBER_RUNTIME_PROFILES_ENABLED=true`;
-   verify with `bash scripts/vast_runtime_profile_smoke.sh` after API restarts.
-   Do not promote the profiled candidate without explicit user approval.
+   verify with `bash scripts/vast_runtime_profile_smoke.sh` after API restarts,
+   or run the full stable baseline with
+   `bash scripts/vast_profile_baseline_direct.sh` after serving or profile
+   contract changes. Do not promote the profiled candidate without explicit
+   user approval.
 5. If a future Rust/XRIQ eval regresses, prefer a deterministic repair loop
    before GPU training: run `cargo fmt`, `cargo check`, and targeted tests,
    feed the concise compiler/test failure back to the local model, and save
