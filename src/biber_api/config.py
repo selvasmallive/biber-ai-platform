@@ -57,6 +57,7 @@ class BiberSettings:
     azure_storage_connection_string: str | None
     azure_blob_container: str
     default_model: str = "biber-dev-core-v1"
+    runtime_profiles_enabled: bool = False
     repo_context_root: str = "."
     agent_session_dir: str = ""
     repo_context_max_files: int = 12
@@ -99,6 +100,10 @@ def get_settings() -> BiberSettings:
         azure_storage_connection_string=os.getenv("AZURE_STORAGE_CONNECTION_STRING") or None,
         azure_blob_container=os.getenv("AZURE_BLOB_CONTAINER", "biber-backups"),
         default_model=os.getenv("BIBER_DEFAULT_MODEL", "biber-dev-core-v1"),
+        runtime_profiles_enabled=_bool(
+            os.getenv("BIBER_RUNTIME_PROFILES_ENABLED"),
+            default=False,
+        ),
         repo_context_root=repo_context_root,
         agent_session_dir=_default_agent_session_dir(repo_context_root),
         repo_context_max_files=int(os.getenv("BIBER_REPO_CONTEXT_MAX_FILES", "12")),

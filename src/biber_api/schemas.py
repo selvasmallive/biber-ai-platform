@@ -32,6 +32,7 @@ class ChatRequest(BaseModel):
     max_tokens: int | None = Field(default=None, gt=0, le=32000)
     use_mentor: bool = True
     repo_context_paths: list[str] = Field(default_factory=list, max_length=12)
+    runtime_profile_ids: list[str] = Field(default_factory=list, max_length=4)
     save_to_github: GitHubSaveTarget | None = None
     backup_to_azure: bool = False
 
@@ -254,6 +255,7 @@ class AgentSessionRequest(BaseModel):
     max_tokens: int | None = Field(default=512, gt=0, le=32000)
     use_mentor: bool = False
     repo_context_paths: list[str] = Field(default_factory=list, max_length=12)
+    runtime_profile_ids: list[str] = Field(default_factory=list, max_length=4)
     include_xriq_context: bool = False
     xriq_explorer_limit: int = Field(default=5, ge=1, le=25)
     xriq_snapshot_limit: int = Field(default=5, ge=1, le=25)

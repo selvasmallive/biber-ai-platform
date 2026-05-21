@@ -74,6 +74,13 @@ def test_agent_capabilities_describes_client_workflows(tmp_path: Path) -> None:
     assert body["features"]["test_runner"]["failure_diagnosis_supported"] is True
     assert "dotnet" in body["features"]["test_runner"]["diagnosis_stacks"]
     assert body["features"]["openai_mentor"]["configured"] is False
+    assert body["features"]["runtime_profiles"]["enabled"] is False
+    profile_ids = {
+        profile["id"]
+        for profile in body["features"]["runtime_profiles"]["available_profiles"]
+    }
+    assert "api-error-response" in profile_ids
+    assert "rust-xriq-codegen" in profile_ids
     assert body["features"]["xriq_private_devnet"]["context_supported"] is True
     test_ids = {
         command["test_id"]
@@ -88,6 +95,7 @@ def test_agent_capabilities_describes_client_workflows(tmp_path: Path) -> None:
     presets = {preset["id"]: preset for preset in body["presets"]}
     xriq_template = presets["xriq_private_devnet_review"]["request_template"]
     assert xriq_template["language"] == "Rust"
+    assert xriq_template["runtime_profile_ids"] == ["rust-xriq-codegen"]
     assert xriq_template["include_xriq_context"] is True
     assert xriq_template["test_id"] == "python-compileall-api"
     assert body["safety"]["arbitrary_shell_commands"] is False

@@ -13,6 +13,7 @@ from .model_registry import (
     OPENAI_COMPATIBLE_CHAT,
 )
 from .repo_context import build_repo_context_message
+from .runtime_profiles import build_runtime_profiles_prompt
 from .schemas import ChatMessage, ChatRequest
 
 
@@ -265,6 +266,10 @@ class BiberChatService:
             system_parts.append(f"Primary language/platform: {request.language}.")
         if repo_context:
             system_parts.append(repo_context)
+        if self._settings.runtime_profiles_enabled:
+            runtime_profiles = build_runtime_profiles_prompt(request.runtime_profile_ids)
+            if runtime_profiles:
+                system_parts.append(runtime_profiles)
         if mentor_notes:
             system_parts.append(f"Mentor guidance to consider:\n{mentor_notes}")
 

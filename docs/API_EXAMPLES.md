@@ -44,6 +44,40 @@ curl -X POST http://localhost:8000/v1/chat \
 applies file-count and byte limits and rejects `.env`, private-key-looking
 files, cache directories, and paths outside the configured repo context root.
 
+## Optional Runtime Profiles
+
+Runtime profiles are narrow prompt contracts for known model gaps. They are
+disabled unless the server sets `BIBER_RUNTIME_PROFILES_ENABLED=true`, and the
+client must still request specific profile IDs with `runtime_profile_ids`.
+
+Current profile IDs:
+
+- `api-error-response`: stable JSON-style API error response shape.
+- `rust-xriq-codegen`: Rust/XRIQ helper output shaped for rustfmt and
+  borrow-checker safety.
+
+```bash
+curl -X POST http://localhost:8000/v1/chat \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "language": "Rust",
+    "model": "biber-dev-core-v1",
+    "task_type": "xriq_private_devnet_review",
+    "runtime_profile_ids": ["rust-xriq-codegen"],
+    "messages": [
+      {
+        "role": "user",
+        "content": "Write a next_height(parent: &BlockHeader) helper."
+      }
+    ]
+}'
+```
+
+`GET /v1/agent/capabilities` exposes whether runtime profiles are enabled and
+which profile IDs the client can request. Keep these profiles opt-in until a
+candidate adapter is explicitly approved for promotion against profiled evals.
+
 ## Plan Repo Context
 
 Client tools can ask BIBER to select a safe starter context before creating a

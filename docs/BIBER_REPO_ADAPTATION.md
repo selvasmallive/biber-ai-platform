@@ -300,3 +300,18 @@ BIBER_RUST_XRIQ_PROMPT_PREFIX_IDS=rust_xriq_validate_transaction,rust_xriq_fee_c
 
 Treat this as an experiment unless the candidate is also checked by the normal
 promotion review and the stable adapter remains healthy.
+
+If the profiles prove useful, make the contract explicit before any promotion.
+The API now supports opt-in runtime profiles through `runtime_profile_ids`, but
+only when `BIBER_RUNTIME_PROFILES_ENABLED=true` is set server-side. The current
+IDs are:
+
+- `api-error-response`: API error answers with a top-level numeric `status` and
+  structured `detail`.
+- `rust-xriq-codegen`: Rust/XRIQ codegen output shaped for `cargo fmt` and
+  borrow-checker safety.
+
+Do not treat a profiled eval as promotion evidence unless the same profile IDs
+are part of the runtime/eval contract for the client path that will use the
+candidate. Keep stable serving unchanged until the user explicitly approves
+promotion from a passing promotion-review artifact.

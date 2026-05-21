@@ -31,6 +31,7 @@ from .repo_context import (
     list_repo_context_stack_profiles,
     plan_repo_context,
 )
+from .runtime_profiles import available_runtime_profiles
 from .schemas import (
     AgentSessionRequest,
     AgentSessionResponse,
@@ -215,6 +216,11 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
                 "configured": bool(settings.openai_api_key and settings.openai_model),
                 "trigger_phrase": MENTOR_TRIGGER_PHRASE,
             },
+            "runtime_profiles": {
+                "enabled": settings.runtime_profiles_enabled,
+                "request_field": "runtime_profile_ids",
+                "available_profiles": available_runtime_profiles(),
+            },
             "xriq_private_devnet": {
                 "context_supported": True,
                 "overview_endpoint": "GET /v1/xriq/private-devnet/overview",
@@ -234,6 +240,7 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
                     "task_type": "agent_session",
                     "use_mentor": False,
                     "repo_context_paths": [],
+                    "runtime_profile_ids": [],
                     "include_xriq_context": False,
                     "test_id": "python-compileall-api",
                 },
@@ -255,6 +262,7 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
                         "docs/XRIQ_TECHNICAL_SPEC.md",
                         "xriq/README.md",
                     ],
+                    "runtime_profile_ids": ["rust-xriq-codegen"],
                     "include_xriq_context": True,
                     "xriq_explorer_limit": 5,
                     "xriq_snapshot_limit": 5,
@@ -507,6 +515,7 @@ async def run_agent_session(
         max_tokens=request_body.max_tokens,
         use_mentor=request_body.use_mentor,
         repo_context_paths=request_body.repo_context_paths,
+        runtime_profile_ids=request_body.runtime_profile_ids,
     )
 
     try:
