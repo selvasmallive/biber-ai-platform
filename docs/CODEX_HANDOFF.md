@@ -397,9 +397,11 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP-loop runtime-profile carry-through commit pushed and
   Vast-verified:
   `abc836e Carry runtime profiles through MVP repairs`.
+- Latest BIBER prepared repair-attempt commit pushed and Vast-verified:
+  `1a1b9aa Allow prepared repair attempts`.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `abc836e`. Full Rust/private-devnet
+- Vast code verification is current through `1a1b9aa`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -446,7 +448,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   is current through `3e1a097`; Vast stable profile-baseline script
   verification is current through `3e44edc`; BIBER agent-client MVP-loop
   runtime-profile repair carry-through verification is current through
-  `abc836e`;
+  `abc836e`; BIBER prepared repair-attempt verification is current through
+  `1a1b9aa`;
   BIBER agent-client
   create-session smoke verification is current through `6317641`; BIBER
   agent-client session-history command verification is current through
@@ -514,7 +517,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - `BIBER_RUNTIME_PROFILES_ENABLED=true`
-  - Vast code verification is current through `abc836e`. If later docs-only
+  - Vast code verification is current through `1a1b9aa`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
   - The user explicitly approved the separate Vast GPU repo-adaptation QLoRA
@@ -775,6 +778,24 @@ serving the last broad-safe Rust/XRIQ adapter.
     `BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=64 bash scripts/vast_biber_agent_smoke.sh`.
     Smoke artifact directory:
     `/workspace/outputs/biber-agent-smoke-20260521T140446Z-87997`. No training
+    was started, no candidate adapter was reloaded, and no adapter was
+    promoted.
+  - `1a1b9aa` lets `attempt-repair` accept either the original failed
+    `mvp-loop` artifact or the prepared `prepare-repair` artifact. This keeps
+    the low-cost repair path cleaner: build and review the bounded repair
+    request once, then send that prepared artifact to the local BIBER model.
+    `docs/API_EXAMPLES.md` now shows `attempt-repair` consuming
+    `/workspace/outputs/biber-mvp-loop-repair.json`, and
+    `scripts/vast_biber_agent_smoke.sh` verifies this prepared-artifact path.
+    Local verification passed bundled-Python syntax compilation; local pytest
+    was not available on this workstation. Vast verification passed
+    `/workspace/biber-venv/bin/python -m py_compile scripts/biber_agent_client.py tests/test_biber_agent_client.py`,
+    focused pytest
+    `tests/test_biber_agent_client.py tests/test_runtime_profiles.py tests/test_agent_capabilities.py -q`
+    with `91 passed`, `bash -n scripts/vast_biber_agent_smoke.sh`, and live
+    `BIBER_AGENT_SMOKE_CLIENT_REPAIR_MAX_TOKENS=64 bash scripts/vast_biber_agent_smoke.sh`.
+    Smoke artifact directory:
+    `/workspace/outputs/biber-agent-smoke-20260521T141417Z-88172`. No training
     was started, no candidate adapter was reloaded, and no adapter was
     promoted.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
@@ -6204,9 +6225,11 @@ bash scripts/xriq_private_devnet_smoke.sh
     failed `mvp-loop` artifact into a bounded local-model repair request with
     `training_allowed=false`, and `attempt-repair`, which sends that bounded
     request to the local BIBER model through `/v1/chat` with mentor disabled by
-    default and saves an inspectable proposal without applying edits. `mvp-loop`
-    can now record runtime profile IDs and repair attempts inherit those
-    profiles unless explicitly overridden. It also
+    default and saves an inspectable proposal without applying edits.
+    `attempt-repair` now accepts either the original failed `mvp-loop` artifact
+    or the prepared `prepare-repair` artifact. `mvp-loop` can now record
+    runtime profile IDs and repair attempts inherit those profiles unless
+    explicitly overridden. It also
     has `extract-repair-edits`, which parses conservative JSON edit candidates
     from a repair-attempt artifact into a reviewable `plan-edit` payload while
     keeping `apply_allowed=false`, and `plan-repair-edits`, which sends that
