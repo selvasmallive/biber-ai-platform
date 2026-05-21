@@ -42,6 +42,7 @@ from app.repo_context import (
     list_repo_context_stack_profiles,
     plan_repo_context,
 )
+from app.runtime_profiles import available_runtime_profiles
 from app.scheduler import scheduler
 from app.test_runner import (
     TestRunnerConfigurationError,
@@ -132,6 +133,7 @@ class ChatRequest(BaseModel):
     max_tokens: int | None = Field(default=None, gt=0, le=32000)
     use_mentor: bool = True
     repo_context_paths: list[str] = Field(default_factory=list, max_length=12)
+    runtime_profile_ids: list[str] = Field(default_factory=list, max_length=4)
     queue_only: bool = False
     save_to_github: GitHubSaveTargetRequest | None = None
     backup_to_azure: bool = False
@@ -372,6 +374,7 @@ class AgentSessionRequest(BaseModel):
     max_tokens: int | None = Field(default=512, gt=0, le=32000)
     use_mentor: bool = False
     repo_context_paths: list[str] = Field(default_factory=list, max_length=12)
+    runtime_profile_ids: list[str] = Field(default_factory=list, max_length=4)
     include_xriq_context: bool = False
     xriq_explorer_limit: int = Field(default=5, ge=1, le=25)
     xriq_snapshot_limit: int = Field(default=5, ge=1, le=25)
@@ -498,6 +501,11 @@ def _agent_capabilities() -> dict[str, object]:
                 "configured": bool(settings.openai_api_key and settings.openai_model),
                 "trigger_phrase": MENTOR_TRIGGER_PHRASE,
             },
+            "runtime_profiles": {
+                "enabled": settings.runtime_profiles_enabled,
+                "request_field": "runtime_profile_ids",
+                "available_profiles": available_runtime_profiles(),
+            },
             "xriq_private_devnet": {
                 "context_supported": True,
                 "overview_endpoint": "GET /v1/xriq/private-devnet/overview",
@@ -517,6 +525,7 @@ def _agent_capabilities() -> dict[str, object]:
                     "task_type": "agent_session",
                     "use_mentor": False,
                     "repo_context_paths": [],
+                    "runtime_profile_ids": [],
                     "include_xriq_context": False,
                     "test_id": "python-compileall-api",
                 },
@@ -538,6 +547,7 @@ def _agent_capabilities() -> dict[str, object]:
                         "docs/XRIQ_TECHNICAL_SPEC.md",
                         "xriq/README.md",
                     ],
+                    "runtime_profile_ids": ["rust-xriq-codegen"],
                     "include_xriq_context": True,
                     "xriq_explorer_limit": 5,
                     "xriq_snapshot_limit": 5,
@@ -758,6 +768,7 @@ async def run_agent_session(
             use_mentor=req.use_mentor,
             model=req.model,
             repo_context_paths=req.repo_context_paths,
+            runtime_profile_ids=req.runtime_profile_ids,
             temperature=req.temperature,
             max_tokens=req.max_tokens,
         )
@@ -927,6 +938,7 @@ async def chat(
             use_mentor=req.use_mentor,
             model=req.model,
             repo_context_paths=req.repo_context_paths,
+            runtime_profile_ids=req.runtime_profile_ids,
             temperature=req.temperature,
             max_tokens=req.max_tokens,
         )

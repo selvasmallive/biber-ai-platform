@@ -13,6 +13,7 @@ from app.model_registry import (
     OPENAI_COMPATIBLE_CHAT,
 )
 from app.repo_context import build_repo_context_message
+from app.runtime_profiles import build_runtime_profiles_prompt
 
 
 BIBER_SYSTEM_PROMPT = """You are biber-dev-core, BIBER's private software development model.
@@ -188,6 +189,7 @@ class BiberChatService:
         use_mentor: bool,
         model: str | None,
         repo_context_paths: list[str] | None,
+        runtime_profile_ids: list[str] | None,
         temperature: float,
         max_tokens: int | None,
     ) -> tuple[str, str | None, dict[str, Any], str]:
@@ -207,6 +209,7 @@ class BiberChatService:
             task_type=task_type,
             mentor_notes=None,
             repo_context=repo_context,
+            runtime_profile_ids=runtime_profile_ids or [],
         )
 
         if use_mentor and self._mentor and self._has_mentor_trigger(messages):
@@ -217,6 +220,7 @@ class BiberChatService:
                 task_type=task_type,
                 mentor_notes=mentor_notes,
                 repo_context=repo_context,
+                runtime_profile_ids=runtime_profile_ids or [],
             )
 
         result = await provider.chat(
@@ -275,6 +279,7 @@ class BiberChatService:
         task_type: str,
         mentor_notes: str | None,
         repo_context: str | None,
+        runtime_profile_ids: list[str],
     ) -> list[dict[str, str]]:
         system_parts = [
             BIBER_SYSTEM_PROMPT,
@@ -284,6 +289,10 @@ class BiberChatService:
             system_parts.append(f"Primary language/platform: {language}.")
         if repo_context:
             system_parts.append(repo_context)
+        if settings.runtime_profiles_enabled:
+            runtime_profiles = build_runtime_profiles_prompt(runtime_profile_ids)
+            if runtime_profiles:
+                system_parts.append(runtime_profiles)
         if mentor_notes:
             system_parts.append(f"Mentor guidance to consider:\n{mentor_notes}")
 

@@ -54,6 +54,10 @@ class Settings:
 
     default_model: str = os.getenv("BIBER_DEFAULT_MODEL", "biber-dev-core-v1")
     chat_mode: str = os.getenv("BIBER_CHAT_MODE", "infer")
+    runtime_profiles_enabled: bool = _bool(
+        os.getenv("BIBER_RUNTIME_PROFILES_ENABLED"),
+        default=False,
+    )
 
     local_model_base_url: str = os.getenv("BIBER_LOCAL_MODEL_BASE_URL", "http://localhost:8000/v1")
     local_model_name: str = os.getenv("BIBER_LOCAL_MODEL_NAME", "biber-dev-core")
