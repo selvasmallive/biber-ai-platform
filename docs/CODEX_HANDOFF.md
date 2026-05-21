@@ -714,6 +714,26 @@ serving the last broad-safe Rust/XRIQ adapter.
     `status` and `detail`, and `mentor_used=false` for all profile smoke calls.
     No training was started and no adapter was promoted; stable serving remains
     on `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`.
+  - Stable-adapter, profile-enabled baseline was run on Vast on 2026-05-21
+    without extra approval because it only used the already-served stable
+    adapter. Explicit approval is still required before any new training run,
+    candidate adapter reload, or candidate promotion. Verification command ran
+    `bash scripts/vast_status_direct.sh`, live
+    `bash scripts/vast_runtime_profile_smoke.sh`, broad eval with
+    `BIBER_EVAL_PROMPT_PREFIX=training/api_error_response_profile.txt` and
+    `BIBER_EVAL_PROMPT_PREFIX_IDS=api_error_shape,api_missing_key_error_shape,api_rate_limit_error_shape`,
+    and Rust/XRIQ eval with `BIBER_EVAL_FAIL_ON_VALIDATORS=1`. Results:
+    runtime smoke passed with artifact directory
+    `/workspace/outputs/runtime-profile-smoke-20260521T043719Z-85867`; broad
+    API-profile eval passed `18/18` responses and `18/18` expectation checks
+    with summary
+    `/workspace/outputs/evals/biber-dev-core-lora-20260521T043720Z.summary.json`;
+    Rust/XRIQ eval passed `7/7` responses, `7/7` expectation checks, and `7/7`
+    cargo validators with summary
+    `/workspace/outputs/evals/biber-dev-core-rust-xriq-20260521T043745Z.summary.json`.
+    Current service remains stable: vLLM pid `84653`, FastAPI pid `85630`,
+    served LoRA root `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`,
+    and `BIBER_RUNTIME_PROFILES_ENABLED=true`.
   - The `c38c0a7` candidate-review same-as-stable fast-fail guard checkpoint
     required no service restart because it changed only
     `scripts/vast_review_candidate_adapter_direct.sh` and docs. Vast
@@ -6039,9 +6059,9 @@ tail -f /workspace/biber-logs/vllm.log
 Current immediate next step: do not train again and do not promote from a
 generic "continue". The API error-response and Rust/XRIQ codegen profiles are
 now enabled on the live Vast API, exposed through `/v1/agent/capabilities`, and
-smoke-tested with `scripts/vast_runtime_profile_smoke.sh`. Next, use the stable
-served adapter plus runtime profiles for a short profile-enabled client/eval
-baseline, or ask the user for explicit candidate-promotion approval using
+the stable served adapter has passed the profile-enabled client/eval baseline.
+Next, either continue narrow BIBER MVP client workflow work on top of the
+stable adapter, or ask the user for explicit candidate-promotion approval using
 `/workspace/outputs/evals/profiled-antireg-candidate-20260521T0315Z/profiled-candidate-promotion-review.json`.
 Serving must remain on `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`
 unless the user explicitly approves candidate promotion.
