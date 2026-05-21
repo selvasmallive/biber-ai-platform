@@ -574,6 +574,20 @@ python scripts/biber_agent_client.py list-ready-repair-chain-decision-reviews \
   /workspace/outputs \
   --decision defer \
   --limit 10
+# Only run the eval-candidate export for decision rows approved with
+# --decision approve_for_eval.
+python scripts/biber_agent_client.py export-ready-repair-chain-eval-candidates \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chain-decisions.jsonl \
+  --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-candidates.jsonl
+python scripts/biber_agent_client.py review-ready-repair-chain-eval-candidates \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-candidates.jsonl \
+  --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-candidate-review.json
+python scripts/biber_agent_client.py show-ready-repair-chain-eval-candidate-review \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-candidate-review.json
+python scripts/biber_agent_client.py list-ready-repair-chain-eval-candidate-reviews \
+  /workspace/outputs \
+  --ready-only \
+  --limit 10
 ```
 
 If `mvp-loop` is started with `--runtime-profile-id`, failed-loop repair

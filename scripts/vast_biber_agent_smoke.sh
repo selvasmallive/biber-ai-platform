@@ -2757,6 +2757,93 @@ if (
     != client_mvp_loop_ready_repair_chain_eval_candidate_review
 ):
     fail("review-ready-repair-chain-eval-candidates output artifact did not match stdout JSON")
+try:
+    client_mvp_loop_ready_repair_chain_eval_candidate_review_show = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "show-ready-repair-chain-eval-candidate-review",
+            str(client_mvp_loop_ready_repair_chain_eval_candidate_review_path),
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py show-ready-repair-chain-eval-candidate-review failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py show-ready-repair-chain-eval-candidate-review timed out: {exc}")
+for expected_text in [
+    "BIBER ready repair-chain eval candidate review",
+    "ready_for_dataset_review: 1",
+    "eval_dataset_ready: False",
+    "training_allowed: False",
+    str(client_mvp_loop_ready_repair_chain_eval_candidate_review_path),
+]:
+    if expected_text not in client_mvp_loop_ready_repair_chain_eval_candidate_review_show:
+        fail(
+            "show-ready-repair-chain-eval-candidate-review summary missing "
+            f"{expected_text!r}: {client_mvp_loop_ready_repair_chain_eval_candidate_review_show}"
+        )
+try:
+    client_mvp_loop_ready_repair_chain_eval_candidate_review_list_output = subprocess.check_output(
+        [
+            sys.executable,
+            str(script_dir / "biber_agent_client.py"),
+            "--json",
+            "list-ready-repair-chain-eval-candidate-reviews",
+            str(client_mvp_loop_ready_repair_chain_eval_candidate_review_path.parent),
+            "--ready-only",
+            "--limit",
+            "5",
+        ],
+        env=client_env,
+        text=True,
+        timeout=60,
+    )
+except subprocess.CalledProcessError as exc:
+    fail(f"biber_agent_client.py list-ready-repair-chain-eval-candidate-reviews failed: {exc}")
+except subprocess.TimeoutExpired as exc:
+    fail(f"biber_agent_client.py list-ready-repair-chain-eval-candidate-reviews timed out: {exc}")
+try:
+    client_mvp_loop_ready_repair_chain_eval_candidate_review_list = json.loads(
+        client_mvp_loop_ready_repair_chain_eval_candidate_review_list_output
+    )
+except json.JSONDecodeError as exc:
+    fail(f"biber_agent_client.py list-ready-repair-chain-eval-candidate-reviews returned invalid JSON: {exc}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("records") != 1:
+    fail(f"list-ready-repair-chain-eval-candidate-reviews saw unexpected records: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("ready_for_dataset_review") != 1:
+    fail(f"list-ready-repair-chain-eval-candidate-reviews saw unexpected ready count: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("eval_dataset_ready") is not False:
+    fail(f"list-ready-repair-chain-eval-candidate-reviews must keep eval_dataset_ready=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("requires_dataset_review") is not True:
+    fail(f"list-ready-repair-chain-eval-candidate-reviews must require dataset review: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("training_allowed") is not False:
+    fail(f"list-ready-repair-chain-eval-candidate-reviews must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("safe_to_train") is not False:
+    fail(f"list-ready-repair-chain-eval-candidate-reviews must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("github_save_ready") is not False:
+    fail(f"list-ready-repair-chain-eval-candidate-reviews must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
+if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("approved_for_training") is not False:
+    fail(f"list-ready-repair-chain-eval-candidate-reviews must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
+client_mvp_loop_ready_repair_chain_eval_candidate_review_artifacts = (
+    client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("artifacts")
+)
+if not isinstance(client_mvp_loop_ready_repair_chain_eval_candidate_review_artifacts, list):
+    fail(f"list-ready-repair-chain-eval-candidate-reviews returned invalid artifacts: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
+matching_eval_candidate_review_artifacts = [
+    artifact
+    for artifact in client_mvp_loop_ready_repair_chain_eval_candidate_review_artifacts
+    if artifact.get("path") == str(client_mvp_loop_ready_repair_chain_eval_candidate_review_path)
+]
+if len(matching_eval_candidate_review_artifacts) != 1:
+    fail(f"list-ready-repair-chain-eval-candidate-reviews did not return the saved artifact once: {client_mvp_loop_ready_repair_chain_eval_candidate_review_artifacts!r}")
+matching_eval_candidate_review_artifact = matching_eval_candidate_review_artifacts[0]
+if matching_eval_candidate_review_artifact.get("ready_for_dataset_review") != 1:
+    fail(f"list-ready-repair-chain-eval-candidate-reviews artifact ready count was unexpected: {matching_eval_candidate_review_artifact!r}")
+if matching_eval_candidate_review_artifact.get("records") != 1:
+    fail(f"list-ready-repair-chain-eval-candidate-reviews artifact records were unexpected: {matching_eval_candidate_review_artifact!r}")
 write_artifact(
     "agent-client-mvp-loop-ready-repair-chain-eval-candidate-review-result.json",
     {
