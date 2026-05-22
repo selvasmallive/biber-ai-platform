@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-05-21
+Last updated: 2026-05-22
 
 ## Current Goal
 
@@ -87,7 +87,7 @@ the user changes the project scope.
 
 ## Immediate Resume State
 
-As of the latest 2026-05-21 checkpoint, the Vast.ai deployment is healthy and
+As of the latest 2026-05-22 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Latest BIBER API/XRIQ wrapper commits pushed and Vast-verified:
@@ -634,12 +634,12 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Current agent-session artifact directory:
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
-  - vLLM pid: `84653`
-  - FastAPI pid: `85630`
+  - vLLM pid: `97357`
+  - FastAPI pid: `97679`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - `BIBER_RUNTIME_PROFILES_ENABLED=true`
-  - Vast code verification is current through `83162d7`. If later docs-only
+  - Vast code verification is current through `29fa207`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
   - The user explicitly approved the separate Vast GPU repo-adaptation QLoRA
@@ -7440,10 +7440,53 @@ bash scripts/xriq_private_devnet_smoke.sh
    `ready_records=56`, `category_count=7`, required category counts
    `bash=5`, `markdown=8`, `python=22`, and `sql=3`, with
    `hard_blockers=[]`. It still keeps `training_allowed=false`,
-   `safe_to_train=false`, and `approved_for_training=false`. Do not start
-   training from this review unless the user explicitly approves this guarded
-   command:
+   `safe_to_train=false`, and `approved_for_training=false`. The user
+   explicitly approved this guarded command on 2026-05-22, and it has already
+   been run. Do not rerun it automatically:
    `BIBER_TRAIN_APPROVED=1 BIBER_TRAIN_DATASET=/workspace/data/repo_adaptation/reviewed_candidates.jsonl BIBER_TRAIN_OUTPUT_DIR=/workspace/adapters/biber-dev-core-repo-adapt-next-20260521T203547Z-95083 BIBER_TRAIN_SESSION=biber-repo-adapt-next-20260521T203547Z-95083 BIBER_TRAIN_MIN_RECORDS=50 bash scripts/vast_train_qlora_tmux.sh /workspace/data/repo_adaptation/reviewed_candidates.jsonl`.
+   Serving was stopped first to free GPU memory, then the QLoRA run completed
+   successfully on Vast with `56` records, `7` steps, `train_loss=2.464`, and
+   runtime about `37s`. Artifacts: adapter
+   `/workspace/adapters/biber-dev-core-repo-adapt-next-20260521T203547Z-95083`,
+   log `/workspace/outputs/qlora-20260522T092807Z.log`, and run script
+   `/workspace/outputs/qlora-20260522T092807Z.sh`.
+   Post-training candidate review was then run with
+   `BIBER_CANDIDATE_ADAPTER_DIR=/workspace/adapters/biber-dev-core-repo-adapt-next-20260521T203547Z-95083`,
+   the manual training-review artifact above, repo prompts
+   `/workspace/outputs/repo-adapt-realrepo-20260521T203421Z-95017.prompts.jsonl`,
+   and session `biber-repo-adapt-next-review-20260522T092807Z`. Artifacts are
+   under
+   `/workspace/outputs/evals/biber-repo-adapt-next-review-20260522T092807Z/`.
+   Results: stable repo held-out `32/32` responses and `18/32` expectation
+   checks; candidate broad eval `18/18` responses and `15/18` expectation
+   checks; candidate Rust/XRIQ eval `7/7` responses and `7/7` expectation
+   checks with `5/7` cargo validators; candidate repo held-out `32/32`
+   responses and `25/32` expectation checks. Promotion review:
+   `/workspace/outputs/evals/biber-repo-adapt-next-review-20260522T092807Z/candidate-promotion-review.json`
+   with `review_status=promotion_blocked`,
+   `hard_blockers=["broad_expectations_below_threshold","rust_validators_below_threshold"]`,
+   `repo_baseline_improvement` passing with `delta=7`,
+   `promotion_allowed=false`, `safe_to_promote=false`, and
+   `serving_changed=false`. The candidate improved repo-adaptation evidence but
+   must not be promoted unless broad and Rust/XRIQ gates are fixed and a later
+   promotion-review artifact passes.
+   The candidate-review wrapper restored stable serving afterward. Current live
+   Vast service is healthy on stable adapter
+   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`; `bash
+   scripts/vast_status_direct.sh` showed vLLM pid `97357`, FastAPI pid
+   `97679`, `/health` OK, and `/v1/models` rooted at the stable adapter.
+   Regression review was run immediately and wrote
+   `/workspace/outputs/evals/biber-repo-adapt-next-review-20260522T092807Z/candidate-regression-review.json`
+   plus
+   `/workspace/outputs/evals/biber-repo-adapt-next-review-20260522T092807Z/anti-regression-candidates.jsonl`.
+   It found `5` regressions and `5` review-only anti-regression candidates:
+   three API error-shape rows missing `status`/`detail` shape requirements and
+   two Rust/XRIQ validator failures (`rust_xriq_fee_calculation` type
+   inference and `rust_xriq_next_height` free-function mismatch). Next action:
+   fill verified outputs for those five anti-regression candidates, run
+   `training/repo_adaptation_candidate_review.py`, apply/validate/merge only if
+   review passes, and require a fresh explicit user approval before any further
+   QLoRA training.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
