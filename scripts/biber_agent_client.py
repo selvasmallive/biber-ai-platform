@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -730,6 +731,56 @@ def normalize_repo_provenance(value: object) -> dict[str, str] | None:
                 provenance[normalized_key] = raw_value.strip()
                 break
     return provenance or None
+
+
+def git_text(repo_root: str, *args: str) -> str | None:
+    try:
+        completed = subprocess.run(
+            ["git", "-C", repo_root, *args],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0:
+        return None
+    value = completed.stdout.strip()
+    return value or None
+
+
+def derive_repo_provenance_from_git(repo_root: str | None) -> dict[str, str] | None:
+    if repo_root is None or not repo_root.strip():
+        return None
+    root_arg = repo_root.strip()
+    root = git_text(root_arg, "rev-parse", "--show-toplevel") or root_arg
+    commit = git_text(root_arg, "rev-parse", "HEAD")
+    url = git_text(root_arg, "remote", "get-url", "origin")
+    branch = git_text(root_arg, "rev-parse", "--abbrev-ref", "HEAD")
+    if branch == "HEAD":
+        branch = None
+    return normalize_repo_provenance(
+        {
+            "root": root,
+            "url": url,
+            "commit": commit,
+            "branch": branch,
+        }
+    )
+
+
+def complete_repo_provenance_from_git(value: object) -> dict[str, str] | None:
+    manual = normalize_repo_provenance(value)
+    if manual is None:
+        return None
+    derived = derive_repo_provenance_from_git(manual.get("root"))
+    if derived is None:
+        return manual
+    merged = dict(derived)
+    merged.update(manual)
+    return normalize_repo_provenance(merged)
 
 
 def repo_provenance_ok_for_eval(record: Mapping[str, Any]) -> bool:
@@ -11871,7 +11922,7 @@ def run(args: argparse.Namespace) -> str:
             else format_verified_repair_review_artifact_list_summary(artifacts)
         )
     if args.command == "show-repair-chain":
-        repo_provenance = normalize_repo_provenance(
+        repo_provenance = complete_repo_provenance_from_git(
             {
                 "root": args.source_repo_root,
                 "url": args.source_repo_url,

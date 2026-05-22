@@ -542,7 +542,12 @@ python scripts/biber_agent_client.py show-repair-chain \
   --verification /workspace/outputs/biber-mvp-loop-repair-test-verification.json \
   --review-jsonl /workspace/outputs/biber-mvp-loop-verified-repairs.jsonl \
   --review-summary /workspace/outputs/biber-mvp-loop-verified-repair-review.json \
+  --source-repo-root /workspace/biber-ai-platform \
   --output /workspace/outputs/biber-mvp-loop-repair-chain.json
+# When --source-repo-root points at a Git checkout, show-repair-chain fills
+# missing source repo URL, commit, and branch from git. Manual
+# --source-repo-url/--source-repo-commit/--source-repo-branch values override
+# derived values when supplied.
 python scripts/biber_agent_client.py list-repair-chains \
   /workspace/outputs \
   --ready-only \

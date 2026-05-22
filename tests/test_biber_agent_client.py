@@ -2672,6 +2672,17 @@ def test_run_show_repair_chain_summarizes_ready_chain_without_api_key(
         "commit": "abc123def456",
         "branch": "main",
     }
+    git_outputs = {
+        ("rev-parse", "--show-toplevel"): repo_provenance["root"],
+        ("remote", "get-url", "origin"): repo_provenance["url"],
+        ("rev-parse", "HEAD"): repo_provenance["commit"],
+        ("rev-parse", "--abbrev-ref", "HEAD"): repo_provenance["branch"],
+    }
+
+    def fake_git_text(repo_root: str, *args: str) -> str | None:
+        assert repo_root == repo_provenance["root"]
+        return git_outputs.get(args)
+
     mvp_loop_path.write_text(
         json.dumps({"ok": False, "test_ok": False, "steps": {}}),
         encoding="utf-8",
@@ -2784,6 +2795,7 @@ def test_run_show_repair_chain_summarizes_ready_chain_without_api_key(
         encoding="utf-8",
     )
     monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "git_text", fake_git_text)
 
     output = client.run(
         client.parse_args(
@@ -2810,12 +2822,6 @@ def test_run_show_repair_chain_summarizes_ready_chain_without_api_key(
                 str(review_summary_path),
                 "--source-repo-root",
                 repo_provenance["root"],
-                "--source-repo-url",
-                repo_provenance["url"],
-                "--source-repo-commit",
-                repo_provenance["commit"],
-                "--source-repo-branch",
-                repo_provenance["branch"],
                 "--output",
                 str(output_path),
             ]
