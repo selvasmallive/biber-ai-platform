@@ -146,6 +146,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP end-to-end agent-smoke script commit pushed and
   Vast-verified:
   `28ebe62 Add BIBER agent smoke script`.
+- Latest BIBER MVP synthetic-safe agent-smoke guard commit pushed and
+  Vast-verified:
+  `2afa40e Keep agent smoke eval guard synthetic-safe`.
 - Latest BIBER MVP agent-session API/persistence commits pushed and
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
@@ -468,7 +471,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   because it is smoke metadata, not a useful coding example.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `bec42c8`. Full Rust/private-devnet
+- Vast code verification is current through `2afa40e`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -633,7 +636,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   `693a1ca`; BIBER repair-chain training pipeline status verification is
   current through `76c4401`; BIBER repair-chain training pipeline listing
   verification is current through `c4abe43`; Rust/XRIQ live codegen-profile
-  eval verification is current through `7e7b8d`.
+  eval verification is current through `7e7b8d`; BIBER synthetic-safe
+  agent-smoke verification is current through `2afa40e`.
 - Current served adapter:
   `/workspace/adapters/biber-dev-core-repo-adapt-next2-20260522T0950Z`.
 - Current agent-session artifact directory:
@@ -644,7 +648,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - `BIBER_RUNTIME_PROFILES_ENABLED=true`
-  - Vast code/runtime verification is current through `bec42c8`. If later docs-only
+  - Vast code/runtime verification is current through `2afa40e`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
   - The user explicitly approved the separate Vast GPU repo-adaptation QLoRA
@@ -7604,6 +7608,19 @@ bash scripts/xriq_private_devnet_smoke.sh
    fast-forwarding to `bec42c8`. An API-only restart loaded the live app
    change without unloading the promoted adapter; vLLM stayed at pid `104769`,
    FastAPI restarted to pid `105366`, and smoke remained OK.
+   Follow-up BIBER MVP agent-smoke safety fix `2afa40e` changed
+   `scripts/vast_biber_agent_smoke.sh` so synthetic smoke repair-chain
+   evidence proves the `approve_for_eval` guard blocks non-real repo evidence
+   instead of trying to approve it. Vast fast-forwarded to `2afa40e`,
+   `bash -n scripts/vast_biber_agent_smoke.sh` passed, and the live smoke
+   passed with artifact directory
+   `/workspace/outputs/biber-agent-smoke-20260522T122454Z-105580`. The smoke
+   summary reported `ok=biber-agent-smoke`, `agent_client_mvp_loop_test_ok=true`,
+   `agent_client_mvp_loop_ready_repair_chain_decision_value=defer`,
+   `agent_client_mvp_loop_ready_repair_chain_eval_candidate_records=0`, and
+   training pipeline `blocked` with blocker
+   `synthetic_smoke_not_real_repo_candidate`. The promoted adapter stayed
+   loaded; no OpenAI mentor call or training run was used.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
