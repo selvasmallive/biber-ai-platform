@@ -3390,6 +3390,63 @@ def test_run_record_ready_repair_chain_approve_for_eval_requires_real_repo_sourc
     assert rows[0]["evidence_source_reasons"] == []
 
 
+def test_run_record_ready_repair_chain_approve_for_eval_blocks_smoke_artifact(
+    tmp_path: Path,
+) -> None:
+    jsonl_path = tmp_path / "ready-repair-chains.jsonl"
+    output_path = tmp_path / "ready-repair-chain-decisions.jsonl"
+    record = {
+        "source": "biber_mvp_loop_repair_chain_review",
+        "review_status": "needs_human_review",
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "source_artifact": (
+            "/workspace/outputs/biber-agent-smoke-20260522T122454Z-105580/"
+            "agent-client-mvp-loop-repair-chain.json"
+        ),
+        "plan_hash": "f" * 64,
+        "test_id": "python-compileall-api",
+        "chain": {"chain_status": "ready_for_human_review"},
+        "artifacts": {
+            "verification": (
+                "/workspace/outputs/biber-agent-smoke-20260522T122454Z-105580/"
+                "agent-client-mvp-loop-repair-test-verification.json"
+            )
+        },
+    }
+    jsonl_path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "record-ready-repair-chain-decision",
+                str(jsonl_path),
+                "--decision",
+                "approve_for_eval",
+                "--reviewer",
+                "human-reviewer",
+                "--evidence-source-type",
+                "real_repo_candidate",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["records"] == 0
+    assert result["rejected_records"] == 1
+    assert output_path.read_text(encoding="utf-8") == ""
+    assert result["rejected"][0]["reason"] == "non_real_repo_evidence"
+    assert result["rejected"][0]["evidence_source_type"] == "fixture_or_smoke"
+    assert result["rejected"][0]["evidence_source_reasons"] == [
+        "real_repo_declaration_conflicts_with_markers",
+        "smoke_artifact",
+    ]
+
+
 def test_run_review_ready_repair_chain_decisions_summarizes_without_api_key(
     monkeypatch,
     tmp_path: Path,

@@ -741,8 +741,8 @@ def classify_repair_chain_evidence_source(
     )
     joined = "\n".join(values)
     declared = declared_source_type
+    existing = record.get("evidence_source_type")
     if declared is None:
-        existing = record.get("evidence_source_type")
         if existing in {"real_repo_candidate", "fixture_or_smoke"}:
             declared = str(existing)
     reasons = [
@@ -750,6 +750,8 @@ def classify_repair_chain_evidence_source(
         for marker, reason in NON_REAL_REPAIR_EVIDENCE_MARKERS.items()
         if marker in joined
     ]
+    if declared == "real_repo_candidate" and existing == "fixture_or_smoke":
+        reasons.append("existing_fixture_or_smoke")
     if declared == "fixture_or_smoke":
         reasons.append("declared_fixture_or_smoke")
     if declared == "real_repo_candidate" and reasons:
@@ -2982,6 +2984,34 @@ def record_ready_repair_chain_decisions(
                     }
                 )
                 continue
+            if decision == "approve_for_eval":
+                declared_source_type = (
+                    evidence_source_type if evidence_source_type != "auto" else None
+                )
+                provenance = classify_repair_chain_evidence_source(
+                    row,
+                    declared_source_type=declared_source_type,
+                )
+                if provenance.get("evidence_source_ok_for_eval") is not True:
+                    reason = (
+                        "non_real_repo_evidence"
+                        if provenance.get("evidence_source_type") == "fixture_or_smoke"
+                        else "real_repo_evidence_not_confirmed"
+                    )
+                    rejected.append(
+                        {
+                            "jsonl_path": jsonl_path,
+                            "jsonl_index": index,
+                            "reason": reason,
+                            "evidence_source_type": provenance.get(
+                                "evidence_source_type"
+                            ),
+                            "evidence_source_reasons": provenance.get(
+                                "evidence_source_reasons"
+                            ),
+                        }
+                    )
+                    continue
             if len(records) >= limit:
                 continue
             records.append(
