@@ -158,6 +158,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP repair-chain git-provenance helper commit pushed and
   Vast-verified:
   `71119b7 Auto derive repair chain repo provenance`.
+- Latest BIBER MVP ready repair-chain provenance-review counter commit pushed
+  and Vast-verified:
+  `56687b7 Show repo provenance readiness in repair reviews`.
 - Latest BIBER MVP agent-session API/persistence commits pushed and
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
@@ -7678,6 +7681,22 @@ bash scripts/xriq_private_devnet_smoke.sh
    URL, branch, and commit. Live Vast agent smoke passed with artifact
    directory `/workspace/outputs/biber-agent-smoke-20260522T131704Z-106296`;
    summary kept the synthetic chain deferred, eval-candidate records at `0`,
+   dataset export blocked, and training pipeline blocked with
+   `synthetic_smoke_not_real_repo_candidate`. No training run or OpenAI mentor
+   call was used for this checkpoint.
+   Follow-up ready repair-chain provenance review counter `56687b7` surfaces
+   `repo_provenance_ready`, `repo_provenance_missing`, and
+   `eval_approval_requires_repo_provenance` in
+   `export-ready-repair-chains`, `review-ready-repair-chains`,
+   `show-ready-repair-chain-review`, and
+   `list-ready-repair-chain-reviews`. This lets future sessions see whether a
+   ready repair-chain queue has root-plus-commit evidence before attempting
+   `approve_for_eval`. Local verification passed `git diff --check`,
+   bundled-Python `compileall`, and a direct ready-review assertion. Vast
+   fast-forwarded to `56687b7`; focused pytest passed with
+   `5 passed, 135 deselected`, and live Vast agent smoke passed with artifact
+   directory `/workspace/outputs/biber-agent-smoke-20260522T134502Z-106503`.
+   The smoke kept synthetic evidence deferred, eval-candidate records at `0`,
    dataset export blocked, and training pipeline blocked with
    `synthetic_smoke_not_real_repo_candidate`. No training run or OpenAI mentor
    call was used for this checkpoint.
