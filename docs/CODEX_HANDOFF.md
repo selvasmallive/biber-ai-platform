@@ -155,6 +155,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   Vast-verified:
   `23d5977 Require repo provenance for repair eval approval` and
   `4508e67 Preserve repo provenance in repair decisions`.
+- Latest BIBER MVP repair-chain git-provenance helper commit pushed and
+  Vast-verified:
+  `71119b7 Auto derive repair chain repo provenance`.
 - Latest BIBER MVP agent-session API/persistence commits pushed and
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
@@ -7662,6 +7665,22 @@ bash scripts/xriq_private_devnet_smoke.sh
    pid is `105366`, and the promoted adapter remains
    `/workspace/adapters/biber-dev-core-repo-adapt-next2-20260522T0950Z`. No
    training run or OpenAI mentor call was used for this checkpoint.
+   Follow-up repair-chain git-provenance helper `71119b7` makes
+   `show-repair-chain --source-repo-root <git-checkout>` auto-fill missing
+   source repo URL, commit, and branch from Git; explicit manual
+   `--source-repo-url`, `--source-repo-commit`, and `--source-repo-branch`
+   values still override derived values. This reduces accidental bad evidence
+   and keeps `approve_for_eval` blocked unless root plus commit provenance is
+   present. Local verification passed `git diff --check`, bundled-Python
+   `compileall`, and a direct git-provenance assertion against the local repo.
+   Vast fast-forwarded to `71119b7`; focused pytest passed with
+   `7 passed, 133 deselected`, and direct Vast git-provenance assertion found
+   URL, branch, and commit. Live Vast agent smoke passed with artifact
+   directory `/workspace/outputs/biber-agent-smoke-20260522T131704Z-106296`;
+   summary kept the synthetic chain deferred, eval-candidate records at `0`,
+   dataset export blocked, and training pipeline blocked with
+   `synthetic_smoke_not_real_repo_candidate`. No training run or OpenAI mentor
+   call was used for this checkpoint.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
