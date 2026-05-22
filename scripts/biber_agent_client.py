@@ -2608,7 +2608,8 @@ def summarize_repair_chain_artifact(
     statuses = payload.get("statuses")
     if not isinstance(statuses, dict):
         statuses = {}
-    return {
+    repo_provenance = normalize_repo_provenance(payload.get("repo_provenance"))
+    summary = {
         "path": str(path),
         "chain_status": payload.get("chain_status"),
         "ready_for_human_review": payload.get("ready_for_human_review") is True,
@@ -2620,9 +2621,14 @@ def summarize_repair_chain_artifact(
         "plan_hash": payload.get("plan_hash"),
         "test_id": payload.get("test_id"),
         "review_records": int_count(statuses.get("review_records")),
+        "repo_provenance_ready": repo_provenance_ok_for_eval(payload),
+        "eval_approval_requires_repo_provenance": True,
         "next_action": payload.get("next_action"),
         "modified_epoch": modified_epoch,
     }
+    if repo_provenance is not None:
+        summary["repo_provenance"] = repo_provenance
+    return summary
 
 
 def list_repair_chain_artifacts(
@@ -2662,6 +2668,9 @@ def list_repair_chain_artifacts(
     ready_count = sum(
         1 for item in artifacts if item.get("ready_for_human_review") is True
     )
+    repo_provenance_ready = sum(
+        1 for item in artifacts if item.get("repo_provenance_ready") is True
+    )
     return {
         "source": "biber_mvp_loop_repair_chain_list",
         "directory": str(root),
@@ -2670,6 +2679,9 @@ def list_repair_chain_artifacts(
         "scanned": scanned,
         "matched": len(artifacts),
         "ready_for_human_review": ready_count,
+        "repo_provenance_ready": repo_provenance_ready,
+        "repo_provenance_missing": len(artifacts) - repo_provenance_ready,
+        "eval_approval_requires_repo_provenance": True,
         "training_allowed": False,
         "safe_to_train": False,
         "github_save_ready": False,
@@ -8853,6 +8865,10 @@ def format_repair_chain_artifact_list_summary(payload: Mapping[str, Any]) -> str
         f"scanned: {payload.get('scanned', 0)}",
         f"matched: {payload.get('matched', 0)}",
         f"ready_for_human_review: {payload.get('ready_for_human_review', 0)}",
+        f"repo_provenance_ready: {payload.get('repo_provenance_ready', 0)}",
+        f"repo_provenance_missing: {payload.get('repo_provenance_missing', 0)}",
+        "eval_approval_requires_repo_provenance: "
+        f"{payload.get('eval_approval_requires_repo_provenance', False)}",
         f"training_allowed: {payload.get('training_allowed', False)}",
         f"safe_to_train: {payload.get('safe_to_train', False)}",
     ]
@@ -8865,6 +8881,8 @@ def format_repair_chain_artifact_list_summary(payload: Mapping[str, Any]) -> str
                     f"ready={artifact.get('ready_for_human_review', False)}",
                     f"test_id={artifact.get('test_id', '-')}",
                     f"reviews={artifact.get('review_records', 0)}",
+                    "repo_provenance_ready="
+                    f"{artifact.get('repo_provenance_ready', False)}",
                 ]
             )
         )

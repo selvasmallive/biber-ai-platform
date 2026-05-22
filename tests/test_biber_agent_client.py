@@ -2872,6 +2872,12 @@ def test_run_list_repair_chains_filters_ready_artifacts_without_api_key(
         "plan_hash": "c" * 64,
         "test_id": "python-compileall-api",
         "statuses": {"review_records": 2},
+        "repo_provenance": {
+            "root": "/workspace/biber-ai-platform",
+            "url": "https://github.com/selvasmallive/biber-ai-platform.git",
+            "commit": "abc123def456",
+            "branch": "main",
+        },
         "next_action": "human_review_before_github_or_training",
     }
     ready_path.write_text(
@@ -2916,12 +2922,25 @@ def test_run_list_repair_chains_filters_ready_artifacts_without_api_key(
     assert result["scanned"] == 2
     assert result["matched"] == 1
     assert result["ready_for_human_review"] == 1
+    assert result["repo_provenance_ready"] == 1
+    assert result["repo_provenance_missing"] == 0
+    assert result["eval_approval_requires_repo_provenance"] is True
     assert result["training_allowed"] is False
     assert result["safe_to_train"] is False
     assert result["github_save_ready"] is False
     assert result["artifacts"][0]["path"] == str(ready_path)
     assert result["artifacts"][0]["chain_status"] == "ready_for_human_review"
     assert result["artifacts"][0]["review_records"] == 2
+    assert result["artifacts"][0]["repo_provenance_ready"] is True
+    assert result["artifacts"][0]["repo_provenance"] == ready_payload["repo_provenance"]
+
+    summary = client.run(
+        client.parse_args(["list-repair-chains", str(tmp_path), "--ready-only"])
+    )
+    assert "repo_provenance_ready: 1" in summary
+    assert "repo_provenance_missing: 0" in summary
+    assert "eval_approval_requires_repo_provenance: True" in summary
+    assert "repo_provenance_ready=True" in summary
 
 
 def test_run_export_ready_repair_chains_writes_review_jsonl_without_api_key(
