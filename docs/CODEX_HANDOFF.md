@@ -7656,9 +7656,10 @@ bash scripts/xriq_private_devnet_smoke.sh
    `/workspace/outputs/biber-agent-smoke-20260522T130706Z-106028`; summary kept
    the synthetic chain deferred, eval-candidate records at `0`, dataset export
    blocked, and training pipeline blocked with
-   `synthetic_smoke_not_real_repo_candidate`. Current live Vast checkout is
-   `4508e67`, vLLM pid is `104769`, FastAPI pid is `105366`, and the promoted
-   adapter remains
+   `synthetic_smoke_not_real_repo_candidate`. The verified live Vast code
+   checkpoint is `4508e67`; docs-only handoff commits can be fast-forwarded
+   after it without a service restart. Current vLLM pid is `104769`, FastAPI
+   pid is `105366`, and the promoted adapter remains
    `/workspace/adapters/biber-dev-core-repo-adapt-next2-20260522T0950Z`. No
    training run or OpenAI mentor call was used for this checkpoint.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
