@@ -174,6 +174,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   `87f0f24 Accept file alias in repair edit extraction`.
 - Latest real repo repair-chain eval-candidate checkpoint created on Vast:
   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-ready-repair-chain-eval-candidate-review.json`.
+- Latest real repo repair-chain eval-dataset/prompt checkpoint created on Vast:
+  `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-ready-repair-chain-eval-prompts.jsonl`.
 - Latest BIBER MVP agent-session API/persistence commits pushed and
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
@@ -7808,6 +7810,30 @@ bash scripts/xriq_private_devnet_smoke.sh
    `record-ready-repair-chain-eval-candidate-decision`; do not approve
    dataset/training from a generic continue unless the reviewer accepts the
    eval-candidate contents.
+   Follow-up eval-dataset curation step on Vast accepted the same single real
+   repo-provenanced candidate for held-out eval dataset use only. The candidate
+   was inspected before decision recording: `test_id=python-compileall-api`,
+   `chain_status=ready_for_human_review`, `verification_passed=True`, and
+   `approved_for_training=False`. `record-ready-repair-chain-eval-candidate-decision`
+   wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-ready-repair-chain-eval-dataset-decisions.jsonl`
+   with `decision=approve_for_eval_dataset`, `records: 1`,
+   `approved_for_eval_dataset_records: 1`, `eval_dataset_ready: True`,
+   `training_allowed: False`, `safe_to_train: False`, and
+   `approved_for_training: False`. Decision review wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-ready-repair-chain-eval-dataset-decision-review.json`
+   with `eval_dataset_ready_records: 1`. Final eval-dataset export wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-ready-repair-chain-eval-dataset.jsonl`;
+   validation wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-ready-repair-chain-eval-dataset-validation.json`
+   with `ok: True`, `records: 1`, `valid_records: 1`, and
+   `invalid_records: 0`. Prompt export wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-ready-repair-chain-eval-prompts.jsonl`
+   with `eval_prompts: 1`, `eval_only: True`, `training_allowed: False`,
+   `safe_to_train: False`, and `approved_for_training: False`. No training run
+   or OpenAI mentor call was used. The next narrow gate is the live held-out
+   eval runner against that prompt JSONL, followed by held-out result review;
+   do not create baseline/training approvals from a generic continue.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
