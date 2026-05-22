@@ -164,6 +164,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP repair-chain decision provenance counter commit pushed and
   Vast-verified:
   `dc255bb Show provenance readiness in repair decisions`.
+- Latest BIBER MVP eval-candidate provenance counter commit pushed and
+  Vast-verified:
+  `b138544 Show provenance readiness in eval candidates`.
 - Latest BIBER MVP agent-session API/persistence commits pushed and
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
@@ -7716,6 +7719,25 @@ bash scripts/xriq_private_devnet_smoke.sh
    pytest passed with `4 passed, 136 deselected`, and live Vast agent smoke
    passed with artifact directory
    `/workspace/outputs/biber-agent-smoke-20260522T140209Z-106710`. The smoke
+   kept synthetic evidence deferred, eval-candidate records at `0`, dataset
+   export blocked, and training pipeline blocked with
+   `synthetic_smoke_not_real_repo_candidate`. No training run or OpenAI mentor
+   call was used for this checkpoint.
+   Follow-up eval-candidate provenance counter `b138544` surfaces
+   `repo_provenance_ready`, `repo_provenance_missing`,
+   `skipped_repo_provenance_ready`,
+   `skipped_repo_provenance_missing`, and
+   `eval_approval_requires_repo_provenance` in
+   `export-ready-repair-chain-eval-candidates`,
+   `review-ready-repair-chain-eval-candidates`,
+   `show-ready-repair-chain-eval-candidate-review`, and
+   `list-ready-repair-chain-eval-candidate-reviews`. This keeps root-plus-commit
+   provenance visible after the manual decision gate and before dataset review.
+   Local verification passed `git diff --check`, bundled-Python `compileall`,
+   and a direct eval-candidate export/review assertion. Vast fast-forwarded to
+   `b138544`; focused pytest passed with `7 passed, 133 deselected`, and live
+   Vast agent smoke passed with artifact directory
+   `/workspace/outputs/biber-agent-smoke-20260522T173404Z-106929`. The smoke
    kept synthetic evidence deferred, eval-candidate records at `0`, dataset
    export blocked, and training pipeline blocked with
    `synthetic_smoke_not_real_repo_candidate`. No training run or OpenAI mentor
