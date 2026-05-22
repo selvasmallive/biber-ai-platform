@@ -2666,6 +2666,12 @@ def test_run_show_repair_chain_summarizes_ready_chain_without_api_key(
     review_jsonl_path = tmp_path / "verified-repairs.jsonl"
     review_summary_path = tmp_path / "verified-repair-review.json"
     output_path = tmp_path / "repair-chain.json"
+    repo_provenance = {
+        "root": "/workspace/real-user-repo",
+        "url": "https://github.com/acme/real-user-repo.git",
+        "commit": "abc123def456",
+        "branch": "main",
+    }
     mvp_loop_path.write_text(
         json.dumps({"ok": False, "test_ok": False, "steps": {}}),
         encoding="utf-8",
@@ -2802,6 +2808,14 @@ def test_run_show_repair_chain_summarizes_ready_chain_without_api_key(
                 str(review_jsonl_path),
                 "--review-summary",
                 str(review_summary_path),
+                "--source-repo-root",
+                repo_provenance["root"],
+                "--source-repo-url",
+                repo_provenance["url"],
+                "--source-repo-commit",
+                repo_provenance["commit"],
+                "--source-repo-branch",
+                repo_provenance["branch"],
                 "--output",
                 str(output_path),
             ]
@@ -2827,6 +2841,7 @@ def test_run_show_repair_chain_summarizes_ready_chain_without_api_key(
     assert result["statuses"]["review_records"] == 1
     assert result["missing_artifacts"] == []
     assert result["next_action"] == "human_review_before_github_or_training"
+    assert result["repo_provenance"] == repo_provenance
 
 
 def test_run_list_repair_chains_filters_ready_artifacts_without_api_key(
@@ -2926,6 +2941,12 @@ def test_run_export_ready_repair_chains_writes_review_jsonl_without_api_key(
         "github_save_ready": False,
         "plan_hash": "d" * 64,
         "test_id": "python-compileall-api",
+        "repo_provenance": {
+            "root": "/workspace/real-user-repo",
+            "url": "https://github.com/acme/real-user-repo.git",
+            "commit": "abc123def456",
+            "branch": "main",
+        },
         "statuses": {"review_records": 1},
         "artifacts": {
             "verification": "repair-verification.json",
@@ -2982,6 +3003,7 @@ def test_run_export_ready_repair_chains_writes_review_jsonl_without_api_key(
     assert rows[0]["source_artifact"] == str(ready_path)
     assert rows[0]["plan_hash"] == "d" * 64
     assert rows[0]["test_id"] == "python-compileall-api"
+    assert rows[0]["repo_provenance"] == ready_payload["repo_provenance"]
     assert rows[0]["chain"]["review_records"] == 1
     assert rows[0]["artifacts"]["verification"] == "repair-verification.json"
     assert rows[0]["next_review_action"] == (
@@ -3333,6 +3355,12 @@ def test_run_record_ready_repair_chain_approve_for_eval_requires_real_repo_sourc
         "source_artifact": "repair-chain.json",
         "plan_hash": "f" * 64,
         "test_id": "python-compileall-api",
+        "repo_provenance": {
+            "root": "/workspace/real-user-repo",
+            "url": "https://github.com/acme/real-user-repo.git",
+            "commit": "abc123def456",
+            "branch": "main",
+        },
         "chain": {"chain_status": "ready_for_human_review"},
         "artifacts": {"verification": "repair-verification.json"},
     }
@@ -3388,6 +3416,7 @@ def test_run_record_ready_repair_chain_approve_for_eval_requires_real_repo_sourc
     assert rows[0]["evidence_source_confirmed"] is True
     assert rows[0]["evidence_source_ok_for_eval"] is True
     assert rows[0]["evidence_source_reasons"] == []
+    assert rows[0]["repo_provenance"] == record["repo_provenance"]
 
 
 def test_run_record_ready_repair_chain_approve_for_eval_blocks_smoke_artifact(
@@ -3413,6 +3442,12 @@ def test_run_record_ready_repair_chain_approve_for_eval_blocks_smoke_artifact(
                 "/workspace/outputs/biber-agent-smoke-20260522T122454Z-105580/"
                 "agent-client-mvp-loop-repair-test-verification.json"
             )
+        },
+        "repo_provenance": {
+            "root": "/workspace/real-user-repo",
+            "url": "https://github.com/acme/real-user-repo.git",
+            "commit": "abc123def456",
+            "branch": "main",
         },
     }
     jsonl_path.write_text(json.dumps(record) + "\n", encoding="utf-8")
@@ -3444,6 +3479,57 @@ def test_run_record_ready_repair_chain_approve_for_eval_blocks_smoke_artifact(
     assert result["rejected"][0]["evidence_source_reasons"] == [
         "real_repo_declaration_conflicts_with_markers",
         "smoke_artifact",
+    ]
+
+
+def test_run_record_ready_repair_chain_approve_for_eval_requires_repo_provenance(
+    tmp_path: Path,
+) -> None:
+    jsonl_path = tmp_path / "ready-repair-chains.jsonl"
+    output_path = tmp_path / "ready-repair-chain-decisions.jsonl"
+    record = {
+        "source": "biber_mvp_loop_repair_chain_review",
+        "review_status": "needs_human_review",
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "source_artifact": "repair-chain.json",
+        "plan_hash": "f" * 64,
+        "test_id": "python-compileall-api",
+        "chain": {"chain_status": "ready_for_human_review"},
+        "artifacts": {"verification": "repair-verification.json"},
+    }
+    jsonl_path.write_text(json.dumps(record) + "\n", encoding="utf-8")
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "record-ready-repair-chain-decision",
+                str(jsonl_path),
+                "--decision",
+                "approve_for_eval",
+                "--reviewer",
+                "human-reviewer",
+                "--evidence-source-type",
+                "real_repo_candidate",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["records"] == 0
+    assert result["rejected_records"] == 1
+    assert output_path.read_text(encoding="utf-8") == ""
+    assert result["rejected"][0]["reason"] == "real_repo_evidence_not_confirmed"
+    assert result["rejected"][0]["evidence_source_type"] == (
+        "unconfirmed_real_repo_candidate"
+    )
+    assert result["rejected"][0]["evidence_source_reasons"] == [
+        "missing_repo_provenance",
+        "real_repo_declaration_not_confirmed",
     ]
 
 
@@ -3733,6 +3819,12 @@ def test_run_export_ready_repair_chain_eval_candidates_without_api_key(
             "evidence_source_confirmed": True,
             "evidence_source_ok_for_eval": True,
             "evidence_source_reasons": [],
+            "repo_provenance": {
+                "root": "/workspace/real-user-repo",
+                "url": "https://github.com/acme/real-user-repo.git",
+                "commit": "abc123def456",
+                "branch": "main",
+            },
             "source_artifact": "repair-chain.json",
             "plan_hash": "c" * 64,
             "test_id": "python-compileall-api",
@@ -3806,6 +3898,7 @@ def test_run_export_ready_repair_chain_eval_candidates_without_api_key(
     assert rows[0]["evidence_source_confirmed"] is True
     assert rows[0]["evidence_source_ok_for_eval"] is True
     assert rows[0]["evidence_source_reasons"] == []
+    assert rows[0]["repo_provenance"] == records[0]["repo_provenance"]
     assert rows[0]["training_allowed"] is False
     assert rows[0]["eligible_for_training"] is False
     assert rows[0]["safe_to_train"] is False
@@ -3845,6 +3938,12 @@ def test_run_export_ready_repair_chain_eval_candidates_blocks_fixture_evidence(
             "evidence_source_confirmed": True,
             "evidence_source_ok_for_eval": True,
             "evidence_source_reasons": [],
+            "repo_provenance": {
+                "root": "/workspace/real-user-repo",
+                "url": "https://github.com/acme/real-user-repo.git",
+                "commit": "abc123def456",
+                "branch": "main",
+            },
             "source_artifact": (
                 "/workspace/outputs/biber-real-repair-fixture-20260521T192710Z-94786/"
                 "agent-client-mvp-loop-real-fixture-repair-chain.json"

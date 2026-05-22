@@ -713,6 +713,32 @@ NON_REAL_REPAIR_EVIDENCE_MARKERS = {
 }
 
 
+def normalize_repo_provenance(value: object) -> dict[str, str] | None:
+    if not isinstance(value, Mapping):
+        return None
+    provenance: dict[str, str] = {}
+    aliases = {
+        "root": ("root", "repo_root", "source_repo_root"),
+        "url": ("url", "repo_url", "source_repo_url"),
+        "commit": ("commit", "repo_commit", "source_repo_commit"),
+        "branch": ("branch", "repo_branch", "source_repo_branch"),
+    }
+    for normalized_key, source_keys in aliases.items():
+        for source_key in source_keys:
+            raw_value = value.get(source_key)
+            if isinstance(raw_value, str) and raw_value.strip():
+                provenance[normalized_key] = raw_value.strip()
+                break
+    return provenance or None
+
+
+def repo_provenance_ok_for_eval(record: Mapping[str, Any]) -> bool:
+    provenance = normalize_repo_provenance(record.get("repo_provenance"))
+    if provenance is None:
+        return False
+    return bool(provenance.get("root") and provenance.get("commit"))
+
+
 def classify_repair_chain_evidence_source(
     record: Mapping[str, Any],
     *,
@@ -737,6 +763,7 @@ def classify_repair_chain_evidence_source(
             "decision_jsonl_path": record.get("decision_jsonl_path"),
             "notes": record.get("notes"),
             "artifacts": record.get("artifacts"),
+            "repo_provenance": record.get("repo_provenance"),
         }
     )
     joined = "\n".join(values)
@@ -745,22 +772,34 @@ def classify_repair_chain_evidence_source(
     if declared is None:
         if existing in {"real_repo_candidate", "fixture_or_smoke"}:
             declared = str(existing)
-    reasons = [
+    marker_reasons = [
         reason
         for marker, reason in NON_REAL_REPAIR_EVIDENCE_MARKERS.items()
         if marker in joined
     ]
+    reasons = list(marker_reasons)
+    non_real_reasons = set(marker_reasons)
     if declared == "real_repo_candidate" and existing == "fixture_or_smoke":
         reasons.append("existing_fixture_or_smoke")
+        non_real_reasons.add("existing_fixture_or_smoke")
     if declared == "fixture_or_smoke":
         reasons.append("declared_fixture_or_smoke")
-    if declared == "real_repo_candidate" and reasons:
+        non_real_reasons.add("declared_fixture_or_smoke")
+    if declared == "real_repo_candidate" and not repo_provenance_ok_for_eval(record):
+        reasons.append("missing_repo_provenance")
+    if declared == "real_repo_candidate" and non_real_reasons:
         reasons.append("real_repo_declaration_conflicts_with_markers")
+    elif declared == "real_repo_candidate" and reasons:
+        reasons.append("real_repo_declaration_not_confirmed")
     reasons = sorted(set(reasons))
-    confirmed_real_repo = declared == "real_repo_candidate" and not reasons
+    confirmed_real_repo = (
+        declared == "real_repo_candidate"
+        and not reasons
+        and repo_provenance_ok_for_eval(record)
+    )
     evidence_source_type = (
         "fixture_or_smoke"
-        if reasons
+        if non_real_reasons
         else "real_repo_candidate"
         if confirmed_real_repo
         else "unconfirmed_real_repo_candidate"
@@ -2290,6 +2329,7 @@ def build_repair_chain_summary(
     verification_path: str | None,
     review_jsonl_paths: list[str],
     review_summary_path: str | None,
+    repo_provenance: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not any(
         [
@@ -2450,8 +2490,13 @@ def build_repair_chain_summary(
         if isinstance(value, str) and value:
             test_id = value
             break
+    normalized_repo_provenance = normalize_repo_provenance(repo_provenance)
+    if normalized_repo_provenance is None and mvp_loop is not None:
+        normalized_repo_provenance = normalize_repo_provenance(
+            mvp_loop.get("repo_provenance")
+        )
 
-    return {
+    summary = {
         "source": "biber_mvp_loop_repair_chain_summary",
         "repair_loop_version": "mvp-v1",
         "ok": ready_for_human_review,
@@ -2482,6 +2527,9 @@ def build_repair_chain_summary(
             else "continue_repair_loop_without_training_or_github_save"
         ),
     }
+    if normalized_repo_provenance is not None:
+        summary["repo_provenance"] = normalized_repo_provenance
+    return summary
 
 
 def normalize_repair_chain_summary_artifact(
@@ -2595,13 +2643,15 @@ def build_repair_chain_review_record(
     artifacts = payload.get("artifacts")
     if not isinstance(artifacts, dict):
         artifacts = {}
+    repo_provenance = normalize_repo_provenance(payload.get("repo_provenance"))
     provenance = classify_repair_chain_evidence_source(
         {
             "source_artifact": str(path),
             "artifacts": artifacts,
+            "repo_provenance": repo_provenance,
         }
     )
-    return {
+    record = {
         "source": "biber_mvp_loop_repair_chain_review",
         "repair_loop_version": payload.get("repair_loop_version"),
         "review_status": "needs_human_review",
@@ -2627,6 +2677,9 @@ def build_repair_chain_review_record(
         "artifacts": dict(artifacts),
         "next_review_action": "human_review_repair_chain_before_github_or_training",
     }
+    if repo_provenance is not None:
+        record["repo_provenance"] = repo_provenance
+    return record
 
 
 def export_ready_repair_chain_reviews(
@@ -3302,7 +3355,8 @@ def build_ready_repair_chain_eval_candidate_record(
     if not isinstance(artifacts, dict):
         artifacts = {}
     provenance = classify_repair_chain_evidence_source(record)
-    return {
+    repo_provenance = normalize_repo_provenance(record.get("repo_provenance"))
+    candidate = {
         "source": "biber_mvp_loop_repair_chain_eval_candidate",
         "eval_candidate": True,
         "eval_status": "candidate_needs_dataset_review",
@@ -3329,6 +3383,9 @@ def build_ready_repair_chain_eval_candidate_record(
         "artifacts": dict(artifacts),
         "next_review_action": "manual_eval_dataset_review_before_training",
     }
+    if repo_provenance is not None:
+        candidate["repo_provenance"] = repo_provenance
+    return candidate
 
 
 def export_ready_repair_chain_eval_candidates(
@@ -8605,6 +8662,7 @@ def format_verified_repair_review_artifact_list_summary(
 def format_repair_chain_summary(payload: Mapping[str, Any]) -> str:
     statuses = require_mapping(payload.get("statuses"))
     missing = [str(item) for item in require_list(payload.get("missing_artifacts"))]
+    repo_provenance = normalize_repo_provenance(payload.get("repo_provenance"))
     lines = [
         "BIBER repair chain summary",
         f"chain_status: {payload.get('chain_status', '-')}",
@@ -8622,6 +8680,15 @@ def format_repair_chain_summary(payload: Mapping[str, Any]) -> str:
         f"next_action: {payload.get('next_action', '-')}",
         f"artifact_path: {payload.get('artifact_path', '-')}",
     ]
+    if repo_provenance is not None:
+        lines.extend(
+            [
+                f"repo_root: {repo_provenance.get('root', '-')}",
+                f"repo_url: {repo_provenance.get('url', '-')}",
+                f"repo_commit: {repo_provenance.get('commit', '-')}",
+                f"repo_branch: {repo_provenance.get('branch', '-')}",
+            ]
+        )
     if missing:
         lines.append(f"missing_artifacts: {', '.join(missing)}")
     return "\n".join(lines)
@@ -10664,6 +10731,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     show_repair_chain.add_argument("--verification")
     show_repair_chain.add_argument("--review-jsonl", action="append", default=None)
     show_repair_chain.add_argument("--review-summary")
+    show_repair_chain.add_argument("--source-repo-root")
+    show_repair_chain.add_argument("--source-repo-url")
+    show_repair_chain.add_argument("--source-repo-commit")
+    show_repair_chain.add_argument("--source-repo-branch")
     show_repair_chain.add_argument("--output")
 
     list_repair_chains = subparsers.add_parser(
@@ -11796,6 +11867,14 @@ def run(args: argparse.Namespace) -> str:
             else format_verified_repair_review_artifact_list_summary(artifacts)
         )
     if args.command == "show-repair-chain":
+        repo_provenance = normalize_repo_provenance(
+            {
+                "root": args.source_repo_root,
+                "url": args.source_repo_url,
+                "commit": args.source_repo_commit,
+                "branch": args.source_repo_branch,
+            }
+        )
         summary = build_repair_chain_summary(
             mvp_loop_path=args.mvp_loop,
             repair_path=args.repair,
@@ -11806,6 +11885,7 @@ def run(args: argparse.Namespace) -> str:
             verification_path=args.verification,
             review_jsonl_paths=args.review_jsonl or [],
             review_summary_path=args.review_summary,
+            repo_provenance=repo_provenance,
         )
         if args.output:
             summary["artifact_path"] = str(Path(args.output))
