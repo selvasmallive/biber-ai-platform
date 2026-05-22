@@ -176,6 +176,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-ready-repair-chain-eval-candidate-review.json`.
 - Latest real repo repair-chain eval-dataset/prompt checkpoint created on Vast:
   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-ready-repair-chain-eval-prompts.jsonl`.
+- Latest real repo repair-chain held-out eval review checkpoint created on
+  Vast:
+  `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-heldout-eval-review.json`.
 - Latest BIBER MVP agent-session API/persistence commits pushed and
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
@@ -7831,9 +7834,24 @@ bash scripts/xriq_private_devnet_smoke.sh
    `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-ready-repair-chain-eval-prompts.jsonl`
    with `eval_prompts: 1`, `eval_only: True`, `training_allowed: False`,
    `safe_to_train: False`, and `approved_for_training: False`. No training run
-   or OpenAI mentor call was used. The next narrow gate is the live held-out
-   eval runner against that prompt JSONL, followed by held-out result review;
-   do not create baseline/training approvals from a generic continue.
+   or OpenAI mentor call was used.
+   Follow-up held-out eval on Vast ran the single exported real-repo prompt
+   through the live `biber-dev-core-v1` local model without training or OpenAI
+   mentor use. The live eval wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-heldout-eval.jsonl`
+   and
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-heldout-eval.summary.json`
+   with `1/1` responses and `1/1` expectation checks passed. Held-out review
+   wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-heldout-eval-review.json`
+   with `ok: True`, `review_status: heldout_eval_passed`, `records: 1`,
+   `passed_records: 1`, `failed_records: 0`,
+   `expectation_failed_records: 0`, `model_counts: {'biber-dev-core-v1': 1}`,
+   `eval_only: True`, `training_allowed: False`, `safe_to_train: False`, and
+   `approved_for_training: False`. The next narrow gate is a manual
+   `record-repair-chain-heldout-eval-decision` of `defer`, `reject`, or
+   `accept_for_baseline`; do not create baseline/training approvals from a
+   generic continue.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
