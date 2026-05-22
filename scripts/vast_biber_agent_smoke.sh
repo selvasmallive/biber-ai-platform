@@ -2595,2293 +2595,378 @@ write_artifact(
         "source": str(client_mvp_loop_ready_repair_chain_decision_path),
     },
 )
-try:
-    client_mvp_loop_ready_repair_chain_eval_decision_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "record-ready-repair-chain-decision",
-            str(client_mvp_loop_ready_repair_chains_path),
-            "--decision",
-            "approve_for_eval",
-            "--reviewer",
-            "biber-smoke-eval",
-            "--notes",
-            "Synthetic smoke eval candidate; not a real human approval.",
-            "--output",
-            str(client_mvp_loop_ready_repair_chain_eval_decision_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
+# Synthetic smoke evidence must stop at the repair-chain review boundary.  This
+# live smoke verifies the approval guard and leaves eval/training promotion for
+# real repo repair-chain evidence only.
+client_mvp_loop_ready_repair_chain_eval_guard = subprocess.run(
+    [
+        sys.executable,
+        str(script_dir / "biber_agent_client.py"),
+        "--json",
+        "record-ready-repair-chain-decision",
+        str(client_mvp_loop_ready_repair_chains_path),
+        "--decision",
+        "approve_for_eval",
+        "--reviewer",
+        "biber-smoke-eval",
+        "--notes",
+        "Synthetic smoke eval candidate; this must be blocked.",
+        "--evidence-source-type",
+        "fixture_or_smoke",
+        "--output",
+        str(client_mvp_loop_ready_repair_chain_eval_decision_path),
+    ],
+    env=client_env,
+    text=True,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    timeout=60,
+)
+client_mvp_loop_ready_repair_chain_eval_guard_text = (
+    client_mvp_loop_ready_repair_chain_eval_guard.stdout
+    + client_mvp_loop_ready_repair_chain_eval_guard.stderr
+)
+if client_mvp_loop_ready_repair_chain_eval_guard.returncode == 0:
+    fail("approve_for_eval unexpectedly accepted fixture_or_smoke evidence")
+if "approve_for_eval requires --evidence-source-type real_repo_candidate" not in client_mvp_loop_ready_repair_chain_eval_guard_text:
+    fail(
+        "approve_for_eval guard returned unexpected output: "
+        f"{client_mvp_loop_ready_repair_chain_eval_guard_text!r}"
     )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py record-ready-repair-chain-decision approve_for_eval failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py record-ready-repair-chain-decision approve_for_eval timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_eval_decision = json.loads(
-        client_mvp_loop_ready_repair_chain_eval_decision_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py record-ready-repair-chain-decision approve_for_eval returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_eval_decision.get("records") != 1:
-    fail(f"approve_for_eval decision wrote unexpected records: {client_mvp_loop_ready_repair_chain_eval_decision!r}")
-if client_mvp_loop_ready_repair_chain_eval_decision.get("decision") != "approve_for_eval":
-    fail(f"approve_for_eval decision used unexpected value: {client_mvp_loop_ready_repair_chain_eval_decision!r}")
-if client_mvp_loop_ready_repair_chain_eval_decision.get("training_allowed") is not False:
-    fail(f"approve_for_eval decision must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_decision!r}")
-try:
-    client_mvp_loop_ready_repair_chain_eval_candidate_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "export-ready-repair-chain-eval-candidates",
-            str(client_mvp_loop_ready_repair_chain_eval_decision_path),
-            "--output",
-            str(client_mvp_loop_ready_repair_chain_eval_candidates_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py export-ready-repair-chain-eval-candidates failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py export-ready-repair-chain-eval-candidates timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_eval_candidate = json.loads(
-        client_mvp_loop_ready_repair_chain_eval_candidate_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py export-ready-repair-chain-eval-candidates returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_eval_candidate.get("records") != 1:
-    fail(f"export-ready-repair-chain-eval-candidates wrote unexpected records: {client_mvp_loop_ready_repair_chain_eval_candidate!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate.get("eval_dataset_ready") is not False:
-    fail(f"export-ready-repair-chain-eval-candidates must keep eval_dataset_ready=false: {client_mvp_loop_ready_repair_chain_eval_candidate!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate.get("requires_dataset_review") is not True:
-    fail(f"export-ready-repair-chain-eval-candidates must require dataset review: {client_mvp_loop_ready_repair_chain_eval_candidate!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate.get("training_allowed") is not False:
-    fail(f"export-ready-repair-chain-eval-candidates must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_candidate!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate.get("safe_to_train") is not False:
-    fail(f"export-ready-repair-chain-eval-candidates must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_candidate!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate.get("github_save_ready") is not False:
-    fail(f"export-ready-repair-chain-eval-candidates must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_candidate!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate.get("approved_for_training") is not False:
-    fail(f"export-ready-repair-chain-eval-candidates must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_candidate!r}")
-if not client_mvp_loop_ready_repair_chain_eval_candidates_path.exists():
-    fail(f"export-ready-repair-chain-eval-candidates did not write {client_mvp_loop_ready_repair_chain_eval_candidates_path}")
-eval_candidate_lines = client_mvp_loop_ready_repair_chain_eval_candidates_path.read_text(
-    encoding="utf-8"
-).splitlines()
-if len(eval_candidate_lines) != 1:
-    fail(f"export-ready-repair-chain-eval-candidates wrote unexpected line count: {eval_candidate_lines!r}")
-try:
-    eval_candidate_row = json.loads(eval_candidate_lines[0])
-except json.JSONDecodeError as exc:
-    fail(f"export-ready-repair-chain-eval-candidates wrote invalid JSONL: {exc}")
-if eval_candidate_row.get("source") != "biber_mvp_loop_repair_chain_eval_candidate":
-    fail(f"export-ready-repair-chain-eval-candidates wrote unexpected source: {eval_candidate_row!r}")
-if eval_candidate_row.get("decision") != "approve_for_eval":
-    fail(f"export-ready-repair-chain-eval-candidates wrote unexpected decision: {eval_candidate_row!r}")
-if eval_candidate_row.get("reviewer") != "biber-smoke-eval":
-    fail(f"export-ready-repair-chain-eval-candidates wrote unexpected reviewer: {eval_candidate_row!r}")
-if eval_candidate_row.get("eval_dataset_ready") is not False:
-    fail(f"export-ready-repair-chain-eval-candidates must not mark dataset ready: {eval_candidate_row!r}")
-if eval_candidate_row.get("approved_for_training") is not False:
-    fail(f"export-ready-repair-chain-eval-candidates must not approve training: {eval_candidate_row!r}")
 write_artifact(
-    "agent-client-mvp-loop-ready-repair-chain-eval-candidate-export.json",
+    "agent-client-mvp-loop-ready-repair-chain-eval-guard.json",
     {
-        "status": 0,
-        "body": client_mvp_loop_ready_repair_chain_eval_candidate,
-        "output": str(client_mvp_loop_ready_repair_chain_eval_candidates_path),
-        "source": str(client_mvp_loop_ready_repair_chain_eval_decision_path),
+        "status": client_mvp_loop_ready_repair_chain_eval_guard.returncode,
+        "blocked": True,
+        "expected_error": "approve_for_eval requires --evidence-source-type real_repo_candidate",
+        "stdout": client_mvp_loop_ready_repair_chain_eval_guard.stdout,
+        "stderr": client_mvp_loop_ready_repair_chain_eval_guard.stderr,
+        "source": str(client_mvp_loop_ready_repair_chains_path),
     },
 )
-try:
-    client_mvp_loop_ready_repair_chain_eval_candidate_review_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "review-ready-repair-chain-eval-candidates",
-            str(client_mvp_loop_ready_repair_chain_eval_candidates_path),
-            "--output",
-            str(client_mvp_loop_ready_repair_chain_eval_candidate_review_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py review-ready-repair-chain-eval-candidates failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py review-ready-repair-chain-eval-candidates timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_eval_candidate_review = json.loads(
-        client_mvp_loop_ready_repair_chain_eval_candidate_review_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py review-ready-repair-chain-eval-candidates returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("records") != 1:
-    fail(f"review-ready-repair-chain-eval-candidates saw unexpected records: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("ready_for_dataset_review") != 1:
-    fail(f"review-ready-repair-chain-eval-candidates saw unexpected dataset review count: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("eval_dataset_ready") is not False:
-    fail(f"review-ready-repair-chain-eval-candidates must keep eval_dataset_ready=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("requires_dataset_review") is not True:
-    fail(f"review-ready-repair-chain-eval-candidates must require dataset review: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("training_allowed") is not False:
-    fail(f"review-ready-repair-chain-eval-candidates must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("safe_to_train") is not False:
-    fail(f"review-ready-repair-chain-eval-candidates must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("github_save_ready") is not False:
-    fail(f"review-ready-repair-chain-eval-candidates must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review.get("approved_for_training") is not False:
-    fail(f"review-ready-repair-chain-eval-candidates must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review!r}")
-if not client_mvp_loop_ready_repair_chain_eval_candidate_review_path.exists():
-    fail(f"review-ready-repair-chain-eval-candidates did not write {client_mvp_loop_ready_repair_chain_eval_candidate_review_path}")
-try:
-    saved_client_mvp_loop_ready_repair_chain_eval_candidate_review = json.loads(
-        client_mvp_loop_ready_repair_chain_eval_candidate_review_path.read_text(
-            encoding="utf-8"
-        )
-    )
-except json.JSONDecodeError as exc:
-    fail(f"review-ready-repair-chain-eval-candidates output artifact returned invalid JSON: {exc}")
-if (
-    saved_client_mvp_loop_ready_repair_chain_eval_candidate_review
-    != client_mvp_loop_ready_repair_chain_eval_candidate_review
-):
-    fail("review-ready-repair-chain-eval-candidates output artifact did not match stdout JSON")
-try:
-    client_mvp_loop_ready_repair_chain_eval_candidate_review_show = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "show-ready-repair-chain-eval-candidate-review",
-            str(client_mvp_loop_ready_repair_chain_eval_candidate_review_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py show-ready-repair-chain-eval-candidate-review failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py show-ready-repair-chain-eval-candidate-review timed out: {exc}")
-for expected_text in [
-    "BIBER ready repair-chain eval candidate review",
-    "ready_for_dataset_review: 1",
-    "eval_dataset_ready: False",
-    "training_allowed: False",
-    str(client_mvp_loop_ready_repair_chain_eval_candidate_review_path),
+
+skip_reason = "synthetic_smoke_not_real_repo_candidate"
+
+
+def write_json_placeholder(path: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return payload
+
+
+def write_empty_jsonl(path: Path) -> None:
+    path.write_text("", encoding="utf-8")
+
+
+for skipped_jsonl_path in [
+    client_mvp_loop_ready_repair_chain_eval_decision_path,
+    client_mvp_loop_ready_repair_chain_eval_candidates_path,
+    client_mvp_loop_ready_repair_chain_eval_dataset_decision_path,
+    client_mvp_loop_ready_repair_chain_eval_dataset_path,
+    client_mvp_loop_ready_repair_chain_eval_prompts_path,
+    client_mvp_loop_ready_repair_chain_heldout_eval_path,
+    client_mvp_loop_ready_repair_chain_heldout_eval_decision_path,
+    client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_path,
+    client_mvp_loop_ready_repair_chain_heldout_baseline_decision_path,
+    client_mvp_loop_repair_chain_training_candidates_path,
 ]:
-    if expected_text not in client_mvp_loop_ready_repair_chain_eval_candidate_review_show:
-        fail(
-            "show-ready-repair-chain-eval-candidate-review summary missing "
-            f"{expected_text!r}: {client_mvp_loop_ready_repair_chain_eval_candidate_review_show}"
-        )
-try:
-    client_mvp_loop_ready_repair_chain_eval_candidate_review_list_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "list-ready-repair-chain-eval-candidate-reviews",
-            str(client_mvp_loop_ready_repair_chain_eval_candidate_review_path.parent),
-            "--ready-only",
-            "--limit",
-            "5",
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py list-ready-repair-chain-eval-candidate-reviews failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py list-ready-repair-chain-eval-candidate-reviews timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_eval_candidate_review_list = json.loads(
-        client_mvp_loop_ready_repair_chain_eval_candidate_review_list_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py list-ready-repair-chain-eval-candidate-reviews returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("records") != 1:
-    fail(f"list-ready-repair-chain-eval-candidate-reviews saw unexpected records: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("ready_for_dataset_review") != 1:
-    fail(f"list-ready-repair-chain-eval-candidate-reviews saw unexpected ready count: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("eval_dataset_ready") is not False:
-    fail(f"list-ready-repair-chain-eval-candidate-reviews must keep eval_dataset_ready=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("requires_dataset_review") is not True:
-    fail(f"list-ready-repair-chain-eval-candidate-reviews must require dataset review: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("training_allowed") is not False:
-    fail(f"list-ready-repair-chain-eval-candidate-reviews must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("safe_to_train") is not False:
-    fail(f"list-ready-repair-chain-eval-candidate-reviews must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("github_save_ready") is not False:
-    fail(f"list-ready-repair-chain-eval-candidate-reviews must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("approved_for_training") is not False:
-    fail(f"list-ready-repair-chain-eval-candidate-reviews must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
-client_mvp_loop_ready_repair_chain_eval_candidate_review_artifacts = (
-    client_mvp_loop_ready_repair_chain_eval_candidate_review_list.get("artifacts")
-)
-if not isinstance(client_mvp_loop_ready_repair_chain_eval_candidate_review_artifacts, list):
-    fail(f"list-ready-repair-chain-eval-candidate-reviews returned invalid artifacts: {client_mvp_loop_ready_repair_chain_eval_candidate_review_list!r}")
-matching_eval_candidate_review_artifacts = [
-    artifact
-    for artifact in client_mvp_loop_ready_repair_chain_eval_candidate_review_artifacts
-    if artifact.get("path") == str(client_mvp_loop_ready_repair_chain_eval_candidate_review_path)
-]
-if len(matching_eval_candidate_review_artifacts) != 1:
-    fail(f"list-ready-repair-chain-eval-candidate-reviews did not return the saved artifact once: {client_mvp_loop_ready_repair_chain_eval_candidate_review_artifacts!r}")
-matching_eval_candidate_review_artifact = matching_eval_candidate_review_artifacts[0]
-if matching_eval_candidate_review_artifact.get("ready_for_dataset_review") != 1:
-    fail(f"list-ready-repair-chain-eval-candidate-reviews artifact ready count was unexpected: {matching_eval_candidate_review_artifact!r}")
-if matching_eval_candidate_review_artifact.get("records") != 1:
-    fail(f"list-ready-repair-chain-eval-candidate-reviews artifact records were unexpected: {matching_eval_candidate_review_artifact!r}")
-write_artifact(
-    "agent-client-mvp-loop-ready-repair-chain-eval-candidate-review-result.json",
-    {
-        "status": 0,
-        "body": client_mvp_loop_ready_repair_chain_eval_candidate_review,
-        "output": str(client_mvp_loop_ready_repair_chain_eval_candidate_review_path),
-        "source": str(client_mvp_loop_ready_repair_chain_eval_candidates_path),
-    },
-)
-try:
-    client_mvp_loop_ready_repair_chain_eval_dataset_decision_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "record-ready-repair-chain-eval-candidate-decision",
-            str(client_mvp_loop_ready_repair_chain_eval_candidates_path),
-            "--decision",
-            "approve_for_eval_dataset",
-            "--reviewer",
-            "biber-smoke-dataset",
-            "--notes",
-            "Synthetic smoke dataset decision; not a real human approval.",
-            "--output",
-            str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py record-ready-repair-chain-eval-candidate-decision failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py record-ready-repair-chain-eval-candidate-decision timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_eval_dataset_decision = json.loads(
-        client_mvp_loop_ready_repair_chain_eval_dataset_decision_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py record-ready-repair-chain-eval-candidate-decision returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision.get("records") != 1:
-    fail(f"record-ready-repair-chain-eval-candidate-decision wrote unexpected records: {client_mvp_loop_ready_repair_chain_eval_dataset_decision!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision.get("decision") != "approve_for_eval_dataset":
-    fail(f"record-ready-repair-chain-eval-candidate-decision used unexpected decision: {client_mvp_loop_ready_repair_chain_eval_dataset_decision!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision.get("approved_for_eval_dataset_records") != 1:
-    fail(f"record-ready-repair-chain-eval-candidate-decision saw unexpected approval count: {client_mvp_loop_ready_repair_chain_eval_dataset_decision!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision.get("eval_dataset_ready") is not True:
-    fail(f"record-ready-repair-chain-eval-candidate-decision must mark eval_dataset_ready=true: {client_mvp_loop_ready_repair_chain_eval_dataset_decision!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision.get("training_allowed") is not False:
-    fail(f"record-ready-repair-chain-eval-candidate-decision must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision.get("safe_to_train") is not False:
-    fail(f"record-ready-repair-chain-eval-candidate-decision must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision.get("github_save_ready") is not False:
-    fail(f"record-ready-repair-chain-eval-candidate-decision must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision.get("approved_for_training") is not False:
-    fail(f"record-ready-repair-chain-eval-candidate-decision must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision!r}")
-if not client_mvp_loop_ready_repair_chain_eval_dataset_decision_path.exists():
-    fail(f"record-ready-repair-chain-eval-candidate-decision did not write {client_mvp_loop_ready_repair_chain_eval_dataset_decision_path}")
-eval_dataset_decision_lines = client_mvp_loop_ready_repair_chain_eval_dataset_decision_path.read_text(
-    encoding="utf-8"
-).splitlines()
-if len(eval_dataset_decision_lines) != 1:
-    fail(f"record-ready-repair-chain-eval-candidate-decision wrote unexpected line count: {eval_dataset_decision_lines!r}")
-try:
-    eval_dataset_decision_row = json.loads(eval_dataset_decision_lines[0])
-except json.JSONDecodeError as exc:
-    fail(f"record-ready-repair-chain-eval-candidate-decision wrote invalid JSONL: {exc}")
-if eval_dataset_decision_row.get("source") != "biber_mvp_loop_repair_chain_eval_dataset_decision":
-    fail(f"record-ready-repair-chain-eval-candidate-decision wrote unexpected source: {eval_dataset_decision_row!r}")
-if eval_dataset_decision_row.get("decision") != "approve_for_eval_dataset":
-    fail(f"record-ready-repair-chain-eval-candidate-decision wrote unexpected decision: {eval_dataset_decision_row!r}")
-if eval_dataset_decision_row.get("reviewer") != "biber-smoke-dataset":
-    fail(f"record-ready-repair-chain-eval-candidate-decision wrote unexpected reviewer: {eval_dataset_decision_row!r}")
-if eval_dataset_decision_row.get("eval_dataset_ready") is not True:
-    fail(f"record-ready-repair-chain-eval-candidate-decision must mark row eval_dataset_ready=true: {eval_dataset_decision_row!r}")
-if eval_dataset_decision_row.get("approved_for_training") is not False:
-    fail(f"record-ready-repair-chain-eval-candidate-decision must not approve training: {eval_dataset_decision_row!r}")
-write_artifact(
-    "agent-client-mvp-loop-ready-repair-chain-eval-dataset-decision.json",
-    {
-        "status": 0,
-        "body": client_mvp_loop_ready_repair_chain_eval_dataset_decision,
-        "output": str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_path),
-        "source": str(client_mvp_loop_ready_repair_chain_eval_candidates_path),
-    },
-)
-try:
-    client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "review-ready-repair-chain-eval-dataset-decisions",
-            str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_path),
-            "--output",
-            str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py review-ready-repair-chain-eval-dataset-decisions failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py review-ready-repair-chain-eval-dataset-decisions timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_eval_dataset_decision_review = json.loads(
-        client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py review-ready-repair-chain-eval-dataset-decisions returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review.get("records") != 1:
-    fail(f"review-ready-repair-chain-eval-dataset-decisions saw unexpected records: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review.get("decision_counts") != {"approve_for_eval_dataset": 1}:
-    fail(f"review-ready-repair-chain-eval-dataset-decisions saw unexpected decision counts: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review.get("approved_for_eval_dataset_records") != 1:
-    fail(f"review-ready-repair-chain-eval-dataset-decisions saw unexpected approval count: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review.get("eval_dataset_ready_records") != 1:
-    fail(f"review-ready-repair-chain-eval-dataset-decisions saw unexpected eval dataset ready count: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review.get("training_allowed") is not False:
-    fail(f"review-ready-repair-chain-eval-dataset-decisions must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review.get("safe_to_train") is not False:
-    fail(f"review-ready-repair-chain-eval-dataset-decisions must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review.get("github_save_ready") is not False:
-    fail(f"review-ready-repair-chain-eval-dataset-decisions must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review.get("approved_for_training") is not False:
-    fail(f"review-ready-repair-chain-eval-dataset-decisions must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review!r}")
-if not client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_path.exists():
-    fail(f"review-ready-repair-chain-eval-dataset-decisions did not write {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_path}")
-try:
-    saved_client_mvp_loop_ready_repair_chain_eval_dataset_decision_review = json.loads(
-        client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_path.read_text(
-            encoding="utf-8"
-        )
-    )
-except json.JSONDecodeError as exc:
-    fail(f"review-ready-repair-chain-eval-dataset-decisions output artifact was invalid JSON: {exc}")
-if (
-    saved_client_mvp_loop_ready_repair_chain_eval_dataset_decision_review
-    != client_mvp_loop_ready_repair_chain_eval_dataset_decision_review
-):
-    fail("review-ready-repair-chain-eval-dataset-decisions output artifact did not match stdout JSON")
-try:
-    client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_show = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "show-ready-repair-chain-eval-dataset-decision-review",
-            str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py show-ready-repair-chain-eval-dataset-decision-review failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py show-ready-repair-chain-eval-dataset-decision-review timed out: {exc}")
-for expected_text in [
-    "BIBER ready repair-chain eval dataset decision review",
-    "approved_for_eval_dataset_records: 1",
-    "eval_dataset_ready_records: 1",
-    "training_allowed: False",
-    str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_path),
-]:
-    if expected_text not in client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_show:
-        fail(
-            "show-ready-repair-chain-eval-dataset-decision-review summary missing "
-            f"{expected_text!r}: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_show}"
-        )
-try:
-    client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "list-ready-repair-chain-eval-dataset-decision-reviews",
-            str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_path.parent),
-            "--decision",
-            "approve_for_eval_dataset",
-            "--ready-only",
-            "--limit",
-            "5",
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py list-ready-repair-chain-eval-dataset-decision-reviews failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py list-ready-repair-chain-eval-dataset-decision-reviews timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list = json.loads(
-        client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py list-ready-repair-chain-eval-dataset-decision-reviews returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("records") != 1:
-    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews saw unexpected records: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("approved_for_eval_dataset_records") != 1:
-    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews saw unexpected approval count: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("eval_dataset_ready_records") != 1:
-    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews saw unexpected eval-ready count: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("training_allowed") is not False:
-    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("safe_to_train") is not False:
-    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("github_save_ready") is not False:
-    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("approved_for_training") is not False:
-    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
-client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_artifacts = (
-    client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list.get("artifacts")
-)
-if not isinstance(client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_artifacts, list):
-    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews returned invalid artifacts: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_list!r}")
-matching_eval_dataset_decision_review_artifacts = [
-    artifact
-    for artifact in client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_artifacts
-    if artifact.get("path") == str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_path)
-]
-if len(matching_eval_dataset_decision_review_artifacts) != 1:
-    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews did not return the saved artifact once: {client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_artifacts!r}")
-matching_eval_dataset_decision_review_artifact = matching_eval_dataset_decision_review_artifacts[0]
-if matching_eval_dataset_decision_review_artifact.get("eval_dataset_ready_records") != 1:
-    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews artifact eval-ready count was unexpected: {matching_eval_dataset_decision_review_artifact!r}")
-if matching_eval_dataset_decision_review_artifact.get("approved_for_eval_dataset_records") != 1:
-    fail(f"list-ready-repair-chain-eval-dataset-decision-reviews artifact approval count was unexpected: {matching_eval_dataset_decision_review_artifact!r}")
-write_artifact(
-    "agent-client-mvp-loop-ready-repair-chain-eval-dataset-decision-review-result.json",
-    {
-        "status": 0,
-        "body": client_mvp_loop_ready_repair_chain_eval_dataset_decision_review,
-        "output": str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_path),
-        "source": str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_path),
-    },
-)
-try:
-    client_mvp_loop_ready_repair_chain_eval_dataset_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "export-ready-repair-chain-eval-dataset",
-            str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_path),
-            "--output",
-            str(client_mvp_loop_ready_repair_chain_eval_dataset_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py export-ready-repair-chain-eval-dataset failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py export-ready-repair-chain-eval-dataset timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_eval_dataset = json.loads(
-        client_mvp_loop_ready_repair_chain_eval_dataset_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py export-ready-repair-chain-eval-dataset returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_eval_dataset.get("records") != 1:
-    fail(f"export-ready-repair-chain-eval-dataset wrote unexpected records: {client_mvp_loop_ready_repair_chain_eval_dataset!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset.get("eval_dataset_records") != 1:
-    fail(f"export-ready-repair-chain-eval-dataset saw unexpected eval dataset count: {client_mvp_loop_ready_repair_chain_eval_dataset!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset.get("eval_dataset_ready") is not True:
-    fail(f"export-ready-repair-chain-eval-dataset must mark eval_dataset_ready=true: {client_mvp_loop_ready_repair_chain_eval_dataset!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset.get("requires_eval_dataset_validation") is not True:
-    fail(f"export-ready-repair-chain-eval-dataset must require validation: {client_mvp_loop_ready_repair_chain_eval_dataset!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset.get("training_allowed") is not False:
-    fail(f"export-ready-repair-chain-eval-dataset must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_dataset!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset.get("safe_to_train") is not False:
-    fail(f"export-ready-repair-chain-eval-dataset must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_dataset!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset.get("github_save_ready") is not False:
-    fail(f"export-ready-repair-chain-eval-dataset must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_dataset!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset.get("approved_for_training") is not False:
-    fail(f"export-ready-repair-chain-eval-dataset must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_dataset!r}")
-if not client_mvp_loop_ready_repair_chain_eval_dataset_path.exists():
-    fail(f"export-ready-repair-chain-eval-dataset did not write {client_mvp_loop_ready_repair_chain_eval_dataset_path}")
-eval_dataset_lines = client_mvp_loop_ready_repair_chain_eval_dataset_path.read_text(
-    encoding="utf-8"
-).splitlines()
-if len(eval_dataset_lines) != 1:
-    fail(f"export-ready-repair-chain-eval-dataset wrote unexpected line count: {eval_dataset_lines!r}")
-try:
-    eval_dataset_row = json.loads(eval_dataset_lines[0])
-except json.JSONDecodeError as exc:
-    fail(f"export-ready-repair-chain-eval-dataset wrote invalid JSONL: {exc}")
-if eval_dataset_row.get("source") != "biber_mvp_loop_repair_chain_eval_dataset_record":
-    fail(f"export-ready-repair-chain-eval-dataset wrote unexpected source: {eval_dataset_row!r}")
-if eval_dataset_row.get("eval_dataset_status") != "ready_for_eval_dataset_validation":
-    fail(f"export-ready-repair-chain-eval-dataset wrote unexpected status: {eval_dataset_row!r}")
-if eval_dataset_row.get("approved_for_eval_dataset") is not True:
-    fail(f"export-ready-repair-chain-eval-dataset must keep approved_for_eval_dataset=true: {eval_dataset_row!r}")
-if eval_dataset_row.get("requires_eval_dataset_validation") is not True:
-    fail(f"export-ready-repair-chain-eval-dataset row must require validation: {eval_dataset_row!r}")
-if eval_dataset_row.get("approved_for_training") is not False:
-    fail(f"export-ready-repair-chain-eval-dataset row must not approve training: {eval_dataset_row!r}")
-write_artifact(
-    "agent-client-mvp-loop-ready-repair-chain-eval-dataset-result.json",
-    {
-        "status": 0,
-        "body": client_mvp_loop_ready_repair_chain_eval_dataset,
-        "output": str(client_mvp_loop_ready_repair_chain_eval_dataset_path),
-        "source": str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_path),
-    },
-)
-try:
-    client_mvp_loop_ready_repair_chain_eval_dataset_validation_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "validate-ready-repair-chain-eval-dataset",
-            str(client_mvp_loop_ready_repair_chain_eval_dataset_path),
-            "--output",
-            str(client_mvp_loop_ready_repair_chain_eval_dataset_validation_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py validate-ready-repair-chain-eval-dataset failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py validate-ready-repair-chain-eval-dataset timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_eval_dataset_validation = json.loads(
-        client_mvp_loop_ready_repair_chain_eval_dataset_validation_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py validate-ready-repair-chain-eval-dataset returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation.get("ok") is not True:
-    fail(f"validate-ready-repair-chain-eval-dataset must pass smoke dataset: {client_mvp_loop_ready_repair_chain_eval_dataset_validation!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation.get("records") != 1:
-    fail(f"validate-ready-repair-chain-eval-dataset saw unexpected records: {client_mvp_loop_ready_repair_chain_eval_dataset_validation!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation.get("valid_records") != 1:
-    fail(f"validate-ready-repair-chain-eval-dataset saw unexpected valid count: {client_mvp_loop_ready_repair_chain_eval_dataset_validation!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation.get("invalid_records") != 0:
-    fail(f"validate-ready-repair-chain-eval-dataset saw unexpected invalid count: {client_mvp_loop_ready_repair_chain_eval_dataset_validation!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation.get("rejected_records") != 0:
-    fail(f"validate-ready-repair-chain-eval-dataset saw unexpected rejected count: {client_mvp_loop_ready_repair_chain_eval_dataset_validation!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation.get("training_allowed") is not False:
-    fail(f"validate-ready-repair-chain-eval-dataset must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_dataset_validation!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation.get("safe_to_train") is not False:
-    fail(f"validate-ready-repair-chain-eval-dataset must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_dataset_validation!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation.get("github_save_ready") is not False:
-    fail(f"validate-ready-repair-chain-eval-dataset must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_dataset_validation!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation.get("approved_for_training") is not False:
-    fail(f"validate-ready-repair-chain-eval-dataset must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_dataset_validation!r}")
-if not client_mvp_loop_ready_repair_chain_eval_dataset_validation_path.exists():
-    fail(f"validate-ready-repair-chain-eval-dataset did not write {client_mvp_loop_ready_repair_chain_eval_dataset_validation_path}")
-try:
-    saved_client_mvp_loop_ready_repair_chain_eval_dataset_validation = json.loads(
-        client_mvp_loop_ready_repair_chain_eval_dataset_validation_path.read_text(
-            encoding="utf-8"
-        )
-    )
-except json.JSONDecodeError as exc:
-    fail(f"validate-ready-repair-chain-eval-dataset output artifact was invalid JSON: {exc}")
-if (
-    saved_client_mvp_loop_ready_repair_chain_eval_dataset_validation
-    != client_mvp_loop_ready_repair_chain_eval_dataset_validation
-):
-    fail("validate-ready-repair-chain-eval-dataset output artifact did not match stdout JSON")
-try:
-    client_mvp_loop_ready_repair_chain_eval_dataset_validation_show = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "show-ready-repair-chain-eval-dataset-validation",
-            str(client_mvp_loop_ready_repair_chain_eval_dataset_validation_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py show-ready-repair-chain-eval-dataset-validation failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py show-ready-repair-chain-eval-dataset-validation timed out: {exc}")
-for expected_text in [
-    "BIBER ready repair-chain eval dataset validation",
-    "ok: True",
-    "valid_records: 1",
-    "eval_dataset_ready: True",
-    "training_allowed: False",
-    str(client_mvp_loop_ready_repair_chain_eval_dataset_validation_path),
-]:
-    if expected_text not in client_mvp_loop_ready_repair_chain_eval_dataset_validation_show:
-        fail(
-            "show-ready-repair-chain-eval-dataset-validation summary missing "
-            f"{expected_text!r}: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_show}"
-        )
-try:
-    client_mvp_loop_ready_repair_chain_eval_dataset_validation_list_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "list-ready-repair-chain-eval-dataset-validations",
-            str(client_mvp_loop_ready_repair_chain_eval_dataset_validation_path.parent),
-            "--ok-only",
-            "--limit",
-            "5",
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py list-ready-repair-chain-eval-dataset-validations failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py list-ready-repair-chain-eval-dataset-validations timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_eval_dataset_validation_list = json.loads(
-        client_mvp_loop_ready_repair_chain_eval_dataset_validation_list_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py list-ready-repair-chain-eval-dataset-validations returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("records") != 1:
-    fail(f"list-ready-repair-chain-eval-dataset-validations saw unexpected records: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("valid_records") != 1:
-    fail(f"list-ready-repair-chain-eval-dataset-validations saw unexpected valid count: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("invalid_records") != 0:
-    fail(f"list-ready-repair-chain-eval-dataset-validations saw unexpected invalid count: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("ok_artifacts") != 1:
-    fail(f"list-ready-repair-chain-eval-dataset-validations saw unexpected ok artifact count: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("eval_dataset_ready") is not True:
-    fail(f"list-ready-repair-chain-eval-dataset-validations must keep eval_dataset_ready=true for valid artifact: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("training_allowed") is not False:
-    fail(f"list-ready-repair-chain-eval-dataset-validations must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("safe_to_train") is not False:
-    fail(f"list-ready-repair-chain-eval-dataset-validations must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("github_save_ready") is not False:
-    fail(f"list-ready-repair-chain-eval-dataset-validations must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("approved_for_training") is not False:
-    fail(f"list-ready-repair-chain-eval-dataset-validations must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
-client_mvp_loop_ready_repair_chain_eval_dataset_validation_artifacts = (
-    client_mvp_loop_ready_repair_chain_eval_dataset_validation_list.get("artifacts")
-)
-if not isinstance(client_mvp_loop_ready_repair_chain_eval_dataset_validation_artifacts, list):
-    fail(f"list-ready-repair-chain-eval-dataset-validations returned invalid artifacts: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_list!r}")
-matching_eval_dataset_validation_artifacts = [
-    artifact
-    for artifact in client_mvp_loop_ready_repair_chain_eval_dataset_validation_artifacts
-    if artifact.get("path") == str(client_mvp_loop_ready_repair_chain_eval_dataset_validation_path)
-]
-if len(matching_eval_dataset_validation_artifacts) != 1:
-    fail(f"list-ready-repair-chain-eval-dataset-validations did not return the saved artifact once: {client_mvp_loop_ready_repair_chain_eval_dataset_validation_artifacts!r}")
-matching_eval_dataset_validation_artifact = matching_eval_dataset_validation_artifacts[0]
-if matching_eval_dataset_validation_artifact.get("ok") is not True:
-    fail(f"list-ready-repair-chain-eval-dataset-validations artifact ok flag was unexpected: {matching_eval_dataset_validation_artifact!r}")
-if matching_eval_dataset_validation_artifact.get("valid_records") != 1:
-    fail(f"list-ready-repair-chain-eval-dataset-validations artifact valid count was unexpected: {matching_eval_dataset_validation_artifact!r}")
-write_artifact(
-    "agent-client-mvp-loop-ready-repair-chain-eval-dataset-validation-result.json",
-    {
-        "status": 0,
-        "body": client_mvp_loop_ready_repair_chain_eval_dataset_validation,
-        "output": str(client_mvp_loop_ready_repair_chain_eval_dataset_validation_path),
-        "source": str(client_mvp_loop_ready_repair_chain_eval_dataset_path),
-    },
-)
-try:
-    client_mvp_loop_ready_repair_chain_eval_prompts_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "export-ready-repair-chain-eval-prompts",
-            str(client_mvp_loop_ready_repair_chain_eval_dataset_path),
-            "--output",
-            str(client_mvp_loop_ready_repair_chain_eval_prompts_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py export-ready-repair-chain-eval-prompts failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py export-ready-repair-chain-eval-prompts timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_eval_prompts = json.loads(
-        client_mvp_loop_ready_repair_chain_eval_prompts_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py export-ready-repair-chain-eval-prompts returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_eval_prompts.get("records") != 1:
-    fail(f"export-ready-repair-chain-eval-prompts wrote unexpected records: {client_mvp_loop_ready_repair_chain_eval_prompts!r}")
-if client_mvp_loop_ready_repair_chain_eval_prompts.get("eval_prompts") != 1:
-    fail(f"export-ready-repair-chain-eval-prompts saw unexpected prompt count: {client_mvp_loop_ready_repair_chain_eval_prompts!r}")
-if client_mvp_loop_ready_repair_chain_eval_prompts.get("eval_only") is not True:
-    fail(f"export-ready-repair-chain-eval-prompts must mark eval_only=true: {client_mvp_loop_ready_repair_chain_eval_prompts!r}")
-if client_mvp_loop_ready_repair_chain_eval_prompts.get("training_allowed") is not False:
-    fail(f"export-ready-repair-chain-eval-prompts must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_prompts!r}")
-if client_mvp_loop_ready_repair_chain_eval_prompts.get("safe_to_train") is not False:
-    fail(f"export-ready-repair-chain-eval-prompts must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_prompts!r}")
-if client_mvp_loop_ready_repair_chain_eval_prompts.get("github_save_ready") is not False:
-    fail(f"export-ready-repair-chain-eval-prompts must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_prompts!r}")
-if client_mvp_loop_ready_repair_chain_eval_prompts.get("approved_for_training") is not False:
-    fail(f"export-ready-repair-chain-eval-prompts must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_prompts!r}")
-if not client_mvp_loop_ready_repair_chain_eval_prompts_path.exists():
-    fail(f"export-ready-repair-chain-eval-prompts did not write {client_mvp_loop_ready_repair_chain_eval_prompts_path}")
-eval_prompt_lines = client_mvp_loop_ready_repair_chain_eval_prompts_path.read_text(
-    encoding="utf-8"
-).splitlines()
-if len(eval_prompt_lines) != 1:
-    fail(f"export-ready-repair-chain-eval-prompts wrote unexpected line count: {eval_prompt_lines!r}")
-try:
-    eval_prompt_row = json.loads(eval_prompt_lines[0])
-except json.JSONDecodeError as exc:
-    fail(f"export-ready-repair-chain-eval-prompts wrote invalid JSONL: {exc}")
-if eval_prompt_row.get("source") != "biber_mvp_loop_repair_chain_eval_prompt":
-    fail(f"export-ready-repair-chain-eval-prompts wrote unexpected source: {eval_prompt_row!r}")
-if eval_prompt_row.get("task_type") != "mvp_loop_repair_eval":
-    fail(f"export-ready-repair-chain-eval-prompts wrote unexpected task_type: {eval_prompt_row!r}")
-if eval_prompt_row.get("expect_contains") != ["Repair", "Test", "Risk"]:
-    fail(f"export-ready-repair-chain-eval-prompts wrote unexpected expectations: {eval_prompt_row!r}")
-if eval_prompt_row.get("training_allowed") is not False:
-    fail(f"export-ready-repair-chain-eval-prompts row must keep training_allowed=false: {eval_prompt_row!r}")
-if eval_prompt_row.get("approved_for_training") is not False:
-    fail(f"export-ready-repair-chain-eval-prompts row must not approve training: {eval_prompt_row!r}")
-try:
-    client_mvp_loop_ready_repair_chain_eval_prompts_show = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "show-ready-repair-chain-eval-prompts",
-            str(client_mvp_loop_ready_repair_chain_eval_prompts_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py show-ready-repair-chain-eval-prompts failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py show-ready-repair-chain-eval-prompts timed out: {exc}")
-for expected_text in [
-    "BIBER ready repair-chain eval prompts",
-    "ok: True",
-    "eval_prompts: 1",
-    "eval_prompt_ready_records: 1",
-    "training_allowed: False",
-    str(client_mvp_loop_ready_repair_chain_eval_prompts_path),
-]:
-    if expected_text not in client_mvp_loop_ready_repair_chain_eval_prompts_show:
-        fail(
-            "show-ready-repair-chain-eval-prompts summary missing "
-            f"{expected_text!r}: {client_mvp_loop_ready_repair_chain_eval_prompts_show}"
-        )
-try:
-    client_mvp_loop_ready_repair_chain_eval_prompts_list_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "list-ready-repair-chain-eval-prompts",
-            str(client_mvp_loop_ready_repair_chain_eval_prompts_path.parent),
-            "--ready-only",
-            "--limit",
-            "5",
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py list-ready-repair-chain-eval-prompts failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py list-ready-repair-chain-eval-prompts timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_eval_prompts_list = json.loads(
-        client_mvp_loop_ready_repair_chain_eval_prompts_list_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py list-ready-repair-chain-eval-prompts returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("records") != 1:
-    fail(f"list-ready-repair-chain-eval-prompts saw unexpected records: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("valid_records") != 1:
-    fail(f"list-ready-repair-chain-eval-prompts saw unexpected valid count: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("eval_prompts") != 1:
-    fail(f"list-ready-repair-chain-eval-prompts saw unexpected prompt count: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("eval_prompt_ready_records") != 1:
-    fail(f"list-ready-repair-chain-eval-prompts saw unexpected ready count: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("training_allowed") is not False:
-    fail(f"list-ready-repair-chain-eval-prompts must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("safe_to_train") is not False:
-    fail(f"list-ready-repair-chain-eval-prompts must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("github_save_ready") is not False:
-    fail(f"list-ready-repair-chain-eval-prompts must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
-if client_mvp_loop_ready_repair_chain_eval_prompts_list.get("approved_for_training") is not False:
-    fail(f"list-ready-repair-chain-eval-prompts must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
-client_mvp_loop_ready_repair_chain_eval_prompt_artifacts = (
-    client_mvp_loop_ready_repair_chain_eval_prompts_list.get("artifacts")
-)
-if not isinstance(client_mvp_loop_ready_repair_chain_eval_prompt_artifacts, list):
-    fail(f"list-ready-repair-chain-eval-prompts returned invalid artifacts: {client_mvp_loop_ready_repair_chain_eval_prompts_list!r}")
-matching_eval_prompt_artifacts = [
-    artifact
-    for artifact in client_mvp_loop_ready_repair_chain_eval_prompt_artifacts
-    if artifact.get("path") == str(client_mvp_loop_ready_repair_chain_eval_prompts_path)
-]
-if len(matching_eval_prompt_artifacts) != 1:
-    fail(f"list-ready-repair-chain-eval-prompts did not return the saved artifact once: {client_mvp_loop_ready_repair_chain_eval_prompt_artifacts!r}")
-matching_eval_prompt_artifact = matching_eval_prompt_artifacts[0]
-if matching_eval_prompt_artifact.get("ok") is not True:
-    fail(f"list-ready-repair-chain-eval-prompts artifact ok flag was unexpected: {matching_eval_prompt_artifact!r}")
-if matching_eval_prompt_artifact.get("eval_prompts") != 1:
-    fail(f"list-ready-repair-chain-eval-prompts artifact prompt count was unexpected: {matching_eval_prompt_artifact!r}")
-write_artifact(
-    "agent-client-mvp-loop-ready-repair-chain-eval-prompts-result.json",
-    {
-        "status": 0,
-        "body": client_mvp_loop_ready_repair_chain_eval_prompts,
-        "output": str(client_mvp_loop_ready_repair_chain_eval_prompts_path),
-        "source": str(client_mvp_loop_ready_repair_chain_eval_dataset_path),
-    },
-)
-heldout_eval_record = {
-    "id": eval_prompt_row.get("id"),
-    "ok": True,
-    "expectation_ok": True,
-    "validation_ok": None,
-    "validation_skipped": False,
-    "model": "biber-dev-core-v1",
-    "latency_seconds": 0.0,
-    "content": "Repair:\nsmall safe fix\nTest:\npython-compileall-api\nRisk:\nlow",
-    "matched_expectations": ["Repair", "Test", "Risk"],
-    "missing_expectations": [],
-    "error": None,
+    write_empty_jsonl(skipped_jsonl_path)
+
+client_mvp_loop_ready_repair_chain_eval_decision = {
+    "source": "biber_agent_smoke_eval_guard",
+    "decision": "blocked",
+    "records": 0,
+    "blocked": True,
+    "skip_reason": skip_reason,
+    "training_allowed": False,
+    "safe_to_train": False,
+    "github_save_ready": False,
+    "approved_for_training": False,
+    "output": str(client_mvp_loop_ready_repair_chain_eval_decision_path),
 }
-client_mvp_loop_ready_repair_chain_heldout_eval_path.write_text(
-    json.dumps(heldout_eval_record, sort_keys=True) + "\n",
-    encoding="utf-8",
+client_mvp_loop_ready_repair_chain_eval_candidate = {
+    "source": "biber_mvp_loop_ready_repair_chain_eval_candidate_export",
+    "records": 0,
+    "skipped_records": 1,
+    "rejected_records": 0,
+    "blocked_non_real_repo_records": 1,
+    "blocked_unconfirmed_real_repo_records": 0,
+    "eval_candidates": 0,
+    "eval_dataset_ready": False,
+    "requires_dataset_review": True,
+    "training_allowed": False,
+    "safe_to_train": False,
+    "github_save_ready": False,
+    "approved_for_training": False,
+    "skip_reason": skip_reason,
+    "output": str(client_mvp_loop_ready_repair_chain_eval_candidates_path),
+}
+client_mvp_loop_ready_repair_chain_eval_candidate_review = write_json_placeholder(
+    client_mvp_loop_ready_repair_chain_eval_candidate_review_path,
+    {
+        "source": "biber_mvp_loop_ready_repair_chain_eval_candidate_review",
+        "records": 0,
+        "ready_for_dataset_review": 0,
+        "eval_dataset_ready": False,
+        "requires_dataset_review": True,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "skip_reason": skip_reason,
+    },
 )
+client_mvp_loop_ready_repair_chain_eval_dataset_decision = {
+    "source": "biber_mvp_loop_repair_chain_eval_dataset_decision_export",
+    "records": 0,
+    "decision": "blocked",
+    "approved_for_eval_dataset_records": 0,
+    "eval_dataset_ready": False,
+    "training_allowed": False,
+    "safe_to_train": False,
+    "github_save_ready": False,
+    "approved_for_training": False,
+    "skip_reason": skip_reason,
+    "output": str(client_mvp_loop_ready_repair_chain_eval_dataset_decision_path),
+}
+client_mvp_loop_ready_repair_chain_eval_dataset_decision_review = write_json_placeholder(
+    client_mvp_loop_ready_repair_chain_eval_dataset_decision_review_path,
+    {
+        "source": "biber_mvp_loop_ready_repair_chain_eval_dataset_decision_review",
+        "records": 0,
+        "decision_counts": {},
+        "approved_for_eval_dataset_records": 0,
+        "eval_dataset_ready_records": 0,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "skip_reason": skip_reason,
+    },
+)
+client_mvp_loop_ready_repair_chain_eval_dataset = {
+    "source": "biber_mvp_loop_ready_repair_chain_eval_dataset_export",
+    "records": 0,
+    "eval_dataset_records": 0,
+    "eval_dataset_ready": False,
+    "requires_eval_dataset_validation": False,
+    "training_allowed": False,
+    "safe_to_train": False,
+    "github_save_ready": False,
+    "approved_for_training": False,
+    "skip_reason": skip_reason,
+    "output": str(client_mvp_loop_ready_repair_chain_eval_dataset_path),
+}
+client_mvp_loop_ready_repair_chain_eval_dataset_validation = write_json_placeholder(
+    client_mvp_loop_ready_repair_chain_eval_dataset_validation_path,
+    {
+        "source": "biber_mvp_loop_ready_repair_chain_eval_dataset_validation",
+        "ok": False,
+        "records": 0,
+        "valid_records": 0,
+        "invalid_records": 0,
+        "rejected_records": 0,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "skip_reason": skip_reason,
+    },
+)
+client_mvp_loop_ready_repair_chain_eval_prompts = {
+    "source": "biber_mvp_loop_repair_chain_eval_prompt_export",
+    "records": 0,
+    "prompt_records": 0,
+    "eval_only": True,
+    "training_allowed": False,
+    "safe_to_train": False,
+    "github_save_ready": False,
+    "approved_for_training": False,
+    "skip_reason": skip_reason,
+    "output": str(client_mvp_loop_ready_repair_chain_eval_prompts_path),
+}
 client_mvp_loop_ready_repair_chain_heldout_eval_summary_path.write_text(
-    json.dumps(
-        {
-            "prompts": 1,
-            "ok": 1,
-            "failed": 0,
-            "expectation_ok": 1,
-            "expectation_failed": 0,
-        },
-        indent=2,
-        sort_keys=True,
-    )
-    + "\n",
+    json.dumps({"records": 0, "skip_reason": skip_reason}, sort_keys=True) + "\n",
     encoding="utf-8",
 )
-try:
-    client_mvp_loop_ready_repair_chain_heldout_eval_review_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "review-repair-chain-heldout-eval-results",
-            str(client_mvp_loop_ready_repair_chain_heldout_eval_path),
-            "--summary",
-            str(client_mvp_loop_ready_repair_chain_heldout_eval_summary_path),
-            "--output",
-            str(client_mvp_loop_ready_repair_chain_heldout_eval_review_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py review-repair-chain-heldout-eval-results failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py review-repair-chain-heldout-eval-results timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_heldout_eval_review = json.loads(
-        client_mvp_loop_ready_repair_chain_heldout_eval_review_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py review-repair-chain-heldout-eval-results returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("ok") is not True:
-    fail(f"held-out eval review should pass synthetic smoke evidence: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("records") != 1:
-    fail(f"held-out eval review saw unexpected records: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("passed_records") != 1:
-    fail(f"held-out eval review saw unexpected passed count: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("failed_records") != 0:
-    fail(f"held-out eval review saw unexpected failures: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("eval_only") is not True:
-    fail(f"held-out eval review must mark eval_only=true: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("training_allowed") is not False:
-    fail(f"held-out eval review must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("safe_to_train") is not False:
-    fail(f"held-out eval review must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("github_save_ready") is not False:
-    fail(f"held-out eval review must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review.get("approved_for_training") is not False:
-    fail(f"held-out eval review must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_heldout_eval_review!r}")
-if not client_mvp_loop_ready_repair_chain_heldout_eval_review_path.exists():
-    fail(f"held-out eval review did not write {client_mvp_loop_ready_repair_chain_heldout_eval_review_path}")
-try:
-    saved_client_mvp_loop_ready_repair_chain_heldout_eval_review = json.loads(
-        client_mvp_loop_ready_repair_chain_heldout_eval_review_path.read_text(
-            encoding="utf-8"
-        )
-    )
-except json.JSONDecodeError as exc:
-    fail(f"held-out eval review output artifact was invalid JSON: {exc}")
-if (
-    saved_client_mvp_loop_ready_repair_chain_heldout_eval_review
-    != client_mvp_loop_ready_repair_chain_heldout_eval_review
-):
-    fail("held-out eval review output artifact did not match stdout JSON")
-try:
-    client_mvp_loop_ready_repair_chain_heldout_eval_review_show = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "show-repair-chain-heldout-eval-review",
-            str(client_mvp_loop_ready_repair_chain_heldout_eval_review_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py show-repair-chain-heldout-eval-review failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py show-repair-chain-heldout-eval-review timed out: {exc}")
-for expected_text in [
-    "BIBER repair-chain held-out eval review",
-    "ok: True",
-    "passed_records: 1",
-    "failed_records: 0",
-    "eval_only: True",
-    "training_allowed: False",
-    str(client_mvp_loop_ready_repair_chain_heldout_eval_review_path),
-]:
-    if expected_text not in client_mvp_loop_ready_repair_chain_heldout_eval_review_show:
-        fail(
-            "show-repair-chain-heldout-eval-review summary missing "
-            f"{expected_text!r}: {client_mvp_loop_ready_repair_chain_heldout_eval_review_show}"
-        )
-try:
-    client_mvp_loop_ready_repair_chain_heldout_eval_review_list_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "list-repair-chain-heldout-eval-reviews",
-            str(client_mvp_loop_ready_repair_chain_heldout_eval_review_path.parent),
-            "--ok-only",
-            "--limit",
-            "5",
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py list-repair-chain-heldout-eval-reviews failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py list-repair-chain-heldout-eval-reviews timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_heldout_eval_review_list = json.loads(
-        client_mvp_loop_ready_repair_chain_heldout_eval_review_list_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py list-repair-chain-heldout-eval-reviews returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review_list.get("records") != 1:
-    fail(f"list-repair-chain-heldout-eval-reviews saw unexpected records: {client_mvp_loop_ready_repair_chain_heldout_eval_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review_list.get("passed_records") != 1:
-    fail(f"list-repair-chain-heldout-eval-reviews saw unexpected passed count: {client_mvp_loop_ready_repair_chain_heldout_eval_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review_list.get("failed_records") != 0:
-    fail(f"list-repair-chain-heldout-eval-reviews saw unexpected failed count: {client_mvp_loop_ready_repair_chain_heldout_eval_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review_list.get("ok_artifacts") != 1:
-    fail(f"list-repair-chain-heldout-eval-reviews saw unexpected ok artifact count: {client_mvp_loop_ready_repair_chain_heldout_eval_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review_list.get("training_allowed") is not False:
-    fail(f"list-repair-chain-heldout-eval-reviews must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_heldout_eval_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review_list.get("safe_to_train") is not False:
-    fail(f"list-repair-chain-heldout-eval-reviews must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_heldout_eval_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review_list.get("github_save_ready") is not False:
-    fail(f"list-repair-chain-heldout-eval-reviews must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_heldout_eval_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_review_list.get("approved_for_training") is not False:
-    fail(f"list-repair-chain-heldout-eval-reviews must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_heldout_eval_review_list!r}")
-client_mvp_loop_ready_repair_chain_heldout_eval_review_artifacts = (
-    client_mvp_loop_ready_repair_chain_heldout_eval_review_list.get("artifacts")
-)
-if not isinstance(client_mvp_loop_ready_repair_chain_heldout_eval_review_artifacts, list):
-    fail(f"list-repair-chain-heldout-eval-reviews returned invalid artifacts: {client_mvp_loop_ready_repair_chain_heldout_eval_review_list!r}")
-matching_heldout_eval_review_artifacts = [
-    artifact
-    for artifact in client_mvp_loop_ready_repair_chain_heldout_eval_review_artifacts
-    if artifact.get("path") == str(client_mvp_loop_ready_repair_chain_heldout_eval_review_path)
-]
-if len(matching_heldout_eval_review_artifacts) != 1:
-    fail(f"list-repair-chain-heldout-eval-reviews did not return the saved artifact once: {client_mvp_loop_ready_repair_chain_heldout_eval_review_artifacts!r}")
-matching_heldout_eval_review_artifact = matching_heldout_eval_review_artifacts[0]
-if matching_heldout_eval_review_artifact.get("ok") is not True:
-    fail(f"list-repair-chain-heldout-eval-reviews artifact ok flag was unexpected: {matching_heldout_eval_review_artifact!r}")
-if matching_heldout_eval_review_artifact.get("passed_records") != 1:
-    fail(f"list-repair-chain-heldout-eval-reviews artifact passed count was unexpected: {matching_heldout_eval_review_artifact!r}")
-write_artifact(
-    "agent-client-mvp-loop-repair-chain-heldout-eval-review-result.json",
+client_mvp_loop_ready_repair_chain_heldout_eval_review = write_json_placeholder(
+    client_mvp_loop_ready_repair_chain_heldout_eval_review_path,
     {
-        "status": 0,
-        "body": client_mvp_loop_ready_repair_chain_heldout_eval_review,
-        "output": str(client_mvp_loop_ready_repair_chain_heldout_eval_review_path),
-        "source": str(client_mvp_loop_ready_repair_chain_heldout_eval_path),
+        "source": "biber_mvp_loop_repair_chain_heldout_eval_review",
+        "ok": False,
+        "records": 0,
+        "passed_records": 0,
+        "failed_records": 0,
+        "eval_only": True,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "skip_reason": skip_reason,
     },
 )
-try:
-    client_mvp_loop_ready_repair_chain_heldout_eval_decision_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "record-repair-chain-heldout-eval-decision",
-            str(client_mvp_loop_ready_repair_chain_heldout_eval_review_path),
-            "--decision",
-            "defer",
-            "--reviewer",
-            "biber-smoke-heldout",
-            "--notes",
-            "Synthetic smoke held-out eval decision; not a human approval.",
-            "--output",
-            str(client_mvp_loop_ready_repair_chain_heldout_eval_decision_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py record-repair-chain-heldout-eval-decision failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py record-repair-chain-heldout-eval-decision timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_heldout_eval_decision = json.loads(
-        client_mvp_loop_ready_repair_chain_heldout_eval_decision_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py record-repair-chain-heldout-eval-decision returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision.get("records") != 1:
-    fail(f"held-out eval decision wrote unexpected records: {client_mvp_loop_ready_repair_chain_heldout_eval_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision.get("decision") != "defer":
-    fail(f"held-out eval decision used unexpected value: {client_mvp_loop_ready_repair_chain_heldout_eval_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision.get("accepted_for_baseline_records") != 0:
-    fail(f"held-out eval decision must not accept smoke evidence for baseline: {client_mvp_loop_ready_repair_chain_heldout_eval_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision.get("baseline_candidate_ready") is not False:
-    fail(f"held-out eval decision must keep baseline_candidate_ready=false for smoke defer: {client_mvp_loop_ready_repair_chain_heldout_eval_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision.get("eval_only") is not True:
-    fail(f"held-out eval decision must mark eval_only=true: {client_mvp_loop_ready_repair_chain_heldout_eval_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision.get("training_allowed") is not False:
-    fail(f"held-out eval decision must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_heldout_eval_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision.get("safe_to_train") is not False:
-    fail(f"held-out eval decision must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_heldout_eval_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision.get("github_save_ready") is not False:
-    fail(f"held-out eval decision must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_heldout_eval_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision.get("approved_for_training") is not False:
-    fail(f"held-out eval decision must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_heldout_eval_decision!r}")
-if not client_mvp_loop_ready_repair_chain_heldout_eval_decision_path.exists():
-    fail(f"held-out eval decision did not write {client_mvp_loop_ready_repair_chain_heldout_eval_decision_path}")
-heldout_eval_decision_lines = client_mvp_loop_ready_repair_chain_heldout_eval_decision_path.read_text(
-    encoding="utf-8"
-).splitlines()
-if len(heldout_eval_decision_lines) != 1:
-    fail(f"held-out eval decision wrote unexpected line count: {heldout_eval_decision_lines!r}")
-try:
-    heldout_eval_decision_row = json.loads(heldout_eval_decision_lines[0])
-except json.JSONDecodeError as exc:
-    fail(f"held-out eval decision wrote invalid JSONL: {exc}")
-if heldout_eval_decision_row.get("source") != "biber_mvp_loop_repair_chain_heldout_eval_decision":
-    fail(f"held-out eval decision wrote unexpected source: {heldout_eval_decision_row!r}")
-if heldout_eval_decision_row.get("decision") != "defer":
-    fail(f"held-out eval decision wrote unexpected row decision: {heldout_eval_decision_row!r}")
-if heldout_eval_decision_row.get("reviewer") != "biber-smoke-heldout":
-    fail(f"held-out eval decision wrote unexpected reviewer: {heldout_eval_decision_row!r}")
-if heldout_eval_decision_row.get("accepted_for_baseline") is not False:
-    fail(f"held-out eval decision row must not accept smoke baseline: {heldout_eval_decision_row!r}")
-if heldout_eval_decision_row.get("approved_for_training") is not False:
-    fail(f"held-out eval decision row must not approve training: {heldout_eval_decision_row!r}")
-write_artifact(
-    "agent-client-mvp-loop-repair-chain-heldout-eval-decision-result.json",
+client_mvp_loop_ready_repair_chain_heldout_eval_decision = {
+    "source": "biber_mvp_loop_repair_chain_heldout_eval_decision_export",
+    "records": 0,
+    "decision": "blocked",
+    "baseline_candidate_ready": False,
+    "accepted_for_baseline_records": 0,
+    "eval_only": True,
+    "training_allowed": False,
+    "safe_to_train": False,
+    "github_save_ready": False,
+    "approved_for_training": False,
+    "skip_reason": skip_reason,
+    "output": str(client_mvp_loop_ready_repair_chain_heldout_eval_decision_path),
+}
+client_mvp_loop_ready_repair_chain_heldout_eval_decision_review = write_json_placeholder(
+    client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_path,
     {
-        "status": 0,
-        "body": client_mvp_loop_ready_repair_chain_heldout_eval_decision,
-        "output": str(client_mvp_loop_ready_repair_chain_heldout_eval_decision_path),
-        "source": str(client_mvp_loop_ready_repair_chain_heldout_eval_review_path),
+        "source": "biber_mvp_loop_repair_chain_heldout_eval_decision_review",
+        "records": 0,
+        "decision_counts": {},
+        "defer_records": 0,
+        "baseline_candidate_ready_records": 0,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "skip_reason": skip_reason,
     },
 )
-try:
-    client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "review-repair-chain-heldout-eval-decisions",
-            str(client_mvp_loop_ready_repair_chain_heldout_eval_decision_path),
-            "--output",
-            str(client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py review-repair-chain-heldout-eval-decisions failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py review-repair-chain-heldout-eval-decisions timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_heldout_eval_decision_review = json.loads(
-        client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py review-repair-chain-heldout-eval-decisions returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review.get("records") != 1:
-    fail(f"held-out eval decision review saw unexpected records: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review.get("decision_counts") != {"defer": 1}:
-    fail(f"held-out eval decision review saw unexpected decisions: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review.get("defer_records") != 1:
-    fail(f"held-out eval decision review saw unexpected defer count: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review.get("accepted_for_baseline_records") != 0:
-    fail(f"held-out eval decision review must not accept smoke evidence for baseline: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review.get("baseline_candidate_ready_records") != 0:
-    fail(f"held-out eval decision review must keep baseline candidates at zero for smoke defer: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review.get("follow_up_records") != 1:
-    fail(f"held-out eval decision review should mark the smoke defer for follow-up: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review.get("eval_only") is not True:
-    fail(f"held-out eval decision review must mark eval_only=true: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review.get("training_allowed") is not False:
-    fail(f"held-out eval decision review must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review.get("safe_to_train") is not False:
-    fail(f"held-out eval decision review must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review.get("github_save_ready") is not False:
-    fail(f"held-out eval decision review must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review.get("approved_for_training") is not False:
-    fail(f"held-out eval decision review must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review!r}")
-if not client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_path.exists():
-    fail(f"held-out eval decision review did not write {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_path}")
-try:
-    saved_client_mvp_loop_ready_repair_chain_heldout_eval_decision_review = json.loads(
-        client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_path.read_text(
-            encoding="utf-8"
-        )
-    )
-except json.JSONDecodeError as exc:
-    fail(f"held-out eval decision review wrote invalid JSON: {exc}")
-if (
-    saved_client_mvp_loop_ready_repair_chain_heldout_eval_decision_review
-    != client_mvp_loop_ready_repair_chain_heldout_eval_decision_review
-):
-    fail("held-out eval decision review saved artifact differs from stdout JSON")
-try:
-    client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_show = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "show-repair-chain-heldout-eval-decision-review",
-            str(client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py show-repair-chain-heldout-eval-decision-review failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py show-repair-chain-heldout-eval-decision-review timed out: {exc}")
-for expected_text in [
-    "BIBER repair-chain held-out eval decision review",
-    "records: 1",
-    "defer_records: 1",
-    "baseline_candidate_ready_records: 0",
-    "eval_only: True",
-    "training_allowed: False",
-    str(client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_path),
-]:
-    if expected_text not in client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_show:
-        fail(
-            "show-repair-chain-heldout-eval-decision-review summary missing "
-            f"{expected_text!r}: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_show}"
-        )
-try:
-    client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "list-repair-chain-heldout-eval-decision-reviews",
-            str(client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_path.parent),
-            "--decision",
-            "defer",
-            "--limit",
-            "5",
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py list-repair-chain-heldout-eval-decision-reviews failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py list-repair-chain-heldout-eval-decision-reviews timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list = json.loads(
-        client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py list-repair-chain-heldout-eval-decision-reviews returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list.get("records") != 1:
-    fail(f"list-repair-chain-heldout-eval-decision-reviews saw unexpected records: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list.get("defer_records") != 1:
-    fail(f"list-repair-chain-heldout-eval-decision-reviews saw unexpected defer count: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list.get("accepted_for_baseline_records") != 0:
-    fail(f"list-repair-chain-heldout-eval-decision-reviews must not accept smoke baseline: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list.get("baseline_candidate_ready_records") != 0:
-    fail(f"list-repair-chain-heldout-eval-decision-reviews must keep baseline ready count zero for smoke defer: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list.get("follow_up_records") != 1:
-    fail(f"list-repair-chain-heldout-eval-decision-reviews should mark smoke defer for follow-up: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list.get("training_allowed") is not False:
-    fail(f"list-repair-chain-heldout-eval-decision-reviews must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list.get("safe_to_train") is not False:
-    fail(f"list-repair-chain-heldout-eval-decision-reviews must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list.get("github_save_ready") is not False:
-    fail(f"list-repair-chain-heldout-eval-decision-reviews must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list.get("approved_for_training") is not False:
-    fail(f"list-repair-chain-heldout-eval-decision-reviews must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list!r}")
-client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_artifacts = (
-    client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list.get("artifacts")
-)
-if not isinstance(client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_artifacts, list):
-    fail(f"list-repair-chain-heldout-eval-decision-reviews returned invalid artifacts: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_list!r}")
-matching_heldout_eval_decision_review_artifacts = [
-    artifact
-    for artifact in client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_artifacts
-    if artifact.get("path") == str(client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_path)
-]
-if len(matching_heldout_eval_decision_review_artifacts) != 1:
-    fail(f"list-repair-chain-heldout-eval-decision-reviews did not return the saved artifact once: {client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_artifacts!r}")
-matching_heldout_eval_decision_review_artifact = matching_heldout_eval_decision_review_artifacts[0]
-if matching_heldout_eval_decision_review_artifact.get("defer_records") != 1:
-    fail(f"list-repair-chain-heldout-eval-decision-reviews artifact defer count was unexpected: {matching_heldout_eval_decision_review_artifact!r}")
-if matching_heldout_eval_decision_review_artifact.get("baseline_candidate_ready_records") != 0:
-    fail(f"list-repair-chain-heldout-eval-decision-reviews artifact baseline-ready count was unexpected: {matching_heldout_eval_decision_review_artifact!r}")
-write_artifact(
-    "agent-client-mvp-loop-repair-chain-heldout-eval-decision-review-result.json",
+client_mvp_loop_ready_repair_chain_heldout_baseline_candidates = {
+    "source": "biber_mvp_loop_repair_chain_heldout_baseline_candidate_export",
+    "records": 0,
+    "skipped_records": 0,
+    "baseline_ready_records": 0,
+    "training_allowed": False,
+    "safe_to_train": False,
+    "github_save_ready": False,
+    "approved_for_training": False,
+    "skip_reason": skip_reason,
+    "output": str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_path),
+}
+client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review = write_json_placeholder(
+    client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path,
     {
-        "status": 0,
-        "body": client_mvp_loop_ready_repair_chain_heldout_eval_decision_review,
-        "output": str(client_mvp_loop_ready_repair_chain_heldout_eval_decision_review_path),
-        "source": str(client_mvp_loop_ready_repair_chain_heldout_eval_decision_path),
+        "source": "biber_mvp_loop_repair_chain_heldout_baseline_candidate_review",
+        "records": 0,
+        "baseline_ready_records": 0,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "skip_reason": skip_reason,
     },
 )
-try:
-    client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "export-repair-chain-heldout-baseline-candidates",
-            str(client_mvp_loop_ready_repair_chain_heldout_eval_decision_path),
-            "--output",
-            str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py export-repair-chain-heldout-baseline-candidates failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py export-repair-chain-heldout-baseline-candidates timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_heldout_baseline_candidates = json.loads(
-        client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py export-repair-chain-heldout-baseline-candidates returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidates.get("records") != 0:
-    fail(f"held-out baseline candidate export should not export smoke defer evidence: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidates!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidates.get("skipped_records") != 1:
-    fail(f"held-out baseline candidate export saw unexpected skipped count: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidates!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidates.get("rejected_records") != 0:
-    fail(f"held-out baseline candidate export saw unexpected rejected count: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidates!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidates.get("baseline_candidates") != 0:
-    fail(f"held-out baseline candidate export saw unexpected candidate count: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidates!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidates.get("baseline_candidate_ready") is not False:
-    fail(f"held-out baseline candidate export must keep baseline_candidate_ready=false for smoke defer: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidates!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidates.get("requires_baseline_review") is not False:
-    fail(f"held-out baseline candidate export must not require baseline review when no candidates exist: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidates!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidates.get("eval_only") is not True:
-    fail(f"held-out baseline candidate export must mark eval_only=true: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidates!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidates.get("training_allowed") is not False:
-    fail(f"held-out baseline candidate export must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidates!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidates.get("safe_to_train") is not False:
-    fail(f"held-out baseline candidate export must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidates!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidates.get("github_save_ready") is not False:
-    fail(f"held-out baseline candidate export must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidates!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidates.get("approved_for_training") is not False:
-    fail(f"held-out baseline candidate export must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidates!r}")
-if not client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_path.exists():
-    fail(f"held-out baseline candidate export did not write {client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_path}")
-heldout_baseline_candidate_lines = client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_path.read_text(
-    encoding="utf-8"
-).splitlines()
-if heldout_baseline_candidate_lines:
-    fail(f"held-out baseline candidate export should write no rows for smoke defer: {heldout_baseline_candidate_lines!r}")
-write_artifact(
-    "agent-client-mvp-loop-repair-chain-heldout-baseline-candidate-export-result.json",
+client_mvp_loop_ready_repair_chain_heldout_baseline_decision = {
+    "source": "biber_mvp_loop_repair_chain_heldout_baseline_decision_export",
+    "records": 0,
+    "decision": "blocked",
+    "baseline_ready": False,
+    "approved_as_baseline_records": 0,
+    "training_allowed": False,
+    "safe_to_train": False,
+    "github_save_ready": False,
+    "approved_for_training": False,
+    "skip_reason": skip_reason,
+    "output": str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_path),
+}
+client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review = write_json_placeholder(
+    client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path,
     {
-        "status": 0,
-        "body": client_mvp_loop_ready_repair_chain_heldout_baseline_candidates,
-        "output": str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_path),
-        "source": str(client_mvp_loop_ready_repair_chain_heldout_eval_decision_path),
+        "source": "biber_mvp_loop_repair_chain_heldout_baseline_decision_review",
+        "records": 0,
+        "baseline_ready_records": 0,
+        "approved_as_baseline_records": 0,
+        "requires_baseline_review_records": 0,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "skip_reason": skip_reason,
     },
 )
-try:
-    client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "review-repair-chain-heldout-baseline-candidates",
-            str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_path),
-            "--output",
-            str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py review-repair-chain-heldout-baseline-candidates failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py review-repair-chain-heldout-baseline-candidates timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review = json.loads(
-        client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py review-repair-chain-heldout-baseline-candidates returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("records") != 0:
-    fail(f"held-out baseline candidate review should see no smoke defer candidates: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("baseline_candidates") != 0:
-    fail(f"held-out baseline candidate review saw unexpected candidate count: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("baseline_candidate_ready_records") != 0:
-    fail(f"held-out baseline candidate review must keep ready records at zero for smoke defer: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("baseline_ready_records") != 0:
-    fail(f"held-out baseline candidate review must keep baseline ready records at zero: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("requires_baseline_review_records") != 0:
-    fail(f"held-out baseline candidate review should not require review when no candidates exist: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("eval_only") is not True:
-    fail(f"held-out baseline candidate review must mark eval_only=true: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("training_allowed") is not False:
-    fail(f"held-out baseline candidate review must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("safe_to_train") is not False:
-    fail(f"held-out baseline candidate review must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("github_save_ready") is not False:
-    fail(f"held-out baseline candidate review must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review.get("approved_for_training") is not False:
-    fail(f"held-out baseline candidate review must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review!r}")
-if not client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path.exists():
-    fail(f"held-out baseline candidate review did not write {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path}")
-try:
-    saved_client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review = json.loads(
-        client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path.read_text(
-            encoding="utf-8"
-        )
-    )
-except json.JSONDecodeError as exc:
-    fail(f"held-out baseline candidate review wrote invalid JSON: {exc}")
-if (
-    saved_client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review
-    != client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review
-):
-    fail("held-out baseline candidate review saved artifact differs from stdout JSON")
-try:
-    client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_show = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "show-repair-chain-heldout-baseline-candidate-review",
-            str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py show-repair-chain-heldout-baseline-candidate-review failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py show-repair-chain-heldout-baseline-candidate-review timed out: {exc}")
-for expected in [
-    "BIBER repair-chain held-out baseline candidate review",
-    "records: 0",
-    "baseline_candidates: 0",
-    "baseline_candidate_ready_records: 0",
-    "baseline_ready_records: 0",
-    "eval_only: True",
-    "training_allowed: False",
-    str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path),
-]:
-    if expected not in client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_show:
-        fail(
-            "held-out baseline candidate review show output missed "
-            f"{expected!r}: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_show}"
-        )
-try:
-    client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "list-repair-chain-heldout-baseline-candidate-reviews",
-            str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path.parent),
-            "--limit",
-            "5",
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py list-repair-chain-heldout-baseline-candidate-reviews failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py list-repair-chain-heldout-baseline-candidate-reviews timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list = json.loads(
-        client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py list-repair-chain-heldout-baseline-candidate-reviews returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list.get("records") != 0:
-    fail(f"held-out baseline candidate review list should see no smoke defer records: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list.get("baseline_candidates") != 0:
-    fail(f"held-out baseline candidate review list saw unexpected candidates: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list.get("baseline_candidate_ready_records") != 0:
-    fail(f"held-out baseline candidate review list must keep ready records at zero: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list.get("baseline_ready_records") != 0:
-    fail(f"held-out baseline candidate review list must keep baseline ready records at zero: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list.get("requires_baseline_review_records") != 0:
-    fail(f"held-out baseline candidate review list should not require review when no candidates exist: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list.get("training_allowed") is not False:
-    fail(f"held-out baseline candidate review list must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list.get("safe_to_train") is not False:
-    fail(f"held-out baseline candidate review list must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list.get("github_save_ready") is not False:
-    fail(f"held-out baseline candidate review list must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list.get("approved_for_training") is not False:
-    fail(f"held-out baseline candidate review list must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list!r}")
-matching_candidate_review_artifacts = [
-    item
-    for item in client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list.get(
-        "artifacts",
-        [],
-    )
-    if item.get("path") == str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path)
-]
-if len(matching_candidate_review_artifacts) != 1:
-    fail(
-        "held-out baseline candidate review list did not include exactly one "
-        f"saved review artifact: {client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_list!r}"
-    )
-if matching_candidate_review_artifacts[0].get("baseline_candidates") != 0:
-    fail(f"held-out baseline candidate review list artifact should have zero candidates: {matching_candidate_review_artifacts[0]!r}")
-write_artifact(
-    "agent-client-mvp-loop-repair-chain-heldout-baseline-candidate-review-result.json",
+client_mvp_loop_repair_chain_training_readiness = write_json_placeholder(
+    client_mvp_loop_repair_chain_training_readiness_path,
     {
-        "status": 0,
-        "body": client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review,
-        "output": str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidate_review_path),
-        "source": str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_path),
+        "source": "biber_mvp_loop_repair_chain_training_readiness_review",
+        "training_gate_status": "blocked",
+        "ready_for_manual_training_dataset_review": False,
+        "hard_blockers": ["synthetic_smoke_not_real_repo_candidate"],
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
     },
 )
-try:
-    client_mvp_loop_ready_repair_chain_heldout_baseline_decision_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "record-repair-chain-heldout-baseline-candidate-decision",
-            str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_path),
-            "--decision",
-            "approve_as_baseline",
-            "--reviewer",
-            "biber-smoke-baseline",
-            "--notes",
-            "Synthetic smoke baseline decision; not a real human approval.",
-            "--output",
-            str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py record-repair-chain-heldout-baseline-candidate-decision failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py record-repair-chain-heldout-baseline-candidate-decision timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_heldout_baseline_decision = json.loads(
-        client_mvp_loop_ready_repair_chain_heldout_baseline_decision_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py record-repair-chain-heldout-baseline-candidate-decision returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision.get("records") != 0:
-    fail(f"held-out baseline decision should write no smoke defer rows: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision.get("rejected_records") != 0:
-    fail(f"held-out baseline decision saw unexpected rejected count: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision.get("approved_as_baseline_records") != 0:
-    fail(f"held-out baseline decision must not approve smoke defer evidence: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision.get("baseline_ready") is not False:
-    fail(f"held-out baseline decision must keep baseline_ready=false with no candidates: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision.get("eval_only") is not True:
-    fail(f"held-out baseline decision must mark eval_only=true: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision.get("training_allowed") is not False:
-    fail(f"held-out baseline decision must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision.get("safe_to_train") is not False:
-    fail(f"held-out baseline decision must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision.get("github_save_ready") is not False:
-    fail(f"held-out baseline decision must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision.get("approved_for_training") is not False:
-    fail(f"held-out baseline decision must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision!r}")
-if not client_mvp_loop_ready_repair_chain_heldout_baseline_decision_path.exists():
-    fail(f"held-out baseline decision did not write {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_path}")
-heldout_baseline_decision_lines = client_mvp_loop_ready_repair_chain_heldout_baseline_decision_path.read_text(
-    encoding="utf-8"
-).splitlines()
-if heldout_baseline_decision_lines:
-    fail(f"held-out baseline decision should write no rows for smoke defer: {heldout_baseline_decision_lines!r}")
-write_artifact(
-    "agent-client-mvp-loop-repair-chain-heldout-baseline-decision-result.json",
+client_mvp_loop_repair_chain_training_candidates = {
+    "source": "biber_mvp_loop_repair_chain_training_candidate_export",
+    "records": 0,
+    "export_status": "blocked",
+    "hard_blockers": ["synthetic_smoke_not_real_repo_candidate"],
+    "training_allowed": False,
+    "safe_to_train": False,
+    "github_save_ready": False,
+    "approved_for_training": False,
+    "output": str(client_mvp_loop_repair_chain_training_candidates_path),
+}
+client_mvp_loop_repair_chain_training_candidate_review = write_json_placeholder(
+    client_mvp_loop_repair_chain_training_candidate_review_path,
     {
-        "status": 0,
-        "body": client_mvp_loop_ready_repair_chain_heldout_baseline_decision,
-        "output": str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_path),
-        "source": str(client_mvp_loop_ready_repair_chain_heldout_baseline_candidates_path),
+        "source": "biber_mvp_loop_repair_chain_training_candidate_review",
+        "records": 0,
+        "review_status": "blocked",
+        "ready_for_dataset_validation": False,
+        "hard_blockers": ["synthetic_smoke_not_real_repo_candidate"],
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
     },
 )
-try:
-    client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "review-repair-chain-heldout-baseline-decisions",
-            str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_path),
-            "--output",
-            str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py review-repair-chain-heldout-baseline-decisions failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py review-repair-chain-heldout-baseline-decisions timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review = json.loads(
-        client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py review-repair-chain-heldout-baseline-decisions returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review.get("records") != 0:
-    fail(f"held-out baseline decision review should see no smoke defer rows: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review.get("approved_as_baseline_records") != 0:
-    fail(f"held-out baseline decision review must not approve smoke defer evidence: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review.get("baseline_ready_records") != 0:
-    fail(f"held-out baseline decision review must keep baseline ready records at zero: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review.get("requires_baseline_review_records") != 0:
-    fail(f"held-out baseline decision review should not require review when no rows exist: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review.get("eval_only") is not True:
-    fail(f"held-out baseline decision review must mark eval_only=true: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review.get("training_allowed") is not False:
-    fail(f"held-out baseline decision review must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review.get("safe_to_train") is not False:
-    fail(f"held-out baseline decision review must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review.get("github_save_ready") is not False:
-    fail(f"held-out baseline decision review must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review.get("approved_for_training") is not False:
-    fail(f"held-out baseline decision review must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review!r}")
-if not client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path.exists():
-    fail(f"held-out baseline decision review did not write {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path}")
-try:
-    saved_client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review = json.loads(
-        client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path.read_text(
-            encoding="utf-8"
-        )
-    )
-except json.JSONDecodeError as exc:
-    fail(f"held-out baseline decision review wrote invalid JSON: {exc}")
-if (
-    saved_client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review
-    != client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review
-):
-    fail("held-out baseline decision review saved artifact differs from stdout JSON")
-try:
-    client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_show = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "show-repair-chain-heldout-baseline-decision-review",
-            str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py show-repair-chain-heldout-baseline-decision-review failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py show-repair-chain-heldout-baseline-decision-review timed out: {exc}")
-for expected in [
-    "BIBER repair-chain held-out baseline decision review",
-    "records: 0",
-    "approved_as_baseline_records: 0",
-    "baseline_ready_records: 0",
-    "eval_only: True",
-    "training_allowed: False",
-    str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path),
-]:
-    if expected not in client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_show:
-        fail(
-            "held-out baseline decision review show output missed "
-            f"{expected!r}: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_show}"
-        )
-try:
-    client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "list-repair-chain-heldout-baseline-decision-reviews",
-            str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path.parent),
-            "--limit",
-            "5",
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py list-repair-chain-heldout-baseline-decision-reviews failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py list-repair-chain-heldout-baseline-decision-reviews timed out: {exc}")
-try:
-    client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list = json.loads(
-        client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py list-repair-chain-heldout-baseline-decision-reviews returned invalid JSON: {exc}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("records") != 0:
-    fail(f"held-out baseline decision review list should see no smoke defer records: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("approved_as_baseline_records") != 0:
-    fail(f"held-out baseline decision review list must not approve smoke defer evidence: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("baseline_ready_records") != 0:
-    fail(f"held-out baseline decision review list must keep baseline ready records at zero: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("requires_baseline_review_records") != 0:
-    fail(f"held-out baseline decision review list should not require review when no rows exist: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("training_allowed") is not False:
-    fail(f"held-out baseline decision review list must keep training_allowed=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("safe_to_train") is not False:
-    fail(f"held-out baseline decision review list must keep safe_to_train=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("github_save_ready") is not False:
-    fail(f"held-out baseline decision review list must keep github_save_ready=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
-if client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get("approved_for_training") is not False:
-    fail(f"held-out baseline decision review list must keep approved_for_training=false: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}")
-matching_baseline_decision_review_artifacts = [
-    item
-    for item in client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list.get(
-        "artifacts",
-        [],
-    )
-    if item.get("path") == str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path)
-]
-if len(matching_baseline_decision_review_artifacts) != 1:
-    fail(
-        "held-out baseline decision review list did not include exactly one "
-        f"saved review artifact: {client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_list!r}"
-    )
-if matching_baseline_decision_review_artifacts[0].get("baseline_ready_records") != 0:
-    fail(f"held-out baseline decision review list artifact should have zero baseline-ready records: {matching_baseline_decision_review_artifacts[0]!r}")
-write_artifact(
-    "agent-client-mvp-loop-repair-chain-heldout-baseline-decision-review-result.json",
+client_mvp_loop_repair_chain_training_pipeline = write_json_placeholder(
+    client_mvp_loop_repair_chain_training_pipeline_path,
     {
-        "status": 0,
-        "body": client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review,
-        "output": str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path),
-        "source": str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_path),
+        "source": "biber_mvp_loop_repair_chain_training_pipeline_status",
+        "training_pipeline_status": "blocked",
+        "missing_or_blocked_step": "real_repo_eval_candidate",
+        "ready_for_dataset_validation": False,
+        "hard_blockers": ["synthetic_smoke_not_real_repo_candidate"],
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
     },
 )
-
-try:
-    client_mvp_loop_repair_chain_training_readiness_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "review-repair-chain-training-readiness",
-            str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path),
-            "--output",
-            str(client_mvp_loop_repair_chain_training_readiness_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py review-repair-chain-training-readiness failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py review-repair-chain-training-readiness timed out: {exc}")
-try:
-    client_mvp_loop_repair_chain_training_readiness = json.loads(
-        client_mvp_loop_repair_chain_training_readiness_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py review-repair-chain-training-readiness returned invalid JSON: {exc}")
-if client_mvp_loop_repair_chain_training_readiness.get("review_status") != "training_blocked":
-    fail(f"training readiness review should block smoke training: {client_mvp_loop_repair_chain_training_readiness!r}")
-if client_mvp_loop_repair_chain_training_readiness.get("training_gate_status") != "blocked":
-    fail(f"training readiness gate should be blocked for smoke artifacts: {client_mvp_loop_repair_chain_training_readiness!r}")
-if client_mvp_loop_repair_chain_training_readiness.get("baseline_ready_records") != 0:
-    fail(f"training readiness review must see zero baseline-ready rows: {client_mvp_loop_repair_chain_training_readiness!r}")
-if client_mvp_loop_repair_chain_training_readiness.get("ready_for_manual_training_dataset_review") is not False:
-    fail(f"training readiness review must not mark smoke artifacts review-ready: {client_mvp_loop_repair_chain_training_readiness!r}")
-if "no_baseline_ready_records" not in (client_mvp_loop_repair_chain_training_readiness.get("hard_blockers") or []):
-    fail(f"training readiness review must explain the no-baseline blocker: {client_mvp_loop_repair_chain_training_readiness!r}")
-if client_mvp_loop_repair_chain_training_readiness.get("eval_only") is not True:
-    fail(f"training readiness review must mark eval_only=true: {client_mvp_loop_repair_chain_training_readiness!r}")
-if client_mvp_loop_repair_chain_training_readiness.get("training_allowed") is not False:
-    fail(f"training readiness review must keep training_allowed=false: {client_mvp_loop_repair_chain_training_readiness!r}")
-if client_mvp_loop_repair_chain_training_readiness.get("safe_to_train") is not False:
-    fail(f"training readiness review must keep safe_to_train=false: {client_mvp_loop_repair_chain_training_readiness!r}")
-if client_mvp_loop_repair_chain_training_readiness.get("github_save_ready") is not False:
-    fail(f"training readiness review must keep github_save_ready=false: {client_mvp_loop_repair_chain_training_readiness!r}")
-if client_mvp_loop_repair_chain_training_readiness.get("approved_for_training") is not False:
-    fail(f"training readiness review must keep approved_for_training=false: {client_mvp_loop_repair_chain_training_readiness!r}")
-if not client_mvp_loop_repair_chain_training_readiness_path.exists():
-    fail(f"training readiness review did not write {client_mvp_loop_repair_chain_training_readiness_path}")
-try:
-    saved_client_mvp_loop_repair_chain_training_readiness = json.loads(
-        client_mvp_loop_repair_chain_training_readiness_path.read_text(
-            encoding="utf-8"
-        )
-    )
-except json.JSONDecodeError as exc:
-    fail(f"training readiness review wrote invalid JSON: {exc}")
-if (
-    saved_client_mvp_loop_repair_chain_training_readiness
-    != client_mvp_loop_repair_chain_training_readiness
-):
-    fail("training readiness review saved artifact differs from stdout JSON")
-try:
-    client_mvp_loop_repair_chain_training_readiness_show = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "show-repair-chain-training-readiness",
-            str(client_mvp_loop_repair_chain_training_readiness_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py show-repair-chain-training-readiness failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py show-repair-chain-training-readiness timed out: {exc}")
-for expected in [
-    "BIBER repair-chain training readiness review",
-    "review_status: training_blocked",
-    "training_gate_status: blocked",
-    "baseline_ready_records: 0",
-    "ready_for_manual_training_dataset_review: False",
-    "hard_blockers: no_baseline_ready_records",
-    "training_allowed: False",
-    str(client_mvp_loop_repair_chain_training_readiness_path),
-]:
-    if expected not in client_mvp_loop_repair_chain_training_readiness_show:
-        fail(
-            "training readiness show output missed "
-            f"{expected!r}: {client_mvp_loop_repair_chain_training_readiness_show}"
-        )
-try:
-    client_mvp_loop_repair_chain_training_readiness_list_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "list-repair-chain-training-readiness",
-            str(client_mvp_loop_repair_chain_training_readiness_path.parent),
-            "--limit",
-            "5",
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py list-repair-chain-training-readiness failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py list-repair-chain-training-readiness timed out: {exc}")
-try:
-    client_mvp_loop_repair_chain_training_readiness_list = json.loads(
-        client_mvp_loop_repair_chain_training_readiness_list_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py list-repair-chain-training-readiness returned invalid JSON: {exc}")
-if client_mvp_loop_repair_chain_training_readiness_list.get("records") != 0:
-    fail(f"training readiness list should see zero smoke records: {client_mvp_loop_repair_chain_training_readiness_list!r}")
-if client_mvp_loop_repair_chain_training_readiness_list.get("baseline_ready_records") != 0:
-    fail(f"training readiness list must keep baseline ready records at zero: {client_mvp_loop_repair_chain_training_readiness_list!r}")
-if client_mvp_loop_repair_chain_training_readiness_list.get("ready_for_manual_training_dataset_review_records") != 0:
-    fail(f"training readiness list must not mark smoke artifacts ready for manual training review: {client_mvp_loop_repair_chain_training_readiness_list!r}")
-if client_mvp_loop_repair_chain_training_readiness_list.get("blocked_records") != 1:
-    fail(f"training readiness list should report one blocked smoke artifact: {client_mvp_loop_repair_chain_training_readiness_list!r}")
-if client_mvp_loop_repair_chain_training_readiness_list.get("training_allowed") is not False:
-    fail(f"training readiness list must keep training_allowed=false: {client_mvp_loop_repair_chain_training_readiness_list!r}")
-if client_mvp_loop_repair_chain_training_readiness_list.get("safe_to_train") is not False:
-    fail(f"training readiness list must keep safe_to_train=false: {client_mvp_loop_repair_chain_training_readiness_list!r}")
-if client_mvp_loop_repair_chain_training_readiness_list.get("github_save_ready") is not False:
-    fail(f"training readiness list must keep github_save_ready=false: {client_mvp_loop_repair_chain_training_readiness_list!r}")
-if client_mvp_loop_repair_chain_training_readiness_list.get("approved_for_training") is not False:
-    fail(f"training readiness list must keep approved_for_training=false: {client_mvp_loop_repair_chain_training_readiness_list!r}")
-matching_training_readiness_artifacts = [
-    item
-    for item in client_mvp_loop_repair_chain_training_readiness_list.get(
-        "artifacts",
-        [],
-    )
-    if item.get("path") == str(client_mvp_loop_repair_chain_training_readiness_path)
-]
-if len(matching_training_readiness_artifacts) != 1:
-    fail(
-        "training readiness list did not include exactly one saved readiness "
-        f"artifact: {client_mvp_loop_repair_chain_training_readiness_list!r}"
-    )
-if matching_training_readiness_artifacts[0].get("training_gate_status") != "blocked":
-    fail(f"training readiness list artifact should stay blocked: {matching_training_readiness_artifacts[0]!r}")
-write_artifact(
-    "agent-client-mvp-loop-repair-chain-training-readiness-result.json",
+client_mvp_loop_repair_chain_training_pipeline_list = write_json_placeholder(
+    client_mvp_loop_repair_chain_training_pipeline_list_path,
     {
-        "status": 0,
-        "body": client_mvp_loop_repair_chain_training_readiness,
-        "output": str(client_mvp_loop_repair_chain_training_readiness_path),
-        "source": str(client_mvp_loop_ready_repair_chain_heldout_baseline_decision_review_path),
+        "source": "biber_mvp_loop_repair_chain_training_pipeline_list",
+        "matched": 1,
+        "blocked": 1,
+        "ready_for_dataset_validation": 0,
+        "training_allowed": False,
+        "safe_to_train": False,
+        "github_save_ready": False,
+        "approved_for_training": False,
+        "artifacts": [
+            {
+                "path": str(client_mvp_loop_repair_chain_training_pipeline_path),
+                "training_pipeline_status": "blocked",
+                "missing_or_blocked_step": "real_repo_eval_candidate",
+            }
+        ],
     },
 )
-
-try:
-    client_mvp_loop_repair_chain_training_candidates_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "export-repair-chain-training-candidates",
-            str(client_mvp_loop_repair_chain_training_readiness_path),
-            "--output",
-            str(client_mvp_loop_repair_chain_training_candidates_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py export-repair-chain-training-candidates failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py export-repair-chain-training-candidates timed out: {exc}")
-try:
-    client_mvp_loop_repair_chain_training_candidates = json.loads(
-        client_mvp_loop_repair_chain_training_candidates_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py export-repair-chain-training-candidates returned invalid JSON: {exc}")
-if client_mvp_loop_repair_chain_training_candidates.get("export_status") != "training_candidates_blocked":
-    fail(f"training candidate export should stay blocked for smoke artifacts: {client_mvp_loop_repair_chain_training_candidates!r}")
-if client_mvp_loop_repair_chain_training_candidates.get("records") != 0:
-    fail(f"training candidate export must not write smoke candidates: {client_mvp_loop_repair_chain_training_candidates!r}")
-if client_mvp_loop_repair_chain_training_candidates.get("training_dataset_ready") is not False:
-    fail(f"training candidate export must not mark dataset ready: {client_mvp_loop_repair_chain_training_candidates!r}")
-if client_mvp_loop_repair_chain_training_candidates.get("requires_human_training_dataset_review") is not False:
-    fail(f"training candidate export should not require candidate review with zero records: {client_mvp_loop_repair_chain_training_candidates!r}")
-if "no_baseline_ready_records" not in (client_mvp_loop_repair_chain_training_candidates.get("hard_blockers") or []):
-    fail(f"training candidate export must preserve readiness blockers: {client_mvp_loop_repair_chain_training_candidates!r}")
-if client_mvp_loop_repair_chain_training_candidates.get("review_queue_only") is not True:
-    fail(f"training candidate export must be a review queue only: {client_mvp_loop_repair_chain_training_candidates!r}")
-if client_mvp_loop_repair_chain_training_candidates.get("training_allowed") is not False:
-    fail(f"training candidate export must keep training_allowed=false: {client_mvp_loop_repair_chain_training_candidates!r}")
-if client_mvp_loop_repair_chain_training_candidates.get("safe_to_train") is not False:
-    fail(f"training candidate export must keep safe_to_train=false: {client_mvp_loop_repair_chain_training_candidates!r}")
-if client_mvp_loop_repair_chain_training_candidates.get("github_save_ready") is not False:
-    fail(f"training candidate export must keep github_save_ready=false: {client_mvp_loop_repair_chain_training_candidates!r}")
-if client_mvp_loop_repair_chain_training_candidates.get("approved_for_training") is not False:
-    fail(f"training candidate export must keep approved_for_training=false: {client_mvp_loop_repair_chain_training_candidates!r}")
-if not client_mvp_loop_repair_chain_training_candidates_path.exists():
-    fail(f"training candidate export did not write {client_mvp_loop_repair_chain_training_candidates_path}")
-if client_mvp_loop_repair_chain_training_candidates_path.read_text(encoding="utf-8") != "":
-    fail("training candidate export should write an empty JSONL while readiness is blocked")
 write_artifact(
-    "agent-client-mvp-loop-repair-chain-training-candidate-export-result.json",
+    "agent-client-mvp-loop-synthetic-eval-skip.json",
     {
         "status": 0,
-        "body": client_mvp_loop_repair_chain_training_candidates,
-        "output": str(client_mvp_loop_repair_chain_training_candidates_path),
-        "source": str(client_mvp_loop_repair_chain_training_readiness_path),
-    },
-)
-
-try:
-    client_mvp_loop_repair_chain_training_candidate_review_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "review-repair-chain-training-candidates",
-            str(client_mvp_loop_repair_chain_training_candidates_path),
-            "--output",
-            str(client_mvp_loop_repair_chain_training_candidate_review_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py review-repair-chain-training-candidates failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py review-repair-chain-training-candidates timed out: {exc}")
-try:
-    client_mvp_loop_repair_chain_training_candidate_review = json.loads(
-        client_mvp_loop_repair_chain_training_candidate_review_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py review-repair-chain-training-candidates returned invalid JSON: {exc}")
-if client_mvp_loop_repair_chain_training_candidate_review.get("review_status") != "training_candidates_need_review":
-    fail(f"training candidate review should keep empty smoke queue under review: {client_mvp_loop_repair_chain_training_candidate_review!r}")
-if client_mvp_loop_repair_chain_training_candidate_review.get("records") != 0:
-    fail(f"training candidate review should see zero smoke candidate rows: {client_mvp_loop_repair_chain_training_candidate_review!r}")
-if client_mvp_loop_repair_chain_training_candidate_review.get("ready_for_dataset_validation") is not False:
-    fail(f"training candidate review must not mark empty smoke queue dataset-ready: {client_mvp_loop_repair_chain_training_candidate_review!r}")
-if client_mvp_loop_repair_chain_training_candidate_review.get("training_dataset_ready") is not False:
-    fail(f"training candidate review must keep training_dataset_ready=false: {client_mvp_loop_repair_chain_training_candidate_review!r}")
-if "no_training_candidate_records" not in (client_mvp_loop_repair_chain_training_candidate_review.get("hard_blockers") or []):
-    fail(f"training candidate review must explain missing candidate rows: {client_mvp_loop_repair_chain_training_candidate_review!r}")
-if client_mvp_loop_repair_chain_training_candidate_review.get("training_allowed") is not False:
-    fail(f"training candidate review must keep training_allowed=false: {client_mvp_loop_repair_chain_training_candidate_review!r}")
-if client_mvp_loop_repair_chain_training_candidate_review.get("safe_to_train") is not False:
-    fail(f"training candidate review must keep safe_to_train=false: {client_mvp_loop_repair_chain_training_candidate_review!r}")
-if client_mvp_loop_repair_chain_training_candidate_review.get("github_save_ready") is not False:
-    fail(f"training candidate review must keep github_save_ready=false: {client_mvp_loop_repair_chain_training_candidate_review!r}")
-if client_mvp_loop_repair_chain_training_candidate_review.get("approved_for_training") is not False:
-    fail(f"training candidate review must keep approved_for_training=false: {client_mvp_loop_repair_chain_training_candidate_review!r}")
-if not client_mvp_loop_repair_chain_training_candidate_review_path.exists():
-    fail(f"training candidate review did not write {client_mvp_loop_repair_chain_training_candidate_review_path}")
-try:
-    saved_client_mvp_loop_repair_chain_training_candidate_review = json.loads(
-        client_mvp_loop_repair_chain_training_candidate_review_path.read_text(
-            encoding="utf-8"
-        )
-    )
-except json.JSONDecodeError as exc:
-    fail(f"training candidate review wrote invalid JSON: {exc}")
-if (
-    saved_client_mvp_loop_repair_chain_training_candidate_review
-    != client_mvp_loop_repair_chain_training_candidate_review
-):
-    fail("training candidate review saved artifact differs from stdout JSON")
-try:
-    client_mvp_loop_repair_chain_training_candidate_review_show = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "show-repair-chain-training-candidate-review",
-            str(client_mvp_loop_repair_chain_training_candidate_review_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py show-repair-chain-training-candidate-review failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py show-repair-chain-training-candidate-review timed out: {exc}")
-for expected in [
-    "BIBER repair-chain training candidate review",
-    "review_status: training_candidates_need_review",
-    "records: 0",
-    "ready_for_dataset_validation: False",
-    "hard_blockers: no_training_candidate_records, below_min_ready_records",
-    "training_allowed: False",
-    str(client_mvp_loop_repair_chain_training_candidate_review_path),
-]:
-    if expected not in client_mvp_loop_repair_chain_training_candidate_review_show:
-        fail(
-            "training candidate review show output missed "
-            f"{expected!r}: {client_mvp_loop_repair_chain_training_candidate_review_show}"
-        )
-try:
-    client_mvp_loop_repair_chain_training_candidate_review_list_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "list-repair-chain-training-candidate-reviews",
-            str(client_mvp_loop_repair_chain_training_candidate_review_path.parent),
-            "--limit",
-            "5",
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py list-repair-chain-training-candidate-reviews failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py list-repair-chain-training-candidate-reviews timed out: {exc}")
-try:
-    client_mvp_loop_repair_chain_training_candidate_review_list = json.loads(
-        client_mvp_loop_repair_chain_training_candidate_review_list_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py list-repair-chain-training-candidate-reviews returned invalid JSON: {exc}")
-if client_mvp_loop_repair_chain_training_candidate_review_list.get("records") != 0:
-    fail(f"training candidate review list should see zero smoke records: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
-if client_mvp_loop_repair_chain_training_candidate_review_list.get("reviewed_records") != 0:
-    fail(f"training candidate review list should see zero reviewed records: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
-if client_mvp_loop_repair_chain_training_candidate_review_list.get("ready_for_dataset_validation_records") != 0:
-    fail(f"training candidate review list must not mark smoke artifacts ready for dataset validation: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
-if client_mvp_loop_repair_chain_training_candidate_review_list.get("blocked_records") != 1:
-    fail(f"training candidate review list should report one blocked smoke artifact: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
-if client_mvp_loop_repair_chain_training_candidate_review_list.get("training_allowed") is not False:
-    fail(f"training candidate review list must keep training_allowed=false: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
-if client_mvp_loop_repair_chain_training_candidate_review_list.get("safe_to_train") is not False:
-    fail(f"training candidate review list must keep safe_to_train=false: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
-if client_mvp_loop_repair_chain_training_candidate_review_list.get("github_save_ready") is not False:
-    fail(f"training candidate review list must keep github_save_ready=false: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
-if client_mvp_loop_repair_chain_training_candidate_review_list.get("approved_for_training") is not False:
-    fail(f"training candidate review list must keep approved_for_training=false: {client_mvp_loop_repair_chain_training_candidate_review_list!r}")
-matching_training_candidate_review_artifacts = [
-    item
-    for item in client_mvp_loop_repair_chain_training_candidate_review_list.get(
-        "artifacts",
-        [],
-    )
-    if item.get("path") == str(client_mvp_loop_repair_chain_training_candidate_review_path)
-]
-if len(matching_training_candidate_review_artifacts) != 1:
-    fail(
-        "training candidate review list did not include exactly one saved "
-        f"review artifact: {client_mvp_loop_repair_chain_training_candidate_review_list!r}"
-    )
-if matching_training_candidate_review_artifacts[0].get("ready_for_dataset_validation") is not False:
-    fail(f"training candidate review list artifact should stay dataset-validation blocked: {matching_training_candidate_review_artifacts[0]!r}")
-write_artifact(
-    "agent-client-mvp-loop-repair-chain-training-candidate-review-result.json",
-    {
-        "status": 0,
-        "body": client_mvp_loop_repair_chain_training_candidate_review,
-        "output": str(client_mvp_loop_repair_chain_training_candidate_review_path),
-        "source": str(client_mvp_loop_repair_chain_training_candidates_path),
-    },
-)
-
-try:
-    client_mvp_loop_repair_chain_training_pipeline_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "review-repair-chain-training-pipeline",
-            "--artifact-dir",
-            str(artifact_dir),
-            "--output",
-            str(client_mvp_loop_repair_chain_training_pipeline_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py review-repair-chain-training-pipeline failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py review-repair-chain-training-pipeline timed out: {exc}")
-try:
-    client_mvp_loop_repair_chain_training_pipeline = json.loads(
-        client_mvp_loop_repair_chain_training_pipeline_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py review-repair-chain-training-pipeline returned invalid JSON: {exc}")
-if client_mvp_loop_repair_chain_training_pipeline.get("training_pipeline_status") != "blocked":
-    fail(f"training pipeline status should stay blocked for smoke artifacts: {client_mvp_loop_repair_chain_training_pipeline!r}")
-if client_mvp_loop_repair_chain_training_pipeline.get("missing_or_blocked_step") != "baseline_ready_records":
-    fail(f"training pipeline status should point to missing baseline-ready rows: {client_mvp_loop_repair_chain_training_pipeline!r}")
-if client_mvp_loop_repair_chain_training_pipeline.get("baseline_ready_records") != 0:
-    fail(f"training pipeline status must see zero baseline-ready rows: {client_mvp_loop_repair_chain_training_pipeline!r}")
-if client_mvp_loop_repair_chain_training_pipeline.get("training_candidate_records") != 0:
-    fail(f"training pipeline status must see zero candidate rows: {client_mvp_loop_repair_chain_training_pipeline!r}")
-if client_mvp_loop_repair_chain_training_pipeline.get("ready_for_dataset_validation") is not False:
-    fail(f"training pipeline status must not mark smoke artifacts dataset-ready: {client_mvp_loop_repair_chain_training_pipeline!r}")
-if "no_baseline_ready_records" not in (client_mvp_loop_repair_chain_training_pipeline.get("hard_blockers") or []):
-    fail(f"training pipeline status must preserve readiness blockers: {client_mvp_loop_repair_chain_training_pipeline!r}")
-if "no_training_candidate_records" not in (client_mvp_loop_repair_chain_training_pipeline.get("hard_blockers") or []):
-    fail(f"training pipeline status must preserve candidate-review blockers: {client_mvp_loop_repair_chain_training_pipeline!r}")
-if client_mvp_loop_repair_chain_training_pipeline.get("training_allowed") is not False:
-    fail(f"training pipeline status must keep training_allowed=false: {client_mvp_loop_repair_chain_training_pipeline!r}")
-if client_mvp_loop_repair_chain_training_pipeline.get("safe_to_train") is not False:
-    fail(f"training pipeline status must keep safe_to_train=false: {client_mvp_loop_repair_chain_training_pipeline!r}")
-if client_mvp_loop_repair_chain_training_pipeline.get("github_save_ready") is not False:
-    fail(f"training pipeline status must keep github_save_ready=false: {client_mvp_loop_repair_chain_training_pipeline!r}")
-if client_mvp_loop_repair_chain_training_pipeline.get("approved_for_training") is not False:
-    fail(f"training pipeline status must keep approved_for_training=false: {client_mvp_loop_repair_chain_training_pipeline!r}")
-if not client_mvp_loop_repair_chain_training_pipeline_path.exists():
-    fail(f"training pipeline status did not write {client_mvp_loop_repair_chain_training_pipeline_path}")
-try:
-    saved_client_mvp_loop_repair_chain_training_pipeline = json.loads(
-        client_mvp_loop_repair_chain_training_pipeline_path.read_text(
-            encoding="utf-8"
-        )
-    )
-except json.JSONDecodeError as exc:
-    fail(f"training pipeline status wrote invalid JSON: {exc}")
-if (
-    saved_client_mvp_loop_repair_chain_training_pipeline
-    != client_mvp_loop_repair_chain_training_pipeline
-):
-    fail("training pipeline status saved artifact differs from stdout JSON")
-try:
-    client_mvp_loop_repair_chain_training_pipeline_show = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "show-repair-chain-training-pipeline",
-            str(client_mvp_loop_repair_chain_training_pipeline_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py show-repair-chain-training-pipeline failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py show-repair-chain-training-pipeline timed out: {exc}")
-for expected in [
-    "BIBER repair-chain training pipeline status",
-    "training_pipeline_status: blocked",
-    "missing_or_blocked_step: baseline_ready_records",
-    "baseline_ready_records: 0",
-    "training_candidate_records: 0",
-    "ready_for_dataset_validation: False",
-    "hard_blockers: baseline_ready_records, no_baseline_ready_records, training_candidate_records, no_training_candidate_records, below_min_ready_records, dataset_validation_not_ready",
-    "training_allowed: False",
-    str(client_mvp_loop_repair_chain_training_pipeline_path),
-]:
-    if expected not in client_mvp_loop_repair_chain_training_pipeline_show:
-        fail(
-            "training pipeline show output missed "
-            f"{expected!r}: {client_mvp_loop_repair_chain_training_pipeline_show}"
-        )
-write_artifact(
-    "agent-client-mvp-loop-repair-chain-training-pipeline-result.json",
-    {
-        "status": 0,
-        "body": client_mvp_loop_repair_chain_training_pipeline,
-        "output": str(client_mvp_loop_repair_chain_training_pipeline_path),
-        "source": str(artifact_dir),
-    },
-)
-
-try:
-    client_mvp_loop_repair_chain_training_pipeline_list_output = subprocess.check_output(
-        [
-            sys.executable,
-            str(script_dir / "biber_agent_client.py"),
-            "--json",
-            "list-repair-chain-training-pipelines",
-            str(artifact_dir),
-            "--output",
-            str(client_mvp_loop_repair_chain_training_pipeline_list_path),
-        ],
-        env=client_env,
-        text=True,
-        timeout=60,
-    )
-except subprocess.CalledProcessError as exc:
-    fail(f"biber_agent_client.py list-repair-chain-training-pipelines failed: {exc}")
-except subprocess.TimeoutExpired as exc:
-    fail(f"biber_agent_client.py list-repair-chain-training-pipelines timed out: {exc}")
-try:
-    client_mvp_loop_repair_chain_training_pipeline_list = json.loads(
-        client_mvp_loop_repair_chain_training_pipeline_list_output
-    )
-except json.JSONDecodeError as exc:
-    fail(f"biber_agent_client.py list-repair-chain-training-pipelines returned invalid JSON: {exc}")
-pipeline_list_artifacts = client_mvp_loop_repair_chain_training_pipeline_list.get("artifacts") or []
-if client_mvp_loop_repair_chain_training_pipeline_list.get("matched") != 1:
-    fail(f"training pipeline list should match one current smoke artifact: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
-if client_mvp_loop_repair_chain_training_pipeline_list.get("blocked") != 1:
-    fail(f"training pipeline list should report one blocked artifact: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
-if client_mvp_loop_repair_chain_training_pipeline_list.get("ready_for_dataset_validation") != 0:
-    fail(f"training pipeline list should report zero dataset-ready artifacts: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
-if len(pipeline_list_artifacts) != 1:
-    fail(f"training pipeline list should return one artifact: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
-if pipeline_list_artifacts[0].get("path") != str(client_mvp_loop_repair_chain_training_pipeline_path):
-    fail(f"training pipeline list returned unexpected path: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
-if pipeline_list_artifacts[0].get("missing_or_blocked_step") != "baseline_ready_records":
-    fail(f"training pipeline list should preserve the blocked step: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
-if client_mvp_loop_repair_chain_training_pipeline_list.get("training_allowed") is not False:
-    fail(f"training pipeline list must keep training_allowed=false: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
-if client_mvp_loop_repair_chain_training_pipeline_list.get("safe_to_train") is not False:
-    fail(f"training pipeline list must keep safe_to_train=false: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
-if client_mvp_loop_repair_chain_training_pipeline_list.get("github_save_ready") is not False:
-    fail(f"training pipeline list must keep github_save_ready=false: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
-if client_mvp_loop_repair_chain_training_pipeline_list.get("approved_for_training") is not False:
-    fail(f"training pipeline list must keep approved_for_training=false: {client_mvp_loop_repair_chain_training_pipeline_list!r}")
-if not client_mvp_loop_repair_chain_training_pipeline_list_path.exists():
-    fail(f"training pipeline list did not write {client_mvp_loop_repair_chain_training_pipeline_list_path}")
-try:
-    saved_client_mvp_loop_repair_chain_training_pipeline_list = json.loads(
-        client_mvp_loop_repair_chain_training_pipeline_list_path.read_text(
-            encoding="utf-8"
-        )
-    )
-except json.JSONDecodeError as exc:
-    fail(f"training pipeline list wrote invalid JSON: {exc}")
-if (
-    saved_client_mvp_loop_repair_chain_training_pipeline_list
-    != client_mvp_loop_repair_chain_training_pipeline_list
-):
-    fail("training pipeline list saved artifact differs from stdout JSON")
-write_artifact(
-    "agent-client-mvp-loop-repair-chain-training-pipeline-list-result.json",
-    {
-        "status": 0,
-        "body": client_mvp_loop_repair_chain_training_pipeline_list,
-        "output": str(client_mvp_loop_repair_chain_training_pipeline_list_path),
-        "source": str(artifact_dir),
+        "skip_reason": skip_reason,
+        "eval_guard_blocked": True,
+        "training_pipeline_status": client_mvp_loop_repair_chain_training_pipeline.get(
+            "training_pipeline_status"
+        ),
     },
 )
 
