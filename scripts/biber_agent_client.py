@@ -2966,7 +2966,8 @@ def build_ready_repair_chain_decision_record(
         record,
         declared_source_type=declared_source_type,
     )
-    return {
+    repo_provenance = normalize_repo_provenance(record.get("repo_provenance"))
+    decision_record = {
         "source": "biber_mvp_loop_repair_chain_decision",
         "decision_status": "recorded",
         "decision": decision,
@@ -2991,6 +2992,9 @@ def build_ready_repair_chain_decision_record(
         "artifacts": dict(artifacts),
         "next_review_action": next_action_by_decision[decision],
     }
+    if repo_provenance is not None:
+        decision_record["repo_provenance"] = repo_provenance
+    return decision_record
 
 
 def record_ready_repair_chain_decisions(
