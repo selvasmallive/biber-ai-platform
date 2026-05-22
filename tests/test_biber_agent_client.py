@@ -3345,6 +3345,11 @@ def test_run_record_ready_repair_chain_decision_writes_jsonl_without_api_key(
     assert result["reviewer"] == "human-reviewer"
     assert result["records"] == 1
     assert result["rejected_records"] == 1
+    assert result["repo_provenance_ready"] == 0
+    assert result["repo_provenance_missing"] == 1
+    assert result["rejected_repo_provenance_ready"] == 0
+    assert result["rejected_repo_provenance_missing"] == 0
+    assert result["eval_approval_requires_repo_provenance"] is True
     assert result["training_allowed"] is False
     assert result["eligible_for_training"] is False
     assert result["safe_to_train"] is False
@@ -3361,6 +3366,8 @@ def test_run_record_ready_repair_chain_decision_writes_jsonl_without_api_key(
     assert rows[0]["evidence_source_confirmed"] is False
     assert rows[0]["evidence_source_ok_for_eval"] is False
     assert rows[0]["evidence_source_reasons"] == []
+    assert rows[0]["repo_provenance_ready"] is False
+    assert rows[0]["eval_approval_requires_repo_provenance"] is True
     assert rows[0]["training_allowed"] is False
     assert rows[0]["eligible_for_training"] is False
     assert rows[0]["safe_to_train"] is False
@@ -3444,7 +3451,14 @@ def test_run_record_ready_repair_chain_approve_for_eval_requires_real_repo_sourc
     rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
 
     assert result["records"] == 1
+    assert result["repo_provenance_ready"] == 1
+    assert result["repo_provenance_missing"] == 0
+    assert result["rejected_repo_provenance_ready"] == 0
+    assert result["rejected_repo_provenance_missing"] == 0
+    assert result["eval_approval_requires_repo_provenance"] is True
     assert rows[0]["approved_for_eval"] is True
+    assert rows[0]["repo_provenance_ready"] is True
+    assert rows[0]["eval_approval_requires_repo_provenance"] is True
     assert rows[0]["evidence_source_type"] == "real_repo_candidate"
     assert rows[0]["evidence_source_declaration"] == "real_repo_candidate"
     assert rows[0]["evidence_source_confirmed"] is True
@@ -3507,8 +3521,15 @@ def test_run_record_ready_repair_chain_approve_for_eval_blocks_smoke_artifact(
 
     assert result["records"] == 0
     assert result["rejected_records"] == 1
+    assert result["repo_provenance_ready"] == 0
+    assert result["repo_provenance_missing"] == 0
+    assert result["rejected_repo_provenance_ready"] == 1
+    assert result["rejected_repo_provenance_missing"] == 0
+    assert result["eval_approval_requires_repo_provenance"] is True
     assert output_path.read_text(encoding="utf-8") == ""
     assert result["rejected"][0]["reason"] == "non_real_repo_evidence"
+    assert result["rejected"][0]["repo_provenance_ready"] is True
+    assert result["rejected"][0]["eval_approval_requires_repo_provenance"] is True
     assert result["rejected"][0]["evidence_source_type"] == "fixture_or_smoke"
     assert result["rejected"][0]["evidence_source_reasons"] == [
         "real_repo_declaration_conflicts_with_markers",
@@ -3556,8 +3577,15 @@ def test_run_record_ready_repair_chain_approve_for_eval_requires_repo_provenance
 
     assert result["records"] == 0
     assert result["rejected_records"] == 1
+    assert result["repo_provenance_ready"] == 0
+    assert result["repo_provenance_missing"] == 0
+    assert result["rejected_repo_provenance_ready"] == 0
+    assert result["rejected_repo_provenance_missing"] == 1
+    assert result["eval_approval_requires_repo_provenance"] is True
     assert output_path.read_text(encoding="utf-8") == ""
     assert result["rejected"][0]["reason"] == "real_repo_evidence_not_confirmed"
+    assert result["rejected"][0]["repo_provenance_ready"] is False
+    assert result["rejected"][0]["eval_approval_requires_repo_provenance"] is True
     assert result["rejected"][0]["evidence_source_type"] == (
         "unconfirmed_real_repo_candidate"
     )

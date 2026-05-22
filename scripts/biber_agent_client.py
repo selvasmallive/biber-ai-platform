@@ -3047,6 +3047,7 @@ def build_ready_repair_chain_decision_record(
         declared_source_type=declared_source_type,
     )
     repo_provenance = normalize_repo_provenance(record.get("repo_provenance"))
+    repo_provenance_ready = repo_provenance_ok_for_eval(record)
     decision_record = {
         "source": "biber_mvp_loop_repair_chain_decision",
         "decision_status": "recorded",
@@ -3055,6 +3056,8 @@ def build_ready_repair_chain_decision_record(
         "reviewer": reviewer,
         "notes": notes,
         **provenance,
+        "repo_provenance_ready": repo_provenance_ready,
+        "eval_approval_requires_repo_provenance": True,
         "training_allowed": False,
         "eligible_for_training": False,
         "safe_to_train": False,
@@ -3135,11 +3138,14 @@ def record_ready_repair_chain_decisions(
                         if provenance.get("evidence_source_type") == "fixture_or_smoke"
                         else "real_repo_evidence_not_confirmed"
                     )
+                    repo_provenance_ready = repo_provenance_ok_for_eval(row)
                     rejected.append(
                         {
                             "jsonl_path": jsonl_path,
                             "jsonl_index": index,
                             "reason": reason,
+                            "repo_provenance_ready": repo_provenance_ready,
+                            "eval_approval_requires_repo_provenance": True,
                             "evidence_source_type": provenance.get(
                                 "evidence_source_type"
                             ),
@@ -3163,6 +3169,9 @@ def record_ready_repair_chain_decisions(
                 )
             )
 
+    repo_provenance_ready = sum(
+        1 for record in records if repo_provenance_ok_for_eval(record)
+    )
     output = write_jsonl_artifact(records, output_path)
     return {
         "source": "biber_mvp_loop_ready_repair_chain_decision_export",
@@ -3170,6 +3179,15 @@ def record_ready_repair_chain_decisions(
         "reviewer": reviewer.strip(),
         "records": len(records),
         "rejected_records": len(rejected),
+        "repo_provenance_ready": repo_provenance_ready,
+        "repo_provenance_missing": len(records) - repo_provenance_ready,
+        "rejected_repo_provenance_ready": sum(
+            1 for record in rejected if record.get("repo_provenance_ready") is True
+        ),
+        "rejected_repo_provenance_missing": sum(
+            1 for record in rejected if record.get("repo_provenance_ready") is False
+        ),
+        "eval_approval_requires_repo_provenance": True,
         "output": output,
         "training_allowed": False,
         "eligible_for_training": False,
@@ -8917,6 +8935,14 @@ def format_ready_repair_chain_decision_export_summary(
             f"reviewer: {payload.get('reviewer', '-')}",
             f"records: {payload.get('records', 0)}",
             f"rejected_records: {payload.get('rejected_records', 0)}",
+            f"repo_provenance_ready: {payload.get('repo_provenance_ready', 0)}",
+            f"repo_provenance_missing: {payload.get('repo_provenance_missing', 0)}",
+            "rejected_repo_provenance_ready: "
+            f"{payload.get('rejected_repo_provenance_ready', 0)}",
+            "rejected_repo_provenance_missing: "
+            f"{payload.get('rejected_repo_provenance_missing', 0)}",
+            "eval_approval_requires_repo_provenance: "
+            f"{payload.get('eval_approval_requires_repo_provenance', False)}",
             f"output: {payload.get('output', '-')}",
             f"training_allowed: {payload.get('training_allowed', False)}",
             f"safe_to_train: {payload.get('safe_to_train', False)}",

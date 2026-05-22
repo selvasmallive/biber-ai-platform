@@ -576,6 +576,9 @@ python scripts/biber_agent_client.py record-ready-repair-chain-decision \
 # To approve a real repo repair-chain for held-out eval curation, the reviewer
 # must explicitly confirm provenance:
 #   --decision approve_for_eval --evidence-source-type real_repo_candidate
+# The decision export also reports repo_provenance_ready and
+# rejected_repo_provenance_missing so missing root/commit evidence is visible
+# immediately.
 python scripts/biber_agent_client.py review-ready-repair-chain-decisions \
   /workspace/outputs/biber-mvp-loop-ready-repair-chain-decisions.jsonl \
   --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-decision-review.json
