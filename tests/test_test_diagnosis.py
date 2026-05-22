@@ -87,6 +87,46 @@ def test_diagnose_python_missing_dependency() -> None:
     assert "requirements" in " ".join(diagnosis["suggested_next_actions"])
 
 
+def test_diagnose_typescript_compile_error() -> None:
+    diagnosis = diagnose_test_failure(
+        command=["pnpm", "exec", "tsc", "--noEmit"],
+        exit_code=2,
+        stdout="src/App.tsx(8,12): error TS2304: Cannot find name 'ButtonProps'.\n",
+    )
+
+    assert diagnosis["detected_stack"] == "node"
+    assert diagnosis["primary_category"] == "compile_error"
+    assert diagnosis["signals"][0]["message"] == "TypeScript compiler error"
+    assert "package.json" in " ".join(diagnosis["suggested_next_actions"])
+
+
+def test_diagnose_react_testing_library_assertion() -> None:
+    diagnosis = diagnose_test_failure(
+        command=["npm", "test", "--", "Button.test.tsx"],
+        exit_code=1,
+        stderr=(
+            "TestingLibraryElementError: Unable to find an element with the text: Save\n"
+            "Ignored nodes: comments, script, style\n"
+        ),
+    )
+
+    assert diagnosis["detected_stack"] == "node"
+    assert diagnosis["primary_category"] == "assertion_failure"
+    assert "Unable to find an element" in diagnosis["relevant_output"]
+
+
+def test_diagnose_vite_import_resolution_failure() -> None:
+    diagnosis = diagnose_test_failure(
+        command=["yarn", "vite", "build"],
+        exit_code=1,
+        stderr="[vite]: Rollup failed to resolve import \"@/widgets/Card\" from src/App.tsx.\n",
+    )
+
+    assert diagnosis["detected_stack"] == "node"
+    assert diagnosis["primary_category"] == "missing_dependency"
+    assert diagnosis["signals"][0]["message"] == "Node import resolution error"
+
+
 def test_diagnose_endpoint_returns_structured_failure(tmp_path: Path) -> None:
     settings = make_settings(tmp_path)
     main_module.app.dependency_overrides[main_module.get_settings] = lambda: settings

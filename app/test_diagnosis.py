@@ -51,6 +51,16 @@ _RULES = [
     _Rule(r"failed .* in \d", "test_failure", "pytest failure summary", "python"),
     _Rule(r"cannot find module", "missing_dependency", "Node missing module", "node"),
     _Rule(r"module not found", "missing_dependency", "Node missing module", "node"),
+    _Rule(r"failed to resolve import", "missing_dependency", "Node import resolution error", "node"),
+    _Rule(r"could not resolve", "missing_dependency", "Node import resolution error", "node"),
+    _Rule(r"\berror\s+ts\d{4}\b", "compile_error", "TypeScript compiler error", "node"),
+    _Rule(r"\bts\d{4}:", "compile_error", "TypeScript compiler diagnostic", "node"),
+    _Rule(r"cannot find name", "compile_error", "TypeScript name resolution error", "node"),
+    _Rule(r"test suite failed to run", "compile_error", "Jest test-suite setup failure", "node"),
+    _Rule(r"failed to parse source", "compile_error", "Vite source parse failure", "node"),
+    _Rule(r"failed to transform", "compile_error", "JavaScript transform failure", "node"),
+    _Rule(r"expect\(received\)", "assertion_failure", "Jest assertion failure", "node"),
+    _Rule(r"unable to find an element", "assertion_failure", "React Testing Library assertion failure", "node"),
     _Rule(r"referenceerror", "runtime_error", "JavaScript reference error", "node"),
     _Rule(r"typeerror", "runtime_error", "JavaScript type error", "node"),
     _Rule(r"syntaxerror", "compile_error", "JavaScript syntax error", "node"),
@@ -154,7 +164,25 @@ def _detect_stack(command: list[str], test_id: str, lines: list[str]) -> str:
         return "rust"
     if any(token in text for token in ("pytest", "traceback", "modulenotfounderror")):
         return "python"
-    if any(token in text for token in ("npm", "vitest", "jest", "node ")):
+    if any(
+        token in text
+        for token in (
+            "npm",
+            "pnpm",
+            "yarn",
+            "npx",
+            "vitest",
+            "jest",
+            "node ",
+            "tsc",
+            "tsx",
+            "vite",
+            "react-scripts",
+            "testing-library",
+            ".tsx",
+            ".jsx",
+        )
+    ):
         return "node"
     return "unknown"
 
