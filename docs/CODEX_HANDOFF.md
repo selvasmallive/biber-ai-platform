@@ -170,6 +170,8 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP repair-chain list provenance counter commit pushed and
   Vast-verified:
   `80cee7b Show provenance readiness in repair chain list`.
+- Latest BIBER MVP repair-edit extraction alias commit pushed and Vast-verified:
+  `87f0f24 Accept file alias in repair edit extraction`.
 - Latest BIBER MVP agent-session API/persistence commits pushed and
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
@@ -7757,6 +7759,31 @@ bash scripts/xriq_private_devnet_smoke.sh
    `compileall`, focused pytest with `1 passed, 139 deselected`, and the live
    `list-repair-chains /workspace/outputs --ready-only --limit 5` check. No
    training run or OpenAI mentor call was used for this checkpoint.
+   Follow-up repair-edit extraction compatibility commit `87f0f24` accepts the
+   common model alias `file` as an edit target path, while still rejecting
+   conflicting `path`/`file` values before any plan/apply step. This came from
+   a real Vast local-model repair attempt whose proposed JSON used `file`
+   instead of `path`. Local verification passed `git diff --check`,
+   bundled-Python `compileall`, and a direct no-pytest assertion. Vast
+   fast-forwarded to `87f0f24`; focused pytest passed with
+   `2 passed, 140 deselected`.
+   After that fix, a real repo-provenanced repair-chain candidate was produced
+   on Vast without training or OpenAI mentor use:
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-ready-repair-chain-review.json`.
+   It used temporary worktree
+   `/workspace/biber-real-repo-candidates/real-repo-candidate-20260522T184002Z-107220/repo`,
+   source repo URL `https://github.com/selvasmallive/biber-ai-platform.git`,
+   source commit `897f99b67d6bae20c6c8af8b91883de53394c1c0`, and branch
+   `biber/real-repo-candidate-20260522T184002Z-107220`. The local model
+   proposed the repair, the extractor accepted it, `apply-repair-edits
+   --approve` applied it only in the temporary worktree, and
+   `verify-repair-edits` passed `python-compileall-api`. The ready repair-chain
+   review reports `records: 1`, `repo_provenance_ready: 1`,
+   `repo_provenance_missing: 0`, and `review_status: needs_human_review`.
+   This candidate is not approved for eval/dataset/training yet; the next
+   manual gate is `record-ready-repair-chain-decision --decision
+   approve_for_eval --evidence-source-type real_repo_candidate` only if the
+   human reviewer accepts the candidate.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
