@@ -595,6 +595,9 @@ python scripts/biber_agent_client.py list-ready-repair-chain-decision-reviews \
 python scripts/biber_agent_client.py export-ready-repair-chain-eval-candidates \
   /workspace/outputs/biber-mvp-loop-ready-repair-chain-decisions.jsonl \
   --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-candidates.jsonl
+# Eval-candidate export/review also reports repo_provenance_ready and
+# skipped_repo_provenance_missing so unconfirmed real-repo rows stay visible
+# before dataset review.
 python scripts/biber_agent_client.py review-ready-repair-chain-eval-candidates \
   /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-candidates.jsonl \
   --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-candidate-review.json

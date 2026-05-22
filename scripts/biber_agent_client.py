@@ -3458,6 +3458,7 @@ def build_ready_repair_chain_eval_candidate_record(
         artifacts = {}
     provenance = classify_repair_chain_evidence_source(record)
     repo_provenance = normalize_repo_provenance(record.get("repo_provenance"))
+    repo_provenance_ready = repo_provenance_ok_for_eval(record)
     candidate = {
         "source": "biber_mvp_loop_repair_chain_eval_candidate",
         "eval_candidate": True,
@@ -3465,6 +3466,8 @@ def build_ready_repair_chain_eval_candidate_record(
         "requires_dataset_review": True,
         "eval_dataset_ready": False,
         **provenance,
+        "repo_provenance_ready": repo_provenance_ready,
+        "eval_approval_requires_repo_provenance": True,
         "decision": "approve_for_eval",
         "decision_status": record.get("decision_status"),
         "reviewer": record.get("reviewer"),
@@ -3532,6 +3535,7 @@ def export_ready_repair_chain_eval_candidates(
                 continue
             provenance = classify_repair_chain_evidence_source(row)
             if provenance.get("evidence_source_ok_for_eval") is not True:
+                repo_provenance_ready = repo_provenance_ok_for_eval(row)
                 skip_reason = (
                     "non_real_repo_evidence"
                     if provenance.get("evidence_source_type") == "fixture_or_smoke"
@@ -3543,6 +3547,8 @@ def export_ready_repair_chain_eval_candidates(
                         "jsonl_index": index,
                         "reason": skip_reason,
                         "decision": row.get("decision"),
+                        "repo_provenance_ready": repo_provenance_ready,
+                        "eval_approval_requires_repo_provenance": True,
                         "evidence_source_type": provenance.get(
                             "evidence_source_type"
                         ),
@@ -3562,12 +3568,24 @@ def export_ready_repair_chain_eval_candidates(
                 )
             )
 
+    repo_provenance_ready = sum(
+        1 for record in records if repo_provenance_ok_for_eval(record)
+    )
     output = write_jsonl_artifact(records, output_path)
     return {
         "source": "biber_mvp_loop_ready_repair_chain_eval_candidate_export",
         "records": len(records),
         "skipped_records": len(skipped),
         "rejected_records": len(rejected),
+        "repo_provenance_ready": repo_provenance_ready,
+        "repo_provenance_missing": len(records) - repo_provenance_ready,
+        "skipped_repo_provenance_ready": sum(
+            1 for record in skipped if record.get("repo_provenance_ready") is True
+        ),
+        "skipped_repo_provenance_missing": sum(
+            1 for record in skipped if record.get("repo_provenance_ready") is False
+        ),
+        "eval_approval_requires_repo_provenance": True,
         "blocked_non_real_repo_records": sum(
             1 for item in skipped if item.get("reason") == "non_real_repo_evidence"
         ),
@@ -3645,6 +3663,9 @@ def review_ready_repair_chain_eval_candidate_records(
                 "source_artifacts": [],
                 "requires_dataset_review": True,
                 "eval_dataset_ready": False,
+                "repo_provenance_ready": 0,
+                "repo_provenance_missing": 0,
+                "eval_approval_requires_repo_provenance": True,
                 "safe_to_train": False,
                 "github_save_ready": False,
                 "approved_for_training": False,
@@ -3655,12 +3676,19 @@ def review_ready_repair_chain_eval_candidate_records(
         if reviewer and reviewer not in group["reviewers"]:
             group["reviewers"].append(reviewer)
         group["source_artifacts"].append(record.get("source_artifact"))
+        if repo_provenance_ok_for_eval(record):
+            group["repo_provenance_ready"] += 1
+        else:
+            group["repo_provenance_missing"] += 1
     groups = [
         group
         for group in groups_by_key.values()
         if int(group.get("count") or 0) >= min_repeat
     ]
     groups.sort(key=lambda item: (-int(item.get("count") or 0), str(item.get("test_id") or "")))
+    repo_provenance_ready = sum(
+        1 for record in records if repo_provenance_ok_for_eval(record)
+    )
 
     return {
         "source": "biber_mvp_loop_ready_repair_chain_eval_candidate_review",
@@ -3669,6 +3697,9 @@ def review_ready_repair_chain_eval_candidate_records(
         "rejected_records": len(rejected),
         "ready_for_dataset_review": len(records),
         "eval_dataset_ready_records": eval_dataset_ready_records,
+        "repo_provenance_ready": repo_provenance_ready,
+        "repo_provenance_missing": len(records) - repo_provenance_ready,
+        "eval_approval_requires_repo_provenance": True,
         "min_repeat": min_repeat,
         "groups": groups,
         "requires_dataset_review": True,
@@ -3725,6 +3756,11 @@ def summarize_ready_repair_chain_eval_candidate_review_artifact(
         ),
         "eval_dataset_ready_records": int_count(
             payload.get("eval_dataset_ready_records")
+        ),
+        "repo_provenance_ready": int_count(payload.get("repo_provenance_ready")),
+        "repo_provenance_missing": int_count(payload.get("repo_provenance_missing")),
+        "eval_approval_requires_repo_provenance": (
+            payload.get("eval_approval_requires_repo_provenance") is True
         ),
         "groups": len(groups),
         "min_repeat": int_count(payload.get("min_repeat")) or 1,
@@ -3810,6 +3846,13 @@ def list_ready_repair_chain_eval_candidate_review_artifacts(
         "ready_for_dataset_review": sum(
             int_count(item.get("ready_for_dataset_review")) for item in artifacts
         ),
+        "repo_provenance_ready": sum(
+            int_count(item.get("repo_provenance_ready")) for item in artifacts
+        ),
+        "repo_provenance_missing": sum(
+            int_count(item.get("repo_provenance_missing")) for item in artifacts
+        ),
+        "eval_approval_requires_repo_provenance": True,
         "eval_dataset_ready": False,
         "requires_dataset_review": True,
         "training_allowed": False,
@@ -9039,6 +9082,14 @@ def format_ready_repair_chain_eval_candidate_export_summary(
             f"records: {payload.get('records', 0)}",
             f"skipped_records: {payload.get('skipped_records', 0)}",
             f"rejected_records: {payload.get('rejected_records', 0)}",
+            f"repo_provenance_ready: {payload.get('repo_provenance_ready', 0)}",
+            f"repo_provenance_missing: {payload.get('repo_provenance_missing', 0)}",
+            "skipped_repo_provenance_ready: "
+            f"{payload.get('skipped_repo_provenance_ready', 0)}",
+            "skipped_repo_provenance_missing: "
+            f"{payload.get('skipped_repo_provenance_missing', 0)}",
+            "eval_approval_requires_repo_provenance: "
+            f"{payload.get('eval_approval_requires_repo_provenance', False)}",
             (
                 "blocked_non_real_repo_records: "
                 f"{payload.get('blocked_non_real_repo_records', 0)}"
@@ -9073,6 +9124,10 @@ def format_ready_repair_chain_eval_candidate_review_summary(
         f"rejected_records: {payload.get('rejected_records', 0)}",
         f"ready_for_dataset_review: {payload.get('ready_for_dataset_review', 0)}",
         f"eval_dataset_ready_records: {payload.get('eval_dataset_ready_records', 0)}",
+        f"repo_provenance_ready: {payload.get('repo_provenance_ready', 0)}",
+        f"repo_provenance_missing: {payload.get('repo_provenance_missing', 0)}",
+        "eval_approval_requires_repo_provenance: "
+        f"{payload.get('eval_approval_requires_repo_provenance', False)}",
         f"review_status: {payload.get('review_status', '-')}",
         f"min_repeat: {payload.get('min_repeat', 1)}",
         f"groups: {len(groups)}",
@@ -9088,7 +9143,8 @@ def format_ready_repair_chain_eval_candidate_review_summary(
         (
             f"- test_id={group.get('test_id', '-')} "
             f"plan_hash={group.get('plan_hash', '-')} "
-            f"count={group.get('count', 0)}"
+            f"count={group.get('count', 0)} "
+            f"repo_provenance_ready={group.get('repo_provenance_ready', 0)}"
         )
         for group in groups[:8]
     )
@@ -9112,6 +9168,10 @@ def format_ready_repair_chain_eval_candidate_review_artifact_list_summary(
         f"matched: {payload.get('matched', 0)}",
         f"records: {payload.get('records', 0)}",
         f"ready_for_dataset_review: {payload.get('ready_for_dataset_review', 0)}",
+        f"repo_provenance_ready: {payload.get('repo_provenance_ready', 0)}",
+        f"repo_provenance_missing: {payload.get('repo_provenance_missing', 0)}",
+        "eval_approval_requires_repo_provenance: "
+        f"{payload.get('eval_approval_requires_repo_provenance', False)}",
         f"eval_dataset_ready: {payload.get('eval_dataset_ready', False)}",
         f"requires_dataset_review: {payload.get('requires_dataset_review', True)}",
         f"training_allowed: {payload.get('training_allowed', False)}",
@@ -9128,6 +9188,7 @@ def format_ready_repair_chain_eval_candidate_review_artifact_list_summary(
                     f"records={artifact.get('records', 0)}",
                     f"ready={artifact.get('ready_for_dataset_review', 0)}",
                     f"groups={artifact.get('groups', 0)}",
+                    f"repo_provenance_ready={artifact.get('repo_provenance_ready', 0)}",
                     f"min_repeat={artifact.get('min_repeat', 1)}",
                 ]
             )

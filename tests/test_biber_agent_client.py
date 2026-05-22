@@ -3937,6 +3937,11 @@ def test_run_export_ready_repair_chain_eval_candidates_without_api_key(
     assert result["records"] == 1
     assert result["skipped_records"] == 1
     assert result["rejected_records"] == 1
+    assert result["repo_provenance_ready"] == 1
+    assert result["repo_provenance_missing"] == 0
+    assert result["skipped_repo_provenance_ready"] == 0
+    assert result["skipped_repo_provenance_missing"] == 0
+    assert result["eval_approval_requires_repo_provenance"] is True
     assert result["blocked_non_real_repo_records"] == 0
     assert result["blocked_unconfirmed_real_repo_records"] == 0
     assert result["eval_candidates"] == 1
@@ -3960,6 +3965,8 @@ def test_run_export_ready_repair_chain_eval_candidates_without_api_key(
     assert rows[0]["evidence_source_confirmed"] is True
     assert rows[0]["evidence_source_ok_for_eval"] is True
     assert rows[0]["evidence_source_reasons"] == []
+    assert rows[0]["repo_provenance_ready"] is True
+    assert rows[0]["eval_approval_requires_repo_provenance"] is True
     assert rows[0]["repo_provenance"] == records[0]["repo_provenance"]
     assert rows[0]["training_allowed"] is False
     assert rows[0]["eligible_for_training"] is False
@@ -4042,10 +4049,17 @@ def test_run_export_ready_repair_chain_eval_candidates_blocks_fixture_evidence(
 
     assert result["records"] == 0
     assert result["skipped_records"] == 1
+    assert result["repo_provenance_ready"] == 0
+    assert result["repo_provenance_missing"] == 0
+    assert result["skipped_repo_provenance_ready"] == 1
+    assert result["skipped_repo_provenance_missing"] == 0
+    assert result["eval_approval_requires_repo_provenance"] is True
     assert result["blocked_non_real_repo_records"] == 1
     assert result["blocked_unconfirmed_real_repo_records"] == 0
     assert output_path.read_text(encoding="utf-8") == ""
     assert result["skipped"][0]["reason"] == "non_real_repo_evidence"
+    assert result["skipped"][0]["repo_provenance_ready"] is True
+    assert result["skipped"][0]["eval_approval_requires_repo_provenance"] is True
     assert result["skipped"][0]["evidence_source_type"] == "fixture_or_smoke"
     assert result["skipped"][0]["evidence_source_reasons"] == [
         "disposable_fixture_artifact",
@@ -4103,10 +4117,17 @@ def test_run_export_ready_repair_chain_eval_candidates_blocks_unconfirmed_real_r
 
     assert result["records"] == 0
     assert result["skipped_records"] == 1
+    assert result["repo_provenance_ready"] == 0
+    assert result["repo_provenance_missing"] == 0
+    assert result["skipped_repo_provenance_ready"] == 0
+    assert result["skipped_repo_provenance_missing"] == 1
+    assert result["eval_approval_requires_repo_provenance"] is True
     assert result["blocked_non_real_repo_records"] == 0
     assert result["blocked_unconfirmed_real_repo_records"] == 1
     assert output_path.read_text(encoding="utf-8") == ""
     assert result["skipped"][0]["reason"] == "real_repo_evidence_not_confirmed"
+    assert result["skipped"][0]["repo_provenance_ready"] is False
+    assert result["skipped"][0]["eval_approval_requires_repo_provenance"] is True
     assert result["skipped"][0]["evidence_source_type"] == (
         "unconfirmed_real_repo_candidate"
     )
@@ -4140,6 +4161,10 @@ def test_run_review_ready_repair_chain_eval_candidates_without_api_key(
             "source_artifact": "repair-chain.json",
             "plan_hash": "e" * 64,
             "test_id": "python-compileall-api",
+            "repo_provenance": {
+                "root": "/workspace/real-user-repo",
+                "commit": "abc123def456",
+            },
         },
         {
             "source": "other_source",
@@ -4171,6 +4196,9 @@ def test_run_review_ready_repair_chain_eval_candidates_without_api_key(
     assert result["rejected_records"] == 1
     assert result["ready_for_dataset_review"] == 1
     assert result["eval_dataset_ready_records"] == 0
+    assert result["repo_provenance_ready"] == 1
+    assert result["repo_provenance_missing"] == 0
+    assert result["eval_approval_requires_repo_provenance"] is True
     assert result["requires_dataset_review"] is True
     assert result["eval_dataset_ready"] is False
     assert result["training_allowed"] is False
@@ -4179,6 +4207,9 @@ def test_run_review_ready_repair_chain_eval_candidates_without_api_key(
     assert result["github_save_ready"] is False
     assert result["approved_for_training"] is False
     assert result["groups"][0]["test_id"] == "python-compileall-api"
+    assert result["groups"][0]["repo_provenance_ready"] == 1
+    assert result["groups"][0]["repo_provenance_missing"] == 0
+    assert result["groups"][0]["eval_approval_requires_repo_provenance"] is True
     assert result["groups"][0]["requires_dataset_review"] is True
     assert result["groups"][0]["eval_dataset_ready"] is False
     assert result["groups"][0]["approved_for_training"] is False
@@ -4203,6 +4234,9 @@ def test_run_show_ready_repair_chain_eval_candidate_review_summarizes_without_ap
         "rejected_records": 0,
         "ready_for_dataset_review": 1,
         "eval_dataset_ready_records": 0,
+        "repo_provenance_ready": 1,
+        "repo_provenance_missing": 0,
+        "eval_approval_requires_repo_provenance": True,
         "eval_dataset_ready": False,
         "requires_dataset_review": True,
         "training_allowed": False,
@@ -4218,6 +4252,8 @@ def test_run_show_ready_repair_chain_eval_candidate_review_summarizes_without_ap
                 "test_id": "python-compileall-api",
                 "plan_hash": "f" * 64,
                 "count": 1,
+                "repo_provenance_ready": 1,
+                "repo_provenance_missing": 0,
             }
         ],
     }
@@ -4236,12 +4272,16 @@ def test_run_show_ready_repair_chain_eval_candidate_review_summarizes_without_ap
     assert "BIBER ready repair-chain eval candidate review" in output
     assert "records: 1" in output
     assert "ready_for_dataset_review: 1" in output
+    assert "repo_provenance_ready: 1" in output
+    assert "repo_provenance_missing: 0" in output
+    assert "eval_approval_requires_repo_provenance: True" in output
     assert "review_status: eval_candidates_need_dataset_review" in output
     assert "training_allowed: False" in output
     assert "safe_to_train: False" in output
     assert "github_save_ready: False" in output
     assert "approved_for_training: False" in output
     assert "python-compileall-api" in output
+    assert "repo_provenance_ready=1" in output
     assert "f" * 64 in output
     assert str(artifact) in output
 
@@ -4308,6 +4348,9 @@ def test_run_list_ready_repair_chain_eval_candidate_reviews_without_api_key(
                 "review_status": "eval_candidates_need_dataset_review",
                 "records": 1,
                 "ready_for_dataset_review": 1,
+                "repo_provenance_ready": 1,
+                "repo_provenance_missing": 0,
+                "eval_approval_requires_repo_provenance": True,
                 "eval_dataset_ready": False,
                 "requires_dataset_review": True,
                 "training_allowed": False,
@@ -4315,7 +4358,13 @@ def test_run_list_ready_repair_chain_eval_candidate_reviews_without_api_key(
                 "github_save_ready": False,
                 "approved_for_training": False,
                 "min_repeat": 1,
-                "groups": [{"test_id": "python-compileall-api", "count": 1}],
+                "groups": [
+                    {
+                        "test_id": "python-compileall-api",
+                        "count": 1,
+                        "repo_provenance_ready": 1,
+                    }
+                ],
             },
             sort_keys=True,
         ),
@@ -4360,6 +4409,9 @@ def test_run_list_ready_repair_chain_eval_candidate_reviews_without_api_key(
     assert str(not_ready_artifact) not in output
     assert str(ignored_artifact) not in output
     assert "ready_for_dataset_review: 1" in output
+    assert "repo_provenance_ready: 1" in output
+    assert "repo_provenance_missing: 0" in output
+    assert "eval_approval_requires_repo_provenance: True" in output
     assert "eval_dataset_ready: False" in output
     assert "requires_dataset_review: True" in output
     assert "training_allowed: False" in output
@@ -4368,6 +4420,7 @@ def test_run_list_ready_repair_chain_eval_candidate_reviews_without_api_key(
     assert "approved_for_training: False" in output
     assert "status=eval_candidates_need_dataset_review" in output
     assert "groups=1" in output
+    assert "repo_provenance_ready=1" in output
 
 
 def test_run_record_ready_repair_chain_eval_candidate_decision_without_api_key(
