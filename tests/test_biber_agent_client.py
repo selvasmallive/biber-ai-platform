@@ -2996,6 +2996,8 @@ def test_run_export_ready_repair_chains_writes_review_jsonl_without_api_key(
     assert result["source"] == "biber_mvp_loop_ready_repair_chain_export"
     assert result["scanned"] == 2
     assert result["records"] == 1
+    assert result["repo_provenance_ready"] == 1
+    assert result["repo_provenance_missing"] == 0
     assert result["training_allowed"] is False
     assert result["eligible_for_training"] is False
     assert result["safe_to_train"] is False
@@ -3040,6 +3042,10 @@ def test_run_review_ready_repair_chains_summarizes_jsonl_without_api_key(
             "source_artifact": "repair-chain.json",
             "plan_hash": "e" * 64,
             "test_id": "python-compileall-api",
+            "repo_provenance": {
+                "root": "/workspace/real-user-repo",
+                "commit": "abc123def456",
+            },
             "chain": {
                 "chain_status": "ready_for_human_review",
                 "chain_complete": True,
@@ -3077,6 +3083,9 @@ def test_run_review_ready_repair_chains_summarizes_jsonl_without_api_key(
     assert result["records"] == 1
     assert result["rejected_records"] == 1
     assert result["ready_for_human_review"] == 1
+    assert result["repo_provenance_ready"] == 1
+    assert result["repo_provenance_missing"] == 0
+    assert result["eval_approval_requires_repo_provenance"] is True
     assert result["training_allowed"] is False
     assert result["eligible_for_training"] is False
     assert result["safe_to_train"] is False
@@ -3089,6 +3098,8 @@ def test_run_review_ready_repair_chains_summarizes_jsonl_without_api_key(
             "count": 1,
             "source_artifacts": ["repair-chain.json"],
             "review_statuses": ["needs_human_review"],
+            "repo_provenance_ready": 1,
+            "repo_provenance_missing": 0,
             "safe_to_train": False,
             "github_save_ready": False,
         }
@@ -3121,6 +3132,9 @@ def test_run_show_ready_repair_chain_review_summarizes_without_api_key(
         "records": 1,
         "rejected_records": 0,
         "ready_for_human_review": 1,
+        "repo_provenance_ready": 1,
+        "repo_provenance_missing": 0,
+        "eval_approval_requires_repo_provenance": True,
         "min_repeat": 1,
         "artifact_path": str(artifact),
         "groups": [
@@ -3128,6 +3142,8 @@ def test_run_show_ready_repair_chain_review_summarizes_without_api_key(
                 "test_id": "python-compileall-api",
                 "plan_hash": "e" * 64,
                 "count": 1,
+                "repo_provenance_ready": 1,
+                "repo_provenance_missing": 0,
             }
         ],
     }
@@ -3141,12 +3157,16 @@ def test_run_show_ready_repair_chain_review_summarizes_without_api_key(
     assert "BIBER ready repair-chain review" in output
     assert "records: 1" in output
     assert "ready_for_human_review: 1" in output
+    assert "repo_provenance_ready: 1" in output
+    assert "repo_provenance_missing: 0" in output
+    assert "eval_approval_requires_repo_provenance: True" in output
     assert "review_status: needs_human_review" in output
     assert "training_allowed: False" in output
     assert "safe_to_train: False" in output
     assert "github_save_ready: False" in output
     assert "test_id=python-compileall-api" in output
     assert f"plan_hash={'e' * 64}" in output
+    assert "repo_provenance_ready=1" in output
     assert str(artifact) in output
 
 
@@ -3193,12 +3213,16 @@ def test_run_list_ready_repair_chain_reviews_summarizes_without_api_key(
                 "records": 1,
                 "rejected_records": 0,
                 "ready_for_human_review": 1,
+                "repo_provenance_ready": 1,
+                "repo_provenance_missing": 0,
+                "eval_approval_requires_repo_provenance": True,
                 "min_repeat": 1,
                 "groups": [
                     {
                         "test_id": "python-compileall-api",
                         "plan_hash": "e" * 64,
                         "count": 1,
+                        "repo_provenance_ready": 1,
                     }
                 ],
             }
@@ -3244,11 +3268,15 @@ def test_run_list_ready_repair_chain_reviews_summarizes_without_api_key(
     assert "ready_artifacts: 1" in output
     assert "records: 1" in output
     assert "ready_for_human_review: 1" in output
+    assert "repo_provenance_ready: 1" in output
+    assert "repo_provenance_missing: 0" in output
+    assert "eval_approval_requires_repo_provenance: True" in output
     assert "training_allowed: False" in output
     assert "safe_to_train: False" in output
     assert "github_save_ready: False" in output
     assert "status=needs_human_review" in output
     assert "groups=1" in output
+    assert "repo_provenance_ready=1" in output
 
 
 def test_run_record_ready_repair_chain_decision_writes_jsonl_without_api_key(

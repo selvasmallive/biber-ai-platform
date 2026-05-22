@@ -558,6 +558,9 @@ python scripts/biber_agent_client.py export-ready-repair-chains \
 python scripts/biber_agent_client.py review-ready-repair-chains \
   /workspace/outputs/biber-mvp-loop-ready-repair-chains.jsonl \
   --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-review.json
+# The review summary reports repo_provenance_ready/repo_provenance_missing.
+# Only rows with source repo root plus commit should be considered for
+# --decision approve_for_eval.
 python scripts/biber_agent_client.py show-ready-repair-chain-review \
   /workspace/outputs/biber-mvp-loop-ready-repair-chain-review.json
 python scripts/biber_agent_client.py list-ready-repair-chain-reviews \

@@ -2769,6 +2769,9 @@ def export_ready_repair_chain_reviews(
 
     candidates.sort(key=lambda item: item[0], reverse=True)
     records = [record for _, record in candidates[:limit]]
+    repo_provenance_ready = sum(
+        1 for record in records if repo_provenance_ok_for_eval(record)
+    )
     output = write_jsonl_artifact(records, output_path)
     return {
         "source": "biber_mvp_loop_ready_repair_chain_export",
@@ -2776,6 +2779,8 @@ def export_ready_repair_chain_reviews(
         "pattern": pattern,
         "scanned": scanned,
         "records": len(records),
+        "repo_provenance_ready": repo_provenance_ready,
+        "repo_provenance_missing": len(records) - repo_provenance_ready,
         "output": output,
         "review_status": "needs_human_review",
         "training_allowed": False,
@@ -2829,6 +2834,8 @@ def review_ready_repair_chain_records(
                 "count": 0,
                 "source_artifacts": [],
                 "review_statuses": [],
+                "repo_provenance_ready": 0,
+                "repo_provenance_missing": 0,
                 "safe_to_train": False,
                 "github_save_ready": False,
             },
@@ -2836,12 +2843,19 @@ def review_ready_repair_chain_records(
         group["count"] += 1
         group["source_artifacts"].append(record.get("source_artifact"))
         group["review_statuses"].append(record.get("review_status"))
+        if repo_provenance_ok_for_eval(record):
+            group["repo_provenance_ready"] += 1
+        else:
+            group["repo_provenance_missing"] += 1
     groups = [
         group
         for group in groups_by_key.values()
         if int(group.get("count") or 0) >= min_repeat
     ]
     groups.sort(key=lambda item: (-int(item.get("count") or 0), str(item.get("test_id") or "")))
+    repo_provenance_ready = sum(
+        1 for record in records if repo_provenance_ok_for_eval(record)
+    )
 
     return {
         "source": "biber_mvp_loop_ready_repair_chain_review",
@@ -2856,6 +2870,9 @@ def review_ready_repair_chain_records(
         "rejected_records": len(rejected),
         "min_repeat": min_repeat,
         "ready_for_human_review": len(records),
+        "repo_provenance_ready": repo_provenance_ready,
+        "repo_provenance_missing": len(records) - repo_provenance_ready,
+        "eval_approval_requires_repo_provenance": True,
         "groups": groups,
         "rejected": rejected,
         "next_review_action": (
@@ -2897,6 +2914,11 @@ def summarize_ready_repair_chain_review_artifact(
         "records": int_count(payload.get("records")),
         "rejected_records": int_count(payload.get("rejected_records")),
         "ready_for_human_review": int_count(payload.get("ready_for_human_review")),
+        "repo_provenance_ready": int_count(payload.get("repo_provenance_ready")),
+        "repo_provenance_missing": int_count(payload.get("repo_provenance_missing")),
+        "eval_approval_requires_repo_provenance": (
+            payload.get("eval_approval_requires_repo_provenance") is True
+        ),
         "groups": len(groups),
         "min_repeat": max(1, int_count(payload.get("min_repeat") or 1)),
         "training_allowed": payload.get("training_allowed") is True,
@@ -2976,6 +2998,13 @@ def list_ready_repair_chain_review_artifacts(
         "ready_for_human_review": sum(
             int_count(item.get("ready_for_human_review")) for item in artifacts
         ),
+        "repo_provenance_ready": sum(
+            int_count(item.get("repo_provenance_ready")) for item in artifacts
+        ),
+        "repo_provenance_missing": sum(
+            int_count(item.get("repo_provenance_missing")) for item in artifacts
+        ),
+        "eval_approval_requires_repo_provenance": True,
         "training_allowed": False,
         "eligible_for_training": False,
         "safe_to_train": False,
@@ -8789,6 +8818,8 @@ def format_ready_repair_chain_export_summary(payload: Mapping[str, Any]) -> str:
             f"pattern: {payload.get('pattern', '-')}",
             f"scanned: {payload.get('scanned', 0)}",
             f"records: {payload.get('records', 0)}",
+            f"repo_provenance_ready: {payload.get('repo_provenance_ready', 0)}",
+            f"repo_provenance_missing: {payload.get('repo_provenance_missing', 0)}",
             f"output: {payload.get('output', '-')}",
             f"review_status: {payload.get('review_status', '-')}",
             f"training_allowed: {payload.get('training_allowed', False)}",
@@ -8809,6 +8840,10 @@ def format_ready_repair_chain_review_summary(payload: Mapping[str, Any]) -> str:
         f"records: {payload.get('records', 0)}",
         f"rejected_records: {payload.get('rejected_records', 0)}",
         f"ready_for_human_review: {payload.get('ready_for_human_review', 0)}",
+        f"repo_provenance_ready: {payload.get('repo_provenance_ready', 0)}",
+        f"repo_provenance_missing: {payload.get('repo_provenance_missing', 0)}",
+        "eval_approval_requires_repo_provenance: "
+        f"{payload.get('eval_approval_requires_repo_provenance', False)}",
         f"review_status: {payload.get('review_status', '-')}",
         f"training_allowed: {payload.get('training_allowed', False)}",
         f"safe_to_train: {payload.get('safe_to_train', False)}",
@@ -8821,7 +8856,8 @@ def format_ready_repair_chain_review_summary(payload: Mapping[str, Any]) -> str:
         (
             f"- test_id={group.get('test_id', '-')} "
             f"plan_hash={group.get('plan_hash', '-')} "
-            f"count={group.get('count', 0)}"
+            f"count={group.get('count', 0)} "
+            f"repo_provenance_ready={group.get('repo_provenance_ready', 0)}"
         )
         for group in groups[:8]
     )
@@ -8846,6 +8882,10 @@ def format_ready_repair_chain_review_artifact_list_summary(
         f"ready_artifacts: {payload.get('ready_artifacts', 0)}",
         f"records: {payload.get('records', 0)}",
         f"ready_for_human_review: {payload.get('ready_for_human_review', 0)}",
+        f"repo_provenance_ready: {payload.get('repo_provenance_ready', 0)}",
+        f"repo_provenance_missing: {payload.get('repo_provenance_missing', 0)}",
+        "eval_approval_requires_repo_provenance: "
+        f"{payload.get('eval_approval_requires_repo_provenance', False)}",
         f"training_allowed: {payload.get('training_allowed', False)}",
         f"safe_to_train: {payload.get('safe_to_train', False)}",
         f"github_save_ready: {payload.get('github_save_ready', False)}",
@@ -8859,6 +8899,7 @@ def format_ready_repair_chain_review_artifact_list_summary(
                     f"records={artifact.get('records', 0)}",
                     f"ready={artifact.get('ready_for_human_review', 0)}",
                     f"groups={artifact.get('groups', 0)}",
+                    f"repo_provenance_ready={artifact.get('repo_provenance_ready', 0)}",
                     f"min_repeat={artifact.get('min_repeat', 1)}",
                 ]
             )
