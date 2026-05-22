@@ -161,6 +161,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP ready repair-chain provenance-review counter commit pushed
   and Vast-verified:
   `56687b7 Show repo provenance readiness in repair reviews`.
+- Latest BIBER MVP repair-chain decision provenance counter commit pushed and
+  Vast-verified:
+  `dc255bb Show provenance readiness in repair decisions`.
 - Latest BIBER MVP agent-session API/persistence commits pushed and
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
@@ -7698,6 +7701,23 @@ bash scripts/xriq_private_devnet_smoke.sh
    directory `/workspace/outputs/biber-agent-smoke-20260522T134502Z-106503`.
    The smoke kept synthetic evidence deferred, eval-candidate records at `0`,
    dataset export blocked, and training pipeline blocked with
+   `synthetic_smoke_not_real_repo_candidate`. No training run or OpenAI mentor
+   call was used for this checkpoint.
+   Follow-up repair-chain decision provenance counter `dc255bb` surfaces
+   `repo_provenance_ready`, `repo_provenance_missing`,
+   `rejected_repo_provenance_ready`,
+   `rejected_repo_provenance_missing`, and
+   `eval_approval_requires_repo_provenance` in
+   `record-ready-repair-chain-decision` output and recorded decision rows. This
+   keeps the final manual approval gate explicit about whether a row has root
+   plus commit provenance or was rejected before eval-candidate export. Local
+   verification passed `git diff --check`, bundled-Python `compileall`, and a
+   direct decision-record assertion. Vast fast-forwarded to `dc255bb`; focused
+   pytest passed with `4 passed, 136 deselected`, and live Vast agent smoke
+   passed with artifact directory
+   `/workspace/outputs/biber-agent-smoke-20260522T140209Z-106710`. The smoke
+   kept synthetic evidence deferred, eval-candidate records at `0`, dataset
+   export blocked, and training pipeline blocked with
    `synthetic_smoke_not_real_repo_candidate`. No training run or OpenAI mentor
    call was used for this checkpoint.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
