@@ -151,6 +151,10 @@ serving the last broad-safe Rust/XRIQ adapter.
   `2afa40e Keep agent smoke eval guard synthetic-safe`.
 - Latest BIBER MVP real-repo approval guard commit pushed and Vast-verified:
   `d9448ec Reject smoke repair chains at approval`.
+- Latest BIBER MVP repo-provenance repair-chain approval commits pushed and
+  Vast-verified:
+  `23d5977 Require repo provenance for repair eval approval` and
+  `4508e67 Preserve repo provenance in repair decisions`.
 - Latest BIBER MVP agent-session API/persistence commits pushed and
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
@@ -7636,6 +7640,27 @@ bash scripts/xriq_private_devnet_smoke.sh
    `/workspace/outputs/biber-agent-smoke-20260522T124907Z-105799`; summary
    again kept eval-candidate records at `0` and training pipeline `blocked`
    with `synthetic_smoke_not_real_repo_candidate`.
+   Follow-up repo-provenance approval guard `23d5977` now requires explicit
+   real repo source provenance before `approve_for_eval` evidence can become an
+   eval candidate. `show-repair-chain` accepts `--source-repo-root`,
+   `--source-repo-url`, `--source-repo-commit`, and `--source-repo-branch`; real
+   repo eval approval needs at least `root` and `commit`. `4508e67` then fixed
+   the decision JSONL path so normalized `repo_provenance` is preserved on the
+   recorded decision row and can flow into later eval-candidate export. Local
+   verification passed `git diff --check`, bundled-Python `compileall`, and a
+   direct inline assertion for real-repo provenance preservation; local pytest
+   was unavailable in the bundled Python. Vast fast-forwarded to `4508e67`, and
+   focused pytest passed with `8 passed, 132 deselected` for the
+   repair-chain provenance and eval-candidate paths. Live Vast agent smoke
+   passed with artifact directory
+   `/workspace/outputs/biber-agent-smoke-20260522T130706Z-106028`; summary kept
+   the synthetic chain deferred, eval-candidate records at `0`, dataset export
+   blocked, and training pipeline blocked with
+   `synthetic_smoke_not_real_repo_candidate`. Current live Vast checkout is
+   `4508e67`, vLLM pid is `104769`, FastAPI pid is `105366`, and the promoted
+   adapter remains
+   `/workspace/adapters/biber-dev-core-repo-adapt-next2-20260522T0950Z`. No
+   training run or OpenAI mentor call was used for this checkpoint.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
@@ -7695,7 +7720,8 @@ bash scripts/xriq_private_devnet_smoke.sh
    `review-repair-chain-training-pipeline`, then inspect the saved pipeline
    status artifact with `show-repair-chain-training-pipeline`, then run
    `list-repair-chain-training-pipelines`, then collect a real repo
-   repair-chain candidate with concrete task/failure/patch evidence before
+   repair-chain candidate with concrete task/failure/patch evidence and
+   explicit source repo root plus commit provenance before
    manually filling any training-candidate `output`, rerun
    `review-repair-chain-training-candidates`, validate a reviewed dataset, and
    require explicit user approval before any Vast training job. There is now a
