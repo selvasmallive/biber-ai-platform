@@ -179,6 +179,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest real repo repair-chain held-out eval review checkpoint created on
   Vast:
   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-heldout-eval-review.json`.
+- Latest real repo repair-chain held-out baseline-candidate review checkpoint
+  created on Vast:
+  `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-heldout-baseline-candidate-review.json`.
 - Latest BIBER MVP agent-session API/persistence commits pushed and
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
@@ -7852,6 +7855,27 @@ bash scripts/xriq_private_devnet_smoke.sh
    `record-repair-chain-heldout-eval-decision` of `defer`, `reject`, or
    `accept_for_baseline`; do not create baseline/training approvals from a
    generic continue.
+   Follow-up user-approved baseline bookkeeping recorded
+   `accept_for_baseline` for that latest held-out eval review artifact and
+   exported one held-out baseline candidate without training or OpenAI mentor
+   use. Decision export wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-heldout-eval-decisions.jsonl`
+   with `records: 1`, `accepted_for_baseline_records: 1`, and
+   `baseline_candidate_ready: True`. Decision review wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-heldout-eval-decision-review.json`
+   with `decision_counts: {'accept_for_baseline': 1}` and
+   `baseline_candidate_ready_records: 1`. Baseline-candidate export wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-heldout-baseline-candidates.jsonl`
+   with `baseline_candidates: 1`, `baseline_ready: False`, and
+   `requires_baseline_review: True`. Baseline-candidate review wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-heldout-baseline-candidate-review.json`
+   with `records: 1`, `baseline_candidate_ready_records: 1`,
+   `baseline_ready_records: 0`, `requires_baseline_review_records: 1`,
+   `training_allowed: False`, `safe_to_train: False`, and
+   `approved_for_training: False`. The next narrow gate is a manual
+   `record-repair-chain-heldout-baseline-candidate-decision` of `defer`,
+   `reject`, or `approve_as_baseline`; do not start training or mark a
+   training dataset ready from a generic continue.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
