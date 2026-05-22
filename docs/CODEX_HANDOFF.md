@@ -634,8 +634,8 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Current agent-session artifact directory:
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
-  - vLLM pid: `97357`
-  - FastAPI pid: `97679`
+  - vLLM pid: `99538`
+  - FastAPI pid: `99860`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - `BIBER_RUNTIME_PROFILES_ENABLED=true`
@@ -7487,6 +7487,53 @@ bash scripts/xriq_private_devnet_smoke.sh
    `training/repo_adaptation_candidate_review.py`, apply/validate/merge only if
    review passes, and require a fresh explicit user approval before any further
    QLoRA training.
+   The five anti-regression rows were then filled with verified outputs and
+   applied through the existing decision gate:
+   `/workspace/outputs/evals/biber-repo-adapt-next-review-20260522T092807Z/anti-regression-decisions.json`.
+   Decision review:
+   `/workspace/outputs/evals/biber-repo-adapt-next-review-20260522T092807Z/anti-regression-decisions.review.json`
+   with `5/5` approved. Candidate review:
+   `/workspace/outputs/evals/biber-repo-adapt-next-review-20260522T092807Z/anti-regression-reviewed-candidate-review.json`
+   with `5/5` ready and `0` pending. Merge review:
+   `/workspace/outputs/evals/biber-repo-adapt-next-review-20260522T092807Z/anti-regression-dataset-merge.review.json`
+   with `0` added, `5` duplicates, and `56` total records. This means the
+   same five anti-regression lessons were already present in the curated queue,
+   so repeating the same QLoRA pattern would likely waste GPU time. Readiness
+   and manual training reviews were still regenerated:
+   `/workspace/outputs/evals/biber-repo-adapt-next-review-20260522T092807Z/anti-regression-curated-queue-readiness.json`
+   and
+   `/workspace/outputs/evals/biber-repo-adapt-next-review-20260522T092807Z/anti-regression-manual-training-review.json`,
+   both with `56/50` ready records and no hard blockers, but they do not
+   approve or start training.
+   Training-outcome review was then written to
+   `/workspace/outputs/evals/biber-repo-adapt-next-review-20260522T092807Z/training-outcome-review.json`.
+   It reports `review_status=training_strategy_blocked`,
+   `persistent_trained_failures=5`, and
+   `next_review_action=change_prompt_or_dataset_strategy_before_more_training`.
+   Do not start another QLoRA run from this same artifact pattern.
+   A profile-aware candidate eval was run instead against candidate adapter
+   `/workspace/adapters/biber-dev-core-repo-adapt-next-20260521T203547Z-95083`
+   under `/workspace/outputs/evals/profiled-repo-adapt-next-20260522T0958Z/`.
+   The profile run used `training/api_error_response_profile.txt` for
+   `api_error_shape`, `api_missing_key_error_shape`, and
+   `api_rate_limit_error_shape`, plus the expanded Rust/XRIQ profile IDs
+   `rust_xriq_validate_transaction`, `rust_xriq_fee_calculation`,
+   `rust_xriq_next_height`, and `rust_xriq_apply_ledger_transaction`. Results:
+   profiled broad eval `18/18` responses and `18/18` expectation checks;
+   profiled Rust/XRIQ eval `7/7` responses, `7/7` expectation checks, and
+   `7/7` cargo validators. Profile-aware promotion review:
+   `/workspace/outputs/evals/profiled-repo-adapt-next-20260522T0958Z/profiled-candidate-promotion-review.json`
+   with `review_status=ready_for_user_promotion_approval`,
+   `hard_blockers=[]`, and `ready_for_user_promotion_approval=true`. It still
+   keeps `promotion_allowed=false`, `safe_to_promote=false`, and
+   `auto_promoted=false`; do not promote unless the user explicitly approves
+   serving this candidate adapter under the existing runtime-profile contract.
+   The script restored stable serving afterward. Current live Vast service is
+   healthy on stable adapter
+   `/workspace/adapters/biber-dev-core-lora-rust-xriq-400`; `bash
+   scripts/vast_test_direct.sh` showed runtime profiles enabled, `/health` OK,
+   chat smoke OK, vLLM pid `99538`, FastAPI pid `99860`, and `/v1/models`
+   rooted at the stable adapter.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
