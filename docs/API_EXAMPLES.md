@@ -484,6 +484,8 @@ python scripts/biber_agent_client.py extract-repair-edits \
   --max-files 2 \
   --output /workspace/outputs/biber-mvp-loop-repair-edit-extraction.json \
   --edits-output /workspace/outputs/biber-mvp-loop-repair-edits.json
+# Extraction accepts either "path" or the common model alias "file" for edit
+# target paths; conflicting values are rejected before any plan/apply step.
 python scripts/biber_agent_client.py show-repair-edit-extraction \
   /workspace/outputs/biber-mvp-loop-repair-edit-extraction.json
 python scripts/biber_agent_client.py list-repair-edit-extractions \

@@ -1288,6 +1288,63 @@ def test_extract_repair_edits_accepts_json_edit_candidates(tmp_path: Path) -> No
     assert extraction["next_test_id"] == "dotnet-test"
 
 
+def test_extract_repair_edits_accepts_file_alias_for_path(tmp_path: Path) -> None:
+    attempt = {
+        "source": "biber_mvp_loop_repair_attempt",
+        "repair_content": json.dumps(
+            {
+                "edits": [
+                    {
+                        "file": "app/example.py",
+                        "old_text": 'return "ready\n',
+                        "new_text": 'return "ready"',
+                    }
+                ]
+            }
+        ),
+    }
+
+    extraction = client.extract_repair_edits(
+        path=tmp_path / "repair-attempt.json",
+        payload=attempt,
+        max_edits=3,
+        max_files=1,
+    )
+
+    assert extraction["ok"] is True
+    assert extraction["edits"] == [
+        {
+            "path": "app/example.py",
+            "old_text": 'return "ready\n',
+            "new_text": 'return "ready"',
+        }
+    ]
+
+
+def test_extract_repair_edits_rejects_conflicting_file_alias(tmp_path: Path) -> None:
+    attempt = {
+        "source": "biber_mvp_loop_repair_attempt",
+        "repair_content": json.dumps(
+            {
+                "path": "src/one.py",
+                "file": "src/two.py",
+                "new_text": "ok\n",
+            }
+        ),
+    }
+
+    extraction = client.extract_repair_edits(
+        path=tmp_path / "repair-attempt.json",
+        payload=attempt,
+        max_edits=3,
+        max_files=None,
+    )
+
+    assert extraction["ok"] is False
+    assert extraction["edits"] == []
+    assert extraction["rejected"][0]["reason"] == "conflicting_path_aliases"
+
+
 def test_extract_repair_edits_rejects_unsafe_candidates(tmp_path: Path) -> None:
     attempt = {
         "source": "biber_mvp_loop_repair_attempt",

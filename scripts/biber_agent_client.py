@@ -1337,6 +1337,7 @@ def validate_repair_edit_candidate(
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     allowed_keys = {
         "path",
+        "file",
         "old_text",
         "new_text",
         "expected_replacements",
@@ -1352,6 +1353,22 @@ def validate_repair_edit_candidate(
         }
 
     path = candidate.get("path")
+    file_path = candidate.get("file")
+    if (
+        isinstance(path, str)
+        and isinstance(file_path, str)
+        and path.strip()
+        and file_path.strip()
+        and path.strip() != file_path.strip()
+    ):
+        return None, {
+            "index": index,
+            "reason": "conflicting_path_aliases",
+            "path": path,
+            "file": file_path,
+        }
+    if (not isinstance(path, str) or not path.strip()) and isinstance(file_path, str):
+        path = file_path
     if not isinstance(path, str) or not path.strip():
         return None, {"index": index, "reason": "missing_path"}
     clean_path = path.strip().replace("\\", "/")
