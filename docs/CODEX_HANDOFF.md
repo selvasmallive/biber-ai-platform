@@ -305,6 +305,9 @@ serving the last broad-safe Rust/XRIQ adapter.
   `70e6320 Add BIBER multi-file edit planner`.
 - Latest BIBER MVP test-failure diagnosis commit pushed and Vast-verified:
   `1fd510f Add BIBER test failure diagnosis`.
+- Latest BIBER MVP frontend test-failure diagnosis commit pushed and
+  Vast-verified:
+  `bec42c8 Improve frontend test diagnosis`.
 - Latest BIBER MVP agent-session test-diagnosis commit pushed and
   Vast-verified:
   `3069a50 Add agent-session test diagnosis`.
@@ -465,7 +468,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   because it is smoke metadata, not a useful coding example.
 - This handoff now makes reliable repo-context selection, safer multi-file
   editing, and structured test-failure diagnosis explicit BIBER MVP goals.
-- Vast code verification is current through `83162d7`. Full Rust/private-devnet
+- Vast code verification is current through `bec42c8`. Full Rust/private-devnet
   verification is current through `fba4a1d`; focused BIBER API wrapper/client
   and dashboard verification is current through `4af1ee5`; consolidated BIBER
   XRIQ API smoke verification is current through `4af1ee5`; focused fixture
@@ -479,6 +482,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   BIBER repo-context planner verification is current through `1cc790a`;
   BIBER multi-file edit planner verification is current through `70e6320`;
   BIBER test-failure diagnosis verification is current through `1fd510f`;
+  BIBER frontend test-failure diagnosis verification is current through
+  `bec42c8`;
   BIBER agent-session embedded test-diagnosis verification is current through
   `3069a50`; BIBER `.NET`/Java allowlisted test-command verification is
   current through `c5f7235`; BIBER repo-context stack-profile verification is
@@ -635,11 +640,11 @@ serving the last broad-safe Rust/XRIQ adapter.
   `/workspace/outputs/agent-sessions`.
 - Current serving state:
   - vLLM pid: `104769`
-  - FastAPI pid: `105092`
+  - FastAPI pid: `105366`
   - API bind: `127.0.0.1:8000`
   - vLLM bind: `127.0.0.1:8001`
   - `BIBER_RUNTIME_PROFILES_ENABLED=true`
-  - Vast code/runtime verification is current through `605177d`. If later docs-only
+  - Vast code/runtime verification is current through `bec42c8`. If later docs-only
     handoff commits exist, run `git pull --ff-only origin main` on Vast before
     resuming.
   - The user explicitly approved the separate Vast GPU repo-adaptation QLoRA
@@ -7586,11 +7591,19 @@ bash scripts/xriq_private_devnet_smoke.sh
    `/workspace/adapters/biber-dev-core-repo-adapt-next2-20260522T0950Z`;
    runtime profiles are enabled; profile smoke returned valid
    `api-error-response`, `rust-xriq-codegen`, and session outputs. Current
-   live Vast service is healthy with vLLM pid `104769`, FastAPI pid `105092`,
+   live Vast service is healthy with vLLM pid `104769`, FastAPI pid `105366`,
    and the promoted adapter above. Next action is not more same-pattern
    training; continue BIBER MVP/XRIQ work while using runtime profiles for the
    relevant client paths, or collect new real repo repair-chain evidence before
    any future training.
+   Follow-up BIBER MVP frontend/TypeScript test-diagnosis work added
+   deterministic Node, React Testing Library, TypeScript, Vite, and Jest
+   failure classification in both the `src/biber_api` and `app` mirrors.
+   Local compile and inline assertions passed; Vast focused pytest
+   `tests/test_test_diagnosis.py -q` passed with `9` tests after
+   fast-forwarding to `bec42c8`. An API-only restart loaded the live app
+   change without unloading the promoted adapter; vLLM stayed at pid `104769`,
+   FastAPI restarted to pid `105366`, and smoke remained OK.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
