@@ -172,6 +172,8 @@ serving the last broad-safe Rust/XRIQ adapter.
   `80cee7b Show provenance readiness in repair chain list`.
 - Latest BIBER MVP repair-edit extraction alias commit pushed and Vast-verified:
   `87f0f24 Accept file alias in repair edit extraction`.
+- Latest real repo repair-chain eval-candidate checkpoint created on Vast:
+  `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-ready-repair-chain-eval-candidate-review.json`.
 - Latest BIBER MVP agent-session API/persistence commits pushed and
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
@@ -7784,6 +7786,28 @@ bash scripts/xriq_private_devnet_smoke.sh
    manual gate is `record-ready-repair-chain-decision --decision
    approve_for_eval --evidence-source-type real_repo_candidate` only if the
    human reviewer accepts the candidate.
+   Follow-up eval-only review step on Vast accepted that real repo candidate
+   for held-out eval curation only, not dataset/training.
+   `record-ready-repair-chain-decision` wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-ready-repair-chain-decisions.jsonl`
+   with `decision=approve_for_eval`, `records: 1`,
+   `repo_provenance_ready: 1`, `rejected_records: 0`,
+   `training_allowed: False`, `safe_to_train: False`, and
+   `approved_for_training: False`. `export-ready-repair-chain-eval-candidates`
+   then wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-ready-repair-chain-eval-candidates.jsonl`
+   with `eval_candidates: 1`, `blocked_non_real_repo_records: 0`, and
+   `blocked_unconfirmed_real_repo_records: 0`. The eval-candidate review at
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-ready-repair-chain-eval-candidate-review.json`
+   reports `records: 1`, `ready_for_dataset_review: 1`,
+   `repo_provenance_ready: 1`,
+   `review_status: eval_candidates_need_dataset_review`,
+   `requires_dataset_review: True`, `eval_dataset_ready: False`, and
+   `approved_for_training: False`. No training run or OpenAI mentor call was
+   used. The next manual gate is dataset review via
+   `record-ready-repair-chain-eval-candidate-decision`; do not approve
+   dataset/training from a generic continue unless the reviewer accepts the
+   eval-candidate contents.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
