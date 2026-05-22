@@ -167,6 +167,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest BIBER MVP eval-candidate provenance counter commit pushed and
   Vast-verified:
   `b138544 Show provenance readiness in eval candidates`.
+- Latest BIBER MVP repair-chain list provenance counter commit pushed and
+  Vast-verified:
+  `80cee7b Show provenance readiness in repair chain list`.
 - Latest BIBER MVP agent-session API/persistence commits pushed and
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
@@ -7742,6 +7745,18 @@ bash scripts/xriq_private_devnet_smoke.sh
    export blocked, and training pipeline blocked with
    `synthetic_smoke_not_real_repo_candidate`. No training run or OpenAI mentor
    call was used for this checkpoint.
+   Follow-up repair-chain list provenance counter `80cee7b` surfaces
+   `repo_provenance_ready`, `repo_provenance_missing`, and
+   `eval_approval_requires_repo_provenance` in `list-repair-chains`, plus a
+   per-artifact `repo_provenance_ready` marker. This makes the real-candidate
+   bottleneck visible before export/review: after Vast fast-forward, live
+   `/workspace/outputs` listing reported `58` ready repair chains,
+   `repo_provenance_ready: 0`, and `repo_provenance_missing: 58`. Local
+   verification passed `git diff --check`, bundled-Python `compileall`, and a
+   direct no-pytest assertion. Vast verification passed bundled venv
+   `compileall`, focused pytest with `1 passed, 139 deselected`, and the live
+   `list-repair-chains /workspace/outputs --ready-only --limit 5` check. No
+   training run or OpenAI mentor call was used for this checkpoint.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
