@@ -185,6 +185,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest real repo repair-chain baseline decision and training-readiness
   checkpoint created on Vast:
   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-training-readiness.json`.
+- Latest real repo repair-chain training-candidate and pipeline review
+  checkpoint created on Vast:
+  `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-training-pipeline.json`.
 - Latest BIBER MVP agent-session API/persistence commits pushed and
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
@@ -7902,6 +7905,31 @@ bash scripts/xriq_private_devnet_smoke.sh
    export/review training candidates from the readiness artifact, then manually
    review/fill candidate outputs and validate a training dataset. Do not start
    QLoRA or any training job until the user explicitly approves training again.
+   Follow-up review-queue export on Vast wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-training-candidates.jsonl`
+   with `export_status: training_candidates_need_human_review`,
+   `records: 1`, `training_candidate_records: 1`,
+   `requires_human_training_dataset_review: True`,
+   `training_dataset_ready: False`, and `review_queue_only: True`. Candidate
+   review wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-training-candidate-review.json`
+   with `review_status: training_candidates_need_review`, `records: 1`,
+   `reviewed_records: 0`, `pending_review_records: 1`,
+   `empty_output_records: 1`, `unreviewed_quality_records: 1`,
+   `ready_for_dataset_validation: False`, and hard blockers
+   `candidate_outputs_missing`, `candidate_quality_not_reviewed`, and
+   `below_min_ready_records`. Pipeline review wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-training-pipeline.json`
+   with `training_pipeline_status: blocked`,
+   `missing_or_blocked_step: candidate_outputs_missing`,
+   `baseline_ready_records: 1`, `training_candidate_records: 1`,
+   `ready_for_dataset_validation: False`, and all training/promotion/GitHub
+   flags false. The single candidate row has `output: ""`,
+   `quality: needs_review`, and `review_required: true`; it is not trainable.
+   Next narrow gate: inspect the underlying real-repo repair artifacts and only
+   fill a verified candidate output if it clearly improves repo-specific coding
+   behavior without leaking private code or secrets. Otherwise leave it pending
+   and collect richer real-repo repair examples. Do not start training.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
