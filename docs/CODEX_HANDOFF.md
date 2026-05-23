@@ -182,6 +182,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest real repo repair-chain held-out baseline-candidate review checkpoint
   created on Vast:
   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-heldout-baseline-candidate-review.json`.
+- Latest real repo repair-chain baseline decision and training-readiness
+  checkpoint created on Vast:
+  `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-training-readiness.json`.
 - Latest BIBER MVP agent-session API/persistence commits pushed and
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
@@ -7876,6 +7879,29 @@ bash scripts/xriq_private_devnet_smoke.sh
    `record-repair-chain-heldout-baseline-candidate-decision` of `defer`,
    `reject`, or `approve_as_baseline`; do not start training or mark a
    training dataset ready from a generic continue.
+   Follow-up user-approved baseline decision recorded `approve_as_baseline` for
+   that latest held-out baseline-candidate review artifact. Baseline decision
+   export wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-heldout-baseline-decisions.jsonl`
+   with `records: 1`, `approved_as_baseline_records: 1`, and
+   `baseline_ready: True`. Baseline decision review wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-heldout-baseline-decision-review.json`
+   with `decision_counts: {'approve_as_baseline': 1}`,
+   `baseline_ready_records: 1`, `requires_baseline_review_records: 0`,
+   `training_allowed: False`, `safe_to_train: False`, and
+   `approved_for_training: False`. Training-readiness review wrote
+   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-training-readiness.json`
+   with `review_status: baseline_ready_manual_training_review_required`,
+   `training_gate_status: manual_review_required`,
+   `baseline_ready_records: 1`, and
+   `ready_for_manual_training_dataset_review: True`. Its required manual
+   actions are `human_training_dataset_review`,
+   `explicit_user_approval_before_any_training_job`, and
+   `separate_vast_gpu_training_run_outside_codex_loop`. No training run or
+   OpenAI mentor call was used. The next narrow gate is review-queue work only:
+   export/review training candidates from the readiness artifact, then manually
+   review/fill candidate outputs and validate a training dataset. Do not start
+   QLoRA or any training job until the user explicitly approves training again.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
