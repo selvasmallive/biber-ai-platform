@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-05-22
+Last updated: 2026-05-23
 
 ## Current Goal
 
@@ -188,6 +188,9 @@ serving the last broad-safe Rust/XRIQ adapter.
 - Latest real repo repair-chain training-candidate and pipeline review
   checkpoint created on Vast:
   `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/agent-client-mvp-loop-repair-chain-training-pipeline.json`.
+- Latest real repo repair-chain training-candidate quality inspection:
+  candidate intentionally left unfilled because the underlying repair is a
+  toy one-line syntax fixture, not a high-value repo-specific training example.
 - Latest BIBER MVP agent-session API/persistence commits pushed and
   Vast-verified:
   `b280d49 Add BIBER agent session API` and
@@ -7930,6 +7933,25 @@ bash scripts/xriq_private_devnet_smoke.sh
    fill a verified candidate output if it clearly improves repo-specific coding
    behavior without leaking private code or secrets. Otherwise leave it pending
    and collect richer real-repo repair examples. Do not start training.
+   Follow-up inspection on 2026-05-23 reviewed the underlying artifacts:
+   `agent-client-mvp-loop-output.json`,
+   `agent-client-mvp-loop-repair-attempt.json`,
+   `agent-client-mvp-loop-repair-edit-extraction.json`,
+   `agent-client-mvp-loop-repair-edit-plan.json`,
+   `agent-client-mvp-loop-repair-edit-apply.json`,
+   `agent-client-mvp-loop-repair-test-verification.json`, and
+   `agent-client-mvp-loop-repair-chain.json`. The local model proposed the
+   correct smallest edit for `app/real_repo_candidate_syntax_error.py`, changing
+   `return "ready\n` to `return "ready"`, and `python-compileall-api` passed
+   after the approved temporary-worktree apply. However, this is a toy
+   one-line syntax fixture whose value is mainly pipeline validation. Leave the
+   training-candidate row unfilled with `output: ""` and
+   `quality: needs_review`; do not mark it `reviewed` or `verified` just to
+   clear `candidate_outputs_missing`. The next useful step is to collect a
+   richer real-repo repair-chain example with concrete task/failure/diagnosis,
+   a non-trivial patch, and verified tests, or continue improving the
+   deterministic repo-context/edit/test workflow. No training run or OpenAI
+   mentor call was used for this inspection.
    `show-repair-chain-training-pipeline` inspects the saved pipeline status
    artifact offline without recomputing the review.
    `list-repair-chain-training-pipelines` then scans output directories for
