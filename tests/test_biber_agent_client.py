@@ -2484,6 +2484,261 @@ def test_run_verify_repair_edits_can_override_test_id_and_diagnose_failure(
     assert result["test_run"]["diagnosis"]["primary_category"] == "compile_error"
 
 
+def test_run_prepare_failed_repair_retry_writes_review_and_retry_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("prepare-failed-repair-retry should not resolve an API key")
+
+    mvp_loop = tmp_path / "agent-client-mvp-loop-output.json"
+    mvp_loop.write_text(
+        json.dumps(
+            {
+                "instruction": "Fix the parser. Do not change tests.",
+                "ok": False,
+                "test_ok": False,
+                "selected_context_paths": ["src/parser.py", "tests/test_parser.py"],
+                "steps": {
+                    "test_run": {
+                        "test_id": "pytest-parser",
+                        "command": ["python", "-m", "pytest", "tests/test_parser.py"],
+                        "exit_code": 1,
+                        "timed_out": False,
+                        "stdout": "AssertionError: expected token",
+                        "stderr": "",
+                    },
+                    "test_diagnosis": {
+                        "summary": "Detected assertion failure.",
+                        "primary_category": "assertion_failure",
+                        "detected_stack": "python",
+                        "relevant_output": "AssertionError: expected token",
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    attempt = tmp_path / "agent-client-mvp-loop-repair-attempt.json"
+    attempt.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_attempt",
+                "source_artifact": str(mvp_loop),
+                "next_test_id": "pytest-parser",
+                "repair_request": {
+                    "source": "biber_mvp_loop_repair_request",
+                    "instruction": "Repair the parser. Do not change tests.",
+                    "original_instruction": "Fix the parser. Do not change tests.",
+                    "selected_context_paths": ["src/parser.py", "tests/test_parser.py"],
+                    "failure": {
+                        "diagnosis_summary": "Detected assertion failure.",
+                        "primary_category": "assertion_failure",
+                        "detected_stack": "python",
+                        "test_id": "pytest-parser",
+                        "command": [
+                            "python",
+                            "-m",
+                            "pytest",
+                            "tests/test_parser.py",
+                        ],
+                        "exit_code": 1,
+                        "timed_out": False,
+                        "relevant_output": "AssertionError: expected token",
+                    },
+                    "suggested_next_actions": ["inspect parser branch"],
+                    "next_test_id": "pytest-parser",
+                    "runtime_profile_ids": ["python-repair"],
+                },
+                "model_response": {"content": "{}", "model": "biber-dev-core-v1"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    extraction = tmp_path / "agent-client-mvp-loop-repair-edit-extraction.json"
+    extraction.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_extraction",
+                "source_artifact": str(attempt),
+                "next_test_id": "pytest-parser",
+                "edits": [
+                    {
+                        "path": "src/parser.py",
+                        "old_text": "return token",
+                        "new_text": "return token.strip()",
+                        "expected_replacements": 1,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    plan = tmp_path / "agent-client-mvp-loop-repair-edit-plan.json"
+    plan.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_plan",
+                "source_artifact": str(extraction),
+                "plan_status": "planned",
+                "ok": True,
+                "plan_hash": "b" * 64,
+                "next_test_id": "pytest-parser",
+                "plan_edit_payload": {
+                    "edits": [
+                        {
+                            "path": "src/parser.py",
+                            "old_text": "return token",
+                            "new_text": "return token.strip()",
+                            "expected_replacements": 1,
+                        }
+                    ]
+                },
+                "edit_plan": {"plan_hash": "b" * 64, "planned": [], "rejected": []},
+            }
+        ),
+        encoding="utf-8",
+    )
+    apply = tmp_path / "agent-client-mvp-loop-repair-edit-apply.json"
+    apply.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "source_artifact": str(plan),
+                "apply_status": "applied",
+                "ok": True,
+                "plan_hash": "b" * 64,
+                "next_test_id": "pytest-parser",
+                "apply_payload": {
+                    "edits": [
+                        {
+                            "path": "src/parser.py",
+                            "old_text": "return token",
+                            "new_text": "return token.strip()",
+                            "expected_replacements": 1,
+                        }
+                    ]
+                },
+                "edit_apply": {
+                    "ok": True,
+                    "applied": [{"path": "src/parser.py", "changed": True}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    verification = tmp_path / "agent-client-mvp-loop-repair-test-verification.json"
+    verification.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_test_verification",
+                "source_artifact": str(apply),
+                "verification_status": "failed",
+                "ok": False,
+                "training_allowed": False,
+                "auto_applied": False,
+                "auto_saved": False,
+                "plan_hash": "b" * 64,
+                "test_id": "pytest-parser",
+                "test_run": {
+                    "test_id": "pytest-parser",
+                    "executed": True,
+                    "ok": False,
+                    "exit_code": 1,
+                    "timed_out": False,
+                    "command": ["python", "-m", "pytest", "tests/test_parser.py"],
+                    "stdout": "AssertionError: expected EOF",
+                    "stderr": "",
+                    "diagnosis": {
+                        "summary": "Detected assertion failure after repair.",
+                        "primary_category": "assertion_failure",
+                        "detected_stack": "python",
+                        "relevant_output": "AssertionError: expected EOF",
+                        "suggested_next_actions": ["inspect parser EOF handling"],
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    review_path = tmp_path / "failed-repair-review.json"
+    retry_path = tmp_path / "failed-repair-retry-request.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "prepare-failed-repair-retry",
+                str(verification),
+                "--output",
+                str(review_path),
+                "--retry-output",
+                str(retry_path),
+                "--max-context-paths",
+                "1",
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved_review = json.loads(review_path.read_text(encoding="utf-8"))
+    saved_retry = json.loads(retry_path.read_text(encoding="utf-8"))
+
+    assert saved_review == result
+    assert saved_retry == result["retry_repair_request"]
+    assert result["source"] == "biber_mvp_loop_failed_repair_verification_review"
+    assert result["review_status"] == "failed_repair_needs_retry"
+    assert result["ok"] is False
+    assert result["safe_to_train"] is False
+    assert result["training_allowed"] is False
+    assert result["eligible_for_training"] is False
+    assert result["artifact_load_errors"] == []
+    assert result["attempted_edits"][0]["path"] == "src/parser.py"
+    assert result["retry_repair_request_artifact"] == str(retry_path)
+    assert saved_retry["source"] == "biber_mvp_loop_repair_request"
+    assert saved_retry["retry_of_failed_verification"] is True
+    assert saved_retry["selected_context_paths"] == ["src/parser.py"]
+    assert saved_retry["runtime_profile_ids"] == ["python-repair"]
+    assert saved_retry["failure"]["diagnosis_summary"] == (
+        "Detected assertion failure after repair."
+    )
+    assert "previous approved source edit did not pass" in saved_retry["repair_prompt"]
+    assert "Do not repeat the failed edit unchanged." in saved_retry["repair_prompt"]
+    assert "src/parser.py" in saved_retry["repair_prompt"]
+    loaded_retry = client.build_or_load_repair_request(
+        path=retry_path,
+        artifact=saved_retry,
+        instruction=None,
+        max_relevant_output_chars=100,
+        max_context_paths=None,
+    )
+    assert loaded_retry["source"] == "biber_mvp_loop_repair_request"
+
+
+def test_prepare_failed_repair_retry_rejects_passed_verification(tmp_path: Path) -> None:
+    artifact = tmp_path / "repair-test-verification.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_test_verification",
+                "verification_status": "passed",
+                "ok": True,
+                "test_run": {"executed": True, "ok": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        client.run(
+            client.parse_args(["prepare-failed-repair-retry", str(artifact)])
+        )
+    except client.BiberAgentClientError as exc:
+        assert "failed repair verification artifact" in str(exc)
+    else:
+        raise AssertionError("expected passed verification artifact to be rejected")
+
+
 def test_run_show_repair_test_verification_summarizes_without_api_key(
     monkeypatch,
     tmp_path: Path,

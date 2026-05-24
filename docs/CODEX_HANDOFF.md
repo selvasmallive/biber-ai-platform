@@ -87,7 +87,7 @@ the user changes the project scope.
 
 ## Immediate Resume State
 
-As of the latest 2026-05-22 checkpoint, the Vast.ai deployment is healthy and
+As of the latest 2026-05-24 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Latest BIBER MVP test-diagnosis workflow checkpoint pushed as
@@ -148,6 +148,26 @@ serving the last broad-safe Rust/XRIQ adapter.
   `primary_category = _primary_category(signals) if signals else 'test_failure'`,
   which did not address the injected Rust panic rule regression. Treat this as
   useful failed-repair evidence only; it is not a trainable success row.
+- Latest BIBER MVP failed-repair retry checkpoint: `scripts/biber_agent_client.py`
+  now has an offline `prepare-failed-repair-retry` command. It reads a failed
+  `verify-repair-edits` artifact, loads the linked apply/plan/extraction/
+  attempt/MVP-loop artifacts when available, records the original failure,
+  attempted edit, verification failure, and writes a second bounded
+  `biber_mvp_loop_repair_request` artifact for the local model. It rejects
+  passed verification artifacts and keeps `safe_to_train=false`,
+  `training_allowed=false`, `eligible_for_training=false`, `auto_applied=false`,
+  and `auto_saved=false`. Vast verification passed focused retry/verification
+  tests with `5 passed, 144 deselected`, full
+  `tests/test_biber_agent_client.py -q` with `149 passed`, and the broader cheap
+  MVP set
+  `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py -q`
+  with `167 passed`. No training run or OpenAI mentor call was used. The latest
+  generated failed-repair review is
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-review.json`,
+  and the standalone retry request for the next local-model attempt is
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-request.json`.
+  It captured the wrong attempted source edit in `src/biber_api/test_diagnosis.py`
+  and linked the full artifact chain without artifact load errors.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
@@ -7059,14 +7079,15 @@ tail -f /workspace/biber-logs/vllm.log
 ## Recommended Next Steps
 
 Current immediate next step: continue narrow BIBER MVP client workflow work on
-top of the stable adapter. The most useful next code step is a failed-repair
-verification review/retry helper: when `verify-repair-edits` fails after an
-approved temporary apply, save a review artifact that includes the original
-failure, attempted edit, verification failure, and a second bounded repair
-request that tells the local model why the first source edit failed. Keep
-training disabled and require another plan/apply/verify cycle before any
-success row is exported. Use the offline repair-attempt inspection path if
-repair artifacts need review: `show-repair-attempt`,
+top of the stable adapter. Use the generated retry request
+`/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-request.json`
+as the next local-model repair attempt, then run `extract-repair-edits`,
+`plan-repair-edits`, guarded `apply-repair-edits --approve` only after review,
+and `verify-repair-edits` again. If the retry verifies, export it only through
+the existing human-review gates; if it fails, save another failed-repair review.
+Do not export or train from the failed-repair review itself. Use the offline
+repair-attempt inspection path if repair artifacts need review:
+`show-repair-attempt`,
 `list-repair-attempts`, `extract-repair-edits`,
 `show-repair-edit-extraction`, `list-repair-edit-extractions`, then
 `plan-repair-edits`, `show-repair-edit-plan`, `list-repair-edit-plans`, then

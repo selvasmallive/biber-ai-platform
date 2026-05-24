@@ -2323,6 +2323,432 @@ def list_repair_test_verification_artifacts(
     }
 
 
+def resolve_linked_artifact_path(
+    reference: object,
+    *,
+    base_path: Path,
+) -> Path | None:
+    if not isinstance(reference, str) or not reference.strip():
+        return None
+    linked = Path(reference.strip())
+    if linked.exists() or linked.is_absolute():
+        return linked
+    local_linked = base_path.parent / linked
+    if local_linked.exists():
+        return local_linked
+    return linked
+
+
+def load_linked_artifact(
+    reference: object,
+    *,
+    base_path: Path,
+    label: str,
+    normalizer: object,
+) -> tuple[Path | None, dict[str, Any] | None, str | None]:
+    linked_path = resolve_linked_artifact_path(reference, base_path=base_path)
+    if linked_path is None:
+        return None, None, f"{label} reference is missing."
+    try:
+        raw_payload = load_json_artifact(str(linked_path), label=label)
+    except BiberAgentClientError as exc:
+        return linked_path, None, str(exc)
+    normalized = normalizer(raw_payload)  # type: ignore[operator]
+    if normalized is None:
+        return linked_path, None, f"{label} has an unexpected artifact source."
+    return linked_path, normalized, None
+
+
+def repair_edit_candidates_from_payload(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
+    edits: list[dict[str, Any]] = []
+    for item in require_list(payload.get("edits")):
+        if not isinstance(item, Mapping):
+            continue
+        edit: dict[str, Any] = {}
+        for key in ("path", "old_text", "new_text", "expected_replacements"):
+            if key in item:
+                edit[key] = item.get(key)
+        if edit:
+            edits.append(edit)
+    return edits
+
+
+def compact_repair_test_failure(
+    test_run: Mapping[str, Any],
+    *,
+    max_relevant_output_chars: int,
+) -> dict[str, Any]:
+    diagnosis = test_run.get("diagnosis")
+    diagnosis_payload = diagnosis if isinstance(diagnosis, Mapping) else {}
+    relevant_output = (
+        diagnosis_payload.get("relevant_output")
+        or test_run.get("stdout")
+        or test_run.get("stderr")
+        or ""
+    )
+    return {
+        "diagnosis_summary": diagnosis_payload.get("summary"),
+        "primary_category": diagnosis_payload.get("primary_category"),
+        "detected_stack": diagnosis_payload.get("detected_stack"),
+        "test_id": test_run.get("test_id"),
+        "command": require_list(test_run.get("command")),
+        "exit_code": test_run.get("exit_code"),
+        "timed_out": bool(test_run.get("timed_out")),
+        "relevant_output": compact_text(
+            relevant_output,
+            max_chars=max_relevant_output_chars,
+        ),
+    }
+
+
+def build_failed_repair_retry_prompt(
+    *,
+    instruction: str,
+    original_instruction: object,
+    selected_context_paths: list[str],
+    original_failure: Mapping[str, Any],
+    attempted_edits: list[Mapping[str, Any]],
+    verification_failure: Mapping[str, Any],
+    suggested_next_actions: list[str],
+) -> str:
+    context_lines = "\n".join(f"- {path}" for path in selected_context_paths) or "- none"
+    action_lines = "\n".join(f"- {action}" for action in suggested_next_actions) or "- none"
+    attempted_lines = []
+    for edit in attempted_edits[:8]:
+        attempted_lines.append(
+            "\n".join(
+                [
+                    f"- path: {edit.get('path') or '-'}",
+                    f"  old_text: {compact_text(edit.get('old_text'), max_chars=500)}",
+                    f"  new_text: {compact_text(edit.get('new_text'), max_chars=500)}",
+                    (
+                        "  expected_replacements: "
+                        f"{edit.get('expected_replacements', '-')}"
+                    ),
+                ]
+            )
+        )
+    attempted_text = "\n".join(attempted_lines) or "- none"
+    original_command = (
+        " ".join(str(part) for part in require_list(original_failure.get("command")))
+        or "-"
+    )
+    verification_command = (
+        " ".join(str(part) for part in require_list(verification_failure.get("command")))
+        or "-"
+    )
+    return "\n".join(
+        [
+            "BIBER deterministic repair retry request.",
+            "",
+            "Goal:",
+            instruction,
+            "",
+            "Rules:",
+            "- The previous approved source edit did not pass verification.",
+            "- Do not repeat the failed edit unchanged.",
+            "- Prefer the smallest safe source edit that fixes the failing test.",
+            "- Do not change credentials, generated secrets, dependency folders, or unrelated files.",
+            "- If the goal says not to change tests, propose only source/implementation edits.",
+            (
+                '- Return a strict JSON object first: {"edits":[{"path":"...",'
+                '"old_text":"...","new_text":"...","expected_replacements":1}]}'
+                "."
+            ),
+            "- Explanations after the JSON edit object are optional.",
+            "",
+            f"Original MVP instruction: {original_instruction or '-'}",
+            "",
+            "Selected repository context paths:",
+            context_lines,
+            "",
+            "Original failing test:",
+            f"- test_id: {original_failure.get('test_id') or '-'}",
+            f"- command: {original_command}",
+            f"- exit_code: {original_failure.get('exit_code')}",
+            f"- timed_out: {bool(original_failure.get('timed_out'))}",
+            f"- diagnosis: {original_failure.get('diagnosis_summary') or '-'}",
+            f"- detected_stack: {original_failure.get('detected_stack') or '-'}",
+            f"- primary_category: {original_failure.get('primary_category') or '-'}",
+            "",
+            "Previous attempted edit that failed verification:",
+            attempted_text,
+            "",
+            "Verification failure after the attempted edit:",
+            f"- test_id: {verification_failure.get('test_id') or '-'}",
+            f"- command: {verification_command}",
+            f"- exit_code: {verification_failure.get('exit_code')}",
+            f"- timed_out: {bool(verification_failure.get('timed_out'))}",
+            f"- diagnosis: {verification_failure.get('diagnosis_summary') or '-'}",
+            f"- detected_stack: {verification_failure.get('detected_stack') or '-'}",
+            f"- primary_category: {verification_failure.get('primary_category') or '-'}",
+            "",
+            "Suggested next actions:",
+            action_lines,
+            "",
+            "Original relevant output:",
+            str(original_failure.get("relevant_output") or ""),
+            "",
+            "Verification relevant output:",
+            str(verification_failure.get("relevant_output") or ""),
+        ]
+    )
+
+
+def build_failed_repair_verification_review(
+    *,
+    path: Path,
+    verification: Mapping[str, Any],
+    max_relevant_output_chars: int,
+    max_context_paths: int | None,
+) -> dict[str, Any]:
+    if max_relevant_output_chars < 1:
+        raise BiberAgentClientError("--max-relevant-output-chars must be at least 1.")
+    if max_context_paths is not None and max_context_paths < 1:
+        raise BiberAgentClientError("--max-context-paths must be at least 1.")
+    if (
+        verification.get("verification_status") == "passed"
+        or verification.get("ok") is True
+    ):
+        raise BiberAgentClientError(
+            "prepare-failed-repair-retry requires a failed repair verification artifact."
+        )
+
+    apply_path, repair_apply, apply_error = load_linked_artifact(
+        verification.get("source_artifact"),
+        base_path=path,
+        label="repair-edit apply artifact",
+        normalizer=normalize_repair_edit_apply_artifact,
+    )
+    plan_path = None
+    repair_plan = None
+    plan_error = None
+    extraction_path = None
+    repair_extraction = None
+    extraction_error = None
+    attempt_path = None
+    repair_attempt = None
+    attempt_error = None
+    mvp_path = None
+    mvp_loop = None
+    mvp_error = None
+
+    if repair_apply is not None:
+        plan_path, repair_plan, plan_error = load_linked_artifact(
+            repair_apply.get("source_artifact"),
+            base_path=apply_path or path,
+            label="repair-edit plan artifact",
+            normalizer=normalize_repair_edit_plan_artifact,
+        )
+    if repair_plan is not None:
+        extraction_path, repair_extraction, extraction_error = load_linked_artifact(
+            repair_plan.get("source_artifact"),
+            base_path=plan_path or path,
+            label="repair-edit extraction artifact",
+            normalizer=normalize_repair_edit_extraction_artifact,
+        )
+    if repair_extraction is not None:
+        attempt_path, repair_attempt, attempt_error = load_linked_artifact(
+            repair_extraction.get("source_artifact"),
+            base_path=extraction_path or path,
+            label="repair-attempt artifact",
+            normalizer=normalize_repair_attempt_artifact,
+        )
+    if repair_attempt is not None:
+        mvp_path, mvp_loop, mvp_error = load_linked_artifact(
+            repair_attempt.get("source_artifact"),
+            base_path=attempt_path or path,
+            label="mvp-loop artifact",
+            normalizer=normalize_mvp_loop_artifact,
+        )
+
+    repair_request = (
+        require_mapping(repair_attempt.get("repair_request"))
+        if repair_attempt is not None
+        else {}
+    )
+    all_context_paths = [
+        str(item) for item in require_list(repair_request.get("selected_context_paths"))
+    ]
+    if not all_context_paths and mvp_loop is not None:
+        all_context_paths = [
+            str(item) for item in require_list(mvp_loop.get("selected_context_paths"))
+        ]
+    selected_context_paths = (
+        all_context_paths[:max_context_paths]
+        if max_context_paths is not None
+        else all_context_paths
+    )
+
+    original_failure = require_mapping(repair_request.get("failure"))
+    if not original_failure and mvp_loop is not None:
+        steps = require_mapping(mvp_loop.get("steps"))
+        original_test_run = require_mapping(steps.get("test_run"))
+        original_diagnosis = require_mapping(steps.get("test_diagnosis"))
+        original_failure = {
+            "diagnosis_summary": mvp_loop.get("diagnosis_summary")
+            or original_diagnosis.get("summary"),
+            "primary_category": original_diagnosis.get("primary_category"),
+            "detected_stack": original_diagnosis.get("detected_stack"),
+            "test_id": original_test_run.get("test_id"),
+            "command": require_list(original_test_run.get("command")),
+            "exit_code": original_test_run.get("exit_code"),
+            "timed_out": bool(original_test_run.get("timed_out")),
+            "relevant_output": compact_text(
+                original_diagnosis.get("relevant_output")
+                or original_test_run.get("stdout")
+                or original_test_run.get("stderr")
+                or "",
+                max_chars=max_relevant_output_chars,
+            ),
+        }
+
+    apply_payload = (
+        require_mapping(repair_apply.get("apply_payload"))
+        if repair_apply is not None
+        else {}
+    )
+    attempted_edits = repair_edit_candidates_from_payload(apply_payload)
+    if not attempted_edits and repair_plan is not None:
+        attempted_edits = repair_edit_candidates_from_payload(
+            require_mapping(repair_plan.get("plan_edit_payload"))
+        )
+
+    test_run = require_mapping(verification.get("test_run"))
+    verification_failure = compact_repair_test_failure(
+        test_run,
+        max_relevant_output_chars=max_relevant_output_chars,
+    )
+    if not verification_failure.get("test_id"):
+        verification_failure["test_id"] = verification.get("test_id")
+
+    diagnosis = test_run.get("diagnosis")
+    suggested_next_actions = (
+        [str(item) for item in require_list(diagnosis.get("suggested_next_actions"))]
+        if isinstance(diagnosis, Mapping)
+        else []
+    )
+    if not suggested_next_actions:
+        suggested_next_actions = [
+            str(item) for item in require_list(repair_request.get("suggested_next_actions"))
+        ]
+
+    instruction = (
+        "Retry the failed BIBER MVP repair using the smallest safe source edit. "
+        "The previous approved edit failed verification; use the original "
+        "failure, attempted edit, and verification failure to propose a better "
+        "bounded edit."
+    )
+    original_instruction = (
+        repair_request.get("original_instruction")
+        or repair_request.get("instruction")
+        or (mvp_loop.get("instruction") if mvp_loop is not None else None)
+    )
+    retry_prompt = build_failed_repair_retry_prompt(
+        instruction=instruction,
+        original_instruction=original_instruction,
+        selected_context_paths=selected_context_paths,
+        original_failure=original_failure,
+        attempted_edits=attempted_edits,
+        verification_failure=verification_failure,
+        suggested_next_actions=suggested_next_actions,
+    )
+    runtime_profile_ids = normalize_runtime_profile_ids(
+        repair_request.get("runtime_profile_ids")
+    )
+    retry_request: dict[str, Any] = {
+        "source": "biber_mvp_loop_repair_request",
+        "repair_loop_version": "mvp-v1",
+        "repair_status": "ready_for_local_model",
+        "retry_of_failed_verification": True,
+        "training_allowed": False,
+        "source_artifact": str(path),
+        "ok": False,
+        "instruction": instruction,
+        "repair_prompt": retry_prompt,
+        "selected_context_paths": selected_context_paths,
+        "selected_context_paths_truncated": len(selected_context_paths)
+        < len(all_context_paths),
+        "failure": verification_failure,
+        "original_failure": original_failure,
+        "previous_attempt": {
+            "repair_apply_artifact": str(apply_path) if apply_path else None,
+            "repair_plan_artifact": str(plan_path) if plan_path else None,
+            "repair_extraction_artifact": str(extraction_path)
+            if extraction_path
+            else None,
+            "repair_attempt_artifact": str(attempt_path) if attempt_path else None,
+            "attempted_edits": attempted_edits,
+        },
+        "suggested_next_actions": suggested_next_actions,
+        "next_test_id": verification.get("test_id") or verification_failure.get("test_id"),
+        "next_workflow": [
+            "send_retry_prompt_to_local_biber_model",
+            "extract_repair_edits",
+            "plan_repair_edits",
+            "apply_only_after_human_or_policy_approval",
+            "verify_repair_edits_again",
+            "do_not_train_unless_retry_verifies_and_is_reviewed",
+        ],
+    }
+    if runtime_profile_ids is not None:
+        retry_request["runtime_profile_ids"] = runtime_profile_ids
+
+    artifact_load_errors = [
+        error
+        for error in (
+            apply_error,
+            plan_error,
+            extraction_error,
+            attempt_error,
+            mvp_error,
+        )
+        if error
+    ]
+    return {
+        "source": "biber_mvp_loop_failed_repair_verification_review",
+        "repair_loop_version": "mvp-v1",
+        "review_status": "failed_repair_needs_retry",
+        "ok": False,
+        "safe_to_train": False,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "auto_applied": False,
+        "auto_saved": False,
+        "source_artifact": str(path),
+        "repair_apply_artifact": str(apply_path) if apply_path else None,
+        "plan_hash": verification.get("plan_hash"),
+        "test_id": verification.get("test_id") or verification_failure.get("test_id"),
+        "verification": {
+            "verification_status": verification.get("verification_status"),
+            "ok": verification.get("ok"),
+            "test_executed": test_run.get("executed"),
+            "test_ok": test_run.get("ok"),
+            "exit_code": test_run.get("exit_code"),
+            "timed_out": bool(test_run.get("timed_out")),
+        },
+        "original_failure": original_failure,
+        "attempted_edits": attempted_edits,
+        "verification_failure": verification_failure,
+        "linked_artifacts": {
+            "repair_apply": str(apply_path) if apply_path else None,
+            "repair_plan": str(plan_path) if plan_path else None,
+            "repair_extraction": str(extraction_path) if extraction_path else None,
+            "repair_attempt": str(attempt_path) if attempt_path else None,
+            "mvp_loop": str(mvp_path) if mvp_path else None,
+        },
+        "artifact_load_errors": artifact_load_errors,
+        "retry_repair_request": retry_request,
+        "next_workflow": [
+            "run_attempt_repair_on_retry_repair_request",
+            "extract_and_review_second_attempt_edits",
+            "plan_then_apply_only_after_approval",
+            "verify_again_before_exporting_any_success_candidate",
+            "do_not_export_or_train_from_this_failed_review",
+        ],
+    }
+
+
 def build_verified_repair_review_record(
     path: Path,
     verification: Mapping[str, Any],
@@ -8997,6 +9423,34 @@ def format_repair_test_verification_artifact_list_summary(
     return "\n".join(lines)
 
 
+def format_failed_repair_retry_review_summary(payload: Mapping[str, Any]) -> str:
+    attempted_edits = [
+        item
+        for item in require_list(payload.get("attempted_edits"))
+        if isinstance(item, dict)
+    ]
+    artifact_load_errors = require_list(payload.get("artifact_load_errors"))
+    return "\n".join(
+        [
+            "BIBER failed repair retry review",
+            f"source_artifact: {payload.get('source_artifact', '-')}",
+            f"review_status: {payload.get('review_status', '-')}",
+            f"ok: {bool(payload.get('ok'))}",
+            f"safe_to_train: {payload.get('safe_to_train', False)}",
+            f"training_allowed: {payload.get('training_allowed', False)}",
+            f"eligible_for_training: {payload.get('eligible_for_training', False)}",
+            f"auto_applied: {payload.get('auto_applied', False)}",
+            f"auto_saved: {payload.get('auto_saved', False)}",
+            f"plan_hash: {payload.get('plan_hash', '-')}",
+            f"test_id: {payload.get('test_id', '-')}",
+            f"attempted_edits: {len(attempted_edits)}",
+            f"artifact_load_errors: {len(artifact_load_errors)}",
+            f"retry_repair_request_artifact: {payload.get('retry_repair_request_artifact', '-')}",
+            f"artifact_path: {payload.get('artifact_path', '-')}",
+        ]
+    )
+
+
 def format_verified_repair_export_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(
         [
@@ -11126,6 +11580,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
     )
 
+    prepare_failed_repair_retry = subparsers.add_parser(
+        "prepare-failed-repair-retry",
+        help=(
+            "Review a failed verify-repair-edits artifact and prepare a second "
+            "bounded repair request without saving or training from the failure."
+        ),
+    )
+    prepare_failed_repair_retry.add_argument("artifact")
+    prepare_failed_repair_retry.add_argument("--output")
+    prepare_failed_repair_retry.add_argument(
+        "--retry-output",
+        help="Optionally write the nested retry repair request as a standalone artifact.",
+    )
+    prepare_failed_repair_retry.add_argument(
+        "--max-relevant-output-chars",
+        type=int,
+        default=4000,
+    )
+    prepare_failed_repair_retry.add_argument("--max-context-paths", type=int)
+
     export_mvp_failures = subparsers.add_parser(
         "export-mvp-failures",
         help="Export failed mvp-loop artifacts to a JSONL review queue.",
@@ -12267,6 +12741,38 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_test_verification_artifact_list_summary(artifacts)
+        )
+    if args.command == "prepare-failed-repair-retry":
+        artifact_path = Path(args.artifact)
+        artifact = load_json_artifact(
+            str(artifact_path),
+            label="repair test verification artifact",
+        )
+        verification = normalize_repair_test_verification_artifact(artifact)
+        if verification is None:
+            raise BiberAgentClientError(
+                "prepare-failed-repair-retry artifact must contain a saved "
+                "verify-repair-edits JSON object."
+            )
+        review = build_failed_repair_verification_review(
+            path=artifact_path,
+            verification=verification,
+            max_relevant_output_chars=args.max_relevant_output_chars,
+            max_context_paths=args.max_context_paths,
+        )
+        if args.retry_output:
+            retry_request = dict(require_mapping(review.get("retry_repair_request")))
+            retry_request["artifact_path"] = str(Path(args.retry_output))
+            write_json_artifact(retry_request, args.retry_output)
+            review["retry_repair_request"] = retry_request
+            review["retry_repair_request_artifact"] = str(Path(args.retry_output))
+        if args.output:
+            review["artifact_path"] = str(Path(args.output))
+            write_json_artifact(review, args.output)
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_failed_repair_retry_review_summary(review)
         )
     if args.command == "export-mvp-failures":
         export = export_mvp_loop_failures(
