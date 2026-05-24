@@ -123,6 +123,31 @@ serving the last broad-safe Rust/XRIQ adapter.
   cheap MVP set
   `tests/test_biber_agent_client.py tests/test_test_diagnosis.py tests/test_test_runner.py tests/test_agent_capabilities.py -q`
   with `165 passed`. No training run or OpenAI mentor call was used.
+- Latest BIBER MVP machine-readable repair extraction checkpoint pushed as
+  `69c81412 Extract source unified diffs for repairs`: repair prompts now ask
+  for a strict JSON `edits` object before explanation, and
+  `extract-repair-edits` can convert simple source-file unified diff hunks into
+  bounded `old_text`/`new_text` edit candidates with
+  `expected_replacements=1`. The source-only test-edit guard remains active for
+  both JSON edits and unified diffs. Vast verification passed focused
+  extraction tests with `10 passed, 137 deselected`, full
+  `tests/test_biber_agent_client.py -q` with `147 passed`, and the broader
+  cheap MVP set
+  `tests/test_biber_agent_client.py tests/test_test_diagnosis.py tests/test_test_runner.py tests/test_agent_capabilities.py -q`
+  with `167 passed`. No training run or OpenAI mentor call was used.
+- Latest fresh unified-diff/strict-JSON repair probe artifact:
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411`.
+  The local model returned one strict JSON source edit for
+  `src/biber_api/test_diagnosis.py`; extraction reported
+  `ok=true`, `extraction_status=ready_for_plan_edit`, `json_values_found=1`,
+  `unified_diff_candidates_found=0`, `source_only_guard.enabled=true`,
+  `blocked_test_edits=0`, and `rejected=[]`. `plan-repair-edits` and guarded
+  `apply-repair-edits --approve` succeeded in the temporary clone, but
+  `verify-repair-edits --test-id pytest-test-diagnosis` failed. The proposed
+  edit changed `primary_category = _primary_category(signals)` to
+  `primary_category = _primary_category(signals) if signals else 'test_failure'`,
+  which did not address the injected Rust panic rule regression. Treat this as
+  useful failed-repair evidence only; it is not a trainable success row.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
@@ -7034,13 +7059,14 @@ tail -f /workspace/biber-logs/vllm.log
 ## Recommended Next Steps
 
 Current immediate next step: continue narrow BIBER MVP client workflow work on
-top of the stable adapter. The most useful next code step is to improve
-machine-readable source-edit extraction for repair attempts: either require a
-strict JSON `edits` object in the repair prompt or safely convert simple
-source-file unified diffs into bounded `old_text`/`new_text` candidates, while
-keeping the source-only test-edit guard active. Then rerun a focused
-`pytest-test-diagnosis` temporary repair probe. Use the offline repair-attempt
-inspection path if repair artifacts need review: `show-repair-attempt`,
+top of the stable adapter. The most useful next code step is a failed-repair
+verification review/retry helper: when `verify-repair-edits` fails after an
+approved temporary apply, save a review artifact that includes the original
+failure, attempted edit, verification failure, and a second bounded repair
+request that tells the local model why the first source edit failed. Keep
+training disabled and require another plan/apply/verify cycle before any
+success row is exported. Use the offline repair-attempt inspection path if
+repair artifacts need review: `show-repair-attempt`,
 `list-repair-attempts`, `extract-repair-edits`,
 `show-repair-edit-extraction`, `list-repair-edit-extractions`, then
 `plan-repair-edits`, `show-repair-edit-plan`, `list-repair-edit-plans`, then
