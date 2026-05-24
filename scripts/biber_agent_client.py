@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
@@ -969,6 +970,7 @@ def build_repair_prompt(
             "Rules:",
             "- Prefer the smallest safe edit that fixes the failing test.",
             "- Do not change credentials, generated secrets, dependency folders, or unrelated files.",
+            "- If the goal says not to change tests, propose only source/implementation edits.",
             "- Preserve the existing project style and use existing APIs/helpers.",
             "- Return a patch-style or old_text/new_text edit proposal before explaining.",
             "",
@@ -1427,6 +1429,83 @@ def validate_repair_edit_candidate(
     return edit, None
 
 
+def repair_request_blocks_test_edits(payload: Mapping[str, Any]) -> bool:
+    repair_request = payload.get("repair_request")
+    fields: list[object] = [
+        payload.get("instruction"),
+        payload.get("repair_prompt"),
+    ]
+    if isinstance(repair_request, Mapping):
+        fields.extend(
+            [
+                repair_request.get("instruction"),
+                repair_request.get("repair_prompt"),
+            ]
+        )
+    text = "\n".join(str(value).lower() for value in fields if value)
+    return any(
+        phrase in text
+        for phrase in (
+            "do not change tests",
+            "do not edit tests",
+            "without changing tests",
+            "do not change test files",
+            "do not edit test files",
+        )
+    )
+
+
+def is_test_edit_path(path: str) -> bool:
+    clean_path = path.replace("\\", "/").strip().lower()
+    parts = [part for part in clean_path.split("/") if part]
+    if not parts:
+        return False
+    if any(part in {"tests", "test", "__tests__"} for part in parts[:-1]):
+        return True
+    filename = parts[-1]
+    return any(
+        marker in filename
+        for marker in (
+            ".test.",
+            ".spec.",
+            "_test.",
+            "-test.",
+            "_spec.",
+            "-spec.",
+        )
+    )
+
+
+def freeform_test_edit_paths(content: str) -> list[str]:
+    paths: list[str] = []
+    seen: set[str] = set()
+
+    def add(path: str) -> None:
+        clean_path = path.strip().strip("`'\"").replace("\\", "/")
+        if not clean_path or clean_path in seen or not is_test_edit_path(clean_path):
+            return
+        seen.add(clean_path)
+        paths.append(clean_path)
+
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("diff --git "):
+            for token in stripped.split():
+                if token.startswith(("a/", "b/")):
+                    add(token[2:])
+            continue
+        if stripped.startswith(("--- a/", "+++ b/")):
+            add(stripped[6:].split(maxsplit=1)[0])
+            continue
+        for match in re.finditer(
+            r"(?:^|[\s`'\"])([A-Za-z0-9_.\-/]*(?:tests|test|__tests__)/"
+            r"[A-Za-z0-9_.\-/]+)",
+            stripped,
+        ):
+            add(match.group(1))
+    return paths
+
+
 def extract_repair_edits(
     *,
     path: Path,
@@ -1447,6 +1526,7 @@ def extract_repair_edits(
 
     accepted: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
+    source_only_guard_enabled = repair_request_blocks_test_edits(payload)
     candidate_index = 0
     for value in json_values:
         for candidate in extract_edit_objects_from_value(value):
@@ -1455,7 +1535,19 @@ def extract_repair_edits(
                 candidate,
                 index=candidate_index,
             )
-            if edit is not None:
+            if (
+                edit is not None
+                and source_only_guard_enabled
+                and is_test_edit_path(str(edit.get("path") or ""))
+            ):
+                rejected.append(
+                    {
+                        "index": candidate_index,
+                        "reason": "test_file_edit_blocked_by_source_only_instruction",
+                        "path": edit.get("path"),
+                    }
+                )
+            elif edit is not None:
                 accepted.append(edit)
             elif rejection is not None:
                 rejected.append(rejection)
@@ -1463,6 +1555,29 @@ def extract_repair_edits(
                 break
         if len(accepted) >= max_edits:
             break
+
+    if source_only_guard_enabled:
+        rejected_paths = {
+            str(item.get("path") or "")
+            for item in rejected
+            if item.get("reason")
+            in {
+                "test_file_edit_blocked_by_source_only_instruction",
+                "freeform_test_file_edit_blocked_by_source_only_instruction",
+            }
+        }
+        for blocked_path in freeform_test_edit_paths(content):
+            if blocked_path in rejected_paths:
+                continue
+            rejected.append(
+                {
+                    "reason": (
+                        "freeform_test_file_edit_blocked_by_source_only_instruction"
+                    ),
+                    "path": blocked_path,
+                }
+            )
+            rejected_paths.add(blocked_path)
 
     plan_edit_payload: dict[str, Any] = {"edits": accepted}
     if max_files is not None:
@@ -1479,6 +1594,18 @@ def extract_repair_edits(
         "review_status": "needs_review",
         "edits": accepted,
         "rejected": rejected,
+        "source_only_guard": {
+            "enabled": source_only_guard_enabled,
+            "blocked_test_edits": sum(
+                1
+                for item in rejected
+                if item.get("reason")
+                in {
+                    "test_file_edit_blocked_by_source_only_instruction",
+                    "freeform_test_file_edit_blocked_by_source_only_instruction",
+                }
+            ),
+        },
         "json_values_found": len(json_values),
         "max_edits": max_edits,
         "max_files": max_files,
@@ -8515,6 +8642,8 @@ def format_repair_edit_extraction_summary(payload: Mapping[str, Any]) -> str:
         f"review_status: {payload.get('review_status', '-')}",
         f"edits: {len(edits)}",
         f"rejected: {len(rejected)}",
+        "source_only_guard: "
+        f"{require_mapping(payload.get('source_only_guard')).get('enabled', False)}",
         f"edits_output: {payload.get('edits_output', '-')}",
         f"artifact_path: {payload.get('artifact_path', '-')}",
     ]

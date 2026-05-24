@@ -1321,6 +1321,135 @@ def test_extract_repair_edits_accepts_file_alias_for_path(tmp_path: Path) -> Non
     ]
 
 
+def test_extract_repair_edits_rejects_test_edits_when_source_only(
+    tmp_path: Path,
+) -> None:
+    attempt = {
+        "source": "biber_mvp_loop_repair_attempt",
+        "repair_request": {
+            "instruction": (
+                "Repair the focused pytest failure with the smallest safe "
+                "source edit. Do not change tests."
+            )
+        },
+        "repair_content": json.dumps(
+            {
+                "edits": [
+                    {
+                        "path": "tests/test_test_diagnosis.py",
+                        "old_text": "assert old",
+                        "new_text": "assert new",
+                    },
+                    {
+                        "path": "src/biber_api/test_diagnosis.py",
+                        "old_text": '"test_failure"',
+                        "new_text": '"assertion_failure"',
+                    },
+                ]
+            }
+        ),
+    }
+
+    extraction = client.extract_repair_edits(
+        path=tmp_path / "repair-attempt.json",
+        payload=attempt,
+        max_edits=3,
+        max_files=2,
+    )
+
+    assert extraction["ok"] is True
+    assert extraction["source_only_guard"] == {
+        "enabled": True,
+        "blocked_test_edits": 1,
+    }
+    assert extraction["edits"] == [
+        {
+            "path": "src/biber_api/test_diagnosis.py",
+            "old_text": '"test_failure"',
+            "new_text": '"assertion_failure"',
+        }
+    ]
+    assert extraction["rejected"] == [
+        {
+            "index": 1,
+            "reason": "test_file_edit_blocked_by_source_only_instruction",
+            "path": "tests/test_test_diagnosis.py",
+        }
+    ]
+
+
+def test_extract_repair_edits_all_test_edits_blocked_by_source_only(
+    tmp_path: Path,
+) -> None:
+    attempt = {
+        "source": "biber_mvp_loop_repair_attempt",
+        "repair_request": {"repair_prompt": "Fix source behavior without changing tests."},
+        "repair_content": json.dumps(
+            {
+                "path": "tests/test_wallet.spec.ts",
+                "old_text": "expect(old)",
+                "new_text": "expect(new)",
+            }
+        ),
+    }
+
+    extraction = client.extract_repair_edits(
+        path=tmp_path / "repair-attempt.json",
+        payload=attempt,
+        max_edits=3,
+        max_files=None,
+    )
+
+    assert extraction["ok"] is False
+    assert extraction["extraction_status"] == "no_valid_edits"
+    assert extraction["edits"] == []
+    assert extraction["source_only_guard"]["blocked_test_edits"] == 1
+    assert extraction["rejected"][0]["reason"] == (
+        "test_file_edit_blocked_by_source_only_instruction"
+    )
+
+
+def test_extract_repair_edits_warns_on_freeform_test_diff_when_source_only(
+    tmp_path: Path,
+) -> None:
+    attempt = {
+        "source": "biber_mvp_loop_repair_attempt",
+        "repair_request": {
+            "instruction": "Repair with a source edit. Do not change tests."
+        },
+        "repair_content": (
+            "```diff\n"
+            "diff --git a/tests/test_test_diagnosis.py b/tests/test_test_diagnosis.py\n"
+            "--- a/tests/test_test_diagnosis.py\n"
+            "+++ b/tests/test_test_diagnosis.py\n"
+            "@@ -1 +1 @@\n"
+            "-assert old\n"
+            "+assert new\n"
+            "```\n"
+        ),
+    }
+
+    extraction = client.extract_repair_edits(
+        path=tmp_path / "repair-attempt.json",
+        payload=attempt,
+        max_edits=3,
+        max_files=None,
+    )
+
+    assert extraction["ok"] is False
+    assert extraction["edits"] == []
+    assert extraction["source_only_guard"] == {
+        "enabled": True,
+        "blocked_test_edits": 1,
+    }
+    assert extraction["rejected"] == [
+        {
+            "reason": "freeform_test_file_edit_blocked_by_source_only_instruction",
+            "path": "tests/test_test_diagnosis.py",
+        }
+    ]
+
+
 def test_extract_repair_edits_rejects_conflicting_file_alias(tmp_path: Path) -> None:
     attempt = {
         "source": "biber_mvp_loop_repair_attempt",

@@ -109,6 +109,31 @@ serving the last broad-safe Rust/XRIQ adapter.
   tree copies were stashed as `codex-duplicate-diagnosis-loop-sync`; do not pop
   that stash unless deliberately inspecting the duplicate pre-fast-forward
   copies.
+- Latest BIBER MVP repair-extraction guard checkpoint: `extract-repair-edits`
+  now enables a source-only guard when the repair request explicitly says not
+  to change tests. Structured JSON edit candidates under `tests/`, `test/`,
+  `__tests__/`, or common `.test`/`.spec` paths are rejected with
+  `test_file_edit_blocked_by_source_only_instruction`; freeform unified diffs
+  that touch test paths are flagged with
+  `freeform_test_file_edit_blocked_by_source_only_instruction`. The repair
+  prompt now also tells the local model to propose only implementation edits
+  when tests are off-limits. Vast verification passed focused agent-client
+  extraction tests with `8 passed, 137 deselected`, full
+  `tests/test_biber_agent_client.py -q` with `145 passed`, and the broader
+  cheap MVP set
+  `tests/test_biber_agent_client.py tests/test_test_diagnosis.py tests/test_test_runner.py tests/test_agent_capabilities.py -q`
+  with `165 passed`. No training run or OpenAI mentor call was used.
+- Latest source-only repair probe artifact:
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
+  The local model again proposed a test-file diff for
+  `tests/test_test_diagnosis.py` instead of the source file. Reprocessing the
+  saved repair attempt offline with the new guard wrote
+  `agent-client-mvp-loop-repair-edit-extraction-source-guard.json`, reporting
+  `ok=false`, `extraction_status=no_valid_edits`, `source_only_guard.enabled=true`,
+  `blocked_test_edits=1`, and rejected reason
+  `freeform_test_file_edit_blocked_by_source_only_instruction`. This is useful
+  repair-loop failure evidence only; do not mark it trainable or fill any
+  training-candidate output from it.
 - Latest richer temporary real-repo repair-chain probe on Vast:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-context-20260524T034514Z-109079`.
   The temp clone injected a source regression in
@@ -7009,12 +7034,13 @@ tail -f /workspace/biber-logs/vllm.log
 ## Recommended Next Steps
 
 Current immediate next step: continue narrow BIBER MVP client workflow work on
-top of the stable adapter. The most useful next code step is to tighten
-source-only repair prompting/extraction for failed repair attempts, so BIBER
-rejects or clearly warns on test-file edits when the instruction says not to
-change tests, then rerun a focused `pytest-test-diagnosis` temporary repair
-probe. Use the offline repair-attempt inspection path if repair artifacts need
-review: `show-repair-attempt`,
+top of the stable adapter. The most useful next code step is to improve
+machine-readable source-edit extraction for repair attempts: either require a
+strict JSON `edits` object in the repair prompt or safely convert simple
+source-file unified diffs into bounded `old_text`/`new_text` candidates, while
+keeping the source-only test-edit guard active. Then rerun a focused
+`pytest-test-diagnosis` temporary repair probe. Use the offline repair-attempt
+inspection path if repair artifacts need review: `show-repair-attempt`,
 `list-repair-attempts`, `extract-repair-edits`,
 `show-repair-edit-extraction`, `list-repair-edit-extractions`, then
 `plan-repair-edits`, `show-repair-edit-plan`, `list-repair-edit-plans`, then
