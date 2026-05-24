@@ -90,7 +90,8 @@ the user changes the project scope.
 As of the latest 2026-05-22 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
-- Latest BIBER MVP test-diagnosis workflow checkpoint: stack detection is now
+- Latest BIBER MVP test-diagnosis workflow checkpoint pushed as
+  `8b2047d4 Improve BIBER diagnosis repair loops`: stack detection is now
   command-first, so `python -m pytest` failures containing embedded Rust/Cargo
   fixture text stay classified as Python pytest failures instead of being
   misrouted to Rust. A focused allowlisted test command,
@@ -100,7 +101,14 @@ serving the last broad-safe Rust/XRIQ adapter.
   `tests/test_test_diagnosis.py tests/test_test_runner.py tests/test_agent_capabilities.py -q`
   with `20 passed`, and the broader MVP pytest set including
   `tests/test_test_runner.py` passed with `241 passed`. No training run or
-  OpenAI mentor call was used.
+  OpenAI mentor call was used. Vast was fast-forwarded to `8b2047d4`, then
+  the FastAPI process only was restarted to pid `109792` while vLLM/model
+  serving stayed up. Live `vast_test_direct.sh` passed, and
+  `run-test --test-id pytest-test-diagnosis --diagnose-on-failure` passed via
+  `/v1/tests/run`. During the fast-forward, duplicate test-synced Vast working
+  tree copies were stashed as `codex-duplicate-diagnosis-loop-sync`; do not pop
+  that stash unless deliberately inspecting the duplicate pre-fast-forward
+  copies.
 - Latest richer temporary real-repo repair-chain probe on Vast:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-context-20260524T034514Z-109079`.
   The temp clone injected a source regression in
