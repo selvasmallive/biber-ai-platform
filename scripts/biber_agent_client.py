@@ -972,7 +972,11 @@ def build_repair_prompt(
             "- Do not change credentials, generated secrets, dependency folders, or unrelated files.",
             "- If the goal says not to change tests, propose only source/implementation edits.",
             "- Preserve the existing project style and use existing APIs/helpers.",
-            "- Return a patch-style or old_text/new_text edit proposal before explaining.",
+            (
+                '- Return a strict JSON object first: {"edits":[{"path":"...",'
+                '"old_text":"...","new_text":"...","expected_replacements":1}]}.'
+            ),
+            "- Explanations after the JSON edit object are optional.",
             "",
             f"Original MVP instruction: {original_instruction or '-'}",
             "",
@@ -1506,6 +1510,93 @@ def freeform_test_edit_paths(content: str) -> list[str]:
     return paths
 
 
+def normalize_unified_diff_path(value: str) -> str | None:
+    path = value.strip().split(maxsplit=1)[0].strip("`'\"")
+    if not path or path == "/dev/null":
+        return None
+    if path.startswith(("a/", "b/")):
+        path = path[2:]
+    return path.replace("\\", "/")
+
+
+def unified_diff_file_path(line: str) -> str | None:
+    parts = line.strip().split()
+    if len(parts) < 4 or parts[0] != "diff" or parts[1] != "--git":
+        return None
+    return normalize_unified_diff_path(parts[3])
+
+
+def extract_unified_diff_edit_candidates(content: str) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    current_path: str | None = None
+    in_hunk = False
+    old_lines: list[str] = []
+    new_lines: list[str] = []
+    has_removed = False
+    has_added = False
+
+    def flush_hunk() -> None:
+        nonlocal in_hunk, old_lines, new_lines, has_removed, has_added
+        if current_path and in_hunk and has_removed and has_added:
+            old_text = "".join(f"{line}\n" for line in old_lines)
+            new_text = "".join(f"{line}\n" for line in new_lines)
+            if old_text and old_text != new_text:
+                candidates.append(
+                    {
+                        "path": current_path,
+                        "old_text": old_text,
+                        "new_text": new_text,
+                        "expected_replacements": 1,
+                    }
+                )
+        in_hunk = False
+        old_lines = []
+        new_lines = []
+        has_removed = False
+        has_added = False
+
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            flush_hunk()
+            continue
+        if line.startswith("diff --git "):
+            flush_hunk()
+            current_path = unified_diff_file_path(line) or current_path
+            continue
+        if line.startswith("--- "):
+            flush_hunk()
+            continue
+        if line.startswith("+++ "):
+            flush_hunk()
+            parsed_path = normalize_unified_diff_path(line[4:])
+            if parsed_path:
+                current_path = parsed_path
+            continue
+        if line.startswith("@@"):
+            flush_hunk()
+            in_hunk = True
+            continue
+        if not in_hunk:
+            continue
+        if line.startswith("\\ No newline"):
+            continue
+        if line.startswith(" "):
+            old_lines.append(line[1:])
+            new_lines.append(line[1:])
+        elif line.startswith("-"):
+            old_lines.append(line[1:])
+            has_removed = True
+        elif line.startswith("+"):
+            new_lines.append(line[1:])
+            has_added = True
+        else:
+            flush_hunk()
+
+    flush_hunk()
+    return candidates
+
+
 def extract_repair_edits(
     *,
     path: Path,
@@ -1555,6 +1646,32 @@ def extract_repair_edits(
                 break
         if len(accepted) >= max_edits:
             break
+
+    unified_diff_candidates = extract_unified_diff_edit_candidates(content)
+    for candidate in unified_diff_candidates:
+        if len(accepted) >= max_edits:
+            break
+        candidate_index += 1
+        edit, rejection = validate_repair_edit_candidate(
+            candidate,
+            index=candidate_index,
+        )
+        if (
+            edit is not None
+            and source_only_guard_enabled
+            and is_test_edit_path(str(edit.get("path") or ""))
+        ):
+            rejected.append(
+                {
+                    "index": candidate_index,
+                    "reason": "test_file_edit_blocked_by_source_only_instruction",
+                    "path": edit.get("path"),
+                }
+            )
+        elif edit is not None:
+            accepted.append(edit)
+        elif rejection is not None:
+            rejected.append(rejection)
 
     if source_only_guard_enabled:
         rejected_paths = {
@@ -1607,6 +1724,7 @@ def extract_repair_edits(
             ),
         },
         "json_values_found": len(json_values),
+        "unified_diff_candidates_found": len(unified_diff_candidates),
         "max_edits": max_edits,
         "max_files": max_files,
         "plan_edit_payload": plan_edit_payload,

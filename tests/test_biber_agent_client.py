@@ -1409,7 +1409,67 @@ def test_extract_repair_edits_all_test_edits_blocked_by_source_only(
     )
 
 
-def test_extract_repair_edits_warns_on_freeform_test_diff_when_source_only(
+def test_extract_repair_edits_accepts_source_unified_diff_when_source_only(
+    tmp_path: Path,
+) -> None:
+    attempt = {
+        "source": "biber_mvp_loop_repair_attempt",
+        "repair_request": {
+            "instruction": (
+                "Repair the focused pytest failure with a source edit. "
+                "Do not change tests."
+            )
+        },
+        "repair_content": (
+            "```diff\n"
+            "diff --git a/src/biber_api/test_diagnosis.py "
+            "b/src/biber_api/test_diagnosis.py\n"
+            "--- a/src/biber_api/test_diagnosis.py\n"
+            "+++ b/src/biber_api/test_diagnosis.py\n"
+            "@@ -40,3 +40,3 @@ _RULES = [\n"
+            "     _Rule(r\"error\\[e\\d{4}\\]\", \"compile_error\", "
+            "\"Rust compiler error\", \"rust\"),\n"
+            "-    _Rule(r\"panicked at\", \"test_failure\", \"Rust test panic\", \"rust\"),\n"
+            "+    _Rule(r\"panicked at\", \"assertion_failure\", \"Rust test panic\", \"rust\"),\n"
+            "     _Rule(r\"test result: failed\", \"test_failure\", \"Rust test failure\", \"rust\"),\n"
+            "```\n"
+        ),
+    }
+
+    extraction = client.extract_repair_edits(
+        path=tmp_path / "repair-attempt.json",
+        payload=attempt,
+        max_edits=3,
+        max_files=2,
+    )
+
+    assert extraction["ok"] is True
+    assert extraction["source_only_guard"] == {
+        "enabled": True,
+        "blocked_test_edits": 0,
+    }
+    assert extraction["unified_diff_candidates_found"] == 1
+    assert extraction["edits"] == [
+        {
+            "path": "src/biber_api/test_diagnosis.py",
+            "old_text": (
+                "    _Rule(r\"error\\[e\\d{4}\\]\", \"compile_error\", "
+                "\"Rust compiler error\", \"rust\"),\n"
+                "    _Rule(r\"panicked at\", \"test_failure\", \"Rust test panic\", \"rust\"),\n"
+                "    _Rule(r\"test result: failed\", \"test_failure\", \"Rust test failure\", \"rust\"),\n"
+            ),
+            "new_text": (
+                "    _Rule(r\"error\\[e\\d{4}\\]\", \"compile_error\", "
+                "\"Rust compiler error\", \"rust\"),\n"
+                "    _Rule(r\"panicked at\", \"assertion_failure\", \"Rust test panic\", \"rust\"),\n"
+                "    _Rule(r\"test result: failed\", \"test_failure\", \"Rust test failure\", \"rust\"),\n"
+            ),
+            "expected_replacements": 1,
+        }
+    ]
+
+
+def test_extract_repair_edits_blocks_test_unified_diff_when_source_only(
     tmp_path: Path,
 ) -> None:
     attempt = {
@@ -1427,6 +1487,39 @@ def test_extract_repair_edits_warns_on_freeform_test_diff_when_source_only(
             "+assert new\n"
             "```\n"
         ),
+    }
+
+    extraction = client.extract_repair_edits(
+        path=tmp_path / "repair-attempt.json",
+        payload=attempt,
+        max_edits=3,
+        max_files=None,
+    )
+
+    assert extraction["ok"] is False
+    assert extraction["edits"] == []
+    assert extraction["source_only_guard"] == {
+        "enabled": True,
+        "blocked_test_edits": 1,
+    }
+    assert extraction["rejected"] == [
+        {
+            "index": 1,
+            "reason": "test_file_edit_blocked_by_source_only_instruction",
+            "path": "tests/test_test_diagnosis.py",
+        }
+    ]
+
+
+def test_extract_repair_edits_warns_on_freeform_test_path_when_source_only(
+    tmp_path: Path,
+) -> None:
+    attempt = {
+        "source": "biber_mvp_loop_repair_attempt",
+        "repair_request": {
+            "instruction": "Repair with a source edit. Do not change tests."
+        },
+        "repair_content": "Change tests/test_test_diagnosis.py to expect the new value.",
     }
 
     extraction = client.extract_repair_edits(
