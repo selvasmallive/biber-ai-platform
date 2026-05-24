@@ -155,7 +155,40 @@ def _split_output(*, stdout: str, stderr: str) -> list[str]:
 
 
 def _detect_stack(command: list[str], test_id: str, lines: list[str]) -> str:
-    text = " ".join([*command, test_id, *lines[:80]]).lower()
+    command_text = " ".join([*command, test_id]).lower()
+    if "dotnet" in command_text or re.search(r"\bcs\d{4}\b", command_text):
+        return "dotnet"
+    if any(token in command_text for token in ("mvn", "gradle", "javac", "junit")):
+        return "java"
+    if any(token in command_text for token in ("cargo", "rustc", "error[e")):
+        return "rust"
+    if any(
+        token in command_text
+        for token in ("pytest", "python", "python3", "traceback", "modulenotfounderror")
+    ):
+        return "python"
+    if any(
+        token in command_text
+        for token in (
+            "npm",
+            "pnpm",
+            "yarn",
+            "npx",
+            "vitest",
+            "jest",
+            "node ",
+            "tsc",
+            "tsx",
+            "vite",
+            "react-scripts",
+            "testing-library",
+            ".tsx",
+            ".jsx",
+        )
+    ):
+        return "node"
+
+    text = " ".join([command_text, *lines[:80]]).lower()
     if "dotnet" in text or re.search(r"\bcs\d{4}\b", text):
         return "dotnet"
     if any(token in text for token in ("mvn", "gradle", "javac", "junit")):

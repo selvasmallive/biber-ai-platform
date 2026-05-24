@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-05-23
+Last updated: 2026-05-24
 
 ## Current Goal
 
@@ -90,6 +90,32 @@ the user changes the project scope.
 As of the latest 2026-05-22 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
+- Latest BIBER MVP test-diagnosis workflow checkpoint: stack detection is now
+  command-first, so `python -m pytest` failures containing embedded Rust/Cargo
+  fixture text stay classified as Python pytest failures instead of being
+  misrouted to Rust. A focused allowlisted test command,
+  `pytest-test-diagnosis`, now runs only `tests/test_test_diagnosis.py -q` for
+  repair loops that should not pay the noise cost of full `pytest-core`.
+  Vast verification passed
+  `tests/test_test_diagnosis.py tests/test_test_runner.py tests/test_agent_capabilities.py -q`
+  with `20 passed`, and the broader MVP pytest set including
+  `tests/test_test_runner.py` passed with `241 passed`. No training run or
+  OpenAI mentor call was used.
+- Latest richer temporary real-repo repair-chain probe on Vast:
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-context-20260524T034514Z-109079`.
+  The temp clone injected a source regression in
+  `src/biber_api/test_diagnosis.py` by changing the Rust panic rule from
+  `assertion_failure` to `test_failure`. With the diagnosis fix and the focused
+  `pytest-test-diagnosis` command, `mvp-loop` reported
+  `Detected assertion_failure in python output from 2 signal(s)` and avoided
+  the unrelated `pytest-core` XRIQ preflight noise. The local model still tried
+  to edit tests or emitted no valid bounded source edit; extraction ended
+  `no_valid_edits`. Treat this as useful failure evidence, not a trainable row.
+  Temporary APIs were stopped; the live Vast API on port `8000` remained
+  running. Next narrow gate: improve source-only repair prompting/extraction or
+  add stronger test-edit rejection before trying to collect another repair
+  candidate. Do not fill training-candidate outputs or start QLoRA from this
+  probe.
 - Latest BIBER API/XRIQ wrapper commits pushed and Vast-verified:
   `ddc5dc8 Add BIBER XRIQ preflight API wrapper` and
   `67ce353 Add XRIQ wrapper Rust environment config`.
@@ -6975,8 +7001,12 @@ tail -f /workspace/biber-logs/vllm.log
 ## Recommended Next Steps
 
 Current immediate next step: continue narrow BIBER MVP client workflow work on
-top of the stable adapter, starting from the offline repair-attempt inspection
-path if repair artifacts need review: `show-repair-attempt`,
+top of the stable adapter. The most useful next code step is to tighten
+source-only repair prompting/extraction for failed repair attempts, so BIBER
+rejects or clearly warns on test-file edits when the instruction says not to
+change tests, then rerun a focused `pytest-test-diagnosis` temporary repair
+probe. Use the offline repair-attempt inspection path if repair artifacts need
+review: `show-repair-attempt`,
 `list-repair-attempts`, `extract-repair-edits`,
 `show-repair-edit-extraction`, `list-repair-edit-extractions`, then
 `plan-repair-edits`, `show-repair-edit-plan`, `list-repair-edit-plans`, then

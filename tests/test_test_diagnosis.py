@@ -75,6 +75,30 @@ def test_diagnose_rust_test_panic() -> None:
     assert "panicked at" in diagnosis["relevant_output"]
 
 
+def test_diagnose_pytest_failure_with_embedded_rust_fixture() -> None:
+    diagnosis = diagnose_test_failure(
+        command=["python", "-m", "pytest"],
+        test_id="pytest-core",
+        exit_code=1,
+        stdout=(
+            "____ test_diagnose_rust_test_panic ____\n"
+            "            stdout=(\n"
+            "                \"thread 'ledger::tests::rejects_bad_nonce' panicked at \"\n"
+            "                \"src/ledger.rs:44:9\\n\"\n"
+            "                \"test result: FAILED. 0 passed; 1 failed\\n\"\n"
+            "            ),\n"
+            ">       assert diagnosis[\"primary_category\"] == \"assertion_failure\"\n"
+            "E       AssertionError: assert 'test_failure' == 'assertion_failure'\n"
+            "E         - assertion_failure\n"
+            "E         + test_failure\n"
+        ),
+    )
+
+    assert diagnosis["detected_stack"] == "python"
+    assert diagnosis["primary_category"] == "assertion_failure"
+    assert "assert 'test_failure' == 'assertion_failure'" in diagnosis["relevant_output"]
+
+
 def test_diagnose_python_missing_dependency() -> None:
     diagnosis = diagnose_test_failure(
         command=["python", "-m", "pytest"],

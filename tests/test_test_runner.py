@@ -54,6 +54,7 @@ def test_list_test_commands_exposes_fixed_allowlist(tmp_path: Path) -> None:
         "maven-test",
         "python-compileall-api",
         "pytest-core",
+        "pytest-test-diagnosis",
         "xriq-node-fixtures",
         "xriq-private-devnet-smoke",
     }
@@ -113,11 +114,24 @@ def test_runner_executes_with_fixed_cwd_timeout_and_truncation(tmp_path: Path) -
     assert result["stdout"] == "01234567\n...<truncated>"
     assert result["stdout_truncated"] is True
     assert result["stderr_truncated"] is False
+    assert "tests/test_test_runner.py" in result["command"]
     assert calls[0]["kwargs"]["cwd"] == str(tmp_path)
     assert calls[0]["kwargs"]["timeout"] == 180
     assert calls[0]["kwargs"]["capture_output"] is True
     assert calls[0]["kwargs"]["text"] is True
     assert calls[0]["kwargs"]["check"] is False
+
+
+def test_focused_test_diagnosis_command_is_allowlisted(tmp_path: Path) -> None:
+    result = run_test_command(
+        "pytest-test-diagnosis",
+        make_settings(tmp_path),
+        dry_run=True,
+    )
+
+    assert result["executed"] is False
+    assert result["command"][-2:] == ["tests/test_test_diagnosis.py", "-q"]
+    assert result["timeout_seconds"] == 120
 
 
 def test_xriq_test_command_uses_configured_rust_environment(tmp_path: Path) -> None:

@@ -87,6 +87,7 @@ def test_agent_capabilities_describes_client_workflows(tmp_path: Path) -> None:
         for command in body["features"]["test_runner"]["commands"]
     }
     assert "python-compileall-api" in test_ids
+    assert "pytest-test-diagnosis" in test_ids
     assert "dotnet-test" in test_ids
     assert "maven-test" in test_ids
     assert "gradle-test" in test_ids
