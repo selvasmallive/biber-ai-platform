@@ -148,8 +148,10 @@ serving the last broad-safe Rust/XRIQ adapter.
   `primary_category = _primary_category(signals) if signals else 'test_failure'`,
   which did not address the injected Rust panic rule regression. Treat this as
   useful failed-repair evidence only; it is not a trainable success row.
-- Latest BIBER MVP failed-repair retry checkpoint: `scripts/biber_agent_client.py`
-  now has an offline `prepare-failed-repair-retry` command. It reads a failed
+- Latest BIBER MVP failed-repair retry checkpoint pushed as
+  `8f34c66e Add failed repair retry review helper`:
+  `scripts/biber_agent_client.py` now has an offline
+  `prepare-failed-repair-retry` command. It reads a failed
   `verify-repair-edits` artifact, loads the linked apply/plan/extraction/
   attempt/MVP-loop artifacts when available, records the original failure,
   attempted edit, verification failure, and writes a second bounded
@@ -167,7 +169,11 @@ serving the last broad-safe Rust/XRIQ adapter.
   and the standalone retry request for the next local-model attempt is
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-request.json`.
   It captured the wrong attempted source edit in `src/biber_api/test_diagnosis.py`
-  and linked the full artifact chain without artifact load errors.
+  and linked the full artifact chain without artifact load errors. Vast was
+  fast-forwarded to `8f34c66e`. The duplicate test-synced Vast working-tree
+  copies were stashed as `codex-duplicate-failed-repair-retry-sync`; do not pop
+  that stash unless deliberately inspecting the pre-fast-forward duplicate
+  copies.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
