@@ -2148,6 +2148,125 @@ def test_export_empty_retry_gap_rejects_non_empty_extraction(
         raise AssertionError("expected non-empty extraction artifact to be rejected")
 
 
+def test_run_review_empty_retry_gaps_writes_summary_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("review-empty-retry-gaps should not resolve an API key")
+
+    forbidden_edit = {
+        "path": "src/biber_api/test_diagnosis.py",
+        "old_text": "primary_category = _primary_category(signals)",
+        "new_text": (
+            "primary_category = _primary_category(signals) "
+            "if signals else 'test_failure'"
+        ),
+        "expected_replacements": 1,
+    }
+    row = {
+        "source": "biber_mvp_loop_empty_retry_response_gap",
+        "gap_type": "empty_retry_response_with_unresolved_prose",
+        "failure_mode": (
+            "local_model_returned_empty_edits_but_prose_still_described_fix"
+        ),
+        "review_status": "needs_human_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "source_artifact": "/workspace/outputs/empty-extraction.json",
+        "repair_attempt_artifact": "/workspace/outputs/empty-attempt.json",
+        "model": "biber-dev-core-v1",
+        "mentor_used": False,
+        "next_test_id": "pytest-test-diagnosis",
+        "forbidden_edits": [forbidden_edit],
+        "model_response_text": (
+            '{"edits":[]}\n'
+            "To fix this, the smallest safe source edit should fix rule order."
+        ),
+        "empty_edit_json_values": [
+            {"index": 1, "source": "json", "value": {"edits": []}}
+        ],
+        "review_hints": ["empty_edits_json_returned"],
+    }
+    jsonl_path = tmp_path / "empty-retry-gap.jsonl"
+    jsonl_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    output_path = tmp_path / "empty-retry-gap-review.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-empty-retry-gaps",
+                str(jsonl_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["source"] == "biber_mvp_loop_empty_retry_gap_review"
+    assert result["records"] == 1
+    assert result["rejected_records"] == 0
+    assert result["ready_for_human_review"] == 1
+    assert result["training_allowed"] is False
+    assert result["eligible_for_training"] is False
+    assert result["safe_to_train"] is False
+    assert result["auto_promoted"] is False
+    assert result["auto_saved"] is False
+    assert result["artifact_path"] == str(output_path)
+    assert result["review_hints"] == [
+        "empty_edits_json_returned",
+        "prose_describes_fix_after_empty_edits",
+    ]
+    assert result["groups"] == [
+        {
+            "model": "biber-dev-core-v1",
+            "next_test_id": "pytest-test-diagnosis",
+            "path": forbidden_edit["path"],
+            "failure_mode": (
+                "local_model_returned_empty_edits_but_prose_still_described_fix"
+            ),
+            "count": 1,
+            "source_artifacts": ["/workspace/outputs/empty-extraction.json"],
+            "repair_attempt_artifacts": ["/workspace/outputs/empty-attempt.json"],
+            "jsonl_refs": [{"jsonl_path": str(jsonl_path), "jsonl_index": 1}],
+            "review_hints": result["review_hints"],
+            "training_allowed": False,
+            "eligible_for_training": False,
+            "safe_to_train": False,
+        }
+    ]
+
+
+def test_review_empty_retry_gaps_rejects_unsupported_rows(tmp_path: Path) -> None:
+    jsonl_path = tmp_path / "mixed-empty-gap.jsonl"
+    jsonl_path.write_text(
+        json.dumps({"source": "unsupported_gap"}) + "\n",
+        encoding="utf-8",
+    )
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-empty-retry-gaps",
+                str(jsonl_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["records"] == 0
+    assert result["rejected_records"] == 1
+    assert result["groups"] == []
+    assert result["rejected"][0]["reason"] == "unsupported_source"
+
+
 def test_run_review_repeated_forbidden_retry_gaps_writes_summary_without_api_key(
     monkeypatch,
     tmp_path: Path,

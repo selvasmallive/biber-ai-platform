@@ -335,6 +335,27 @@ serving the last broad-safe Rust/XRIQ adapter.
   `empty_edits_json_returned` and
   `prose_describes_fix_after_empty_edits`. This remains review-only evidence;
   do not train from it automatically.
+- Latest BIBER MVP empty-retry gap review checkpoint:
+  `scripts/biber_agent_client.py` now has an offline
+  `review-empty-retry-gaps` command. It reads one or more
+  `biber_mvp_loop_empty_retry_response_gap` JSONL queues, rejects unsupported
+  sources, groups accepted rows by model, next test id, path, and failure
+  mode, and preserves deterministic review hints while keeping
+  `training_allowed=false`, `eligible_for_training=false`,
+  `safe_to_train=false`, `auto_promoted=false`, and `auto_saved=false`. Vast
+  verification passed focused `empty_retry_gap` tests with
+  `4 passed, 156 deselected`, full `tests/test_biber_agent_client.py -q`
+  with `160 passed`, and the broader cheap MVP set
+  `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py -q`
+  with `178 passed`. No training run, OpenAI mentor call, credential change,
+  API restart, or vLLM restart was used. The review artifact is
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-empty-retry-response-gap-review-context-v5.json`;
+  it has `records=1`, `groups=1`, `rejected_records=0`, path
+  `src/biber_api/test_diagnosis.py`, and review hints
+  `empty_edits_json_returned` and
+  `prose_describes_fix_after_empty_edits`. Next narrow gate: use the repeated
+  forbidden and empty-retry review summaries to improve deterministic
+  context selection toward the actual rule-order edit, not to start training.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
