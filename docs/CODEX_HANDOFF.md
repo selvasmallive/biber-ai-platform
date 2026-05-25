@@ -457,6 +457,32 @@ serving the last broad-safe Rust/XRIQ adapter.
   `previous_failed_target_retry_blocked_by_rule_context` and
   `rule_and_failure_line_context_available`. This remains review-only evidence;
   do not train from it automatically.
+- Latest BIBER MVP retry prompt anti-fallback checkpoint:
+  the failed-repair retry prompt now explicitly says that when a referenced
+  `test_expectation` and related `rule` snippet are present, the rule snippet
+  is the primary repair target, and the model must not add an
+  `if ... else '<expected>'` fallback on the previous failed target line when
+  that old text is not shown inside a `rule` snippet. Vast verification passed
+  focused `prepare_failed_repair_retry` tests with
+  `2 passed, 168 deselected`, full `tests/test_biber_agent_client.py -q`
+  with `170 passed`, and the broader cheap MVP set
+  `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py -q`
+  with `188 passed`. Regenerated v9 artifacts are
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-review-context-v9.json`
+  and
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-request-context-v9.json`.
+  One bounded local-model retry probe wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-attempt-context-v9.json`;
+  extraction wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-edit-extraction-context-v9.json`
+  with `ok=false`, `extraction_status=no_valid_edits`, `edits=[]`,
+  `blocked_repeated_edits=0`, and no source/test edits. This is safer than v8
+  because no fallback edit was proposed, but it is still not a successful
+  repair. The v9 empty response evidence and review are
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-empty-retry-response-gap-context-v9.jsonl`
+  and
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-empty-retry-response-gap-review-context-v9.json`.
+  They remain review-only evidence; do not train from them automatically.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for

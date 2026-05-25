@@ -3163,6 +3163,8 @@ def build_failed_repair_retry_prompt(
             "- Do not output any edit identical to a forbidden edit listed below.",
             '- If every candidate equals a forbidden edit, return {"edits":[]} as the first JSON object.',
             "- Review `rule` snippets before changing the previous failed target line.",
+            "- If a referenced `test_expectation` and related `rule` snippet are present, treat the rule snippet as the primary repair target.",
+            "- Do not add an `if ... else '<expected>'` fallback on the previous failed target line when that old_text is not shown inside a `rule` snippet.",
             "- The first JSON object is authoritative; do not put a different fix only in prose.",
             "- If your explanation identifies a better fix, the JSON edit must contain that better fix.",
             "- Before finalizing JSON, compare each edit to the forbidden exact edits and remove exact matches.",

@@ -4503,6 +4503,8 @@ def test_run_prepare_failed_repair_retry_writes_review_and_retry_without_api_key
     assert "Do not repeat the failed edit unchanged." in saved_retry["repair_prompt"]
     assert 'return {"edits":[]}' in saved_retry["repair_prompt"]
     assert "Review `rule` snippets" in saved_retry["repair_prompt"]
+    assert "treat the rule snippet as the primary repair target" in saved_retry["repair_prompt"]
+    assert "Do not add an `if ... else '<expected>'` fallback" in saved_retry["repair_prompt"]
     assert "The first JSON object is authoritative" in saved_retry["repair_prompt"]
     assert "do not put a different fix only in prose" in saved_retry["repair_prompt"]
     assert "the JSON edit must contain that better fix" in saved_retry["repair_prompt"]
