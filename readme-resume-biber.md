@@ -103,6 +103,7 @@ Rust/CPU:
 
 ```bash
 cd /workspace/biber-ai-platform
+python scripts/xriq_private_devnet_transfer_smoke.py
 cd xriq
 cargo test
 cd ..
@@ -119,9 +120,10 @@ python scripts/biber_xriq_private_devnet_client.py account xriqdev1alice00000000
 python scripts/biber_xriq_private_devnet_client.py mempool
 ```
 
-The current XRIQ-only next step from the handoff is to add an isolated full
-transfer runbook smoke that uses a fresh devnet chain file so repeated tests do
-not consume the live Alice balance.
+The isolated transfer smoke creates a fresh artifact directory under
+`xriq/target/`, performs one private-devnet transfer, verifies transaction,
+block, account, and snapshot import state, and avoids consuming any restored
+BIBER API chain balance.
 
 ## BIBER Model Resume
 

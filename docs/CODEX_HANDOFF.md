@@ -5,7 +5,10 @@ Last updated: 2026-05-25
 ## Current Goal
 
 Near-term goal: finish the cost-conscious BIBER MVP and the XRIQ private-devnet
-prototype from the current GPU-backed direct vLLM/FastAPI state.
+prototype from the current GitHub/local workstation state. The Vast GPU was
+terminated after the important BIBER runtime artifacts were backed up locally,
+so future sessions must not assume `/workspace`, vLLM, FastAPI, or live Vast
+SSH access exists unless the user provides a fresh instance.
 
 - Current focus:
   - Active narrowed focus as of 2026-05-25: complete the XRIQ private-devnet
@@ -45,9 +48,10 @@ Future Codex sessions must default to a low-OpenAI-cost operating mode.
   planning, risky architecture, small scoped patches, security-sensitive Rust
   review, failure diagnosis, integration glue, verification interpretation, and
   handoff updates.
-- Use the user's Vast.ai GPU, local scripts, the local BIBER model, and ordinary
-  deterministic tests for repetitive generation, long-running evals, QLoRA,
-  dataset work, smoke loops, and batch validation.
+- Use local scripts, ordinary deterministic tests, and, when a fresh GPU is
+  available again, the user's Vast.ai GPU and local BIBER model for repetitive
+  generation, long-running evals, QLoRA, dataset work, smoke loops, and batch
+  validation.
 - Actual model training/fine-tuning should run on the Vast GPU with local
   datasets, local scripts, local checkpoints, and local evals. Do not put
   OpenAI/Codex calls inside the training loop. OpenAI/Codex cost should come
@@ -74,6 +78,11 @@ The Vast GPU can be shut down to save cost when the current task is XRIQ
 private-devnet prototype work. XRIQ private-devnet is CPU/Rust software and does
 not require GPU inference or training to continue.
 
+- As of the latest 2026-05-25 local checkpoint, the Vast GPU should be treated
+  as unavailable/terminated. Continue XRIQ private-devnet work locally from
+  GitHub `main` and do not run Vast sync, vLLM, API, or training commands until
+  the user provisions a new Vast instance or volume and provides connection
+  details.
 - Current source code is pushed to GitHub `main`; before the fresh-volume
   resume guide was added, local and Vast checkouts were clean at commit
   `3f254942 Document Vast shutdown resume path` on 2026-05-25. Future sessions
@@ -119,9 +128,26 @@ the user changes the project scope.
 
 ## Immediate Resume State
 
-As of the latest 2026-05-25 checkpoint, the Vast.ai deployment is healthy and
-serving the last broad-safe Rust/XRIQ adapter.
+As of the latest 2026-05-25 checkpoint, the active work mode is local
+workstation development for XRIQ private-devnet. The previous Vast deployment is
+not an active target because the GPU was terminated to save cost.
 
+- Latest GPU-off XRIQ isolated transfer/replay/snapshot checkpoint: added
+  `scripts/xriq_private_devnet_transfer_smoke.py`, a Windows-friendly stdlib
+  Python smoke that runs through `cargo run` only and does not require GPU,
+  vLLM, FastAPI, BIBER API, or Vast. It creates a fresh artifact directory
+  under `xriq/target/xriq-private-devnet-transfer-smoke-<timestamp>`, submits a
+  wallet transfer, preflights/commits it into an isolated file-backed chain,
+  checks transaction, block, account, and mempool detail, exports/imports a
+  snapshot, then verifies the imported transaction. The local run passed with
+  Alice balance `73`, Bob balance `25`, block height `1`, state root
+  `915a4319e23daea9370a2ea1dfe9b57ac0099be910f64d04a5f4b9dfb0c5d067`, and
+  transaction hash
+  `fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565`.
+  `README.md`, `xriq/README.md`, and `readme-resume-biber.md` now document the
+  local smoke command: `python scripts/xriq_private_devnet_transfer_smoke.py`.
+  Local syntax compilation also passed. No Vast sync, API/vLLM restart,
+  training, OpenAI mentor call, or credential change was used.
 - Latest XRIQ-only focus checkpoint: the user narrowed the active project goal
   to completing the XRIQ private-devnet prototype first. A narrow usability
   step extended `scripts/biber_xriq_private_devnet_client.py` beyond read-only
@@ -8931,6 +8957,8 @@ bash scripts/xriq_private_devnet_smoke.sh
 ## Resume Prompt For A New Chat
 
 ```text
-Read docs/CODEX_HANDOFF.md and continue the Vast.ai deployment and development
-of biber-ai-platform from the current live GPU state.
+Read docs/CODEX_HANDOFF.md and continue biber-ai-platform from the current
+GitHub main branch. Vast may be stopped or terminated; do not assume
+/workspace, vLLM, FastAPI, or live Vast SSH access exists unless I provide a
+fresh Vast instance.
 ```

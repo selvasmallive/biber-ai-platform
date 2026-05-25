@@ -183,6 +183,17 @@ bash scripts/xriq_private_devnet_smoke.sh
 This is a Bash script. On Windows workstations without Git Bash or a WSL
 distribution, run it on the Vast workspace after `git pull`.
 
+Windows-friendly isolated transfer/replay/snapshot smoke from the repo root:
+
+```bash
+python scripts/xriq_private_devnet_transfer_smoke.py
+```
+
+This uses only Python stdlib plus Cargo/Rust. It creates a fresh artifact
+directory under `xriq/target/`, performs one private-devnet transfer, verifies
+transaction/block/account detail, exports/imports a snapshot, and leaves any
+live/restored BIBER API chain files untouched.
+
 The current machine-readable runner contract is documented in
 `../docs/XRIQ_NODE_JSON_SCHEMA.md`.
 

@@ -227,6 +227,14 @@ the latest block when block detail exposes one:
 bash scripts/vast_xriq_api_smoke.sh
 ```
 
+For GPU-off XRIQ development, run the isolated Rust/Cargo transfer smoke. It
+uses fresh chain files under `xriq/target/` and does not touch any restored
+BIBER API runtime state:
+
+```bash
+python scripts/xriq_private_devnet_transfer_smoke.py
+```
+
 ## 7. Vast Connection Needed
 
 To deploy this to your Vast.ai GPU, use the instance SSH command:
