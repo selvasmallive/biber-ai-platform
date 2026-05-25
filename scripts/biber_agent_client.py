@@ -2562,21 +2562,35 @@ def build_retry_source_context_snippets(
             ][:8]
             if not matched_terms:
                 continue
+            is_rule_snippet = "_rule(" in window_text
+            contains_previous_failed_edit = any(
+                old_text.lower() in window_text
+                for old_text in old_text_by_path.get(clean_path, [])
+            )
+            if is_rule_snippet:
+                priority_group = 0
+                snippet_kind = "rule"
+            elif contains_previous_failed_edit:
+                priority_group = 2
+                snippet_kind = "previous_failed_edit_target"
+            else:
+                priority_group = 1
+                snippet_kind = "context"
             score = len(matched_terms)
-            if "_rule(" in window_text:
+            if is_rule_snippet:
                 score += 4
             if len(set(term.lower() for term in matched_terms)) >= 2:
                 score += 2
-            for old_text in old_text_by_path.get(clean_path, []):
-                if old_text.lower() in window_text:
-                    score += 3
-                    break
+            if contains_previous_failed_edit:
+                score += 3
             candidates.append(
                 {
                     "path": clean_path,
                     "start_line": window_start + 1,
                     "end_line": window_end,
                     "matched_terms": matched_terms,
+                    "snippet_kind": snippet_kind,
+                    "priority_group": priority_group,
                     "score": score,
                     "snippet": line_numbered_snippet(
                         lines,
@@ -2588,6 +2602,7 @@ def build_retry_source_context_snippets(
 
     candidates.sort(
         key=lambda item: (
+            int(item.get("priority_group") or 0),
             -int(item.get("score") or 0),
             str(item.get("path") or ""),
             int(item.get("start_line") or 0),
@@ -2606,6 +2621,7 @@ def build_retry_source_context_snippets(
         if overlaps:
             continue
         seen_ranges.add((path, start_line, end_line))
+        candidate.pop("priority_group", None)
         candidate.pop("score", None)
         snippets.append(candidate)
         if len(snippets) >= max_snippets:
@@ -2683,6 +2699,7 @@ def build_failed_repair_retry_prompt(
                 (
                     f"- {snippet.get('path', '-')}:{snippet.get('start_line', '-')}"
                     f"-{snippet.get('end_line', '-')}"
+                    f" kind={snippet.get('snippet_kind', 'context')}"
                 ),
                 str(snippet.get("snippet") or ""),
             ]
@@ -2707,6 +2724,8 @@ def build_failed_repair_retry_prompt(
             "- The previous approved source edit did not pass verification.",
             "- Do not repeat the failed edit unchanged.",
             "- Do not output any edit identical to a forbidden edit listed below.",
+            '- If every candidate equals a forbidden edit, return {"edits":[]} as the first JSON object.',
+            "- Review `rule` snippets before changing the previous failed target line.",
             "- Prefer the smallest safe source edit that fixes the failing test.",
             "- Do not change credentials, generated secrets, dependency folders, or unrelated files.",
             "- If the goal says not to change tests, propose only source/implementation edits.",

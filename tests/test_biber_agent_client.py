@@ -2572,6 +2572,84 @@ def test_run_verify_repair_edits_can_override_test_id_and_diagnose_failure(
     assert result["test_run"]["diagnosis"]["primary_category"] == "compile_error"
 
 
+def test_retry_source_context_prioritizes_rule_snippet_over_failed_target(
+    tmp_path: Path,
+) -> None:
+    source_dir = tmp_path / "src" / "biber_api"
+    source_dir.mkdir(parents=True)
+    (source_dir / "test_diagnosis.py").write_text(
+        "_RULES = [\n"
+        "    _Rule(r\"test result: failed\", \"test_failure\", \"Rust test failure\", \"rust\"),\n"
+        "    _Rule(r\"panicked at\", \"assertion_failure\", \"Rust test panic\", \"rust\"),\n"
+        "]\n"
+        "\n"
+        "def diagnose(signals):\n"
+        "    primary_category = _primary_category(signals)\n"
+        "    return primary_category\n",
+        encoding="utf-8",
+    )
+    attempted_edits = [
+        {
+            "path": "src/biber_api/test_diagnosis.py",
+            "old_text": "primary_category = _primary_category(signals)",
+            "new_text": (
+                "primary_category = _primary_category(signals) "
+                "if signals else 'test_failure'"
+            ),
+            "expected_replacements": 1,
+        }
+    ]
+
+    snippets = client.build_retry_source_context_snippets(
+        source_root=tmp_path,
+        selected_context_paths=["src/biber_api/test_diagnosis.py"],
+        attempted_edits=attempted_edits,
+        original_failure={
+            "primary_category": "assertion_failure",
+            "detected_stack": "python",
+            "relevant_output": "assert 'test_failure' == 'assertion_failure'",
+        },
+        verification_failure={
+            "primary_category": "assertion_failure",
+            "detected_stack": "python",
+            "relevant_output": "panicked at assertion_failure test_failure",
+        },
+        max_snippets=2,
+        context_lines=1,
+    )
+
+    assert len(snippets) == 2
+    assert snippets[0]["snippet_kind"] == "rule"
+    assert "panicked at" in snippets[0]["snippet"]
+    target_snippets = [
+        snippet
+        for snippet in snippets
+        if snippet["snippet_kind"] == "previous_failed_edit_target"
+    ]
+    assert target_snippets == []
+
+    snippets = client.build_retry_source_context_snippets(
+        source_root=tmp_path,
+        selected_context_paths=["src/biber_api/test_diagnosis.py"],
+        attempted_edits=attempted_edits,
+        original_failure={
+            "primary_category": "assertion_failure",
+            "detected_stack": "python",
+            "relevant_output": "assert 'test_failure' == 'assertion_failure'",
+        },
+        verification_failure={
+            "primary_category": "assertion_failure",
+            "detected_stack": "python",
+            "relevant_output": "panicked at assertion_failure test_failure",
+        },
+        max_snippets=4,
+        context_lines=1,
+    )
+    kinds = [snippet["snippet_kind"] for snippet in snippets]
+    assert kinds.index("rule") < kinds.index("previous_failed_edit_target")
+    assert any("primary_category = _primary_category(signals)" in snippet["snippet"] for snippet in snippets)
+
+
 def test_run_prepare_failed_repair_retry_writes_review_and_retry_without_api_key(
     monkeypatch,
     tmp_path: Path,
@@ -2800,7 +2878,7 @@ def test_run_prepare_failed_repair_retry_writes_review_and_retry_without_api_key
     assert result["forbidden_edits"][0]["path"] == "src/parser.py"
     assert result["source_context"]["source_root"] == str(tmp_path)
     assert result["source_context_snippets"][0]["path"] == "src/parser.py"
-    assert "return token" in result["source_context_snippets"][0]["snippet"]
+    assert result["source_context_snippets"][0]["snippet_kind"] == "context"
     assert result["retry_repair_request_artifact"] == str(retry_path)
     assert saved_retry["source"] == "biber_mvp_loop_repair_request"
     assert saved_retry["retry_of_failed_verification"] is True
@@ -2813,6 +2891,8 @@ def test_run_prepare_failed_repair_retry_writes_review_and_retry_without_api_key
     )
     assert "previous approved source edit did not pass" in saved_retry["repair_prompt"]
     assert "Do not repeat the failed edit unchanged." in saved_retry["repair_prompt"]
+    assert 'return {"edits":[]}' in saved_retry["repair_prompt"]
+    assert "Review `rule` snippets" in saved_retry["repair_prompt"]
     assert "Forbidden exact edits JSON:" in saved_retry["repair_prompt"]
     assert "Compact source snippets for retry:" in saved_retry["repair_prompt"]
     assert "src/parser.py" in saved_retry["repair_prompt"]
