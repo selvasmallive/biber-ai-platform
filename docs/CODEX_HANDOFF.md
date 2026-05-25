@@ -438,6 +438,25 @@ serving the last broad-safe Rust/XRIQ adapter.
   with one record, `gap_type=blocked_retry_repair_edit_candidate`, and hard
   blocker `retry_edit_changes_previous_failed_target_outside_rule_context`.
   This is review-only evidence; do not train from it automatically.
+- Latest BIBER MVP blocked retry-edit gap review checkpoint:
+  `scripts/biber_agent_client.py` now has an offline
+  `review-blocked-retry-edit-gaps` command. It reads one or more blocked
+  retry-edit JSONL queues, rejects unsupported sources, groups accepted rows
+  by model, next test id, path, failure mode, and hard blocker, and keeps
+  `training_allowed=false`, `eligible_for_training=false`,
+  `safe_to_train=false`, `auto_promoted=false`, and `auto_saved=false`.
+  Vast verification passed focused blocked retry-edit gap tests with
+  `4 passed, 166 deselected`, full `tests/test_biber_agent_client.py -q`
+  with `170 passed`, and the broader cheap MVP set
+  `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py -q`
+  with `188 passed`. The real v8 blocked retry gap review is
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-blocked-retry-edit-gap-review-context-v8.json`;
+  it has `records=1`, `groups=1`, `rejected_records=0`, path
+  `src/biber_api/test_diagnosis.py`, hard blocker
+  `retry_edit_changes_previous_failed_target_outside_rule_context`, and hints
+  `previous_failed_target_retry_blocked_by_rule_context` and
+  `rule_and_failure_line_context_available`. This remains review-only evidence;
+  do not train from it automatically.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for

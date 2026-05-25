@@ -2910,6 +2910,143 @@ def test_export_blocked_retry_edit_gap_rejects_allowed_review(
         raise AssertionError("expected allowed retry review to be rejected")
 
 
+def test_run_review_blocked_retry_edit_gaps_writes_summary_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "review-blocked-retry-edit-gaps should not resolve an API key"
+        )
+
+    row = {
+        "source": "biber_mvp_loop_blocked_retry_edit_gap",
+        "gap_type": "blocked_retry_repair_edit_candidate",
+        "failure_mode": (
+            "deterministic_retry_review_blocked_candidate_before_planning"
+        ),
+        "review_status": "needs_human_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "source_artifact": "/workspace/outputs/retry-edit-review.json",
+        "retry_edit_review_artifact": "/workspace/outputs/retry-edit-review.json",
+        "repair_edit_extraction_artifact": (
+            "/workspace/outputs/retry-edit-extraction.json"
+        ),
+        "repair_attempt_artifact": "/workspace/outputs/retry-attempt.json",
+        "model": "biber-dev-core-v1",
+        "mentor_used": False,
+        "next_test_id": "pytest-test-diagnosis",
+        "review_hard_blockers": [
+            "retry_edit_changes_previous_failed_target_outside_rule_context"
+        ],
+        "review_hints": [
+            "source_rule_context_present",
+            "failure_line_test_expectation_present",
+            "candidate_reuses_previous_failed_target_line",
+        ],
+        "blocked_candidates": [
+            {
+                "index": 1,
+                "path": "src/biber_api/test_diagnosis.py",
+                "allowed_for_plan": False,
+                "hard_blockers": [
+                    "retry_edit_changes_previous_failed_target_outside_rule_context"
+                ],
+            }
+        ],
+    }
+    jsonl_path = tmp_path / "blocked-retry-edit-gap.jsonl"
+    jsonl_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    output_path = tmp_path / "blocked-retry-edit-gap-review.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-blocked-retry-edit-gaps",
+                str(jsonl_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["source"] == "biber_mvp_loop_blocked_retry_edit_gap_review"
+    assert result["records"] == 1
+    assert result["rejected_records"] == 0
+    assert result["ready_for_human_review"] == 1
+    assert result["training_allowed"] is False
+    assert result["eligible_for_training"] is False
+    assert result["safe_to_train"] is False
+    assert result["auto_promoted"] is False
+    assert result["auto_saved"] is False
+    assert result["artifact_path"] == str(output_path)
+    assert result["review_hints"] == [
+        "source_rule_context_present",
+        "failure_line_test_expectation_present",
+        "candidate_reuses_previous_failed_target_line",
+        "previous_failed_target_retry_blocked_by_rule_context",
+        "rule_and_failure_line_context_available",
+    ]
+    assert result["groups"] == [
+        {
+            "model": "biber-dev-core-v1",
+            "next_test_id": "pytest-test-diagnosis",
+            "path": "src/biber_api/test_diagnosis.py",
+            "failure_mode": (
+                "deterministic_retry_review_blocked_candidate_before_planning"
+            ),
+            "hard_blockers": row["review_hard_blockers"],
+            "count": 1,
+            "source_artifacts": ["/workspace/outputs/retry-edit-review.json"],
+            "retry_edit_review_artifacts": [
+                "/workspace/outputs/retry-edit-review.json"
+            ],
+            "repair_edit_extraction_artifacts": [
+                "/workspace/outputs/retry-edit-extraction.json"
+            ],
+            "repair_attempt_artifacts": ["/workspace/outputs/retry-attempt.json"],
+            "jsonl_refs": [{"jsonl_path": str(jsonl_path), "jsonl_index": 1}],
+            "review_hints": result["review_hints"],
+            "training_allowed": False,
+            "eligible_for_training": False,
+            "safe_to_train": False,
+        }
+    ]
+
+
+def test_review_blocked_retry_edit_gaps_rejects_unsupported_rows(
+    tmp_path: Path,
+) -> None:
+    jsonl_path = tmp_path / "mixed-blocked-gap.jsonl"
+    jsonl_path.write_text(
+        json.dumps({"source": "unsupported_gap"}) + "\n",
+        encoding="utf-8",
+    )
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-blocked-retry-edit-gaps",
+                str(jsonl_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["records"] == 0
+    assert result["rejected_records"] == 1
+    assert result["groups"] == []
+    assert result["rejected"][0]["reason"] == "unsupported_source"
+
+
 def test_run_show_repair_edit_extraction_summarizes_without_api_key(
     monkeypatch,
     tmp_path: Path,

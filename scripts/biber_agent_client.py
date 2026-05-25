@@ -4152,6 +4152,174 @@ def export_blocked_retry_edit_gap(
     }
 
 
+def blocked_retry_edit_gap_path(record: Mapping[str, Any]) -> str:
+    blocked_candidates = [
+        item
+        for item in require_list(record.get("blocked_candidates"))
+        if isinstance(item, Mapping)
+    ]
+    for candidate in blocked_candidates:
+        path = candidate.get("path")
+        if isinstance(path, str) and path:
+            return path
+    edits = [
+        item for item in require_list(record.get("edits")) if isinstance(item, Mapping)
+    ]
+    for edit in edits:
+        path = edit.get("path")
+        if isinstance(path, str) and path:
+            return path
+    return ""
+
+
+def blocked_retry_edit_gap_hints(record: Mapping[str, Any]) -> list[str]:
+    hints = [
+        str(item)
+        for item in require_list(record.get("review_hints"))
+        if isinstance(item, str) and item
+    ]
+    hard_blockers = require_list(record.get("review_hard_blockers"))
+    if "retry_edit_changes_previous_failed_target_outside_rule_context" in hard_blockers:
+        hints.append("previous_failed_target_retry_blocked_by_rule_context")
+    if "source_rule_context_present" in hints and "failure_line_test_expectation_present" in hints:
+        hints.append("rule_and_failure_line_context_available")
+    return dedupe_strings(hints) or []
+
+
+def review_blocked_retry_edit_gap_records(
+    *,
+    jsonl_paths: list[str],
+    min_repeat: int,
+) -> dict[str, Any]:
+    if min_repeat < 1:
+        raise BiberAgentClientError("--min-repeat must be at least 1.")
+    records: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    for jsonl_path in jsonl_paths:
+        for index, row in enumerate(
+            load_jsonl_artifact(jsonl_path, label="blocked retry edit gap JSONL"),
+            start=1,
+        ):
+            if row.get("source") == "biber_mvp_loop_blocked_retry_edit_gap":
+                item = dict(row)
+                item["jsonl_path"] = jsonl_path
+                item["jsonl_index"] = index
+                item["review_hints"] = blocked_retry_edit_gap_hints(item)
+                records.append(item)
+            else:
+                rejected.append(
+                    {
+                        "jsonl_path": jsonl_path,
+                        "jsonl_index": index,
+                        "reason": "unsupported_source",
+                        "source": row.get("source"),
+                    }
+                )
+
+    groups_by_key: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
+    for record in records:
+        hard_blockers = [
+            str(item)
+            for item in require_list(record.get("review_hard_blockers"))
+            if str(item).strip()
+        ]
+        key = (
+            str(record.get("model") or ""),
+            str(record.get("next_test_id") or ""),
+            blocked_retry_edit_gap_path(record),
+            str(record.get("failure_mode") or ""),
+            "|".join(hard_blockers),
+        )
+        group = groups_by_key.setdefault(
+            key,
+            {
+                "model": key[0],
+                "next_test_id": key[1],
+                "path": key[2],
+                "failure_mode": key[3],
+                "hard_blockers": hard_blockers,
+                "count": 0,
+                "source_artifacts": [],
+                "retry_edit_review_artifacts": [],
+                "repair_edit_extraction_artifacts": [],
+                "repair_attempt_artifacts": [],
+                "jsonl_refs": [],
+                "review_hints": [],
+                "training_allowed": False,
+                "eligible_for_training": False,
+                "safe_to_train": False,
+            },
+        )
+        group["count"] += 1
+        group["source_artifacts"].append(record.get("source_artifact"))
+        group["retry_edit_review_artifacts"].append(
+            record.get("retry_edit_review_artifact")
+        )
+        group["repair_edit_extraction_artifacts"].append(
+            record.get("repair_edit_extraction_artifact")
+        )
+        group["repair_attempt_artifacts"].append(record.get("repair_attempt_artifact"))
+        group["jsonl_refs"].append(
+            {
+                "jsonl_path": record.get("jsonl_path"),
+                "jsonl_index": record.get("jsonl_index"),
+            }
+        )
+        group["review_hints"] = dedupe_strings(
+            [
+                str(item)
+                for item in [
+                    *require_list(group.get("review_hints")),
+                    *require_list(record.get("review_hints")),
+                ]
+                if item
+            ]
+        )
+
+    groups = [
+        group
+        for group in groups_by_key.values()
+        if int_count(group.get("count")) >= min_repeat
+    ]
+    groups.sort(
+        key=lambda item: (
+            -int_count(item.get("count")),
+            str(item.get("model") or ""),
+            str(item.get("next_test_id") or ""),
+            str(item.get("path") or ""),
+        )
+    )
+    review_hints = dedupe_strings(
+        [
+            str(hint)
+            for record in records
+            for hint in require_list(record.get("review_hints"))
+            if hint
+        ]
+    )
+
+    return {
+        "source": "biber_mvp_loop_blocked_retry_edit_gap_review",
+        "review_status": "needs_human_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "auto_promoted": False,
+        "auto_saved": False,
+        "jsonl_paths": list(jsonl_paths),
+        "records": len(records),
+        "rejected_records": len(rejected),
+        "min_repeat": min_repeat,
+        "ready_for_human_review": len(records),
+        "groups": groups,
+        "review_hints": review_hints,
+        "rejected": rejected,
+        "next_review_action": (
+            "human_review_blocked_retry_edit_gap_groups_before_prompt_or_training_changes"
+        ),
+    }
+
+
 def empty_retry_gap_path(record: Mapping[str, Any]) -> str:
     forbidden_edits = [
         item
@@ -10946,6 +11114,44 @@ def format_blocked_retry_edit_gap_export_summary(payload: Mapping[str, Any]) -> 
     )
 
 
+def format_blocked_retry_edit_gap_review_summary(payload: Mapping[str, Any]) -> str:
+    groups = [
+        item for item in require_list(payload.get("groups")) if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER blocked retry edit gap review",
+        f"jsonl_paths: {len(require_list(payload.get('jsonl_paths')))}",
+        f"records: {payload.get('records', 0)}",
+        f"rejected_records: {payload.get('rejected_records', 0)}",
+        f"ready_for_human_review: {payload.get('ready_for_human_review', 0)}",
+        f"groups: {len(groups)}",
+        f"min_repeat: {payload.get('min_repeat', 1)}",
+        f"review_status: {payload.get('review_status', '-')}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"eligible_for_training: {payload.get('eligible_for_training', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    for group in groups[:8]:
+        blockers = ",".join(
+            str(item) for item in require_list(group.get("hard_blockers"))
+        )
+        hints = ",".join(str(item) for item in require_list(group.get("review_hints")))
+        lines.append(
+            " ".join(
+                [
+                    f"- model={group.get('model') or '-'}",
+                    f"test={group.get('next_test_id') or '-'}",
+                    f"path={group.get('path') or '-'}",
+                    f"count={group.get('count', 0)}",
+                    f"blockers={blockers or '-'}",
+                    f"hints={hints or '-'}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_empty_retry_gap_review_summary(payload: Mapping[str, Any]) -> str:
     groups = [
         item for item in require_list(payload.get("groups")) if isinstance(item, dict)
@@ -13472,6 +13678,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     export_blocked_retry_edit_gap_parser.add_argument("artifact")
     export_blocked_retry_edit_gap_parser.add_argument("--output", required=True)
 
+    review_blocked_retry_edit_gaps_parser = subparsers.add_parser(
+        "review-blocked-retry-edit-gaps",
+        help=(
+            "Summarize blocked retry edit gap JSONL queues without making "
+            "them training-eligible."
+        ),
+    )
+    review_blocked_retry_edit_gaps_parser.add_argument("jsonl", nargs="+")
+    review_blocked_retry_edit_gaps_parser.add_argument("--min-repeat", type=int, default=1)
+    review_blocked_retry_edit_gaps_parser.add_argument("--output")
+
     review_empty_retry_gaps_parser = subparsers.add_parser(
         "review-empty-retry-gaps",
         help=(
@@ -14721,6 +14938,19 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(export, indent=2, sort_keys=True)
             if args.print_json
             else format_blocked_retry_edit_gap_export_summary(export)
+        )
+    if args.command == "review-blocked-retry-edit-gaps":
+        review = review_blocked_retry_edit_gap_records(
+            jsonl_paths=args.jsonl,
+            min_repeat=args.min_repeat,
+        )
+        if args.output:
+            review["artifact_path"] = str(Path(args.output))
+            write_json_artifact(review, args.output)
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_blocked_retry_edit_gap_review_summary(review)
         )
     if args.command == "review-empty-retry-gaps":
         review = review_empty_retry_gap_records(
