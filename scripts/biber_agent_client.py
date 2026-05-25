@@ -1912,6 +1912,227 @@ def list_repair_edit_extraction_artifacts(
     }
 
 
+def repair_edit_same_previous_target(
+    edit: Mapping[str, Any],
+    previous_edits: list[Mapping[str, Any]],
+) -> bool:
+    edit_path = str(edit.get("path") or "")
+    edit_old_text = str(edit.get("old_text") or "")
+    if not edit_path or not edit_old_text:
+        return False
+    return any(
+        str(previous.get("path") or "") == edit_path
+        and str(previous.get("old_text") or "") == edit_old_text
+        for previous in previous_edits
+    )
+
+
+def failure_expected_literals(*failures: Mapping[str, Any]) -> list[str]:
+    values: list[str] = []
+    for failure in failures:
+        primary_category = str(failure.get("primary_category") or "").strip()
+        if primary_category:
+            values.append(primary_category)
+        relevant_output = str(failure.get("relevant_output") or "")
+        for match in re.finditer(
+            r"assert\s+['\"]([^'\"]+)['\"]\s+==\s+['\"]([^'\"]+)['\"]",
+            relevant_output,
+        ):
+            values.extend([match.group(1), match.group(2)])
+    return dedupe_strings(values) or []
+
+
+def build_retry_repair_edit_review(
+    *,
+    extraction_path: Path,
+    extraction: Mapping[str, Any],
+) -> dict[str, Any]:
+    if (
+        extraction.get("ok") is not True
+        or extraction.get("extraction_status") != "ready_for_plan_edit"
+    ):
+        raise BiberAgentClientError(
+            "review-retry-repair-edits requires a ready_for_plan_edit extraction artifact."
+        )
+
+    attempt_path, attempt, attempt_error = load_linked_artifact(
+        extraction.get("source_artifact"),
+        base_path=extraction_path,
+        label="repair-attempt artifact",
+        normalizer=normalize_repair_attempt_artifact,
+    )
+    if attempt_error is not None or attempt_path is None or attempt is None:
+        raise BiberAgentClientError(
+            "Could not load linked repair-attempt artifact for retry edit review: "
+            f"{attempt_error or 'missing source_artifact'}"
+        )
+
+    repair_request = require_mapping(attempt.get("repair_request"))
+    if repair_request.get("retry_of_failed_verification") is not True:
+        raise BiberAgentClientError(
+            "review-retry-repair-edits requires a retry repair attempt."
+        )
+
+    edits = [
+        dict(item)
+        for item in require_list(extraction.get("edits"))
+        if isinstance(item, Mapping)
+    ]
+    previous_attempt = require_mapping(repair_request.get("previous_attempt"))
+    previous_edits = [
+        dict(item)
+        for item in require_list(previous_attempt.get("attempted_edits"))
+        if isinstance(item, Mapping)
+    ]
+    forbidden_edits = [
+        dict(item)
+        for item in require_list(repair_request.get("forbidden_edits"))
+        if isinstance(item, Mapping)
+    ] or previous_edits
+    source_context_snippets = [
+        dict(item)
+        for item in require_list(repair_request.get("source_context_snippets"))
+        if isinstance(item, Mapping)
+    ]
+    rule_snippets = [
+        item
+        for item in source_context_snippets
+        if item.get("snippet_kind") == "rule"
+    ]
+    test_expectation_with_refs = [
+        item
+        for item in source_context_snippets
+        if item.get("snippet_kind") == "test_expectation"
+        and require_list(item.get("failure_line_refs"))
+    ]
+    original_failure = require_mapping(repair_request.get("original_failure"))
+    verification_failure = require_mapping(repair_request.get("failure"))
+    expected_literals = failure_expected_literals(
+        original_failure,
+        verification_failure,
+    )
+
+    hard_blockers: list[str] = []
+    review_hints: list[str] = []
+    candidate_reviews: list[dict[str, Any]] = []
+
+    if rule_snippets:
+        review_hints.append("source_rule_context_present")
+    if test_expectation_with_refs:
+        review_hints.append("failure_line_test_expectation_present")
+
+    for index, edit in enumerate(edits, start=1):
+        path = str(edit.get("path") or "")
+        old_text = str(edit.get("old_text") or "")
+        new_text = str(edit.get("new_text") or "")
+        same_previous_target = repair_edit_same_previous_target(
+            edit,
+            forbidden_edits,
+        )
+        path_rule_snippets = [
+            item for item in rule_snippets if str(item.get("path") or "") == path
+        ]
+        old_text_in_rule_context = any(
+            old_text and old_text in str(item.get("snippet") or "")
+            for item in path_rule_snippets
+        )
+        candidate_hints: list[str] = []
+        candidate_blockers: list[str] = []
+
+        if same_previous_target:
+            candidate_hints.append("candidate_reuses_previous_failed_target_line")
+        if (
+            same_previous_target
+            and path_rule_snippets
+            and not old_text_in_rule_context
+            and test_expectation_with_refs
+        ):
+            candidate_blockers.append(
+                "retry_edit_changes_previous_failed_target_outside_rule_context"
+            )
+        if (
+            same_previous_target
+            and " else " in f" {new_text.lower()} "
+            and any(literal and literal in new_text for literal in expected_literals)
+        ):
+            candidate_hints.append("expected_literal_fallback_candidate")
+        if path_rule_snippets and old_text_in_rule_context:
+            candidate_hints.append("candidate_edits_rule_context")
+
+        hard_blockers.extend(candidate_blockers)
+        review_hints.extend(candidate_hints)
+        candidate_reviews.append(
+            {
+                "index": index,
+                "path": path,
+                "allowed_for_plan": not candidate_blockers,
+                "hard_blockers": candidate_blockers,
+                "review_hints": candidate_hints,
+                "same_previous_failed_target": same_previous_target,
+                "rule_context_for_path": bool(path_rule_snippets),
+                "old_text_in_rule_context": old_text_in_rule_context,
+            }
+        )
+
+    hard_blockers = dedupe_strings(hard_blockers) or []
+    review_hints = dedupe_strings(review_hints) or []
+    plan_allowed = bool(edits) and not hard_blockers
+    reviewed_plan_edit_payload: dict[str, Any] = {
+        "edits": edits if plan_allowed else []
+    }
+    max_files = extraction.get("max_files")
+    if max_files is not None:
+        reviewed_plan_edit_payload["max_files"] = max_files
+
+    return {
+        "source": "biber_mvp_loop_retry_repair_edit_review",
+        "repair_loop_version": extraction.get("repair_loop_version")
+        or attempt.get("repair_loop_version"),
+        "source_artifact": str(extraction_path),
+        "repair_attempt_artifact": str(attempt_path),
+        "repair_request_source_artifact": repair_request.get("source_artifact"),
+        "review_status": (
+            "retry_edit_ready_for_plan_review"
+            if plan_allowed
+            else "retry_edit_blocked_needs_human_review"
+        ),
+        "ok": plan_allowed,
+        "plan_allowed": plan_allowed,
+        "apply_allowed": False,
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "auto_applied": False,
+        "auto_saved": False,
+        "next_test_id": extraction.get("next_test_id") or attempt.get("next_test_id"),
+        "edits": edits,
+        "reviewed_plan_edit_payload": reviewed_plan_edit_payload,
+        "candidate_reviews": candidate_reviews,
+        "hard_blockers": hard_blockers,
+        "review_hints": review_hints,
+        "forbidden_edits": forbidden_edits,
+        "source_context_snippets": source_context_snippets,
+        "model": require_mapping(attempt.get("model_response")).get("model"),
+        "mentor_used": require_mapping(attempt.get("model_response")).get("mentor_used")
+        is True,
+        "runtime_profile_ids": repair_attempt_runtime_profile_ids(attempt) or [],
+        "next_workflow": (
+            [
+                "run_plan_repair_edits_only_after_review_acceptance",
+                "apply_only_after_human_or_policy_approval",
+                "rerun_next_test_id",
+                "export_verified_repair_only_if_verification_passes",
+            ]
+            if plan_allowed
+            else [
+                "do_not_plan_or_apply_this_retry_candidate",
+                "human_review_or_improve_prompt_context",
+                "capture_as_review_only_failure_evidence_if_repeated",
+            ]
+        ),
+    }
+
+
 def build_plan_repair_edits_payload(
     extraction: Mapping[str, Any],
     *,
@@ -10489,6 +10710,48 @@ def format_repeated_forbidden_retry_gap_review_summary(
     return "\n".join(lines)
 
 
+def format_retry_repair_edit_review_summary(payload: Mapping[str, Any]) -> str:
+    edits = [item for item in require_list(payload.get("edits")) if isinstance(item, dict)]
+    candidate_reviews = [
+        item
+        for item in require_list(payload.get("candidate_reviews"))
+        if isinstance(item, dict)
+    ]
+    hard_blockers = require_list(payload.get("hard_blockers"))
+    review_hints = require_list(payload.get("review_hints"))
+    lines = [
+        "BIBER retry repair edit review",
+        f"source_artifact: {payload.get('source_artifact', '-')}",
+        f"repair_attempt_artifact: {payload.get('repair_attempt_artifact', '-')}",
+        f"review_status: {payload.get('review_status', '-')}",
+        f"ok: {bool(payload.get('ok'))}",
+        f"plan_allowed: {payload.get('plan_allowed', False)}",
+        f"apply_allowed: {payload.get('apply_allowed', False)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"eligible_for_training: {payload.get('eligible_for_training', False)}",
+        f"safe_to_train: {payload.get('safe_to_train', False)}",
+        f"edits: {len(edits)}",
+        f"hard_blockers: {len(hard_blockers)}",
+        f"review_hints: {','.join(str(item) for item in review_hints) or '-'}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    for candidate in candidate_reviews[:8]:
+        blockers = ",".join(
+            str(item) for item in require_list(candidate.get("hard_blockers"))
+        )
+        lines.append(
+            " ".join(
+                [
+                    f"- index={candidate.get('index', '-')}",
+                    f"path={candidate.get('path', '-')}",
+                    f"allowed={candidate.get('allowed_for_plan', False)}",
+                    f"blockers={blockers or '-'}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_repair_edit_plan_summary(payload: Mapping[str, Any]) -> str:
     edit_plan = require_mapping(payload.get("edit_plan"))
     planned = [
@@ -12919,6 +13182,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     review_repeated_forbidden_retry_gaps_parser.add_argument("--output")
 
+    review_retry_repair_edits_parser = subparsers.add_parser(
+        "review-retry-repair-edits",
+        help=(
+            "Deterministically review a retry extract-repair-edits artifact "
+            "before it can be planned or applied."
+        ),
+    )
+    review_retry_repair_edits_parser.add_argument("artifact")
+    review_retry_repair_edits_parser.add_argument("--output")
+
     export_mvp_failures = subparsers.add_parser(
         "export-mvp-failures",
         help="Export failed mvp-loop artifacts to a JSONL review queue.",
@@ -14141,6 +14414,30 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(review, indent=2, sort_keys=True)
             if args.print_json
             else format_repeated_forbidden_retry_gap_review_summary(review)
+        )
+    if args.command == "review-retry-repair-edits":
+        artifact_path = Path(args.artifact)
+        artifact = load_json_artifact(
+            str(artifact_path),
+            label="repair-edit extraction artifact",
+        )
+        extraction = normalize_repair_edit_extraction_artifact(artifact)
+        if extraction is None:
+            raise BiberAgentClientError(
+                "review-retry-repair-edits artifact must contain a saved "
+                "extract-repair-edits JSON object."
+            )
+        review = build_retry_repair_edit_review(
+            extraction_path=artifact_path,
+            extraction=extraction,
+        )
+        if args.output:
+            review["artifact_path"] = str(Path(args.output))
+            write_json_artifact(review, args.output)
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_retry_repair_edit_review_summary(review)
         )
     if args.command == "export-mvp-failures":
         export = export_mvp_loop_failures(

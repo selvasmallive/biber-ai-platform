@@ -384,6 +384,26 @@ serving the last broad-safe Rust/XRIQ adapter.
   review-only failure evidence until a deterministic reviewer or human approves
   the next apply step. No training run, OpenAI mentor call, credential change,
   API restart, or vLLM restart was used.
+- Latest BIBER MVP retry-edit review-gate checkpoint:
+  `scripts/biber_agent_client.py` now has an offline
+  `review-retry-repair-edits` command. It reviews a ready
+  `extract-repair-edits` retry artifact plus the linked retry attempt before
+  any `plan-repair-edits` step. For retry attempts, it blocks candidates that
+  mutate the previous failed target line again when the retry context includes
+  a more specific referenced failing test expectation and source `rule`
+  snippet. Vast verification passed focused review-gate tests with
+  `2 passed, 161 deselected`, full `tests/test_biber_agent_client.py -q`
+  with `163 passed`, and the broader cheap MVP set
+  `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py -q`
+  with `181 passed`. Running the gate against the real v8 extraction wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-edit-review-context-v8.json`.
+  It reports `review_status=retry_edit_blocked_needs_human_review`,
+  `ok=false`, `plan_allowed=false`, `reviewed_plan_edit_payload.edits=[]`,
+  and hard blocker
+  `retry_edit_changes_previous_failed_target_outside_rule_context`. Do not run
+  `plan-repair-edits` against the v8 extraction unless a future human review
+  explicitly accepts that blocker. No training run, OpenAI mentor call,
+  credential change, API restart, or vLLM restart was used.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
