@@ -756,6 +756,38 @@ serving the last broad-safe Rust/XRIQ adapter.
   is genuinely valuable, mark quality only after human review, then validate a
   training dataset; do not infer this from a generic "continue", and do not
   start QLoRA or any training job without a separate explicit training approval.
+- Latest BIBER MVP v15 training-candidate evidence checkpoint: the v15
+  training candidate was inspected and left unfilled. The original candidate
+  input contained only the baseline-ready group summary, and the held-out model
+  answer was generic (`Ensure the test pytest-test-diagnosis is rerun with the
+  updated code`) instead of the exact source repair. The linked repair attempt
+  remains useful evidence because it did produce the verified strict JSON edit
+  changing `src/biber_api/test_diagnosis.py` from
+  `_Rule(r"panicked at", "test_failure", "Rust test panic", "rust"),` to
+  `_Rule(r"panicked at", "assertion_failure", "Rust test panic", "rust"),`, but
+  do not fill the training output from the thin original candidate row. The
+  exporter now enriches future `export-repair-chain-training-candidates` rows
+  with a compact `evidence` object plus an `Evidence summary for human review`
+  input section. The evidence includes the baseline decision review path,
+  held-out eval review paths, held-out eval result paths, content previews, and
+  the same safety flags, while keeping `training_allowed=false` and
+  `safe_to_train=false`. Regenerated v15 enriched artifacts:
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-training-candidates-enriched-context-v15-local-target.jsonl`
+  and
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-training-candidate-review-enriched-context-v15-local-target.json`.
+  The enriched candidate review still reports `review_status=training_candidates_need_review`,
+  `pending_review_records=1`, `empty_output_records=1`,
+  `unreviewed_quality_records=1`, `ready_for_dataset_validation=false`, and hard
+  blockers `candidate_outputs_missing`, `candidate_quality_not_reviewed`, and
+  `below_min_ready_records`. Vast verification passed focused
+  `training_candidates` tests with `4 passed, 170 deselected`, full
+  `tests/test_biber_agent_client.py -q` with `174 passed`, and full
+  `tests -q` with `335 passed`. No training run, OpenAI mentor call,
+  credential change, API restart, or vLLM restart was used. Next safe path is
+  either to collect a richer real-repo repair chain whose training candidate
+  carries enough concrete task/failure/patch evidence, or to ask the user for
+  explicit approval before manually filling this v15 candidate. Do not start
+  QLoRA or any training job without a separate explicit training approval.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for

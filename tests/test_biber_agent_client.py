@@ -10404,6 +10404,75 @@ def test_run_export_repair_chain_training_candidates_writes_review_queue(
 
     readiness_path = tmp_path / "training-readiness.json"
     output_path = tmp_path / "training-candidates.jsonl"
+    heldout_eval_path = tmp_path / "heldout-eval.jsonl"
+    heldout_eval_path.write_text(
+        json.dumps(
+            {
+                "id": "result-a",
+                "ok": True,
+                "expectation_ok": True,
+                "content": "**Repair:** change the source rule\n\n**Test:** pytest-test-diagnosis",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    heldout_review_path = tmp_path / "heldout-review.json"
+    heldout_review_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_heldout_eval_review",
+                "review_status": "heldout_eval_passed",
+                "ok": True,
+                "records": 1,
+                "passed_records": 1,
+                "failed_records": 0,
+                "expectation_failed_records": 0,
+                "model_counts": {"biber-dev-core-v1": 1},
+                "training_allowed": False,
+                "safe_to_train": False,
+                "results": [
+                    {
+                        "id": "result-a",
+                        "ok": True,
+                        "passed": True,
+                        "expectation_ok": True,
+                        "model": "biber-dev-core-v1",
+                        "jsonl_path": str(heldout_eval_path),
+                        "content_preview": "**Repair:** change the source rule",
+                    }
+                ],
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    baseline_review_path = tmp_path / "baseline-decision-review.json"
+    baseline_review_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_chain_heldout_baseline_decision_review",
+                "review_status": "heldout_baseline_decision_summary_only",
+                "records": 1,
+                "decision_counts": {"approve_as_baseline": 1},
+                "baseline_ready_records": 1,
+                "training_allowed": False,
+                "safe_to_train": False,
+                "groups": [
+                    {
+                        "decision": "approve_as_baseline",
+                        "count": 1,
+                        "heldout_eval_result_ids": ["result-a"],
+                        "heldout_eval_review_artifacts": [str(heldout_review_path)],
+                        "reviewers": ["baseline-reviewer"],
+                    }
+                ],
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
     readiness_path.write_text(
         json.dumps(
             {
@@ -10415,6 +10484,7 @@ def test_run_export_repair_chain_training_candidates_writes_review_queue(
                 "hard_blockers": [],
                 "baseline_ready_groups": [
                     {
+                        "artifact_path": str(baseline_review_path),
                         "decision": "approve_as_baseline",
                         "count": 2,
                         "heldout_eval_result_ids": ["result-a"],
@@ -10470,6 +10540,21 @@ def test_run_export_repair_chain_training_candidates_writes_review_queue(
     assert rows[0]["approved_for_training"] is False
     assert rows[0]["metadata"]["readiness_artifact"] == str(readiness_path)
     assert rows[0]["metadata"]["heldout_eval_result_ids"] == ["result-a"]
+    assert rows[0]["metadata"]["evidence_artifacts"] == {
+        "baseline_decision_review": str(baseline_review_path),
+        "heldout_eval_results": [str(heldout_eval_path)],
+        "heldout_eval_reviews": [str(heldout_review_path)],
+    }
+    assert "Evidence summary for human review" in rows[0]["input"]
+    assert rows[0]["evidence"]["baseline_decision_review"]["artifact_path"] == str(
+        baseline_review_path
+    )
+    assert rows[0]["evidence"]["heldout_eval_reviews"][0]["artifact_path"] == str(
+        heldout_review_path
+    )
+    assert rows[0]["evidence"]["heldout_eval_reviews"][0]["results"][0][
+        "content_preview"
+    ] == "**Repair:** change the source rule"
 
 
 def test_run_review_repair_chain_training_candidates_blocks_empty_queue(

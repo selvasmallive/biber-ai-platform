@@ -10366,6 +10366,8 @@ def build_repair_chain_training_candidate_record(
         if item
     ]
     group_json = json.dumps(group, indent=2, sort_keys=True)
+    evidence = build_repair_chain_training_candidate_evidence(group)
+    evidence_json = json.dumps(evidence, indent=2, sort_keys=True)
     return {
         "instruction": (
             "Review this BIBER repair-chain baseline evidence and write a "
@@ -10384,7 +10386,9 @@ def build_repair_chain_training_candidate_record(
             f"heldout_eval_result_ids: {', '.join(result_ids) or 'none'}\n"
             f"reviewers: {', '.join(reviewers) or 'none'}\n\n"
             "Baseline-ready group JSON:\n"
-            f"{group_json}"
+            f"{group_json}\n\n"
+            "Evidence summary for human review:\n"
+            f"{evidence_json}"
         ),
         "output": "",
         "category": "repo_adaptation",
@@ -10407,6 +10411,7 @@ def build_repair_chain_training_candidate_record(
             "count": int(group.get("count") or 0),
             "heldout_eval_result_ids": result_ids,
             "reviewers": reviewers,
+            "evidence_artifacts": evidence.get("artifact_paths", {}),
             "review_required": True,
             "promotion_rule": (
                 "Fill output with a verified answer, remove unsafe content, "
@@ -10414,7 +10419,130 @@ def build_repair_chain_training_candidate_record(
                 "and get explicit user approval before any Vast training job."
             ),
         },
+        "evidence": evidence,
     }
+
+
+def build_repair_chain_training_candidate_evidence(
+    group: Mapping[str, Any],
+) -> dict[str, Any]:
+    result_ids = [
+        str(item)
+        for item in require_list(group.get("heldout_eval_result_ids"))
+        if item
+    ]
+    baseline_decision_review_path = str(group.get("artifact_path") or "").strip()
+    evidence: dict[str, Any] = {
+        "artifact_paths": {
+            "baseline_decision_review": baseline_decision_review_path or None,
+            "heldout_eval_reviews": [],
+            "heldout_eval_results": [],
+        },
+        "heldout_eval_result_ids": result_ids,
+        "baseline_decision_review": None,
+        "heldout_eval_reviews": [],
+        "errors": [],
+    }
+    heldout_eval_review_paths: list[str] = []
+    if baseline_decision_review_path:
+        try:
+            baseline_review = load_json_artifact(
+                baseline_decision_review_path,
+                label="baseline decision review evidence",
+            )
+            evidence["baseline_decision_review"] = {
+                "artifact_path": baseline_decision_review_path,
+                "source": baseline_review.get("source"),
+                "review_status": baseline_review.get("review_status"),
+                "records": baseline_review.get("records"),
+                "decision_counts": baseline_review.get("decision_counts"),
+                "baseline_ready_records": baseline_review.get(
+                    "baseline_ready_records"
+                ),
+                "training_allowed": baseline_review.get("training_allowed"),
+                "safe_to_train": baseline_review.get("safe_to_train"),
+            }
+            for review_group in require_list(baseline_review.get("groups")):
+                if not isinstance(review_group, dict):
+                    continue
+                for path in require_list(
+                    review_group.get("heldout_eval_review_artifacts")
+                ):
+                    if isinstance(path, str) and path.strip():
+                        heldout_eval_review_paths.append(path.strip())
+        except BiberAgentClientError as exc:
+            evidence["errors"].append(
+                {
+                    "artifact_path": baseline_decision_review_path,
+                    "reason": "baseline_decision_review_load_failed",
+                    "error": str(exc),
+                }
+            )
+
+    seen_heldout_paths: set[str] = set()
+    for heldout_path in heldout_eval_review_paths:
+        if heldout_path in seen_heldout_paths:
+            continue
+        seen_heldout_paths.add(heldout_path)
+        evidence["artifact_paths"]["heldout_eval_reviews"].append(heldout_path)
+        try:
+            heldout_review = load_json_artifact(
+                heldout_path,
+                label="held-out eval review evidence",
+            )
+        except BiberAgentClientError as exc:
+            evidence["errors"].append(
+                {
+                    "artifact_path": heldout_path,
+                    "reason": "heldout_eval_review_load_failed",
+                    "error": str(exc),
+                }
+            )
+            continue
+        heldout_summary: dict[str, Any] = {
+            "artifact_path": heldout_path,
+            "source": heldout_review.get("source"),
+            "review_status": heldout_review.get("review_status"),
+            "ok": heldout_review.get("ok"),
+            "records": heldout_review.get("records"),
+            "passed_records": heldout_review.get("passed_records"),
+            "failed_records": heldout_review.get("failed_records"),
+            "expectation_failed_records": heldout_review.get(
+                "expectation_failed_records"
+            ),
+            "model_counts": heldout_review.get("model_counts"),
+            "training_allowed": heldout_review.get("training_allowed"),
+            "safe_to_train": heldout_review.get("safe_to_train"),
+            "results": [],
+        }
+        for result in require_list(heldout_review.get("results"))[:5]:
+            if not isinstance(result, dict):
+                continue
+            result_id = str(result.get("id") or "")
+            result_jsonl_path = str(result.get("jsonl_path") or "").strip()
+            if result_jsonl_path:
+                evidence["artifact_paths"]["heldout_eval_results"].append(
+                    result_jsonl_path
+                )
+            heldout_summary["results"].append(
+                {
+                    "id": result_id,
+                    "ok": result.get("ok"),
+                    "passed": result.get("passed"),
+                    "expectation_ok": result.get("expectation_ok"),
+                    "model": result.get("model"),
+                    "jsonl_path": result_jsonl_path or None,
+                    "content_preview": compact_text(
+                        result.get("content_preview"),
+                        max_chars=800,
+                    ),
+                }
+            )
+        evidence["heldout_eval_reviews"].append(heldout_summary)
+    evidence["artifact_paths"]["heldout_eval_results"] = sorted(
+        set(evidence["artifact_paths"]["heldout_eval_results"])
+    )
+    return evidence
 
 
 def export_repair_chain_training_candidates(
