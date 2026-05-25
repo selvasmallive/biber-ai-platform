@@ -788,6 +788,38 @@ serving the last broad-safe Rust/XRIQ adapter.
   carries enough concrete task/failure/patch evidence, or to ask the user for
   explicit approval before manually filling this v15 candidate. Do not start
   QLoRA or any training job without a separate explicit training approval.
+- Latest BIBER MVP eval-prompt evidence checkpoint: the v15 held-out eval prompt
+  was enriched so future `export-ready-repair-chain-eval-prompts` rows load
+  compact linked repair evidence directly from repair/attempt/extraction/plan/
+  apply/verification artifacts. The prompt now includes exact suggested and
+  extracted edits, plan/apply summaries, verification status/stdout preview,
+  and the model response preview when available, while preserving
+  `training_allowed=false` and `safe_to_train=false`. Regenerated v15 enriched
+  prompt:
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-ready-chain-eval-prompts-enriched-context-v15-local-target.jsonl`.
+  It includes the exact edit in `src/biber_api/test_diagnosis.py`, changing the
+  Rust panic rule category from `test_failure` to `assertion_failure`, plus the
+  passing `pytest-test-diagnosis` verification output. The enriched local Vast
+  held-out eval wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-eval-enriched-context-v15-local-target.jsonl`
+  and
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-eval-enriched-context-v15-local-target.summary.json`,
+  with `1/1 responses` and `1/1 expectation checks passed`. Review wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-eval-review-enriched-context-v15-local-target.json`
+  with `ok=true`, `review_status=heldout_eval_passed`, `passed_records=1`, and
+  `training_allowed=false`. Unlike the earlier generic eval answer, the
+  enriched model response names file `src/biber_api/test_diagnosis.py`, the
+  exact `test_failure` to `assertion_failure` rule-category edit, and the test
+  `pytest-test-diagnosis`. Vast verification passed focused eval/training
+  candidate tests with `8 passed, 166 deselected`, full
+  `tests/test_biber_agent_client.py -q` with `174 passed`, and full
+  `tests -q` with `335 passed`. No training run, OpenAI mentor call,
+  credential change, API restart, or vLLM restart was used. Next safe path:
+  if this enriched eval answer should replace the earlier generic baseline path,
+  run the same manual decision ladder on the enriched held-out eval review
+  (`accept_for_baseline`, then `approve_as_baseline`) before considering any
+  training-candidate fill; do not skip the review gates or start QLoRA without
+  separate explicit training approval.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for

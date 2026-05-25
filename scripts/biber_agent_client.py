@@ -7933,6 +7933,208 @@ def infer_eval_prompt_language(record: Mapping[str, Any]) -> str | None:
     return None
 
 
+def build_repair_chain_eval_prompt_evidence(
+    record: Mapping[str, Any],
+) -> dict[str, Any]:
+    artifacts = require_mapping(record.get("artifacts"))
+    evidence: dict[str, Any] = {
+        "artifact_paths": {
+            key: value
+            for key, value in artifacts.items()
+            if isinstance(value, str) and value.strip()
+        },
+        "suggested_edits": [],
+        "extracted_edits": [],
+        "planned_edits": [],
+        "applied_edits": [],
+        "model_response_preview": "",
+        "verification": {},
+        "errors": [],
+    }
+
+    loaded: dict[str, dict[str, Any]] = {}
+    for key in ("repair", "attempt", "extraction", "plan", "apply", "verification"):
+        path = artifacts.get(key)
+        if not isinstance(path, str) or not path.strip():
+            continue
+        try:
+            loaded[key] = load_json_artifact(
+                path.strip(),
+                label=f"repair-chain {key} evidence artifact",
+            )
+        except BiberAgentClientError as exc:
+            evidence["errors"].append(
+                {
+                    "artifact": key,
+                    "artifact_path": path.strip(),
+                    "reason": "artifact_load_failed",
+                    "error": str(exc),
+                }
+            )
+
+    repair = loaded.get("repair", {})
+    for edit in require_list(repair.get("suggested_rule_category_edits"))[:5]:
+        if not isinstance(edit, dict):
+            continue
+        evidence["suggested_edits"].append(
+            {
+                "path": edit.get("path"),
+                "old_text": compact_text(edit.get("old_text"), max_chars=500),
+                "new_text": compact_text(edit.get("new_text"), max_chars=500),
+                "reason": edit.get("reason"),
+            }
+        )
+
+    attempt = loaded.get("attempt", {})
+    model_response = require_mapping(attempt.get("model_response"))
+    if model_response:
+        evidence["model_response_preview"] = compact_text(
+            model_response.get("content"),
+            max_chars=1200,
+        )
+
+    extraction = loaded.get("extraction", {})
+    for edit in require_list(extraction.get("edits"))[:5]:
+        if not isinstance(edit, dict):
+            continue
+        evidence["extracted_edits"].append(
+            {
+                "path": edit.get("path"),
+                "old_text": compact_text(edit.get("old_text"), max_chars=500),
+                "new_text": compact_text(edit.get("new_text"), max_chars=500),
+                "expected_replacements": edit.get("expected_replacements"),
+            }
+        )
+
+    plan = require_mapping(loaded.get("plan", {}).get("edit_plan"))
+    for item in require_list(plan.get("planned"))[:5]:
+        if not isinstance(item, dict):
+            continue
+        evidence["planned_edits"].append(
+            {
+                "path": item.get("path"),
+                "operation": item.get("operation"),
+                "replacements": item.get("replacements"),
+                "risk_level": item.get("risk_level"),
+                "changed": item.get("changed"),
+            }
+        )
+
+    apply = require_mapping(loaded.get("apply", {}).get("edit_apply"))
+    for item in require_list(apply.get("applied"))[:5]:
+        if not isinstance(item, dict):
+            continue
+        evidence["applied_edits"].append(
+            {
+                "path": item.get("path"),
+                "replacements": item.get("replacements"),
+                "changed": item.get("changed"),
+            }
+        )
+
+    verification = loaded.get("verification", {})
+    test_run = require_mapping(verification.get("test_run"))
+    if verification:
+        evidence["verification"] = {
+            "verification_status": verification.get("verification_status"),
+            "ok": verification.get("ok"),
+            "test_id": verification.get("test_id"),
+            "test_mode": verification.get("test_mode"),
+            "target_root_source": verification.get("target_root_source"),
+            "test_stdout_preview": compact_text(
+                test_run.get("stdout"),
+                max_chars=500,
+            ),
+        }
+    return evidence
+
+
+def format_repair_chain_eval_prompt_evidence(evidence: Mapping[str, Any]) -> list[str]:
+    lines: list[str] = []
+
+    suggested_edits = require_list(evidence.get("suggested_edits"))
+    if suggested_edits:
+        lines.append("Suggested source edits:")
+        for edit in suggested_edits:
+            if not isinstance(edit, dict):
+                continue
+            lines.extend(
+                [
+                    f"- path: {edit.get('path') or '-'}",
+                    f"  old_text: {edit.get('old_text') or '-'}",
+                    f"  new_text: {edit.get('new_text') or '-'}",
+                    f"  reason: {edit.get('reason') or '-'}",
+                ]
+            )
+
+    extracted_edits = require_list(evidence.get("extracted_edits"))
+    if extracted_edits:
+        lines.append("Extracted model edits:")
+        for edit in extracted_edits:
+            if not isinstance(edit, dict):
+                continue
+            lines.extend(
+                [
+                    f"- path: {edit.get('path') or '-'}",
+                    f"  old_text: {edit.get('old_text') or '-'}",
+                    f"  new_text: {edit.get('new_text') or '-'}",
+                    f"  expected_replacements: {edit.get('expected_replacements')}",
+                ]
+            )
+
+    planned_edits = require_list(evidence.get("planned_edits"))
+    if planned_edits:
+        lines.append("Plan/apply summary:")
+        for item in planned_edits:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                "- planned "
+                f"{item.get('operation') or 'edit'} on {item.get('path') or '-'} "
+                f"replacements={item.get('replacements')} "
+                f"risk={item.get('risk_level') or '-'} "
+                f"changed={item.get('changed')}"
+            )
+    applied_edits = require_list(evidence.get("applied_edits"))
+    for item in applied_edits:
+        if not isinstance(item, dict):
+            continue
+        lines.append(
+            "- applied "
+            f"{item.get('path') or '-'} replacements={item.get('replacements')} "
+            f"changed={item.get('changed')}"
+        )
+
+    verification = require_mapping(evidence.get("verification"))
+    if verification:
+        lines.extend(
+            [
+                "Verification:",
+                f"- status: {verification.get('verification_status')}",
+                f"- ok: {verification.get('ok')}",
+                f"- test_id: {verification.get('test_id')}",
+                f"- test_mode: {verification.get('test_mode')}",
+                f"- target_root_source: {verification.get('target_root_source')}",
+            ]
+        )
+        stdout_preview = str(verification.get("test_stdout_preview") or "").strip()
+        if stdout_preview:
+            lines.append(f"- stdout_preview: {stdout_preview}")
+
+    response_preview = str(evidence.get("model_response_preview") or "").strip()
+    if response_preview:
+        lines.extend(["Model response preview:", response_preview])
+
+    errors = require_list(evidence.get("errors"))
+    if errors:
+        lines.append("Evidence load errors:")
+        for error in errors:
+            if isinstance(error, dict):
+                lines.append(f"- {error.get('artifact')}: {error.get('reason')}")
+
+    return lines or ["- no linked repair evidence loaded; use artifact paths only"]
+
+
 def build_repair_chain_eval_prompt_record(
     *,
     record: Mapping[str, Any],
@@ -7961,6 +8163,8 @@ def build_repair_chain_eval_prompt_record(
     ]
     if not artifact_lines:
         artifact_lines = ["- none"]
+    evidence = build_repair_chain_eval_prompt_evidence(record)
+    evidence_lines = format_repair_chain_eval_prompt_evidence(evidence)
     prompt = "\n".join(
         [
             "BIBER held-out repair-chain eval.",
@@ -7980,11 +8184,15 @@ def build_repair_chain_eval_prompt_record(
             "Artifact paths:",
             *artifact_lines,
             "",
+            "Repair evidence:",
+            *evidence_lines,
+            "",
             "Task:",
             (
-                "Given this verified repair-chain context, propose the smallest "
-                "safe repair plan and name the exact test that should be rerun. "
-                "Keep the answer eval-only."
+                "Given this verified repair-chain context and repair evidence, "
+                "propose the smallest safe repair plan. If an exact source edit "
+                "is present, name the file and summarize that edit. Name the "
+                "exact test that should be rerun. Keep the answer eval-only."
             ),
         ]
     )
@@ -8010,6 +8218,7 @@ def build_repair_chain_eval_prompt_record(
         "source_artifact": record.get("source_artifact"),
         "plan_hash": record.get("plan_hash"),
         "test_id": record.get("test_id"),
+        "evidence": evidence,
         "next_review_action": "run_held_out_eval_before_training_or_model_promotion",
     }
 

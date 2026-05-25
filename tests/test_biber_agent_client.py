@@ -8155,6 +8155,52 @@ def test_run_export_ready_repair_chain_eval_prompts_without_api_key(
 
     jsonl_path = tmp_path / "ready-repair-chain-eval-dataset.jsonl"
     output_path = tmp_path / "ready-repair-chain-eval-prompts.jsonl"
+    extraction_path = tmp_path / "repair-extraction.json"
+    extraction_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_extraction",
+                "extraction_status": "ready_for_plan_edit",
+                "edits": [
+                    {
+                        "path": "src/biber_api/test_diagnosis.py",
+                        "old_text": (
+                            '    _Rule(r"panicked at", "test_failure", '
+                            '"Rust test panic", "rust"),'
+                        ),
+                        "new_text": (
+                            '    _Rule(r"panicked at", "assertion_failure", '
+                            '"Rust test panic", "rust"),'
+                        ),
+                        "expected_replacements": 1,
+                    }
+                ],
+                "training_allowed": False,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    verification_path = tmp_path / "repair-verification.json"
+    verification_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_test_verification",
+                "verification_status": "passed",
+                "ok": True,
+                "test_id": "python-compileall-api",
+                "test_mode": "local_target_root",
+                "target_root_source": "retry_source_context",
+                "test_run": {
+                    "stdout": "10 passed in 0.24s\n",
+                    "ok": True,
+                },
+                "training_allowed": False,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
     records = [
         {
             "source": "biber_mvp_loop_repair_chain_eval_dataset_record",
@@ -8183,8 +8229,9 @@ def test_run_export_ready_repair_chain_eval_prompts_without_api_key(
                 "plan_hash_consistent": True,
             },
             "artifacts": {
+                "extraction": str(extraction_path),
                 "repair": "repair-request.json",
-                "verification": "repair-verification.json",
+                "verification": str(verification_path),
             },
         },
         {
@@ -8257,6 +8304,14 @@ def test_run_export_ready_repair_chain_eval_prompts_without_api_key(
     assert rows[0]["approved_for_training"] is False
     assert "test_id: python-compileall-api" in rows[0]["prompt"]
     assert "Repair, Test, Risk" in rows[0]["prompt"]
+    assert "Repair evidence:" in rows[0]["prompt"]
+    assert "src/biber_api/test_diagnosis.py" in rows[0]["prompt"]
+    assert "assertion_failure" in rows[0]["prompt"]
+    assert "10 passed in 0.24s" in rows[0]["prompt"]
+    assert rows[0]["evidence"]["extracted_edits"][0]["path"] == (
+        "src/biber_api/test_diagnosis.py"
+    )
+    assert rows[0]["evidence"]["verification"]["verification_status"] == "passed"
 
 
 def test_run_show_ready_repair_chain_eval_prompts_summarizes_without_api_key(
