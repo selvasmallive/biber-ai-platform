@@ -204,7 +204,8 @@ This builds the local Rust binaries, starts a real `xriq-node serve-private`
 process on a temporary localhost port, submits a wallet transfer through
 `POST /v1/mempool`, restarts the server to verify durable pending state,
 produces a block through `POST /v1/blocks`, and verifies transaction, block,
-account, mempool, and explorer overview endpoints.
+account, mempool, explorer overview, snapshot export, and snapshot import
+endpoints.
 
 The current machine-readable runner contract is documented in
 `../docs/XRIQ_NODE_JSON_SCHEMA.md`.
@@ -274,6 +275,8 @@ GET /v1/accounts/{address}
 GET /v1/mempool
 POST /v1/mempool
 POST /v1/blocks
+POST /v1/snapshots/export?snapshot_dir=<path>
+POST /v1/snapshots/import?snapshot_dir=<path>
 ```
 
 `GET /v1/transactions/{hash}` scans confirmed transactions in persisted blocks.
@@ -295,6 +298,16 @@ The local runner can inspect the same durable pending state with
 <path>`. It produces one private-devnet block from the durable pending file,
 persists the block to the configured chain file, and compacts the pending file
 so included transactions are removed.
+
+`POST /v1/snapshots/export?snapshot_dir=<path>` is available only through
+`serve-private`. It exports the configured chain file and optional pending file
+into a new snapshot directory and returns the same JSON shape as
+`xriq-node snapshot-export --format json`.
+
+`POST /v1/snapshots/import?snapshot_dir=<path>` is available only through
+`serve-private`. It imports a snapshot into the server's configured chain file
+and optional pending file, refusing to overwrite existing target files, and
+returns the same JSON shape as `xriq-node snapshot-import --format json`.
 
 `POST /v1/transactions` is available only through `serve-private`. It accepts
 either the existing wallet transfer draft text or a private-devnet JSON transfer

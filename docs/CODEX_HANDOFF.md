@@ -110,14 +110,14 @@ Use this 2026-05-25 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `61%`.
+- Phase 1 estimated completion: about `62%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `65%`.
 - File-backed node runner and deterministic replay: about `70%`.
-- Snapshot export/import and restore workflow: about `65%`.
-- Read-only/private RPC and explorer/dashboard support: about `58%`.
-- Local smoke/regression coverage: about `63%`.
+- Snapshot export/import and restore workflow: about `68%`.
+- Read-only/private RPC and explorer/dashboard support: about `60%`.
+- Local smoke/regression coverage: about `64%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -167,6 +167,22 @@ not an active target because the GPU was terminated to save cost.
   local command: `python scripts/xriq_private_devnet_http_smoke.py`. No Vast
   sync, API/vLLM restart, training, OpenAI mentor call, or credential change
   was used.
+- Latest native XRIQ HTTP snapshot checkpoint: `xriq-node serve-private` now
+  exposes local `POST /v1/snapshots/export?snapshot_dir=<path>` and
+  `POST /v1/snapshots/import?snapshot_dir=<path>` endpoints. Export writes a
+  snapshot of the configured chain file and optional pending file. Import
+  restores a snapshot into the server's configured chain/pending targets while
+  preserving the existing no-overwrite guard. Query `snapshot_dir` values are
+  percent-decoded so Windows paths work through the real local HTTP smoke. The
+  HTTP smoke now exports a snapshot after producing a block, starts a fresh
+  local server on new chain/pending files, imports the snapshot, and verifies
+  the imported confirmed transaction. Local verification passed
+  `cargo test -p xriq-node --manifest-path xriq/Cargo.toml -j 1` with
+  `51 passed` and `python scripts/xriq_private_devnet_http_smoke.py`. The first
+  parallel `cargo test -p xriq-node --manifest-path xriq/Cargo.toml` attempt
+  hit transient Windows linker error `LNK1104` on the test executable; no XRIQ
+  process was running, and the serial retry passed. No Vast sync, API/vLLM
+  restart, training, OpenAI mentor call, or credential change was used.
 - Latest XRIQ-only focus checkpoint: the user narrowed the active project goal
   to completing the XRIQ private-devnet prototype first. A narrow usability
   step extended `scripts/biber_xriq_private_devnet_client.py` beyond read-only

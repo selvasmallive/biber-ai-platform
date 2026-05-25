@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
@@ -248,6 +249,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
 
     chain_file = artifact_dir / "chain.bin"
     pending_file = artifact_dir / "pending.tsv"
+    snapshot_dir = artifact_dir / "http-snapshot"
+    imported_chain_file = artifact_dir / "imported-chain.bin"
+    imported_pending_file = artifact_dir / "imported-pending.tsv"
     port = free_local_port()
     bind = f"127.0.0.1:{port}"
     base_url = f"http://{bind}"
@@ -346,12 +350,66 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         write_json(artifact_dir / "overview.json", overview)
         require_equal(overview, "current_height", 1, "overview")
 
+        snapshot_query = urlencode({"snapshot_dir": str(snapshot_dir)})
+        snapshot_export = http_json(
+            base_url,
+            "POST",
+            f"/v1/snapshots/export?{snapshot_query}",
+            expected_status=201,
+        )
+        write_json(artifact_dir / "snapshot-export.json", snapshot_export)
+        require_equal(snapshot_export, "command", "snapshot-export", "snapshot export")
+        require_equal(snapshot_export, "current_height", 1, "snapshot export")
+        if not (snapshot_dir / "chain.bin").exists():
+            raise SmokeError(
+                f"snapshot chain file was not created: {snapshot_dir / 'chain.bin'}"
+            )
+        if not (snapshot_dir / "manifest.json").exists():
+            raise SmokeError(
+                f"snapshot manifest was not created: {snapshot_dir / 'manifest.json'}"
+            )
+
+        stop_server(process)
+        process = start_server(
+            node_binary,
+            artifact_dir,
+            bind,
+            imported_chain_file,
+            imported_pending_file,
+            args.alice_balance,
+        )
+        wait_for_health(base_url, process)
+
+        snapshot_import = http_json(
+            base_url,
+            "POST",
+            f"/v1/snapshots/import?{snapshot_query}",
+            expected_status=201,
+        )
+        write_json(artifact_dir / "snapshot-import.json", snapshot_import)
+        require_equal(snapshot_import, "command", "snapshot-import", "snapshot import")
+        require_equal(snapshot_import, "current_height", 1, "snapshot import")
+        require_equal(
+            snapshot_import,
+            "state_root",
+            snapshot_export["state_root"],
+            "snapshot import",
+        )
+
+        imported_transaction = http_json(base_url, "GET", f"/v1/transactions/{tx_hash}")
+        write_json(artifact_dir / "imported-transaction.json", imported_transaction)
+        require_equal(imported_transaction, "status", "confirmed", "imported transaction")
+        require_equal(imported_transaction, "block_height", 1, "imported transaction")
+
         summary = {
             "ok": "xriq-private-devnet-http-smoke",
             "artifact_dir": str(artifact_dir),
             "base_url": base_url,
             "chain_file": str(chain_file),
+            "imported_chain_file": str(imported_chain_file),
+            "imported_pending_file": str(imported_pending_file),
             "pending_file": str(pending_file),
+            "snapshot_dir": str(snapshot_dir),
             "transaction_hash": tx_hash,
             "block_height": 1,
             "alice_balance_base_units": alice["balance_base_units"],

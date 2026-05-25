@@ -744,6 +744,12 @@ pub fn private_devnet_http_response_with_body(
     if method == "POST" && path == "/v1/blocks" {
         return produce_pending_block_http_response(config, query);
     }
+    if method == "POST" && path == "/v1/snapshots/export" {
+        return snapshot_export_http_response(config, query);
+    }
+    if method == "POST" && path == "/v1/snapshots/import" {
+        return snapshot_import_http_response(config, query);
+    }
 
     if method != "GET" {
         return http_error_response(
@@ -1088,6 +1094,106 @@ fn produce_pending_block_http_response(
     }
 }
 
+fn snapshot_export_http_response(
+    config: &PrivateDevnetHttpServerConfig,
+    query: Option<&str>,
+) -> PrivateDevnetHttpResponse {
+    if !config.allow_transaction_submission {
+        return http_error_response(
+            501,
+            "not_implemented",
+            "snapshot export requires xriq-node serve-private",
+        );
+    }
+    let snapshot_dir = match required_decoded_query_value(query, "snapshot_dir", "--snapshot-dir") {
+        Ok(value) => value,
+        Err(error) => {
+            return http_json_response(
+                node_runner_error_http_status(&error),
+                render_node_runner_error_json(
+                    &[
+                        "snapshot-export".to_string(),
+                        "--format".to_string(),
+                        "json".to_string(),
+                    ],
+                    &error,
+                ),
+            );
+        }
+    };
+    match private_devnet_export_snapshot(
+        &config.chain_file,
+        config.pending_file.as_deref(),
+        config.alice_balance,
+        &snapshot_dir,
+    ) {
+        Ok(status) => {
+            http_json_response(201, render_snapshot_status_json("snapshot-export", &status))
+        }
+        Err(error) => http_json_response(
+            node_runner_error_http_status(&error),
+            render_node_runner_error_json(
+                &[
+                    "snapshot-export".to_string(),
+                    "--format".to_string(),
+                    "json".to_string(),
+                ],
+                &error,
+            ),
+        ),
+    }
+}
+
+fn snapshot_import_http_response(
+    config: &PrivateDevnetHttpServerConfig,
+    query: Option<&str>,
+) -> PrivateDevnetHttpResponse {
+    if !config.allow_transaction_submission {
+        return http_error_response(
+            501,
+            "not_implemented",
+            "snapshot import requires xriq-node serve-private",
+        );
+    }
+    let snapshot_dir = match required_decoded_query_value(query, "snapshot_dir", "--snapshot-dir") {
+        Ok(value) => value,
+        Err(error) => {
+            return http_json_response(
+                node_runner_error_http_status(&error),
+                render_node_runner_error_json(
+                    &[
+                        "snapshot-import".to_string(),
+                        "--format".to_string(),
+                        "json".to_string(),
+                    ],
+                    &error,
+                ),
+            );
+        }
+    };
+    match private_devnet_import_snapshot(
+        &snapshot_dir,
+        &config.chain_file,
+        config.pending_file.as_deref(),
+        config.alice_balance,
+    ) {
+        Ok(status) => {
+            http_json_response(201, render_snapshot_status_json("snapshot-import", &status))
+        }
+        Err(error) => http_json_response(
+            node_runner_error_http_status(&error),
+            render_node_runner_error_json(
+                &[
+                    "snapshot-import".to_string(),
+                    "--format".to_string(),
+                    "json".to_string(),
+                ],
+                &error,
+            ),
+        ),
+    }
+}
+
 fn pending_status_http_response(
     config: &PrivateDevnetHttpServerConfig,
     pending_file: &str,
@@ -1211,6 +1317,8 @@ fn node_runner_error_http_status(error: &NodeRunnerError) -> u16 {
             | ExplorerError::BlockNotFound
             | ExplorerError::TransactionNotFound,
         ) => 404,
+        NodeRunnerError::SnapshotTargetExists(_) => 409,
+        NodeRunnerError::InvalidSnapshotManifest(_) => 400,
         _ => 500,
     }
 }
@@ -1229,6 +1337,61 @@ fn query_value<'a>(query: Option<&'a str>, key: &str) -> Option<&'a str> {
             (candidate == key).then_some(value)
         })
     })
+}
+
+fn required_decoded_query_value(
+    query: Option<&str>,
+    key: &str,
+    flag: &'static str,
+) -> Result<String, NodeRunnerError> {
+    query_value(query, key)
+        .map(|value| percent_decode_query_value(key, value))
+        .transpose()?
+        .ok_or(NodeRunnerError::MissingFlag(flag))
+}
+
+fn percent_decode_query_value(key: &str, value: &str) -> Result<String, NodeRunnerError> {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'+' => {
+                decoded.push(b' ');
+                index += 1;
+            }
+            b'%' => {
+                if index + 2 >= bytes.len() {
+                    return Err(invalid_query_encoding(key));
+                }
+                let high =
+                    hex_value(bytes[index + 1]).ok_or_else(|| invalid_query_encoding(key))?;
+                let low = hex_value(bytes[index + 2]).ok_or_else(|| invalid_query_encoding(key))?;
+                decoded.push((high << 4) | low);
+                index += 3;
+            }
+            byte => {
+                decoded.push(byte);
+                index += 1;
+            }
+        }
+    }
+    String::from_utf8(decoded).map_err(|_| invalid_query_encoding(key))
+}
+
+fn invalid_query_encoding(key: &str) -> NodeRunnerError {
+    NodeRunnerError::InvalidFormat(format!(
+        "invalid percent-encoding for query parameter {key}"
+    ))
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
 }
 
 fn http_json_response(status_code: u16, body: String) -> PrivateDevnetHttpResponse {
@@ -6486,6 +6649,69 @@ mod tests {
         assert_eq!(status_after_submit.status_code, 200);
         assert!(status_after_submit.body.contains("\"current_height\": 3"));
 
+        let snapshot_dir = temp_snapshot_dir();
+        let snapshot_text = snapshot_dir.to_string_lossy().to_string();
+        let snapshot_export_path = format!("/v1/snapshots/export?snapshot_dir={snapshot_text}");
+        let readonly_snapshot_export =
+            private_devnet_http_response_with_body(&config, "POST", &snapshot_export_path, "");
+        assert_eq!(readonly_snapshot_export.status_code, 501);
+        assert!(readonly_snapshot_export
+            .body
+            .contains("\"code\": \"not_implemented\""));
+
+        let snapshot_export = private_devnet_http_response_with_body(
+            &submit_config,
+            "POST",
+            &snapshot_export_path,
+            "",
+        );
+        assert_eq!(snapshot_export.status_code, 201);
+        assert!(snapshot_export
+            .body
+            .contains("\"command\": \"snapshot-export\""));
+        assert!(snapshot_export.body.contains("\"current_height\": 3"));
+        assert!(snapshot_dir.join(SNAPSHOT_CHAIN_FILE).exists());
+        assert!(snapshot_dir.join(SNAPSHOT_MANIFEST_FILE).exists());
+
+        let missing_snapshot_dir = private_devnet_http_response_with_body(
+            &submit_config,
+            "POST",
+            "/v1/snapshots/export",
+            "",
+        );
+        assert_eq!(missing_snapshot_dir.status_code, 400);
+        assert!(missing_snapshot_dir
+            .body
+            .contains("\"code\": \"missing_flag\""));
+
+        let imported_path = path.with_extension("imported-chain");
+        let imported_pending_path = path.with_extension("imported-pending");
+        let imported_path_text = imported_path.to_string_lossy().to_string();
+        let imported_pending_text = imported_pending_path.to_string_lossy().to_string();
+        let import_config = PrivateDevnetHttpServerConfig {
+            bind: "127.0.0.1:8787".to_string(),
+            chain_file: imported_path_text,
+            pending_file: Some(imported_pending_text),
+            alice_balance: Some(XriqAmount::from_base_units(100)),
+            allow_transaction_submission: true,
+        };
+        let snapshot_import = private_devnet_http_response_with_body(
+            &import_config,
+            "POST",
+            &format!("/v1/snapshots/import?snapshot_dir={snapshot_text}"),
+            "",
+        );
+        assert_eq!(snapshot_import.status_code, 201);
+        assert!(snapshot_import
+            .body
+            .contains("\"command\": \"snapshot-import\""));
+        assert!(snapshot_import.body.contains("\"current_height\": 3"));
+
+        let imported_status =
+            private_devnet_http_response(&import_config, "GET", "/v1/chain/status");
+        assert_eq!(imported_status.status_code, 200);
+        assert!(imported_status.body.contains("\"current_height\": 3"));
+
         let raw = status.to_http_response();
         assert!(raw.starts_with("HTTP/1.1 200 OK\r\n"));
         assert!(raw.contains("Content-Type: application/json; charset=utf-8\r\n"));
@@ -6498,6 +6724,9 @@ mod tests {
         assert_eq!(parsed.status_code, 200);
         assert!(parsed.body.contains("\"command\": \"status\""));
 
+        let _ = fs::remove_dir_all(snapshot_dir);
+        let _ = fs::remove_file(imported_path);
+        let _ = fs::remove_file(imported_pending_path);
         let _ = fs::remove_file(path);
     }
 

@@ -412,6 +412,50 @@ Shape:
 }
 ```
 
+## HTTP Snapshot Export/Import
+
+Export endpoint:
+
+```bash
+POST /v1/snapshots/export?snapshot_dir=<path>
+```
+
+Import endpoint:
+
+```bash
+POST /v1/snapshots/import?snapshot_dir=<path>
+```
+
+These endpoints are enabled only by `xriq-node serve-private`. Export copies
+the server's configured chain file and optional pending file into a new snapshot
+directory. Import copies a snapshot into the server's configured chain file and
+optional pending file, refusing to overwrite existing target files.
+
+Success status: `201 Created`.
+
+Shape:
+
+```json
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "snapshot-export",
+  "warning": "private-devnet-only-no-public-token",
+  "snapshot_format_version": "xriq-private-devnet-snapshot-v1",
+  "snapshot_dir": "target/xriq-devnet-snapshot",
+  "chain_file": "target/xriq-devnet-snapshot/chain.bin",
+  "pending_file": "target/xriq-devnet-snapshot/pending.tsv",
+  "chain_id": "xriq-devnet",
+  "current_height": 1,
+  "latest_block_hash": "64-hex-character-block-hash",
+  "state_root": "64-hex-character-state-root",
+  "pending_transactions": 0,
+  "stored_blocks": 1
+}
+```
+
+For import, `command` is `snapshot-import` and `chain_file`/`pending_file`
+refer to the server's configured target files.
+
 ## Preflight Transfer Flow
 
 Command:
@@ -655,13 +699,16 @@ Implemented read-only endpoints:
 - `GET /v1/mempool`
 - `POST /v1/mempool` when `serve-private --pending-file <path>` is used
 - `POST /v1/blocks` when `serve-private --pending-file <path>` is used
+- `POST /v1/snapshots/export?snapshot_dir=<path>` when `serve-private` is used
+- `POST /v1/snapshots/import?snapshot_dir=<path>` when `serve-private` is used
 
 The read-only endpoints reuse the JSON bodies documented above where possible.
 HTTP-only health and wrapper errors use
 `format_version: xriq-node-http-v1`. `POST /v1/transactions` uses the success
 body documented above only when the server is started with `serve-private`;
 `POST /v1/mempool` and `POST /v1/blocks` additionally require
-`--pending-file`. `serve-readonly` returns `501` for POST paths.
+`--pending-file`; snapshot export/import use the server's configured chain and
+optional pending files. `serve-readonly` returns `501` for POST paths.
 Submit-capable transaction POST bodies may be wallet draft text or
 `xriq-node-transfer-submit-v1` JSON.
 

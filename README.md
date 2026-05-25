@@ -241,6 +241,9 @@ To also verify the local submit-capable HTTP/RPC path without Vast, run:
 python scripts/xriq_private_devnet_http_smoke.py
 ```
 
+That smoke also covers local HTTP snapshot export/import using fresh files under
+`xriq/target/`.
+
 ## 7. Vast Connection Needed
 
 To deploy this to your Vast.ai GPU, use the instance SSH command:
