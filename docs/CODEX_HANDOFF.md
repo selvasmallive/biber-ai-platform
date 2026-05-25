@@ -484,6 +484,7 @@ serving the last broad-safe Rust/XRIQ adapter.
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-empty-retry-response-gap-review-context-v9.json`.
   They remain review-only evidence; do not train from them automatically.
 - Latest BIBER MVP retry source-root/proposed-rule checkpoint:
+  pushed as `8d1db148 Use failed workspace for retry source context`.
   `prepare-failed-repair-retry` now prefers the failed verification
   `test_run.cwd` as the effective source root for compact retry snippets when
   that directory exists, while preserving the CLI `--source-root` as
@@ -515,6 +516,11 @@ serving the last broad-safe Rust/XRIQ adapter.
   deterministic review/export path for the JSON/prose mismatch plus suggested
   rule edit, or ask for explicit human approval before turning the
   `suggested_rule_category_edits` candidate into a plan/apply artifact.
+  Vast was fast-forwarded to `8d1db14` and is clean; the temporary test-synced
+  pre-pull copies of `scripts/biber_agent_client.py` and
+  `tests/test_biber_agent_client.py` were stashed as
+  `codex-retry-context-sync` and should not be popped unless deliberately
+  inspecting that duplicate sync state.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
