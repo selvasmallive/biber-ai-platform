@@ -2870,6 +2870,236 @@ def test_run_plan_repair_edits_calls_server_plan_without_apply(
     assert result["next_test_id"] == "dotnet-test"
 
 
+def test_run_plan_repair_edits_requires_review_for_retry_extraction(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("blocked retry plan should not resolve an API key")
+
+    attempt = tmp_path / "retry-attempt.json"
+    attempt.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_attempt",
+                "repair_request": {"retry_of_failed_verification": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    extraction = tmp_path / "retry-edit-extraction.json"
+    extraction.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_extraction",
+                "source_artifact": str(attempt),
+                "extraction_status": "ready_for_plan_edit",
+                "ok": True,
+                "plan_edit_payload": {
+                    "edits": [
+                        {
+                            "path": "src/app.py",
+                            "old_text": "bad",
+                            "new_text": "good",
+                            "expected_replacements": 1,
+                        }
+                    ]
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    try:
+        client.run(client.parse_args(["plan-repair-edits", str(extraction)]))
+    except client.BiberAgentClientError as exc:
+        assert "requires --retry-review-artifact" in str(exc)
+    else:
+        raise AssertionError("expected retry extraction without review to be blocked")
+
+
+def test_run_plan_repair_edits_rejects_blocked_retry_review(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("blocked retry review should not resolve an API key")
+
+    attempt = tmp_path / "retry-attempt.json"
+    attempt.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_attempt",
+                "repair_request": {"retry_of_failed_verification": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    extraction = tmp_path / "retry-edit-extraction.json"
+    extraction.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_extraction",
+                "source_artifact": str(attempt),
+                "extraction_status": "ready_for_plan_edit",
+                "ok": True,
+                "plan_edit_payload": {
+                    "edits": [
+                        {
+                            "path": "src/app.py",
+                            "old_text": "bad",
+                            "new_text": "still bad",
+                            "expected_replacements": 1,
+                        }
+                    ]
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    review = tmp_path / "retry-edit-review.json"
+    review.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_retry_repair_edit_review",
+                "source_artifact": str(extraction),
+                "review_status": "retry_edit_blocked_needs_human_review",
+                "ok": False,
+                "plan_allowed": False,
+                "hard_blockers": [
+                    "retry_edit_changes_previous_failed_target_outside_rule_context"
+                ],
+                "reviewed_plan_edit_payload": {"edits": []},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    try:
+        client.run(
+            client.parse_args(
+                [
+                    "plan-repair-edits",
+                    str(extraction),
+                    "--retry-review-artifact",
+                    str(review),
+                ]
+            )
+        )
+    except client.BiberAgentClientError as exc:
+        assert "does not allow planning" in str(exc)
+    else:
+        raise AssertionError("expected blocked retry review to stop planning")
+
+
+def test_run_plan_repair_edits_uses_accepted_retry_review_payload(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_plan_workspace_edit(
+        *,
+        base_url: str,
+        api_key: str,
+        payload: dict[str, object],
+        timeout_seconds: float,
+    ) -> dict[str, object]:
+        captured["payload"] = payload
+        return {
+            "ok": True,
+            "plan_hash": "a" * 64,
+            "planned": [{"path": "src/biber_api/test_diagnosis.py"}],
+            "rejected": [],
+        }
+
+    retry_candidate = {
+        "path": "src/biber_api/test_diagnosis.py",
+        "old_text": "primary_category = _primary_category(signals)",
+        "new_text": (
+            "primary_category = _primary_category(signals) "
+            "if signals else 'assertion_failure'"
+        ),
+        "expected_replacements": 1,
+    }
+    reviewed_edit = {
+        "path": "src/biber_api/test_diagnosis.py",
+        "old_text": (
+            '_Rule(r"panicked at", "test_failure", "Rust test panic", "rust"),'
+        ),
+        "new_text": (
+            '_Rule(r"panicked at", "assertion_failure", "Rust test panic", "rust"),'
+        ),
+        "expected_replacements": 1,
+    }
+    attempt = tmp_path / "retry-attempt.json"
+    attempt.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_attempt",
+                "repair_request": {"retry_of_failed_verification": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    extraction = tmp_path / "retry-edit-extraction.json"
+    extraction.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_extraction",
+                "source_artifact": str(attempt),
+                "extraction_status": "ready_for_plan_edit",
+                "ok": True,
+                "next_test_id": "pytest-test-diagnosis",
+                "plan_edit_payload": {"edits": [retry_candidate]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    review = tmp_path / "retry-edit-review.json"
+    review.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_retry_repair_edit_review",
+                "source_artifact": str(extraction),
+                "review_status": "retry_edit_ready_for_plan_review",
+                "ok": True,
+                "plan_allowed": True,
+                "hard_blockers": [],
+                "reviewed_plan_edit_payload": {"edits": [reviewed_edit]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "plan_workspace_edit", fake_plan_workspace_edit)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "plan-repair-edits",
+                str(extraction),
+                "--retry-review-artifact",
+                str(review),
+                "--max-files",
+                "1",
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert captured["payload"] == {"edits": [reviewed_edit], "max_files": 1}
+    assert result["ok"] is True
+    assert result["plan_edit_payload"] == captured["payload"]
+    assert result["next_test_id"] == "pytest-test-diagnosis"
+
+
 def test_run_show_repair_edit_plan_summarizes_without_api_key(
     monkeypatch,
     tmp_path: Path,

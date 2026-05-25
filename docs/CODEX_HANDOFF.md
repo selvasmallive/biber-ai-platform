@@ -404,6 +404,23 @@ serving the last broad-safe Rust/XRIQ adapter.
   `plan-repair-edits` against the v8 extraction unless a future human review
   explicitly accepts that blocker. No training run, OpenAI mentor call,
   credential change, API restart, or vLLM restart was used.
+- Latest BIBER MVP retry-plan guard checkpoint:
+  `plan-repair-edits` now enforces the retry review gate. Retry repair edit
+  extractions require `--retry-review-artifact` pointing to an accepted
+  `review-retry-repair-edits` artifact with `ok=true`, `plan_allowed=true`,
+  and no hard blockers; otherwise planning stops before resolving API auth or
+  calling the server-side plan endpoint. Normal first-attempt repair extraction
+  planning remains unchanged. Vast verification passed focused retry-review
+  tests with `2 passed, 164 deselected`, focused plan-repair tests with
+  `5 passed, 161 deselected`, full `tests/test_biber_agent_client.py -q`
+  with `166 passed`, and the broader cheap MVP set
+  `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py -q`
+  with `184 passed`. Real v8 checks confirmed
+  `plan-repair-edits ...failed-repair-retry-edit-extraction-context-v8.json`
+  fails without `--retry-review-artifact`, and also fails with the blocked
+  v8 review artifact because `review_status=retry_edit_blocked_needs_human_review`.
+  No planning, applying, training, OpenAI mentor call, credential change, API
+  restart, or vLLM restart was used.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for

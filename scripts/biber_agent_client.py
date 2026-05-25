@@ -1815,6 +1815,20 @@ def normalize_repair_edit_extraction_artifact(
     return None
 
 
+def normalize_retry_repair_edit_review_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_retry_repair_edit_review":
+        return dict(payload)
+    body = payload.get("body")
+    if (
+        isinstance(body, dict)
+        and body.get("source") == "biber_mvp_loop_retry_repair_edit_review"
+    ):
+        return dict(body)
+    return None
+
+
 def summarize_repair_edit_extraction_artifact(
     path: Path,
     payload: Mapping[str, Any],
@@ -2143,6 +2157,96 @@ def build_plan_repair_edits_payload(
     if not edits:
         raise BiberAgentClientError(
             "plan-repair-edits requires an extraction artifact with at least one edit."
+        )
+    if max_files is not None:
+        if max_files < 1:
+            raise BiberAgentClientError("--max-files must be at least 1.")
+        payload["max_files"] = max_files
+    return payload
+
+
+def artifact_path_matches(expected_path: Path, reference: object) -> bool:
+    linked_path = resolve_linked_artifact_path(reference, base_path=expected_path)
+    if linked_path is None:
+        return False
+    try:
+        return expected_path.resolve() == linked_path.resolve()
+    except OSError:
+        return str(expected_path) == str(linked_path)
+
+
+def repair_extraction_is_retry_attempt(
+    *,
+    extraction_path: Path,
+    extraction: Mapping[str, Any],
+) -> bool:
+    if extraction.get("retry_of_failed_verification") is True:
+        return True
+    reference = extraction.get("source_artifact")
+    if not isinstance(reference, str) or not reference.strip():
+        return False
+    _, attempt, attempt_error = load_linked_artifact(
+        reference,
+        base_path=extraction_path,
+        label="repair-attempt artifact",
+        normalizer=normalize_repair_attempt_artifact,
+    )
+    if attempt_error is not None or attempt is None:
+        return False
+    repair_request = require_mapping(attempt.get("repair_request"))
+    return repair_request.get("retry_of_failed_verification") is True
+
+
+def build_plan_repair_edits_payload_with_retry_review(
+    *,
+    extraction_path: Path,
+    extraction: Mapping[str, Any],
+    max_files: int | None,
+    retry_review_artifact: str | None,
+) -> dict[str, Any]:
+    if not repair_extraction_is_retry_attempt(
+        extraction_path=extraction_path,
+        extraction=extraction,
+    ):
+        return build_plan_repair_edits_payload(extraction, max_files=max_files)
+
+    if not retry_review_artifact:
+        raise BiberAgentClientError(
+            "plan-repair-edits requires --retry-review-artifact for retry repair "
+            "edit extractions. Run review-retry-repair-edits first and pass an "
+            "accepted review artifact."
+        )
+
+    review_path = Path(retry_review_artifact)
+    raw_review = load_json_artifact(
+        str(review_path),
+        label="retry repair edit review artifact",
+    )
+    review = normalize_retry_repair_edit_review_artifact(raw_review)
+    if review is None:
+        raise BiberAgentClientError(
+            "--retry-review-artifact must contain a saved review-retry-repair-edits "
+            "JSON object."
+        )
+    if not artifact_path_matches(extraction_path, review.get("source_artifact")):
+        raise BiberAgentClientError(
+            "--retry-review-artifact does not review the provided extraction artifact."
+        )
+    if (
+        review.get("ok") is not True
+        or review.get("plan_allowed") is not True
+        or require_list(review.get("hard_blockers"))
+    ):
+        raise BiberAgentClientError(
+            "Retry repair edit review does not allow planning: "
+            f"{review.get('review_status') or 'review_not_accepted'}."
+        )
+
+    payload = require_mapping(review.get("reviewed_plan_edit_payload")).copy()
+    edits = require_list(payload.get("edits"))
+    if not edits:
+        raise BiberAgentClientError(
+            "Accepted retry repair edit review did not include any reviewed edits."
         )
     if max_files is not None:
         if max_files < 1:
@@ -14132,6 +14236,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     plan_repair_edits_parser.add_argument("artifact")
     plan_repair_edits_parser.add_argument("--max-files", type=int)
+    plan_repair_edits_parser.add_argument(
+        "--retry-review-artifact",
+        help=(
+            "Required for retry repair extractions; must be an accepted "
+            "review-retry-repair-edits artifact."
+        ),
+    )
     plan_repair_edits_parser.add_argument("--output")
 
     apply_repair_edits_parser = subparsers.add_parser(
@@ -15309,6 +15420,45 @@ def run(args: argparse.Namespace) -> str:
             if args.print_json
             else format_repair_edit_extraction_summary(extraction)
         )
+    if args.command == "plan-repair-edits":
+        artifact_path = Path(args.artifact)
+        artifact = load_json_artifact(
+            str(artifact_path),
+            label="repair-edit extraction artifact",
+        )
+        extraction = normalize_repair_edit_extraction_artifact(artifact)
+        if extraction is None:
+            raise BiberAgentClientError(
+                "plan-repair-edits artifact must contain a saved repair-edit extraction JSON object."
+            )
+        plan_payload = build_plan_repair_edits_payload_with_retry_review(
+            extraction_path=artifact_path,
+            extraction=extraction,
+            max_files=args.max_files,
+            retry_review_artifact=args.retry_review_artifact,
+        )
+        api_key = resolve_api_key(args.api_key)
+        base_url = args.base_url.rstrip("/")
+        edit_plan = plan_workspace_edit(
+            base_url=base_url,
+            api_key=api_key,
+            payload=plan_payload,
+            timeout_seconds=args.timeout_seconds,
+        )
+        result = build_plan_repair_edits_result(
+            extraction_path=artifact_path,
+            extraction=extraction,
+            plan_payload=plan_payload,
+            edit_plan=edit_plan,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_edit_plan_summary(result)
+        )
 
     if args.command == "apply-repair-edits" and not args.approve:
         raise BiberAgentClientError(
@@ -15375,41 +15525,6 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(attempt, indent=2, sort_keys=True)
             if args.print_json
             else format_mvp_loop_repair_attempt_summary(attempt)
-        )
-    if args.command == "plan-repair-edits":
-        artifact_path = Path(args.artifact)
-        artifact = load_json_artifact(
-            str(artifact_path),
-            label="repair-edit extraction artifact",
-        )
-        extraction = normalize_repair_edit_extraction_artifact(artifact)
-        if extraction is None:
-            raise BiberAgentClientError(
-                "plan-repair-edits artifact must contain a saved repair-edit extraction JSON object."
-            )
-        plan_payload = build_plan_repair_edits_payload(
-            extraction,
-            max_files=args.max_files,
-        )
-        edit_plan = plan_workspace_edit(
-            base_url=base_url,
-            api_key=api_key,
-            payload=plan_payload,
-            timeout_seconds=args.timeout_seconds,
-        )
-        result = build_plan_repair_edits_result(
-            extraction_path=artifact_path,
-            extraction=extraction,
-            plan_payload=plan_payload,
-            edit_plan=edit_plan,
-        )
-        if args.output:
-            result["artifact_path"] = str(Path(args.output))
-            write_json_artifact(result, args.output)
-        return (
-            json.dumps(result, indent=2, sort_keys=True)
-            if args.print_json
-            else format_repair_edit_plan_summary(result)
         )
     if args.command == "apply-repair-edits":
         artifact_path = Path(args.artifact)
