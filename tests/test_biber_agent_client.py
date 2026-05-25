@@ -4202,6 +4202,100 @@ def test_run_verify_repair_edits_uses_next_test_id_without_saving_or_training(
     assert result["test_run"]["ok"] is True
 
 
+def test_run_verify_repair_edits_uses_apply_target_root_for_local_test(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    target_root = tmp_path / "candidate-repo"
+    target_root.mkdir()
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        return "test-key"
+
+    def fake_run_allowlisted_test_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        captured["target_root"] = target_root
+        captured["payload"] = payload
+        return {
+            "test_id": payload["test_id"],
+            "label": "Test diagnosis pytest",
+            "executed": True,
+            "ok": True,
+            "exit_code": 0,
+            "timed_out": False,
+            "duration_ms": 24,
+            "cwd": str(target_root),
+            "command": ["python", "-m", "pytest", "tests/test_test_diagnosis.py", "-q"],
+            "stdout": "10 passed in 0.24s\n",
+            "stderr": "",
+        }
+
+    def fake_run_allowlisted_test(**kwargs: object) -> dict[str, object]:
+        raise AssertionError(
+            "API test runner should not be used for local-target verification"
+        )
+
+    artifact = tmp_path / "repair-edit-apply.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "apply_status": "applied",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "auto_saved": False,
+                "approval_received": True,
+                "plan_hash": "e" * 64,
+                "target_root": str(target_root),
+                "target_root_source": "retry_source_context",
+                "next_test_id": "pytest-test-diagnosis",
+                "edit_apply": {
+                    "ok": True,
+                    "applied": [{"path": "src/biber_api/test_diagnosis.py", "changed": True}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "repair-test-verification.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(
+        client,
+        "run_allowlisted_test_local_target",
+        fake_run_allowlisted_test_local_target,
+    )
+    monkeypatch.setattr(client, "run_allowlisted_test", fake_run_allowlisted_test)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "verify-repair-edits",
+                str(artifact),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert captured["target_root"] == target_root.resolve()
+    assert captured["payload"] == {"test_id": "pytest-test-diagnosis"}
+    assert result["verification_status"] == "passed"
+    assert result["ok"] is True
+    assert result["test_mode"] == "local_target_root"
+    assert result["target_root"] == str(target_root.resolve())
+    assert result["target_root_source"] == "retry_source_context"
+    assert result["test_run"]["stdout"] == "10 passed in 0.24s\n"
+
+
 def test_run_verify_repair_edits_can_override_test_id_and_diagnose_failure(
     monkeypatch,
     tmp_path: Path,

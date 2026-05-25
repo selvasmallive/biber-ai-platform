@@ -549,8 +549,35 @@ serving the last broad-safe Rust/XRIQ adapter.
   vLLM restart was used. Vast verification passed focused retry/plan tests
   with `16 passed, 157 deselected`, full `tests/test_biber_agent_client.py`
   with `173 passed`, and full cheap `tests` suite with `334 passed`.
-  Next step requires explicit user approval before running
-  `apply-repair-edits --approve` on the v15 local-target plan artifact.
+  That explicit approval was later provided; see the following apply and
+  verification checkpoint before taking any next action.
+- Latest BIBER MVP retry local-target apply/verification checkpoint:
+  the user explicitly approved applying the v15 local-target repair plan with
+  `plan_hash=a51c2bbaff1f2494b5b557f7999a06745efa9bad266ef2912a92fe2a681469fb`.
+  The approved Vast apply wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-edit-apply-context-v15-local-target.json`
+  with `apply_status=applied`, `ok=true`, `planned=1`, `applied=1`, and
+  `src/biber_api/test_diagnosis.py changed=True` in the failed temporary repo
+  at
+  `/workspace/biber-real-repo-candidates/diagnosis-unified-diff-20260524T231913Z-110411/repo`.
+  Direct focused verification in that temp repo passed
+  `tests/test_test_diagnosis.py -q` with `10 passed`. The client now carries
+  the apply artifact `target_root` into `verify-repair-edits`, runs the
+  allowlisted test locally against that temp repo, and records
+  `test_mode=local_target_root`, `target_root`, and `target_root_source` in the
+  saved verification artifact. Official verification wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-test-verification-context-v15-local-target.json`
+  with `verification_status=passed`, `ok=true`, `test_id=pytest-test-diagnosis`,
+  `test_mode=local_target_root`, `target_root_source=retry_source_context`, and
+  stdout ending in `10 passed in 0.24s`. Vast verification passed focused
+  `verify_repair_edits` client tests with `4 passed, 170 deselected`, full
+  `tests/test_biber_agent_client.py -q` with `174 passed`, and full
+  `tests -q` with `335 passed`. No training run, OpenAI mentor call,
+  credential change, API restart, or vLLM restart was used. Next narrow gate:
+  export the passed verification with `export-verified-repair`, run
+  `review-verified-repairs`, and then inspect `show-repair-chain`; do not save
+  to GitHub, mark training-ready, or start QLoRA from this row without the
+  normal review decisions and explicit user approval.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for

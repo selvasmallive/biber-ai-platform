@@ -377,6 +377,63 @@ def apply_workspace_edit_plan_local_target(
         raise BiberAgentClientError(str(exc)) from exc
 
 
+def run_allowlisted_test_local_target(
+    *,
+    target_root: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    ensure_local_src_import_path()
+    from biber_api.test_runner import (
+        TestRunnerConfigurationError,
+        UnknownTestCommandError,
+        run_test_command,
+    )
+
+    test_id = payload.get("test_id")
+    if not isinstance(test_id, str) or not test_id.strip():
+        raise BiberAgentClientError("Local test run requires test_id.")
+    settings = local_workspace_edit_settings(validate_local_target_root(target_root))
+    try:
+        return run_test_command(
+            test_id.strip(),
+            settings=settings,
+            dry_run=bool(payload.get("dry_run")),
+        )
+    except (TestRunnerConfigurationError, UnknownTestCommandError) as exc:
+        raise BiberAgentClientError(str(exc)) from exc
+
+
+def diagnose_test_failure_local(
+    test_run: Mapping[str, Any],
+    *,
+    max_context_lines: int | None,
+) -> dict[str, Any]:
+    ensure_local_src_import_path()
+    from biber_api.test_diagnosis import diagnose_test_failure as local_diagnose
+
+    payload = build_diagnosis_payload_from_test_run(
+        test_run,
+        max_context_lines=max_context_lines,
+    )
+    return local_diagnose(
+        stdout=str(payload.get("stdout") or ""),
+        stderr=str(payload.get("stderr") or ""),
+        exit_code=(
+            int(payload["exit_code"])
+            if isinstance(payload.get("exit_code"), int)
+            else None
+        ),
+        timed_out=bool(payload.get("timed_out")),
+        command=[
+            str(part)
+            for part in require_list(payload.get("command"))
+            if isinstance(part, str)
+        ],
+        test_id=str(payload.get("test_id") or ""),
+        max_context_lines=max_context_lines,
+    )
+
+
 def save_to_github(
     *,
     base_url: str,
@@ -2600,6 +2657,38 @@ def resolve_repair_target_root(
     return None, None
 
 
+def resolve_apply_target_root(
+    *,
+    cli_target_root: str | None,
+    plan: Mapping[str, Any],
+) -> tuple[Path | None, str | None]:
+    if cli_target_root:
+        return validate_local_target_root(Path(cli_target_root)), "cli_target_root"
+    raw_target_root = plan.get("target_root")
+    if isinstance(raw_target_root, str) and raw_target_root.strip():
+        return (
+            validate_local_target_root(Path(raw_target_root.strip())),
+            str(plan.get("target_root_source") or "plan_target_root"),
+        )
+    return None, None
+
+
+def resolve_verify_target_root(
+    *,
+    cli_target_root: str | None,
+    repair_apply: Mapping[str, Any],
+) -> tuple[Path | None, str | None]:
+    if cli_target_root:
+        return validate_local_target_root(Path(cli_target_root)), "cli_target_root"
+    raw_target_root = repair_apply.get("target_root")
+    if isinstance(raw_target_root, str) and raw_target_root.strip():
+        return (
+            validate_local_target_root(Path(raw_target_root.strip())),
+            str(repair_apply.get("target_root_source") or "apply_target_root"),
+        )
+    return None, None
+
+
 def build_plan_repair_edits_result(
     *,
     extraction_path: Path,
@@ -2931,6 +3020,9 @@ def build_verify_repair_edits_result(
     repair_apply: Mapping[str, Any],
     test_payload: Mapping[str, Any],
     test_run: Mapping[str, Any],
+    test_mode: str = "api_workspace_root",
+    target_root: Path | None = None,
+    target_root_source: str | None = None,
 ) -> dict[str, Any]:
     passed = test_run.get("executed") is True and test_run.get("ok") is True
     if passed:
@@ -2939,7 +3031,7 @@ def build_verify_repair_edits_result(
         verification_status = "not_executed"
     else:
         verification_status = "failed"
-    return {
+    result: dict[str, Any] = {
         "source": "biber_mvp_loop_repair_test_verification",
         "repair_loop_version": "mvp-v1",
         "source_artifact": str(apply_path),
@@ -2966,6 +3058,12 @@ def build_verify_repair_edits_result(
             ]
         ),
     }
+    if test_mode:
+        result["test_mode"] = test_mode
+    if target_root is not None:
+        result["target_root"] = str(target_root)
+        result["target_root_source"] = target_root_source or "unknown"
+    return result
 
 
 def normalize_repair_test_verification_artifact(
@@ -15312,6 +15410,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     verify_repair_edits_parser.add_argument("artifact")
     verify_repair_edits_parser.add_argument("--test-id")
+    verify_repair_edits_parser.add_argument(
+        "--target-root",
+        help=(
+            "Optional local repository root for offline verification. Defaults "
+            "to the target_root recorded by apply-repair-edits when present."
+        ),
+    )
     verify_repair_edits_parser.add_argument("--dry-run", action="store_true")
     verify_repair_edits_parser.add_argument(
         "--diagnose-on-failure",
@@ -16620,14 +16725,9 @@ def run(args: argparse.Namespace) -> str:
                 "apply-repair-edits artifact must contain a saved repair-edit plan JSON object."
             )
         apply_payload = build_apply_repair_edits_payload(plan)
-        target_root = (
-            validate_local_target_root(Path(args.target_root))
-            if args.target_root
-            else (
-                validate_local_target_root(Path(str(plan.get("target_root"))))
-                if plan.get("target_root")
-                else None
-            )
+        target_root, _target_root_source = resolve_apply_target_root(
+            cli_target_root=args.target_root,
+            plan=plan,
         )
         if target_root is not None:
             edit_apply = apply_workspace_edit_plan_local_target(
@@ -16671,26 +16771,44 @@ def run(args: argparse.Namespace) -> str:
             test_id=args.test_id,
             dry_run=args.dry_run,
         )
-        test_run = run_allowlisted_test(
-            base_url=base_url,
-            api_key=api_key,
-            payload=test_payload,
-            timeout_seconds=args.timeout_seconds,
+        target_root, target_root_source = resolve_verify_target_root(
+            cli_target_root=args.target_root,
+            repair_apply=repair_apply,
         )
+        if target_root is not None:
+            test_run = run_allowlisted_test_local_target(
+                target_root=target_root,
+                payload=test_payload,
+            )
+            test_mode = "local_target_root"
+        else:
+            test_run = run_allowlisted_test(
+                base_url=base_url,
+                api_key=api_key,
+                payload=test_payload,
+                timeout_seconds=args.timeout_seconds,
+            )
+            test_mode = "api_workspace_root"
         if (
             args.diagnose_on_failure
             and test_run.get("executed") is True
             and test_run.get("ok") is False
         ):
-            diagnosis = diagnose_test_failure(
-                base_url=base_url,
-                api_key=api_key,
-                payload=build_diagnosis_payload_from_test_run(
+            if target_root is not None:
+                diagnosis = diagnose_test_failure_local(
                     test_run,
                     max_context_lines=args.max_context_lines,
-                ),
-                timeout_seconds=args.timeout_seconds,
-            )
+                )
+            else:
+                diagnosis = diagnose_test_failure(
+                    base_url=base_url,
+                    api_key=api_key,
+                    payload=build_diagnosis_payload_from_test_run(
+                        test_run,
+                        max_context_lines=args.max_context_lines,
+                    ),
+                    timeout_seconds=args.timeout_seconds,
+                )
             test_run = dict(test_run)
             test_run["diagnosis"] = diagnosis
         result = build_verify_repair_edits_result(
@@ -16698,6 +16816,9 @@ def run(args: argparse.Namespace) -> str:
             repair_apply=repair_apply,
             test_payload=test_payload,
             test_run=test_run,
+            test_mode=test_mode,
+            target_root=target_root,
+            target_root_source=target_root_source,
         )
         if args.output:
             result["artifact_path"] = str(Path(args.output))
