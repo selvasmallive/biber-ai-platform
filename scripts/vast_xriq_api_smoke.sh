@@ -263,6 +263,37 @@ BIBER_API_KEY="$API_KEY" \
   --snapshot-limit 10 \
   > "${ARTIFACT_DIR}/client-overview.txt"
 
+CLIENT_SNAPSHOT_NAME="${SNAPSHOT_NAME}-client"
+
+BIBER_API_BASE_URL="$API_BASE_URL" \
+BIBER_API_KEY="$API_KEY" \
+"$PYTHON_BIN" "${SCRIPT_DIR}/biber_xriq_private_devnet_client.py" status \
+  > "${ARTIFACT_DIR}/client-status.txt"
+
+BIBER_API_BASE_URL="$API_BASE_URL" \
+BIBER_API_KEY="$API_KEY" \
+"$PYTHON_BIN" "${SCRIPT_DIR}/biber_xriq_private_devnet_client.py" account \
+  "$ALICE_ADDRESS" \
+  > "${ARTIFACT_DIR}/client-account.txt"
+
+BIBER_API_BASE_URL="$API_BASE_URL" \
+BIBER_API_KEY="$API_KEY" \
+"$PYTHON_BIN" "${SCRIPT_DIR}/biber_xriq_private_devnet_client.py" mempool \
+  > "${ARTIFACT_DIR}/client-mempool.txt"
+
+BIBER_API_BASE_URL="$API_BASE_URL" \
+BIBER_API_KEY="$API_KEY" \
+"$PYTHON_BIN" "${SCRIPT_DIR}/biber_xriq_private_devnet_client.py" snapshot-export \
+  --snapshot-name "$CLIENT_SNAPSHOT_NAME" \
+  > "${ARTIFACT_DIR}/client-snapshot-export.txt"
+
+BIBER_API_BASE_URL="$API_BASE_URL" \
+BIBER_API_KEY="$API_KEY" \
+"$PYTHON_BIN" "${SCRIPT_DIR}/biber_xriq_private_devnet_client.py" snapshot-import \
+  "$CLIENT_SNAPSHOT_NAME" \
+  --target staging \
+  > "${ARTIFACT_DIR}/client-snapshot-import.txt"
+
 BIBER_API_BASE_URL="$API_BASE_URL" \
 BIBER_API_KEY="$API_KEY" \
 "$PYTHON_BIN" "${SCRIPT_DIR}/biber_xriq_private_devnet_client.py" snapshots \
@@ -272,7 +303,7 @@ BIBER_API_KEY="$API_KEY" \
 BIBER_API_BASE_URL="$API_BASE_URL" \
 BIBER_API_KEY="$API_KEY" \
 "$PYTHON_BIN" "${SCRIPT_DIR}/biber_xriq_private_devnet_client.py" snapshot \
-  "$SNAPSHOT_NAME" \
+  "$CLIENT_SNAPSHOT_NAME" \
   > "${ARTIFACT_DIR}/client-snapshot-detail.txt"
 
 curl -fsS "${API_BASE_URL}/xriq/private-devnet/dashboard" \
@@ -286,6 +317,11 @@ grep -q "transactionLookupForm" "${ARTIFACT_DIR}/dashboard.html"
 grep -q "accountLookupForm" "${ARTIFACT_DIR}/dashboard.html"
 
 printf 'client_overview=%s\n' "${ARTIFACT_DIR}/client-overview.txt"
+printf 'client_status=%s\n' "${ARTIFACT_DIR}/client-status.txt"
+printf 'client_account=%s\n' "${ARTIFACT_DIR}/client-account.txt"
+printf 'client_mempool=%s\n' "${ARTIFACT_DIR}/client-mempool.txt"
+printf 'client_snapshot_export=%s\n' "${ARTIFACT_DIR}/client-snapshot-export.txt"
+printf 'client_snapshot_import=%s\n' "${ARTIFACT_DIR}/client-snapshot-import.txt"
 printf 'client_snapshots=%s\n' "${ARTIFACT_DIR}/client-snapshots.txt"
 printf 'client_snapshot_detail=%s\n' "${ARTIFACT_DIR}/client-snapshot-detail.txt"
 printf 'dashboard=%s\n' "${ARTIFACT_DIR}/dashboard.html"

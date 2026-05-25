@@ -149,6 +149,11 @@ python scripts/biber_xriq_private_devnet_client.py preflight-transfer \
   --expires-at-height 100 \
   --timestamp-ms 1000
 python scripts/biber_xriq_private_devnet_client.py transaction <hash-from-preflight>
+python scripts/biber_xriq_private_devnet_client.py block <height-from-preflight>
+python scripts/biber_xriq_private_devnet_client.py snapshot-export --snapshot-name api-smoke
+python scripts/biber_xriq_private_devnet_client.py snapshots
+python scripts/biber_xriq_private_devnet_client.py snapshot api-smoke
+python scripts/biber_xriq_private_devnet_client.py snapshot-import api-smoke --target staging
 ```
 
 Set `BIBER_API_KEY` or pass `--api-key`. Use `--json` on any client command to

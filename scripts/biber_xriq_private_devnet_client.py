@@ -169,6 +169,31 @@ def format_account_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_block_summary(payload: Mapping[str, Any]) -> str:
+    lines = [
+        "BIBER XRIQ private-devnet block",
+        f"height: {short_value(payload.get('height'))}",
+        f"block_hash: {short_value(payload.get('block_hash'), max_chars=24)}",
+        f"state_root: {short_value(payload.get('state_root'), max_chars=24)}",
+        f"transaction_count: {short_value(payload.get('transaction_count'))}",
+        f"timestamp_ms: {short_value(payload.get('timestamp_ms'))}",
+    ]
+    transactions = payload.get("transactions")
+    if isinstance(transactions, list):
+        for tx in transactions[:5]:
+            if not isinstance(tx, dict):
+                continue
+            lines.append(
+                "- "
+                f"{short_value(tx.get('tx_hash'), max_chars=16)} "
+                f"{short_value(tx.get('from'), max_chars=24)} -> "
+                f"{short_value(tx.get('to'), max_chars=24)} "
+                f"amount={short_value(tx.get('amount_base_units'))} "
+                f"fee={short_value(tx.get('fee_base_units'))}"
+            )
+    return "\n".join(lines)
+
+
 def format_mempool_summary(payload: Mapping[str, Any]) -> str:
     lines = [
         "BIBER XRIQ private-devnet mempool",
@@ -256,6 +281,20 @@ def format_snapshot_detail_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_snapshot_operation_summary(payload: Mapping[str, Any], *, title: str) -> str:
+    lines = [
+        title,
+        f"snapshot_name: {short_value(payload.get('snapshot_name'), max_chars=48)}",
+        f"target: {short_value(payload.get('target'))}",
+        f"current_height: {short_value(payload.get('current_height'))}",
+        f"state_root: {short_value(payload.get('state_root'), max_chars=24)}",
+        f"pending_transactions: {short_value(payload.get('pending_transactions'))}",
+        f"chain_file: {short_value(payload.get('chain_file'), max_chars=60)}",
+        f"pending_file: {short_value(payload.get('pending_file'), max_chars=60)}",
+    ]
+    return "\n".join(lines)
+
+
 def fetch_overview(
     *,
     base_url: str,
@@ -298,6 +337,21 @@ def fetch_account(
         base_url=base_url,
         api_key=api_key,
         path=f"/v1/xriq/private-devnet/accounts/{urllib.parse.quote(address, safe='')}",
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def fetch_block(
+    *,
+    base_url: str,
+    api_key: str,
+    height: int,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path=f"/v1/xriq/private-devnet/blocks/{height}",
         timeout_seconds=timeout_seconds,
     )
 
@@ -396,6 +450,54 @@ def fetch_snapshot(
     )
 
 
+def export_snapshot(
+    *,
+    base_url: str,
+    api_key: str,
+    snapshot_name: str | None,
+    include_pending_file: bool,
+    alice_balance_base_units: str | None,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/xriq/private-devnet/snapshots/export",
+        method="POST",
+        json_body={
+            "snapshot_name": snapshot_name,
+            "include_pending_file": include_pending_file,
+            "alice_balance_base_units": alice_balance_base_units,
+        },
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def import_snapshot(
+    *,
+    base_url: str,
+    api_key: str,
+    snapshot_name: str,
+    target: str,
+    include_pending_file: bool,
+    alice_balance_base_units: str | None,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/xriq/private-devnet/snapshots/import",
+        method="POST",
+        json_body={
+            "snapshot_name": snapshot_name,
+            "target": target,
+            "include_pending_file": include_pending_file,
+            "alice_balance_base_units": alice_balance_base_units,
+        },
+        timeout_seconds=timeout_seconds,
+    )
+
+
 def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--base-url",
@@ -437,6 +539,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     account = subparsers.add_parser("account", help="Fetch one account detail.")
     account.add_argument("address")
 
+    block = subparsers.add_parser("block", help="Fetch one block detail.")
+    block.add_argument("height", type=int)
+
     subparsers.add_parser("mempool", help="Fetch durable mempool detail.")
 
     transaction = subparsers.add_parser("transaction", help="Fetch one transaction detail.")
@@ -461,6 +566,36 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     snapshot = subparsers.add_parser("snapshot", help="Inspect one private-devnet snapshot.")
     snapshot.add_argument("snapshot_name_arg", nargs="?")
     snapshot.add_argument("--snapshot-name", dest="snapshot_name_flag")
+
+    snapshot_export = subparsers.add_parser(
+        "snapshot-export",
+        help="Export the configured private-devnet chain and pending state.",
+    )
+    snapshot_export.add_argument("--snapshot-name", default=None)
+    snapshot_export.add_argument(
+        "--no-pending-file",
+        action="store_true",
+        help="Do not include the configured pending file in the exported snapshot.",
+    )
+    snapshot_export.add_argument("--alice-balance", dest="alice_balance_base_units")
+
+    snapshot_import = subparsers.add_parser(
+        "snapshot-import",
+        help="Import a private-devnet snapshot into staging or configured files.",
+    )
+    snapshot_import.add_argument("snapshot_name_arg", nargs="?")
+    snapshot_import.add_argument("--snapshot-name", dest="snapshot_name_flag")
+    snapshot_import.add_argument(
+        "--target",
+        choices=("staging", "configured"),
+        default="staging",
+    )
+    snapshot_import.add_argument(
+        "--no-pending-file",
+        action="store_true",
+        help="Do not import the pending file.",
+    )
+    snapshot_import.add_argument("--alice-balance", dest="alice_balance_base_units")
 
     args = parser.parse_args(argv)
     if args.command is None:
@@ -511,6 +646,19 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(payload, indent=2, sort_keys=True)
             if args.print_json
             else format_account_summary(payload)
+        )
+
+    if args.command == "block":
+        payload = fetch_block(
+            base_url=base_url,
+            api_key=api_key,
+            height=args.height,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(payload, indent=2, sort_keys=True)
+            if args.print_json
+            else format_block_summary(payload)
         )
 
     if args.command == "mempool":
@@ -585,6 +733,46 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(payload, indent=2, sort_keys=True)
             if args.print_json
             else format_snapshot_detail_summary(payload)
+        )
+
+    if args.command == "snapshot-export":
+        payload = export_snapshot(
+            base_url=base_url,
+            api_key=api_key,
+            snapshot_name=args.snapshot_name,
+            include_pending_file=not args.no_pending_file,
+            alice_balance_base_units=args.alice_balance_base_units,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(payload, indent=2, sort_keys=True)
+            if args.print_json
+            else format_snapshot_operation_summary(
+                payload,
+                title="BIBER XRIQ private-devnet snapshot export",
+            )
+        )
+
+    if args.command == "snapshot-import":
+        snapshot_name = args.snapshot_name_flag or args.snapshot_name_arg
+        if not snapshot_name:
+            raise BiberClientError("snapshot-import requires a snapshot name.")
+        payload = import_snapshot(
+            base_url=base_url,
+            api_key=api_key,
+            snapshot_name=snapshot_name,
+            target=args.target,
+            include_pending_file=not args.no_pending_file,
+            alice_balance_base_units=args.alice_balance_base_units,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(payload, indent=2, sort_keys=True)
+            if args.print_json
+            else format_snapshot_operation_summary(
+                payload,
+                title="BIBER XRIQ private-devnet snapshot import",
+            )
         )
 
     raise BiberClientError(f"unsupported command: {args.command}")

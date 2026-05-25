@@ -113,6 +113,19 @@ serving the last broad-safe Rust/XRIQ adapter.
   restart was used. Next XRIQ-only step: improve the private-devnet runbook/
   client loop or add the next missing wallet/RPC workflow, keeping public XRIQ
   scope delayed.
+- Latest XRIQ private-devnet runbook-client checkpoint: the BIBER XRIQ stdlib
+  client was extended with `block`, `snapshot-export`, and `snapshot-import`
+  commands, so the repo-root client loop can now cover status, account,
+  mempool, preflight transfer, transaction lookup, block lookup, snapshot
+  export, snapshot listing/detail, and staging import. The Vast XRIQ API smoke
+  script now also calls the non-balance-consuming client paths for status,
+  account, mempool, snapshot export/import, snapshots, and snapshot detail.
+  Local verification used the bundled Python runtime for syntax compilation and
+  CLI help rendering; `git diff --check` passed. After pushing, run on Vast:
+  `/workspace/biber-venv/bin/python -m pytest tests/test_xriq_private_devnet_client.py tests/test_xriq_preflight_api.py -q`
+  and `bash scripts/vast_xriq_api_smoke.sh`. No training run, OpenAI mentor
+  call, credential change, API restart, or vLLM restart is needed for this
+  client-only checkpoint.
 - Latest BIBER MVP test-diagnosis workflow checkpoint pushed as
   `8b2047d4 Improve BIBER diagnosis repair loops`: stack detection is now
   command-first, so `python -m pytest` failures containing embedded Rust/Cargo

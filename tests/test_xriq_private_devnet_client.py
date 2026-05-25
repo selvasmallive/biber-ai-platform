@@ -89,6 +89,33 @@ def test_format_account_summary_includes_balance_and_nonce() -> None:
     assert "nonce: 1" in output
 
 
+def test_format_block_summary_lists_transactions() -> None:
+    payload = {
+        "height": 1,
+        "block_hash": "b" * 64,
+        "state_root": "c" * 64,
+        "transaction_count": 1,
+        "timestamp_ms": 1000,
+        "transactions": [
+            {
+                "tx_hash": "d" * 64,
+                "from": "xriqdev1alice00000000000",
+                "to": "xriqdev1bobbb00000000000",
+                "amount_base_units": "25",
+                "fee_base_units": "2",
+            }
+        ],
+    }
+
+    output = client.format_block_summary(payload)
+
+    assert "BIBER XRIQ private-devnet block" in output
+    assert "height: 1" in output
+    assert "transaction_count: 1" in output
+    assert "amount=25" in output
+    assert "fee=2" in output
+
+
 def test_format_mempool_summary_lists_pending_transactions() -> None:
     payload = {
         "pending_count": 1,
@@ -165,6 +192,64 @@ def test_preflight_transfer_posts_expected_body(monkeypatch) -> None:
         "expires_at_height": 100,
         "timestamp_ms": 1000,
         "consensus_round": None,
+        "alice_balance_base_units": None,
+    }
+
+
+def test_export_snapshot_posts_expected_body(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_request_json(**kwargs):
+        captured.update(kwargs)
+        return {"command": "snapshot-export", "snapshot_name": "api-smoke"}
+
+    monkeypatch.setattr(client, "request_json", fake_request_json)
+
+    payload = client.export_snapshot(
+        base_url="http://127.0.0.1:8000",
+        api_key="test-key",
+        snapshot_name="api-smoke",
+        include_pending_file=False,
+        alice_balance_base_units="100",
+        timeout_seconds=10,
+    )
+
+    assert payload == {"command": "snapshot-export", "snapshot_name": "api-smoke"}
+    assert captured["path"] == "/v1/xriq/private-devnet/snapshots/export"
+    assert captured["method"] == "POST"
+    assert captured["json_body"] == {
+        "snapshot_name": "api-smoke",
+        "include_pending_file": False,
+        "alice_balance_base_units": "100",
+    }
+
+
+def test_import_snapshot_posts_expected_body(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_request_json(**kwargs):
+        captured.update(kwargs)
+        return {"command": "snapshot-import", "snapshot_name": "api-smoke"}
+
+    monkeypatch.setattr(client, "request_json", fake_request_json)
+
+    payload = client.import_snapshot(
+        base_url="http://127.0.0.1:8000",
+        api_key="test-key",
+        snapshot_name="api-smoke",
+        target="staging",
+        include_pending_file=True,
+        alice_balance_base_units=None,
+        timeout_seconds=10,
+    )
+
+    assert payload == {"command": "snapshot-import", "snapshot_name": "api-smoke"}
+    assert captured["path"] == "/v1/xriq/private-devnet/snapshots/import"
+    assert captured["method"] == "POST"
+    assert captured["json_body"] == {
+        "snapshot_name": "api-smoke",
+        "target": "staging",
+        "include_pending_file": True,
         "alice_balance_base_units": None,
     }
 
