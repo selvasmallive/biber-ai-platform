@@ -194,6 +194,30 @@ serving the last broad-safe Rust/XRIQ adapter.
   it reports `ok=false`, `extraction_status=no_valid_edits`, `edits=[]`,
   `rejected[0].reason=repeated_failed_repair_edit`, and
   `blocked_repeated_edits=1`.
+- Latest BIBER MVP retry-context hardening checkpoint: `prepare-failed-repair-retry`
+  now adds machine-readable `forbidden_edits` and compact
+  `source_context_snippets` to the retry request and prompt. Snippets are read
+  only from safe repository-relative paths under `--source-root`; CLI controls
+  are `--source-root`, `--max-source-snippets`, and
+  `--source-snippet-context-lines`. Vast focused retry/extraction tests passed
+  with `14 passed, 137 deselected`; full `tests/test_biber_agent_client.py -q`
+  passed with `151 passed`; and the broader cheap MVP set
+  `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py -q`
+  passed with `169 passed`. No training run, OpenAI mentor call, or API restart
+  was used. Regenerated artifacts:
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-review-context-v2.json`
+  and
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-request-context-v2.json`.
+  The v2 request included the forbidden exact edit, the previous bad
+  `primary_category = _primary_category(signals)` target, the Python rule
+  snippet, the Rust `panicked at` rule snippet, and the focused test assertion
+  snippet. The local model still repeated the forbidden edit even after the v2
+  context; extraction wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-edit-extraction-context-v2.json`
+  with `ok=false`, `extraction_status=no_valid_edits`,
+  `rejected[0].reason=repeated_failed_repair_edit`, and
+  `blocked_repeated_edits=1`. Do not plan/apply this artifact; treat it as a
+  local-model gap and failure evidence.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
@@ -7105,16 +7129,15 @@ tail -f /workspace/biber-logs/vllm.log
 ## Recommended Next Steps
 
 Current immediate next step: continue narrow BIBER MVP client workflow work on
-top of the stable adapter. The latest retry attempt repeated the same failed
-source edit and is now blocked by the repeated-failed-edit guard, so do not
-plan/apply
-`/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-edit-extraction-repeat-guard.json`.
-The next useful code step is to harden failed-repair retry prompting/context:
-make `prepare-failed-repair-retry` include an explicit machine-readable
-forbidden edit list and/or tighter source snippets around the suspected rule,
-then rerun the local-model retry. Keep max output tokens below the local
-context window, and keep training disabled. Use the offline repair-attempt
-inspection path if repair artifacts need review:
+top of the stable adapter. The latest v2 retry prompt/context still caused the
+local model to repeat the forbidden edit, and extraction blocked it. Do not
+plan/apply either repeated-edit artifact. The next useful code step is to make
+the retry context ranking more explicit: prioritize source `_Rule` snippets
+above the previously failed target line, add a direct prompt sentence such as
+`If every candidate equals a forbidden edit, return {"edits":[]}`, and then
+rerun the local-model retry with `--max-tokens 500` or lower. Keep training
+disabled. Use the offline repair-attempt inspection path if repair artifacts
+need review:
 `show-repair-attempt`,
 `list-repair-attempts`, `extract-repair-edits`,
 `show-repair-edit-extraction`, `list-repair-edit-extractions`, then

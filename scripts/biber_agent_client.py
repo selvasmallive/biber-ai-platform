@@ -2435,6 +2435,184 @@ def repair_edit_candidates_from_payload(payload: Mapping[str, Any]) -> list[dict
     return edits
 
 
+def retry_context_terms(
+    *,
+    attempted_edits: list[Mapping[str, Any]],
+    original_failure: Mapping[str, Any],
+    verification_failure: Mapping[str, Any],
+) -> list[str]:
+    values: list[object] = [
+        original_failure.get("diagnosis_summary"),
+        original_failure.get("primary_category"),
+        original_failure.get("detected_stack"),
+        original_failure.get("relevant_output"),
+        verification_failure.get("diagnosis_summary"),
+        verification_failure.get("primary_category"),
+        verification_failure.get("detected_stack"),
+        verification_failure.get("relevant_output"),
+    ]
+    for edit in attempted_edits:
+        values.extend([edit.get("old_text"), edit.get("new_text")])
+
+    terms: list[str] = []
+    seen: set[str] = set()
+
+    def add(term: object) -> None:
+        text = str(term or "").strip()
+        if len(text) < 3 or len(text) > 200:
+            return
+        key = text.lower()
+        if key in seen:
+            return
+        seen.add(key)
+        terms.append(text)
+
+    for value in values:
+        text = str(value or "")
+        add(text)
+        for match in re.finditer(r"['\"]([^'\"]{3,80})['\"]", text):
+            add(match.group(1))
+        for token in re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]{4,}\b", text):
+            if token.lower() in {"assert", "expected", "actual", "failure"}:
+                continue
+            add(token)
+    return terms[:24]
+
+
+def safe_repo_relative_path(path: object) -> str | None:
+    if not isinstance(path, str) or not path.strip():
+        return None
+    clean_path = path.strip().replace("\\", "/")
+    path_parts = [part for part in clean_path.split("/") if part]
+    if (
+        clean_path.startswith("/")
+        or clean_path.startswith("~")
+        or ":" in clean_path
+        or ".." in path_parts
+    ):
+        return None
+    return clean_path
+
+
+def line_numbered_snippet(
+    lines: list[str],
+    *,
+    start_index: int,
+    end_index: int,
+) -> str:
+    return "\n".join(
+        f"{line_number}: {lines[line_number - 1]}"
+        for line_number in range(start_index + 1, end_index + 1)
+    )
+
+
+def build_retry_source_context_snippets(
+    *,
+    source_root: Path,
+    selected_context_paths: list[str],
+    attempted_edits: list[Mapping[str, Any]],
+    original_failure: Mapping[str, Any],
+    verification_failure: Mapping[str, Any],
+    max_snippets: int,
+    context_lines: int,
+) -> list[dict[str, Any]]:
+    if max_snippets < 1 or context_lines < 0:
+        return []
+    terms = retry_context_terms(
+        attempted_edits=attempted_edits,
+        original_failure=original_failure,
+        verification_failure=verification_failure,
+    )
+    old_text_by_path: dict[str, list[str]] = {}
+    for edit in attempted_edits:
+        clean_path = safe_repo_relative_path(edit.get("path"))
+        old_text = edit.get("old_text")
+        if clean_path and isinstance(old_text, str) and old_text.strip():
+            old_text_by_path.setdefault(clean_path, []).append(old_text.strip())
+
+    try:
+        root = source_root.resolve()
+    except OSError:
+        root = source_root
+
+    candidates: list[dict[str, Any]] = []
+    for raw_path in selected_context_paths:
+        clean_path = safe_repo_relative_path(raw_path)
+        if clean_path is None:
+            continue
+        file_path = (root / clean_path).resolve()
+        if file_path != root and root not in file_path.parents:
+            continue
+        if not file_path.is_file():
+            continue
+        try:
+            text = file_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        lines = text.splitlines()
+        lowered_lines = [line.lower() for line in lines]
+        for line_index, line in enumerate(lowered_lines):
+            window_start = max(0, line_index - context_lines)
+            window_end = min(len(lines), line_index + context_lines + 1)
+            window_text = "\n".join(lowered_lines[window_start:window_end])
+            matched_terms = [
+                term
+                for term in terms
+                if term.lower() in window_text and len(term) <= 120
+            ][:8]
+            if not matched_terms:
+                continue
+            score = len(matched_terms)
+            if "_rule(" in window_text:
+                score += 4
+            if len(set(term.lower() for term in matched_terms)) >= 2:
+                score += 2
+            for old_text in old_text_by_path.get(clean_path, []):
+                if old_text.lower() in window_text:
+                    score += 3
+                    break
+            candidates.append(
+                {
+                    "path": clean_path,
+                    "start_line": window_start + 1,
+                    "end_line": window_end,
+                    "matched_terms": matched_terms,
+                    "score": score,
+                    "snippet": line_numbered_snippet(
+                        lines,
+                        start_index=window_start,
+                        end_index=window_end,
+                    ),
+                }
+            )
+
+    candidates.sort(
+        key=lambda item: (
+            -int(item.get("score") or 0),
+            str(item.get("path") or ""),
+            int(item.get("start_line") or 0),
+        )
+    )
+    snippets: list[dict[str, Any]] = []
+    seen_ranges: set[tuple[str, int, int]] = set()
+    for candidate in candidates:
+        path = str(candidate.get("path") or "")
+        start_line = int(candidate.get("start_line") or 0)
+        end_line = int(candidate.get("end_line") or 0)
+        overlaps = any(
+            path == seen_path and start_line <= seen_end and end_line >= seen_start
+            for seen_path, seen_start, seen_end in seen_ranges
+        )
+        if overlaps:
+            continue
+        seen_ranges.add((path, start_line, end_line))
+        candidate.pop("score", None)
+        snippets.append(candidate)
+        if len(snippets) >= max_snippets:
+            break
+    return snippets
+
+
 def compact_repair_test_failure(
     test_run: Mapping[str, Any],
     *,
@@ -2470,6 +2648,8 @@ def build_failed_repair_retry_prompt(
     selected_context_paths: list[str],
     original_failure: Mapping[str, Any],
     attempted_edits: list[Mapping[str, Any]],
+    forbidden_edits: list[Mapping[str, Any]],
+    source_context_snippets: list[Mapping[str, Any]],
     verification_failure: Mapping[str, Any],
     suggested_next_actions: list[str],
 ) -> str:
@@ -2491,6 +2671,23 @@ def build_failed_repair_retry_prompt(
             )
         )
     attempted_text = "\n".join(attempted_lines) or "- none"
+    forbidden_text = (
+        json.dumps(forbidden_edits[:8], indent=2, sort_keys=True)
+        if forbidden_edits
+        else "[]"
+    )
+    snippet_lines: list[str] = []
+    for snippet in source_context_snippets[:6]:
+        snippet_lines.extend(
+            [
+                (
+                    f"- {snippet.get('path', '-')}:{snippet.get('start_line', '-')}"
+                    f"-{snippet.get('end_line', '-')}"
+                ),
+                str(snippet.get("snippet") or ""),
+            ]
+        )
+    source_snippet_text = "\n".join(snippet_lines) or "- none"
     original_command = (
         " ".join(str(part) for part in require_list(original_failure.get("command")))
         or "-"
@@ -2509,6 +2706,7 @@ def build_failed_repair_retry_prompt(
             "Rules:",
             "- The previous approved source edit did not pass verification.",
             "- Do not repeat the failed edit unchanged.",
+            "- Do not output any edit identical to a forbidden edit listed below.",
             "- Prefer the smallest safe source edit that fixes the failing test.",
             "- Do not change credentials, generated secrets, dependency folders, or unrelated files.",
             "- If the goal says not to change tests, propose only source/implementation edits.",
@@ -2535,6 +2733,12 @@ def build_failed_repair_retry_prompt(
             "",
             "Previous attempted edit that failed verification:",
             attempted_text,
+            "",
+            "Forbidden exact edits JSON:",
+            forbidden_text,
+            "",
+            "Compact source snippets for retry:",
+            source_snippet_text,
             "",
             "Verification failure after the attempted edit:",
             f"- test_id: {verification_failure.get('test_id') or '-'}",
@@ -2563,11 +2767,20 @@ def build_failed_repair_verification_review(
     verification: Mapping[str, Any],
     max_relevant_output_chars: int,
     max_context_paths: int | None,
+    source_root: Path,
+    max_source_snippets: int,
+    source_snippet_context_lines: int,
 ) -> dict[str, Any]:
     if max_relevant_output_chars < 1:
         raise BiberAgentClientError("--max-relevant-output-chars must be at least 1.")
     if max_context_paths is not None and max_context_paths < 1:
         raise BiberAgentClientError("--max-context-paths must be at least 1.")
+    if max_source_snippets < 0:
+        raise BiberAgentClientError("--max-source-snippets must be at least 0.")
+    if source_snippet_context_lines < 0:
+        raise BiberAgentClientError(
+            "--source-snippet-context-lines must be at least 0."
+        )
     if (
         verification.get("verification_status") == "passed"
         or verification.get("ok") is True
@@ -2695,6 +2908,16 @@ def build_failed_repair_verification_review(
             str(item) for item in require_list(repair_request.get("suggested_next_actions"))
         ]
 
+    forbidden_edits = [dict(edit) for edit in attempted_edits]
+    source_context_snippets = build_retry_source_context_snippets(
+        source_root=source_root,
+        selected_context_paths=selected_context_paths,
+        attempted_edits=attempted_edits,
+        original_failure=original_failure,
+        verification_failure=verification_failure,
+        max_snippets=max_source_snippets,
+        context_lines=source_snippet_context_lines,
+    )
     instruction = (
         "Retry the failed BIBER MVP repair using the smallest safe source edit. "
         "The previous approved edit failed verification; use the original "
@@ -2712,6 +2935,8 @@ def build_failed_repair_verification_review(
         selected_context_paths=selected_context_paths,
         original_failure=original_failure,
         attempted_edits=attempted_edits,
+        forbidden_edits=forbidden_edits,
+        source_context_snippets=source_context_snippets,
         verification_failure=verification_failure,
         suggested_next_actions=suggested_next_actions,
     )
@@ -2742,6 +2967,8 @@ def build_failed_repair_verification_review(
             "repair_attempt_artifact": str(attempt_path) if attempt_path else None,
             "attempted_edits": attempted_edits,
         },
+        "forbidden_edits": forbidden_edits,
+        "source_context_snippets": source_context_snippets,
         "suggested_next_actions": suggested_next_actions,
         "next_test_id": verification.get("test_id") or verification_failure.get("test_id"),
         "next_workflow": [
@@ -2791,6 +3018,13 @@ def build_failed_repair_verification_review(
         },
         "original_failure": original_failure,
         "attempted_edits": attempted_edits,
+        "forbidden_edits": forbidden_edits,
+        "source_context_snippets": source_context_snippets,
+        "source_context": {
+            "source_root": str(source_root),
+            "max_source_snippets": max_source_snippets,
+            "source_snippet_context_lines": source_snippet_context_lines,
+        },
         "verification_failure": verification_failure,
         "linked_artifacts": {
             "repair_apply": str(apply_path) if apply_path else None,
@@ -11663,6 +11897,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=4000,
     )
     prepare_failed_repair_retry.add_argument("--max-context-paths", type=int)
+    prepare_failed_repair_retry.add_argument(
+        "--source-root",
+        default=".",
+        help="Repository root used to collect compact retry source snippets.",
+    )
+    prepare_failed_repair_retry.add_argument(
+        "--max-source-snippets",
+        type=int,
+        default=4,
+    )
+    prepare_failed_repair_retry.add_argument(
+        "--source-snippet-context-lines",
+        type=int,
+        default=4,
+    )
 
     export_mvp_failures = subparsers.add_parser(
         "export-mvp-failures",
@@ -12823,6 +13072,9 @@ def run(args: argparse.Namespace) -> str:
             verification=verification,
             max_relevant_output_chars=args.max_relevant_output_chars,
             max_context_paths=args.max_context_paths,
+            source_root=Path(args.source_root),
+            max_source_snippets=args.max_source_snippets,
+            source_snippet_context_lines=args.source_snippet_context_lines,
         )
         if args.retry_output:
             retry_request = dict(require_mapping(review.get("retry_repair_request")))

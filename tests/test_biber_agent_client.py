@@ -2579,6 +2579,15 @@ def test_run_prepare_failed_repair_retry_writes_review_and_retry_without_api_key
     def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
         raise AssertionError("prepare-failed-repair-retry should not resolve an API key")
 
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    (source_dir / "parser.py").write_text(
+        "def parse(token):\n"
+        "    if token is None:\n"
+        "        return ''\n"
+        "    return token\n",
+        encoding="utf-8",
+    )
     mvp_loop = tmp_path / "agent-client-mvp-loop-output.json"
     mvp_loop.write_text(
         json.dumps(
@@ -2765,6 +2774,12 @@ def test_run_prepare_failed_repair_retry_writes_review_and_retry_without_api_key
                 str(retry_path),
                 "--max-context-paths",
                 "1",
+                "--source-root",
+                str(tmp_path),
+                "--max-source-snippets",
+                "2",
+                "--source-snippet-context-lines",
+                "1",
             ]
         )
     )
@@ -2782,16 +2797,24 @@ def test_run_prepare_failed_repair_retry_writes_review_and_retry_without_api_key
     assert result["eligible_for_training"] is False
     assert result["artifact_load_errors"] == []
     assert result["attempted_edits"][0]["path"] == "src/parser.py"
+    assert result["forbidden_edits"][0]["path"] == "src/parser.py"
+    assert result["source_context"]["source_root"] == str(tmp_path)
+    assert result["source_context_snippets"][0]["path"] == "src/parser.py"
+    assert "return token" in result["source_context_snippets"][0]["snippet"]
     assert result["retry_repair_request_artifact"] == str(retry_path)
     assert saved_retry["source"] == "biber_mvp_loop_repair_request"
     assert saved_retry["retry_of_failed_verification"] is True
     assert saved_retry["selected_context_paths"] == ["src/parser.py"]
     assert saved_retry["runtime_profile_ids"] == ["python-repair"]
+    assert saved_retry["forbidden_edits"] == result["forbidden_edits"]
+    assert saved_retry["source_context_snippets"] == result["source_context_snippets"]
     assert saved_retry["failure"]["diagnosis_summary"] == (
         "Detected assertion failure after repair."
     )
     assert "previous approved source edit did not pass" in saved_retry["repair_prompt"]
     assert "Do not repeat the failed edit unchanged." in saved_retry["repair_prompt"]
+    assert "Forbidden exact edits JSON:" in saved_retry["repair_prompt"]
+    assert "Compact source snippets for retry:" in saved_retry["repair_prompt"]
     assert "src/parser.py" in saved_retry["repair_prompt"]
     loaded_retry = client.build_or_load_repair_request(
         path=retry_path,
