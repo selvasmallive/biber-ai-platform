@@ -674,12 +674,39 @@ serving the last broad-safe Rust/XRIQ adapter.
   `passed_records=1`, `failed_records=0`, `expectation_failed_records=0`,
   `model_counts={'biber-dev-core-v1': 1}`, `eval_only=true`,
   `training_allowed=false`, and `safe_to_train=false`. No training run, OpenAI
+  mentor call, credential change, API restart, or vLLM restart was used. The
+  user later explicitly approved `accept_for_baseline`; see the following
+  checkpoint before taking any next action.
+- Latest BIBER MVP v15 baseline-candidate checkpoint: the user explicitly
+  approved `accept_for_baseline` for the v15 held-out eval review. The decision
+  was recorded with reviewer `user` and notes that it is baseline-candidate
+  only with no training, model promotion, GitHub-save, or OpenAI mentor
+  approval. Decision export wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-eval-decisions-context-v15-local-target.jsonl`
+  with `records=1`, `decision=accept_for_baseline`,
+  `accepted_for_baseline_records=1`, `baseline_candidate_ready=true`,
+  `training_allowed=false`, and `safe_to_train=false`. Decision review wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-eval-decision-review-context-v15-local-target.json`
+  with `accepted_for_baseline_records=1`,
+  `decision_counts={'accept_for_baseline': 1}`,
+  `baseline_candidate_ready_records=1`, `training_allowed=false`, and
+  `safe_to_train=false`. Baseline-candidate export wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-baseline-candidates-context-v15-local-target.jsonl`
+  with `records=1`, `baseline_candidates=1`, `baseline_candidate_ready=true`,
+  `baseline_ready=false`, `requires_baseline_review=true`, and
+  `training_allowed=false`. Baseline-candidate review wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-baseline-candidate-review-context-v15-local-target.json`
+  with `records=1`, `baseline_candidates=1`,
+  `baseline_candidate_ready_records=1`, `baseline_ready_records=0`,
+  `requires_baseline_review_records=1`, `review_status=heldout_baseline_candidate_summary_only`,
+  `training_allowed=false`, and `safe_to_train=false`. No training run, OpenAI
   mentor call, credential change, API restart, or vLLM restart was used. Next
-  manual gate: the user must explicitly choose whether to record a held-out
-  eval decision of `defer`, `reject`, or `accept_for_baseline`; do not infer
-  that decision from a generic "continue", and do not export baseline
-  candidates, mark training-ready, save to GitHub, or start QLoRA from this row
-  without the normal downstream review decisions and explicit user approval.
+  manual gate: the user must explicitly choose whether to record a
+  baseline-candidate decision of `defer`, `reject`, or `approve_as_baseline`;
+  do not infer that decision from a generic "continue", and do not run
+  training-readiness, mark training-ready, save to GitHub, or start QLoRA from
+  this row without the normal downstream review decisions and explicit user
+  approval.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
