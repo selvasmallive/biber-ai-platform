@@ -2674,6 +2674,23 @@ def test_run_export_blocked_retry_edit_gap_writes_review_queue_without_api_key(
         ),
         "expected_replacements": 1,
     }
+    suggested_rule_edit = {
+        "path": "src/biber_api/test_diagnosis.py",
+        "old_text": (
+            '    _Rule(r"panicked at", "test_failure", "Rust test panic", "rust"),'
+        ),
+        "new_text": (
+            '    _Rule(r"panicked at", "assertion_failure", '
+            '"Rust test panic", "rust"),'
+        ),
+        "expected_replacements": 1,
+        "reason": "assertion_diff_category_mismatch_in_rule_context",
+    }
+    suggested_rule_plan_edit = {
+        key: value
+        for key, value in suggested_rule_edit.items()
+        if key != "reason"
+    }
     attempt = tmp_path / "retry-attempt.json"
     repair_prompt = "Use the source rule snippet and do not repeat forbidden edits."
     attempt.write_text(
@@ -2697,6 +2714,7 @@ def test_run_export_blocked_retry_edit_gap_writes_review_queue_without_api_key(
                         "test_id": "pytest-test-diagnosis",
                         "primary_category": "assertion_failure",
                     },
+                    "suggested_rule_category_edits": [suggested_rule_edit],
                     "source_context_snippets": [
                         {
                             "path": "tests/test_test_diagnosis.py",
@@ -2709,7 +2727,7 @@ def test_run_export_blocked_retry_edit_gap_writes_review_queue_without_api_key(
                             "snippet_kind": "rule",
                             "snippet": (
                                 "43: _Rule(r\"panicked at\", "
-                                "\"assertion_failure\", \"Rust test panic\", \"rust\")"
+                                "\"test_failure\", \"Rust test panic\", \"rust\")"
                             ),
                         },
                     ],
@@ -2717,9 +2735,17 @@ def test_run_export_blocked_retry_edit_gap_writes_review_queue_without_api_key(
                 "model_response": {
                     "model": "biber-dev-core-v1",
                     "mentor_used": False,
-                    "content": json.dumps({"edits": [candidate_edit]}),
+                    "content": (
+                        json.dumps({"edits": [candidate_edit]})
+                        + "\nThe suggested rule-category edit should change "
+                        + "the rule category to assertion_failure."
+                    ),
                 },
-                "repair_content": json.dumps({"edits": [candidate_edit]}),
+                "repair_content": (
+                    json.dumps({"edits": [candidate_edit]})
+                    + "\nThe suggested rule-category edit should change "
+                    + "the rule category to assertion_failure."
+                ),
             }
         ),
         encoding="utf-8",
@@ -2845,6 +2871,16 @@ def test_run_export_blocked_retry_edit_gap_writes_review_queue_without_api_key(
     assert row["review_hard_blockers"] == result["review_hard_blockers"]
     assert row["blocked_candidates"][0]["allowed_for_plan"] is False
     assert row["model_edit_candidates"][0]["validated_edit"] == candidate_edit
+    assert row["suggested_rule_category_edits"] == [suggested_rule_plan_edit]
+    assert row["suggested_rule_category_edit_evidence"][0]["validated_edit"] == (
+        suggested_rule_plan_edit
+    )
+    assert row["suggested_rule_category_edit_evidence"][0]["reason"] == (
+        "assertion_diff_category_mismatch_in_rule_context"
+    )
+    assert row["suggested_rule_category_plan_edit_payload"] == {
+        "edits": [suggested_rule_plan_edit]
+    }
     assert row["next_review_action"] == (
         "human_review_blocked_retry_edit_gap_before_prompt_or_training_changes"
     )
@@ -2919,6 +2955,26 @@ def test_run_review_blocked_retry_edit_gaps_writes_summary_without_api_key(
             "review-blocked-retry-edit-gaps should not resolve an API key"
         )
 
+    suggested_rule_plan_edit = {
+        "path": "src/biber_api/test_diagnosis.py",
+        "old_text": (
+            '    _Rule(r"panicked at", "test_failure", "Rust test panic", "rust"),'
+        ),
+        "new_text": (
+            '    _Rule(r"panicked at", "assertion_failure", '
+            '"Rust test panic", "rust"),'
+        ),
+        "expected_replacements": 1,
+    }
+    fallback_candidate = {
+        "path": "src/biber_api/test_diagnosis.py",
+        "old_text": "primary_category = _primary_category(signals)",
+        "new_text": (
+            "primary_category = _primary_category(signals) "
+            "if signals else 'assertion_failure'"
+        ),
+        "expected_replacements": 1,
+    }
     row = {
         "source": "biber_mvp_loop_blocked_retry_edit_gap",
         "gap_type": "blocked_retry_repair_edit_candidate",
@@ -2956,6 +3012,23 @@ def test_run_review_blocked_retry_edit_gaps_writes_summary_without_api_key(
                 ],
             }
         ],
+        "model_response_text": (
+            json.dumps({"edits": [fallback_candidate]})
+            + "\nThe suggested rule-category edit should change the rule category "
+            + "to assertion_failure."
+        ),
+        "model_edit_candidates": [
+            {
+                "index": 1,
+                "source": "json",
+                "candidate": fallback_candidate,
+                "validated_edit": fallback_candidate,
+            }
+        ],
+        "suggested_rule_category_edits": [suggested_rule_plan_edit],
+        "suggested_rule_category_plan_edit_payload": {
+            "edits": [suggested_rule_plan_edit]
+        },
     }
     jsonl_path = tmp_path / "blocked-retry-edit-gap.jsonl"
     jsonl_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
@@ -2993,6 +3066,10 @@ def test_run_review_blocked_retry_edit_gaps_writes_summary_without_api_key(
         "candidate_reuses_previous_failed_target_line",
         "previous_failed_target_retry_blocked_by_rule_context",
         "rule_and_failure_line_context_available",
+        "suggested_rule_category_edit_available",
+        "model_json_candidate_differs_from_suggested_rule_category_edit",
+        "model_prose_mentions_suggested_rule_category_edit",
+        "json_candidate_conflicts_with_suggested_rule_category_edit",
     ]
     assert result["groups"] == [
         {
@@ -3012,6 +3089,9 @@ def test_run_review_blocked_retry_edit_gaps_writes_summary_without_api_key(
                 "/workspace/outputs/retry-edit-extraction.json"
             ],
             "repair_attempt_artifacts": ["/workspace/outputs/retry-attempt.json"],
+            "suggested_rule_category_plan_edit_payloads": [
+                {"edits": [suggested_rule_plan_edit]}
+            ],
             "jsonl_refs": [{"jsonl_path": str(jsonl_path), "jsonl_index": 1}],
             "review_hints": result["review_hints"],
             "training_allowed": False,
@@ -3496,6 +3576,117 @@ def test_run_plan_repair_edits_uses_accepted_retry_review_payload(
     assert result["ok"] is True
     assert result["plan_edit_payload"] == captured["payload"]
     assert result["next_test_id"] == "pytest-test-diagnosis"
+
+
+def test_run_plan_repair_edits_uses_retry_source_root_for_local_plan(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local retry plan should not resolve an API key")
+
+    def fake_plan_workspace_edit_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        captured["target_root"] = str(target_root)
+        captured["payload"] = payload
+        return {
+            "ok": True,
+            "plan_hash": "c" * 64,
+            "planned": [{"path": "src/biber_api/test_diagnosis.py"}],
+            "rejected": [],
+            "files_touched": 1,
+            "total_new_bytes": 88,
+            "summary": "Planned 1 edit.",
+        }
+
+    target_root = tmp_path / "candidate"
+    target_root.mkdir()
+    reviewed_edit = {
+        "path": "src/biber_api/test_diagnosis.py",
+        "old_text": (
+            '    _Rule(r"panicked at", "test_failure", "Rust test panic", "rust"),'
+        ),
+        "new_text": (
+            '    _Rule(r"panicked at", "assertion_failure", '
+            '"Rust test panic", "rust"),'
+        ),
+        "expected_replacements": 1,
+    }
+    attempt = tmp_path / "retry-attempt.json"
+    attempt.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_attempt",
+                "repair_request": {
+                    "retry_of_failed_verification": True,
+                    "source_context": {"source_root": str(target_root)},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    extraction = tmp_path / "retry-edit-extraction.json"
+    extraction.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_extraction",
+                "source_artifact": str(attempt),
+                "extraction_status": "ready_for_plan_edit",
+                "ok": True,
+                "next_test_id": "pytest-test-diagnosis",
+                "plan_edit_payload": {"edits": [reviewed_edit]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    review = tmp_path / "retry-edit-review.json"
+    review.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_retry_repair_edit_review",
+                "source_artifact": str(extraction),
+                "review_status": "retry_edit_ready_for_plan_review",
+                "ok": True,
+                "plan_allowed": True,
+                "hard_blockers": [],
+                "reviewed_plan_edit_payload": {"edits": [reviewed_edit]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(
+        client,
+        "plan_workspace_edit_local_target",
+        fake_plan_workspace_edit_local_target,
+    )
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "plan-repair-edits",
+                str(extraction),
+                "--retry-review-artifact",
+                str(review),
+                "--max-files",
+                "1",
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert captured["target_root"] == str(target_root.resolve())
+    assert captured["payload"] == {"edits": [reviewed_edit], "max_files": 1}
+    assert result["ok"] is True
+    assert result["plan_mode"] == "local_target_root"
+    assert result["target_root"] == str(target_root.resolve())
+    assert result["target_root_source"] == "retry_source_context"
 
 
 def test_run_show_repair_edit_plan_summarizes_without_api_key(
@@ -4438,6 +4629,19 @@ def test_prepare_failed_repair_retry_prefers_verification_cwd_for_source_context
         result["retry_repair_request"]["suggested_rule_category_edits"]
         == suggested_rule_edits
     )
+    assert result["suggested_rule_category_plan_edit_payload"] == {
+        "edits": [
+            {
+                key: value
+                for key, value in suggested_rule_edits[0].items()
+                if key != "reason"
+            }
+        ]
+    }
+    assert (
+        result["retry_repair_request"]["suggested_rule_category_plan_edit_payload"]
+        == result["suggested_rule_category_plan_edit_payload"]
+    )
     rule_snippet = next(
         snippet
         for snippet in result["source_context_snippets"]
@@ -4457,6 +4661,67 @@ def test_prepare_failed_repair_retry_prefers_verification_cwd_for_source_context
         "if signals else 'test_failure'" in snippet["snippet"]
         for snippet in result["source_context_snippets"]
     )
+
+
+def test_retry_rule_category_suggestions_scan_sources_when_snippets_trimmed(
+    tmp_path: Path,
+) -> None:
+    source_dir = tmp_path / "src" / "biber_api"
+    source_dir.mkdir(parents=True)
+    (source_dir / "test_diagnosis.py").write_text(
+        "_RULES = [\n"
+        "    _Rule(r\"panicked at\", \"test_failure\", \"Rust test panic\", \"rust\"),\n"
+        "    _Rule(r\"assertionerror\", \"assertion_failure\", \"Python assertion failure\", \"python\"),\n"
+        "]\n",
+        encoding="utf-8",
+    )
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_test_diagnosis.py").write_text(
+        "def test_diagnose_rust_test_panic():\n"
+        "    diagnosis = diagnose_test_failure(stdout='thread panicked at src/lib.rs')\n"
+        "    assert diagnosis[\"primary_category\"] == \"assertion_failure\"\n",
+        encoding="utf-8",
+    )
+
+    suggestions = client.retry_rule_category_edit_suggestions_from_sources(
+        source_root=tmp_path,
+        selected_context_paths=[
+            "src/biber_api/test_diagnosis.py",
+            "tests/test_test_diagnosis.py",
+        ],
+        original_failure={
+            "primary_category": "assertion_failure",
+            "relevant_output": (
+                "tests/test_test_diagnosis.py:3: AssertionError\n"
+                "assert 'test_failure' == 'assertion_failure'"
+            ),
+        },
+        verification_failure={
+            "primary_category": "assertion_failure",
+            "relevant_output": (
+                "tests/test_test_diagnosis.py:3: AssertionError\n"
+                "assert 'test_failure' == 'assertion_failure'"
+            ),
+        },
+        failure_line_refs_by_path={"tests/test_test_diagnosis.py": {3}},
+        context_lines=0,
+    )
+
+    assert suggestions == [
+        {
+            "path": "src/biber_api/test_diagnosis.py",
+            "old_text": (
+                '    _Rule(r"panicked at", "test_failure", "Rust test panic", "rust"),'
+            ),
+            "new_text": (
+                '    _Rule(r"panicked at", "assertion_failure", '
+                '"Rust test panic", "rust"),'
+            ),
+            "expected_replacements": 1,
+            "reason": "assertion_diff_category_mismatch_in_rule_context",
+        }
+    ]
 
 
 def test_run_prepare_failed_repair_retry_writes_review_and_retry_without_api_key(

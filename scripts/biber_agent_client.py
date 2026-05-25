@@ -295,6 +295,88 @@ def diagnose_test_failure(
     )
 
 
+def validate_local_target_root(target_root: Path) -> Path:
+    try:
+        resolved = target_root.resolve()
+    except OSError as exc:
+        raise BiberAgentClientError(
+            f"Repair edit target root could not be resolved: {target_root}"
+        ) from exc
+    if not resolved.is_dir():
+        raise BiberAgentClientError(
+            f"Repair edit target root is not a directory: {resolved}"
+        )
+    return resolved
+
+
+def ensure_local_src_import_path() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    src_root = repo_root / "src"
+    if src_root.is_dir() and str(src_root) not in sys.path:
+        sys.path.insert(0, str(src_root))
+
+
+def local_workspace_edit_settings(target_root: Path) -> object:
+    ensure_local_src_import_path()
+    from dataclasses import replace
+
+    from biber_api.config import get_settings
+
+    return replace(get_settings(), repo_context_root=str(target_root))
+
+
+def plan_workspace_edit_local_target(
+    *,
+    target_root: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    ensure_local_src_import_path()
+    from biber_api.workspace_edit import (
+        WorkspaceEditConfigurationError,
+        WorkspaceEditError,
+        plan_workspace_edits,
+    )
+
+    settings = local_workspace_edit_settings(validate_local_target_root(target_root))
+    max_files = int(payload.get("max_files") or 8)
+    try:
+        return plan_workspace_edits(
+            edits=require_list(payload.get("edits")),
+            settings=settings,  # type: ignore[arg-type]
+            max_files=max_files,
+        )
+    except (WorkspaceEditConfigurationError, WorkspaceEditError) as exc:
+        raise BiberAgentClientError(str(exc)) from exc
+
+
+def apply_workspace_edit_plan_local_target(
+    *,
+    target_root: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    ensure_local_src_import_path()
+    from biber_api.workspace_edit import (
+        WorkspaceEditConfigurationError,
+        WorkspaceEditError,
+        apply_workspace_edit_plan as local_apply_workspace_edit_plan,
+    )
+
+    settings = local_workspace_edit_settings(validate_local_target_root(target_root))
+    max_files = int(payload.get("max_files") or 8)
+    plan_hash = payload.get("plan_hash")
+    if not isinstance(plan_hash, str) or not plan_hash:
+        raise BiberAgentClientError("Local repair edit apply requires plan_hash.")
+    try:
+        return local_apply_workspace_edit_plan(
+            edits=require_list(payload.get("edits")),
+            expected_plan_hash=plan_hash,
+            settings=settings,  # type: ignore[arg-type]
+            max_files=max_files,
+        )
+    except (WorkspaceEditConfigurationError, WorkspaceEditError) as exc:
+        raise BiberAgentClientError(str(exc)) from exc
+
+
 def save_to_github(
     *,
     base_url: str,
@@ -2029,6 +2111,153 @@ def retry_rule_category_edit_suggestions(
     return suggestions[:4]
 
 
+def retry_rule_pattern_matches_terms(pattern: str, terms: list[str]) -> bool:
+    pattern_text = pattern.strip()
+    if not pattern_text:
+        return False
+    lowered_pattern = pattern_text.lower()
+    if any(lowered_pattern in term.lower() for term in terms):
+        return True
+    try:
+        compiled = re.compile(pattern_text, flags=re.IGNORECASE)
+    except re.error:
+        return False
+    return any(compiled.search(term) for term in terms)
+
+
+def retry_rule_category_edit_suggestions_from_sources(
+    *,
+    source_root: Path,
+    selected_context_paths: list[str],
+    original_failure: Mapping[str, Any],
+    verification_failure: Mapping[str, Any],
+    failure_line_refs_by_path: Mapping[str, set[int]],
+    context_lines: int,
+) -> list[dict[str, Any]]:
+    try:
+        root = source_root.resolve()
+    except OSError:
+        root = source_root
+    terms = retry_context_terms(
+        attempted_edits=[],
+        original_failure=original_failure,
+        verification_failure=verification_failure,
+    )
+    terms = dedupe_strings(
+        [
+            *terms,
+            *retry_failure_line_context_terms(
+                source_root=root,
+                failure_line_refs_by_path=failure_line_refs_by_path,
+                context_lines=max(context_lines, 4),
+            ),
+        ]
+    ) or []
+
+    suggestions: list[dict[str, Any]] = []
+    for diff in failure_assertion_diffs(original_failure, verification_failure):
+        actual = diff.get("actual")
+        expected = diff.get("expected")
+        if not actual or not expected or actual == expected:
+            continue
+        suggestion_added = False
+        for raw_path in selected_context_paths:
+            clean_path = safe_repo_relative_path(raw_path)
+            if clean_path is None or is_test_edit_path(clean_path):
+                continue
+            file_path = (root / clean_path).resolve()
+            if file_path != root and root not in file_path.parents:
+                continue
+            if not file_path.is_file():
+                continue
+            try:
+                lines = file_path.read_text(
+                    encoding="utf-8",
+                    errors="replace",
+                ).splitlines()
+            except OSError:
+                continue
+            for line in lines:
+                old_text = line.rstrip()
+                if "_Rule(" not in old_text:
+                    continue
+                matches = list(re.finditer(r"([\"'])([^\"']+)\1", old_text))
+                if len(matches) < 2 or matches[1].group(2) != actual:
+                    continue
+                pattern = matches[0].group(2)
+                if not retry_rule_pattern_matches_terms(pattern, terms):
+                    continue
+                category_match = matches[1]
+                new_text = (
+                    old_text[: category_match.start(2)]
+                    + expected
+                    + old_text[category_match.end(2) :]
+                )
+                suggestions.append(
+                    {
+                        "path": clean_path,
+                        "old_text": old_text,
+                        "new_text": new_text,
+                        "expected_replacements": 1,
+                        "reason": (
+                            "assertion_diff_category_mismatch_in_rule_context"
+                        ),
+                    }
+                )
+                suggestion_added = True
+                break
+            if suggestion_added:
+                break
+    return suggestions[:4]
+
+
+def dedupe_rule_category_edit_suggestions(
+    suggestions: list[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[tuple[object, ...]] = set()
+    for suggestion in suggestions:
+        edit = {
+            key: suggestion.get(key)
+            for key in (
+                "path",
+                "old_text",
+                "new_text",
+                "expected_replacements",
+                "create_if_missing",
+                "dry_run",
+            )
+            if key in suggestion
+        }
+        signature = repair_edit_signature(edit)
+        if signature in seen:
+            continue
+        seen.add(signature)
+        deduped.append(dict(suggestion))
+    return deduped[:4]
+
+
+def plan_safe_repair_edits_from_candidates(
+    candidates: list[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    edits: list[dict[str, Any]] = []
+    for candidate in candidates:
+        edit = {
+            key: candidate.get(key)
+            for key in (
+                "path",
+                "old_text",
+                "new_text",
+                "expected_replacements",
+                "create_if_missing",
+                "dry_run",
+            )
+            if key in candidate
+        }
+        edits.append(edit)
+    return edits
+
+
 def build_retry_repair_edit_review(
     *,
     extraction_path: Path,
@@ -2328,17 +2557,64 @@ def build_plan_repair_edits_payload_with_retry_review(
     return payload
 
 
+def infer_retry_repair_target_root(
+    *,
+    extraction_path: Path,
+    extraction: Mapping[str, Any],
+) -> tuple[Path | None, str | None]:
+    attempt_path, attempt, attempt_error = load_linked_artifact(
+        extraction.get("source_artifact"),
+        base_path=extraction_path,
+        label="repair-attempt artifact",
+        normalizer=normalize_repair_attempt_artifact,
+    )
+    if attempt_error is not None or attempt_path is None or attempt is None:
+        return None, None
+    repair_request = require_mapping(attempt.get("repair_request"))
+    if repair_request.get("retry_of_failed_verification") is not True:
+        return None, None
+    source_context = require_mapping(repair_request.get("source_context"))
+    raw_source_root = source_context.get("source_root")
+    if not isinstance(raw_source_root, str) or not raw_source_root.strip():
+        return None, None
+    target_root = Path(raw_source_root.strip())
+    if not target_root.is_dir():
+        return None, None
+    return target_root, "retry_source_context"
+
+
+def resolve_repair_target_root(
+    *,
+    cli_target_root: str | None,
+    extraction_path: Path,
+    extraction: Mapping[str, Any],
+) -> tuple[Path | None, str | None]:
+    if cli_target_root:
+        return validate_local_target_root(Path(cli_target_root)), "cli_target_root"
+    target_root, target_source = infer_retry_repair_target_root(
+        extraction_path=extraction_path,
+        extraction=extraction,
+    )
+    if target_root is not None:
+        return validate_local_target_root(target_root), target_source
+    return None, None
+
+
 def build_plan_repair_edits_result(
     *,
     extraction_path: Path,
     extraction: Mapping[str, Any],
     plan_payload: Mapping[str, Any],
     edit_plan: Mapping[str, Any],
+    plan_mode: str = "api_workspace_root",
+    target_root: Path | None = None,
+    target_root_source: str | None = None,
 ) -> dict[str, Any]:
-    return {
+    result: dict[str, Any] = {
         "source": "biber_mvp_loop_repair_edit_plan",
         "repair_loop_version": "mvp-v1",
         "source_artifact": str(extraction_path),
+        "plan_mode": plan_mode,
         "plan_status": "planned" if edit_plan.get("ok") is True else "rejected",
         "ok": edit_plan.get("ok") is True,
         "training_allowed": False,
@@ -2356,6 +2632,10 @@ def build_plan_repair_edits_result(
             "diagnose_again_if_still_failing",
         ],
     }
+    if target_root is not None:
+        result["target_root"] = str(target_root)
+        result["target_root_source"] = target_root_source or "unknown"
+    return result
 
 
 def normalize_repair_edit_plan_artifact(
@@ -2494,7 +2774,7 @@ def build_apply_repair_edits_result(
     edit_apply: Mapping[str, Any],
 ) -> dict[str, Any]:
     ok = edit_apply.get("ok") is True
-    return {
+    result: dict[str, Any] = {
         "source": "biber_mvp_loop_repair_edit_apply",
         "repair_loop_version": "mvp-v1",
         "source_artifact": str(plan_path),
@@ -2516,6 +2796,12 @@ def build_apply_repair_edits_result(
             "save_successful_fix_as_verified_candidate_if_repeatable",
         ],
     }
+    if plan.get("plan_mode"):
+        result["plan_mode"] = plan.get("plan_mode")
+    if plan.get("target_root"):
+        result["target_root"] = plan.get("target_root")
+        result["target_root_source"] = plan.get("target_root_source")
+    return result
 
 
 def normalize_repair_edit_apply_artifact(
@@ -3223,6 +3509,7 @@ def build_failed_repair_retry_prompt(
     source_context_snippets: list[Mapping[str, Any]],
     verification_failure: Mapping[str, Any],
     suggested_next_actions: list[str],
+    suggested_rule_category_edits: list[Mapping[str, Any]] | None = None,
 ) -> str:
     context_lines = "\n".join(f"- {path}" for path in selected_context_paths) or "- none"
     action_lines = "\n".join(f"- {action}" for action in suggested_next_actions) or "- none"
@@ -3264,14 +3551,22 @@ def build_failed_repair_retry_prompt(
                     f"category to {expected!r}; do not patch fallback logic."
                 )
     retry_hint_text = "\n".join(retry_hint_lines) or "- none"
-    suggested_rule_category_edits = retry_rule_category_edit_suggestions(
-        source_context_snippets=source_context_snippets,
-        original_failure=original_failure,
-        verification_failure=verification_failure,
+    if suggested_rule_category_edits is None:
+        suggested_rule_category_edits = retry_rule_category_edit_suggestions(
+            source_context_snippets=source_context_snippets,
+            original_failure=original_failure,
+            verification_failure=verification_failure,
+        )
+    prompt_suggested_rule_category_edits = plan_safe_repair_edits_from_candidates(
+        [dict(item) for item in suggested_rule_category_edits]
     )
     suggested_rule_category_text = (
-        json.dumps(suggested_rule_category_edits, indent=2, sort_keys=True)
-        if suggested_rule_category_edits
+        json.dumps(
+            prompt_suggested_rule_category_edits,
+            indent=2,
+            sort_keys=True,
+        )
+        if prompt_suggested_rule_category_edits
         else "[]"
     )
     snippet_lines: list[str] = []
@@ -3528,6 +3823,11 @@ def build_failed_repair_verification_review(
     )
     source_context["max_source_snippets"] = max_source_snippets
     source_context["source_snippet_context_lines"] = source_snippet_context_lines
+    failure_line_refs_by_path = retry_failure_line_references(
+        selected_context_paths=selected_context_paths,
+        original_failure=original_failure,
+        verification_failure=verification_failure,
+    )
 
     forbidden_edits = [dict(edit) for edit in attempted_edits]
     source_context_snippets = build_retry_source_context_snippets(
@@ -3539,11 +3839,28 @@ def build_failed_repair_verification_review(
         max_snippets=max_source_snippets,
         context_lines=source_snippet_context_lines,
     )
-    suggested_rule_category_edits = retry_rule_category_edit_suggestions(
-        source_context_snippets=source_context_snippets,
-        original_failure=original_failure,
-        verification_failure=verification_failure,
+    suggested_rule_category_edits = dedupe_rule_category_edit_suggestions(
+        [
+            *retry_rule_category_edit_suggestions(
+                source_context_snippets=source_context_snippets,
+                original_failure=original_failure,
+                verification_failure=verification_failure,
+            ),
+            *retry_rule_category_edit_suggestions_from_sources(
+                source_root=effective_source_root,
+                selected_context_paths=selected_context_paths,
+                original_failure=original_failure,
+                verification_failure=verification_failure,
+                failure_line_refs_by_path=failure_line_refs_by_path,
+                context_lines=source_snippet_context_lines,
+            ),
+        ]
     )
+    suggested_rule_category_plan_edit_payload = {
+        "edits": plan_safe_repair_edits_from_candidates(
+            suggested_rule_category_edits
+        )
+    }
     instruction = (
         "Retry the failed BIBER MVP repair using the smallest safe source edit. "
         "The previous approved edit failed verification; use the original "
@@ -3565,6 +3882,7 @@ def build_failed_repair_verification_review(
         source_context_snippets=source_context_snippets,
         verification_failure=verification_failure,
         suggested_next_actions=suggested_next_actions,
+        suggested_rule_category_edits=suggested_rule_category_edits,
     )
     runtime_profile_ids = normalize_runtime_profile_ids(
         repair_request.get("runtime_profile_ids")
@@ -3597,6 +3915,9 @@ def build_failed_repair_verification_review(
         "source_context_snippets": source_context_snippets,
         "source_context": source_context,
         "suggested_rule_category_edits": suggested_rule_category_edits,
+        "suggested_rule_category_plan_edit_payload": (
+            suggested_rule_category_plan_edit_payload
+        ),
         "suggested_next_actions": suggested_next_actions,
         "next_test_id": verification.get("test_id") or verification_failure.get("test_id"),
         "next_workflow": [
@@ -3650,6 +3971,9 @@ def build_failed_repair_verification_review(
         "source_context_snippets": source_context_snippets,
         "source_context": source_context,
         "suggested_rule_category_edits": suggested_rule_category_edits,
+        "suggested_rule_category_plan_edit_payload": (
+            suggested_rule_category_plan_edit_payload
+        ),
         "verification_failure": verification_failure,
         "linked_artifacts": {
             "repair_apply": str(apply_path) if apply_path else None,
@@ -4137,6 +4461,46 @@ def export_empty_retry_gap(
     }
 
 
+def suggested_rule_category_edit_candidates_from_repair_request(
+    repair_request: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    evidence: list[dict[str, Any]] = []
+    for index, candidate in enumerate(
+        require_list(repair_request.get("suggested_rule_category_edits")),
+        start=1,
+    ):
+        if not isinstance(candidate, Mapping):
+            continue
+        edit_candidate = {
+            key: candidate.get(key)
+            for key in (
+                "path",
+                "file",
+                "old_text",
+                "new_text",
+                "expected_replacements",
+                "create_if_missing",
+                "dry_run",
+            )
+            if key in candidate
+        }
+        edit, rejection = validate_repair_edit_candidate(
+            edit_candidate,
+            index=index,
+        )
+        item: dict[str, Any] = {
+            "index": index,
+            "candidate": dict(candidate),
+            "reason": candidate.get("reason"),
+        }
+        if edit is not None:
+            item["validated_edit"] = edit
+        if rejection is not None:
+            item["validation_rejection"] = rejection
+        evidence.append(item)
+    return evidence
+
+
 def build_blocked_retry_edit_gap_record(
     *,
     review_path: Path,
@@ -4181,6 +4545,15 @@ def build_blocked_retry_edit_gap_record(
 
     model_response = require_mapping(attempt.get("model_response"))
     content = str(attempt.get("repair_content") or model_response.get("content") or "")
+    suggested_rule_category_edit_evidence = (
+        suggested_rule_category_edit_candidates_from_repair_request(repair_request)
+    )
+    suggested_rule_category_edits = [
+        dict(item.get("validated_edit"))
+        for item in suggested_rule_category_edit_evidence
+        if isinstance(item.get("validated_edit"), Mapping)
+    ]
+    suggested_rule_category_payload = {"edits": suggested_rule_category_edits}
     return {
         "source": "biber_mvp_loop_blocked_retry_edit_gap",
         "repair_loop_version": review.get("repair_loop_version")
@@ -4234,6 +4607,13 @@ def build_blocked_retry_edit_gap_record(
         "model_response_text": content,
         "model_response_preview": compact_text(content, max_chars=1000),
         "model_edit_candidates": extract_model_edit_candidate_evidence(content),
+        "suggested_rule_category_edit_evidence": (
+            suggested_rule_category_edit_evidence
+        ),
+        "suggested_rule_category_edits": suggested_rule_category_edits,
+        "suggested_rule_category_plan_edit_payload": (
+            suggested_rule_category_payload
+        ),
         "repair_prompt": repair_request.get("repair_prompt") or "",
         "original_failure": require_mapping(repair_request.get("original_failure")),
         "verification_failure": require_mapping(repair_request.get("failure")),
@@ -4348,6 +4728,46 @@ def blocked_retry_edit_gap_hints(record: Mapping[str, Any]) -> list[str]:
         hints.append("previous_failed_target_retry_blocked_by_rule_context")
     if "source_rule_context_present" in hints and "failure_line_test_expectation_present" in hints:
         hints.append("rule_and_failure_line_context_available")
+    suggested_edits = [
+        item
+        for item in require_list(record.get("suggested_rule_category_edits"))
+        if isinstance(item, Mapping)
+    ]
+    if suggested_edits:
+        hints.append("suggested_rule_category_edit_available")
+
+    suggested_signatures = {
+        repair_edit_signature(item) for item in suggested_edits
+    }
+    model_signatures = {
+        repair_edit_signature(require_mapping(item.get("validated_edit")))
+        for item in require_list(record.get("model_edit_candidates"))
+        if isinstance(item, Mapping)
+        and isinstance(item.get("validated_edit"), Mapping)
+    }
+    if suggested_signatures and model_signatures and not (
+        suggested_signatures & model_signatures
+    ):
+        hints.append("model_json_candidate_differs_from_suggested_rule_category_edit")
+
+    response_text = str(record.get("model_response_text") or "").lower()
+    prose_mentions_rule_edit = any(
+        phrase in response_text
+        for phrase in (
+            "suggested rule-category edit",
+            "rule-category edit",
+            "change the rule category",
+            "changing the rule category",
+            "rule category to",
+        )
+    )
+    if suggested_edits and prose_mentions_rule_edit:
+        hints.append("model_prose_mentions_suggested_rule_category_edit")
+    if (
+        "model_json_candidate_differs_from_suggested_rule_category_edit" in hints
+        and "model_prose_mentions_suggested_rule_category_edit" in hints
+    ):
+        hints.append("json_candidate_conflicts_with_suggested_rule_category_edit")
     return dedupe_strings(hints) or []
 
 
@@ -4424,6 +4844,14 @@ def review_blocked_retry_edit_gap_records(
             record.get("repair_edit_extraction_artifact")
         )
         group["repair_attempt_artifacts"].append(record.get("repair_attempt_artifact"))
+        suggested_rule_category_payload = require_mapping(
+            record.get("suggested_rule_category_plan_edit_payload")
+        )
+        if suggested_rule_category_payload:
+            group.setdefault(
+                "suggested_rule_category_plan_edit_payloads",
+                [],
+            ).append(suggested_rule_category_payload)
         group["jsonl_refs"].append(
             {
                 "jsonl_path": record.get("jsonl_path"),
@@ -11450,6 +11878,8 @@ def format_repair_edit_plan_summary(payload: Mapping[str, Any]) -> str:
         f"auto_applied: {payload.get('auto_applied', False)}",
         f"apply_allowed: {payload.get('apply_allowed', False)}",
         f"review_status: {payload.get('review_status', '-')}",
+        f"plan_mode: {payload.get('plan_mode', '-')}",
+        f"target_root: {payload.get('target_root', '-')}",
         f"plan_hash: {payload.get('plan_hash', '-')}",
         f"planned: {len(planned)}",
         f"rejected: {len(rejected)}",
@@ -11511,6 +11941,8 @@ def format_repair_edit_apply_summary(payload: Mapping[str, Any]) -> str:
         f"approval_required: {payload.get('approval_required', True)}",
         f"approval_received: {payload.get('approval_received', False)}",
         f"review_status: {payload.get('review_status', '-')}",
+        f"plan_mode: {payload.get('plan_mode', '-')}",
+        f"target_root: {payload.get('target_root', '-')}",
         f"plan_hash: {payload.get('plan_hash', '-')}",
         f"applied: {len(applied)}",
         f"artifact_path: {payload.get('artifact_path', '-')}",
@@ -14834,6 +15266,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     plan_repair_edits_parser.add_argument("artifact")
     plan_repair_edits_parser.add_argument("--max-files", type=int)
     plan_repair_edits_parser.add_argument(
+        "--target-root",
+        help=(
+            "Optional local repository root for offline plan validation. "
+            "Retry artifacts default to their source_context.source_root when present."
+        ),
+    )
+    plan_repair_edits_parser.add_argument(
         "--retry-review-artifact",
         help=(
             "Required for retry repair extractions; must be an accepted "
@@ -14854,6 +15293,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--approve",
         action="store_true",
         help="Required safety gate. Without this flag, no edits are applied.",
+    )
+    apply_repair_edits_parser.add_argument(
+        "--target-root",
+        help=(
+            "Optional local repository root for offline apply. Defaults to the "
+            "target_root recorded by plan-repair-edits when present."
+        ),
     )
     apply_repair_edits_parser.add_argument("--output")
 
@@ -16057,19 +16503,35 @@ def run(args: argparse.Namespace) -> str:
             max_files=args.max_files,
             retry_review_artifact=args.retry_review_artifact,
         )
-        api_key = resolve_api_key(args.api_key)
-        base_url = args.base_url.rstrip("/")
-        edit_plan = plan_workspace_edit(
-            base_url=base_url,
-            api_key=api_key,
-            payload=plan_payload,
-            timeout_seconds=args.timeout_seconds,
+        target_root, target_root_source = resolve_repair_target_root(
+            cli_target_root=args.target_root,
+            extraction_path=artifact_path,
+            extraction=extraction,
         )
+        if target_root is not None:
+            edit_plan = plan_workspace_edit_local_target(
+                target_root=target_root,
+                payload=plan_payload,
+            )
+            plan_mode = "local_target_root"
+        else:
+            api_key = resolve_api_key(args.api_key)
+            base_url = args.base_url.rstrip("/")
+            edit_plan = plan_workspace_edit(
+                base_url=base_url,
+                api_key=api_key,
+                payload=plan_payload,
+                timeout_seconds=args.timeout_seconds,
+            )
+            plan_mode = "api_workspace_root"
         result = build_plan_repair_edits_result(
             extraction_path=artifact_path,
             extraction=extraction,
             plan_payload=plan_payload,
             edit_plan=edit_plan,
+            plan_mode=plan_mode,
+            target_root=target_root,
+            target_root_source=target_root_source,
         )
         if args.output:
             result["artifact_path"] = str(Path(args.output))
@@ -16158,12 +16620,27 @@ def run(args: argparse.Namespace) -> str:
                 "apply-repair-edits artifact must contain a saved repair-edit plan JSON object."
             )
         apply_payload = build_apply_repair_edits_payload(plan)
-        edit_apply = apply_workspace_edit_plan(
-            base_url=base_url,
-            api_key=api_key,
-            payload=apply_payload,
-            timeout_seconds=args.timeout_seconds,
+        target_root = (
+            validate_local_target_root(Path(args.target_root))
+            if args.target_root
+            else (
+                validate_local_target_root(Path(str(plan.get("target_root"))))
+                if plan.get("target_root")
+                else None
+            )
         )
+        if target_root is not None:
+            edit_apply = apply_workspace_edit_plan_local_target(
+                target_root=target_root,
+                payload=apply_payload,
+            )
+        else:
+            edit_apply = apply_workspace_edit_plan(
+                base_url=base_url,
+                api_key=api_key,
+                payload=apply_payload,
+                timeout_seconds=args.timeout_seconds,
+            )
         result = build_apply_repair_edits_result(
             plan_path=artifact_path,
             plan=plan,

@@ -521,6 +521,36 @@ serving the last broad-safe Rust/XRIQ adapter.
   `tests/test_biber_agent_client.py` were stashed as
   `codex-retry-context-sync` and should not be popped unless deliberately
   inspecting that duplicate sync state.
+- Latest BIBER MVP retry local-target planning checkpoint:
+  `plan-repair-edits` now detects retry repair requests that carry
+  `repair_request.source_context.source_root` and validates the reviewed edit
+  against that failed workspace locally (`plan_mode=local_target_root`) instead
+  of incorrectly planning against the clean live repo. Normal repair planning
+  still uses the API workspace root, and `--target-root` can override the local
+  root explicitly. `apply-repair-edits` can also use the `target_root` recorded
+  by a successful plan artifact, but it still requires explicit `--approve`.
+  `prepare-failed-repair-retry` now source-scans selected implementation files
+  plus failing test-line context to derive exact rule-category suggestions even
+  when compact snippets are aggressively trimmed. Regenerated v15 request:
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-request-context-v15.json`.
+  It includes a plan-safe suggested edit changing
+  `_Rule(r"panicked at", "test_failure", "Rust test panic", "rust"),` to
+  `_Rule(r"panicked at", "assertion_failure", "Rust test panic", "rust"),`.
+  The local model copied the correct edit in v15; deterministic retry review
+  passed with `review_status=retry_edit_ready_for_plan_review`,
+  `ok=true`, `plan_allowed=true`, and no hard blockers:
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-edit-review-context-v15.json`.
+  Local-target plan validation succeeded without applying edits:
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-edit-plan-context-v15-local-target.json`,
+  `plan_hash=a51c2bbaff1f2494b5b557f7999a06745efa9bad266ef2912a92fe2a681469fb`,
+  `planned=1`, `rejected=0`, target root
+  `/workspace/biber-real-repo-candidates/diagnosis-unified-diff-20260524T231913Z-110411/repo`.
+  No apply, training, OpenAI mentor call, credential change, API restart, or
+  vLLM restart was used. Vast verification passed focused retry/plan tests
+  with `16 passed, 157 deselected`, full `tests/test_biber_agent_client.py`
+  with `173 passed`, and full cheap `tests` suite with `334 passed`.
+  Next step requires explicit user approval before running
+  `apply-repair-edits --approve` on the v15 local-target plan artifact.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
