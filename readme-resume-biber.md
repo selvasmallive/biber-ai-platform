@@ -104,6 +104,7 @@ Rust/CPU:
 ```bash
 cd /workspace/biber-ai-platform
 python scripts/xriq_private_devnet_transfer_smoke.py
+python scripts/xriq_private_devnet_http_smoke.py
 cd xriq
 cargo test
 cd ..
@@ -124,6 +125,12 @@ The isolated transfer smoke creates a fresh artifact directory under
 `xriq/target/`, performs one private-devnet transfer, verifies transaction,
 block, account, and snapshot import state, and avoids consuming any restored
 BIBER API chain balance.
+
+The local HTTP smoke starts a real `xriq-node serve-private` process on a
+temporary localhost port, submits a wallet transfer through `POST /v1/mempool`,
+restarts the server to prove durable pending state survives, produces a block
+with `POST /v1/blocks`, and verifies transaction, block, account, mempool, and
+overview endpoints.
 
 ## BIBER Model Resume
 

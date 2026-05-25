@@ -110,14 +110,14 @@ Use this 2026-05-25 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `60%`.
+- Phase 1 estimated completion: about `61%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `65%`.
 - File-backed node runner and deterministic replay: about `70%`.
 - Snapshot export/import and restore workflow: about `65%`.
-- Read-only/private RPC and explorer/dashboard support: about `55%`.
-- Local smoke/regression coverage: about `60%`.
+- Read-only/private RPC and explorer/dashboard support: about `58%`.
+- Local smoke/regression coverage: about `63%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -153,6 +153,20 @@ not an active target because the GPU was terminated to save cost.
   local smoke command: `python scripts/xriq_private_devnet_transfer_smoke.py`.
   Local syntax compilation also passed. No Vast sync, API/vLLM restart,
   training, OpenAI mentor call, or credential change was used.
+- Latest GPU-off XRIQ HTTP/RPC smoke checkpoint: added
+  `scripts/xriq_private_devnet_http_smoke.py`, a Windows-friendly stdlib
+  Python smoke that builds the local Rust binaries, starts a real
+  `xriq-node serve-private` process on a temporary localhost port, submits a
+  wallet transfer through `POST /v1/mempool`, restarts the server to prove
+  durable pending state survives, produces a block with `POST /v1/blocks`, and
+  verifies transaction, block, account, mempool, and explorer overview
+  endpoints. The local run passed with Alice balance `73`, Bob balance `25`,
+  block height `1`, and transaction hash
+  `fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565`.
+  `README.md`, `xriq/README.md`, and `readme-resume-biber.md` now document the
+  local command: `python scripts/xriq_private_devnet_http_smoke.py`. No Vast
+  sync, API/vLLM restart, training, OpenAI mentor call, or credential change
+  was used.
 - Latest XRIQ-only focus checkpoint: the user narrowed the active project goal
   to completing the XRIQ private-devnet prototype first. A narrow usability
   step extended `scripts/biber_xriq_private_devnet_client.py` beyond read-only

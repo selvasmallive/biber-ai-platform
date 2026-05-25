@@ -194,6 +194,18 @@ directory under `xriq/target/`, performs one private-devnet transfer, verifies
 transaction/block/account detail, exports/imports a snapshot, and leaves any
 live/restored BIBER API chain files untouched.
 
+Windows-friendly local HTTP/RPC smoke from the repo root:
+
+```bash
+python scripts/xriq_private_devnet_http_smoke.py
+```
+
+This builds the local Rust binaries, starts a real `xriq-node serve-private`
+process on a temporary localhost port, submits a wallet transfer through
+`POST /v1/mempool`, restarts the server to verify durable pending state,
+produces a block through `POST /v1/blocks`, and verifies transaction, block,
+account, mempool, and explorer overview endpoints.
+
 The current machine-readable runner contract is documented in
 `../docs/XRIQ_NODE_JSON_SCHEMA.md`.
 

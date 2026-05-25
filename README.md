@@ -235,6 +235,12 @@ BIBER API runtime state:
 python scripts/xriq_private_devnet_transfer_smoke.py
 ```
 
+To also verify the local submit-capable HTTP/RPC path without Vast, run:
+
+```bash
+python scripts/xriq_private_devnet_http_smoke.py
+```
+
 ## 7. Vast Connection Needed
 
 To deploy this to your Vast.ai GPU, use the instance SSH command:
