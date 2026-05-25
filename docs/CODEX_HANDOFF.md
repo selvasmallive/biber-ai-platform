@@ -4,23 +4,23 @@ Last updated: 2026-05-25
 
 ## Current Goal
 
-Near-term goal: finish the cost-conscious BIBER MVP and the XRIQ private-devnet
-prototype from the current GitHub/local workstation state. The Vast GPU was
-terminated after the important BIBER runtime artifacts were backed up locally,
-so future sessions must not assume `/workspace`, vLLM, FastAPI, or live Vast
-SSH access exists unless the user provides a fresh instance.
+Phase 1 goal: finish the XRIQ private-devnet prototype from the current
+GitHub/local workstation state. Do not include BIBER MVP, model training,
+repo-adaptation, runtime-profile, or local-model platform work in Phase 1
+percentage/status reporting unless it directly unblocks XRIQ private-devnet.
+Those BIBER MVP items move to Phase 2 after Phase 1 is complete. The Vast GPU
+was terminated after the important BIBER runtime artifacts were backed up
+locally, so future sessions must not assume `/workspace`, vLLM, FastAPI, or
+live Vast SSH access exists unless the user provides a fresh instance.
 
 - Current focus:
   - Active narrowed focus as of 2026-05-25: complete the XRIQ private-devnet
-    prototype first. Keep the BIBER MVP stable, but do not expand BIBER model,
-    eval, training, or agent features unless they directly unblock XRIQ
-    private-devnet work or the user explicitly widens the goal again.
-  - BIBER MVP: local model API, model registry, repo context, file-edit/test
-    workflows, GitHub save/PR path, and optional OpenAI mentor review only when
-    it is worth the cost.
-  - BIBER MVP must now treat these Replit-replacement workflow capabilities as
-    first-class near-term goals: more reliable repo-context selection, safer
-    multi-file editing, and better structured test-failure diagnosis loops.
+    prototype as Phase 1. Keep BIBER MVP work paused except for docs/resume
+    safety or narrow changes that directly unblock XRIQ private-devnet.
+  - Phase 2, after Phase 1: BIBER MVP/local model API, model registry, repo
+    context, file-edit/test workflows, GitHub save/PR path, optional OpenAI
+    mentor review, repo-adaptation eval/training loop, and Replit-replacement
+    workflow improvements.
   - XRIQ private devnet: Rust-only private-devnet chain, replay startup, local
     runner/RPC tooling, wallet flow, explorer flow, and integration tests.
 - Delayed scope:
@@ -40,10 +40,9 @@ SSH access exists unless the user provides a fresh instance.
 
 Future Codex sessions must default to a low-OpenAI-cost operating mode.
 
-- Primary near-term budget target: try to finish the focused BIBER MVP plus
-  XRIQ private-devnet prototype with roughly `$250-$900` of additional
-  OpenAI/Codex usage, and treat about `$500` as the practical disciplined target
-  when scope stays focused.
+- Primary near-term budget target: try to finish Phase 1 XRIQ private-devnet
+  with the smallest practical Codex usage by using local Rust/Cargo tests and
+  narrow checkpoints. Do not spend Phase 1 budget on BIBER MVP expansion.
 - Do not use Codex as the default bulk implementation engine. Use Codex for
   planning, risky architecture, small scoped patches, security-sensitive Rust
   review, failure diagnosis, integration glue, verification interpretation, and
@@ -57,8 +56,8 @@ Future Codex sessions must default to a low-OpenAI-cost operating mode.
   OpenAI/Codex calls inside the training loop. OpenAI/Codex cost should come
   only from bounded engineering sessions and optional mentor/reviewer calls.
 - Do not start broad exploratory rewrites, large refactors, public XRIQ work,
-  or extra model-training loops unless they directly unblock the focused MVP or
-  the user explicitly approves the cost.
+  BIBER MVP expansion, or extra model-training loops unless they directly
+  unblock Phase 1 or the user explicitly approves the cost.
 - Keep OpenAI mentor/reviewer calls optional and disabled by default. Use them
   only when the user requests mentor review or when quality/risk justifies it,
   such as cryptography boundaries, security design, eval design, legal-risk
@@ -107,24 +106,30 @@ not require GPU inference or training to continue.
 
 ## Project Status Metrics Baseline
 
-Use this 2026-05-20 baseline for future percentage/status comparisons unless
-the user changes the project scope.
+Use this 2026-05-25 Phase 1 baseline for future percentage/status comparisons
+unless the user changes the project scope again.
 
-- Focused non-production goal: BIBER MVP plus XRIQ private-devnet prototype.
-- Overall estimated completion: about `62%`.
-- BIBER local model/API/runtime: about `75%`.
-- Model swappability/config/registry: about `75%`.
-- Repo context/edit/test/GitHub workflow: about `65%`.
-- Repo-adaptation dataset/eval loop: about `40%`.
-- XRIQ private-devnet prototype: about `55%`.
-- Docs/handoff/cost-control discipline: about `85%`.
-- Remaining OpenAI/Codex key cost estimate from this point, excluding Vast GPU,
-  servers, production infrastructure, audits, public launch, and any separate
-  client-agent app:
-  - Disciplined/minimal: about `$400-$800`.
-  - Realistic working range: about `$800-$1,500`.
-  - Deep XRIQ/Rust debugging case: about `$1,500-$2,500`.
-  - Honest target while staying narrow: about `$800-$1,200`.
+- Phase 1 goal: XRIQ private-devnet prototype only.
+- Phase 1 estimated completion: about `60%`.
+- Rust workspace/crate structure: about `85%`.
+- Core ledger/block/mempool/consensus/storage primitives: about `70%`.
+- Wallet transfer draft/submit flow: about `65%`.
+- File-backed node runner and deterministic replay: about `70%`.
+- Snapshot export/import and restore workflow: about `65%`.
+- Read-only/private RPC and explorer/dashboard support: about `55%`.
+- Local smoke/regression coverage: about `60%`.
+- Production/public XRIQ, exchange readiness, audits, privacy protocol,
+  validator economics, custody, liquidity, bridges, and mainnet launch are not
+  part of Phase 1 and must not be counted in this percentage.
+- Phase 2 goal, not counted in Phase 1: BIBER MVP and related model/platform
+  work, including local-model runtime, repo-agent workflows, repo adaptation,
+  model training, and OpenAI mentor orchestration.
+- Remaining OpenAI/Codex key cost estimate for Phase 1 only, excluding Vast GPU,
+  servers, production infrastructure, audits, public launch, and any BIBER MVP
+  expansion:
+  - Disciplined/minimal: about `$150-$350`.
+  - Realistic working range: about `$350-$800`.
+  - Deep Rust/debugging case: about `$800-$1,500`.
 
 ## Immediate Resume State
 
