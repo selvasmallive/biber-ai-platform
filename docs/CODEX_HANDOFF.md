@@ -576,11 +576,39 @@ serving the last broad-safe Rust/XRIQ adapter.
   credential change, API restart, or vLLM restart was used. Vast was
   fast-forwarded to the pushed checkpoint and is clean; the temporary pre-pull
   file sync was stashed as `codex-retry-local-verify-sync` and should not be
-  popped unless deliberately inspecting that duplicate sync state. Next narrow
-  gate: export the passed verification with `export-verified-repair`, run
-  `review-verified-repairs`, and then inspect `show-repair-chain`; do not save
-  to GitHub, mark training-ready, or start QLoRA from this row without the
-  normal review decisions and explicit user approval.
+  popped unless deliberately inspecting that duplicate sync state.
+- Latest BIBER MVP v15 verified-repair review checkpoint: the passed v15
+  local-target verification was exported and reviewed without promotion.
+  `export-verified-repair` wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-verified-repairs-context-v15-local-target.jsonl`
+  with `records=1`, `review_status=needs_human_review`,
+  `training_allowed=false`, and `eligible_for_training=false`.
+  `review-verified-repairs` wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-verified-repairs-review-context-v15-local-target.json`
+  with `records=1`, `ready_for_human_review=1`, `rejected_records=0`,
+  `training_allowed=false`, and `eligible_for_training=false`. A complete
+  `show-repair-chain` summary was then saved at
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-chain-complete-context-v15-local-target.json`
+  with `chain_complete=true`, `chain_status=ready_for_human_review`,
+  `ok=true`, `plan_hash_consistent=true`, `verification_passed=true`,
+  `repo_provenance_ready=true`, `training_allowed=false`,
+  `safe_to_train=false`, and `github_save_ready=false`. The ready-chain list,
+  export, and review were also run with a pattern limited to that complete v15
+  chain. They wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-ready-chain-list-context-v15-local-target.json`,
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-ready-chains-context-v15-local-target.jsonl`,
+  and
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-ready-chain-review-context-v15-local-target.json`.
+  The ready-chain review reports `records=1`, `ready_for_human_review=1`,
+  `repo_provenance_ready=1`, `repo_provenance_missing=0`,
+  `review_status=needs_human_review`, `training_allowed=false`,
+  `safe_to_train=false`, and `github_save_ready=false`. No training run,
+  OpenAI mentor call, credential change, API restart, or vLLM restart was
+  used. Next manual gate: the user must explicitly choose whether to record a
+  ready-repair-chain decision such as `defer`, `reject`, or `approve_for_eval`;
+  do not infer that decision from a generic "continue", and do not save to
+  GitHub, mark training-ready, or start QLoRA from this row without the normal
+  downstream review decisions and explicit user approval.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
