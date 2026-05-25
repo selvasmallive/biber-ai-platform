@@ -314,6 +314,27 @@ serving the last broad-safe Rust/XRIQ adapter.
   still not a successful repair. Do not plan/apply it; next narrow gate is to
   capture empty-edit-with-confused-prose as review-only evidence or improve
   context selection toward the actual rule-order edit.
+- Latest BIBER MVP empty-retry response-gap checkpoint:
+  `scripts/biber_agent_client.py` now has an offline `export-empty-retry-gap`
+  command. It accepts only a retry repair attempt whose extraction ended
+  `ok=false`, `extraction_status=no_valid_edits`, and whose first model JSON
+  object contains `{"edits":[]}`. It writes a JSONL row with the repair prompt,
+  forbidden edit, model prose, empty JSON evidence, extraction guard state,
+  original/verification failures, and review hints while keeping
+  `training_allowed=false`, `eligible_for_training=false`,
+  `safe_to_train=false`, `auto_promoted=false`, `auto_saved=false`, and
+  `apply_allowed=false`. Vast verification passed focused `empty_retry_gap`
+  tests with `2 passed, 156 deselected`, full
+  `tests/test_biber_agent_client.py -q` with `158 passed`, and the broader
+  cheap MVP set
+  `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py -q`
+  with `176 passed`. No training run, OpenAI mentor call, credential change,
+  API restart, or vLLM restart was used. The v5 empty-retry evidence row is
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-empty-retry-response-gap-context-v5.jsonl`;
+  it has `gap_type=empty_retry_response_with_unresolved_prose` and review hints
+  `empty_edits_json_returned` and
+  `prose_describes_fix_after_empty_edits`. This remains review-only evidence;
+  do not train from it automatically.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for

@@ -1949,6 +1949,205 @@ def test_export_repeated_forbidden_retry_gap_rejects_non_repeated_extraction(
         raise AssertionError("expected non-repeated extraction artifact to be rejected")
 
 
+def test_run_export_empty_retry_gap_writes_review_queue_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("export-empty-retry-gap should not resolve an API key")
+
+    forbidden_edit = {
+        "path": "src/biber_api/test_diagnosis.py",
+        "old_text": "primary_category = _primary_category(signals)",
+        "new_text": (
+            "primary_category = _primary_category(signals) "
+            "if signals else 'test_failure'"
+        ),
+        "expected_replacements": 1,
+    }
+    attempt = tmp_path / "agent-client-mvp-loop-empty-retry-attempt.json"
+    repair_prompt = (
+        "The first JSON object is authoritative. "
+        'If no non-forbidden bounded source edit is available, return exactly {"edits":[]}.'
+    )
+    attempt.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_attempt",
+                "repair_loop_version": "mvp-v1",
+                "next_test_id": "pytest-diagnosis",
+                "repair_request": {
+                    "source": "biber_mvp_loop_repair_request",
+                    "retry_of_failed_verification": True,
+                    "source_artifact": str(tmp_path / "failed-verification.json"),
+                    "repair_prompt": repair_prompt,
+                    "forbidden_edits": [forbidden_edit],
+                    "previous_attempt": {"attempted_edits": [forbidden_edit]},
+                    "original_failure": {
+                        "test_id": "pytest-diagnosis",
+                        "primary_category": "assertion_failure",
+                    },
+                    "failure": {
+                        "test_id": "pytest-diagnosis",
+                        "primary_category": "assertion_failure",
+                    },
+                    "source_context_snippets": [
+                        {
+                            "path": "src/biber_api/test_diagnosis.py",
+                            "snippet_kind": "rule",
+                            "snippet": "1: _Rule(...)",
+                        }
+                    ],
+                },
+                "model_response": {
+                    "model": "biber-dev-core-v1",
+                    "mentor_used": False,
+                    "content": (
+                        '{"edits":[]}\n'
+                        "To fix this, we need a different edit. "
+                        "The smallest safe source edit is "
+                        f"{forbidden_edit['new_text']}."
+                    ),
+                },
+                "repair_content": (
+                    '{"edits":[]}\n'
+                    "To fix this, we need a different edit. "
+                    "The smallest safe source edit is "
+                    f"{forbidden_edit['new_text']}."
+                ),
+            }
+        ),
+        encoding="utf-8",
+    )
+    extraction = tmp_path / "agent-client-mvp-loop-empty-retry-extraction.json"
+    extraction.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_extraction",
+                "repair_loop_version": "mvp-v1",
+                "source_artifact": str(attempt),
+                "extraction_status": "no_valid_edits",
+                "ok": False,
+                "training_allowed": False,
+                "auto_applied": False,
+                "apply_allowed": False,
+                "review_status": "needs_review",
+                "edits": [],
+                "rejected": [],
+                "source_only_guard": {"enabled": True, "blocked_test_edits": 0},
+                "repeat_failed_edit_guard": {
+                    "enabled": True,
+                    "blocked_repeated_edits": 0,
+                },
+                "next_test_id": "pytest-diagnosis",
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "empty-retry-gap.jsonl"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "export-empty-retry-gap",
+                str(extraction),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    rows = [
+        json.loads(line)
+        for line in output_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert result["source"] == "biber_mvp_loop_empty_retry_gap_export"
+    assert result["records"] == 1
+    assert result["training_allowed"] is False
+    assert result["eligible_for_training"] is False
+    assert result["safe_to_train"] is False
+    assert result["auto_promoted"] is False
+    assert result["auto_saved"] is False
+    assert result["source_artifact"] == str(extraction)
+    assert result["repair_attempt_artifact"] == str(attempt)
+    assert result["review_hints"] == [
+        "empty_edits_json_returned",
+        "prose_describes_fix_after_empty_edits",
+        "prose_references_forbidden_edit_after_empty_edits",
+    ]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["source"] == "biber_mvp_loop_empty_retry_response_gap"
+    assert row["gap_type"] == "empty_retry_response_with_unresolved_prose"
+    assert row["review_status"] == "needs_human_review"
+    assert row["training_allowed"] is False
+    assert row["eligible_for_training"] is False
+    assert row["safe_to_train"] is False
+    assert row["repair_prompt"] == repair_prompt
+    assert row["forbidden_edits"] == [forbidden_edit]
+    assert row["model"] == "biber-dev-core-v1"
+    assert row["empty_edit_json_values"] == [
+        {"index": 1, "source": "json", "value": {"edits": []}}
+    ]
+    assert row["model_edit_candidates"] == []
+    assert row["extraction"]["repeat_failed_edit_guard"] == {
+        "enabled": True,
+        "blocked_repeated_edits": 0,
+    }
+    assert row["next_review_action"] == (
+        "human_review_empty_retry_gap_before_prompt_or_context_changes"
+    )
+
+
+def test_export_empty_retry_gap_rejects_non_empty_extraction(
+    tmp_path: Path,
+) -> None:
+    attempt = tmp_path / "agent-client-mvp-loop-repair-attempt.json"
+    attempt.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_attempt",
+                "repair_request": {"retry_of_failed_verification": True},
+                "repair_content": '{"edits":[]}',
+            }
+        ),
+        encoding="utf-8",
+    )
+    extraction = tmp_path / "agent-client-mvp-loop-repair-edit-extraction.json"
+    extraction.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_extraction",
+                "source_artifact": str(attempt),
+                "extraction_status": "ready_for_plan_edit",
+                "ok": True,
+                "edits": [{"path": "src/app.py", "new_text": "ok"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        client.run(
+            client.parse_args(
+                [
+                    "export-empty-retry-gap",
+                    str(extraction),
+                    "--output",
+                    str(tmp_path / "gap.jsonl"),
+                ]
+            )
+        )
+    except client.BiberAgentClientError as exc:
+        assert "no-valid-edits extraction artifact" in str(exc)
+    else:
+        raise AssertionError("expected non-empty extraction artifact to be rejected")
+
+
 def test_run_review_repeated_forbidden_retry_gaps_writes_summary_without_api_key(
     monkeypatch,
     tmp_path: Path,

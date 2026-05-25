@@ -3335,6 +3335,206 @@ def export_repeated_forbidden_retry_gap(
     }
 
 
+def empty_edits_json_values(content: str) -> list[dict[str, Any]]:
+    empty_values: list[dict[str, Any]] = []
+    for index, value in enumerate(extract_json_values_from_text(content), start=1):
+        if (
+            isinstance(value, dict)
+            and isinstance(value.get("edits"), list)
+            and not value.get("edits")
+        ):
+            empty_values.append(
+                {
+                    "index": index,
+                    "source": "json",
+                    "value": {"edits": []},
+                }
+            )
+    return empty_values
+
+
+def empty_retry_gap_hints(
+    *,
+    content: str,
+    forbidden_edits: list[Mapping[str, Any]],
+) -> list[str]:
+    lowered = content.lower()
+    hints: list[str] = []
+    if empty_edits_json_values(content):
+        hints.append("empty_edits_json_returned")
+    if any(
+        phrase in lowered
+        for phrase in (
+            "to fix this",
+            "need to",
+            "different edit",
+            "smallest safe source edit",
+            "should fix",
+            "will fix",
+        )
+    ):
+        hints.append("prose_describes_fix_after_empty_edits")
+    for edit in forbidden_edits:
+        new_text = edit.get("new_text")
+        if isinstance(new_text, str) and new_text and new_text.lower() in lowered:
+            hints.append("prose_references_forbidden_edit_after_empty_edits")
+            break
+    return dedupe_strings(hints) or []
+
+
+def build_empty_retry_gap_record(
+    *,
+    extraction_path: Path,
+    extraction: Mapping[str, Any],
+    attempt_path: Path,
+    attempt: Mapping[str, Any],
+) -> dict[str, Any]:
+    edits = [item for item in require_list(extraction.get("edits")) if isinstance(item, Mapping)]
+    rejected = [
+        item for item in require_list(extraction.get("rejected")) if isinstance(item, Mapping)
+    ]
+    if (
+        extraction.get("ok") is True
+        or extraction.get("extraction_status") != "no_valid_edits"
+        or edits
+    ):
+        raise BiberAgentClientError(
+            "export-empty-retry-gap requires a no-valid-edits extraction artifact."
+        )
+
+    repair_request = require_mapping(attempt.get("repair_request"))
+    if repair_request.get("retry_of_failed_verification") is not True:
+        raise BiberAgentClientError(
+            "export-empty-retry-gap requires a retry repair attempt."
+        )
+
+    model_response = require_mapping(attempt.get("model_response"))
+    content = str(attempt.get("repair_content") or model_response.get("content") or "")
+    empty_json_values = empty_edits_json_values(content)
+    if not empty_json_values:
+        raise BiberAgentClientError(
+            "export-empty-retry-gap requires a model response with an empty edits JSON object."
+        )
+
+    previous_attempt = require_mapping(repair_request.get("previous_attempt"))
+    forbidden_edits = [
+        dict(item)
+        for item in require_list(repair_request.get("forbidden_edits"))
+        if isinstance(item, Mapping)
+    ]
+    if not forbidden_edits:
+        forbidden_edits = [
+            dict(item)
+            for item in require_list(previous_attempt.get("attempted_edits"))
+            if isinstance(item, Mapping)
+        ]
+    review_hints = empty_retry_gap_hints(
+        content=content,
+        forbidden_edits=forbidden_edits,
+    )
+
+    return {
+        "source": "biber_mvp_loop_empty_retry_response_gap",
+        "repair_loop_version": extraction.get("repair_loop_version")
+        or attempt.get("repair_loop_version"),
+        "gap_type": "empty_retry_response_with_unresolved_prose",
+        "failure_mode": "local_model_returned_empty_edits_but_prose_still_described_fix",
+        "review_status": "needs_human_review",
+        "quality": "needs_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "auto_promoted": False,
+        "auto_saved": False,
+        "auto_applied": False,
+        "apply_allowed": False,
+        "source_artifact": str(extraction_path),
+        "repair_attempt_artifact": str(attempt_path),
+        "repair_request_source_artifact": repair_request.get("source_artifact"),
+        "model": model_response.get("model"),
+        "mentor_used": model_response.get("mentor_used") is True,
+        "runtime_profile_ids": repair_attempt_runtime_profile_ids(attempt) or [],
+        "next_test_id": extraction.get("next_test_id") or attempt.get("next_test_id"),
+        "repair_prompt": repair_request.get("repair_prompt") or "",
+        "forbidden_edits": forbidden_edits,
+        "model_response_text": content,
+        "model_response_preview": compact_text(content, max_chars=1000),
+        "empty_edit_json_values": empty_json_values,
+        "model_edit_candidates": extract_model_edit_candidate_evidence(content),
+        "extraction": {
+            "extraction_status": extraction.get("extraction_status"),
+            "ok": extraction.get("ok"),
+            "edits": edits,
+            "rejected": rejected,
+            "source_only_guard": dict(require_mapping(extraction.get("source_only_guard"))),
+            "repeat_failed_edit_guard": dict(
+                require_mapping(extraction.get("repeat_failed_edit_guard"))
+            ),
+        },
+        "original_failure": require_mapping(repair_request.get("original_failure")),
+        "verification_failure": require_mapping(repair_request.get("failure")),
+        "source_context_snippets": [
+            dict(item)
+            for item in require_list(repair_request.get("source_context_snippets"))
+            if isinstance(item, Mapping)
+        ],
+        "review_hints": review_hints,
+        "next_review_action": (
+            "human_review_empty_retry_gap_before_prompt_or_context_changes"
+        ),
+    }
+
+
+def export_empty_retry_gap(
+    *,
+    artifact_path: str,
+    output_path: str,
+) -> dict[str, Any]:
+    path = Path(artifact_path)
+    artifact = load_json_artifact(str(path), label="repair edit extraction artifact")
+    extraction = normalize_repair_edit_extraction_artifact(artifact)
+    if extraction is None:
+        raise BiberAgentClientError(
+            "export-empty-retry-gap artifact must contain a saved "
+            "extract-repair-edits JSON object."
+        )
+    attempt_path, attempt, attempt_error = load_linked_artifact(
+        extraction.get("source_artifact"),
+        base_path=path,
+        label="repair-attempt artifact",
+        normalizer=normalize_repair_attempt_artifact,
+    )
+    if attempt_error is not None or attempt_path is None or attempt is None:
+        raise BiberAgentClientError(
+            "Could not load linked repair-attempt artifact for empty retry gap "
+            f"export: {attempt_error or 'missing source_artifact'}"
+        )
+
+    record = build_empty_retry_gap_record(
+        extraction_path=path,
+        extraction=extraction,
+        attempt_path=attempt_path,
+        attempt=attempt,
+    )
+    output = write_jsonl_artifact([record], output_path)
+    return {
+        "source": "biber_mvp_loop_empty_retry_gap_export",
+        "records": 1,
+        "output": output,
+        "review_status": "needs_human_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "auto_promoted": False,
+        "auto_saved": False,
+        "source_artifact": str(path),
+        "repair_attempt_artifact": str(attempt_path),
+        "gap_type": record.get("gap_type"),
+        "review_hints": record.get("review_hints"),
+        "next_review_action": record.get("next_review_action"),
+    }
+
+
 def repeated_forbidden_gap_path(record: Mapping[str, Any]) -> str:
     repeated_candidates = [
         item
@@ -9936,6 +10136,25 @@ def format_repeated_forbidden_retry_gap_export_summary(
     )
 
 
+def format_empty_retry_gap_export_summary(payload: Mapping[str, Any]) -> str:
+    hints = ",".join(str(item) for item in require_list(payload.get("review_hints")))
+    return "\n".join(
+        [
+            "BIBER empty retry response gap export",
+            f"source_artifact: {payload.get('source_artifact', '-')}",
+            f"repair_attempt_artifact: {payload.get('repair_attempt_artifact', '-')}",
+            f"records: {payload.get('records', 0)}",
+            f"output: {payload.get('output', '-')}",
+            f"review_status: {payload.get('review_status', '-')}",
+            f"training_allowed: {payload.get('training_allowed', False)}",
+            f"eligible_for_training: {payload.get('eligible_for_training', False)}",
+            f"safe_to_train: {payload.get('safe_to_train', False)}",
+            f"review_hints: {hints or '-'}",
+            f"next_review_action: {payload.get('next_review_action', '-')}",
+        ]
+    )
+
+
 def format_repeated_forbidden_retry_gap_review_summary(
     payload: Mapping[str, Any],
 ) -> str:
@@ -12366,6 +12585,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     export_repeated_forbidden_retry_gap_parser.add_argument("artifact")
     export_repeated_forbidden_retry_gap_parser.add_argument("--output", required=True)
 
+    export_empty_retry_gap_parser = subparsers.add_parser(
+        "export-empty-retry-gap",
+        help=(
+            "Export an empty retry response with unresolved/confused prose to "
+            "a JSONL model-gap review queue without making it trainable."
+        ),
+    )
+    export_empty_retry_gap_parser.add_argument("artifact")
+    export_empty_retry_gap_parser.add_argument("--output", required=True)
+
     review_repeated_forbidden_retry_gaps_parser = subparsers.add_parser(
         "review-repeated-forbidden-retry-gaps",
         help=(
@@ -13567,6 +13796,16 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(export, indent=2, sort_keys=True)
             if args.print_json
             else format_repeated_forbidden_retry_gap_export_summary(export)
+        )
+    if args.command == "export-empty-retry-gap":
+        export = export_empty_retry_gap(
+            artifact_path=args.artifact,
+            output_path=args.output,
+        )
+        return (
+            json.dumps(export, indent=2, sort_keys=True)
+            if args.print_json
+            else format_empty_retry_gap_export_summary(export)
         )
     if args.command == "review-repeated-forbidden-retry-gaps":
         review = review_repeated_forbidden_retry_gap_records(
