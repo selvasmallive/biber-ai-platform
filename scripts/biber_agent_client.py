@@ -2479,6 +2479,81 @@ def retry_context_terms(
     return terms[:24]
 
 
+def retry_failure_line_references(
+    *,
+    selected_context_paths: list[str],
+    original_failure: Mapping[str, Any],
+    verification_failure: Mapping[str, Any],
+) -> dict[str, set[int]]:
+    selected_paths = {
+        clean_path
+        for path in selected_context_paths
+        if (clean_path := safe_repo_relative_path(path)) is not None
+    }
+    references: dict[str, set[int]] = {}
+    texts = [
+        original_failure.get("relevant_output"),
+        verification_failure.get("relevant_output"),
+    ]
+    for text_value in texts:
+        text = str(text_value or "")
+        for match in re.finditer(r"([A-Za-z0-9_.\-/]+):(\d+)", text):
+            clean_path = safe_repo_relative_path(match.group(1))
+            if clean_path is None or clean_path not in selected_paths:
+                continue
+            line_number = int(match.group(2))
+            references.setdefault(clean_path, set()).add(line_number)
+    return references
+
+
+def retry_failure_line_context_terms(
+    *,
+    source_root: Path,
+    failure_line_refs_by_path: Mapping[str, set[int]],
+    context_lines: int,
+) -> list[str]:
+    terms: list[str] = []
+    seen: set[str] = set()
+
+    def add(term: object) -> None:
+        text = str(term or "").strip()
+        if len(text) < 3 or len(text) > 120:
+            return
+        key = text.lower()
+        if key in seen:
+            return
+        seen.add(key)
+        terms.append(text)
+
+    try:
+        root = source_root.resolve()
+    except OSError:
+        root = source_root
+
+    for clean_path, line_numbers in failure_line_refs_by_path.items():
+        file_path = (root / clean_path).resolve()
+        if file_path != root and root not in file_path.parents:
+            continue
+        if not file_path.is_file():
+            continue
+        try:
+            lines = file_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for line_number in sorted(line_numbers):
+            line_index = max(0, line_number - 1)
+            window_start = max(0, line_index - context_lines)
+            window_end = min(len(lines), line_index + context_lines + 1)
+            window_text = "\n".join(lines[window_start:window_end])
+            for match in re.finditer(r"['\"]([^'\"]{3,80})['\"]", window_text):
+                add(match.group(1))
+            for token in re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]{3,}\b", window_text):
+                if token.lower() in {"assert", "diagnosis", "relevant_output"}:
+                    continue
+                add(token)
+    return terms[:24]
+
+
 def safe_repo_relative_path(path: object) -> str | None:
     if not isinstance(path, str) or not path.strip():
         return None
@@ -2523,6 +2598,11 @@ def build_retry_source_context_snippets(
         original_failure=original_failure,
         verification_failure=verification_failure,
     )
+    failure_line_refs_by_path = retry_failure_line_references(
+        selected_context_paths=selected_context_paths,
+        original_failure=original_failure,
+        verification_failure=verification_failure,
+    )
     old_text_by_path: dict[str, list[str]] = {}
     for edit in attempted_edits:
         clean_path = safe_repo_relative_path(edit.get("path"))
@@ -2534,6 +2614,16 @@ def build_retry_source_context_snippets(
         root = source_root.resolve()
     except OSError:
         root = source_root
+    terms = dedupe_strings(
+        [
+            *terms,
+            *retry_failure_line_context_terms(
+                source_root=root,
+                failure_line_refs_by_path=failure_line_refs_by_path,
+                context_lines=context_lines,
+            ),
+        ]
+    ) or []
 
     candidates: list[dict[str, Any]] = []
     for raw_path in selected_context_paths:
@@ -2567,16 +2657,37 @@ def build_retry_source_context_snippets(
                 old_text.lower() in window_text
                 for old_text in old_text_by_path.get(clean_path, [])
             )
-            if is_rule_snippet:
+            is_test_expectation_snippet = (
+                is_test_edit_path(clean_path)
+                and any(marker in window_text for marker in ("assert", "expect("))
+            )
+            failure_line_refs = [
+                line_number
+                for line_number in sorted(failure_line_refs_by_path.get(clean_path, set()))
+                if window_start < line_number <= window_end
+            ]
+            if is_test_expectation_snippet and failure_line_refs:
                 priority_group = 0
+                snippet_kind = "test_expectation"
+            elif is_rule_snippet:
+                priority_group = 1
                 snippet_kind = "rule"
-            elif contains_previous_failed_edit:
+            elif is_test_expectation_snippet:
                 priority_group = 2
+                snippet_kind = "test_expectation"
+            elif contains_previous_failed_edit:
+                priority_group = 4
                 snippet_kind = "previous_failed_edit_target"
             else:
-                priority_group = 1
+                priority_group = 3
                 snippet_kind = "context"
             score = len(matched_terms)
+            if is_test_expectation_snippet:
+                score += 7
+                if "primary_category" in window_text:
+                    score += 2
+                if failure_line_refs:
+                    score += 10
             if is_rule_snippet:
                 score += 4
             if len(set(term.lower() for term in matched_terms)) >= 2:
@@ -2590,6 +2701,7 @@ def build_retry_source_context_snippets(
                     "end_line": window_end,
                     "matched_terms": matched_terms,
                     "snippet_kind": snippet_kind,
+                    "failure_line_refs": failure_line_refs,
                     "priority_group": priority_group,
                     "score": score,
                     "snippet": line_numbered_snippet(

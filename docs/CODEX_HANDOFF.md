@@ -356,6 +356,34 @@ serving the last broad-safe Rust/XRIQ adapter.
   `prose_describes_fix_after_empty_edits`. Next narrow gate: use the repeated
   forbidden and empty-retry review summaries to improve deterministic
   context selection toward the actual rule-order edit, not to start training.
+- Latest BIBER MVP failure-line retry-context checkpoint:
+  `build_retry_source_context_snippets` now mines compact terms from referenced
+  failing test lines and can emit `test_expectation` snippets with
+  `failure_line_refs`. Referenced failing test expectations sort before source
+  `rule` snippets, and rule snippets still sort before previous failed edit
+  targets. Vast verification passed focused retry-context tests with
+  `2 passed, 159 deselected`, full `tests/test_biber_agent_client.py -q`
+  with `161 passed`, and the broader cheap MVP set
+  `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py -q`
+  with `179 passed`. Regenerated v8 artifacts are
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-review-context-v8.json`
+  and
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-request-context-v8.json`.
+  The v8 compact retry request now contains the exact failing expectation
+  `tests/test_test_diagnosis.py:71-75` with `failure_line_refs=[74]` and the
+  matching Rust panic source rule
+  `src/biber_api/test_diagnosis.py:43-47` with `_Rule(r"panicked at", ...)`.
+  A bounded local-model retry probe wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-attempt-context-v8.json`,
+  and extraction wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-edit-extraction-context-v8.json`
+  with `ok=true`, `extraction_status=ready_for_plan_edit`, and one
+  non-repeated source edit candidate. Do not plan/apply that v8 candidate yet:
+  it changes the fallback to `'assertion_failure'`, which is likely still the
+  wrong repair for the injected Rust rule-order regression. Treat it as
+  review-only failure evidence until a deterministic reviewer or human approves
+  the next apply step. No training run, OpenAI mentor call, credential change,
+  API restart, or vLLM restart was used.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for

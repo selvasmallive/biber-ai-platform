@@ -3317,6 +3317,85 @@ def test_retry_source_context_prioritizes_rule_snippet_over_failed_target(
     assert any("primary_category = _primary_category(signals)" in snippet["snippet"] for snippet in snippets)
 
 
+def test_retry_source_context_includes_test_expectation_with_compact_snippets(
+    tmp_path: Path,
+) -> None:
+    source_dir = tmp_path / "src" / "biber_api"
+    source_dir.mkdir(parents=True)
+    (source_dir / "test_diagnosis.py").write_text(
+        "_RULES = [\n"
+        "    _Rule(r\"panicked at\", \"assertion_failure\", \"Rust test panic\", \"rust\"),\n"
+        "    _Rule(r\"test result: failed\", \"test_failure\", \"Rust test failure\", \"rust\"),\n"
+        "    _Rule(r\"assertionerror\", \"assertion_failure\", \"Python assertion failure\", \"python\"),\n"
+        "    _Rule(r\"failed .* in \\d\", \"test_failure\", \"pytest failure summary\", \"python\"),\n"
+        "]\n",
+        encoding="utf-8",
+    )
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_test_diagnosis.py").write_text(
+        "def test_diagnose_rust_test_panic():\n"
+        "    diagnosis = diagnose_test_failure(\n"
+        "        stdout=\"thread panicked at src/lib.rs\\n\"\n"
+        "    )\n"
+        "    assert diagnosis[\"primary_category\"] == \"assertion_failure\"\n"
+        "    assert \"panicked at\" in diagnosis[\"relevant_output\"]\n",
+        encoding="utf-8",
+    )
+    attempted_edits = [
+        {
+            "path": "src/biber_api/test_diagnosis.py",
+            "old_text": "primary_category = _primary_category(signals)",
+            "new_text": (
+                "primary_category = _primary_category(signals) "
+                "if signals else 'test_failure'"
+            ),
+            "expected_replacements": 1,
+        }
+    ]
+
+    snippets = client.build_retry_source_context_snippets(
+        source_root=tmp_path,
+        selected_context_paths=[
+            "src/biber_api/test_diagnosis.py",
+            "tests/test_test_diagnosis.py",
+        ],
+        attempted_edits=attempted_edits,
+        original_failure={
+            "primary_category": "assertion_failure",
+            "detected_stack": "python",
+            "relevant_output": (
+                "tests/test_test_diagnosis.py:5: AssertionError\n"
+                "assert 'test_failure' == 'assertion_failure'"
+            ),
+        },
+        verification_failure={
+            "primary_category": "assertion_failure",
+            "detected_stack": "python",
+            "relevant_output": (
+                "tests/test_test_diagnosis.py:5: AssertionError\n"
+                "assert diagnosis[\"primary_category\"] == \"assertion_failure\""
+            ),
+        },
+        max_snippets=2,
+        context_lines=2,
+    )
+
+    kinds = [snippet["snippet_kind"] for snippet in snippets]
+    assert "test_expectation" in kinds
+    assert "rule" in kinds
+    test_snippet = next(
+        snippet for snippet in snippets if snippet["snippet_kind"] == "test_expectation"
+    )
+    assert test_snippet["path"] == "tests/test_test_diagnosis.py"
+    assert test_snippet["failure_line_refs"] == [5]
+    assert 'primary_category"] == "assertion_failure"' in test_snippet["snippet"]
+    assert "panicked at" in test_snippet["snippet"]
+    rule_snippet = next(snippet for snippet in snippets if snippet["snippet_kind"] == "rule")
+    assert "panicked at" in rule_snippet["snippet"]
+    assert "Rust test panic" in rule_snippet["snippet"]
+
+
 def test_run_prepare_failed_repair_retry_writes_review_and_retry_without_api_key(
     monkeypatch,
     tmp_path: Path,
