@@ -820,6 +820,31 @@ serving the last broad-safe Rust/XRIQ adapter.
   (`accept_for_baseline`, then `approve_as_baseline`) before considering any
   training-candidate fill; do not skip the review gates or start QLoRA without
   separate explicit training approval.
+- Latest enriched v15 held-out eval baseline-candidate checkpoint: the user
+  explicitly approved `accept_for_baseline` for the enriched v15 held-out eval
+  review on 2026-05-25. The decision was recorded at
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-eval-decisions-enriched-context-v15-local-target.jsonl`
+  with `accepted_for_baseline_records=1`, `baseline_candidate_ready=true`,
+  `training_allowed=false`, and `safe_to_train=false`. The decision review
+  wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-eval-decision-review-enriched-context-v15-local-target.json`
+  with `accepted_for_baseline_records=1`,
+  `baseline_candidate_ready_records=1`,
+  `decision_counts={'accept_for_baseline': 1}`, `training_allowed=false`, and
+  `safe_to_train=false`. Exported enriched baseline candidates at
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-baseline-candidates-enriched-context-v15-local-target.jsonl`
+  with `baseline_candidates=1`, `baseline_candidate_ready=true`,
+  `baseline_ready=false`, `requires_baseline_review=true`, and
+  `training_allowed=false`. Baseline candidate review wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-baseline-candidate-review-enriched-context-v15-local-target.json`
+  with `baseline_candidate_ready_records=1`, `baseline_ready_records=0`,
+  `requires_baseline_review_records=1`, `training_allowed=false`, and
+  `safe_to_train=false`. No training run, OpenAI mentor call, credential change,
+  API restart, or vLLM restart was used. Next manual gate: the user must
+  explicitly approve `approve_as_baseline` for this enriched v15 baseline
+  candidate if they want to promote it to baseline-ready; do not infer that
+  approval from a generic "continue" request, and do not start QLoRA without
+  separate explicit training approval.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
