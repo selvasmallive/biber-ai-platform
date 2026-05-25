@@ -68,6 +68,29 @@ Future Codex sessions must default to a low-OpenAI-cost operating mode.
   usage or to require a long open-ended agent session, pause and give the user a
   cost/risk estimate before proceeding.
 
+## Vast Shutdown / Resume Note
+
+The Vast GPU can be shut down to save cost when the current task is XRIQ
+private-devnet prototype work. XRIQ private-devnet is CPU/Rust software and does
+not require GPU inference or training to continue.
+
+- Current source code is pushed to GitHub `main` through commit `b8195b17
+  Record XRIQ runbook verification`; local and Vast checkouts were clean at this
+  commit on 2026-05-25.
+- Future Codex resume prompt should start with: `Read docs/CODEX_HANDOFF.md and
+  continue from the current GitHub main branch. Vast may be stopped; do not
+  assume /workspace exists.`
+- Primary resume file for Codex is this file: `docs/CODEX_HANDOFF.md`.
+- Repo overview file is `README.md`.
+- XRIQ private-devnet runbook is `xriq/README.md`.
+- If the 500 GB Vast volume is kept, future sessions can reuse `/workspace`
+  artifacts and adapters. If the instance/volume is destroyed, code is still
+  safe in GitHub, but non-git runtime artifacts may need to be rebuilt or
+  restored, especially `/workspace/adapters`,
+  `/workspace/outputs`, `/workspace/biber-logs`, and `/workspace/.hf_home`.
+- Do not rotate credentials as part of shutdown/resume. Use existing GitHub/Vast
+  auth paths unless the user explicitly asks to replace them.
+
 ## Project Status Metrics Baseline
 
 Use this 2026-05-20 baseline for future percentage/status comparisons unless
