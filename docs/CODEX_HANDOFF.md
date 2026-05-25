@@ -121,11 +121,17 @@ serving the last broad-safe Rust/XRIQ adapter.
   script now also calls the non-balance-consuming client paths for status,
   account, mempool, snapshot export/import, snapshots, and snapshot detail.
   Local verification used the bundled Python runtime for syntax compilation and
-  CLI help rendering; `git diff --check` passed. After pushing, run on Vast:
-  `/workspace/biber-venv/bin/python -m pytest tests/test_xriq_private_devnet_client.py tests/test_xriq_preflight_api.py -q`
-  and `bash scripts/vast_xriq_api_smoke.sh`. No training run, OpenAI mentor
-  call, credential change, API restart, or vLLM restart is needed for this
-  client-only checkpoint.
+  CLI help rendering; `git diff --check` passed. Commit `6458e67c Extend XRIQ
+  private devnet client runbook` was pushed, Vast was fast-forwarded, and
+  focused pytest passed with `32 passed in 0.27s`:
+  `/workspace/biber-venv/bin/python -m pytest tests/test_xriq_private_devnet_client.py tests/test_xriq_preflight_api.py -q`.
+  `bash scripts/vast_xriq_api_smoke.sh` also passed and wrote artifacts under
+  `/workspace/outputs/xriq-api-smoke-20260525T151447Z-117752`; summary included
+  `block_height=2`, `transaction_status=confirmed`, `snapshot_height=2`,
+  `mempool_pending=0`, and client output files for overview/status/account/
+  mempool/snapshot export/snapshot import/snapshots/snapshot detail. No
+  training run, OpenAI mentor call, credential change, API restart, or vLLM
+  restart was used for this client-only checkpoint.
 - Latest BIBER MVP test-diagnosis workflow checkpoint pushed as
   `8b2047d4 Improve BIBER diagnosis repair loops`: stack detection is now
   command-first, so `python -m pytest` failures containing embedded Rust/Cargo
