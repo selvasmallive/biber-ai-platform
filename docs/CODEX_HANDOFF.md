@@ -174,6 +174,26 @@ serving the last broad-safe Rust/XRIQ adapter.
   copies were stashed as `codex-duplicate-failed-repair-retry-sync`; do not pop
   that stash unless deliberately inspecting the pre-fast-forward duplicate
   copies.
+- Latest BIBER MVP repeated-failed-edit guard checkpoint: the generated retry
+  request above was sent to the local `biber-dev-core-v1` model with
+  `--max-tokens 700` after an initial `--max-tokens 1200` call exceeded the
+  local 8192-token context window by one token. The local model repeated the
+  exact previously failed edit for `src/biber_api/test_diagnosis.py`, so no
+  `plan-repair-edits` or `apply-repair-edits` step was run. Extraction now
+  rejects exact repeat edits on retry artifacts marked
+  `retry_of_failed_verification=true` with reason
+  `repeated_failed_repair_edit` and reports
+  `repeat_failed_edit_guard.enabled=true`. Vast verification passed focused
+  extraction tests with `12 passed, 139 deselected`, full
+  `tests/test_biber_agent_client.py -q` with `151 passed`, and the broader
+  cheap MVP set
+  `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py -q`
+  with `169 passed`. No training run, OpenAI mentor call, or API restart was
+  used. The repeated-edit guarded extraction artifact is
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-edit-extraction-repeat-guard.json`;
+  it reports `ok=false`, `extraction_status=no_valid_edits`, `edits=[]`,
+  `rejected[0].reason=repeated_failed_repair_edit`, and
+  `blocked_repeated_edits=1`.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
@@ -7085,14 +7105,16 @@ tail -f /workspace/biber-logs/vllm.log
 ## Recommended Next Steps
 
 Current immediate next step: continue narrow BIBER MVP client workflow work on
-top of the stable adapter. Use the generated retry request
-`/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-request.json`
-as the next local-model repair attempt, then run `extract-repair-edits`,
-`plan-repair-edits`, guarded `apply-repair-edits --approve` only after review,
-and `verify-repair-edits` again. If the retry verifies, export it only through
-the existing human-review gates; if it fails, save another failed-repair review.
-Do not export or train from the failed-repair review itself. Use the offline
-repair-attempt inspection path if repair artifacts need review:
+top of the stable adapter. The latest retry attempt repeated the same failed
+source edit and is now blocked by the repeated-failed-edit guard, so do not
+plan/apply
+`/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-edit-extraction-repeat-guard.json`.
+The next useful code step is to harden failed-repair retry prompting/context:
+make `prepare-failed-repair-retry` include an explicit machine-readable
+forbidden edit list and/or tighter source snippets around the suspected rule,
+then rerun the local-model retry. Keep max output tokens below the local
+context window, and keep training disabled. Use the offline repair-attempt
+inspection path if repair artifacts need review:
 `show-repair-attempt`,
 `list-repair-attempts`, `extract-repair-edits`,
 `show-repair-edit-extraction`, `list-repair-edit-extractions`, then

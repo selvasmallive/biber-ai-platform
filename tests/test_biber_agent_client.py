@@ -1409,6 +1409,94 @@ def test_extract_repair_edits_all_test_edits_blocked_by_source_only(
     )
 
 
+def test_extract_repair_edits_rejects_repeated_failed_retry_edit(
+    tmp_path: Path,
+) -> None:
+    repeated_edit = {
+        "path": "src/biber_api/test_diagnosis.py",
+        "old_text": "primary_category = _primary_category(signals)",
+        "new_text": (
+            "primary_category = _primary_category(signals) "
+            "if signals else 'test_failure'"
+        ),
+        "expected_replacements": 1,
+    }
+    attempt = {
+        "source": "biber_mvp_loop_repair_attempt",
+        "repair_request": {
+            "retry_of_failed_verification": True,
+            "previous_attempt": {"attempted_edits": [repeated_edit]},
+        },
+        "repair_content": json.dumps({"edits": [repeated_edit]}),
+    }
+
+    extraction = client.extract_repair_edits(
+        path=tmp_path / "repair-attempt.json",
+        payload=attempt,
+        max_edits=3,
+        max_files=None,
+    )
+
+    assert extraction["ok"] is False
+    assert extraction["extraction_status"] == "no_valid_edits"
+    assert extraction["edits"] == []
+    assert extraction["repeat_failed_edit_guard"] == {
+        "enabled": True,
+        "blocked_repeated_edits": 1,
+    }
+    assert extraction["rejected"] == [
+        {
+            "index": 1,
+            "reason": "repeated_failed_repair_edit",
+            "path": "src/biber_api/test_diagnosis.py",
+        }
+    ]
+    assert extraction["plan_edit_payload"] == {"edits": []}
+
+
+def test_extract_repair_edits_allows_non_repeated_retry_edit(
+    tmp_path: Path,
+) -> None:
+    previous_edit = {
+        "path": "src/biber_api/test_diagnosis.py",
+        "old_text": "primary_category = _primary_category(signals)",
+        "new_text": (
+            "primary_category = _primary_category(signals) "
+            "if signals else 'test_failure'"
+        ),
+        "expected_replacements": 1,
+    }
+    next_edit = {
+        "path": "src/biber_api/test_diagnosis.py",
+        "old_text": '"panicked at", "test_failure"',
+        "new_text": '"panicked at", "assertion_failure"',
+        "expected_replacements": 1,
+    }
+    attempt = {
+        "source": "biber_mvp_loop_repair_attempt",
+        "repair_request": {
+            "retry_of_failed_verification": True,
+            "previous_attempt": {"attempted_edits": [previous_edit]},
+        },
+        "repair_content": json.dumps({"edits": [next_edit]}),
+    }
+
+    extraction = client.extract_repair_edits(
+        path=tmp_path / "repair-attempt.json",
+        payload=attempt,
+        max_edits=3,
+        max_files=None,
+    )
+
+    assert extraction["ok"] is True
+    assert extraction["edits"] == [next_edit]
+    assert extraction["rejected"] == []
+    assert extraction["repeat_failed_edit_guard"] == {
+        "enabled": True,
+        "blocked_repeated_edits": 0,
+    }
+
+
 def test_extract_repair_edits_accepts_source_unified_diff_when_source_only(
     tmp_path: Path,
 ) -> None:

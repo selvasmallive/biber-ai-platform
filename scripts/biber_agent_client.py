@@ -1459,6 +1459,37 @@ def repair_request_blocks_test_edits(payload: Mapping[str, Any]) -> bool:
     )
 
 
+def repair_edit_signature(edit: Mapping[str, Any]) -> tuple[object, ...]:
+    return (
+        edit.get("path"),
+        edit.get("old_text"),
+        edit.get("new_text"),
+        edit.get("expected_replacements"),
+        edit.get("create_if_missing"),
+        edit.get("dry_run"),
+    )
+
+
+def previous_failed_repair_edit_signatures(
+    payload: Mapping[str, Any],
+) -> set[tuple[object, ...]]:
+    repair_request = require_mapping(payload.get("repair_request"))
+    if repair_request.get("retry_of_failed_verification") is not True:
+        return set()
+    previous_attempt = require_mapping(repair_request.get("previous_attempt"))
+    signatures: set[tuple[object, ...]] = set()
+    for index, candidate in enumerate(
+        require_list(previous_attempt.get("attempted_edits")),
+        start=1,
+    ):
+        if not isinstance(candidate, Mapping):
+            continue
+        edit, _ = validate_repair_edit_candidate(candidate, index=index)
+        if edit is not None:
+            signatures.add(repair_edit_signature(edit))
+    return signatures
+
+
 def is_test_edit_path(path: str) -> bool:
     clean_path = path.replace("\\", "/").strip().lower()
     parts = [part for part in clean_path.split("/") if part]
@@ -1618,6 +1649,7 @@ def extract_repair_edits(
     accepted: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
     source_only_guard_enabled = repair_request_blocks_test_edits(payload)
+    repeated_failed_edit_signatures = previous_failed_repair_edit_signatures(payload)
     candidate_index = 0
     for value in json_values:
         for candidate in extract_edit_objects_from_value(value):
@@ -1635,6 +1667,17 @@ def extract_repair_edits(
                     {
                         "index": candidate_index,
                         "reason": "test_file_edit_blocked_by_source_only_instruction",
+                        "path": edit.get("path"),
+                    }
+                )
+            elif (
+                edit is not None
+                and repair_edit_signature(edit) in repeated_failed_edit_signatures
+            ):
+                rejected.append(
+                    {
+                        "index": candidate_index,
+                        "reason": "repeated_failed_repair_edit",
                         "path": edit.get("path"),
                     }
                 )
@@ -1665,6 +1708,17 @@ def extract_repair_edits(
                 {
                     "index": candidate_index,
                     "reason": "test_file_edit_blocked_by_source_only_instruction",
+                    "path": edit.get("path"),
+                }
+            )
+        elif (
+            edit is not None
+            and repair_edit_signature(edit) in repeated_failed_edit_signatures
+        ):
+            rejected.append(
+                {
+                    "index": candidate_index,
+                    "reason": "repeated_failed_repair_edit",
                     "path": edit.get("path"),
                 }
             )
@@ -1721,6 +1775,14 @@ def extract_repair_edits(
                     "test_file_edit_blocked_by_source_only_instruction",
                     "freeform_test_file_edit_blocked_by_source_only_instruction",
                 }
+            ),
+        },
+        "repeat_failed_edit_guard": {
+            "enabled": bool(repeated_failed_edit_signatures),
+            "blocked_repeated_edits": sum(
+                1
+                for item in rejected
+                if item.get("reason") == "repeated_failed_repair_edit"
             ),
         },
         "json_values_found": len(json_values),
@@ -9188,6 +9250,8 @@ def format_repair_edit_extraction_summary(payload: Mapping[str, Any]) -> str:
         f"rejected: {len(rejected)}",
         "source_only_guard: "
         f"{require_mapping(payload.get('source_only_guard')).get('enabled', False)}",
+        "repeat_failed_edit_guard: "
+        f"{require_mapping(payload.get('repeat_failed_edit_guard')).get('enabled', False)}",
         f"edits_output: {payload.get('edits_output', '-')}",
         f"artifact_path: {payload.get('artifact_path', '-')}",
     ]
