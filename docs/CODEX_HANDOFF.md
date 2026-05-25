@@ -573,8 +573,11 @@ serving the last broad-safe Rust/XRIQ adapter.
   `verify_repair_edits` client tests with `4 passed, 170 deselected`, full
   `tests/test_biber_agent_client.py -q` with `174 passed`, and full
   `tests -q` with `335 passed`. No training run, OpenAI mentor call,
-  credential change, API restart, or vLLM restart was used. Next narrow gate:
-  export the passed verification with `export-verified-repair`, run
+  credential change, API restart, or vLLM restart was used. Vast was
+  fast-forwarded to the pushed checkpoint and is clean; the temporary pre-pull
+  file sync was stashed as `codex-retry-local-verify-sync` and should not be
+  popped unless deliberately inspecting that duplicate sync state. Next narrow
+  gate: export the passed verification with `export-verified-repair`, run
   `review-verified-repairs`, and then inspect `show-repair-chain`; do not save
   to GitHub, mark training-ready, or start QLoRA from this row without the
   normal review decisions and explicit user approval.
