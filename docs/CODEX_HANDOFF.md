@@ -604,11 +604,39 @@ serving the last broad-safe Rust/XRIQ adapter.
   `review_status=needs_human_review`, `training_allowed=false`,
   `safe_to_train=false`, and `github_save_ready=false`. No training run,
   OpenAI mentor call, credential change, API restart, or vLLM restart was
-  used. Next manual gate: the user must explicitly choose whether to record a
-  ready-repair-chain decision such as `defer`, `reject`, or `approve_for_eval`;
-  do not infer that decision from a generic "continue", and do not save to
-  GitHub, mark training-ready, or start QLoRA from this row without the normal
-  downstream review decisions and explicit user approval.
+  used. The user later explicitly approved `approve_for_eval` for this v15
+  ready repair-chain; see the following checkpoint before taking any next
+  action.
+- Latest BIBER MVP v15 eval-candidate review checkpoint: the user explicitly
+  approved `approve_for_eval` for the v15 ready repair-chain decision. The
+  decision was recorded with reviewer `user`, evidence source type
+  `real_repo_candidate`, and notes that it is eval-only with no training or
+  GitHub-save approval. Decision export wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-ready-chain-decisions-context-v15-local-target.jsonl`
+  with `records=1`, `decision=approve_for_eval`,
+  `repo_provenance_ready=1`, `training_allowed=false`,
+  `safe_to_train=false`, `approved_for_training=false`, and
+  `github_save_ready=false`. Decision review wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-ready-chain-decision-review-context-v15-local-target.json`
+  with `approved_for_eval_records=1`,
+  `decision_counts={'approve_for_eval': 1}`, `training_allowed=false`, and
+  `safe_to_train=false`. Eval-candidate export wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-ready-chain-eval-candidates-context-v15-local-target.jsonl`
+  with `records=1`, `eval_candidates=1`, `repo_provenance_ready=1`,
+  `requires_dataset_review=true`, `eval_dataset_ready=false`, and
+  `training_allowed=false`. Eval-candidate review wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-ready-chain-eval-candidate-review-context-v15-local-target.json`
+  with `records=1`, `ready_for_dataset_review=1`,
+  `review_status=eval_candidates_need_dataset_review`,
+  `requires_dataset_review=true`, `eval_dataset_ready_records=0`,
+  `eval_dataset_ready=false`, `training_allowed=false`, and
+  `safe_to_train=false`. No training run, OpenAI mentor call, credential
+  change, API restart, or vLLM restart was used. Next manual gate: the user
+  must explicitly choose whether to record an eval-candidate decision of
+  `defer`, `reject`, or `approve_for_eval_dataset`; do not infer that decision
+  from a generic "continue", and do not export an eval dataset, mark
+  training-ready, save to GitHub, or start QLoRA from this row without the
+  normal downstream review decisions and explicit user approval.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
