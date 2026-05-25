@@ -700,13 +700,62 @@ serving the last broad-safe Rust/XRIQ adapter.
   `baseline_candidate_ready_records=1`, `baseline_ready_records=0`,
   `requires_baseline_review_records=1`, `review_status=heldout_baseline_candidate_summary_only`,
   `training_allowed=false`, and `safe_to_train=false`. No training run, OpenAI
-  mentor call, credential change, API restart, or vLLM restart was used. Next
-  manual gate: the user must explicitly choose whether to record a
-  baseline-candidate decision of `defer`, `reject`, or `approve_as_baseline`;
-  do not infer that decision from a generic "continue", and do not run
-  training-readiness, mark training-ready, save to GitHub, or start QLoRA from
-  this row without the normal downstream review decisions and explicit user
-  approval.
+  mentor call, credential change, API restart, or vLLM restart was used. The
+  user later explicitly approved `approve_as_baseline`; see the following
+  checkpoint before taking any next action.
+- Latest BIBER MVP v15 training-readiness checkpoint: the user explicitly
+  approved `approve_as_baseline` for the v15 held-out baseline candidate. The
+  decision was recorded with reviewer `user` and notes that it is a baseline
+  decision only with no training, model promotion, GitHub-save, or OpenAI mentor
+  approval. Baseline decision export wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-baseline-decisions-context-v15-local-target.jsonl`
+  with `records=1`, `decision=approve_as_baseline`,
+  `approved_as_baseline_records=1`, `baseline_ready=true`,
+  `training_allowed=false`, and `safe_to_train=false`. Baseline decision review
+  wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-baseline-decision-review-context-v15-local-target.json`
+  with `approved_as_baseline_records=1`,
+  `decision_counts={'approve_as_baseline': 1}`, `baseline_ready_records=1`,
+  `requires_baseline_review_records=0`, `training_allowed=false`, and
+  `safe_to_train=false`. Training-readiness review wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-training-readiness-context-v15-local-target.json`
+  with `review_status=baseline_ready_manual_training_review_required`,
+  `training_gate_status=manual_review_required`, `baseline_ready_records=1`,
+  `ready_for_manual_training_dataset_review=true`, `training_allowed=false`,
+  and required manual actions `human_training_dataset_review`,
+  `explicit_user_approval_before_any_training_job`, and
+  `separate_vast_gpu_training_run_outside_codex_loop`. Training-candidate export
+  wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-training-candidates-context-v15-local-target.jsonl`
+  with `records=1`, `training_candidate_records=1`,
+  `training_dataset_ready=false`, `review_queue_only=true`, and
+  `training_allowed=false`. Training-candidate review wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-training-candidate-review-context-v15-local-target.json`
+  with `review_status=training_candidates_need_review`, `records=1`,
+  `pending_review_records=1`, `empty_output_records=1`,
+  `unreviewed_quality_records=1`, `ready_for_dataset_validation=false`, and
+  hard blockers `candidate_outputs_missing`, `candidate_quality_not_reviewed`,
+  and `below_min_ready_records`. A first `review-repair-chain-training-pipeline`
+  run against the v15 source directory expected standard artifact names and
+  produced
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-training-pipeline-context-v15-local-target.json`
+  with missing standard-name artifacts; treat that file as a naming-mismatch
+  probe, not the valid v15 pipeline status. Corrected standard-name review
+  copies were created under
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/v15-training-pipeline-standard-artifacts/`,
+  and the valid pipeline status is
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/v15-training-pipeline-standard-artifacts/agent-client-mvp-loop-repair-chain-training-pipeline.json`.
+  It reports `training_pipeline_status=blocked`,
+  `training_gate_status=manual_review_required`, `baseline_ready_records=1`,
+  `training_candidate_records=1`, `ready_for_manual_training_dataset_review=true`,
+  `ready_for_dataset_validation=false`, `training_allowed=false`, and hard
+  blockers `candidate_outputs_missing`, `candidate_quality_not_reviewed`,
+  `below_min_ready_records`, and `dataset_validation_not_ready`. No training
+  run, OpenAI mentor call, credential change, API restart, or vLLM restart was
+  used. Next manual gate: inspect/fill the training-candidate output only if it
+  is genuinely valuable, mark quality only after human review, then validate a
+  training dataset; do not infer this from a generic "continue", and do not
+  start QLoRA or any training job without a separate explicit training approval.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
