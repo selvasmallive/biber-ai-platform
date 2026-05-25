@@ -49,6 +49,9 @@ ssh -i <path-to-key> -p <port> root@<host> -L 8000:127.0.0.1:8000 -L 8001:127.0.
 
 See `docs/VAST_DIRECT_DEPLOY.md` for the repeatable fresh-GPU deployment runbook.
 
+If the old Vast.ai instance and volume have been terminated, start with
+`readme-resume-biber.md` before recreating the runtime.
+
 ---
 
 ## 2. Services
