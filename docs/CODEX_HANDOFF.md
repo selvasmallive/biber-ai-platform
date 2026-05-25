@@ -631,12 +631,55 @@ serving the last broad-safe Rust/XRIQ adapter.
   `requires_dataset_review=true`, `eval_dataset_ready_records=0`,
   `eval_dataset_ready=false`, `training_allowed=false`, and
   `safe_to_train=false`. No training run, OpenAI mentor call, credential
-  change, API restart, or vLLM restart was used. Next manual gate: the user
-  must explicitly choose whether to record an eval-candidate decision of
-  `defer`, `reject`, or `approve_for_eval_dataset`; do not infer that decision
-  from a generic "continue", and do not export an eval dataset, mark
-  training-ready, save to GitHub, or start QLoRA from this row without the
-  normal downstream review decisions and explicit user approval.
+  change, API restart, or vLLM restart was used. The user later explicitly
+  approved `approve_for_eval_dataset`; see the following checkpoint before
+  taking any next action.
+- Latest BIBER MVP v15 held-out eval checkpoint: the user explicitly approved
+  `approve_for_eval_dataset` for the v15 eval candidate. The eval-dataset
+  decision was recorded with reviewer `user` and notes that it is eval-dataset
+  only with no training, GitHub-save, or OpenAI mentor approval. Decision export
+  wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-ready-chain-eval-dataset-decisions-context-v15-local-target.jsonl`
+  with `records=1`, `decision=approve_for_eval_dataset`,
+  `approved_for_eval_dataset_records=1`, `eval_dataset_ready=true`,
+  `training_allowed=false`, and `safe_to_train=false`. Decision review wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-ready-chain-eval-dataset-decision-review-context-v15-local-target.json`
+  with `approved_for_eval_dataset_records=1`,
+  `decision_counts={'approve_for_eval_dataset': 1}`,
+  `eval_dataset_ready_records=1`, `training_allowed=false`, and
+  `safe_to_train=false`. Eval-dataset export wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-ready-chain-eval-dataset-context-v15-local-target.jsonl`
+  with `records=1`, `eval_dataset_records=1`, `eval_dataset_ready=true`, and
+  `training_allowed=false`. Validation wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-ready-chain-eval-dataset-validation-context-v15-local-target.json`
+  with `ok=true`, `validation_status=valid_eval_only`, `valid_records=1`,
+  `invalid_records=0`, `errors=[]`, and `training_allowed=false`. Prompt export
+  wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-ready-chain-eval-prompts-context-v15-local-target.jsonl`
+  with `records=1`, `eval_prompts=1`, `eval_only=true`, and
+  `training_allowed=false`. A first generic
+  `scripts/vast_eval_repair_chain_prompts_direct.sh` run accidentally selected
+  the older standard prompt file under
+  `/workspace/outputs/biber-real-repo-candidate-real-repo-candidate-20260522T184002Z-107220/`;
+  treat `/workspace/outputs/evals/biber-repair-chain-heldout-20260525T094651Z.*`
+  as unrelated to this v15 approval. The v15-specific run was rerun with
+  `BIBER_REPAIR_CHAIN_EVAL_PROMPTS` pointing to the v15 prompt JSONL and wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-eval-context-v15-local-target.jsonl`
+  plus
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-eval-context-v15-local-target.summary.json`;
+  it reported `1/1 responses` and `1/1 expectation checks passed`. Held-out
+  eval review wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-heldout-eval-review-context-v15-local-target.json`
+  with `ok=true`, `review_status=heldout_eval_passed`, `records=1`,
+  `passed_records=1`, `failed_records=0`, `expectation_failed_records=0`,
+  `model_counts={'biber-dev-core-v1': 1}`, `eval_only=true`,
+  `training_allowed=false`, and `safe_to_train=false`. No training run, OpenAI
+  mentor call, credential change, API restart, or vLLM restart was used. Next
+  manual gate: the user must explicitly choose whether to record a held-out
+  eval decision of `defer`, `reject`, or `accept_for_baseline`; do not infer
+  that decision from a generic "continue", and do not export baseline
+  candidates, mark training-ready, save to GitHub, or start QLoRA from this row
+  without the normal downstream review decisions and explicit user approval.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
