@@ -3972,6 +3972,186 @@ def export_empty_retry_gap(
     }
 
 
+def build_blocked_retry_edit_gap_record(
+    *,
+    review_path: Path,
+    review: Mapping[str, Any],
+    extraction_path: Path,
+    extraction: Mapping[str, Any],
+    attempt_path: Path,
+    attempt: Mapping[str, Any],
+) -> dict[str, Any]:
+    hard_blockers = [
+        str(item)
+        for item in require_list(review.get("hard_blockers"))
+        if str(item).strip()
+    ]
+    candidate_reviews = [
+        dict(item)
+        for item in require_list(review.get("candidate_reviews"))
+        if isinstance(item, Mapping)
+    ]
+    blocked_candidates = [
+        item
+        for item in candidate_reviews
+        if item.get("allowed_for_plan") is not True
+        or require_list(item.get("hard_blockers"))
+    ]
+    if (
+        review.get("ok") is True
+        or review.get("plan_allowed") is True
+        or not hard_blockers
+        or not blocked_candidates
+    ):
+        raise BiberAgentClientError(
+            "export-blocked-retry-edit-gap requires a blocked retry edit review "
+            "with hard blockers."
+        )
+
+    repair_request = require_mapping(attempt.get("repair_request"))
+    if repair_request.get("retry_of_failed_verification") is not True:
+        raise BiberAgentClientError(
+            "export-blocked-retry-edit-gap requires a retry repair attempt."
+        )
+
+    model_response = require_mapping(attempt.get("model_response"))
+    content = str(attempt.get("repair_content") or model_response.get("content") or "")
+    return {
+        "source": "biber_mvp_loop_blocked_retry_edit_gap",
+        "repair_loop_version": review.get("repair_loop_version")
+        or extraction.get("repair_loop_version")
+        or attempt.get("repair_loop_version"),
+        "gap_type": "blocked_retry_repair_edit_candidate",
+        "failure_mode": "deterministic_retry_review_blocked_candidate_before_planning",
+        "review_status": "needs_human_review",
+        "quality": "needs_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "auto_promoted": False,
+        "auto_saved": False,
+        "auto_applied": False,
+        "apply_allowed": False,
+        "plan_allowed": False,
+        "source_artifact": str(review_path),
+        "retry_edit_review_artifact": str(review_path),
+        "repair_edit_extraction_artifact": str(extraction_path),
+        "repair_attempt_artifact": str(attempt_path),
+        "repair_request_source_artifact": repair_request.get("source_artifact"),
+        "model": model_response.get("model") or review.get("model"),
+        "mentor_used": model_response.get("mentor_used") is True
+        or review.get("mentor_used") is True,
+        "runtime_profile_ids": repair_attempt_runtime_profile_ids(attempt) or [],
+        "next_test_id": review.get("next_test_id")
+        or extraction.get("next_test_id")
+        or attempt.get("next_test_id"),
+        "review_hard_blockers": hard_blockers,
+        "review_hints": [
+            str(item)
+            for item in require_list(review.get("review_hints"))
+            if str(item).strip()
+        ],
+        "candidate_reviews": candidate_reviews,
+        "blocked_candidates": blocked_candidates,
+        "edits": [
+            dict(item)
+            for item in require_list(review.get("edits"))
+            if isinstance(item, Mapping)
+        ],
+        "reviewed_plan_edit_payload": dict(
+            require_mapping(review.get("reviewed_plan_edit_payload"))
+        ),
+        "forbidden_edits": [
+            dict(item)
+            for item in require_list(review.get("forbidden_edits"))
+            if isinstance(item, Mapping)
+        ],
+        "model_response_text": content,
+        "model_response_preview": compact_text(content, max_chars=1000),
+        "model_edit_candidates": extract_model_edit_candidate_evidence(content),
+        "repair_prompt": repair_request.get("repair_prompt") or "",
+        "original_failure": require_mapping(repair_request.get("original_failure")),
+        "verification_failure": require_mapping(repair_request.get("failure")),
+        "source_context_snippets": [
+            dict(item)
+            for item in require_list(review.get("source_context_snippets"))
+            if isinstance(item, Mapping)
+        ],
+        "next_review_action": (
+            "human_review_blocked_retry_edit_gap_before_prompt_or_training_changes"
+        ),
+    }
+
+
+def export_blocked_retry_edit_gap(
+    *,
+    artifact_path: str,
+    output_path: str,
+) -> dict[str, Any]:
+    path = Path(artifact_path)
+    artifact = load_json_artifact(str(path), label="retry repair edit review artifact")
+    review = normalize_retry_repair_edit_review_artifact(artifact)
+    if review is None:
+        raise BiberAgentClientError(
+            "export-blocked-retry-edit-gap artifact must contain a saved "
+            "review-retry-repair-edits JSON object."
+        )
+
+    extraction_path, extraction, extraction_error = load_linked_artifact(
+        review.get("source_artifact"),
+        base_path=path,
+        label="repair-edit extraction artifact",
+        normalizer=normalize_repair_edit_extraction_artifact,
+    )
+    if extraction_error is not None or extraction_path is None or extraction is None:
+        raise BiberAgentClientError(
+            "Could not load linked repair-edit extraction artifact for blocked "
+            f"retry edit gap export: {extraction_error or 'missing source_artifact'}"
+        )
+
+    attempt_reference = review.get("repair_attempt_artifact") or extraction.get(
+        "source_artifact"
+    )
+    attempt_path, attempt, attempt_error = load_linked_artifact(
+        attempt_reference,
+        base_path=path,
+        label="repair-attempt artifact",
+        normalizer=normalize_repair_attempt_artifact,
+    )
+    if attempt_error is not None or attempt_path is None or attempt is None:
+        raise BiberAgentClientError(
+            "Could not load linked repair-attempt artifact for blocked retry "
+            f"edit gap export: {attempt_error or 'missing repair_attempt_artifact'}"
+        )
+
+    record = build_blocked_retry_edit_gap_record(
+        review_path=path,
+        review=review,
+        extraction_path=extraction_path,
+        extraction=extraction,
+        attempt_path=attempt_path,
+        attempt=attempt,
+    )
+    output = write_jsonl_artifact([record], output_path)
+    return {
+        "source": "biber_mvp_loop_blocked_retry_edit_gap_export",
+        "records": 1,
+        "output": output,
+        "review_status": "needs_human_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "auto_promoted": False,
+        "auto_saved": False,
+        "source_artifact": str(path),
+        "repair_edit_extraction_artifact": str(extraction_path),
+        "repair_attempt_artifact": str(attempt_path),
+        "gap_type": record.get("gap_type"),
+        "review_hard_blockers": record.get("review_hard_blockers"),
+        "next_review_action": record.get("next_review_action"),
+    }
+
+
 def empty_retry_gap_path(record: Mapping[str, Any]) -> str:
     forbidden_edits = [
         item
@@ -10744,6 +10924,28 @@ def format_empty_retry_gap_export_summary(payload: Mapping[str, Any]) -> str:
     )
 
 
+def format_blocked_retry_edit_gap_export_summary(payload: Mapping[str, Any]) -> str:
+    hard_blockers = ",".join(
+        str(item) for item in require_list(payload.get("review_hard_blockers"))
+    )
+    return "\n".join(
+        [
+            "BIBER blocked retry edit gap export",
+            f"source_artifact: {payload.get('source_artifact', '-')}",
+            f"repair_edit_extraction_artifact: {payload.get('repair_edit_extraction_artifact', '-')}",
+            f"repair_attempt_artifact: {payload.get('repair_attempt_artifact', '-')}",
+            f"records: {payload.get('records', 0)}",
+            f"output: {payload.get('output', '-')}",
+            f"review_status: {payload.get('review_status', '-')}",
+            f"training_allowed: {payload.get('training_allowed', False)}",
+            f"eligible_for_training: {payload.get('eligible_for_training', False)}",
+            f"safe_to_train: {payload.get('safe_to_train', False)}",
+            f"hard_blockers: {hard_blockers or '-'}",
+            f"next_review_action: {payload.get('next_review_action', '-')}",
+        ]
+    )
+
+
 def format_empty_retry_gap_review_summary(payload: Mapping[str, Any]) -> str:
     groups = [
         item for item in require_list(payload.get("groups")) if isinstance(item, dict)
@@ -13260,6 +13462,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     export_empty_retry_gap_parser.add_argument("artifact")
     export_empty_retry_gap_parser.add_argument("--output", required=True)
 
+    export_blocked_retry_edit_gap_parser = subparsers.add_parser(
+        "export-blocked-retry-edit-gap",
+        help=(
+            "Export a blocked retry edit review to a JSONL model-gap review "
+            "queue without making it trainable."
+        ),
+    )
+    export_blocked_retry_edit_gap_parser.add_argument("artifact")
+    export_blocked_retry_edit_gap_parser.add_argument("--output", required=True)
+
     review_empty_retry_gaps_parser = subparsers.add_parser(
         "review-empty-retry-gaps",
         help=(
@@ -14499,6 +14711,16 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(export, indent=2, sort_keys=True)
             if args.print_json
             else format_empty_retry_gap_export_summary(export)
+        )
+    if args.command == "export-blocked-retry-edit-gap":
+        export = export_blocked_retry_edit_gap(
+            artifact_path=args.artifact,
+            output_path=args.output,
+        )
+        return (
+            json.dumps(export, indent=2, sort_keys=True)
+            if args.print_json
+            else format_blocked_retry_edit_gap_export_summary(export)
         )
     if args.command == "review-empty-retry-gaps":
         review = review_empty_retry_gap_records(

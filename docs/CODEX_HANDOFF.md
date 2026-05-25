@@ -421,6 +421,23 @@ serving the last broad-safe Rust/XRIQ adapter.
   v8 review artifact because `review_status=retry_edit_blocked_needs_human_review`.
   No planning, applying, training, OpenAI mentor call, credential change, API
   restart, or vLLM restart was used.
+- Latest BIBER MVP blocked retry-edit gap export checkpoint:
+  `scripts/biber_agent_client.py` now has an offline
+  `export-blocked-retry-edit-gap` command. It accepts only a blocked
+  `review-retry-repair-edits` artifact with hard blockers, loads the linked
+  extraction and retry attempt, and writes a JSONL model-gap row while keeping
+  `training_allowed=false`, `eligible_for_training=false`,
+  `safe_to_train=false`, `auto_promoted=false`, `auto_saved=false`,
+  `auto_applied=false`, `apply_allowed=false`, and `plan_allowed=false`.
+  Vast verification passed focused blocked retry-edit gap tests with
+  `2 passed, 166 deselected`, full `tests/test_biber_agent_client.py -q`
+  with `168 passed`, and the broader cheap MVP set
+  `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py -q`
+  with `186 passed`. The real v8 blocked retry review exported to
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-blocked-retry-edit-gap-context-v8.jsonl`
+  with one record, `gap_type=blocked_retry_repair_edit_candidate`, and hard
+  blocker `retry_edit_changes_previous_failed_target_outside_rule_context`.
+  This is review-only evidence; do not train from it automatically.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
