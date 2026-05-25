@@ -1949,6 +1949,152 @@ def test_export_repeated_forbidden_retry_gap_rejects_non_repeated_extraction(
         raise AssertionError("expected non-repeated extraction artifact to be rejected")
 
 
+def test_run_review_repeated_forbidden_retry_gaps_writes_summary_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError(
+            "review-repeated-forbidden-retry-gaps should not resolve an API key"
+        )
+
+    repeated_edit = {
+        "path": "src/biber_api/test_diagnosis.py",
+        "old_text": "primary_category = _primary_category(signals)",
+        "new_text": (
+            "primary_category = _primary_category(signals) "
+            "if signals else 'test_failure'"
+        ),
+        "expected_replacements": 1,
+    }
+    row = {
+        "source": "biber_mvp_loop_repeated_forbidden_retry_gap",
+        "gap_type": "repeated_forbidden_repair_edit",
+        "failure_mode": "local_model_repeated_forbidden_edit_after_retry_instruction",
+        "review_status": "needs_human_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "source_artifact": "/workspace/outputs/extraction.json",
+        "repair_attempt_artifact": "/workspace/outputs/attempt.json",
+        "model": "biber-dev-core-v1",
+        "mentor_used": False,
+        "next_test_id": "pytest-test-diagnosis",
+        "repair_prompt": (
+            "Do not output any edit identical to a forbidden edit. "
+            'If every candidate equals a forbidden edit, return {"edits":[]}.'
+        ),
+        "forbidden_edits": [repeated_edit],
+        "model_response_text": (
+            json.dumps({"edits": [repeated_edit]})
+            + "\nThe root cause is rule order; add a new rule instead."
+        ),
+        "repeated_forbidden_candidates": [
+            {"index": 1, "source": "json", "validated_edit": repeated_edit}
+        ],
+        "guard_rejection": {
+            "rejected": [
+                {
+                    "index": 1,
+                    "reason": "repeated_failed_repair_edit",
+                    "path": repeated_edit["path"],
+                }
+            ],
+            "repeat_failed_edit_guard": {
+                "enabled": True,
+                "blocked_repeated_edits": 1,
+            },
+        },
+        "source_context_snippets": [
+            {
+                "path": repeated_edit["path"],
+                "snippet_kind": "rule",
+                "snippet": "1: _Rule(...)",
+            }
+        ],
+    }
+    jsonl_path = tmp_path / "repeated-forbidden-gap.jsonl"
+    jsonl_path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    output_path = tmp_path / "repeated-forbidden-gap-review.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-repeated-forbidden-retry-gaps",
+                str(jsonl_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["source"] == "biber_mvp_loop_repeated_forbidden_retry_gap_review"
+    assert result["records"] == 1
+    assert result["rejected_records"] == 0
+    assert result["ready_for_human_review"] == 1
+    assert result["training_allowed"] is False
+    assert result["eligible_for_training"] is False
+    assert result["safe_to_train"] is False
+    assert result["auto_promoted"] is False
+    assert result["auto_saved"] is False
+    assert result["artifact_path"] == str(output_path)
+    assert result["review_hints"] == [
+        "prompt_forbidden_edit_instruction_ignored",
+        "empty_edits_escape_instruction_ignored",
+        "json_candidate_conflicts_with_model_explanation",
+        "rule_context_seen_but_repeated_target_edit",
+    ]
+    assert result["groups"] == [
+        {
+            "model": "biber-dev-core-v1",
+            "next_test_id": "pytest-test-diagnosis",
+            "path": repeated_edit["path"],
+            "failure_mode": (
+                "local_model_repeated_forbidden_edit_after_retry_instruction"
+            ),
+            "count": 1,
+            "source_artifacts": ["/workspace/outputs/extraction.json"],
+            "repair_attempt_artifacts": ["/workspace/outputs/attempt.json"],
+            "jsonl_refs": [{"jsonl_path": str(jsonl_path), "jsonl_index": 1}],
+            "review_hints": result["review_hints"],
+            "training_allowed": False,
+            "eligible_for_training": False,
+            "safe_to_train": False,
+        }
+    ]
+
+
+def test_review_repeated_forbidden_retry_gaps_rejects_unsupported_rows(
+    tmp_path: Path,
+) -> None:
+    jsonl_path = tmp_path / "mixed-gap.jsonl"
+    jsonl_path.write_text(
+        json.dumps({"source": "unsupported_gap"}) + "\n",
+        encoding="utf-8",
+    )
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-repeated-forbidden-retry-gaps",
+                str(jsonl_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["records"] == 0
+    assert result["rejected_records"] == 1
+    assert result["groups"] == []
+    assert result["rejected"][0]["reason"] == "unsupported_source"
+
+
 def test_run_show_repair_edit_extraction_summarizes_without_api_key(
     monkeypatch,
     tmp_path: Path,

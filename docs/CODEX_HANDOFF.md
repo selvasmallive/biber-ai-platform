@@ -265,6 +265,28 @@ serving the last broad-safe Rust/XRIQ adapter.
   candidate and one guard rejection. Next narrow gate: review this model-gap
   row as evidence for prompt/eval/training design, but do not train from it
   unless a future reviewed dataset validator explicitly promotes it.
+- Latest BIBER MVP repeated-forbidden retry gap review checkpoint:
+  `scripts/biber_agent_client.py` now has an offline
+  `review-repeated-forbidden-retry-gaps` command. It reads one or more
+  repeated-forbidden model-gap JSONL queues, rejects unsupported sources,
+  groups accepted rows by model, next test id, path, and failure mode, and
+  emits deterministic review hints while keeping `training_allowed=false`,
+  `eligible_for_training=false`, `safe_to_train=false`,
+  `auto_promoted=false`, and `auto_saved=false`. Vast verification passed
+  focused `repeated_forbidden_retry_gap` tests with
+  `4 passed, 152 deselected`, full `tests/test_biber_agent_client.py -q`
+  with `156 passed`, and the broader cheap MVP set
+  `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py -q`
+  with `174 passed`. No training run, OpenAI mentor call, credential change,
+  API restart, or vLLM restart was used. The review artifact is
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-repeated-forbidden-retry-gap-review-context-v4.json`.
+  It has `records=1`, `groups=1`, `rejected_records=0`, and review hints
+  `prompt_forbidden_edit_instruction_ignored`,
+  `empty_edits_escape_instruction_ignored`,
+  `json_candidate_conflicts_with_model_explanation`, and
+  `rule_context_seen_but_repeated_target_edit`. Next narrow gate: use this
+  review summary to make a deterministic prompt/response-shape improvement or
+  eval case; do not train from this row automatically.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
