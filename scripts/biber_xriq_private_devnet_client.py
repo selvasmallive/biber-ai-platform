@@ -64,16 +64,26 @@ def request_json(
     api_key: str,
     path: str,
     query: Mapping[str, object | None] | None = None,
+    method: str = "GET",
+    json_body: Mapping[str, object | None] | None = None,
     timeout_seconds: float = 60.0,
 ) -> dict[str, Any]:
     url = build_url(base_url, path, query)
+    body_bytes: bytes | None = None
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json",
+    }
+    if json_body is not None:
+        headers["Content-Type"] = "application/json"
+        body_bytes = json.dumps(
+            {key: value for key, value in json_body.items() if value is not None}
+        ).encode("utf-8")
     request = urllib.request.Request(
         url,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Accept": "application/json",
-        },
-        method="GET",
+        data=body_bytes,
+        headers=headers,
+        method=method,
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
@@ -138,6 +148,77 @@ def format_overview_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_status_summary(payload: Mapping[str, Any]) -> str:
+    lines = [
+        "BIBER XRIQ private-devnet status",
+        f"current_height: {short_value(payload.get('current_height'))}",
+        f"state_root: {short_value(payload.get('state_root'), max_chars=24)}",
+        f"pending_transactions: {short_value(payload.get('pending_transactions'))}",
+        f"stored_blocks: {short_value(payload.get('stored_blocks'))}",
+    ]
+    return "\n".join(lines)
+
+
+def format_account_summary(payload: Mapping[str, Any]) -> str:
+    lines = [
+        "BIBER XRIQ private-devnet account",
+        f"address: {short_value(payload.get('address'), max_chars=48)}",
+        f"balance_base_units: {short_value(payload.get('balance_base_units'))}",
+        f"nonce: {short_value(payload.get('nonce'))}",
+    ]
+    return "\n".join(lines)
+
+
+def format_mempool_summary(payload: Mapping[str, Any]) -> str:
+    lines = [
+        "BIBER XRIQ private-devnet mempool",
+        f"pending_count: {short_value(payload.get('pending_count'))}",
+    ]
+    transactions = payload.get("transactions")
+    if isinstance(transactions, list):
+        for tx in transactions[:5]:
+            if not isinstance(tx, dict):
+                continue
+            lines.append(
+                "- "
+                f"{short_value(tx.get('tx_hash'), max_chars=16)} "
+                f"{short_value(tx.get('from'), max_chars=24)} -> "
+                f"{short_value(tx.get('to'), max_chars=24)} "
+                f"amount={short_value(tx.get('amount_base_units'))} "
+                f"fee={short_value(tx.get('fee_base_units'))}"
+            )
+    return "\n".join(lines)
+
+
+def format_transaction_summary(payload: Mapping[str, Any]) -> str:
+    lines = [
+        "BIBER XRIQ private-devnet transaction",
+        f"tx_hash: {short_value(payload.get('tx_hash'), max_chars=24)}",
+        f"status: {short_value(payload.get('status'))}",
+        f"block_height: {short_value(payload.get('block_height'))}",
+        f"from: {short_value(payload.get('from'), max_chars=48)}",
+        f"to: {short_value(payload.get('to'), max_chars=48)}",
+        f"amount_base_units: {short_value(payload.get('amount_base_units'))}",
+        f"fee_base_units: {short_value(payload.get('fee_base_units'))}",
+    ]
+    return "\n".join(lines)
+
+
+def format_preflight_transfer_summary(payload: Mapping[str, Any]) -> str:
+    lines = [
+        "BIBER XRIQ private-devnet preflight transfer",
+        f"from: {short_value(payload.get('from'), max_chars=48)}",
+        f"to: {short_value(payload.get('to'), max_chars=48)}",
+        f"amount_base_units: {short_value(payload.get('amount_base_units'))}",
+        f"fee_base_units: {short_value(payload.get('fee_base_units'))}",
+        f"transaction_hash: {short_value(payload.get('transaction_hash'), max_chars=24)}",
+        f"confirmed_block_height: {short_value(payload.get('confirmed_block_height'))}",
+        f"final_balance_base_units: {short_value(payload.get('final_balance_base_units'))}",
+        f"final_nonce: {short_value(payload.get('final_nonce'))}",
+    ]
+    return "\n".join(lines)
+
+
 def format_snapshot_list_summary(payload: Mapping[str, Any]) -> str:
     snapshots = payload.get("snapshots")
     lines = [
@@ -188,6 +269,97 @@ def fetch_overview(
         api_key=api_key,
         path="/v1/xriq/private-devnet/overview",
         query={"explorer_limit": explorer_limit, "snapshot_limit": snapshot_limit},
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def fetch_status(
+    *,
+    base_url: str,
+    api_key: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/xriq/private-devnet/status",
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def fetch_account(
+    *,
+    base_url: str,
+    api_key: str,
+    address: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path=f"/v1/xriq/private-devnet/accounts/{urllib.parse.quote(address, safe='')}",
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def fetch_mempool(
+    *,
+    base_url: str,
+    api_key: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/xriq/private-devnet/mempool",
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def fetch_transaction(
+    *,
+    base_url: str,
+    api_key: str,
+    tx_hash: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path=f"/v1/xriq/private-devnet/transactions/{urllib.parse.quote(tx_hash, safe='')}",
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def preflight_transfer(
+    *,
+    base_url: str,
+    api_key: str,
+    from_address: str,
+    to_address: str,
+    amount_base_units: str,
+    fee_base_units: str,
+    expires_at_height: int | None,
+    timestamp_ms: int | None,
+    consensus_round: int | None,
+    alice_balance_base_units: str | None,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/xriq/private-devnet/preflight-transfer",
+        method="POST",
+        json_body={
+            "from": from_address,
+            "to": to_address,
+            "amount_base_units": amount_base_units,
+            "fee_base_units": fee_base_units,
+            "expires_at_height": expires_at_height,
+            "timestamp_ms": timestamp_ms,
+            "consensus_round": consensus_round,
+            "alice_balance_base_units": alice_balance_base_units,
+        },
         timeout_seconds=timeout_seconds,
     )
 
@@ -260,6 +432,29 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     overview.add_argument("--explorer-limit", type=int, default=5)
     overview.add_argument("--snapshot-limit", type=int, default=5)
 
+    subparsers.add_parser("status", help="Fetch private-devnet chain status.")
+
+    account = subparsers.add_parser("account", help="Fetch one account detail.")
+    account.add_argument("address")
+
+    subparsers.add_parser("mempool", help="Fetch durable mempool detail.")
+
+    transaction = subparsers.add_parser("transaction", help="Fetch one transaction detail.")
+    transaction.add_argument("tx_hash")
+
+    preflight = subparsers.add_parser(
+        "preflight-transfer",
+        help="Submit a deterministic private-devnet transfer through the BIBER API.",
+    )
+    preflight.add_argument("--from", dest="from_address", required=True)
+    preflight.add_argument("--to", dest="to_address", required=True)
+    preflight.add_argument("--amount", dest="amount_base_units", required=True)
+    preflight.add_argument("--fee", dest="fee_base_units", required=True)
+    preflight.add_argument("--expires-at-height", type=int, default=None)
+    preflight.add_argument("--timestamp-ms", type=int, default=None)
+    preflight.add_argument("--consensus-round", type=int, default=None)
+    preflight.add_argument("--alice-balance", dest="alice_balance_base_units", default=None)
+
     snapshots = subparsers.add_parser("snapshots", help="List private-devnet snapshots.")
     snapshots.add_argument("--limit", type=int, default=10)
 
@@ -291,6 +486,76 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(payload, indent=2, sort_keys=True)
             if args.print_json
             else format_overview_summary(payload)
+        )
+
+    if args.command == "status":
+        payload = fetch_status(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(payload, indent=2, sort_keys=True)
+            if args.print_json
+            else format_status_summary(payload)
+        )
+
+    if args.command == "account":
+        payload = fetch_account(
+            base_url=base_url,
+            api_key=api_key,
+            address=args.address,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(payload, indent=2, sort_keys=True)
+            if args.print_json
+            else format_account_summary(payload)
+        )
+
+    if args.command == "mempool":
+        payload = fetch_mempool(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(payload, indent=2, sort_keys=True)
+            if args.print_json
+            else format_mempool_summary(payload)
+        )
+
+    if args.command == "transaction":
+        payload = fetch_transaction(
+            base_url=base_url,
+            api_key=api_key,
+            tx_hash=args.tx_hash,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(payload, indent=2, sort_keys=True)
+            if args.print_json
+            else format_transaction_summary(payload)
+        )
+
+    if args.command == "preflight-transfer":
+        payload = preflight_transfer(
+            base_url=base_url,
+            api_key=api_key,
+            from_address=args.from_address,
+            to_address=args.to_address,
+            amount_base_units=args.amount_base_units,
+            fee_base_units=args.fee_base_units,
+            expires_at_height=args.expires_at_height,
+            timestamp_ms=args.timestamp_ms,
+            consensus_round=args.consensus_round,
+            alice_balance_base_units=args.alice_balance_base_units,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(payload, indent=2, sort_keys=True)
+            if args.print_json
+            else format_preflight_transfer_summary(payload)
         )
 
     if args.command == "snapshots":

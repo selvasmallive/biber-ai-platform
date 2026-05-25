@@ -135,6 +135,25 @@ cargo run -p xriq-node -- preflight-transfer \
   --format json
 ```
 
+BIBER API client private-devnet loop from the repo root:
+
+```bash
+python scripts/biber_xriq_private_devnet_client.py status
+python scripts/biber_xriq_private_devnet_client.py account xriqdev1alice00000000000
+python scripts/biber_xriq_private_devnet_client.py mempool
+python scripts/biber_xriq_private_devnet_client.py preflight-transfer \
+  --from xriqdev1alice00000000000 \
+  --to xriqdev1bobbb00000000000 \
+  --amount 25 \
+  --fee 2 \
+  --expires-at-height 100 \
+  --timestamp-ms 1000
+python scripts/biber_xriq_private_devnet_client.py transaction <hash-from-preflight>
+```
+
+Set `BIBER_API_KEY` or pass `--api-key`. Use `--json` on any client command to
+print the full API response instead of the concise summary.
+
 Private-devnet wallet JSON submit body:
 
 ```bash

@@ -8,6 +8,10 @@ Near-term goal: finish the cost-conscious BIBER MVP and the XRIQ private-devnet
 prototype from the current GPU-backed direct vLLM/FastAPI state.
 
 - Current focus:
+  - Active narrowed focus as of 2026-05-25: complete the XRIQ private-devnet
+    prototype first. Keep the BIBER MVP stable, but do not expand BIBER model,
+    eval, training, or agent features unless they directly unblock XRIQ
+    private-devnet work or the user explicitly widens the goal again.
   - BIBER MVP: local model API, model registry, repo context, file-edit/test
     workflows, GitHub save/PR path, and optional OpenAI mentor review only when
     it is worth the cost.
@@ -90,6 +94,23 @@ the user changes the project scope.
 As of the latest 2026-05-25 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
+- Latest XRIQ-only focus checkpoint: the user narrowed the active project goal
+  to completing the XRIQ private-devnet prototype first. A narrow usability
+  step extended `scripts/biber_xriq_private_devnet_client.py` beyond read-only
+  dashboard/snapshot access so it can now call BIBER API status, account,
+  mempool, transaction, and `preflight-transfer` flows. `xriq/README.md`
+  documents the repo-root client loop. Local verification used the bundled
+  Python runtime for syntax compilation of the client and client tests plus CLI
+  help rendering for the root command and `preflight-transfer`. Rust
+  verification passed `cargo test -p xriq-wallet --manifest-path
+  xriq/Cargo.toml` with `13 passed`, and `cargo test -p xriq-node
+  --manifest-path xriq/Cargo.toml` with `51 passed`. Local Python pytest was
+  not available on the workstation, so run focused pytest on Vast after syncing:
+  `/workspace/biber-venv/bin/python -m pytest tests/test_xriq_private_devnet_client.py tests/test_xriq_preflight_api.py -q`.
+  No training run, OpenAI mentor call, credential change, API restart, or vLLM
+  restart was used. Next XRIQ-only step after verification: improve the
+  private-devnet runbook/client loop or add the next missing wallet/RPC
+  workflow, keeping public XRIQ scope delayed.
 - Latest BIBER MVP test-diagnosis workflow checkpoint pushed as
   `8b2047d4 Improve BIBER diagnosis repair loops`: stack detection is now
   command-first, so `python -m pytest` failures containing embedded Rust/Cargo

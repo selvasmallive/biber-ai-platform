@@ -58,6 +58,117 @@ def test_format_overview_summary_includes_dashboard_fields() -> None:
     assert "latest_block_height: 2" in lines
 
 
+def test_format_status_summary_includes_chain_fields() -> None:
+    payload = {
+        "current_height": 3,
+        "state_root": "e" * 64,
+        "pending_transactions": 1,
+        "stored_blocks": 3,
+    }
+
+    output = client.format_status_summary(payload)
+
+    assert "BIBER XRIQ private-devnet status" in output
+    assert "current_height: 3" in output
+    assert "pending_transactions: 1" in output
+    assert "stored_blocks: 3" in output
+
+
+def test_format_account_summary_includes_balance_and_nonce() -> None:
+    payload = {
+        "address": "xriqdev1alice00000000000",
+        "balance_base_units": "73",
+        "nonce": 1,
+    }
+
+    output = client.format_account_summary(payload)
+
+    assert "BIBER XRIQ private-devnet account" in output
+    assert "address: xriqdev1alice00000000000" in output
+    assert "balance_base_units: 73" in output
+    assert "nonce: 1" in output
+
+
+def test_format_mempool_summary_lists_pending_transactions() -> None:
+    payload = {
+        "pending_count": 1,
+        "transactions": [
+            {
+                "tx_hash": "a" * 64,
+                "from": "xriqdev1alice00000000000",
+                "to": "xriqdev1bobbb00000000000",
+                "amount_base_units": "25",
+                "fee_base_units": "2",
+            }
+        ],
+    }
+
+    output = client.format_mempool_summary(payload)
+
+    assert "BIBER XRIQ private-devnet mempool" in output
+    assert "pending_count: 1" in output
+    assert "amount=25" in output
+    assert "fee=2" in output
+
+
+def test_format_preflight_transfer_summary_includes_confirmation() -> None:
+    payload = {
+        "from": "xriqdev1alice00000000000",
+        "to": "xriqdev1bobbb00000000000",
+        "amount_base_units": "25",
+        "fee_base_units": "2",
+        "transaction_hash": "f" * 64,
+        "confirmed_block_height": 1,
+        "final_balance_base_units": "73",
+        "final_nonce": 1,
+    }
+
+    output = client.format_preflight_transfer_summary(payload)
+
+    assert "BIBER XRIQ private-devnet preflight transfer" in output
+    assert "amount_base_units: 25" in output
+    assert "confirmed_block_height: 1" in output
+    assert "final_balance_base_units: 73" in output
+
+
+def test_preflight_transfer_posts_expected_body(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_request_json(**kwargs):
+        captured.update(kwargs)
+        return {"command": "preflight-transfer"}
+
+    monkeypatch.setattr(client, "request_json", fake_request_json)
+
+    payload = client.preflight_transfer(
+        base_url="http://127.0.0.1:8000",
+        api_key="test-key",
+        from_address="xriqdev1alice00000000000",
+        to_address="xriqdev1bobbb00000000000",
+        amount_base_units="25",
+        fee_base_units="2",
+        expires_at_height=100,
+        timestamp_ms=1000,
+        consensus_round=None,
+        alice_balance_base_units=None,
+        timeout_seconds=10,
+    )
+
+    assert payload == {"command": "preflight-transfer"}
+    assert captured["path"] == "/v1/xriq/private-devnet/preflight-transfer"
+    assert captured["method"] == "POST"
+    assert captured["json_body"] == {
+        "from": "xriqdev1alice00000000000",
+        "to": "xriqdev1bobbb00000000000",
+        "amount_base_units": "25",
+        "fee_base_units": "2",
+        "expires_at_height": 100,
+        "timestamp_ms": 1000,
+        "consensus_round": None,
+        "alice_balance_base_units": None,
+    }
+
+
 def test_format_snapshot_list_summary_includes_each_snapshot() -> None:
     payload = {
         "count": 1,
