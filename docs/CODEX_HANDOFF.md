@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-05-24
+Last updated: 2026-05-25
 
 ## Current Goal
 
@@ -87,7 +87,7 @@ the user changes the project scope.
 
 ## Immediate Resume State
 
-As of the latest 2026-05-24 checkpoint, the Vast.ai deployment is healthy and
+As of the latest 2026-05-25 checkpoint, the Vast.ai deployment is healthy and
 serving the last broad-safe Rust/XRIQ adapter.
 
 - Latest BIBER MVP test-diagnosis workflow checkpoint pushed as
@@ -240,6 +240,31 @@ serving the last broad-safe Rust/XRIQ adapter.
   with `ok=false`, `extraction_status=no_valid_edits`,
   `rejected[0].reason=repeated_failed_repair_edit`, and
   `blocked_repeated_edits=1`. Do not plan/apply this artifact.
+- Latest BIBER MVP repeated-forbidden retry model-gap checkpoint:
+  `scripts/biber_agent_client.py` now has an offline
+  `export-repeated-forbidden-retry-gap` command. It accepts only a saved
+  `extract-repair-edits` artifact with `ok=false`,
+  `extraction_status=no_valid_edits`, `repeat_failed_edit_guard.enabled=true`,
+  and at least one `rejected[].reason=repeated_failed_repair_edit`. It loads
+  the linked retry attempt, captures the repair prompt, forbidden exact edit,
+  model JSON candidate, model explanation/prose, source snippets, and guard
+  rejection into a JSONL model-gap review row. The row is explicitly
+  `review_status=needs_human_review`, `training_allowed=false`,
+  `eligible_for_training=false`, `safe_to_train=false`,
+  `auto_promoted=false`, and `auto_saved=false`; it is evidence only, not a
+  trainable dataset row. Vast verification passed focused
+  `repeated_forbidden_retry_gap` tests with `2 passed, 152 deselected`, full
+  `tests/test_biber_agent_client.py -q` with `154 passed`, and the broader
+  cheap MVP set
+  `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py -q`
+  with `172 passed`. No training run, OpenAI mentor call, credential change,
+  API restart, or vLLM restart was used. The v4 repeated-forbidden retry gap
+  export is
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-repeated-forbidden-retry-gap-context-v4.jsonl`;
+  it contains one row for `biber-dev-core-v1` with one repeated forbidden
+  candidate and one guard rejection. Next narrow gate: review this model-gap
+  row as evidence for prompt/eval/training design, but do not train from it
+  unless a future reviewed dataset validator explicitly promotes it.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for

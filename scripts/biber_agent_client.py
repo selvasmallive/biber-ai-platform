@@ -3137,6 +3137,200 @@ def export_verified_repair_review(
     }
 
 
+def extract_model_edit_candidate_evidence(
+    content: str,
+) -> list[dict[str, Any]]:
+    evidence: list[dict[str, Any]] = []
+    candidate_index = 0
+    for value in extract_json_values_from_text(content):
+        for candidate in extract_edit_objects_from_value(value):
+            candidate_index += 1
+            edit, rejection = validate_repair_edit_candidate(
+                candidate,
+                index=candidate_index,
+            )
+            item: dict[str, Any] = {
+                "index": candidate_index,
+                "source": "json",
+                "candidate": dict(candidate),
+            }
+            if edit is not None:
+                item["validated_edit"] = edit
+            if rejection is not None:
+                item["validation_rejection"] = rejection
+            evidence.append(item)
+
+    for candidate in extract_unified_diff_edit_candidates(content):
+        candidate_index += 1
+        edit, rejection = validate_repair_edit_candidate(
+            candidate,
+            index=candidate_index,
+        )
+        item = {
+            "index": candidate_index,
+            "source": "unified_diff",
+            "candidate": dict(candidate),
+        }
+        if edit is not None:
+            item["validated_edit"] = edit
+        if rejection is not None:
+            item["validation_rejection"] = rejection
+        evidence.append(item)
+    return evidence
+
+
+def build_repeated_forbidden_retry_gap_record(
+    *,
+    extraction_path: Path,
+    extraction: Mapping[str, Any],
+    attempt_path: Path,
+    attempt: Mapping[str, Any],
+) -> dict[str, Any]:
+    repeated_rejections = [
+        dict(item)
+        for item in require_list(extraction.get("rejected"))
+        if isinstance(item, Mapping)
+        and item.get("reason") == "repeated_failed_repair_edit"
+    ]
+    repeat_guard = require_mapping(extraction.get("repeat_failed_edit_guard"))
+    if (
+        extraction.get("ok") is True
+        or extraction.get("extraction_status") != "no_valid_edits"
+        or repeat_guard.get("enabled") is not True
+        or not repeated_rejections
+    ):
+        raise BiberAgentClientError(
+            "export-repeated-forbidden-retry-gap requires a no-valid-edits "
+            "extraction artifact blocked by repeated_failed_repair_edit."
+        )
+
+    repair_request = require_mapping(attempt.get("repair_request"))
+    if repair_request.get("retry_of_failed_verification") is not True:
+        raise BiberAgentClientError(
+            "export-repeated-forbidden-retry-gap requires a retry repair attempt."
+        )
+
+    model_response = require_mapping(attempt.get("model_response"))
+    content = str(attempt.get("repair_content") or model_response.get("content") or "")
+    model_candidates = extract_model_edit_candidate_evidence(content)
+    repeated_indexes = {
+        int(item.get("index"))
+        for item in repeated_rejections
+        if isinstance(item.get("index"), int)
+        or (isinstance(item.get("index"), str) and str(item.get("index")).isdigit())
+    }
+    repeated_candidates = [
+        item
+        for item in model_candidates
+        if int(item.get("index") or 0) in repeated_indexes
+    ]
+    previous_attempt = require_mapping(repair_request.get("previous_attempt"))
+    forbidden_edits = [
+        dict(item)
+        for item in require_list(repair_request.get("forbidden_edits"))
+        if isinstance(item, Mapping)
+    ]
+    if not forbidden_edits:
+        forbidden_edits = [
+            dict(item)
+            for item in require_list(previous_attempt.get("attempted_edits"))
+            if isinstance(item, Mapping)
+        ]
+
+    return {
+        "source": "biber_mvp_loop_repeated_forbidden_retry_gap",
+        "repair_loop_version": extraction.get("repair_loop_version")
+        or attempt.get("repair_loop_version"),
+        "gap_type": "repeated_forbidden_repair_edit",
+        "failure_mode": "local_model_repeated_forbidden_edit_after_retry_instruction",
+        "review_status": "needs_human_review",
+        "quality": "needs_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "auto_promoted": False,
+        "auto_saved": False,
+        "auto_applied": False,
+        "apply_allowed": False,
+        "source_artifact": str(extraction_path),
+        "repair_attempt_artifact": str(attempt_path),
+        "repair_request_source_artifact": repair_request.get("source_artifact"),
+        "model": model_response.get("model"),
+        "mentor_used": model_response.get("mentor_used") is True,
+        "runtime_profile_ids": repair_attempt_runtime_profile_ids(attempt) or [],
+        "next_test_id": extraction.get("next_test_id") or attempt.get("next_test_id"),
+        "repair_prompt": repair_request.get("repair_prompt") or "",
+        "forbidden_edits": forbidden_edits,
+        "model_response_text": content,
+        "model_response_preview": compact_text(content, max_chars=1000),
+        "model_edit_candidates": model_candidates,
+        "repeated_forbidden_candidates": repeated_candidates,
+        "guard_rejection": {
+            "repeat_failed_edit_guard": dict(repeat_guard),
+            "rejected": repeated_rejections,
+        },
+        "original_failure": require_mapping(repair_request.get("original_failure")),
+        "verification_failure": require_mapping(repair_request.get("failure")),
+        "source_context_snippets": [
+            dict(item)
+            for item in require_list(repair_request.get("source_context_snippets"))
+            if isinstance(item, Mapping)
+        ],
+        "next_review_action": (
+            "human_review_repeated_forbidden_retry_gap_before_eval_or_training"
+        ),
+    }
+
+
+def export_repeated_forbidden_retry_gap(
+    *,
+    artifact_path: str,
+    output_path: str,
+) -> dict[str, Any]:
+    path = Path(artifact_path)
+    artifact = load_json_artifact(str(path), label="repair edit extraction artifact")
+    extraction = normalize_repair_edit_extraction_artifact(artifact)
+    if extraction is None:
+        raise BiberAgentClientError(
+            "export-repeated-forbidden-retry-gap artifact must contain a saved "
+            "extract-repair-edits JSON object."
+        )
+    attempt_path, attempt, attempt_error = load_linked_artifact(
+        extraction.get("source_artifact"),
+        base_path=path,
+        label="repair-attempt artifact",
+        normalizer=normalize_repair_attempt_artifact,
+    )
+    if attempt_error is not None or attempt_path is None or attempt is None:
+        raise BiberAgentClientError(
+            "Could not load linked repair-attempt artifact for repeated forbidden "
+            f"retry gap export: {attempt_error or 'missing source_artifact'}"
+        )
+
+    record = build_repeated_forbidden_retry_gap_record(
+        extraction_path=path,
+        extraction=extraction,
+        attempt_path=attempt_path,
+        attempt=attempt,
+    )
+    output = write_jsonl_artifact([record], output_path)
+    return {
+        "source": "biber_mvp_loop_repeated_forbidden_retry_gap_export",
+        "records": 1,
+        "output": output,
+        "review_status": "needs_human_review",
+        "training_allowed": False,
+        "eligible_for_training": False,
+        "safe_to_train": False,
+        "auto_promoted": False,
+        "auto_saved": False,
+        "source_artifact": str(path),
+        "repair_attempt_artifact": str(attempt_path),
+        "gap_type": record.get("gap_type"),
+        "next_review_action": record.get("next_review_action"),
+    }
+
+
 def review_verified_repair_records(
     *,
     jsonl_paths: list[str],
@@ -9548,6 +9742,25 @@ def format_repair_edit_extraction_artifact_list_summary(
     return "\n".join(lines)
 
 
+def format_repeated_forbidden_retry_gap_export_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    return "\n".join(
+        [
+            "BIBER repeated forbidden retry gap export",
+            f"source_artifact: {payload.get('source_artifact', '-')}",
+            f"repair_attempt_artifact: {payload.get('repair_attempt_artifact', '-')}",
+            f"records: {payload.get('records', 0)}",
+            f"output: {payload.get('output', '-')}",
+            f"review_status: {payload.get('review_status', '-')}",
+            f"training_allowed: {payload.get('training_allowed', False)}",
+            f"eligible_for_training: {payload.get('eligible_for_training', False)}",
+            f"safe_to_train: {payload.get('safe_to_train', False)}",
+            f"next_review_action: {payload.get('next_review_action', '-')}",
+        ]
+    )
+
+
 def format_repair_edit_plan_summary(payload: Mapping[str, Any]) -> str:
     edit_plan = require_mapping(payload.get("edit_plan"))
     planned = [
@@ -11932,6 +12145,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=4,
     )
 
+    export_repeated_forbidden_retry_gap_parser = subparsers.add_parser(
+        "export-repeated-forbidden-retry-gap",
+        help=(
+            "Export a repeated-forbidden retry extraction failure to a JSONL "
+            "model-gap review queue without making it trainable."
+        ),
+    )
+    export_repeated_forbidden_retry_gap_parser.add_argument("artifact")
+    export_repeated_forbidden_retry_gap_parser.add_argument("--output", required=True)
+
     export_mvp_failures = subparsers.add_parser(
         "export-mvp-failures",
         help="Export failed mvp-loop artifacts to a JSONL review queue.",
@@ -13108,6 +13331,16 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(review, indent=2, sort_keys=True)
             if args.print_json
             else format_failed_repair_retry_review_summary(review)
+        )
+    if args.command == "export-repeated-forbidden-retry-gap":
+        export = export_repeated_forbidden_retry_gap(
+            artifact_path=args.artifact,
+            output_path=args.output,
+        )
+        return (
+            json.dumps(export, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repeated_forbidden_retry_gap_export_summary(export)
         )
     if args.command == "export-mvp-failures":
         export = export_mvp_loop_failures(
