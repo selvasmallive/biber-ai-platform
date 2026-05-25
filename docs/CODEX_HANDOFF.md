@@ -287,6 +287,33 @@ serving the last broad-safe Rust/XRIQ adapter.
   `rule_context_seen_but_repeated_target_edit`. Next narrow gate: use this
   review summary to make a deterministic prompt/response-shape improvement or
   eval case; do not train from this row automatically.
+- Latest BIBER MVP retry prompt-contract checkpoint: the failed-repair retry
+  prompt now explicitly states that the first JSON object is authoritative,
+  a different fix must not appear only in prose, a better explanation must be
+  reflected in the JSON edit, exact forbidden matches must be removed before
+  final JSON, and no non-forbidden bounded edit must return exactly
+  `{"edits":[]}`. Vast verification passed focused
+  `prepare_failed_repair_retry` tests with `2 passed, 154 deselected`, full
+  `tests/test_biber_agent_client.py -q` with `156 passed`, and the broader
+  cheap MVP set
+  `tests/test_biber_agent_client.py tests/test_test_runner.py tests/test_test_diagnosis.py -q`
+  with `174 passed`. No training run, OpenAI mentor call, credential change,
+  API restart, or vLLM restart was used. Regenerated v5 artifacts are
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-review-context-v5.json`
+  and
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-request-context-v5.json`.
+  One local-model GPU retry attempt with `--max-tokens 300 --temperature 0.1`
+  wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-attempt-context-v5.json`.
+  The model now returned `{"edits":[]}` as the first JSON object instead of
+  repeating the forbidden edit; extraction wrote
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-edit-extraction-context-v5.json`
+  with `ok=false`, `extraction_status=no_valid_edits`, `edits=[]`,
+  `rejected=[]`, `repeat_failed_edit_guard.enabled=true`, and
+  `blocked_repeated_edits=0`. This is a useful response-shape improvement, but
+  still not a successful repair. Do not plan/apply it; next narrow gate is to
+  capture empty-edit-with-confused-prose as review-only evidence or improve
+  context selection toward the actual rule-order edit.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for
