@@ -51,6 +51,8 @@ See `docs/VAST_DIRECT_DEPLOY.md` for the repeatable fresh-GPU deployment runbook
 
 If the old Vast.ai instance and volume have been terminated, start with
 `readme-resume-biber.md` before recreating the runtime.
+If you backed up `/workspace` artifacts locally and want to upload them to a new
+GPU/volume, use `readme-reinstantiate.md`.
 
 ---
 

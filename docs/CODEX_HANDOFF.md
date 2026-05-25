@@ -83,6 +83,8 @@ not require GPU inference or training to continue.
   assume /workspace exists.`
 - Primary resume file for Codex is this file: `docs/CODEX_HANDOFF.md`.
 - Fresh GPU/volume resume file is `readme-resume-biber.md`.
+- Fresh GPU/volume reinstantiate file for local artifact backups is
+  `readme-reinstantiate.md`.
 - Repo overview file is `README.md`.
 - XRIQ private-devnet runbook is `xriq/README.md`.
 - If the 500 GB Vast volume is kept, future sessions can reuse `/workspace`

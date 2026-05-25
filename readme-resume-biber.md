@@ -31,9 +31,11 @@ Primary files to read first:
 
 1. `docs/CODEX_HANDOFF.md`
 2. `readme-resume-biber.md`
-3. `README.md`
-4. `docs/VAST_DIRECT_DEPLOY.md`
-5. `xriq/README.md`
+3. `readme-reinstantiate.md` if local runtime artifacts were backed up and
+   should be uploaded to a new GPU/volume.
+4. `README.md`
+5. `docs/VAST_DIRECT_DEPLOY.md`
+6. `xriq/README.md`
 
 ## What Is Not Preserved If The Vast Volume Is Destroyed
 
