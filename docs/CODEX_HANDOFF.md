@@ -105,12 +105,14 @@ serving the last broad-safe Rust/XRIQ adapter.
   verification passed `cargo test -p xriq-wallet --manifest-path
   xriq/Cargo.toml` with `13 passed`, and `cargo test -p xriq-node
   --manifest-path xriq/Cargo.toml` with `51 passed`. Local Python pytest was
-  not available on the workstation, so run focused pytest on Vast after syncing:
+  not available on the workstation. After commit `e0c61983 Add XRIQ private
+  devnet client commands` was pushed, Vast was fast-forwarded and focused
+  pytest passed with `29 passed in 0.27s`:
   `/workspace/biber-venv/bin/python -m pytest tests/test_xriq_private_devnet_client.py tests/test_xriq_preflight_api.py -q`.
   No training run, OpenAI mentor call, credential change, API restart, or vLLM
-  restart was used. Next XRIQ-only step after verification: improve the
-  private-devnet runbook/client loop or add the next missing wallet/RPC
-  workflow, keeping public XRIQ scope delayed.
+  restart was used. Next XRIQ-only step: improve the private-devnet runbook/
+  client loop or add the next missing wallet/RPC workflow, keeping public XRIQ
+  scope delayed.
 - Latest BIBER MVP test-diagnosis workflow checkpoint pushed as
   `8b2047d4 Improve BIBER diagnosis repair loops`: stack detection is now
   command-first, so `python -m pytest` failures containing embedded Rust/Cargo
