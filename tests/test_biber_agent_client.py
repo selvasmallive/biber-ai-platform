@@ -4260,6 +4260,205 @@ def test_retry_source_context_includes_test_expectation_with_compact_snippets(
     assert "Rust test panic" in rule_snippet["snippet"]
 
 
+def test_prepare_failed_repair_retry_prefers_verification_cwd_for_source_context(
+    tmp_path: Path,
+) -> None:
+    requested_root = tmp_path / "clean"
+    candidate_root = tmp_path / "candidate"
+    for root, rule_category in (
+        (requested_root, "assertion_failure"),
+        (candidate_root, "test_failure"),
+    ):
+        source_dir = root / "src" / "biber_api"
+        source_dir.mkdir(parents=True)
+        (source_dir / "test_diagnosis.py").write_text(
+            "_RULES = [\n"
+            f"    _Rule(r\"panicked at\", \"{rule_category}\", \"Rust test panic\", \"rust\"),\n"
+            "]\n"
+            "\n"
+            "def diagnose(signals):\n"
+            "    primary_category = _primary_category(signals) if signals else 'test_failure'\n"
+            "    return primary_category\n",
+            encoding="utf-8",
+        )
+        tests_dir = root / "tests"
+        tests_dir.mkdir()
+        (tests_dir / "test_test_diagnosis.py").write_text(
+            "def test_diagnose_rust_test_panic():\n"
+            "    diagnosis = diagnose_test_failure(stdout='thread panicked at src/lib.rs')\n"
+            "    assert diagnosis[\"primary_category\"] == \"assertion_failure\"\n",
+            encoding="utf-8",
+        )
+
+    edit = {
+        "path": "src/biber_api/test_diagnosis.py",
+        "old_text": "primary_category = _primary_category(signals)",
+        "new_text": (
+            "primary_category = _primary_category(signals) "
+            "if signals else 'test_failure'"
+        ),
+        "expected_replacements": 1,
+    }
+    selected_context_paths = [
+        "src/biber_api/test_diagnosis.py",
+        "tests/test_test_diagnosis.py",
+    ]
+
+    mvp_loop = tmp_path / "mvp.json"
+    mvp_loop.write_text(
+        json.dumps(
+            {
+                "selected_context_paths": selected_context_paths,
+                "steps": {
+                    "test_run": {},
+                    "test_diagnosis": {},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    attempt = tmp_path / "attempt.json"
+    attempt.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_attempt",
+                "source_artifact": str(mvp_loop),
+                "repair_request": {
+                    "selected_context_paths": selected_context_paths,
+                    "failure": {
+                        "primary_category": "assertion_failure",
+                        "detected_stack": "python",
+                        "test_id": "pytest-test-diagnosis",
+                        "command": ["python", "-m", "pytest"],
+                        "exit_code": 1,
+                        "timed_out": False,
+                        "relevant_output": (
+                            "tests/test_test_diagnosis.py:3: AssertionError\n"
+                            "assert 'test_failure' == 'assertion_failure'"
+                        ),
+                    },
+                },
+                "model_response": {"content": "{}"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    extraction = tmp_path / "extraction.json"
+    extraction.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_extraction",
+                "source_artifact": str(attempt),
+                "edits": [edit],
+            }
+        ),
+        encoding="utf-8",
+    )
+    plan = tmp_path / "plan.json"
+    plan.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_plan",
+                "source_artifact": str(extraction),
+                "plan_edit_payload": {"edits": [edit]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    apply = tmp_path / "apply.json"
+    apply.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "source_artifact": str(plan),
+                "apply_payload": {"edits": [edit]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    verification_path = tmp_path / "verification.json"
+    verification = {
+        "source": "biber_mvp_loop_repair_test_verification",
+        "source_artifact": str(apply),
+        "verification_status": "failed",
+        "ok": False,
+        "test_id": "pytest-test-diagnosis",
+        "test_run": {
+            "test_id": "pytest-test-diagnosis",
+            "executed": True,
+            "ok": False,
+            "cwd": str(candidate_root),
+            "exit_code": 1,
+            "timed_out": False,
+            "command": ["python", "-m", "pytest"],
+            "diagnosis": {
+                "summary": "Detected assertion failure.",
+                "primary_category": "assertion_failure",
+                "detected_stack": "python",
+                "relevant_output": (
+                    "tests/test_test_diagnosis.py:3: AssertionError\n"
+                    "assert 'test_failure' == 'assertion_failure'"
+                ),
+            },
+        },
+    }
+
+    result = client.build_failed_repair_verification_review(
+        path=verification_path,
+        verification=verification,
+        max_relevant_output_chars=4000,
+        max_context_paths=None,
+        source_root=requested_root,
+        max_source_snippets=4,
+        source_snippet_context_lines=1,
+    )
+
+    assert result["source_context"]["source_root"] == str(candidate_root.resolve())
+    assert result["source_context"]["requested_source_root"] == str(
+        requested_root.resolve()
+    )
+    assert result["source_context"]["source_root_origin"] == "verification_test_cwd"
+    assert result["retry_repair_request"]["source_context"] == result["source_context"]
+    suggested_rule_edits = result["suggested_rule_category_edits"]
+    assert suggested_rule_edits == [
+        {
+            "path": "src/biber_api/test_diagnosis.py",
+            "old_text": (
+                '    _Rule(r"panicked at", "test_failure", "Rust test panic", "rust"),'
+            ),
+            "new_text": (
+                '    _Rule(r"panicked at", "assertion_failure", '
+                '"Rust test panic", "rust"),'
+            ),
+            "expected_replacements": 1,
+            "reason": "assertion_diff_category_mismatch_in_rule_context",
+        }
+    ]
+    assert (
+        result["retry_repair_request"]["suggested_rule_category_edits"]
+        == suggested_rule_edits
+    )
+    rule_snippet = next(
+        snippet
+        for snippet in result["source_context_snippets"]
+        if snippet["snippet_kind"] == "rule"
+    )
+    assert '_Rule(r"panicked at", "test_failure"' in rule_snippet["snippet"]
+    retry_prompt = result["retry_repair_request"]["repair_prompt"]
+    assert (
+        "Assertion diff shows actual 'test_failure' but expected "
+        "'assertion_failure'" in retry_prompt
+    )
+    assert "prefer changing that rule category" in retry_prompt
+    assert "do not patch fallback logic" in retry_prompt
+    assert "Suggested rule-category edits JSON:" in retry_prompt
+    assert '_Rule(r\\"panicked at\\", \\"assertion_failure\\"' in retry_prompt
+    assert any(
+        "if signals else 'test_failure'" in snippet["snippet"]
+        for snippet in result["source_context_snippets"]
+    )
+
+
 def test_run_prepare_failed_repair_retry_writes_review_and_retry_without_api_key(
     monkeypatch,
     tmp_path: Path,

@@ -483,6 +483,38 @@ serving the last broad-safe Rust/XRIQ adapter.
   and
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-empty-retry-response-gap-review-context-v9.json`.
   They remain review-only evidence; do not train from them automatically.
+- Latest BIBER MVP retry source-root/proposed-rule checkpoint:
+  `prepare-failed-repair-retry` now prefers the failed verification
+  `test_run.cwd` as the effective source root for compact retry snippets when
+  that directory exists, while preserving the CLI `--source-root` as
+  `requested_source_root` fallback metadata. This fixed the real v9 mismatch
+  where snippets were collected from clean `/workspace/biber-ai-platform`
+  instead of the failed temp clone at
+  `/workspace/biber-real-repo-candidates/diagnosis-unified-diff-20260524T231913Z-110411/repo`.
+  Regenerated v10 artifacts show
+  `source_root_origin=verification_test_cwd` and include the actual bad rule
+  line `_Rule(r"panicked at", "test_failure", ...)` from the failed workspace.
+  The retry prompt now also derives assertion-diff hints and exact
+  `suggested_rule_category_edits` from rule snippets, so future sessions can
+  see the bounded rule edit candidate:
+  change `_Rule(r"panicked at", "test_failure", "Rust test panic", "rust"),`
+  to `_Rule(r"panicked at", "assertion_failure", "Rust test panic", "rust"),`.
+  Vast verification passed focused retry-context tests with
+  `5 passed, 166 deselected`, full `tests/test_biber_agent_client.py` with
+  `171 passed`, and the full cheap pytest suite under `tests` with
+  `332 passed`. No training run, OpenAI mentor call, credential change, API
+  restart, or vLLM restart was used. Real local-model probes after this change
+  are review-only artifacts: v11/v12/v14 fit the context window but still put
+  the fallback-line edit in the first JSON object while describing the correct
+  rule edit in prose; deterministic `review-retry-repair-edits` blocked them
+  with `retry_edit_changes_previous_failed_target_outside_rule_context`.
+  v13 exceeded the 8192-token vLLM context window at `--max-tokens 700`.
+  Latest blocked review:
+  `/workspace/outputs/biber-real-repo-candidate-diagnosis-unified-diff-20260524T231913Z-110411/agent-client-mvp-loop-failed-repair-retry-edit-review-context-v14.json`.
+  Do not plan/apply/train from v11-v14. Next narrow gate: either add a
+  deterministic review/export path for the JSON/prose mismatch plus suggested
+  rule edit, or ask for explicit human approval before turning the
+  `suggested_rule_category_edits` candidate into a plan/apply artifact.
 - Latest source-only repair probe artifact:
   `/workspace/outputs/biber-real-repo-candidate-diagnosis-source-guard-20260524T210618Z-110014`.
   The local model again proposed a test-file diff for

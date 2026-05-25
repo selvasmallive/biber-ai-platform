@@ -1956,6 +1956,79 @@ def failure_expected_literals(*failures: Mapping[str, Any]) -> list[str]:
     return dedupe_strings(values) or []
 
 
+def failure_assertion_diffs(*failures: Mapping[str, Any]) -> list[dict[str, str]]:
+    diffs: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for failure in failures:
+        relevant_output = str(failure.get("relevant_output") or "")
+        for match in re.finditer(
+            r"assert\s+['\"]([^'\"]+)['\"]\s+==\s+['\"]([^'\"]+)['\"]",
+            relevant_output,
+        ):
+            actual = match.group(1)
+            expected = match.group(2)
+            key = (actual, expected)
+            if key in seen:
+                continue
+            seen.add(key)
+            diffs.append({"actual": actual, "expected": expected})
+    return diffs
+
+
+def strip_line_numbered_snippet_line(line: str) -> str:
+    return re.sub(r"^\s*\d+:\s?", "", line).rstrip()
+
+
+def retry_rule_category_edit_suggestions(
+    *,
+    source_context_snippets: list[Mapping[str, Any]],
+    original_failure: Mapping[str, Any],
+    verification_failure: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    suggestions: list[dict[str, Any]] = []
+    for diff in failure_assertion_diffs(original_failure, verification_failure):
+        actual = diff.get("actual")
+        expected = diff.get("expected")
+        if not actual or not expected or actual == expected:
+            continue
+        suggestion_added = False
+        for snippet in source_context_snippets:
+            if snippet.get("snippet_kind") != "rule":
+                continue
+            path = str(snippet.get("path") or "")
+            if not path:
+                continue
+            for raw_line in str(snippet.get("snippet") or "").splitlines():
+                old_text = strip_line_numbered_snippet_line(raw_line)
+                if "_Rule(" not in old_text:
+                    continue
+                matches = list(re.finditer(r"([\"'])([^\"']+)\1", old_text))
+                if len(matches) < 2 or matches[1].group(2) != actual:
+                    continue
+                category_match = matches[1]
+                new_text = (
+                    old_text[: category_match.start(2)]
+                    + expected
+                    + old_text[category_match.end(2) :]
+                )
+                suggestions.append(
+                    {
+                        "path": path,
+                        "old_text": old_text,
+                        "new_text": new_text,
+                        "expected_replacements": 1,
+                        "reason": (
+                            "assertion_diff_category_mismatch_in_rule_context"
+                        ),
+                    }
+                )
+                suggestion_added = True
+                break
+            if suggestion_added:
+                break
+    return suggestions[:4]
+
+
 def build_retry_repair_edit_review(
     *,
     extraction_path: Path,
@@ -3094,6 +3167,51 @@ def compact_repair_test_failure(
     }
 
 
+def failed_repair_retry_source_context(
+    *,
+    requested_source_root: Path,
+    test_run: Mapping[str, Any],
+) -> tuple[Path, dict[str, Any]]:
+    try:
+        requested_root = requested_source_root.resolve()
+    except OSError:
+        requested_root = requested_source_root
+
+    context: dict[str, Any] = {
+        "source_root": str(requested_root),
+        "requested_source_root": str(requested_root),
+        "source_root_origin": "requested_source_root",
+    }
+    raw_cwd = test_run.get("cwd")
+    if not isinstance(raw_cwd, str) or not raw_cwd.strip():
+        return requested_root, context
+
+    context["verification_test_cwd"] = raw_cwd.strip()
+    verification_cwd = Path(raw_cwd.strip())
+    try:
+        verification_root = verification_cwd.resolve()
+    except OSError:
+        verification_root = verification_cwd
+
+    if verification_root.is_dir():
+        context.update(
+            {
+                "source_root": str(verification_root),
+                "source_root_origin": "verification_test_cwd",
+            }
+        )
+        if str(verification_root) != str(requested_root):
+            context["source_root_note"] = (
+                "using_failed_verification_workspace_for_retry_context"
+            )
+        return verification_root, context
+
+    context["source_root_warning"] = (
+        "verification_test_cwd_unavailable_falling_back_to_requested_source_root"
+    )
+    return requested_root, context
+
+
 def build_failed_repair_retry_prompt(
     *,
     instruction: str,
@@ -3127,6 +3245,33 @@ def build_failed_repair_retry_prompt(
     forbidden_text = (
         json.dumps(forbidden_edits[:8], indent=2, sort_keys=True)
         if forbidden_edits
+        else "[]"
+    )
+    assertion_diffs = failure_assertion_diffs(original_failure, verification_failure)
+    has_rule_snippet = any(
+        snippet.get("snippet_kind") == "rule" for snippet in source_context_snippets
+    )
+    retry_hint_lines: list[str] = []
+    if has_rule_snippet:
+        for diff in assertion_diffs[:4]:
+            actual = diff.get("actual")
+            expected = diff.get("expected")
+            if actual and expected and actual != expected:
+                retry_hint_lines.append(
+                    "- Assertion diff shows actual "
+                    f"{actual!r} but expected {expected!r}. If a rule snippet maps "
+                    f"the failing evidence to {actual!r}, prefer changing that rule "
+                    f"category to {expected!r}; do not patch fallback logic."
+                )
+    retry_hint_text = "\n".join(retry_hint_lines) or "- none"
+    suggested_rule_category_edits = retry_rule_category_edit_suggestions(
+        source_context_snippets=source_context_snippets,
+        original_failure=original_failure,
+        verification_failure=verification_failure,
+    )
+    suggested_rule_category_text = (
+        json.dumps(suggested_rule_category_edits, indent=2, sort_keys=True)
+        if suggested_rule_category_edits
         else "[]"
     )
     snippet_lines: list[str] = []
@@ -3164,6 +3309,7 @@ def build_failed_repair_retry_prompt(
             '- If every candidate equals a forbidden edit, return {"edits":[]} as the first JSON object.',
             "- Review `rule` snippets before changing the previous failed target line.",
             "- If a referenced `test_expectation` and related `rule` snippet are present, treat the rule snippet as the primary repair target.",
+            "- If suggested rule-category edits are listed and match the failure, copy the exact bounded edit into your first JSON object.",
             "- Do not add an `if ... else '<expected>'` fallback on the previous failed target line when that old_text is not shown inside a `rule` snippet.",
             "- The first JSON object is authoritative; do not put a different fix only in prose.",
             "- If your explanation identifies a better fix, the JSON edit must contain that better fix.",
@@ -3198,6 +3344,12 @@ def build_failed_repair_retry_prompt(
             "",
             "Forbidden exact edits JSON:",
             forbidden_text,
+            "",
+            "Retry diagnosis hints:",
+            retry_hint_text,
+            "",
+            "Suggested rule-category edits JSON:",
+            suggested_rule_category_text,
             "",
             "Compact source snippets for retry:",
             source_snippet_text,
@@ -3370,15 +3522,27 @@ def build_failed_repair_verification_review(
             str(item) for item in require_list(repair_request.get("suggested_next_actions"))
         ]
 
+    effective_source_root, source_context = failed_repair_retry_source_context(
+        requested_source_root=source_root,
+        test_run=test_run,
+    )
+    source_context["max_source_snippets"] = max_source_snippets
+    source_context["source_snippet_context_lines"] = source_snippet_context_lines
+
     forbidden_edits = [dict(edit) for edit in attempted_edits]
     source_context_snippets = build_retry_source_context_snippets(
-        source_root=source_root,
+        source_root=effective_source_root,
         selected_context_paths=selected_context_paths,
         attempted_edits=attempted_edits,
         original_failure=original_failure,
         verification_failure=verification_failure,
         max_snippets=max_source_snippets,
         context_lines=source_snippet_context_lines,
+    )
+    suggested_rule_category_edits = retry_rule_category_edit_suggestions(
+        source_context_snippets=source_context_snippets,
+        original_failure=original_failure,
+        verification_failure=verification_failure,
     )
     instruction = (
         "Retry the failed BIBER MVP repair using the smallest safe source edit. "
@@ -3431,6 +3595,8 @@ def build_failed_repair_verification_review(
         },
         "forbidden_edits": forbidden_edits,
         "source_context_snippets": source_context_snippets,
+        "source_context": source_context,
+        "suggested_rule_category_edits": suggested_rule_category_edits,
         "suggested_next_actions": suggested_next_actions,
         "next_test_id": verification.get("test_id") or verification_failure.get("test_id"),
         "next_workflow": [
@@ -3482,11 +3648,8 @@ def build_failed_repair_verification_review(
         "attempted_edits": attempted_edits,
         "forbidden_edits": forbidden_edits,
         "source_context_snippets": source_context_snippets,
-        "source_context": {
-            "source_root": str(source_root),
-            "max_source_snippets": max_source_snippets,
-            "source_snippet_context_lines": source_snippet_context_lines,
-        },
+        "source_context": source_context,
+        "suggested_rule_category_edits": suggested_rule_category_edits,
         "verification_failure": verification_failure,
         "linked_artifacts": {
             "repair_apply": str(apply_path) if apply_path else None,
@@ -11465,6 +11628,7 @@ def format_failed_repair_retry_review_summary(payload: Mapping[str, Any]) -> str
         if isinstance(item, dict)
     ]
     artifact_load_errors = require_list(payload.get("artifact_load_errors"))
+    source_context = require_mapping(payload.get("source_context"))
     return "\n".join(
         [
             "BIBER failed repair retry review",
@@ -11480,6 +11644,8 @@ def format_failed_repair_retry_review_summary(payload: Mapping[str, Any]) -> str
             f"test_id: {payload.get('test_id', '-')}",
             f"attempted_edits: {len(attempted_edits)}",
             f"artifact_load_errors: {len(artifact_load_errors)}",
+            f"source_root_origin: {source_context.get('source_root_origin', '-')}",
+            f"source_root: {source_context.get('source_root', '-')}",
             f"retry_repair_request_artifact: {payload.get('retry_repair_request_artifact', '-')}",
             f"artifact_path: {payload.get('artifact_path', '-')}",
         ]
