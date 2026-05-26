@@ -464,16 +464,18 @@ Current private-devnet implementation: `xriq-node serve-readonly` exposes a
 loopback-first, dependency-free, read-only HTTP wrapper over the existing
 file-backed JSON runner outputs. The current implemented endpoints are
 `/health`, `/v1/chain/status`, `/v1/explorer/overview?limit=5`,
-`/v1/blocks/{height}`, `/v1/transactions/{hash}`,
+`/v1/blocks/{height_or_hash}`, `/v1/transactions/{hash}`,
 `/v1/accounts/{address}`, and `/v1/mempool`. Transaction lookup scans
 confirmed transactions in persisted blocks. When `--pending-file` is
 configured, transaction lookup checks confirmed blocks first and then durable
 pending state.
 
 `xriq-node serve-private` enables the same private-devnet HTTP surface plus
-`POST /v1/transactions`, `POST /v1/mempool`, and `POST /v1/blocks`. The
-transaction POST body may be either the existing wallet transfer draft text
-emitted by `xriq-wallet transfer` or the flat
+`POST /v1/transactions`, `POST /v1/mempool`, `POST /v1/blocks`,
+`POST /v1/snapshots/export?snapshot_dir=<path>`, and
+`POST /v1/snapshots/import?snapshot_dir=<path>`. The transaction POST body may
+be either the existing wallet transfer draft text emitted by
+`xriq-wallet transfer` or the flat
 `xriq-node-transfer-submit-v1` JSON transfer body emitted by
 `xriq-wallet transfer --format json`; the server validates it against the
 replayed chain state, immediately produces one block, and persists that block to
@@ -485,6 +487,8 @@ When `serve-private --pending-file <path>` is used, `POST /v1/mempool`
 validates a wallet draft or JSON transfer body and appends it to durable
 private-devnet pending state. `POST /v1/blocks` produces one block from that
 pending file and compacts the file so included transactions are removed.
+Snapshot export/import use the server's configured chain/pending files and
+preserve the no-overwrite import guard.
 
 Minimum wallet-facing RPC behavior:
 
@@ -622,7 +626,8 @@ Before any public network, require:
     test-only signatures.
 22. Add focused persisted-chain inspection commands. Current status: done for
     file-backed `xriq-node block-detail --chain-file <path> --height <height>`
-    and `xriq-node account-detail --chain-file <path> --address <address>`
+    / `--block-hash <64-hex>` and
+    `xriq-node account-detail --chain-file <path> --address <address>`
     commands that replay canonical private-devnet chain files before rendering
     dependency-free explorer detail output.
 23. Add a compact local private-devnet smoke script. Current status: done for
@@ -729,8 +734,8 @@ As of 2026-05-17:
     chain file and renders chain height, latest block hash, stored block count,
     pending count, and recent block summaries without starting HTTP/RPC serving
   - local private-devnet block detail command that replays the persisted chain
-    file and renders one block by height, including transaction hashes and
-    transfer summaries
+    file and renders one block by height or block hash, including transaction
+    hashes and transfer summaries
   - local private-devnet account detail command that replays the persisted
     chain file and renders one account balance and nonce by address
   - local private-devnet mempool detail command that replays the persisted
@@ -742,8 +747,9 @@ As of 2026-05-17:
   - local private-devnet read-only HTTP wrapper through
     `xriq-node serve-readonly`, defaulting to `127.0.0.1:8787` and reusing the
     file-backed JSON runner responses for health/status/explorer/block/account
-    transaction/mempool inspection; without `--pending-file`, transaction lookup
-    covers confirmed transactions in persisted blocks only
+    transaction/mempool inspection; block detail accepts either decimal height
+    or a 64-character lowercase hex block hash; without `--pending-file`,
+    transaction lookup covers confirmed transactions in persisted blocks only
   - local private-devnet submit-capable HTTP wrapper through
     `xriq-node serve-private`; `POST /v1/transactions` accepts either the
     wallet draft text body or a flat JSON transfer body, validates it,
@@ -760,6 +766,8 @@ As of 2026-05-17:
     `xriq-node produce-pending-block --pending-file <path>` and
     `POST /v1/blocks`, including pending-file compaction after included
     transactions are persisted to the chain file
+  - local HTTP snapshot export/import through `POST /v1/snapshots/export` and
+    `POST /v1/snapshots/import`
   - private-devnet client preflight transfer flow through
     `xriq-node preflight-transfer`, checking sender balance/nonce, submitting
     to durable pending state, producing a block, compacting pending state, and
@@ -834,6 +842,7 @@ As of 2026-05-17:
   - `cargo run -p xriq-node -- produce-draft-block --chain-file target/xriq-node-draft-smoke-chain-20260517-codex.bin --draft-file target/xriq-wallet-transfer-draft-20260517-codex.txt --alice-balance 100 --timestamp-ms 1000`.
   - `cargo run -p xriq-node -- explorer-overview --chain-file target/xriq-node-draft-smoke-chain-20260517-codex.bin --alice-balance 100 --limit 5`.
   - `cargo run -p xriq-node -- block-detail --chain-file target/xriq-node-detail-smoke-chain-20260517-codex.bin --alice-balance 100 --height 1`.
+  - `cargo run -p xriq-node -- block-detail --chain-file target/xriq-node-detail-smoke-chain-20260517-codex.bin --alice-balance 100 --block-hash <64-hex>`.
   - `cargo run -p xriq-node -- account-detail --chain-file target/xriq-node-detail-smoke-chain-20260517-codex.bin --alice-balance 100 --address xriqdev1alice00000000000`.
   - `cargo run -p xriq-node -- mempool-detail --chain-file target/xriq-node-mempool-smoke-chain-20260517-codex.bin --draft-file target/xriq-wallet-transfer-draft-20260517-codex.txt --alice-balance 100`.
   - JSON output coverage for `status`, `produce-draft-block`,

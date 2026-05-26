@@ -323,6 +323,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         write_json(artifact_dir / "produced-block.json", produced)
         require_equal(produced, "current_height", 1, "produced block")
         require_equal(produced, "applied_transactions", 1, "produced block")
+        block_hash = produced.get("block_hash")
+        if not isinstance(block_hash, str) or len(block_hash) != 64:
+            raise SmokeError(f"produced block: expected 64-character block_hash, got {block_hash!r}")
 
         confirmed_transaction = http_json(base_url, "GET", f"/v1/transactions/{tx_hash}")
         write_json(artifact_dir / "confirmed-transaction.json", confirmed_transaction)
@@ -332,6 +335,11 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         block = http_json(base_url, "GET", "/v1/blocks/1")
         write_json(artifact_dir / "block-detail.json", block)
         require_equal(block, "transaction_count", 1, "block")
+
+        block_by_hash = http_json(base_url, "GET", f"/v1/blocks/{block_hash}")
+        write_json(artifact_dir / "block-detail-by-hash.json", block_by_hash)
+        require_equal(block_by_hash, "height", 1, "block by hash")
+        require_equal(block_by_hash, "block_hash", block_hash, "block by hash")
 
         alice = http_json(base_url, "GET", f"/v1/accounts/{ALICE}")
         write_json(artifact_dir / "account-alice.json", alice)
@@ -411,6 +419,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "pending_file": str(pending_file),
             "snapshot_dir": str(snapshot_dir),
             "transaction_hash": tx_hash,
+            "block_hash": block_hash,
             "block_height": 1,
             "alice_balance_base_units": alice["balance_base_units"],
             "bob_balance_base_units": bob["balance_base_units"],

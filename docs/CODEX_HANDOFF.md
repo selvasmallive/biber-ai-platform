@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-05-25
+Last updated: 2026-05-26
 
 ## Current Goal
 
@@ -110,14 +110,14 @@ Use this 2026-05-25 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `62%`.
+- Phase 1 estimated completion: about `63%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `65%`.
 - File-backed node runner and deterministic replay: about `70%`.
 - Snapshot export/import and restore workflow: about `68%`.
-- Read-only/private RPC and explorer/dashboard support: about `60%`.
-- Local smoke/regression coverage: about `64%`.
+- Read-only/private RPC and explorer/dashboard support: about `61%`.
+- Local smoke/regression coverage: about `65%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -183,6 +183,19 @@ not an active target because the GPU was terminated to save cost.
   hit transient Windows linker error `LNK1104` on the test executable; no XRIQ
   process was running, and the serial retry passed. No Vast sync, API/vLLM
   restart, training, OpenAI mentor call, or credential change was used.
+- Latest native XRIQ block hash lookup checkpoint: `xriq-node block-detail`
+  now accepts `--block-hash <64-hex>` as an alternative to `--height`, with a
+  guard that rejects ambiguous requests containing both selectors. The local
+  HTTP wrapper now treats `GET /v1/blocks/{height-or-hash}` as a height lookup
+  for decimal values and a hash lookup for 64-character lowercase hex values.
+  The local HTTP smoke now verifies block-detail lookup by block hash after
+  producing a pending block. Local verification passed
+  `cargo fmt --all --manifest-path xriq/Cargo.toml -- --check`,
+  `cargo test -p xriq-node --manifest-path xriq/Cargo.toml -j 1` with
+  `51 passed`, `cargo test -p xriq-wallet --manifest-path xriq/Cargo.toml -j 1`
+  with `13 passed`, `python scripts/xriq_private_devnet_http_smoke.py`, and
+  `python scripts/xriq_private_devnet_transfer_smoke.py`. No Vast sync,
+  API/vLLM restart, training, OpenAI mentor call, or credential change was used.
 - Latest XRIQ-only focus checkpoint: the user narrowed the active project goal
   to completing the XRIQ private-devnet prototype first. A narrow usability
   step extended `scripts/biber_xriq_private_devnet_client.py` beyond read-only

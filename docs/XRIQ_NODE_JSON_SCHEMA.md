@@ -144,6 +144,8 @@ cargo run -p xriq-node -- block-detail \
   --format json
 ```
 
+The same command can use `--block-hash <64-hex>` instead of `--height`.
+
 Shape:
 
 ```json
@@ -693,7 +695,7 @@ Implemented read-only endpoints:
 - `GET /health`
 - `GET /v1/chain/status`
 - `GET /v1/explorer/overview?limit=5`
-- `GET /v1/blocks/{height}`
+- `GET /v1/blocks/{height-or-hash}`
 - `GET /v1/transactions/{hash}`
 - `GET /v1/accounts/{address}`
 - `GET /v1/mempool`
@@ -703,6 +705,8 @@ Implemented read-only endpoints:
 - `POST /v1/snapshots/import?snapshot_dir=<path>` when `serve-private` is used
 
 The read-only endpoints reuse the JSON bodies documented above where possible.
+`GET /v1/blocks/{height-or-hash}` accepts either a decimal height or a
+64-character lowercase hex block hash and returns the block-detail shape.
 HTTP-only health and wrapper errors use
 `format_version: xriq-node-http-v1`. `POST /v1/transactions` uses the success
 body documented above only when the server is started with `serve-private`;

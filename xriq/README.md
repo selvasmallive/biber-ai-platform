@@ -64,6 +64,11 @@ cargo run -p xriq-node -- block-detail \
   --alice-balance 100 \
   --height 1
 
+cargo run -p xriq-node -- block-detail \
+  --chain-file target/xriq-devnet-chain.bin \
+  --alice-balance 100 \
+  --block-hash <hash-from-block-detail-or-overview>
+
 cargo run -p xriq-node -- account-detail \
   --chain-file target/xriq-devnet-chain.bin \
   --alice-balance 100 \
@@ -269,7 +274,7 @@ Initial read-only endpoints:
 GET /health
 GET /v1/chain/status
 GET /v1/explorer/overview?limit=5
-GET /v1/blocks/{height}
+GET /v1/blocks/{height-or-hash}
 GET /v1/transactions/{hash}
 GET /v1/accounts/{address}
 GET /v1/mempool
@@ -278,6 +283,9 @@ POST /v1/blocks
 POST /v1/snapshots/export?snapshot_dir=<path>
 POST /v1/snapshots/import?snapshot_dir=<path>
 ```
+
+`GET /v1/blocks/{height-or-hash}` returns the same block-detail JSON shape for
+either a decimal block height or a 64-character lowercase hex block hash.
 
 `GET /v1/transactions/{hash}` scans confirmed transactions in persisted blocks.
 When `serve-private --pending-file <path>` is used, it checks confirmed blocks

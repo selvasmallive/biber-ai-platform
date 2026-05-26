@@ -581,7 +581,7 @@ pub fn node_help_text() -> String {
         "  xriq-node produce-pending-block --chain-file <path> --pending-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node preflight-transfer --chain-file <path> --pending-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node explorer-overview --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
-        "  xriq-node block-detail --chain-file <path> --height <height> [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node block-detail --chain-file <path> (--height <height>|--block-hash <64-hex>) [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node account-detail --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
@@ -794,13 +794,25 @@ pub fn private_devnet_http_response_with_body(
                 return runner_json_http_response(args);
             }
 
-            if let Some(height) = path
+            if let Some(block_id) = path
                 .strip_prefix("/v1/blocks/")
-                .filter(|height| !height.is_empty())
+                .filter(|block_id| !block_id.is_empty())
             {
                 let mut args = private_devnet_http_runner_args("block-detail", config);
-                args.push("--height".to_string());
-                args.push(height.to_string());
+                if block_id.len() == 64 {
+                    let Ok(_) = parse_hash_hex(block_id) else {
+                        return http_error_response(
+                            400,
+                            "invalid_hash",
+                            "block hash must be 64 lowercase hexadecimal characters",
+                        );
+                    };
+                    args.push("--block-hash".to_string());
+                    args.push(block_id.to_string());
+                } else {
+                    args.push("--height".to_string());
+                    args.push(block_id.to_string());
+                }
                 return runner_json_http_response(args);
             }
 
@@ -1972,6 +1984,32 @@ pub fn private_devnet_file_block_detail_data(
         .map_err(NodeRunnerError::Explorer)
 }
 
+pub fn private_devnet_file_block_detail_by_hash(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    block_hash: Hash32,
+) -> Result<String, NodeRunnerError> {
+    let detail =
+        private_devnet_file_block_detail_by_hash_data(chain_file, alice_balance, block_hash)?;
+    Ok(render_block_detail(&detail))
+}
+
+pub fn private_devnet_file_block_detail_by_hash_data(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    block_hash: Hash32,
+) -> Result<ExplorerBlockDetail, NodeRunnerError> {
+    let store = FileChainStore::open(chain_file)
+        .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
+    let genesis = private_devnet_runner_genesis(alice_balance);
+    let node =
+        XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?;
+    let explorer = ExplorerService::new(node.rpc_service(), node.store());
+    explorer
+        .block_by_hash(&block_hash)
+        .map_err(NodeRunnerError::Explorer)
+}
+
 pub fn private_devnet_file_account_detail(
     chain_file: impl AsRef<Path>,
     alice_balance: Option<XriqAmount>,
@@ -2102,23 +2140,64 @@ fn run_explorer_overview_command(args: &[String]) -> Result<NodeRunnerOutput, No
 
 fn run_block_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
-    flags.reject_unknown(&["--chain-file", "--alice-balance", "--height", "--format"])?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--alice-balance",
+        "--height",
+        "--block-hash",
+        "--format",
+    ])?;
     let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
     let alice_balance = flags
         .optional("--alice-balance")
         .map(|value| parse_amount("--alice-balance", value))
         .transpose()?;
-    let height = parse_u64("--height", flags.required("--height")?)?;
+    let height = flags
+        .optional("--height")
+        .map(|value| parse_u64("--height", value))
+        .transpose()?;
+    let block_hash = flags
+        .optional("--block-hash")
+        .map(|value| parse_hash("--block-hash", value))
+        .transpose()?;
+    match (height, block_hash) {
+        (Some(_), Some(_)) => {
+            return Err(NodeRunnerError::InvalidFormat(
+                "provide exactly one of --height or --block-hash".to_string(),
+            ))
+        }
+        (None, None) => return Err(NodeRunnerError::MissingFlag("--height")),
+        _ => {}
+    }
     Ok(match output_format {
-        RunnerOutputFormat::Text => {
-            private_devnet_file_block_detail(chain_file, alice_balance, height)
-                .map(NodeRunnerOutput::BlockDetail)?
-        }
-        RunnerOutputFormat::Json => {
-            let detail = private_devnet_file_block_detail_data(chain_file, alice_balance, height)?;
-            NodeRunnerOutput::Json(render_block_detail_json("block-detail", &detail))
-        }
+        RunnerOutputFormat::Text => match (height, block_hash) {
+            (Some(height), None) => {
+                private_devnet_file_block_detail(chain_file, alice_balance, height)
+                    .map(NodeRunnerOutput::BlockDetail)?
+            }
+            (None, Some(block_hash)) => {
+                private_devnet_file_block_detail_by_hash(chain_file, alice_balance, block_hash)
+                    .map(NodeRunnerOutput::BlockDetail)?
+            }
+            _ => unreachable!("block detail selector already validated"),
+        },
+        RunnerOutputFormat::Json => match (height, block_hash) {
+            (Some(height), None) => {
+                let detail =
+                    private_devnet_file_block_detail_data(chain_file, alice_balance, height)?;
+                NodeRunnerOutput::Json(render_block_detail_json("block-detail", &detail))
+            }
+            (None, Some(block_hash)) => {
+                let detail = private_devnet_file_block_detail_by_hash_data(
+                    chain_file,
+                    alice_balance,
+                    block_hash,
+                )?;
+                NodeRunnerOutput::Json(render_block_detail_json("block-detail", &detail))
+            }
+            _ => unreachable!("block detail selector already validated"),
+        },
     })
 }
 
@@ -4214,6 +4293,7 @@ fn flag_to_static(flag: &str) -> &'static str {
         "--alice-balance" => "--alice-balance",
         "--limit" => "--limit",
         "--height" => "--height",
+        "--block-hash" => "--block-hash",
         "--address" => "--address",
         "--tx-hash" => "--tx-hash",
         "--snapshot-dir" => "--snapshot-dir",
@@ -5747,7 +5827,7 @@ mod tests {
         let path = temp_store_path();
         let path_text = path.to_string_lossy().to_string();
 
-        run_node_command([
+        let produced_output = run_node_command([
             "produce-transfer-block",
             "--chain-file",
             path_text.as_str(),
@@ -5767,6 +5847,10 @@ mod tests {
             "100",
         ])
         .unwrap();
+        let produced = match produced_output {
+            NodeRunnerOutput::ProducedTransferBlock(produced) => produced,
+            other => panic!("unexpected output: {other:?}"),
+        };
 
         let detail = run_node_command([
             "block-detail",
@@ -5785,6 +5869,42 @@ mod tests {
         assert!(detail.contains("xriqdev1alice00000000000 -> xriqdev1bobbb00000000000"));
         assert!(detail.contains("amount=25"));
         assert!(detail.contains("fee=2"));
+
+        let produced_block_hash = hash_hex(produced.block_hash);
+        let detail_by_hash = run_node_command([
+            "block-detail",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--block-hash",
+            produced_block_hash.as_str(),
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+
+        assert!(detail_by_hash.contains("\"command\": \"block-detail\""));
+        assert!(detail_by_hash.contains("\"height\": 1"));
+        assert!(detail_by_hash.contains(&produced_block_hash));
+
+        let ambiguous_selector = run_node_command([
+            "block-detail",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--height",
+            "1",
+            "--block-hash",
+            produced_block_hash.as_str(),
+        ])
+        .unwrap_err();
+        assert!(matches!(
+            ambiguous_selector,
+            NodeRunnerError::InvalidFormat(_)
+        ));
 
         let _ = fs::remove_file(path);
     }
@@ -6004,7 +6124,7 @@ mod tests {
     fn node_runner_transaction_detail_reads_confirmed_chain_file() {
         let path = temp_store_path();
         let path_text = path.to_string_lossy().to_string();
-        let produced = match run_node_command([
+        let produced_output = run_node_command([
             "produce-transfer-block",
             "--chain-file",
             path_text.as_str(),
@@ -6023,8 +6143,8 @@ mod tests {
             "--expires-at-height",
             "100",
         ])
-        .unwrap()
-        {
+        .unwrap();
+        let produced = match produced_output {
             NodeRunnerOutput::ProducedTransferBlock(produced) => produced,
             other => panic!("unexpected output: {other:?}"),
         };
@@ -6517,6 +6637,13 @@ mod tests {
         assert_eq!(block.status_code, 200);
         assert!(block.body.contains("\"command\": \"block-detail\""));
         assert!(block.body.contains("\"transaction_count\": 1"));
+
+        let block_by_hash_path = format!("/v1/blocks/{}", hash_hex(produced.block_hash));
+        let block_by_hash = private_devnet_http_response(&config, "GET", &block_by_hash_path);
+        assert_eq!(block_by_hash.status_code, 200);
+        assert!(block_by_hash.body.contains("\"command\": \"block-detail\""));
+        assert!(block_by_hash.body.contains("\"height\": 1"));
+        assert!(block_by_hash.body.contains(&hash_hex(produced.block_hash)));
 
         let account =
             private_devnet_http_response(&config, "GET", "/v1/accounts/xriqdev1alice00000000000");
