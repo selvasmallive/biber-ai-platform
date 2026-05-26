@@ -21,7 +21,7 @@ use xriq_crypto::{
     SignatureVerificationError, TestOnlySignatureVerifier,
 };
 use xriq_explorer::{
-    render_account_detail, render_account_transactions, render_block_detail,
+    render_account_detail, render_account_transactions, render_accounts, render_block_detail,
     render_latest_transactions, render_mempool, render_overview, ExplorerAccountDetail,
     ExplorerAccountTransaction, ExplorerBlockDetail, ExplorerBlockSummary,
     ExplorerConfirmedTransaction, ExplorerError, ExplorerMempoolDetail, ExplorerOverview,
@@ -201,6 +201,7 @@ pub enum NodeRunnerOutput {
     ExplorerOverview(String),
     BlockDetail(String),
     AccountDetail(String),
+    AccountList(String),
     AccountTransactions(String),
     TransactionList(String),
     MempoolDetail(String),
@@ -482,6 +483,7 @@ impl fmt::Display for NodeRunnerOutput {
             Self::ExplorerOverview(overview) => formatter.write_str(overview),
             Self::BlockDetail(detail)
             | Self::AccountDetail(detail)
+            | Self::AccountList(detail)
             | Self::AccountTransactions(detail)
             | Self::TransactionList(detail)
             | Self::MempoolDetail(detail)
@@ -618,6 +620,7 @@ pub fn node_help_text() -> String {
         "  xriq-node preflight-transfer --chain-file <path> --pending-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node explorer-overview --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node block-detail --chain-file <path> (--height <height|latest>|--block-hash <64-hex>) [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node account-list --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node account-detail --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node account-transactions --chain-file <path> --address <address> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node transaction-list --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
@@ -698,6 +701,7 @@ where
         Some("preflight-transfer") => run_preflight_transfer_command(&args[1..]),
         Some("explorer-overview") => run_explorer_overview_command(&args[1..]),
         Some("block-detail") => run_block_detail_command(&args[1..]),
+        Some("account-list") => run_account_list_command(&args[1..]),
         Some("account-detail") => run_account_detail_command(&args[1..]),
         Some("account-transactions") => run_account_transactions_command(&args[1..]),
         Some("transaction-list") => run_transaction_list_command(&args[1..]),
@@ -827,6 +831,14 @@ pub fn private_devnet_http_response_with_body(
         }
         "/v1/transactions" => {
             let mut args = private_devnet_http_runner_args("transaction-list", config);
+            if let Some(limit) = query_value(query, "limit") {
+                args.push("--limit".to_string());
+                args.push(limit.to_string());
+            }
+            runner_json_http_response(args)
+        }
+        "/v1/accounts" => {
+            let mut args = private_devnet_http_runner_args("account-list", config);
             if let Some(limit) = query_value(query, "limit") {
                 args.push("--limit".to_string());
                 args.push(limit.to_string());
@@ -2137,6 +2149,29 @@ pub fn private_devnet_file_latest_block_detail_data(
     explorer.latest_block().map_err(NodeRunnerError::Explorer)
 }
 
+pub fn private_devnet_file_account_list(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    limit: usize,
+) -> Result<String, NodeRunnerError> {
+    let accounts = private_devnet_file_account_list_data(chain_file, alice_balance, limit)?;
+    Ok(render_accounts(&accounts))
+}
+
+pub fn private_devnet_file_account_list_data(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    limit: usize,
+) -> Result<Vec<ExplorerAccountDetail>, NodeRunnerError> {
+    let store = FileChainStore::open(chain_file)
+        .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
+    let genesis = private_devnet_runner_genesis(alice_balance);
+    let node =
+        XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?;
+    let explorer = ExplorerService::new(node.rpc_service(), node.store());
+    Ok(explorer.accounts(limit))
+}
+
 pub fn private_devnet_file_account_detail(
     chain_file: impl AsRef<Path>,
     alice_balance: Option<XriqAmount>,
@@ -2417,6 +2452,32 @@ fn run_block_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRun
             }
             _ => unreachable!("block detail selector already validated"),
         },
+    })
+}
+
+fn run_account_list_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&["--chain-file", "--alice-balance", "--limit", "--format"])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let chain_file = flags.required("--chain-file")?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let limit = flags
+        .optional("--limit")
+        .map(|value| parse_usize("--limit", value))
+        .transpose()?
+        .unwrap_or(25);
+    Ok(match output_format {
+        RunnerOutputFormat::Text => {
+            private_devnet_file_account_list(chain_file, alice_balance, limit)
+                .map(NodeRunnerOutput::AccountList)?
+        }
+        RunnerOutputFormat::Json => {
+            let accounts = private_devnet_file_account_list_data(chain_file, alice_balance, limit)?;
+            NodeRunnerOutput::Json(render_account_list_json("account-list", &accounts))
+        }
     })
 }
 
@@ -4058,6 +4119,32 @@ fn render_block_detail_json(command: &str, block: &ExplorerBlockDetail) -> Strin
     output
 }
 
+fn render_account_list_json(command: &str, accounts: &[ExplorerAccountDetail]) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_success_json_preamble(&mut output, command);
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(PRIVATE_DEVNET_RUNNER_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"account_count\": {},", accounts.len()).expect("write to String");
+    writeln!(&mut output, "  \"accounts\": [").expect("write to String");
+    for (index, account) in accounts.iter().enumerate() {
+        writeln!(&mut output, "    {{").expect("write to String");
+        push_account_detail_json(&mut output, account, "      ");
+        output.push('\n');
+        output.push_str("    }");
+        if index + 1 != accounts.len() {
+            output.push(',');
+        }
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
 fn render_account_detail_json(command: &str, account: &ExplorerAccountDetail) -> String {
     let mut output = String::new();
     writeln!(&mut output, "{{").expect("write to String");
@@ -4068,19 +4155,8 @@ fn render_account_detail_json(command: &str, account: &ExplorerAccountDetail) ->
         json_string(PRIVATE_DEVNET_RUNNER_WARNING)
     )
     .expect("write to String");
-    writeln!(
-        &mut output,
-        "  \"address\": {},",
-        json_string(account.address.as_str())
-    )
-    .expect("write to String");
-    writeln!(
-        &mut output,
-        "  \"balance_base_units\": {},",
-        json_string(&account.balance.base_units().to_string())
-    )
-    .expect("write to String");
-    writeln!(&mut output, "  \"nonce\": {}", account.nonce).expect("write to String");
+    push_account_detail_json(&mut output, account, "  ");
+    output.push('\n');
     output.push('}');
     output
 }
@@ -4436,6 +4512,22 @@ fn push_transaction_summary_json(
     )
     .expect("write to String");
     write!(output, "{indent}}}").expect("write to String");
+}
+
+fn push_account_detail_json(output: &mut String, account: &ExplorerAccountDetail, indent: &str) {
+    writeln!(
+        output,
+        "{indent}\"address\": {},",
+        json_string(account.address.as_str())
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}\"balance_base_units\": {},",
+        json_string(&account.balance.base_units().to_string())
+    )
+    .expect("write to String");
+    write!(output, "{indent}\"nonce\": {}", account.nonce).expect("write to String");
 }
 
 fn push_account_transaction_json(
@@ -6561,6 +6653,39 @@ mod tests {
         assert!(bob.contains("balance: 25"));
         assert!(bob.contains("nonce: 0"));
 
+        let account_list = run_node_command([
+            "account-list",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--limit",
+            "2",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(account_list.contains("accounts: 2"));
+        assert!(account_list.contains("xriqdev1alice00000000000"));
+        assert!(account_list.contains("xriqdev1bobbb00000000000"));
+        assert!(!account_list.contains("xriqdev1carol00000000000"));
+
+        let account_list_json = run_node_command([
+            "account-list",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(account_list_json.contains("\"command\": \"account-list\""));
+        assert!(account_list_json.contains("\"account_count\": 4"));
+        assert!(account_list_json.contains("\"accounts\": ["));
+        assert!(account_list_json.contains("\"address\": \"xriqdev1alice00000000000\""));
+        assert!(account_list_json.contains("\"address\": \"xriqdev1carol00000000000\""));
+
         let alice_transactions = run_node_command([
             "account-transactions",
             "--chain-file",
@@ -7304,6 +7429,17 @@ mod tests {
         assert!(latest_block.body.contains("\"command\": \"block-detail\""));
         assert!(latest_block.body.contains("\"height\": 1"));
         assert!(latest_block.body.contains(&hash_hex(produced.block_hash)));
+
+        let accounts = private_devnet_http_response(&config, "GET", "/v1/accounts?limit=5");
+        assert_eq!(accounts.status_code, 200);
+        assert!(accounts.body.contains("\"command\": \"account-list\""));
+        assert!(accounts.body.contains("\"account_count\": 3"));
+        assert!(accounts
+            .body
+            .contains("\"address\": \"xriqdev1alice00000000000\""));
+        assert!(accounts
+            .body
+            .contains("\"address\": \"xriqdev1bobbb00000000000\""));
 
         let account =
             private_devnet_http_response(&config, "GET", "/v1/accounts/xriqdev1alice00000000000");

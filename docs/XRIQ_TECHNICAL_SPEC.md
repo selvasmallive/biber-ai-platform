@@ -455,6 +455,7 @@ GET  /v1/chain/check
 GET  /v1/blocks/{height_or_hash}
 GET  /v1/transactions?limit=5
 GET  /v1/transactions/{hash}
+GET  /v1/accounts?limit=5
 GET  /v1/accounts/{address}
 GET  /v1/mempool
 POST /v1/transactions
@@ -468,12 +469,13 @@ file-backed JSON runner outputs. The current implemented endpoints are
 `/health`, `/v1/chain/status`, `/v1/explorer/overview?limit=5`,
 `/v1/chain/check`, `/v1/blocks/{height_or_hash}`, `/v1/transactions?limit=5`,
 `/v1/transactions/{hash}`,
-`/v1/accounts/{address}`, `/v1/accounts/{address}/transactions?limit=5`, and
-`/v1/mempool`. Transaction lookup scans confirmed transactions in persisted
-blocks. Transaction-list and account-transaction lookup scan confirmed
-persisted blocks in descending height order. When `--pending-file` is
-configured, transaction lookup checks confirmed blocks first and then durable
-pending state.
+`/v1/accounts?limit=5`, `/v1/accounts/{address}`,
+`/v1/accounts/{address}/transactions?limit=5`, and `/v1/mempool`. Transaction
+lookup scans confirmed transactions in persisted blocks. Account list scans
+replayed private-devnet accounts in deterministic address order.
+Transaction-list and account-transaction lookup scan confirmed persisted blocks
+in descending height order. When `--pending-file` is configured, transaction
+lookup checks confirmed blocks first and then durable pending state.
 
 Explorer overview includes the replayed `state_root` so clients can compare
 dashboard output against `/v1/chain/status`, restart checks, and snapshot
@@ -547,7 +549,7 @@ Private explorer scope:
 - latest blocks
 - block detail
 - transaction detail
-- account balance and transaction list
+- account list, balance, and transaction list
 - mempool size
 
 The explorer should display private-devnet data only until public launch review
@@ -758,6 +760,8 @@ As of 2026-05-17:
     including transaction hashes and transfer summaries
 - local private-devnet account detail command that replays the persisted
     chain file and renders one account balance and nonce by address
+  - local private-devnet account list command that replays the persisted chain
+    file and lists account balances/nonces in deterministic address order
   - local private-devnet account transaction history command that replays the
     persisted chain file and lists confirmed transactions involving one account
     in descending block order
@@ -776,9 +780,10 @@ As of 2026-05-17:
     transaction/mempool inspection; block detail accepts decimal height,
     `latest`, or a 64-character lowercase hex block hash; transaction list
     returns recent confirmed transactions; chain check returns `verified: true`
-    after replay validation; explorer overview includes the replayed state
-    root; without `--pending-file`, transaction lookup covers confirmed
-    transactions in persisted blocks only
+    after replay validation; account list returns replayed accounts in address
+    order; explorer overview includes the replayed state root; without
+    `--pending-file`, transaction lookup covers confirmed transactions in
+    persisted blocks only
   - local private-devnet submit-capable HTTP wrapper through
     `xriq-node serve-private`; `POST /v1/transactions` accepts either the
     wallet draft text body or a flat JSON transfer body, validates it,
@@ -819,7 +824,7 @@ As of 2026-05-17:
     confirmed transaction detail, selected JSON outputs, draft-block, durable
     HTTP pending state, durable
     pending-block production, client preflight transfer flow, explorer
-    overview, block detail, account detail, and transaction-list behavior
+    overview, block detail, account list/detail, and transaction-list behavior
     against persisted chain files, and persists representative JSON response
     examples beside the smoke artifacts for future BIBER agents and HTTP/RPC
     adapters
@@ -860,6 +865,7 @@ As of 2026-05-17:
   - latest block listing from storage by descending height
   - state-root marker in explorer overview for restart/snapshot comparison
   - block detail with transaction hashes and transfer summaries
+  - account listing in deterministic address order
   - account balance and nonce lookup
   - account transaction history with sent/received/self direction
   - recent confirmed transaction listing

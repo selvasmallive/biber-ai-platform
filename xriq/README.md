@@ -81,6 +81,11 @@ cargo run -p xriq-node -- block-detail \
   --alice-balance 100 \
   --block-hash <hash-from-block-detail-or-overview>
 
+cargo run -p xriq-node -- account-list \
+  --chain-file target/xriq-devnet-chain.bin \
+  --alice-balance 100 \
+  --limit 10
+
 cargo run -p xriq-node -- account-detail \
   --chain-file target/xriq-devnet-chain.bin \
   --alice-balance 100 \
@@ -232,8 +237,9 @@ This builds the local Rust binaries, starts a real `xriq-node serve-private`
 process on a temporary localhost port, submits a wallet transfer through
 `POST /v1/mempool`, restarts the server to verify durable pending state,
 produces a block through `POST /v1/blocks`, and verifies transaction, block,
-account, account transaction history, latest transaction list, mempool,
-explorer overview, chain check, snapshot export, and snapshot import endpoints.
+account list/detail, account transaction history, latest transaction list,
+mempool, explorer overview, chain check, snapshot export, and snapshot import
+endpoints.
 
 The current machine-readable runner contract is documented in
 `../docs/XRIQ_NODE_JSON_SCHEMA.md`.
@@ -303,6 +309,7 @@ GET /v1/explorer/overview?limit=5
 GET /v1/blocks/{height-or-hash-or-latest}
 GET /v1/transactions?limit=5
 GET /v1/transactions/{hash}
+GET /v1/accounts?limit=5
 GET /v1/accounts/{address}
 GET /v1/accounts/{address}/transactions?limit=5
 GET /v1/mempool
@@ -328,6 +335,9 @@ transaction from a wallet draft with
 
 `GET /v1/transactions?limit=<n>` scans confirmed persisted blocks in descending
 height order and returns recent transparent private-devnet transactions.
+
+`GET /v1/accounts?limit=<n>` lists replayed private-devnet accounts in
+deterministic address order for private explorer/operator inspection.
 
 `GET /v1/accounts/{address}/transactions?limit=<n>` scans confirmed persisted
 blocks in descending height order and returns transparent private-devnet

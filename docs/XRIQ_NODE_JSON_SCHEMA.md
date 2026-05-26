@@ -555,6 +555,50 @@ Shape:
 }
 ```
 
+## Account List
+
+Command:
+
+```bash
+cargo run -p xriq-node -- account-list \
+  --chain-file target/xriq-devnet-chain.bin \
+  --alice-balance 100 \
+  --limit 10 \
+  --format json
+```
+
+HTTP endpoint:
+
+```bash
+GET /v1/accounts?limit=5
+```
+
+The result lists replayed private-devnet accounts in deterministic address
+order. It is intended for private explorer/operator inspection only.
+
+Shape:
+
+```json
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "account-list",
+  "warning": "private-devnet-only-no-public-token",
+  "account_count": 2,
+  "accounts": [
+    {
+      "address": "xriqdev1alice00000000000",
+      "balance_base_units": "73",
+      "nonce": 1
+    },
+    {
+      "address": "xriqdev1bobbb00000000000",
+      "balance_base_units": "25",
+      "nonce": 0
+    }
+  ]
+}
+```
+
 ## Account Detail
 
 Command:
@@ -839,6 +883,7 @@ Implemented read-only endpoints:
 - `GET /v1/blocks/{height-or-hash-or-latest}`
 - `GET /v1/transactions?limit=5`
 - `GET /v1/transactions/{hash}`
+- `GET /v1/accounts?limit=5`
 - `GET /v1/accounts/{address}`
 - `GET /v1/accounts/{address}/transactions?limit=5`
 - `GET /v1/mempool`

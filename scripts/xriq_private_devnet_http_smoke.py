@@ -385,6 +385,20 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         write_json(artifact_dir / "account-bob.json", bob)
         require_equal(bob, "balance_base_units", args.amount, "bob account")
 
+        accounts = http_json(base_url, "GET", "/v1/accounts?limit=5")
+        write_json(artifact_dir / "accounts.json", accounts)
+        require_equal(accounts, "account_count", 3, "accounts")
+        account_entries = accounts.get("accounts")
+        if not isinstance(account_entries, list) or len(account_entries) < 2:
+            raise SmokeError("accounts: expected at least alice and bob account entries")
+        account_addresses = {
+            entry.get("address")
+            for entry in account_entries
+            if isinstance(entry, dict)
+        }
+        if ALICE not in account_addresses or BOB not in account_addresses:
+            raise SmokeError("accounts: expected alice and bob addresses")
+
         alice_transactions = http_json(
             base_url,
             "GET",

@@ -109,6 +109,19 @@ impl RpcService {
         })
     }
 
+    pub fn accounts(&self, limit: usize) -> Vec<AccountResponse> {
+        self.ledger
+            .accounts()
+            .iter()
+            .take(limit)
+            .map(|(address, account)| AccountResponse {
+                address: address.clone(),
+                balance: account.balance,
+                nonce: account.nonce,
+            })
+            .collect()
+    }
+
     pub fn mempool(&self) -> MempoolResponse {
         let ordered_transaction_hashes = self
             .mempool
@@ -269,6 +282,18 @@ mod tests {
                 nonce: 0,
             })
         );
+    }
+
+    #[test]
+    fn lists_accounts_in_deterministic_order() {
+        let accounts = service().accounts(10);
+
+        assert_eq!(accounts.len(), 2);
+        assert_eq!(accounts[0].address, address("alice"));
+        assert_eq!(accounts[0].balance, XriqAmount::from_base_units(100));
+        assert_eq!(accounts[1].address, fee_sink());
+        assert_eq!(service().accounts(1).len(), 1);
+        assert!(service().accounts(0).is_empty());
     }
 
     #[test]

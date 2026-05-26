@@ -178,6 +178,18 @@ impl<'a, S: ChainStore> ExplorerService<'a, S> {
         })
     }
 
+    pub fn accounts(&self, limit: usize) -> Vec<ExplorerAccountDetail> {
+        self.rpc
+            .accounts(limit)
+            .into_iter()
+            .map(|account| ExplorerAccountDetail {
+                address: account.address,
+                balance: account.balance,
+                nonce: account.nonce,
+            })
+            .collect()
+    }
+
     pub fn account_transactions(
         &self,
         address: &Address,
@@ -358,6 +370,22 @@ pub fn render_account_detail(account: &ExplorerAccountDetail) -> String {
     writeln!(&mut output, "account {}", account.address).expect("write to String");
     writeln!(&mut output, "balance: {}", account.balance).expect("write to String");
     writeln!(&mut output, "nonce: {}", account.nonce).expect("write to String");
+    output
+}
+
+pub fn render_accounts(accounts: &[ExplorerAccountDetail]) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "accounts: {}", accounts.len()).expect("write to String");
+    for account in accounts {
+        writeln!(
+            &mut output,
+            "- {address} balance={balance} nonce={nonce}",
+            address = account.address,
+            balance = account.balance,
+            nonce = account.nonce
+        )
+        .expect("write to String");
+    }
     output
 }
 
@@ -735,6 +763,22 @@ mod tests {
     }
 
     #[test]
+    fn lists_accounts_in_deterministic_order() {
+        let (rpc, store) = fixture();
+        let explorer = ExplorerService::new(rpc, &store);
+
+        let accounts = explorer.accounts(10);
+
+        assert_eq!(accounts.len(), 3);
+        assert_eq!(accounts[0].address, address("alice"));
+        assert_eq!(accounts[0].balance, XriqAmount::from_base_units(100));
+        assert_eq!(accounts[1].address, address("bobbb"));
+        assert_eq!(accounts[2].address, fee_sink());
+        assert_eq!(explorer.accounts(1).len(), 1);
+        assert!(explorer.accounts(0).is_empty());
+    }
+
+    #[test]
     fn lists_account_transactions_descending_with_direction() {
         let (rpc, store) = fixture();
         let explorer = ExplorerService::new(rpc, &store);
@@ -828,6 +872,10 @@ mod tests {
         assert!(account.contains("account xriqdev1alice00000000000"));
         assert!(account.contains("balance: 100"));
         assert!(account.contains("nonce: 1"));
+
+        let accounts = render_accounts(&explorer.accounts(10));
+        assert!(accounts.contains("accounts: 3"));
+        assert!(accounts.contains("xriqdev1alice00000000000"));
 
         let account_transactions = render_account_transactions(
             &address("alice"),
