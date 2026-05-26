@@ -90,7 +90,12 @@ cargo run -p xriq-node -- serve-readonly \
 
 curl http://127.0.0.1:8787/v1/snapshots?limit=10
 curl http://127.0.0.1:8787/v1/snapshots/xriq-devnet-snapshot
+curl http://127.0.0.1:8787/v1/snapshots/xriq-devnet-snapshot/check
 ```
+
+The HTTP `/check` route returns the same `snapshot-check` JSON shape as the
+CLI, so operators can verify a snapshot through the local HTTP surface before
+choosing to import it.
 
 After import, verify:
 

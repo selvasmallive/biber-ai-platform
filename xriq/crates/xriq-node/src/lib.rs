@@ -944,6 +944,14 @@ pub fn private_devnet_http_response_with_body(
 
             if let Some(snapshot_name) = path
                 .strip_prefix("/v1/snapshots/")
+                .and_then(|suffix| suffix.strip_suffix("/check"))
+                .filter(|snapshot_name| !snapshot_name.is_empty())
+            {
+                return snapshot_check_http_response(config, snapshot_name);
+            }
+
+            if let Some(snapshot_name) = path
+                .strip_prefix("/v1/snapshots/")
                 .filter(|snapshot_name| !snapshot_name.is_empty())
             {
                 return snapshot_detail_http_response(config, snapshot_name);
@@ -1432,6 +1440,58 @@ fn snapshot_detail_http_response(
             render_node_runner_error_json(
                 &[
                     "snapshot-detail".to_string(),
+                    "--format".to_string(),
+                    "json".to_string(),
+                ],
+                &error,
+            ),
+        ),
+    }
+}
+
+fn snapshot_check_http_response(
+    config: &PrivateDevnetHttpServerConfig,
+    snapshot_name: &str,
+) -> PrivateDevnetHttpResponse {
+    let Some(snapshot_root) = &config.snapshot_root else {
+        return http_error_response(
+            501,
+            "not_implemented",
+            "snapshot discovery requires --snapshot-root",
+        );
+    };
+    let snapshot_dir = match private_devnet_http_snapshot_child_dir(snapshot_root, snapshot_name) {
+        Ok(snapshot_dir) => snapshot_dir,
+        Err(error) => {
+            return http_json_response(
+                node_runner_error_http_status(&error),
+                render_node_runner_error_json(
+                    &[
+                        "snapshot-check".to_string(),
+                        "--format".to_string(),
+                        "json".to_string(),
+                    ],
+                    &error,
+                ),
+            );
+        }
+    };
+    if !snapshot_dir.join(SNAPSHOT_MANIFEST_FILE).exists() {
+        return http_error_response(
+            404,
+            "snapshot_not_found",
+            "private-devnet snapshot was not found",
+        );
+    }
+    match private_devnet_snapshot_check_data(&snapshot_dir, config.alice_balance) {
+        Ok(status) => {
+            http_json_response(200, render_snapshot_check_json("snapshot-check", &status))
+        }
+        Err(error) => http_json_response(
+            node_runner_error_http_status(&error),
+            render_node_runner_error_json(
+                &[
+                    "snapshot-check".to_string(),
                     "--format".to_string(),
                     "json".to_string(),
                 ],
@@ -8649,6 +8709,21 @@ mod tests {
             .body
             .contains("\"snapshot_name\": \"http-snapshot\""));
         assert!(snapshot_detail.body.contains("\"current_height\": 3"));
+
+        let snapshot_check = private_devnet_http_response(
+            &discovery_config,
+            "GET",
+            "/v1/snapshots/http-snapshot/check",
+        );
+        assert_eq!(snapshot_check.status_code, 200);
+        assert!(snapshot_check
+            .body
+            .contains("\"command\": \"snapshot-check\""));
+        assert!(snapshot_check.body.contains("\"verified\": true"));
+        assert!(snapshot_check
+            .body
+            .contains("\"snapshot_name\": \"http-snapshot\""));
+        assert!(snapshot_check.body.contains("\"replayed_status\": {"));
 
         let unsafe_snapshot_detail =
             private_devnet_http_response(&discovery_config, "GET", "/v1/snapshots/..");

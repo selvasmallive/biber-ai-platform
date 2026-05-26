@@ -501,6 +501,18 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "snapshot detail",
         )
 
+        snapshot_check = http_json(base_url, "GET", "/v1/snapshots/http-snapshot/check")
+        write_json(artifact_dir / "http-snapshot-check.json", snapshot_check)
+        require_equal(snapshot_check, "command", "snapshot-check", "snapshot check")
+        require_equal(snapshot_check, "verified", True, "snapshot check")
+        mismatches = snapshot_check.get("mismatches")
+        if mismatches != []:
+            raise SmokeError(f"snapshot check: expected no mismatches, got {mismatches!r}")
+        snapshot = snapshot_check.get("snapshot")
+        if not isinstance(snapshot, dict):
+            raise SmokeError("snapshot check: expected snapshot object")
+        require_equal(snapshot, "snapshot_name", "http-snapshot", "snapshot check")
+
         stop_server(process)
         process = start_server(
             node_binary,

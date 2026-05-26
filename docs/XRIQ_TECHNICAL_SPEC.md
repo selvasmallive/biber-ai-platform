@@ -474,9 +474,9 @@ file-backed JSON runner outputs. The current implemented endpoints are
 `/v1/accounts?limit=5`, `/v1/accounts/{address}`,
 `/v1/accounts/{address}/transactions?limit=5`, `/v1/mempool`, and, when
 `--snapshot-root <path>` is configured, `/v1/snapshots?limit=5` plus
-`/v1/snapshots/{snapshot_name}`. Transaction lookup scans confirmed
-transactions in persisted blocks. Account list scans replayed private-devnet
-accounts in deterministic address order.
+`/v1/snapshots/{snapshot_name}` and `/v1/snapshots/{snapshot_name}/check`.
+Transaction lookup scans confirmed transactions in persisted blocks. Account
+list scans replayed private-devnet accounts in deterministic address order.
 Block-list, transaction-list, and account-transaction lookup scan confirmed
 persisted blocks in descending height order. When `--pending-file` is
 configured, transaction lookup checks confirmed blocks first and then durable
@@ -810,7 +810,8 @@ As of 2026-05-17:
     `POST /v1/snapshots/import`
   - optional local HTTP snapshot discovery through `GET /v1/snapshots` and
     `GET /v1/snapshots/{snapshot_name}` when `--snapshot-root <path>` is
-    configured
+    configured, plus `GET /v1/snapshots/{snapshot_name}/check` for
+    HTTP-accessible pre-restore replay verification
   - private-devnet client preflight transfer flow through
     `xriq-node preflight-transfer`, checking sender balance/nonce, submitting
     to durable pending state, producing a block, compacting pending state, and

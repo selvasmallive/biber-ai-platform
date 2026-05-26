@@ -587,9 +587,11 @@ started with `--snapshot-root <path>`:
 ```bash
 GET /v1/snapshots?limit=5
 GET /v1/snapshots/{snapshot-name}
+GET /v1/snapshots/{snapshot-name}/check
 ```
 
-Snapshot names in the HTTP path must be one safe path segment.
+Snapshot names in the HTTP path must be one safe path segment. The `/check`
+route returns the same `snapshot-check` JSON shape as the CLI command.
 
 List shape:
 
@@ -1059,6 +1061,7 @@ Implemented read-only endpoints:
 - `GET /v1/mempool`
 - `GET /v1/snapshots?limit=5` when `--snapshot-root <path>` is configured
 - `GET /v1/snapshots/{snapshot-name}` when `--snapshot-root <path>` is configured
+- `GET /v1/snapshots/{snapshot-name}/check` when `--snapshot-root <path>` is configured
 - `POST /v1/mempool` when `serve-private --pending-file <path>` is used
 - `POST /v1/blocks` when `serve-private --pending-file <path>` is used
 - `POST /v1/snapshots/export?snapshot_dir=<path>` when `serve-private` is used

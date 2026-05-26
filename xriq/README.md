@@ -246,7 +246,7 @@ process on a temporary localhost port, submits a wallet transfer through
 produces a block through `POST /v1/blocks`, and verifies transaction, block,
 block list, account list/detail, account transaction history, latest
 transaction list, mempool, explorer overview, chain check, snapshot export, and
-snapshot list/detail, and snapshot import endpoints.
+snapshot list/detail/check, and snapshot import endpoints.
 
 The current machine-readable runner contract is documented in
 `../docs/XRIQ_NODE_JSON_SCHEMA.md`.
@@ -352,6 +352,7 @@ GET /v1/accounts/{address}/transactions?limit=5
 GET /v1/mempool
 GET /v1/snapshots?limit=5
 GET /v1/snapshots/{snapshot-name}
+GET /v1/snapshots/{snapshot-name}/check
 POST /v1/mempool
 POST /v1/blocks
 POST /v1/snapshots/export?snapshot_dir=<path>
@@ -396,8 +397,10 @@ The local runner can inspect the same durable pending state with
 
 When the server is started with `--snapshot-root <path>`,
 `GET /v1/snapshots?limit=<n>` lists immediate child snapshot directories under
-that root, and `GET /v1/snapshots/{snapshot-name}` reads one snapshot manifest.
-Snapshot names must be a single safe path segment.
+that root, `GET /v1/snapshots/{snapshot-name}` reads one snapshot manifest, and
+`GET /v1/snapshots/{snapshot-name}/check` replays the snapshot chain/pending
+files to verify them before restore. Snapshot names must be a single safe path
+segment.
 
 `POST /v1/blocks` is available only through `serve-private --pending-file
 <path>`. It produces one private-devnet block from the durable pending file,
