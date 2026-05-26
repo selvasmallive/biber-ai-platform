@@ -22,8 +22,8 @@ use xriq_crypto::{
 };
 use xriq_explorer::{
     render_account_detail, render_account_transactions, render_accounts, render_block_detail,
-    render_latest_transactions, render_mempool, render_overview, ExplorerAccountDetail,
-    ExplorerAccountTransaction, ExplorerBlockDetail, ExplorerBlockSummary,
+    render_latest_blocks, render_latest_transactions, render_mempool, render_overview,
+    ExplorerAccountDetail, ExplorerAccountTransaction, ExplorerBlockDetail, ExplorerBlockSummary,
     ExplorerConfirmedTransaction, ExplorerError, ExplorerMempoolDetail, ExplorerOverview,
     ExplorerService,
 };
@@ -199,6 +199,7 @@ pub enum NodeRunnerOutput {
     ProducedPendingBlock(ProducedPendingBlockStatus),
     PreflightTransfer(PrivateDevnetPreflightTransferStatus),
     ExplorerOverview(String),
+    BlockList(String),
     BlockDetail(String),
     AccountDetail(String),
     AccountList(String),
@@ -481,7 +482,8 @@ impl fmt::Display for NodeRunnerOutput {
             Self::ProducedPendingBlock(status) => write!(formatter, "{status}"),
             Self::PreflightTransfer(status) => write!(formatter, "{status}"),
             Self::ExplorerOverview(overview) => formatter.write_str(overview),
-            Self::BlockDetail(detail)
+            Self::BlockList(detail)
+            | Self::BlockDetail(detail)
             | Self::AccountDetail(detail)
             | Self::AccountList(detail)
             | Self::AccountTransactions(detail)
@@ -619,6 +621,7 @@ pub fn node_help_text() -> String {
         "  xriq-node produce-pending-block --chain-file <path> --pending-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node preflight-transfer --chain-file <path> --pending-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node explorer-overview --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
+        "  xriq-node block-list --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node block-detail --chain-file <path> (--height <height|latest>|--block-hash <64-hex>) [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node account-list --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node account-detail --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
@@ -700,6 +703,7 @@ where
         Some("produce-pending-block") => run_produce_pending_block_command(&args[1..]),
         Some("preflight-transfer") => run_preflight_transfer_command(&args[1..]),
         Some("explorer-overview") => run_explorer_overview_command(&args[1..]),
+        Some("block-list") => run_block_list_command(&args[1..]),
         Some("block-detail") => run_block_detail_command(&args[1..]),
         Some("account-list") => run_account_list_command(&args[1..]),
         Some("account-detail") => run_account_detail_command(&args[1..]),
@@ -823,6 +827,14 @@ pub fn private_devnet_http_response_with_body(
         }
         "/v1/explorer/overview" => {
             let mut args = private_devnet_http_runner_args("explorer-overview", config);
+            if let Some(limit) = query_value(query, "limit") {
+                args.push("--limit".to_string());
+                args.push(limit.to_string());
+            }
+            runner_json_http_response(args)
+        }
+        "/v1/blocks" => {
+            let mut args = private_devnet_http_runner_args("block-list", config);
             if let Some(limit) = query_value(query, "limit") {
                 args.push("--limit".to_string());
                 args.push(limit.to_string());
@@ -2077,6 +2089,29 @@ pub fn private_devnet_file_explorer_overview_data(
     Ok((explorer.overview(), explorer.latest_blocks(limit)))
 }
 
+pub fn private_devnet_file_block_list(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    limit: usize,
+) -> Result<String, NodeRunnerError> {
+    let blocks = private_devnet_file_block_list_data(chain_file, alice_balance, limit)?;
+    Ok(render_latest_blocks(&blocks))
+}
+
+pub fn private_devnet_file_block_list_data(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    limit: usize,
+) -> Result<Vec<ExplorerBlockSummary>, NodeRunnerError> {
+    let store = FileChainStore::open(chain_file)
+        .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
+    let genesis = private_devnet_runner_genesis(alice_balance);
+    let node =
+        XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?;
+    let explorer = ExplorerService::new(node.rpc_service(), node.store());
+    Ok(explorer.latest_blocks(limit))
+}
+
 pub fn private_devnet_file_block_detail(
     chain_file: impl AsRef<Path>,
     alice_balance: Option<XriqAmount>,
@@ -2374,6 +2409,32 @@ fn run_explorer_overview_command(args: &[String]) -> Result<NodeRunnerOutput, No
                 &overview,
                 &latest_blocks,
             ))
+        }
+    })
+}
+
+fn run_block_list_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&["--chain-file", "--alice-balance", "--limit", "--format"])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let chain_file = flags.required("--chain-file")?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let limit = flags
+        .optional("--limit")
+        .map(|value| parse_usize("--limit", value))
+        .transpose()?
+        .unwrap_or(25);
+    Ok(match output_format {
+        RunnerOutputFormat::Text => {
+            private_devnet_file_block_list(chain_file, alice_balance, limit)
+                .map(NodeRunnerOutput::BlockList)?
+        }
+        RunnerOutputFormat::Json => {
+            let blocks = private_devnet_file_block_list_data(chain_file, alice_balance, limit)?;
+            NodeRunnerOutput::Json(render_block_list_json("block-list", &blocks))
         }
     })
 }
@@ -4046,6 +4107,29 @@ fn render_explorer_overview_json(
     for (index, block) in latest_blocks.iter().enumerate() {
         push_block_summary_json(&mut output, block, "    ");
         if index + 1 != latest_blocks.len() {
+            output.push(',');
+        }
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
+fn render_block_list_json(command: &str, blocks: &[ExplorerBlockSummary]) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_success_json_preamble(&mut output, command);
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(PRIVATE_DEVNET_RUNNER_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"block_count\": {},", blocks.len()).expect("write to String");
+    writeln!(&mut output, "  \"blocks\": [").expect("write to String");
+    for (index, block) in blocks.iter().enumerate() {
+        push_block_summary_json(&mut output, block, "    ");
+        if index + 1 != blocks.len() {
             output.push(',');
         }
         output.push('\n');
@@ -6557,6 +6641,42 @@ mod tests {
         assert!(latest_detail.contains("\"height\": 1"));
         assert!(latest_detail.contains(&produced_block_hash));
 
+        let block_list = run_node_command([
+            "block-list",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--limit",
+            "5",
+        ])
+        .unwrap()
+        .to_string();
+
+        assert!(block_list.contains("latest blocks"));
+        assert!(block_list.contains("blocks: 1"));
+        assert!(block_list.contains("height 1"));
+        assert!(block_list.contains(&produced_block_hash));
+
+        let block_list_json = run_node_command([
+            "block-list",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--limit",
+            "5",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+
+        assert!(block_list_json.contains("\"command\": \"block-list\""));
+        assert!(block_list_json.contains("\"block_count\": 1"));
+        assert!(block_list_json.contains("\"height\": 1"));
+        assert!(block_list_json.contains(&produced_block_hash));
+
         let ambiguous_selector = run_node_command([
             "block-detail",
             "--chain-file",
@@ -7411,6 +7531,13 @@ mod tests {
         assert!(overview.body.contains("\"command\": \"explorer-overview\""));
         assert!(overview.body.contains("\"state_root\":"));
         assert!(overview.body.contains("\"latest_blocks\": ["));
+
+        let block_list = private_devnet_http_response(&config, "GET", "/v1/blocks?limit=5");
+        assert_eq!(block_list.status_code, 200);
+        assert!(block_list.body.contains("\"command\": \"block-list\""));
+        assert!(block_list.body.contains("\"block_count\": 1"));
+        assert!(block_list.body.contains("\"height\": 1"));
+        assert!(block_list.body.contains(&hash_hex(produced.block_hash)));
 
         let block = private_devnet_http_response(&config, "GET", "/v1/blocks/1");
         assert_eq!(block.status_code, 200);

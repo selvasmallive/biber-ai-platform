@@ -120,6 +120,12 @@ cargo run -p xriq-node -- explorer-overview \
   --alice-balance 100 \
   --limit 5 \
   --format json
+
+cargo run -p xriq-node -- block-list \
+  --chain-file target/xriq-devnet-chain.bin \
+  --alice-balance 100 \
+  --limit 5 \
+  --format json
 ```
 
 Private-devnet wallet-draft-to-block smoke:
@@ -237,9 +243,9 @@ This builds the local Rust binaries, starts a real `xriq-node serve-private`
 process on a temporary localhost port, submits a wallet transfer through
 `POST /v1/mempool`, restarts the server to verify durable pending state,
 produces a block through `POST /v1/blocks`, and verifies transaction, block,
-account list/detail, account transaction history, latest transaction list,
-mempool, explorer overview, chain check, snapshot export, and snapshot import
-endpoints.
+block list, account list/detail, account transaction history, latest
+transaction list, mempool, explorer overview, chain check, snapshot export, and
+snapshot import endpoints.
 
 The current machine-readable runner contract is documented in
 `../docs/XRIQ_NODE_JSON_SCHEMA.md`.
@@ -306,6 +312,7 @@ GET /health
 GET /v1/chain/status
 GET /v1/chain/check
 GET /v1/explorer/overview?limit=5
+GET /v1/blocks?limit=5
 GET /v1/blocks/{height-or-hash-or-latest}
 GET /v1/transactions?limit=5
 GET /v1/transactions/{hash}
@@ -322,6 +329,9 @@ POST /v1/snapshots/import?snapshot_dir=<path>
 `GET /v1/blocks/{height-or-hash-or-latest}` returns the same block-detail JSON
 shape for either a decimal block height, `latest`, or a 64-character lowercase
 hex block hash.
+
+`GET /v1/blocks?limit=<n>` scans persisted blocks in descending height order
+and returns compact private-devnet block summaries for explorer/operator views.
 
 `GET /v1/chain/check` replays and validates the configured chain file, includes
 durable pending-file validation when `serve-private --pending-file <path>` is

@@ -173,6 +173,47 @@ Shape:
 }
 ```
 
+## Block List
+
+Command:
+
+```bash
+cargo run -p xriq-node -- block-list \
+  --chain-file target/xriq-devnet-chain.bin \
+  --alice-balance 100 \
+  --limit 5 \
+  --format json
+```
+
+HTTP endpoint:
+
+```bash
+GET /v1/blocks?limit=5
+```
+
+The result scans persisted private-devnet blocks in descending height order and
+returns compact block summaries for explorer/operator views.
+
+Shape:
+
+```json
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "block-list",
+  "warning": "private-devnet-only-no-public-token",
+  "block_count": 1,
+  "blocks": [
+    {
+      "height": 1,
+      "block_hash": "64-hex-character-block-hash",
+      "transaction_count": 1,
+      "producer": "xriqdev1authority000000000",
+      "timestamp_ms": 1000
+    }
+  ]
+}
+```
+
 ## Block Detail
 
 Command:
@@ -880,6 +921,7 @@ Implemented read-only endpoints:
 - `GET /v1/chain/status`
 - `GET /v1/chain/check`
 - `GET /v1/explorer/overview?limit=5`
+- `GET /v1/blocks?limit=5`
 - `GET /v1/blocks/{height-or-hash-or-latest}`
 - `GET /v1/transactions?limit=5`
 - `GET /v1/transactions/{hash}`
@@ -893,6 +935,7 @@ Implemented read-only endpoints:
 - `POST /v1/snapshots/import?snapshot_dir=<path>` when `serve-private` is used
 
 The read-only endpoints reuse the JSON bodies documented above where possible.
+`GET /v1/blocks?limit=5` returns the block-list shape.
 `GET /v1/blocks/{height-or-hash-or-latest}` accepts either a decimal height,
 `latest`, or a 64-character lowercase hex block hash and returns the
 block-detail shape.

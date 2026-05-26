@@ -110,14 +110,14 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `69%`.
+- Phase 1 estimated completion: about `70%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `67%`.
 - File-backed node runner and deterministic replay: about `71%`.
 - Snapshot export/import and restore workflow: about `68%`.
-- Read-only/private RPC and explorer/dashboard support: about `70%`.
-- Local smoke/regression coverage: about `72%`.
+- Read-only/private RPC and explorer/dashboard support: about `71%`.
+- Local smoke/regression coverage: about `73%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -153,6 +153,23 @@ not an active target because the GPU was terminated to save cost.
   `CARGO_TARGET_DIR=target-codex-account-list-smoke`. The smoke artifact
   directory was
   `xriq/target/xriq-private-devnet-http-smoke-20260526T123611Z`. No Vast sync,
+  API/vLLM restart, training, OpenAI mentor call, or credential change was
+  used.
+- Latest native XRIQ block-list checkpoint: `xriq-explorer` now exposes a
+  compact latest-block renderer, and `xriq-node block-list` renders replayed
+  private-devnet block summaries in text or JSON. The local HTTP wrapper
+  exposes `GET /v1/blocks?limit=<n>` for explorer/operator block browsing while
+  `GET /v1/blocks/{height-or-hash-or-latest}` remains the detail lookup. The
+  HTTP smoke now writes `block-list.json` and verifies the produced block height
+  and block hash after block production. Local verification passed
+  `cargo fmt --all --manifest-path xriq/Cargo.toml -- --check`, bundled Python
+  syntax compilation for `scripts/xriq_private_devnet_http_smoke.py`,
+  `cargo test -p xriq-explorer --manifest-path xriq/Cargo.toml -j 1` with
+  `10 passed`, `cargo test -p xriq-node --manifest-path xriq/Cargo.toml -j 1`
+  with `51 passed`, `git diff --check`, and the local HTTP smoke using
+  `CARGO_TARGET_DIR=target-codex-block-list-smoke`. The smoke artifact
+  directory was
+  `xriq/target/xriq-private-devnet-http-smoke-20260526T124501Z`. No Vast sync,
   API/vLLM restart, training, OpenAI mentor call, or credential change was
   used.
 - Latest native XRIQ chain-check checkpoint: `xriq-node chain-check` now

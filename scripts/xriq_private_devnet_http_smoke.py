@@ -376,6 +376,18 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         require_equal(latest_block, "height", 1, "latest block")
         require_equal(latest_block, "block_hash", block_hash, "latest block")
 
+        block_list = http_json(base_url, "GET", "/v1/blocks?limit=5")
+        write_json(artifact_dir / "block-list.json", block_list)
+        require_equal(block_list, "block_count", 1, "block list")
+        blocks = block_list.get("blocks")
+        if not isinstance(blocks, list) or not blocks:
+            raise SmokeError("block list: expected one block entry")
+        first_block = blocks[0]
+        if not isinstance(first_block, dict):
+            raise SmokeError("block list: expected block object")
+        require_equal(first_block, "height", 1, "block list")
+        require_equal(first_block, "block_hash", block_hash, "block list")
+
         alice = http_json(base_url, "GET", f"/v1/accounts/{ALICE}")
         write_json(artifact_dir / "account-alice.json", alice)
         require_equal(alice, "balance_base_units", "73", "alice account")

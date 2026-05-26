@@ -452,6 +452,7 @@ Minimum node RPC:
 GET  /health
 GET  /v1/chain/status
 GET  /v1/chain/check
+GET  /v1/blocks?limit=5
 GET  /v1/blocks/{height_or_hash}
 GET  /v1/transactions?limit=5
 GET  /v1/transactions/{hash}
@@ -467,15 +468,17 @@ Current private-devnet implementation: `xriq-node serve-readonly` exposes a
 loopback-first, dependency-free, read-only HTTP wrapper over the existing
 file-backed JSON runner outputs. The current implemented endpoints are
 `/health`, `/v1/chain/status`, `/v1/explorer/overview?limit=5`,
-`/v1/chain/check`, `/v1/blocks/{height_or_hash}`, `/v1/transactions?limit=5`,
+`/v1/chain/check`, `/v1/blocks?limit=5`, `/v1/blocks/{height_or_hash}`,
+`/v1/transactions?limit=5`,
 `/v1/transactions/{hash}`,
 `/v1/accounts?limit=5`, `/v1/accounts/{address}`,
 `/v1/accounts/{address}/transactions?limit=5`, and `/v1/mempool`. Transaction
 lookup scans confirmed transactions in persisted blocks. Account list scans
 replayed private-devnet accounts in deterministic address order.
-Transaction-list and account-transaction lookup scan confirmed persisted blocks
-in descending height order. When `--pending-file` is configured, transaction
-lookup checks confirmed blocks first and then durable pending state.
+Block-list, transaction-list, and account-transaction lookup scan confirmed
+persisted blocks in descending height order. When `--pending-file` is
+configured, transaction lookup checks confirmed blocks first and then durable
+pending state.
 
 Explorer overview includes the replayed `state_root` so clients can compare
 dashboard output against `/v1/chain/status`, restart checks, and snapshot
@@ -643,7 +646,8 @@ Before any public network, require:
     rejects malformed/wrong-chain drafts, and still uses private-devnet
     test-only signatures.
 22. Add focused persisted-chain inspection commands. Current status: done for
-    file-backed `xriq-node block-detail --chain-file <path> --height <height>`
+    file-backed `xriq-node block-list --chain-file <path>`,
+    `xriq-node block-detail --chain-file <path> --height <height>`
     / `--block-hash <64-hex>` and
     `xriq-node account-detail --chain-file <path> --address <address>`
     commands that replay canonical private-devnet chain files before rendering

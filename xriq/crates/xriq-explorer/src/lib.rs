@@ -325,6 +325,25 @@ pub fn render_overview(
     output
 }
 
+pub fn render_latest_blocks(blocks: &[ExplorerBlockSummary]) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "latest blocks").expect("write to String");
+    writeln!(&mut output, "blocks: {}", blocks.len()).expect("write to String");
+    for block in blocks {
+        writeln!(
+            &mut output,
+            "- height {} {} txs={} producer={} timestamp_ms={}",
+            block.height,
+            hash_hex(block.block_hash),
+            block.transaction_count,
+            block.producer,
+            block.timestamp_ms
+        )
+        .expect("write to String");
+    }
+    output
+}
+
 pub fn render_block_detail(block: &ExplorerBlockDetail) -> String {
     let mut output = String::new();
     writeln!(
@@ -860,6 +879,11 @@ mod tests {
         assert!(overview.contains("current height: 2"));
         assert!(overview.contains("state root: "));
         assert!(overview.contains("pending transactions: 2"));
+
+        let latest_blocks = render_latest_blocks(&explorer.latest_blocks(2));
+        assert!(latest_blocks.contains("latest blocks"));
+        assert!(latest_blocks.contains("blocks: 2"));
+        assert!(latest_blocks.contains("height 2"));
 
         let block_detail = explorer.block_by_height(1).unwrap();
         let block_hash = hash_hex(block_detail.transactions[0].tx_hash);
