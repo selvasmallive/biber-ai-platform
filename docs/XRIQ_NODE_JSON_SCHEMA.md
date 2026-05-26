@@ -72,6 +72,46 @@ Shape:
 }
 ```
 
+## Chain Check
+
+Command:
+
+```bash
+cargo run -p xriq-node -- chain-check \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --alice-balance 100 \
+  --format json
+```
+
+HTTP endpoint:
+
+```bash
+GET /v1/chain/check
+```
+
+The result is returned only after the file-backed chain has replayed
+successfully. When `--pending-file` or `serve-private --pending-file <path>` is
+used, durable pending transactions are also loaded and validated into the
+private-devnet mempool before the response is returned.
+
+Shape:
+
+```json
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "chain-check",
+  "warning": "private-devnet-only-no-public-token",
+  "verified": true,
+  "chain_id": "xriq-devnet",
+  "current_height": 1,
+  "latest_block_hash": "64-hex-character-block-hash",
+  "state_root": "64-hex-character-state-root",
+  "pending_transactions": 0,
+  "stored_blocks": 1
+}
+```
+
 ## Produced Block
 
 Used by both `produce-transfer-block --format json` and
@@ -794,6 +834,7 @@ Implemented read-only endpoints:
 
 - `GET /health`
 - `GET /v1/chain/status`
+- `GET /v1/chain/check`
 - `GET /v1/explorer/overview?limit=5`
 - `GET /v1/blocks/{height-or-hash-or-latest}`
 - `GET /v1/transactions?limit=5`

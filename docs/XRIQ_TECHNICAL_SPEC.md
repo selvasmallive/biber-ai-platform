@@ -451,6 +451,7 @@ Minimum node RPC:
 ```text
 GET  /health
 GET  /v1/chain/status
+GET  /v1/chain/check
 GET  /v1/blocks/{height_or_hash}
 GET  /v1/transactions?limit=5
 GET  /v1/transactions/{hash}
@@ -465,7 +466,7 @@ Current private-devnet implementation: `xriq-node serve-readonly` exposes a
 loopback-first, dependency-free, read-only HTTP wrapper over the existing
 file-backed JSON runner outputs. The current implemented endpoints are
 `/health`, `/v1/chain/status`, `/v1/explorer/overview?limit=5`,
-`/v1/blocks/{height_or_hash}`, `/v1/transactions?limit=5`,
+`/v1/chain/check`, `/v1/blocks/{height_or_hash}`, `/v1/transactions?limit=5`,
 `/v1/transactions/{hash}`,
 `/v1/accounts/{address}`, `/v1/accounts/{address}/transactions?limit=5`, and
 `/v1/mempool`. Transaction lookup scans confirmed transactions in persisted
@@ -477,6 +478,10 @@ pending state.
 Explorer overview includes the replayed `state_root` so clients can compare
 dashboard output against `/v1/chain/status`, restart checks, and snapshot
 restore checks.
+
+`/v1/chain/check` explicitly reports `verified: true` only after replaying the
+chain file. When a durable pending file is configured, it also validates pending
+records into the private-devnet mempool before returning status.
 
 Block detail lookup accepts decimal heights, the `latest` selector, or
 64-character lowercase hex block hashes.
@@ -733,6 +738,9 @@ As of 2026-05-17:
   - append-only local file store for block persistence and reload
   - deterministic startup replay through `XriqNode::from_genesis_replaying_store`
   - local private-devnet runner status command backed by replay startup
+  - local private-devnet chain-check command that replays the persisted chain
+    file, optionally validates durable pending-file records, and returns
+    `verified: true` with deterministic tip/status fields
   - local private-devnet runner transfer/block command that creates a
     hash-bound test transaction, submits it through node validation, produces a
     canonical-root block with a hash-bound test block signature, persists it,
@@ -767,9 +775,10 @@ As of 2026-05-17:
     file-backed JSON runner responses for health/status/explorer/block/account
     transaction/mempool inspection; block detail accepts decimal height,
     `latest`, or a 64-character lowercase hex block hash; transaction list
-    returns recent confirmed transactions; explorer overview includes the
-    replayed state root; without `--pending-file`, transaction lookup covers
-    confirmed transactions in persisted blocks only
+    returns recent confirmed transactions; chain check returns `verified: true`
+    after replay validation; explorer overview includes the replayed state
+    root; without `--pending-file`, transaction lookup covers confirmed
+    transactions in persisted blocks only
   - local private-devnet submit-capable HTTP wrapper through
     `xriq-node serve-private`; `POST /v1/transactions` accepts either the
     wallet draft text body or a flat JSON transfer body, validates it,

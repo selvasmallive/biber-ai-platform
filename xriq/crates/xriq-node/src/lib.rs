@@ -92,6 +92,12 @@ pub struct NodeStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateDevnetChainCheckStatus {
+    pub verified: bool,
+    pub status: NodeStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateDevnetSnapshotStatus {
     pub snapshot_dir: String,
     pub chain_file: String,
@@ -188,6 +194,7 @@ pub enum PrivateDevnetTransactionDetail {
 pub enum NodeRunnerOutput {
     Help(String),
     Status(NodeStatus),
+    ChainCheck(PrivateDevnetChainCheckStatus),
     ProducedTransferBlock(ProducedTransferBlockStatus),
     ProducedPendingBlock(ProducedPendingBlockStatus),
     PreflightTransfer(PrivateDevnetPreflightTransferStatus),
@@ -306,6 +313,27 @@ impl fmt::Display for ProducedTransferBlockStatus {
             "applied_transactions={}",
             self.applied_transactions
         )?;
+        writeln!(formatter, "chain_id={}", self.status.chain_id)?;
+        writeln!(formatter, "current_height={}", self.status.current_height)?;
+        writeln!(
+            formatter,
+            "latest_block_hash={}",
+            hash_hex(self.status.latest_block_hash)
+        )?;
+        writeln!(formatter, "state_root={}", hash_hex(self.status.state_root))?;
+        writeln!(
+            formatter,
+            "pending_transactions={}",
+            self.status.pending_transactions
+        )?;
+        write!(formatter, "stored_blocks={}", self.status.stored_blocks)
+    }
+}
+
+impl fmt::Display for PrivateDevnetChainCheckStatus {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(formatter, "warning={}", self.status.warning)?;
+        writeln!(formatter, "verified={}", self.verified)?;
         writeln!(formatter, "chain_id={}", self.status.chain_id)?;
         writeln!(formatter, "current_height={}", self.status.current_height)?;
         writeln!(
@@ -447,6 +475,7 @@ impl fmt::Display for NodeRunnerOutput {
         match self {
             Self::Help(help) => formatter.write_str(help),
             Self::Status(status) => write!(formatter, "{status}"),
+            Self::ChainCheck(status) => write!(formatter, "{status}"),
             Self::ProducedTransferBlock(status) => write!(formatter, "{status}"),
             Self::ProducedPendingBlock(status) => write!(formatter, "{status}"),
             Self::PreflightTransfer(status) => write!(formatter, "{status}"),
@@ -582,6 +611,7 @@ pub fn node_help_text() -> String {
     [
         "xriq-node private-devnet commands:",
         "  xriq-node status --chain-file <path> [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node chain-check --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node produce-transfer-block --chain-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node produce-draft-block --chain-file <path> --draft-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node produce-pending-block --chain-file <path> --pending-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
@@ -661,6 +691,7 @@ where
         None => Err(NodeRunnerError::MissingCommand),
         Some("help" | "--help" | "-h") => Ok(NodeRunnerOutput::Help(node_help_text())),
         Some("status") => run_status_command(&args[1..]),
+        Some("chain-check") => run_chain_check_command(&args[1..]),
         Some("produce-transfer-block") => run_produce_transfer_block_command(&args[1..]),
         Some("produce-draft-block") => run_produce_draft_block_command(&args[1..]),
         Some("produce-pending-block") => run_produce_pending_block_command(&args[1..]),
@@ -778,6 +809,7 @@ pub fn private_devnet_http_response_with_body(
                 runner_json_http_response(private_devnet_http_runner_args("status", config))
             }
         }
+        "/v1/chain/check" => chain_check_http_response(config),
         "/v1/mempool" => {
             if let Some(pending_file) = &config.pending_file {
                 pending_mempool_http_response(config, pending_file)
@@ -1242,6 +1274,24 @@ fn snapshot_import_http_response(
     }
 }
 
+fn chain_check_http_response(config: &PrivateDevnetHttpServerConfig) -> PrivateDevnetHttpResponse {
+    let result = private_devnet_file_chain_check(
+        &config.chain_file,
+        config.pending_file.as_deref(),
+        config.alice_balance,
+    );
+    match result {
+        Ok(status) => http_json_response(200, render_chain_check_json("chain-check", &status)),
+        Err(error) => {
+            let args = private_devnet_http_runner_args("chain-check", config);
+            http_json_response(
+                node_runner_error_http_status(&error),
+                render_node_runner_error_json(&args, &error),
+            )
+        }
+    }
+}
+
 fn pending_status_http_response(
     config: &PrivateDevnetHttpServerConfig,
     pending_file: &str,
@@ -1556,6 +1606,26 @@ pub fn private_devnet_file_status_with_pending_file(
 ) -> Result<NodeStatus, NodeRunnerError> {
     let node = private_devnet_node_with_pending_file(chain_file, pending_file, alice_balance)?;
     Ok(node_status(&node))
+}
+
+pub fn private_devnet_file_chain_check<P, F>(
+    chain_file: P,
+    pending_file: Option<F>,
+    alice_balance: Option<XriqAmount>,
+) -> Result<PrivateDevnetChainCheckStatus, NodeRunnerError>
+where
+    P: AsRef<Path>,
+    F: AsRef<Path>,
+{
+    let status = if let Some(pending_file) = pending_file {
+        private_devnet_file_status_with_pending_file(chain_file, pending_file, alice_balance)?
+    } else {
+        private_devnet_file_status(chain_file, alice_balance).map_err(NodeRunnerError::Node)?
+    };
+    Ok(PrivateDevnetChainCheckStatus {
+        verified: true,
+        status,
+    })
 }
 
 pub fn private_devnet_file_mempool_detail_with_pending_file_data(
@@ -2212,6 +2282,30 @@ fn run_status_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerErr
         RunnerOutputFormat::Text => NodeRunnerOutput::Status(status),
         RunnerOutputFormat::Json => {
             NodeRunnerOutput::Json(render_node_status_json("status", &status))
+        }
+    })
+}
+
+fn run_chain_check_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--pending-file",
+        "--alice-balance",
+        "--format",
+    ])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let chain_file = flags.required("--chain-file")?;
+    let pending_file = flags.optional("--pending-file");
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let status = private_devnet_file_chain_check(chain_file, pending_file, alice_balance)?;
+    Ok(match output_format {
+        RunnerOutputFormat::Text => NodeRunnerOutput::ChainCheck(status),
+        RunnerOutputFormat::Json => {
+            NodeRunnerOutput::Json(render_chain_check_json("chain-check", &status))
         }
     })
 }
@@ -3577,6 +3671,22 @@ fn render_node_status_json(command: &str, status: &NodeStatus) -> String {
     writeln!(&mut output, "{{").expect("write to String");
     push_success_json_preamble(&mut output, command);
     push_node_status_json_fields(&mut output, status, "  ", false);
+    output.push_str("\n}");
+    output
+}
+
+fn render_chain_check_json(command: &str, status: &PrivateDevnetChainCheckStatus) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_success_json_preamble(&mut output, command);
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(PRIVATE_DEVNET_RUNNER_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"verified\": {},", status.verified).expect("write to String");
+    push_node_status_json_fields_without_warning(&mut output, &status.status, "  ", false);
     output.push_str("\n}");
     output
 }
@@ -5727,6 +5837,45 @@ mod tests {
         assert!(output.contains("current_height=1"));
         assert!(output.contains("stored_blocks=1"));
 
+        let chain_check = run_node_command([
+            "chain-check",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+        ])
+        .unwrap();
+        assert_eq!(
+            chain_check,
+            NodeRunnerOutput::ChainCheck(PrivateDevnetChainCheckStatus {
+                verified: true,
+                status: NodeStatus {
+                    warning: PRIVATE_DEVNET_RUNNER_WARNING,
+                    chain_id: "xriq-devnet".to_string(),
+                    current_height: 1,
+                    latest_block_hash: latest_hash,
+                    state_root: latest_state_root,
+                    pending_transactions: 0,
+                    stored_blocks: 1,
+                },
+            })
+        );
+        let chain_check_json = run_node_command([
+            "chain-check",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(chain_check_json.contains("\"command\": \"chain-check\""));
+        assert!(chain_check_json.contains("\"verified\": true"));
+        assert!(chain_check_json.contains("\"current_height\": 1"));
+        assert!(chain_check_json.contains("\"state_root\":"));
+
         let _ = fs::remove_file(path);
     }
 
@@ -7123,6 +7272,13 @@ mod tests {
         assert_eq!(status.status_code, 200);
         assert!(status.body.contains("\"command\": \"status\""));
         assert!(status.body.contains("\"current_height\": 1"));
+
+        let chain_check = private_devnet_http_response(&config, "GET", "/v1/chain/check");
+        assert_eq!(chain_check.status_code, 200);
+        assert!(chain_check.body.contains("\"command\": \"chain-check\""));
+        assert!(chain_check.body.contains("\"verified\": true"));
+        assert!(chain_check.body.contains("\"current_height\": 1"));
+        assert!(chain_check.body.contains("\"state_root\":"));
 
         let overview =
             private_devnet_http_response(&config, "GET", "/v1/explorer/overview?limit=5");

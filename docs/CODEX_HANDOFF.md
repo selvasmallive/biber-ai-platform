@@ -110,14 +110,14 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `67%`.
+- Phase 1 estimated completion: about `68%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `67%`.
-- File-backed node runner and deterministic replay: about `70%`.
+- File-backed node runner and deterministic replay: about `71%`.
 - Snapshot export/import and restore workflow: about `68%`.
-- Read-only/private RPC and explorer/dashboard support: about `68%`.
-- Local smoke/regression coverage: about `70%`.
+- Read-only/private RPC and explorer/dashboard support: about `69%`.
+- Local smoke/regression coverage: about `71%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -137,6 +137,25 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ chain-check checkpoint: `xriq-node chain-check` now
+  explicitly replays and validates the configured private-devnet chain file,
+  optionally loads and validates durable pending-file records, and returns
+  `verified: true` with deterministic tip/status fields. The local HTTP wrapper
+  exposes the same operator check at `GET /v1/chain/check`; when
+  `serve-private --pending-file <path>` is used, the endpoint validates pending
+  records before returning. The HTTP smoke now writes `initial-chain-check.json`
+  and `chain-check.json`, verifying `verified: true`, height, and state root
+  after block production. Local verification passed
+  `cargo fmt --all --manifest-path xriq/Cargo.toml -- --check`,
+  bundled Python syntax compilation for
+  `scripts/xriq_private_devnet_http_smoke.py`,
+  `cargo test -p xriq-node --manifest-path xriq/Cargo.toml -j 1` with
+  `51 passed`, and the local HTTP smoke using
+  `CARGO_TARGET_DIR=target-codex-chain-check-smoke`. The smoke artifact
+  directory was
+  `xriq/target/xriq-private-devnet-http-smoke-20260526T122121Z`. No Vast sync,
+  API/vLLM restart, training, OpenAI mentor call, or credential change was
+  used.
 - Latest native XRIQ overview state-root checkpoint: `xriq-rpc` chain status
   now carries the canonical replayed `state_root`, and `xriq-explorer`
   overview renders the same state-root marker in text and JSON. The

@@ -35,6 +35,12 @@ Private-devnet node status smoke:
 
 ```bash
 cargo run -p xriq-node -- status --chain-file target/xriq-devnet-chain.bin
+
+cargo run -p xriq-node -- chain-check \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --alice-balance 100 \
+  --format json
 ```
 
 Private-devnet transfer/block smoke:
@@ -227,7 +233,7 @@ process on a temporary localhost port, submits a wallet transfer through
 `POST /v1/mempool`, restarts the server to verify durable pending state,
 produces a block through `POST /v1/blocks`, and verifies transaction, block,
 account, account transaction history, latest transaction list, mempool,
-explorer overview, snapshot export, and snapshot import endpoints.
+explorer overview, chain check, snapshot export, and snapshot import endpoints.
 
 The current machine-readable runner contract is documented in
 `../docs/XRIQ_NODE_JSON_SCHEMA.md`.
@@ -292,6 +298,7 @@ Initial read-only endpoints:
 ```text
 GET /health
 GET /v1/chain/status
+GET /v1/chain/check
 GET /v1/explorer/overview?limit=5
 GET /v1/blocks/{height-or-hash-or-latest}
 GET /v1/transactions?limit=5
@@ -308,6 +315,10 @@ POST /v1/snapshots/import?snapshot_dir=<path>
 `GET /v1/blocks/{height-or-hash-or-latest}` returns the same block-detail JSON
 shape for either a decimal block height, `latest`, or a 64-character lowercase
 hex block hash.
+
+`GET /v1/chain/check` replays and validates the configured chain file, includes
+durable pending-file validation when `serve-private --pending-file <path>` is
+used, and returns `verified: true` plus the current deterministic tip/status.
 
 `GET /v1/transactions/{hash}` scans confirmed transactions in persisted blocks.
 When `serve-private --pending-file <path>` is used, it checks confirmed blocks

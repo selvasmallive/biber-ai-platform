@@ -279,6 +279,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         write_json(artifact_dir / "initial-status.json", initial_status)
         require_equal(initial_status, "current_height", 0, "initial status")
         require_equal(initial_status, "pending_transactions", 0, "initial status")
+        initial_chain_check = http_json(base_url, "GET", "/v1/chain/check")
+        write_json(artifact_dir / "initial-chain-check.json", initial_chain_check)
+        require_equal(initial_chain_check, "verified", True, "initial chain check")
+        require_equal(initial_chain_check, "current_height", 0, "initial chain check")
 
         transfer_body = wallet_transfer_json(
             wallet_binary,
@@ -346,6 +350,12 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         block_hash = produced.get("block_hash")
         if not isinstance(block_hash, str) or len(block_hash) != 64:
             raise SmokeError(f"produced block: expected 64-character block_hash, got {block_hash!r}")
+
+        chain_check = http_json(base_url, "GET", "/v1/chain/check")
+        write_json(artifact_dir / "chain-check.json", chain_check)
+        require_equal(chain_check, "verified", True, "chain check")
+        require_equal(chain_check, "current_height", 1, "chain check")
+        require_equal(chain_check, "state_root", produced.get("state_root"), "chain check")
 
         confirmed_transaction = http_json(base_url, "GET", f"/v1/transactions/{tx_hash}")
         write_json(artifact_dir / "confirmed-transaction.json", confirmed_transaction)
