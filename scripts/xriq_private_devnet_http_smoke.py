@@ -415,6 +415,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         overview = http_json(base_url, "GET", "/v1/explorer/overview?limit=5")
         write_json(artifact_dir / "overview.json", overview)
         require_equal(overview, "current_height", 1, "overview")
+        require_equal(overview, "state_root", produced.get("state_root"), "overview")
 
         snapshot_query = urlencode({"snapshot_dir": str(snapshot_dir)})
         snapshot_export = http_json(

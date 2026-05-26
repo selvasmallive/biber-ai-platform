@@ -118,6 +118,7 @@ Shape:
   "chain_id": "xriq-devnet",
   "current_height": 1,
   "latest_block_hash": "64-hex-character-block-hash",
+  "state_root": "64-hex-character-state-root",
   "pending_transactions": 0,
   "stored_blocks": 1,
   "latest_blocks": [

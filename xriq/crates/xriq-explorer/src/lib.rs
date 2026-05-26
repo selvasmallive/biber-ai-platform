@@ -16,6 +16,7 @@ pub struct ExplorerOverview {
     pub chain_id: String,
     pub current_height: u64,
     pub latest_block_hash: Hash32,
+    pub state_root: Hash32,
     pub pending_transactions: usize,
     pub stored_blocks: usize,
 }
@@ -128,6 +129,7 @@ impl<'a, S: ChainStore> ExplorerService<'a, S> {
             chain_id: status.chain_id,
             current_height: status.current_height,
             latest_block_hash: status.latest_block_hash,
+            state_root: status.state_root,
             pending_transactions: status.pending_transactions,
             stored_blocks: self.store.len(),
         }
@@ -288,6 +290,8 @@ pub fn render_overview(
         hash_hex(overview.latest_block_hash)
     )
     .expect("write to String");
+    writeln!(&mut output, "state root: {}", hash_hex(overview.state_root))
+        .expect("write to String");
     writeln!(
         &mut output,
         "stored blocks: {}, pending transactions: {}",
@@ -525,6 +529,7 @@ fn account_transaction_direction(transaction: &Transaction, address: &Address) -
 mod tests {
     use super::*;
     use xriq_core::{Block, BlockHeader, SignatureBytes};
+    use xriq_crypto::account_state_root;
     use xriq_ledger::{Account, LedgerConfig, LedgerState};
     use xriq_mempool::{Mempool, MempoolConfig};
     use xriq_storage::InMemoryChainStore;
@@ -632,6 +637,24 @@ mod tests {
         (RpcService::new(ledger, mempool, hash(2)), store)
     }
 
+    fn fixture_state_root() -> Hash32 {
+        let mut ledger = LedgerState::new(LedgerConfig {
+            chain_id: "xriq-devnet".to_string(),
+            current_height: 2,
+            min_fee: XriqAmount::from_base_units(2),
+            fee_sink: fee_sink(),
+        });
+        ledger.set_account(
+            address("alice"),
+            Account::new(XriqAmount::from_base_units(100), 1),
+        );
+        ledger.set_account(
+            address("bobbb"),
+            Account::new(XriqAmount::from_base_units(25), 0),
+        );
+        account_state_root(&ledger.state_root_entries())
+    }
+
     #[test]
     fn overview_reports_chain_and_store_counts() {
         let (rpc, store) = fixture();
@@ -643,6 +666,7 @@ mod tests {
                 chain_id: "xriq-devnet".to_string(),
                 current_height: 2,
                 latest_block_hash: hash(2),
+                state_root: fixture_state_root(),
                 pending_transactions: 2,
                 stored_blocks: 2,
             }
@@ -790,6 +814,7 @@ mod tests {
         let overview = explorer.render_overview(2);
         assert!(overview.contains("XRIQ Private Devnet Explorer"));
         assert!(overview.contains("current height: 2"));
+        assert!(overview.contains("state root: "));
         assert!(overview.contains("pending transactions: 2"));
 
         let block_detail = explorer.block_by_height(1).unwrap();

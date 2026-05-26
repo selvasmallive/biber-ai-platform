@@ -474,6 +474,10 @@ persisted blocks in descending height order. When `--pending-file` is
 configured, transaction lookup checks confirmed blocks first and then durable
 pending state.
 
+Explorer overview includes the replayed `state_root` so clients can compare
+dashboard output against `/v1/chain/status`, restart checks, and snapshot
+restore checks.
+
 Block detail lookup accepts decimal heights, the `latest` selector, or
 64-character lowercase hex block hashes.
 
@@ -739,7 +743,8 @@ As of 2026-05-17:
     tolerates UTF-8 BOMs from Windows-created draft files
   - local private-devnet explorer overview command that replays the persisted
     chain file and renders chain height, latest block hash, stored block count,
-    pending count, and recent block summaries without starting HTTP/RPC serving
+    replayed state root, pending count, and recent block summaries without
+    starting HTTP/RPC serving
   - local private-devnet block detail command that replays the persisted chain
     file and renders one block by height, latest selector, or block hash,
     including transaction hashes and transfer summaries
@@ -762,8 +767,9 @@ As of 2026-05-17:
     file-backed JSON runner responses for health/status/explorer/block/account
     transaction/mempool inspection; block detail accepts decimal height,
     `latest`, or a 64-character lowercase hex block hash; transaction list
-    returns recent confirmed transactions; without `--pending-file`,
-    transaction lookup covers confirmed transactions in persisted blocks only
+    returns recent confirmed transactions; explorer overview includes the
+    replayed state root; without `--pending-file`, transaction lookup covers
+    confirmed transactions in persisted blocks only
   - local private-devnet submit-capable HTTP wrapper through
     `xriq-node serve-private`; `POST /v1/transactions` accepts either the
     wallet draft text body or a flat JSON transfer body, validates it,
@@ -843,6 +849,7 @@ As of 2026-05-17:
 - Implemented private-devnet explorer baseline:
   - read-only chain overview from local RPC snapshots
   - latest block listing from storage by descending height
+  - state-root marker in explorer overview for restart/snapshot comparison
   - block detail with transaction hashes and transfer summaries
   - account balance and nonce lookup
   - account transaction history with sent/received/self direction

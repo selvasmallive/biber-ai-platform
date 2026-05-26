@@ -15,8 +15,9 @@ only until security and legal/compliance review says otherwise.
   startup from persisted canonical blocks plus a startup consistency guard, a
   private-devnet status runner, a
   local transfer-to-block runner, wallet draft-file block production, and a
-  file-backed explorer overview plus block/account/mempool detail runners with
-  optional stable JSON output and a read-only local HTTP wrapper.
+  file-backed explorer overview with state-root marker plus
+  block/account/mempool detail runners with optional stable JSON output and a
+  read-only local HTTP wrapper.
 - `xriq-rpc`: local private-devnet RPC endpoint behavior.
 - `xriq-storage`: local block storage for private-devnet tests.
 - `xriq-wallet`: private-devnet wallet CLI for test identities and transfers.
@@ -233,8 +234,10 @@ The current machine-readable runner contract is documented in
 
 `xriq-node status --format json` includes a replayed `state_root` in addition
 to height, latest block hash, pending transaction count, and stored block count.
-Use it as the compact deterministic marker when comparing a chain before and
-after restart, copy, or future snapshot/export work.
+`xriq-node explorer-overview --format json` exposes the same replayed
+`state_root` for dashboard comparisons. Use it as the compact deterministic
+marker when comparing a chain before and after restart, copy, or future
+snapshot/export work.
 
 Private-devnet snapshot export/import:
 

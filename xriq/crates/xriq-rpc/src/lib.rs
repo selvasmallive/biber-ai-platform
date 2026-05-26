@@ -7,7 +7,9 @@ use xriq_core::{
     Address, Hash32, Transaction, TransactionValidationContext, TransactionValidationError,
     XriqAmount,
 };
-use xriq_crypto::{transaction_hash, SignatureVerificationError, TestOnlySignatureVerifier};
+use xriq_crypto::{
+    account_state_root, transaction_hash, SignatureVerificationError, TestOnlySignatureVerifier,
+};
 use xriq_ledger::LedgerState;
 use xriq_mempool::{Mempool, MempoolError};
 
@@ -21,6 +23,7 @@ pub struct ChainStatusResponse {
     pub chain_id: String,
     pub current_height: u64,
     pub latest_block_hash: Hash32,
+    pub state_root: Hash32,
     pub pending_transactions: usize,
 }
 
@@ -89,6 +92,7 @@ impl RpcService {
             chain_id: self.ledger.config().chain_id.clone(),
             current_height: self.ledger.current_height(),
             latest_block_hash: self.latest_block_hash,
+            state_root: account_state_root(&self.ledger.state_root_entries()),
             pending_transactions: self.mempool.len(),
         }
     }
@@ -187,7 +191,7 @@ impl RpcService {
 mod tests {
     use super::*;
     use xriq_core::SignatureBytes;
-    use xriq_crypto::{test_only_signature_for_hash, transaction_signing_hash};
+    use xriq_crypto::{account_state_root, test_only_signature_for_hash, transaction_signing_hash};
     use xriq_ledger::{Account, LedgerConfig};
     use xriq_mempool::MempoolConfig;
 
@@ -249,6 +253,7 @@ mod tests {
                 chain_id: "xriq-devnet".to_string(),
                 current_height: 10,
                 latest_block_hash: hash(9),
+                state_root: account_state_root(&service.ledger.state_root_entries()),
                 pending_transactions: 0,
             }
         );

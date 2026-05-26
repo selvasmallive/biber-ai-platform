@@ -116,8 +116,8 @@ unless the user changes the project scope again.
 - Wallet transfer draft/submit flow: about `67%`.
 - File-backed node runner and deterministic replay: about `70%`.
 - Snapshot export/import and restore workflow: about `68%`.
-- Read-only/private RPC and explorer/dashboard support: about `67%`.
-- Local smoke/regression coverage: about `69%`.
+- Read-only/private RPC and explorer/dashboard support: about `68%`.
+- Local smoke/regression coverage: about `70%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -137,6 +137,26 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ overview state-root checkpoint: `xriq-rpc` chain status
+  now carries the canonical replayed `state_root`, and `xriq-explorer`
+  overview renders the same state-root marker in text and JSON. The
+  `xriq-node explorer-overview --format json` output and
+  `GET /v1/explorer/overview?limit=<n>` response now include `state_root`, so
+  dashboard clients can compare overview output against `/v1/chain/status`,
+  restart checks, and snapshot restore checks. The local HTTP smoke now verifies
+  the overview `state_root` matches the produced block status. Local
+  verification passed
+  `cargo fmt --all --manifest-path xriq/Cargo.toml -- --check`,
+  `cargo test -p xriq-rpc --manifest-path xriq/Cargo.toml -j 1` with
+  `9 passed`, `cargo test -p xriq-explorer --manifest-path xriq/Cargo.toml -j 1`
+  with `9 passed`, `cargo test -p xriq-node --manifest-path xriq/Cargo.toml -j 1`
+  with `51 passed`, bundled Python syntax compilation for
+  `scripts/xriq_private_devnet_http_smoke.py`, and the local HTTP smoke using
+  `CARGO_TARGET_DIR=target-codex-overview-state-smoke`. The smoke artifact
+  directory was
+  `xriq/target/xriq-private-devnet-http-smoke-20260526T121627Z`. No Vast sync,
+  API/vLLM restart, training, OpenAI mentor call, or credential change was
+  used.
 - Latest native XRIQ transaction-list checkpoint: `xriq-explorer` now exposes a
   confirmed latest-transaction view model, and `xriq-node transaction-list`
   renders recent confirmed transactions from a replayed chain file in text or

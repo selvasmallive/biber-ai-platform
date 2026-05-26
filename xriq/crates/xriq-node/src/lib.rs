@@ -3566,7 +3566,7 @@ fn node_status<S: ChainStore>(node: &XriqNode<S>) -> NodeStatus {
         chain_id: chain_status.chain_id,
         current_height: chain_status.current_height,
         latest_block_hash: chain_status.latest_block_hash,
-        state_root: account_state_root(&node.ledger().state_root_entries()),
+        state_root: chain_status.state_root,
         pending_transactions: chain_status.pending_transactions,
         stored_blocks: node.store().len(),
     }
@@ -3851,6 +3851,12 @@ fn render_explorer_overview_json(
         &mut output,
         "  \"latest_block_hash\": {},",
         json_string(&hash_hex(overview.latest_block_hash))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"state_root\": {},",
+        json_string(&hash_hex(overview.state_root))
     )
     .expect("write to String");
     writeln!(
@@ -6217,6 +6223,7 @@ mod tests {
         assert!(overview.contains("XRIQ Private Devnet Explorer"));
         assert!(overview.contains("chain: xriq-devnet"));
         assert!(overview.contains("current height: 2"));
+        assert!(overview.contains("state root: "));
         assert!(overview.contains("stored blocks: 2, pending transactions: 0"));
         assert!(overview.contains("- height 2"));
         assert!(overview.contains("- height 1"));
@@ -6774,6 +6781,7 @@ mod tests {
         .unwrap()
         .to_string();
         assert!(overview_json.contains("\"command\": \"explorer-overview\""));
+        assert!(overview_json.contains("\"state_root\":"));
         assert!(overview_json.contains("\"latest_blocks\": ["));
         assert!(overview_json.contains("\"height\": 1"));
         assert!(overview_json.contains("\"transaction_count\": 1"));
@@ -7120,6 +7128,7 @@ mod tests {
             private_devnet_http_response(&config, "GET", "/v1/explorer/overview?limit=5");
         assert_eq!(overview.status_code, 200);
         assert!(overview.body.contains("\"command\": \"explorer-overview\""));
+        assert!(overview.body.contains("\"state_root\":"));
         assert!(overview.body.contains("\"latest_blocks\": ["));
 
         let block = private_devnet_http_response(&config, "GET", "/v1/blocks/1");
