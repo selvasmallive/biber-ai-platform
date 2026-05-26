@@ -544,7 +544,9 @@ Shape:
 For import, `command` is `snapshot-import` and `chain_file`/`pending_file`
 refer to the server's configured target files. After import, run `chain-check`
 against the restored chain and pending files; its `verified: true` response is
-the post-restore replay contract.
+the post-restore replay contract. Through HTTP, that means calling
+`GET /v1/chain/check` against the restored `serve-private` process after
+`POST /v1/snapshots/import`.
 
 ## Snapshot Discovery
 

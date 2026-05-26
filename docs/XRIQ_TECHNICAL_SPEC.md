@@ -511,7 +511,8 @@ validates a wallet draft or JSON transfer body and appends it to durable
 private-devnet pending state. `POST /v1/blocks` produces one block from that
 pending file and compacts the file so included transactions are removed.
 Snapshot export/import use the server's configured chain/pending files and
-preserve the no-overwrite import guard.
+preserve the no-overwrite import guard. After HTTP import, `/v1/chain/check`
+is the restored-server replay verification path for the fresh target files.
 
 Minimum wallet-facing RPC behavior:
 

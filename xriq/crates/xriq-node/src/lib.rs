@@ -8772,6 +8772,16 @@ mod tests {
         assert_eq!(imported_status.status_code, 200);
         assert!(imported_status.body.contains("\"current_height\": 3"));
 
+        let imported_chain_check =
+            private_devnet_http_response(&import_config, "GET", "/v1/chain/check");
+        assert_eq!(imported_chain_check.status_code, 200);
+        assert!(imported_chain_check
+            .body
+            .contains("\"command\": \"chain-check\""));
+        assert!(imported_chain_check.body.contains("\"verified\": true"));
+        assert!(imported_chain_check.body.contains("\"current_height\": 3"));
+        assert!(imported_chain_check.body.contains("\"state_root\":"));
+
         let raw = status.to_http_response();
         assert!(raw.starts_with("HTTP/1.1 200 OK\r\n"));
         assert!(raw.contains("Content-Type: application/json; charset=utf-8\r\n"));

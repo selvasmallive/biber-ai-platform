@@ -110,14 +110,14 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `75%`.
+- Phase 1 estimated completion: about `76%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `67%`.
 - File-backed node runner and deterministic replay: about `72%`.
-- Snapshot export/import and restore workflow: about `75%`.
-- Read-only/private RPC and explorer/dashboard support: about `73%`.
-- Local smoke/regression coverage: about `78%`.
+- Snapshot export/import and restore workflow: about `76%`.
+- Read-only/private RPC and explorer/dashboard support: about `74%`.
+- Local smoke/regression coverage: about `79%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -137,6 +137,22 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ HTTP restored-chain-check checkpoint: after HTTP
+  `POST /v1/snapshots/import`, the local HTTP smoke now calls
+  `GET /v1/chain/check` against the restored `serve-private` process. It writes
+  `imported-chain-check.json` and requires `verified: true`, matching restored
+  height, state root, and pending transaction count against the exported
+  snapshot status before transaction lookup. The Rust HTTP regression checks
+  the same post-import `/v1/chain/check` contract. Local verification passed
+  `cargo fmt --all --manifest-path xriq/Cargo.toml -- --check`, bundled Python
+  syntax compilation for `scripts/xriq_private_devnet_http_smoke.py`,
+  `cargo test -p xriq-node --manifest-path xriq/Cargo.toml -j 1` with
+  `51 passed`, and the real local HTTP smoke using
+  `CARGO_TARGET_DIR=target-codex-http-restored-chain-check-smoke`. The smoke
+  artifact directory was
+  `xriq/target/xriq-private-devnet-http-smoke-20260526T161020Z`. No Vast sync,
+  API/vLLM restart, training, OpenAI mentor call, or credential change was
+  used.
 - Latest native XRIQ HTTP snapshot-check checkpoint: `xriq-node
   serve-readonly` and `xriq-node serve-private` now expose
   `GET /v1/snapshots/{snapshot-name}/check` when `--snapshot-root <path>` is

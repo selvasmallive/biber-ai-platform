@@ -541,6 +541,24 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "snapshot import",
         )
 
+        imported_chain_check = http_json(base_url, "GET", "/v1/chain/check")
+        write_json(artifact_dir / "imported-chain-check.json", imported_chain_check)
+        require_equal(imported_chain_check, "command", "chain-check", "imported chain check")
+        require_equal(imported_chain_check, "verified", True, "imported chain check")
+        require_equal(imported_chain_check, "current_height", 1, "imported chain check")
+        require_equal(
+            imported_chain_check,
+            "state_root",
+            snapshot_export["state_root"],
+            "imported chain check",
+        )
+        require_equal(
+            imported_chain_check,
+            "pending_transactions",
+            snapshot_export["pending_transactions"],
+            "imported chain check",
+        )
+
         imported_transaction = http_json(base_url, "GET", f"/v1/transactions/{tx_hash}")
         write_json(artifact_dir / "imported-transaction.json", imported_transaction)
         require_equal(imported_transaction, "status", "confirmed", "imported transaction")

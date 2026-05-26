@@ -246,7 +246,8 @@ process on a temporary localhost port, submits a wallet transfer through
 produces a block through `POST /v1/blocks`, and verifies transaction, block,
 block list, account list/detail, account transaction history, latest
 transaction list, mempool, explorer overview, chain check, snapshot export, and
-snapshot list/detail/check, and snapshot import endpoints.
+snapshot list/detail/check, snapshot import, and post-import chain-check
+endpoints.
 
 The current machine-readable runner contract is documented in
 `../docs/XRIQ_NODE_JSON_SCHEMA.md`.
@@ -415,7 +416,9 @@ into a new snapshot directory and returns the same JSON shape as
 `POST /v1/snapshots/import?snapshot_dir=<path>` is available only through
 `serve-private`. It imports a snapshot into the server's configured chain file
 and optional pending file, refusing to overwrite existing target files, and
-returns the same JSON shape as `xriq-node snapshot-import --format json`.
+returns the same JSON shape as `xriq-node snapshot-import --format json`. After
+import, call `GET /v1/chain/check` against the restored server to verify the
+fresh chain and pending files before use.
 
 `POST /v1/transactions` is available only through `serve-private`. It accepts
 either the existing wallet transfer draft text or a private-devnet JSON transfer
