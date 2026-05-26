@@ -588,6 +588,52 @@ Shape:
 }
 ```
 
+## Transaction List
+
+Command:
+
+```bash
+cargo run -p xriq-node -- transaction-list \
+  --chain-file target/xriq-devnet-chain.bin \
+  --alice-balance 100 \
+  --limit 10 \
+  --format json
+```
+
+HTTP endpoint:
+
+```bash
+GET /v1/transactions?limit=5
+```
+
+The result scans confirmed persisted blocks in descending height order and
+returns recent transparent private-devnet transactions.
+
+Shape:
+
+```json
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "transaction-list",
+  "warning": "private-devnet-only-no-public-token",
+  "transaction_count": 1,
+  "transactions": [
+    {
+      "block_height": 1,
+      "block_hash": "64-hex-character-block-hash",
+      "transaction_index": 0,
+      "tx_hash": "64-hex-character-transaction-hash",
+      "from": "xriqdev1alice00000000000",
+      "to": "xriqdev1bobbb00000000000",
+      "amount_base_units": "25",
+      "fee_base_units": "2",
+      "nonce": 0,
+      "expires_at_height": 100
+    }
+  ]
+}
+```
+
 ## Mempool Detail
 
 Command:
@@ -749,6 +795,7 @@ Implemented read-only endpoints:
 - `GET /v1/chain/status`
 - `GET /v1/explorer/overview?limit=5`
 - `GET /v1/blocks/{height-or-hash-or-latest}`
+- `GET /v1/transactions?limit=5`
 - `GET /v1/transactions/{hash}`
 - `GET /v1/accounts/{address}`
 - `GET /v1/accounts/{address}/transactions?limit=5`

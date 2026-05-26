@@ -73,6 +73,20 @@ pub struct ExplorerAccountTransaction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExplorerConfirmedTransaction {
+    pub block_height: u64,
+    pub block_hash: Hash32,
+    pub transaction_index: usize,
+    pub tx_hash: Hash32,
+    pub from: Address,
+    pub to: Address,
+    pub amount: XriqAmount,
+    pub fee: XriqAmount,
+    pub nonce: u64,
+    pub expires_at_height: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExplorerMempoolDetail {
     pub pending_count: usize,
     pub transactions: Vec<ExplorerPendingTransaction>,
@@ -184,6 +198,27 @@ impl<'a, S: ChainStore> ExplorerService<'a, S> {
                     if transactions.len() == limit {
                         return transactions;
                     }
+                }
+            }
+        }
+        transactions
+    }
+
+    pub fn latest_transactions(&self, limit: usize) -> Vec<ExplorerConfirmedTransaction> {
+        if limit == 0 {
+            return Vec::new();
+        }
+
+        let mut transactions = Vec::new();
+        for record in self.store.blocks_by_height_desc(self.store.len()) {
+            for (transaction_index, transaction) in record.block.transactions.iter().enumerate() {
+                transactions.push(confirmed_transaction_summary(
+                    record,
+                    transaction_index,
+                    transaction,
+                ));
+                if transactions.len() == limit {
+                    return transactions;
                 }
             }
         }
@@ -348,6 +383,28 @@ pub fn render_account_transactions(
     output
 }
 
+pub fn render_latest_transactions(transactions: &[ExplorerConfirmedTransaction]) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "latest transactions").expect("write to String");
+    writeln!(&mut output, "transactions: {}", transactions.len()).expect("write to String");
+    for transaction in transactions {
+        writeln!(
+            &mut output,
+            "- height {height} #{index} {tx_hash} {from} -> {to} amount={amount} fee={fee} nonce={nonce}",
+            height = transaction.block_height,
+            index = transaction.transaction_index,
+            tx_hash = hash_hex(transaction.tx_hash),
+            from = transaction.from,
+            to = transaction.to,
+            amount = transaction.amount,
+            fee = transaction.fee,
+            nonce = transaction.nonce,
+        )
+        .expect("write to String");
+    }
+    output
+}
+
 pub fn render_mempool(detail: &ExplorerMempoolDetail) -> String {
     let mut output = String::new();
     writeln!(&mut output, "mempool pending: {}", detail.pending_count).expect("write to String");
@@ -425,6 +482,25 @@ fn account_transaction_summary(
         block_hash: record.block_hash,
         transaction_index,
         direction: account_transaction_direction(transaction, address),
+        tx_hash: transaction_hash(transaction),
+        from: transaction.from.clone(),
+        to: transaction.to.clone(),
+        amount: transaction.amount,
+        fee: transaction.fee,
+        nonce: transaction.nonce,
+        expires_at_height: transaction.expires_at_height,
+    }
+}
+
+fn confirmed_transaction_summary(
+    record: &StoredBlock,
+    transaction_index: usize,
+    transaction: &Transaction,
+) -> ExplorerConfirmedTransaction {
+    ExplorerConfirmedTransaction {
+        block_height: record.block.header.height,
+        block_hash: record.block_hash,
+        transaction_index,
         tx_hash: transaction_hash(transaction),
         from: transaction.from.clone(),
         to: transaction.to.clone(),
@@ -658,6 +734,24 @@ mod tests {
     }
 
     #[test]
+    fn lists_latest_confirmed_transactions_descending() {
+        let (rpc, store) = fixture();
+        let explorer = ExplorerService::new(rpc, &store);
+
+        let transactions = explorer.latest_transactions(10);
+
+        assert_eq!(transactions.len(), 2);
+        assert_eq!(transactions[0].block_height, 2);
+        assert_eq!(transactions[0].from, address("bobbb"));
+        assert_eq!(transactions[0].to, address("alice"));
+        assert_eq!(transactions[1].block_height, 1);
+        assert_eq!(transactions[1].from, address("alice"));
+        assert_eq!(transactions[1].to, address("bobbb"));
+        assert_eq!(explorer.latest_transactions(1).len(), 1);
+        assert!(explorer.latest_transactions(0).is_empty());
+    }
+
+    #[test]
     fn lists_pending_mempool_transactions_in_order() {
         let (rpc, store) = fixture();
         let explorer = ExplorerService::new(rpc, &store);
@@ -717,6 +811,11 @@ mod tests {
         assert!(account_transactions.contains("account transactions xriqdev1alice00000000000"));
         assert!(account_transactions.contains("received"));
         assert!(account_transactions.contains("sent"));
+
+        let latest_transactions = render_latest_transactions(&explorer.latest_transactions(2));
+        assert!(latest_transactions.contains("latest transactions"));
+        assert!(latest_transactions.contains("height 2"));
+        assert!(latest_transactions.contains("amount=25"));
 
         let mempool = render_mempool(&explorer.mempool());
         assert!(mempool.contains("mempool pending: 2"));

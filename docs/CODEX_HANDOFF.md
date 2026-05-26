@@ -106,18 +106,18 @@ not require GPU inference or training to continue.
 
 ## Project Status Metrics Baseline
 
-Use this 2026-05-25 Phase 1 baseline for future percentage/status comparisons
+Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `66%`.
+- Phase 1 estimated completion: about `67%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `67%`.
 - File-backed node runner and deterministic replay: about `70%`.
 - Snapshot export/import and restore workflow: about `68%`.
-- Read-only/private RPC and explorer/dashboard support: about `65%`.
-- Local smoke/regression coverage: about `68%`.
+- Read-only/private RPC and explorer/dashboard support: about `67%`.
+- Local smoke/regression coverage: about `69%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -133,10 +133,28 @@ unless the user changes the project scope again.
 
 ## Immediate Resume State
 
-As of the latest 2026-05-25 checkpoint, the active work mode is local
+As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ transaction-list checkpoint: `xriq-explorer` now exposes a
+  confirmed latest-transaction view model, and `xriq-node transaction-list`
+  renders recent confirmed transactions from a replayed chain file in text or
+  JSON. The local HTTP wrapper exposes `GET /v1/transactions?limit=<n>` for the
+  same confirmed transaction list, while `GET /v1/transactions/{hash}` remains
+  the detail lookup. The local HTTP smoke now writes `latest-transactions.json`
+  and verifies the returned transaction hash and block height after producing a
+  block. Local verification passed
+  `cargo fmt --all --manifest-path xriq/Cargo.toml -- --check`,
+  `cargo test -p xriq-explorer --manifest-path xriq/Cargo.toml -j 1` with
+  `9 passed`, `cargo test -p xriq-node --manifest-path xriq/Cargo.toml -j 1`
+  with `51 passed`, bundled Python syntax compilation for
+  `scripts/xriq_private_devnet_http_smoke.py`, and the local HTTP smoke using
+  `CARGO_TARGET_DIR=target-codex-transaction-list-smoke`. The smoke artifact
+  directory was
+  `xriq/target/xriq-private-devnet-http-smoke-20260526T121032Z`. No Vast sync,
+  API/vLLM restart, training, OpenAI mentor call, or credential change was
+  used.
 - Latest GPU-off XRIQ isolated transfer/replay/snapshot checkpoint: added
   `scripts/xriq_private_devnet_transfer_smoke.py`, a Windows-friendly stdlib
   Python smoke that runs through `cargo run` only and does not require GPU,

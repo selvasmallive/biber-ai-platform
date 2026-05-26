@@ -85,6 +85,11 @@ cargo run -p xriq-node -- account-transactions \
   --address xriqdev1alice00000000000 \
   --limit 10
 
+cargo run -p xriq-node -- transaction-list \
+  --chain-file target/xriq-devnet-chain.bin \
+  --alice-balance 100 \
+  --limit 10
+
 cargo run -p xriq-node -- mempool-detail \
   --chain-file target/xriq-devnet-chain.bin \
   --draft-file target/xriq-wallet-transfer-draft.txt \
@@ -220,8 +225,8 @@ This builds the local Rust binaries, starts a real `xriq-node serve-private`
 process on a temporary localhost port, submits a wallet transfer through
 `POST /v1/mempool`, restarts the server to verify durable pending state,
 produces a block through `POST /v1/blocks`, and verifies transaction, block,
-account, account transaction history, mempool, explorer overview, snapshot
-export, and snapshot import endpoints.
+account, account transaction history, latest transaction list, mempool,
+explorer overview, snapshot export, and snapshot import endpoints.
 
 The current machine-readable runner contract is documented in
 `../docs/XRIQ_NODE_JSON_SCHEMA.md`.
@@ -286,6 +291,7 @@ GET /health
 GET /v1/chain/status
 GET /v1/explorer/overview?limit=5
 GET /v1/blocks/{height-or-hash-or-latest}
+GET /v1/transactions?limit=5
 GET /v1/transactions/{hash}
 GET /v1/accounts/{address}
 GET /v1/accounts/{address}/transactions?limit=5
@@ -305,6 +311,9 @@ When `serve-private --pending-file <path>` is used, it checks confirmed blocks
 first, then durable pending state. The local runner can also preview a pending
 transaction from a wallet draft with
 `xriq-node transaction-detail --draft-file <path> --tx-hash <hash>`.
+
+`GET /v1/transactions?limit=<n>` scans confirmed persisted blocks in descending
+height order and returns recent transparent private-devnet transactions.
 
 `GET /v1/accounts/{address}/transactions?limit=<n>` scans confirmed persisted
 blocks in descending height order and returns transparent private-devnet

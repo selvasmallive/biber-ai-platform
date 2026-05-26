@@ -242,7 +242,8 @@ python scripts/xriq_private_devnet_http_smoke.py
 ```
 
 That smoke also covers local HTTP snapshot export/import using fresh files under
-`xriq/target/`.
+`xriq/target/`, including confirmed transaction lookup and the latest
+transaction-list endpoint.
 
 ## 7. Vast Connection Needed
 

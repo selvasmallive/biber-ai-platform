@@ -130,9 +130,10 @@ The local HTTP smoke starts a real `xriq-node serve-private` process on a
 temporary localhost port, submits a wallet transfer through `POST /v1/mempool`,
 restarts the server to prove durable pending state survives, produces a block
 with `POST /v1/blocks`, and verifies transaction, block, account, mempool, and
-overview endpoints. It also exports a snapshot through local HTTP, starts a
-fresh local server against new chain/pending files, imports that snapshot, and
-verifies the imported transaction.
+overview endpoints, including the latest transaction-list endpoint. It also
+exports a snapshot through local HTTP, starts a fresh local server against new
+chain/pending files, imports that snapshot, and verifies the imported
+transaction.
 
 ## BIBER Model Resume
 

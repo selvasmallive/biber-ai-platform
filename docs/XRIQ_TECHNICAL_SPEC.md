@@ -452,6 +452,7 @@ Minimum node RPC:
 GET  /health
 GET  /v1/chain/status
 GET  /v1/blocks/{height_or_hash}
+GET  /v1/transactions?limit=5
 GET  /v1/transactions/{hash}
 GET  /v1/accounts/{address}
 GET  /v1/mempool
@@ -464,12 +465,14 @@ Current private-devnet implementation: `xriq-node serve-readonly` exposes a
 loopback-first, dependency-free, read-only HTTP wrapper over the existing
 file-backed JSON runner outputs. The current implemented endpoints are
 `/health`, `/v1/chain/status`, `/v1/explorer/overview?limit=5`,
-`/v1/blocks/{height_or_hash}`, `/v1/transactions/{hash}`,
+`/v1/blocks/{height_or_hash}`, `/v1/transactions?limit=5`,
+`/v1/transactions/{hash}`,
 `/v1/accounts/{address}`, `/v1/accounts/{address}/transactions?limit=5`, and
 `/v1/mempool`. Transaction lookup scans confirmed transactions in persisted
-blocks. Account transaction lookup scans confirmed persisted blocks in
-descending height order. When `--pending-file` is configured, transaction lookup
-checks confirmed blocks first and then durable pending state.
+blocks. Transaction-list and account-transaction lookup scan confirmed
+persisted blocks in descending height order. When `--pending-file` is
+configured, transaction lookup checks confirmed blocks first and then durable
+pending state.
 
 Block detail lookup accepts decimal heights, the `latest` selector, or
 64-character lowercase hex block hashes.
@@ -745,6 +748,9 @@ As of 2026-05-17:
   - local private-devnet account transaction history command that replays the
     persisted chain file and lists confirmed transactions involving one account
     in descending block order
+  - local private-devnet transaction list command that replays the persisted
+    chain file and lists recent confirmed transactions in descending block
+    order
   - local private-devnet mempool detail command that replays the persisted
     chain file and can preview a wallet draft in the pending-transaction view
     without mutating storage
@@ -755,9 +761,9 @@ As of 2026-05-17:
     `xriq-node serve-readonly`, defaulting to `127.0.0.1:8787` and reusing the
     file-backed JSON runner responses for health/status/explorer/block/account
     transaction/mempool inspection; block detail accepts decimal height,
-    `latest`, or a 64-character lowercase hex block hash; without
-    `--pending-file`, transaction lookup covers confirmed transactions in
-    persisted blocks only
+    `latest`, or a 64-character lowercase hex block hash; transaction list
+    returns recent confirmed transactions; without `--pending-file`,
+    transaction lookup covers confirmed transactions in persisted blocks only
   - local private-devnet submit-capable HTTP wrapper through
     `xriq-node serve-private`; `POST /v1/transactions` accepts either the
     wallet draft text body or a flat JSON transfer body, validates it,
@@ -781,9 +787,10 @@ As of 2026-05-17:
     to durable pending state, producing a block, compacting pending state, and
     verifying confirmed transaction lookup
   - stable `--format json` output for status, block production, explorer
-    overview, block detail, account detail, mempool detail, and transaction
-    detail runner commands, while preserving text output as the default;
-    successful JSON responses include `command` names
+    overview, block detail, account detail, account transaction history,
+    transaction list, mempool detail, and transaction detail runner commands,
+    while preserving text output as the default; successful JSON responses
+    include `command` names
   - structured JSON error responses for failed `xriq-node` commands when
     `--format json` is requested, while preserving human-readable text errors
     as the default
@@ -797,9 +804,10 @@ As of 2026-05-17:
     confirmed transaction detail, selected JSON outputs, draft-block, durable
     HTTP pending state, durable
     pending-block production, client preflight transfer flow, explorer
-    overview, block detail, and account detail behavior against persisted chain
-    files, and persists representative JSON response examples beside the smoke
-    artifacts for future BIBER agents and HTTP/RPC adapters
+    overview, block detail, account detail, and transaction-list behavior
+    against persisted chain files, and persists representative JSON response
+    examples beside the smoke artifacts for future BIBER agents and HTTP/RPC
+    adapters
   - node transaction submission
   - node transaction submission rejects invalid hash-bound test-only signatures
     before mempool insert
@@ -838,6 +846,7 @@ As of 2026-05-17:
   - block detail with transaction hashes and transfer summaries
   - account balance and nonce lookup
   - account transaction history with sent/received/self direction
+  - recent confirmed transaction listing
   - pending mempool transaction detail and deterministic order
   - dependency-free text rendering for private-devnet inspection
   - dependency-free JSON rendering through the file-backed `xriq-node` runner

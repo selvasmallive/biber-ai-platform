@@ -396,6 +396,18 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         require_equal(first_account_transaction, "tx_hash", tx_hash, "alice account transaction")
         require_equal(first_account_transaction, "direction", "sent", "alice account transaction")
 
+        latest_transactions = http_json(base_url, "GET", "/v1/transactions?limit=5")
+        write_json(artifact_dir / "latest-transactions.json", latest_transactions)
+        require_equal(latest_transactions, "transaction_count", 1, "latest transactions")
+        transactions = latest_transactions.get("transactions")
+        if not isinstance(transactions, list) or not transactions:
+            raise SmokeError("latest transactions: expected one transaction")
+        first_latest_transaction = transactions[0]
+        if not isinstance(first_latest_transaction, dict):
+            raise SmokeError("latest transactions: expected transaction object")
+        require_equal(first_latest_transaction, "tx_hash", tx_hash, "latest transaction")
+        require_equal(first_latest_transaction, "block_height", 1, "latest transaction")
+
         final_mempool = http_json(base_url, "GET", "/v1/mempool")
         write_json(artifact_dir / "final-mempool.json", final_mempool)
         require_equal(final_mempool, "pending_count", 0, "final mempool")
