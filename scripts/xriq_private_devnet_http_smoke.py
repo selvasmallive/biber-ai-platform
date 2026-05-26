@@ -229,6 +229,39 @@ def wallet_transfer_json(
     )
 
 
+def wallet_tx_status_json(
+    wallet_binary: Path,
+    xriq_dir: Path,
+    chain_file: Path,
+    pending_file: Path,
+    alice_balance: str,
+    tx_hash: str,
+) -> dict[str, Any]:
+    output = run_command(
+        xriq_dir,
+        str(wallet_binary),
+        "tx",
+        "status",
+        "--chain-file",
+        str(chain_file),
+        "--pending-file",
+        str(pending_file),
+        "--alice-balance",
+        alice_balance,
+        "--tx-hash",
+        tx_hash,
+        "--format",
+        "json",
+    )
+    try:
+        parsed = json.loads(output)
+    except json.JSONDecodeError as exc:
+        raise SmokeError(f"xriq-wallet tx status returned invalid JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise SmokeError("xriq-wallet tx status returned non-object JSON")
+    return parsed
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -326,6 +359,25 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         pending_mempool = http_json(base_url, "GET", "/v1/mempool")
         write_json(artifact_dir / "pending-mempool.json", pending_mempool)
         require_equal(pending_mempool, "pending_count", 1, "pending mempool")
+
+        wallet_pending_tx_status = wallet_tx_status_json(
+            wallet_binary,
+            xriq_dir,
+            chain_file,
+            pending_file,
+            args.alice_balance,
+            tx_hash,
+        )
+        write_json(artifact_dir / "wallet-pending-tx-status.json", wallet_pending_tx_status)
+        require_equal(wallet_pending_tx_status, "command", "tx-status", "wallet pending status")
+        require_equal(wallet_pending_tx_status, "status", "pending", "wallet pending status")
+        require_equal(wallet_pending_tx_status, "tx_hash", tx_hash, "wallet pending status")
+        require_equal(
+            wallet_pending_tx_status,
+            "amount_base_units",
+            args.amount,
+            "wallet pending status",
+        )
 
         stop_server(process)
         process = start_server(

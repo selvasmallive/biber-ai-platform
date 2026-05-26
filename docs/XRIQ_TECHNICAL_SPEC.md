@@ -877,7 +877,8 @@ As of 2026-05-17:
   - file-backed local `xriq-wallet balance` lookup for account balance and
     nonce inspection
   - file-backed local `xriq-wallet tx status` lookup for confirmed transaction
-    status inspection
+    status inspection, plus pending status inspection from wallet drafts or
+    durable pending files
   - transfer draft construction
   - deterministic transaction-hash output for local status lookup
   - hash-bound test-only signatures through `xriq-crypto`

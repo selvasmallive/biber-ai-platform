@@ -110,14 +110,14 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `78%`.
+- Phase 1 estimated completion: about `79%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
-- Wallet transfer draft/submit flow: about `71%`.
+- Wallet transfer draft/submit flow: about `73%`.
 - File-backed node runner and deterministic replay: about `72%`.
 - Snapshot export/import and restore workflow: about `76%`.
 - Read-only/private RPC and explorer/dashboard support: about `74%`.
-- Local smoke/regression coverage: about `81%`.
+- Local smoke/regression coverage: about `82%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -137,28 +137,29 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
-- Latest native XRIQ wallet transaction-status checkpoint: `xriq-wallet tx
-  status` now reads confirmed transaction status from a replayed local
-  file-backed chain, and can optionally inspect one wallet draft or durable
-  pending file for pending status. It supports text and `--format json`, emits
-  `xriq-wallet-json-v1` with `command: tx-status`, status, transaction hash,
-  confirmed block fields or pending order, and transparent transfer fields. It
-  rejects malformed transaction hashes before replay and does not print private
-  keys, seed phrases, or production custody material. The isolated transfer,
-  replay, and snapshot smoke now writes `wallet-tx-status.json` after confirmed
-  transaction lookup and verifies it matches the produced transaction. Local
-  verification passed
+- Latest native XRIQ pending wallet transaction-status checkpoint:
+  `xriq-wallet tx status` now has explicit pending-path coverage from both a
+  wallet draft file and the durable private-devnet pending file. The wallet
+  test covers draft inspection before block production; the real local HTTP
+  smoke writes `wallet-pending-tx-status.json` after HTTP submission and before
+  block production, then verifies `status: pending`, the submitted transaction
+  hash, and amount from `target/xriq-devnet-pending.tsv`. Confirmed lookup
+  remains supported from a replayed local file-backed chain through the same
+  command. It supports text and `--format json`, emits `xriq-wallet-json-v1`
+  with `command: tx-status`, status, transaction hash, confirmed block fields
+  or pending order, and transparent transfer fields. It rejects malformed
+  transaction hashes before replay and does not print private keys, seed
+  phrases, or production custody material. Local verification passed
   `cargo fmt --all --manifest-path xriq/Cargo.toml -- --check`, bundled Python
-  syntax compilation for
-  `scripts/xriq_private_devnet_transfer_smoke.py`,
+  syntax compilation for `scripts/xriq_private_devnet_http_smoke.py`,
   `cargo test -p xriq-wallet --manifest-path xriq/Cargo.toml -j 1` with
-  `18 passed`, `cargo test -p xriq-node --manifest-path xriq/Cargo.toml -j 1`
-  with `51 passed`, and the isolated transfer smoke using
-  `CARGO_TARGET_DIR=target-codex-wallet-tx-status-smoke`. The smoke artifact
-  directory was
-  `xriq/target/xriq-private-devnet-transfer-smoke-20260526T170039Z`. No Vast
-  sync, API/vLLM restart, training, OpenAI mentor call, or credential change
-  was used.
+  `19 passed`, `cargo test -p xriq-node --manifest-path xriq/Cargo.toml -j 1`
+  with `51 passed`, and the real local HTTP smoke using
+  `CARGO_TARGET_DIR=target-codex-wallet-pending-tx-status-smoke`. The smoke
+  artifact directory was
+  `xriq/target/xriq-private-devnet-http-smoke-20260526T171010Z`. No Vast sync,
+  API/vLLM restart, training, OpenAI mentor call, or credential change was
+  used.
 - Latest native XRIQ wallet balance checkpoint: `xriq-wallet balance` now reads
   replayed local private-devnet account state from a file-backed chain through
   the existing node replay/account-detail path. It supports text and

@@ -821,6 +821,14 @@ mod tests {
         hash_hex(transaction_hash(&draft.transaction))
     }
 
+    fn temp_draft_path() -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time moved backwards")
+            .as_nanos();
+        std::env::temp_dir().join(format!("xriq-wallet-draft-{nanos}.txt"))
+    }
+
     #[test]
     fn generates_deterministic_test_identity() {
         assert_eq!(
@@ -1037,6 +1045,64 @@ mod tests {
         assert!(!output.contains("seed"));
 
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn parses_tx_status_command_for_draft_pending_transaction() {
+        let chain_path = temp_chain_path();
+        let draft_path = temp_draft_path();
+        let chain_text = chain_path.to_string_lossy().to_string();
+        let draft_text = draft_path.to_string_lossy().to_string();
+        let draft = run_wallet_command([
+            "transfer",
+            "--chain-id",
+            "xriq-devnet",
+            "--from",
+            alice().as_str(),
+            "--to",
+            bob().as_str(),
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--expires-at-height",
+            "100",
+        ])
+        .unwrap();
+        fs::write(&draft_path, draft.to_string()).unwrap();
+        let tx_hash = match draft {
+            WalletOutput::TransferDraft(draft) => hash_hex(transaction_hash(&draft.transaction)),
+            other => panic!("unexpected wallet output: {other:?}"),
+        };
+
+        let output = run_wallet_command([
+            "tx",
+            "status",
+            "--chain-file",
+            chain_text.as_str(),
+            "--draft-file",
+            draft_text.as_str(),
+            "--tx-hash",
+            tx_hash.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+
+        assert!(output.contains("\"command\": \"tx-status\""));
+        assert!(output.contains("\"status\": \"pending\""));
+        assert!(output.contains(&format!("\"tx_hash\": \"{tx_hash}\"")));
+        assert!(output.contains("\"received_order\": 0"));
+        assert!(output.contains("\"from\": \"xriqdev1alice00000000000\""));
+        assert!(output.contains("\"to\": \"xriqdev1bobbb00000000000\""));
+
+        let _ = fs::remove_file(chain_path);
+        let _ = fs::remove_file(draft_path);
     }
 
     #[test]

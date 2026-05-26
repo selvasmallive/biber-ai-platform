@@ -232,6 +232,13 @@ cargo run -p xriq-wallet -- tx status \
   --tx-hash <hash-from-wallet-transfer-or-node-submit> \
   --alice-balance 100 \
   --format json
+
+cargo run -p xriq-wallet -- tx status \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --tx-hash <pending-hash-from-mempool-submit> \
+  --alice-balance 100 \
+  --format json
 ```
 
 These are local private-devnet helpers over the file-backed chain state. They do
@@ -255,8 +262,8 @@ python scripts/xriq_private_devnet_transfer_smoke.py
 This uses only Python stdlib plus Cargo/Rust. It creates a fresh artifact
 directory under `xriq/target/`, performs one private-devnet transfer, verifies
 transaction/block/account detail, verifies `xriq-wallet balance` and
-`xriq-wallet tx status`, exports and imports a snapshot, verifies snapshot
-list/detail/check flows, runs
+confirmed `xriq-wallet tx status`, exports and imports a snapshot, verifies
+snapshot list/detail/check flows, runs
 `chain-check` against the restored snapshot targets, and leaves any
 live/restored BIBER API chain files untouched.
 
@@ -272,8 +279,8 @@ process on a temporary localhost port, submits a wallet transfer through
 produces a block through `POST /v1/blocks`, and verifies transaction, block,
 block list, account list/detail, account transaction history, latest
 transaction list, mempool, explorer overview, chain check, snapshot export, and
-snapshot list/detail/check, snapshot import, and post-import chain-check
-endpoints.
+snapshot list/detail/check, snapshot import, post-import chain-check endpoints,
+and pending `xriq-wallet tx status` against the durable pending file.
 
 The current machine-readable runner contract is documented in
 `../docs/XRIQ_NODE_JSON_SCHEMA.md`.
