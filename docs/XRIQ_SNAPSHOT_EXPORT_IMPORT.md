@@ -73,6 +73,18 @@ cargo run -p xriq-node -- snapshot-detail \
 XRIQ manifests. `snapshot-detail` reads one manifest and reports the same
 height/hash/state-root fields used for restore checks.
 
+The local HTTP wrapper can expose the same discovery surface when started with
+`--snapshot-root <path>`:
+
+```bash
+cargo run -p xriq-node -- serve-readonly \
+  --chain-file target/xriq-devnet-chain.bin \
+  --snapshot-root target
+
+curl http://127.0.0.1:8787/v1/snapshots?limit=10
+curl http://127.0.0.1:8787/v1/snapshots/xriq-devnet-snapshot
+```
+
 After import, verify:
 
 ```bash

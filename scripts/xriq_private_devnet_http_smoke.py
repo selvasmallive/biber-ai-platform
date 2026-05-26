@@ -150,6 +150,7 @@ def start_server(
     bind: str,
     chain_file: Path,
     pending_file: Path,
+    snapshot_root: Path,
     alice_balance: str,
 ) -> subprocess.Popen[str]:
     stderr_log = artifact_dir / f"server-{datetime.now(UTC).strftime('%H%M%S%f')}.stderr.log"
@@ -163,6 +164,8 @@ def start_server(
                 str(chain_file),
                 "--pending-file",
                 str(pending_file),
+                "--snapshot-root",
+                str(snapshot_root),
                 "--alice-balance",
                 alice_balance,
                 "--bind",
@@ -271,6 +274,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             bind,
             chain_file,
             pending_file,
+            artifact_dir,
             args.alice_balance,
         )
         wait_for_health(base_url, process)
@@ -330,6 +334,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             bind,
             chain_file,
             pending_file,
+            artifact_dir,
             args.alice_balance,
         )
         wait_for_health(base_url, process)
@@ -472,6 +477,30 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 f"snapshot manifest was not created: {snapshot_dir / 'manifest.json'}"
             )
 
+        snapshot_list = http_json(base_url, "GET", "/v1/snapshots?limit=5")
+        write_json(artifact_dir / "http-snapshot-list.json", snapshot_list)
+        require_equal(snapshot_list, "command", "snapshot-list", "snapshot list")
+        require_equal(snapshot_list, "snapshot_count", 1, "snapshot list")
+        snapshots = snapshot_list.get("snapshots")
+        if not isinstance(snapshots, list) or not snapshots:
+            raise SmokeError("snapshot list: expected one snapshot entry")
+        first_snapshot = snapshots[0]
+        if not isinstance(first_snapshot, dict):
+            raise SmokeError("snapshot list: expected snapshot object")
+        require_equal(first_snapshot, "snapshot_name", "http-snapshot", "snapshot list")
+        require_equal(first_snapshot, "current_height", 1, "snapshot list")
+
+        snapshot_detail = http_json(base_url, "GET", "/v1/snapshots/http-snapshot")
+        write_json(artifact_dir / "http-snapshot-detail.json", snapshot_detail)
+        require_equal(snapshot_detail, "command", "snapshot-detail", "snapshot detail")
+        require_equal(snapshot_detail, "snapshot_name", "http-snapshot", "snapshot detail")
+        require_equal(
+            snapshot_detail,
+            "state_root",
+            snapshot_export["state_root"],
+            "snapshot detail",
+        )
+
         stop_server(process)
         process = start_server(
             node_binary,
@@ -479,6 +508,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             bind,
             imported_chain_file,
             imported_pending_file,
+            artifact_dir,
             args.alice_balance,
         )
         wait_for_health(base_url, process)

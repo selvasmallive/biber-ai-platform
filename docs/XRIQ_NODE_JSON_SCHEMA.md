@@ -567,8 +567,17 @@ cargo run -p xriq-node -- snapshot-detail \
 that contain an XRIQ snapshot manifest. It sorts results deterministically by
 height descending, then snapshot name descending. `snapshot-detail` reads one
 snapshot manifest and resolves `chain_file` and `pending_file` to paths inside
-that snapshot directory. These are local private-devnet operator commands, not
-public HTTP endpoints.
+that snapshot directory.
+
+HTTP endpoints when `xriq-node serve-readonly` or `xriq-node serve-private` is
+started with `--snapshot-root <path>`:
+
+```bash
+GET /v1/snapshots?limit=5
+GET /v1/snapshots/{snapshot-name}
+```
+
+Snapshot names in the HTTP path must be one safe path segment.
 
 List shape:
 
@@ -1003,6 +1012,8 @@ Implemented read-only endpoints:
 - `GET /v1/accounts/{address}`
 - `GET /v1/accounts/{address}/transactions?limit=5`
 - `GET /v1/mempool`
+- `GET /v1/snapshots?limit=5` when `--snapshot-root <path>` is configured
+- `GET /v1/snapshots/{snapshot-name}` when `--snapshot-root <path>` is configured
 - `POST /v1/mempool` when `serve-private --pending-file <path>` is used
 - `POST /v1/blocks` when `serve-private --pending-file <path>` is used
 - `POST /v1/snapshots/export?snapshot_dir=<path>` when `serve-private` is used

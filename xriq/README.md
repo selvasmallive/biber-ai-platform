@@ -246,7 +246,7 @@ process on a temporary localhost port, submits a wallet transfer through
 produces a block through `POST /v1/blocks`, and verifies transaction, block,
 block list, account list/detail, account transaction history, latest
 transaction list, mempool, explorer overview, chain check, snapshot export, and
-snapshot import endpoints.
+snapshot list/detail, and snapshot import endpoints.
 
 The current machine-readable runner contract is documented in
 `../docs/XRIQ_NODE_JSON_SCHEMA.md`.
@@ -304,6 +304,7 @@ Private-devnet read-only HTTP wrapper:
 ```bash
 cargo run -p xriq-node -- serve-readonly \
   --chain-file target/xriq-devnet-chain.bin \
+  --snapshot-root target \
   --alice-balance 100 \
   --bind 127.0.0.1:8787
 ```
@@ -314,6 +315,7 @@ Private-devnet submit-capable HTTP wrapper:
 cargo run -p xriq-node -- serve-private \
   --chain-file target/xriq-devnet-chain.bin \
   --pending-file target/xriq-devnet-pending.tsv \
+  --snapshot-root target \
   --alice-balance 100 \
   --bind 127.0.0.1:8787
 ```
@@ -333,6 +335,8 @@ GET /v1/accounts?limit=5
 GET /v1/accounts/{address}
 GET /v1/accounts/{address}/transactions?limit=5
 GET /v1/mempool
+GET /v1/snapshots?limit=5
+GET /v1/snapshots/{snapshot-name}
 POST /v1/mempool
 POST /v1/blocks
 POST /v1/snapshots/export?snapshot_dir=<path>
@@ -374,6 +378,11 @@ durable pending state across requests and server restarts.
 
 The local runner can inspect the same durable pending state with
 `xriq-node mempool-detail --pending-file <path>`.
+
+When the server is started with `--snapshot-root <path>`,
+`GET /v1/snapshots?limit=<n>` lists immediate child snapshot directories under
+that root, and `GET /v1/snapshots/{snapshot-name}` reads one snapshot manifest.
+Snapshot names must be a single safe path segment.
 
 `POST /v1/blocks` is available only through `serve-private --pending-file
 <path>`. It produces one private-devnet block from the durable pending file,

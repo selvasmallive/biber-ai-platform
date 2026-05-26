@@ -119,6 +119,7 @@ pub struct PrivateDevnetHttpServerConfig {
     pub bind: String,
     pub chain_file: String,
     pub pending_file: Option<String>,
+    pub snapshot_root: Option<String>,
     pub alice_balance: Option<XriqAmount>,
     pub allow_transaction_submission: bool,
 }
@@ -646,8 +647,8 @@ pub fn node_help_text() -> String {
         "  xriq-node snapshot-detail --snapshot-dir <path> [--format text|json]",
         "  xriq-node snapshot-export --chain-file <path> --snapshot-dir <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-import --snapshot-dir <path> --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
-        "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>]",
-        "  xriq-node serve-private --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>]",
+        "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>] [--snapshot-root <path>]",
+        "  xriq-node serve-private --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>] [--snapshot-root <path>]",
         "",
         "Warning: this runner is for private devnet tests only. It does not start a public network.",
     ]
@@ -743,6 +744,7 @@ pub fn parse_private_devnet_http_server_config(
         "--bind",
         "--chain-file",
         "--pending-file",
+        "--snapshot-root",
         "--alice-balance",
     ])?;
     let bind = flags
@@ -751,6 +753,7 @@ pub fn parse_private_devnet_http_server_config(
         .to_string();
     let chain_file = flags.required("--chain-file")?.to_string();
     let pending_file = flags.optional("--pending-file").map(str::to_string);
+    let snapshot_root = flags.optional("--snapshot-root").map(str::to_string);
     let alice_balance = flags
         .optional("--alice-balance")
         .map(|value| parse_amount("--alice-balance", value))
@@ -759,6 +762,7 @@ pub fn parse_private_devnet_http_server_config(
         bind,
         chain_file,
         pending_file,
+        snapshot_root,
         alice_balance,
         allow_transaction_submission,
     })
@@ -850,6 +854,7 @@ pub fn private_devnet_http_response_with_body(
             }
             runner_json_http_response(args)
         }
+        "/v1/snapshots" => snapshot_list_http_response(config, query),
         "/v1/blocks" => {
             let mut args = private_devnet_http_runner_args("block-list", config);
             if let Some(limit) = query_value(query, "limit") {
@@ -923,6 +928,13 @@ pub fn private_devnet_http_response_with_body(
                     args.push(block_id.to_string());
                 }
                 return runner_json_http_response(args);
+            }
+
+            if let Some(snapshot_name) = path
+                .strip_prefix("/v1/snapshots/")
+                .filter(|snapshot_name| !snapshot_name.is_empty())
+            {
+                return snapshot_detail_http_response(config, snapshot_name);
             }
 
             if let Some(tx_hash) = path
@@ -1313,6 +1325,126 @@ fn snapshot_import_http_response(
             ),
         ),
     }
+}
+
+fn snapshot_list_http_response(
+    config: &PrivateDevnetHttpServerConfig,
+    query: Option<&str>,
+) -> PrivateDevnetHttpResponse {
+    let Some(snapshot_root) = &config.snapshot_root else {
+        return http_error_response(
+            501,
+            "not_implemented",
+            "snapshot discovery requires --snapshot-root",
+        );
+    };
+    let limit = match query_value(query, "limit") {
+        Some(value) => match parse_usize("--limit", value) {
+            Ok(value) => value,
+            Err(error) => {
+                return http_json_response(
+                    node_runner_error_http_status(&error),
+                    render_node_runner_error_json(
+                        &[
+                            "snapshot-list".to_string(),
+                            "--format".to_string(),
+                            "json".to_string(),
+                        ],
+                        &error,
+                    ),
+                );
+            }
+        },
+        None => 25,
+    };
+    match private_devnet_snapshot_list_data(snapshot_root, limit) {
+        Ok(snapshots) => http_json_response(
+            200,
+            render_snapshot_list_json("snapshot-list", Path::new(snapshot_root), &snapshots),
+        ),
+        Err(error) => http_json_response(
+            node_runner_error_http_status(&error),
+            render_node_runner_error_json(
+                &[
+                    "snapshot-list".to_string(),
+                    "--format".to_string(),
+                    "json".to_string(),
+                ],
+                &error,
+            ),
+        ),
+    }
+}
+
+fn snapshot_detail_http_response(
+    config: &PrivateDevnetHttpServerConfig,
+    snapshot_name: &str,
+) -> PrivateDevnetHttpResponse {
+    let Some(snapshot_root) = &config.snapshot_root else {
+        return http_error_response(
+            501,
+            "not_implemented",
+            "snapshot discovery requires --snapshot-root",
+        );
+    };
+    let snapshot_dir = match private_devnet_http_snapshot_child_dir(snapshot_root, snapshot_name) {
+        Ok(snapshot_dir) => snapshot_dir,
+        Err(error) => {
+            return http_json_response(
+                node_runner_error_http_status(&error),
+                render_node_runner_error_json(
+                    &[
+                        "snapshot-detail".to_string(),
+                        "--format".to_string(),
+                        "json".to_string(),
+                    ],
+                    &error,
+                ),
+            );
+        }
+    };
+    if !snapshot_dir.join(SNAPSHOT_MANIFEST_FILE).exists() {
+        return http_error_response(
+            404,
+            "snapshot_not_found",
+            "private-devnet snapshot was not found",
+        );
+    }
+    match private_devnet_snapshot_detail_data(&snapshot_dir) {
+        Ok(snapshot) => http_json_response(
+            200,
+            render_snapshot_detail_json("snapshot-detail", &snapshot),
+        ),
+        Err(error) => http_json_response(
+            node_runner_error_http_status(&error),
+            render_node_runner_error_json(
+                &[
+                    "snapshot-detail".to_string(),
+                    "--format".to_string(),
+                    "json".to_string(),
+                ],
+                &error,
+            ),
+        ),
+    }
+}
+
+fn private_devnet_http_snapshot_child_dir(
+    snapshot_root: &str,
+    snapshot_name: &str,
+) -> Result<std::path::PathBuf, NodeRunnerError> {
+    let snapshot_name = percent_decode_query_value("snapshot_name", snapshot_name)?;
+    if snapshot_name.is_empty()
+        || snapshot_name == "."
+        || snapshot_name == ".."
+        || snapshot_name.contains('/')
+        || snapshot_name.contains('\\')
+    {
+        return Err(NodeRunnerError::InvalidFormat(
+            "snapshot name must be one safe path segment".to_string(),
+        ));
+    }
+    Ok(Path::new(snapshot_root).join(snapshot_name))
 }
 
 fn chain_check_http_response(config: &PrivateDevnetHttpServerConfig) -> PrivateDevnetHttpResponse {
@@ -8001,6 +8133,7 @@ mod tests {
             bind: "127.0.0.1:8787".to_string(),
             chain_file: path_text,
             pending_file: None,
+            snapshot_root: None,
             alice_balance: Some(XriqAmount::from_base_units(100)),
             allow_transaction_submission: false,
         };
@@ -8227,7 +8360,9 @@ mod tests {
         assert_eq!(status_after_submit.status_code, 200);
         assert!(status_after_submit.body.contains("\"current_height\": 3"));
 
-        let snapshot_dir = temp_snapshot_dir();
+        let snapshot_root = temp_snapshot_dir();
+        let snapshot_dir = snapshot_root.join("http-snapshot");
+        let snapshot_root_text = snapshot_root.to_string_lossy().to_string();
         let snapshot_text = snapshot_dir.to_string_lossy().to_string();
         let snapshot_export_path = format!("/v1/snapshots/export?snapshot_dir={snapshot_text}");
         let readonly_snapshot_export =
@@ -8251,6 +8386,47 @@ mod tests {
         assert!(snapshot_dir.join(SNAPSHOT_CHAIN_FILE).exists());
         assert!(snapshot_dir.join(SNAPSHOT_MANIFEST_FILE).exists());
 
+        let missing_snapshot_root =
+            private_devnet_http_response(&submit_config, "GET", "/v1/snapshots?limit=5");
+        assert_eq!(missing_snapshot_root.status_code, 501);
+        assert!(missing_snapshot_root
+            .body
+            .contains("\"code\": \"not_implemented\""));
+
+        let discovery_config = PrivateDevnetHttpServerConfig {
+            snapshot_root: Some(snapshot_root_text.clone()),
+            ..submit_config.clone()
+        };
+        let snapshot_list =
+            private_devnet_http_response(&discovery_config, "GET", "/v1/snapshots?limit=5");
+        assert_eq!(snapshot_list.status_code, 200);
+        assert!(snapshot_list
+            .body
+            .contains("\"command\": \"snapshot-list\""));
+        assert!(snapshot_list.body.contains("\"snapshot_count\": 1"));
+        assert!(snapshot_list
+            .body
+            .contains("\"snapshot_name\": \"http-snapshot\""));
+        assert!(snapshot_list.body.contains("\"current_height\": 3"));
+
+        let snapshot_detail =
+            private_devnet_http_response(&discovery_config, "GET", "/v1/snapshots/http-snapshot");
+        assert_eq!(snapshot_detail.status_code, 200);
+        assert!(snapshot_detail
+            .body
+            .contains("\"command\": \"snapshot-detail\""));
+        assert!(snapshot_detail
+            .body
+            .contains("\"snapshot_name\": \"http-snapshot\""));
+        assert!(snapshot_detail.body.contains("\"current_height\": 3"));
+
+        let unsafe_snapshot_detail =
+            private_devnet_http_response(&discovery_config, "GET", "/v1/snapshots/..");
+        assert_eq!(unsafe_snapshot_detail.status_code, 400);
+        assert!(unsafe_snapshot_detail
+            .body
+            .contains("\"code\": \"invalid_format\""));
+
         let missing_snapshot_dir = private_devnet_http_response_with_body(
             &submit_config,
             "POST",
@@ -8270,6 +8446,7 @@ mod tests {
             bind: "127.0.0.1:8787".to_string(),
             chain_file: imported_path_text,
             pending_file: Some(imported_pending_text),
+            snapshot_root: Some(snapshot_root_text),
             alice_balance: Some(XriqAmount::from_base_units(100)),
             allow_transaction_submission: true,
         };
@@ -8302,7 +8479,7 @@ mod tests {
         assert_eq!(parsed.status_code, 200);
         assert!(parsed.body.contains("\"command\": \"status\""));
 
-        let _ = fs::remove_dir_all(snapshot_dir);
+        let _ = fs::remove_dir_all(snapshot_root);
         let _ = fs::remove_file(imported_path);
         let _ = fs::remove_file(imported_pending_path);
         let _ = fs::remove_file(path);
@@ -8318,6 +8495,7 @@ mod tests {
             bind: "127.0.0.1:8787".to_string(),
             chain_file: path_text,
             pending_file: Some(pending_text),
+            snapshot_root: None,
             alice_balance: Some(XriqAmount::from_base_units(100)),
             allow_transaction_submission: true,
         };
