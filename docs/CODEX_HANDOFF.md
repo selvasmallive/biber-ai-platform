@@ -110,7 +110,7 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `94%`.
+- Phase 1 estimated completion: about `95%`.
 - Rust workspace/crate structure: about `86%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `87%`.
@@ -118,7 +118,7 @@ unless the user changes the project scope again.
 - Snapshot export/import and restore workflow: about `80%`.
 - Read-only/private RPC and explorer/dashboard support: about `76%`.
 - Local smoke/regression coverage: about `97%`.
-- Phase 1 release/readiness documentation: about `90%`.
+- Phase 1 release/readiness documentation: about `95%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -138,6 +138,23 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1 RC-report checkpoint: added
+  `docs/XRIQ_PHASE1_RC_REPORT.md` as the human-readable decision packet for
+  deciding whether to mark the local/private XRIQ prototype as
+  `phase1-xriq-private-devnet-rc1`. The report records candidate scope, the
+  latest full local validation summary
+  `xriq/target/xriq-phase1-local-check-20260526T164037/summary.json`, the 8
+  completed gate steps, 15 checked smoke artifacts, explicit non-production
+  boundaries, and the rule that the RC tag must not be created from a generic
+  "continue" request. `README.md`, `xriq/README.md`, and
+  `docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md` now link the report. The readiness
+  checker now requires the report and the handoff reference before returning
+  tag-ready. After this commit/push, rerun
+  `python scripts/xriq_phase1_rc_readiness.py --require-clean-git`; if it
+  reports `ready_for_rc_tag: true`, the only remaining Phase 1 action is to ask
+  the user for explicit approval to create and push
+  `phase1-xriq-private-devnet-rc1`. No Vast sync, API/vLLM restart, training,
+  OpenAI mentor call, or credential change was used.
 - Latest native XRIQ Phase 1 RC-readiness checkpoint: added
   `scripts/xriq_phase1_rc_readiness.py`, a cheap CPU-only checker for the latest
   `xriq_phase1_local_check.py` `summary.json`. It validates the `ok` marker,
@@ -8534,9 +8551,11 @@ verification gate before handoff/commit/push. Use
 checkpoint commit/push to confirm the latest validation artifact and docs are
 tag-ready. Use
 `docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md` as the go/no-go checklist for deciding
-when Phase 1 is ready to mark as a release candidate. Useful remaining Phase 1
-targets are: run the final readiness checker after commit/push, ask the user
-whether to mark Phase 1 as an RC, and only then create the
+when Phase 1 is ready to mark as a release candidate. Use
+`docs/XRIQ_PHASE1_RC_REPORT.md` as the human-readable decision packet before
+asking for tag approval. Useful remaining Phase 1 targets are: run the final
+readiness checker after commit/push, ask the user whether to mark Phase 1 as an
+RC, and only then create the
 `phase1-xriq-private-devnet-rc1` tag if explicitly approved. Public XRIQ and
 BIBER MVP remain deferred.
 

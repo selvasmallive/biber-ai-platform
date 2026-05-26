@@ -33,11 +33,19 @@ REQUIRED_DOC_REFERENCES = {
     ],
     "docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md": [
         "artifact_checks",
+        "docs/XRIQ_PHASE1_RC_REPORT.md",
         "phase1-xriq-private-devnet-rc1",
         "scripts/xriq_phase1_local_check.py",
     ],
+    "docs/XRIQ_PHASE1_RC_REPORT.md": [
+        "phase1-xriq-private-devnet-rc1",
+        "xriq-phase1-local-check",
+        "ready_for_rc_tag",
+        "Do not create or push that tag from a general \"continue\" request.",
+    ],
     "docs/CODEX_HANDOFF.md": [
         "Phase 1 goal: XRIQ private-devnet prototype only",
+        "docs/XRIQ_PHASE1_RC_REPORT.md",
         "xriq-phase1-local-check",
     ],
 }

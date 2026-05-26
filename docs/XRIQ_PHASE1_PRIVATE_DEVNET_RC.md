@@ -64,6 +64,9 @@ asking the user for tag approval:
 python scripts/xriq_phase1_rc_readiness.py --require-clean-git
 ```
 
+The current human-readable decision report is
+`docs/XRIQ_PHASE1_RC_REPORT.md`.
+
 ## Functional Checklist
 
 - [x] Rust workspace is split into small crates for core, crypto, ledger,
@@ -109,6 +112,9 @@ Phase 1 can be called an RC only when all of these are true:
   1 percentage/status.
 - `README.md`, `xriq/README.md`, and this checklist point future sessions to the
   local validation gate.
+- `docs/XRIQ_PHASE1_RC_REPORT.md` summarizes the candidate scope, latest
+  validation artifact, non-production boundaries, and explicit tag-approval
+  rule.
 - No Phase 1 claim mentions public launch, legal approval, exchange listing,
   audited security, production custody, production privacy, or mainnet readiness.
 
