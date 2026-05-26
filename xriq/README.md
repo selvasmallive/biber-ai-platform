@@ -23,7 +23,7 @@ only until security and legal/compliance review says otherwise.
 - `xriq-wallet`: private-devnet wallet CLI for test identities, local account
   status, local account list, balance lookup, account history lookup,
   transaction status lookup, chain verification, pending inspection/submission,
-  and transfers.
+  direct pending sends, and transfers.
 
 ## Commands
 
@@ -164,24 +164,17 @@ cargo run -p xriq-node -- produce-pending-block \
 Private-devnet wallet pending-to-block lifecycle:
 
 ```bash
-cargo run -p xriq-wallet -- transfer \
+cargo run -p xriq-wallet -- send \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
   --chain-id xriq-devnet \
   --from xriqdev1alice00000000000 \
   --to xriqdev1bobbb00000000000 \
   --amount 25 \
   --fee 2 \
   --nonce auto \
-  --chain-file target/xriq-devnet-chain.bin \
   --alice-balance 100 \
   --expires-at-height 100 \
-  --format json \
-  > target/xriq-wallet-transfer-submit.json
-
-cargo run -p xriq-wallet -- submit \
-  --chain-file target/xriq-devnet-chain.bin \
-  --pending-file target/xriq-devnet-pending.tsv \
-  --transfer-file target/xriq-wallet-transfer-submit.json \
-  --alice-balance 100 \
   --format json
 
 cargo run -p xriq-node -- produce-pending-block \
@@ -193,7 +186,7 @@ cargo run -p xriq-node -- produce-pending-block \
 
 cargo run -p xriq-wallet -- tx status \
   --chain-file target/xriq-devnet-chain.bin \
-  --tx-hash <hash-from-wallet-submit> \
+  --tx-hash <hash-from-wallet-send> \
   --alice-balance 100 \
   --format json
 ```
@@ -302,6 +295,29 @@ cargo run -p xriq-wallet -- pending \
   --format json
 ```
 
+Private-devnet wallet direct pending send:
+
+```bash
+cargo run -p xriq-wallet -- send \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --chain-id xriq-devnet \
+  --from xriqdev1alice00000000000 \
+  --to xriqdev1bobbb00000000000 \
+  --amount 25 \
+  --fee 2 \
+  --nonce auto \
+  --alice-balance 100 \
+  --expires-at-height 100 \
+  --format json
+
+cargo run -p xriq-wallet -- pending \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --alice-balance 100 \
+  --format json
+```
+
 Private-devnet wallet account list and balance lookup:
 
 ```bash
@@ -370,8 +386,8 @@ transaction/block/account detail, verifies `xriq-wallet accounts`,
 `xriq-wallet balance`, confirmed `xriq-wallet history`,
 `xriq-wallet tx status`, `xriq-wallet status`, `xriq-wallet check`,
 `xriq-wallet transfer --nonce auto`, and
-`xriq-wallet submit` plus `xriq-wallet pending` against a separate durable
-pending file, exports and imports a snapshot, verifies snapshot
+`xriq-wallet submit` plus `xriq-wallet send` and `xriq-wallet pending` against
+a separate durable pending file, exports and imports a snapshot, verifies snapshot
 list/detail/check flows, runs `chain-check` against the restored snapshot
 targets, then runs a separate wallet pending-to-block lifecycle through
 `xriq-node produce-pending-block`, and leaves any live/restored BIBER API chain

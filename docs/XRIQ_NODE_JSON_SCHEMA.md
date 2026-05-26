@@ -149,6 +149,49 @@ Shape:
 }
 ```
 
+## Wallet Pending Send
+
+Command:
+
+```bash
+cargo run -p xriq-wallet -- send \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --chain-id xriq-devnet \
+  --from xriqdev1alice00000000000 \
+  --to xriqdev1bobbb00000000000 \
+  --amount 25 \
+  --fee 2 \
+  --nonce auto \
+  --alice-balance 100 \
+  --expires-at-height 100 \
+  --format json
+```
+
+This wallet helper constructs a private-devnet test transfer and submits it to
+the durable pending file in one command. It uses the same pending submission
+shape as `xriq-wallet submit`, but emits `command: send-pending` so clients can
+distinguish direct wallet sends from transfer-file submission.
+
+Shape:
+
+```json
+{
+  "format_version": "xriq-wallet-json-v1",
+  "command": "send-pending",
+  "warning": "private-devnet-test-identity-only",
+  "status": "pending",
+  "tx_hash": "64-hex-character-transaction-hash",
+  "received_order": 0,
+  "from": "xriqdev1alice00000000000",
+  "to": "xriqdev1bobbb00000000000",
+  "amount_base_units": "25",
+  "fee_base_units": "2",
+  "nonce": 0,
+  "expires_at_height": 100
+}
+```
+
 ## Produced Block
 
 Used by both `produce-transfer-block --format json` and

@@ -641,9 +641,13 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_equal(imported_transaction, "status", "confirmed", "imported transaction")
     require_equal(imported_transaction, "block_height", 1, "imported transaction")
 
-    wallet_flow_transfer = run_wallet_json(
+    wallet_flow_send = run_wallet_json(
         xriq_dir,
-        "transfer",
+        "send",
+        "--chain-file",
+        str(wallet_flow_chain_file),
+        "--pending-file",
+        str(wallet_flow_pending_file),
         "--chain-id",
         "xriq-devnet",
         "--from",
@@ -656,40 +660,17 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         args.fee,
         "--nonce",
         "auto",
-        "--chain-file",
-        str(wallet_flow_chain_file),
         "--alice-balance",
         args.alice_balance,
         "--expires-at-height",
         args.expires_at_height,
     )
-    wallet_flow_transfer_file = artifact_dir / "wallet-flow-transfer.json"
-    write_json(wallet_flow_transfer_file, wallet_flow_transfer)
-    require_equal(
-        wallet_flow_transfer,
-        "format_version",
-        "xriq-node-transfer-submit-v1",
-        "wallet flow transfer",
-    )
-    require_equal(wallet_flow_transfer, "nonce", 0, "wallet flow transfer")
-    require_equal(wallet_flow_transfer, "amount_base_units", args.amount, "wallet flow transfer")
-
-    wallet_flow_submit = run_wallet_json(
-        xriq_dir,
-        "submit",
-        "--chain-file",
-        str(wallet_flow_chain_file),
-        "--pending-file",
-        str(wallet_flow_pending_file),
-        "--transfer-file",
-        str(wallet_flow_transfer_file),
-        "--alice-balance",
-        args.alice_balance,
-    )
-    write_json(artifact_dir / "wallet-flow-submit-pending.json", wallet_flow_submit)
-    require_equal(wallet_flow_submit, "command", "submit-pending", "wallet flow submit")
-    require_equal(wallet_flow_submit, "status", "pending", "wallet flow submit")
-    wallet_flow_tx_hash = require_transaction_hash(wallet_flow_submit, "wallet flow submit")
+    write_json(artifact_dir / "wallet-flow-send-pending.json", wallet_flow_send)
+    require_equal(wallet_flow_send, "command", "send-pending", "wallet flow send")
+    require_equal(wallet_flow_send, "status", "pending", "wallet flow send")
+    require_equal(wallet_flow_send, "nonce", 0, "wallet flow send")
+    require_equal(wallet_flow_send, "amount_base_units", args.amount, "wallet flow send")
+    wallet_flow_tx_hash = require_transaction_hash(wallet_flow_send, "wallet flow send")
 
     wallet_flow_pending_before = run_wallet_json(
         xriq_dir,
