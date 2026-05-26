@@ -341,6 +341,11 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         require_equal(block_by_hash, "height", 1, "block by hash")
         require_equal(block_by_hash, "block_hash", block_hash, "block by hash")
 
+        latest_block = http_json(base_url, "GET", "/v1/blocks/latest")
+        write_json(artifact_dir / "block-detail-latest.json", latest_block)
+        require_equal(latest_block, "height", 1, "latest block")
+        require_equal(latest_block, "block_hash", block_hash, "latest block")
+
         alice = http_json(base_url, "GET", f"/v1/accounts/{ALICE}")
         write_json(artifact_dir / "account-alice.json", alice)
         require_equal(alice, "balance_base_units", "73", "alice account")

@@ -126,6 +126,13 @@ impl<'a, S: ChainStore> ExplorerService<'a, S> {
             .ok_or(ExplorerError::BlockNotFound)
     }
 
+    pub fn latest_block(&self) -> Result<ExplorerBlockDetail, ExplorerError> {
+        self.store
+            .latest_block()
+            .map(block_detail)
+            .ok_or(ExplorerError::BlockNotFound)
+    }
+
     pub fn account(&self, address: &Address) -> Result<ExplorerAccountDetail, ExplorerError> {
         let account = self.rpc.account(address).map_err(|error| match error {
             RpcError::AccountNotFound => ExplorerError::AccountNotFound,
@@ -485,6 +492,10 @@ mod tests {
             block.transactions[0].amount,
             XriqAmount::from_base_units(25)
         );
+
+        let latest = explorer.latest_block().unwrap();
+        assert_eq!(latest.summary.height, 2);
+        assert_eq!(latest.summary.block_hash, hash(2));
     }
 
     #[test]

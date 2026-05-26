@@ -470,6 +470,9 @@ confirmed transactions in persisted blocks. When `--pending-file` is
 configured, transaction lookup checks confirmed blocks first and then durable
 pending state.
 
+Block detail lookup accepts decimal heights, the `latest` selector, or
+64-character lowercase hex block hashes.
+
 `xriq-node serve-private` enables the same private-devnet HTTP surface plus
 `POST /v1/transactions`, `POST /v1/mempool`, `POST /v1/blocks`,
 `POST /v1/snapshots/export?snapshot_dir=<path>`, and
@@ -734,8 +737,8 @@ As of 2026-05-17:
     chain file and renders chain height, latest block hash, stored block count,
     pending count, and recent block summaries without starting HTTP/RPC serving
   - local private-devnet block detail command that replays the persisted chain
-    file and renders one block by height or block hash, including transaction
-    hashes and transfer summaries
+    file and renders one block by height, latest selector, or block hash,
+    including transaction hashes and transfer summaries
   - local private-devnet account detail command that replays the persisted
     chain file and renders one account balance and nonce by address
   - local private-devnet mempool detail command that replays the persisted
@@ -747,9 +750,10 @@ As of 2026-05-17:
   - local private-devnet read-only HTTP wrapper through
     `xriq-node serve-readonly`, defaulting to `127.0.0.1:8787` and reusing the
     file-backed JSON runner responses for health/status/explorer/block/account
-    transaction/mempool inspection; block detail accepts either decimal height
-    or a 64-character lowercase hex block hash; without `--pending-file`,
-    transaction lookup covers confirmed transactions in persisted blocks only
+    transaction/mempool inspection; block detail accepts decimal height,
+    `latest`, or a 64-character lowercase hex block hash; without
+    `--pending-file`, transaction lookup covers confirmed transactions in
+    persisted blocks only
   - local private-devnet submit-capable HTTP wrapper through
     `xriq-node serve-private`; `POST /v1/transactions` accepts either the
     wallet draft text body or a flat JSON transfer body, validates it,
