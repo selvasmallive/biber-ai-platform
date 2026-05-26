@@ -537,6 +537,7 @@ xriq-wallet accounts
 xriq-wallet balance
 xriq-wallet history
 xriq-wallet pending
+xriq-wallet status
 xriq-wallet submit
 xriq-wallet transfer
 xriq-wallet tx status
@@ -881,6 +882,8 @@ As of 2026-05-17:
     replays imported chain and pending files before restored targets are used
 - Implemented private-devnet wallet CLI baseline:
   - deterministic test identity generation from labels
+  - file-backed local `xriq-wallet status` lookup for chain height, latest
+    block hash, state root, pending count, and stored block count
   - file-backed local `xriq-wallet accounts` lookup for deterministic account
     list inspection
   - file-backed local `xriq-wallet balance` lookup for account balance and

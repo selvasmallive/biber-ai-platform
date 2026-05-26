@@ -21,8 +21,8 @@ only until security and legal/compliance review says otherwise.
 - `xriq-rpc`: local private-devnet RPC endpoint behavior.
 - `xriq-storage`: local block storage for private-devnet tests.
 - `xriq-wallet`: private-devnet wallet CLI for test identities, local account
-  list, balance lookup, account history lookup, transaction status lookup,
-  pending inspection/submission, and transfers.
+  status, local account list, balance lookup, account history lookup,
+  transaction status lookup, pending inspection/submission, and transfers.
 
 ## Commands
 
@@ -237,6 +237,16 @@ python scripts/biber_xriq_private_devnet_client.py snapshot-import api-smoke --t
 Set `BIBER_API_KEY` or pass `--api-key`. Use `--json` on any client command to
 print the full API response instead of the concise summary.
 
+Private-devnet wallet chain status:
+
+```bash
+cargo run -p xriq-wallet -- status \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --alice-balance 100 \
+  --format json
+```
+
 Private-devnet wallet JSON submit body:
 
 ```bash
@@ -347,7 +357,8 @@ This uses only Python stdlib plus Cargo/Rust. It creates a fresh artifact
 directory under `xriq/target/`, performs one private-devnet transfer, verifies
 transaction/block/account detail, verifies `xriq-wallet accounts`,
 `xriq-wallet balance`, confirmed `xriq-wallet history`,
-`xriq-wallet tx status`, `xriq-wallet transfer --nonce auto`, and
+`xriq-wallet tx status`, `xriq-wallet status`,
+`xriq-wallet transfer --nonce auto`, and
 `xriq-wallet submit` plus `xriq-wallet pending` against a separate durable
 pending file, exports and imports a snapshot, verifies snapshot
 list/detail/check flows, runs `chain-check` against the restored snapshot
