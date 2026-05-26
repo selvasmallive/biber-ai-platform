@@ -536,6 +536,7 @@ xriq-wallet key export-public
 xriq-wallet accounts
 xriq-wallet balance
 xriq-wallet history
+xriq-wallet pending
 xriq-wallet submit
 xriq-wallet transfer
 xriq-wallet tx status
@@ -886,6 +887,8 @@ As of 2026-05-17:
   - file-backed local `xriq-wallet tx status` lookup for confirmed transaction
     status inspection, plus pending status inspection from wallet drafts or
     durable pending files
+  - file-backed local `xriq-wallet pending` lookup for durable private-devnet
+    pending-file inspection
   - local `xriq-wallet submit` support that validates a wallet transfer draft
     or `xriq-node-transfer-submit-v1` JSON body against the replayed
     file-backed chain and appends it to a durable private-devnet pending file

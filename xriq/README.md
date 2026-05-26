@@ -22,7 +22,7 @@ only until security and legal/compliance review says otherwise.
 - `xriq-storage`: local block storage for private-devnet tests.
 - `xriq-wallet`: private-devnet wallet CLI for test identities, local account
   list, balance lookup, account history lookup, transaction status lookup,
-  pending submission, and transfers.
+  pending inspection/submission, and transfers.
 
 ## Commands
 
@@ -236,6 +236,12 @@ cargo run -p xriq-wallet -- submit \
   --transfer-file target/xriq-wallet-transfer-submit.json \
   --alice-balance 100 \
   --format json
+
+cargo run -p xriq-wallet -- pending \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --alice-balance 100 \
+  --format json
 ```
 
 Private-devnet wallet account list and balance lookup:
@@ -305,10 +311,10 @@ directory under `xriq/target/`, performs one private-devnet transfer, verifies
 transaction/block/account detail, verifies `xriq-wallet accounts`,
 `xriq-wallet balance`, confirmed `xriq-wallet history`,
 `xriq-wallet tx status`, `xriq-wallet transfer --nonce auto`, and
-`xriq-wallet submit` against a separate durable pending file, exports and
-imports a snapshot, verifies snapshot list/detail/check flows, runs
-`chain-check` against the restored snapshot targets, and leaves any
-live/restored BIBER API chain files untouched.
+`xriq-wallet submit` plus `xriq-wallet pending` against a separate durable
+pending file, exports and imports a snapshot, verifies snapshot
+list/detail/check flows, runs `chain-check` against the restored snapshot
+targets, and leaves any live/restored BIBER API chain files untouched.
 
 Windows-friendly local HTTP/RPC smoke from the repo root:
 

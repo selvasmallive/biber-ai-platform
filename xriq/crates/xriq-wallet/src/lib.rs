@@ -10,6 +10,7 @@ use xriq_crypto::{test_only_signature_for_hash, transaction_hash, transaction_si
 use xriq_node::{
     private_devnet_file_account_detail_data, private_devnet_file_account_list_data,
     private_devnet_file_account_transactions_data,
+    private_devnet_file_mempool_detail_with_pending_file_data,
     private_devnet_file_submit_pending_transfer_body, private_devnet_file_transaction_detail_data,
     private_devnet_file_transaction_detail_with_pending_file_data,
     PrivateDevnetPendingTransactionDetail, PrivateDevnetTransactionDetail,
@@ -109,6 +110,24 @@ pub struct WalletPendingSubmission {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletPendingTransaction {
+    pub tx_hash: Hash32,
+    pub received_order: u64,
+    pub from: Address,
+    pub to: Address,
+    pub amount: XriqAmount,
+    pub fee: XriqAmount,
+    pub nonce: u64,
+    pub expires_at_height: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletPendingList {
+    pub transactions: Vec<WalletPendingTransaction>,
+    pub warning: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WalletTransactionStatus {
     Confirmed(WalletConfirmedTransactionStatus),
     Pending(WalletPendingTransactionStatus),
@@ -124,6 +143,8 @@ pub enum WalletOutput {
     BalanceJson(WalletBalance),
     AccountHistory(WalletAccountHistory),
     AccountHistoryJson(WalletAccountHistory),
+    PendingList(WalletPendingList),
+    PendingListJson(WalletPendingList),
     PendingSubmission(WalletPendingSubmission),
     PendingSubmissionJson(WalletPendingSubmission),
     TransactionStatus(WalletTransactionStatus),
@@ -206,6 +227,8 @@ impl fmt::Display for WalletOutput {
             Self::BalanceJson(balance) => formatter.write_str(&render_balance_json(balance)),
             Self::AccountHistory(history) => formatter.write_str(&render_history(history)),
             Self::AccountHistoryJson(history) => formatter.write_str(&render_history_json(history)),
+            Self::PendingList(list) => formatter.write_str(&render_pending_list(list)),
+            Self::PendingListJson(list) => formatter.write_str(&render_pending_list_json(list)),
             Self::PendingSubmission(submission) => {
                 formatter.write_str(&render_pending_submission(submission))
             }
@@ -265,6 +288,7 @@ pub fn help_text() -> String {
         "  xriq-wallet accounts --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-wallet balance --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet history --chain-file <path> --address <address> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
+        "  xriq-wallet pending --chain-file <path> --pending-file <path> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet submit --chain-file <path> --pending-file <path> --transfer-file <path> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet tx status --chain-file <path> --tx-hash <64-hex> [--draft-file <path>|--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet transfer --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number|auto> [--chain-file <path>] [--alice-balance <base-units>] [--expires-at-height <height>] [--format text|json]",
@@ -290,6 +314,7 @@ where
         Some("accounts") => run_accounts_command(&args[1..]),
         Some("balance") => run_balance_command(&args[1..]),
         Some("history") => run_history_command(&args[1..]),
+        Some("pending") => run_pending_command(&args[1..]),
         Some("submit") => run_submit_command(&args[1..]),
         Some("tx") => run_tx_command(&args[1..]),
         Some("transfer") => run_transfer_command(&args[1..]),
@@ -465,6 +490,50 @@ fn run_history_command(args: &[String]) -> Result<WalletOutput, WalletError> {
     Ok(match output_format {
         WalletOutputFormat::Text => WalletOutput::AccountHistory(history),
         WalletOutputFormat::Json => WalletOutput::AccountHistoryJson(history),
+    })
+}
+
+fn run_pending_command(args: &[String]) -> Result<WalletOutput, WalletError> {
+    let flags = FlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--pending-file",
+        "--alice-balance",
+        "--format",
+    ])?;
+    let output_format = WalletOutputFormat::parse(flags.optional("--format"))?;
+    let chain_file = flags.required("--chain-file")?;
+    let pending_file = flags.required("--pending-file")?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let detail = private_devnet_file_mempool_detail_with_pending_file_data(
+        chain_file,
+        pending_file,
+        alice_balance,
+    )
+    .map_err(|error| WalletError::Node(error.to_string()))?;
+    let list = WalletPendingList {
+        transactions: detail
+            .transactions
+            .into_iter()
+            .map(|transaction| WalletPendingTransaction {
+                tx_hash: transaction.tx_hash,
+                received_order: transaction.received_order,
+                from: transaction.from,
+                to: transaction.to,
+                amount: transaction.amount,
+                fee: transaction.fee,
+                nonce: transaction.nonce,
+                expires_at_height: transaction.expires_at_height,
+            })
+            .collect(),
+        warning: TEST_IDENTITY_WARNING,
+    };
+    Ok(match output_format {
+        WalletOutputFormat::Text => WalletOutput::PendingList(list),
+        WalletOutputFormat::Json => WalletOutput::PendingListJson(list),
     })
 }
 
@@ -742,6 +811,98 @@ fn wallet_pending_submission(
         transaction: detail.transaction,
         warning: TEST_IDENTITY_WARNING,
     }
+}
+
+fn render_pending_list(list: &WalletPendingList) -> String {
+    let mut output = String::new();
+    {
+        use fmt::Write;
+        writeln!(&mut output, "warning={}", list.warning).expect("write to String");
+        writeln!(&mut output, "command=pending").expect("write to String");
+        writeln!(&mut output, "pending_count={}", list.transactions.len())
+            .expect("write to String");
+        for transaction in &list.transactions {
+            writeln!(
+                &mut output,
+                "- order={order} {tx_hash} {from} -> {to} amount_base_units={amount} fee_base_units={fee} nonce={nonce}",
+                order = transaction.received_order,
+                tx_hash = hash_hex(transaction.tx_hash),
+                from = transaction.from,
+                to = transaction.to,
+                amount = transaction.amount.base_units(),
+                fee = transaction.fee.base_units(),
+                nonce = transaction.nonce,
+            )
+            .expect("write to String");
+        }
+    }
+    output
+}
+
+fn render_pending_list_json(list: &WalletPendingList) -> String {
+    let mut output = String::new();
+    output.push_str("{\n");
+    output.push_str("  \"format_version\": \"xriq-wallet-json-v1\",\n");
+    output.push_str("  \"command\": \"pending\",\n");
+    output.push_str("  \"warning\": ");
+    output.push_str(&json_string(list.warning));
+    output.push_str(",\n");
+    output.push_str("  \"pending_count\": ");
+    output.push_str(&list.transactions.len().to_string());
+    output.push_str(",\n");
+    output.push_str("  \"transactions\": [\n");
+    for (index, transaction) in list.transactions.iter().enumerate() {
+        push_pending_transaction_json(&mut output, transaction, "    ");
+        if index + 1 != list.transactions.len() {
+            output.push(',');
+        }
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
+fn push_pending_transaction_json(
+    output: &mut String,
+    transaction: &WalletPendingTransaction,
+    indent: &str,
+) {
+    output.push_str(indent);
+    output.push_str("{\n");
+    output.push_str(indent);
+    output.push_str("  \"tx_hash\": ");
+    output.push_str(&json_string(&hash_hex(transaction.tx_hash)));
+    output.push_str(",\n");
+    output.push_str(indent);
+    output.push_str("  \"received_order\": ");
+    output.push_str(&transaction.received_order.to_string());
+    output.push_str(",\n");
+    output.push_str(indent);
+    output.push_str("  \"from\": ");
+    output.push_str(&json_string(transaction.from.as_str()));
+    output.push_str(",\n");
+    output.push_str(indent);
+    output.push_str("  \"to\": ");
+    output.push_str(&json_string(transaction.to.as_str()));
+    output.push_str(",\n");
+    output.push_str(indent);
+    output.push_str("  \"amount_base_units\": ");
+    output.push_str(&json_string(&transaction.amount.base_units().to_string()));
+    output.push_str(",\n");
+    output.push_str(indent);
+    output.push_str("  \"fee_base_units\": ");
+    output.push_str(&json_string(&transaction.fee.base_units().to_string()));
+    output.push_str(",\n");
+    output.push_str(indent);
+    output.push_str("  \"nonce\": ");
+    output.push_str(&transaction.nonce.to_string());
+    output.push_str(",\n");
+    output.push_str(indent);
+    output.push_str("  \"expires_at_height\": ");
+    output.push_str(&json_optional_u64(transaction.expires_at_height));
+    output.push('\n');
+    output.push_str(indent);
+    output.push('}');
 }
 
 fn render_pending_submission(submission: &WalletPendingSubmission) -> String {
@@ -1548,6 +1709,153 @@ mod tests {
         assert!(output.contains("\"format_version\": \"xriq-wallet-json-v1\""));
         assert!(output.contains("\"command\": \"submit-pending\""));
         assert!(output.contains("\"status\": \"pending\""));
+        assert!(output.contains("\"received_order\": 0"));
+        assert!(output.contains("\"from\": \"xriqdev1alice00000000000\""));
+        assert!(output.contains("\"to\": \"xriqdev1bobbb00000000000\""));
+        assert!(output.contains("\"amount_base_units\": \"25\""));
+        assert!(!output.contains("private_key"));
+        assert!(!output.contains("seed"));
+
+        let _ = fs::remove_file(chain_path);
+        let _ = fs::remove_file(transfer_path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn parses_pending_command_for_durable_pending_file() {
+        let chain_path = temp_chain_path();
+        let transfer_path = temp_draft_path();
+        let pending_path = temp_pending_path();
+        let chain_text = chain_path.to_string_lossy().to_string();
+        let transfer_text = transfer_path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let transfer = run_wallet_command([
+            "transfer",
+            "--chain-id",
+            "xriq-devnet",
+            "--from",
+            alice().as_str(),
+            "--to",
+            bob().as_str(),
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--expires-at-height",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+        fs::write(&transfer_path, transfer.to_string()).unwrap();
+        let submitted = run_wallet_command([
+            "submit",
+            "--chain-file",
+            chain_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--transfer-file",
+            transfer_text.as_str(),
+            "--alice-balance",
+            "100",
+        ])
+        .unwrap();
+        let tx_hash = match submitted {
+            WalletOutput::PendingSubmission(submission) => submission.tx_hash,
+            other => panic!("unexpected wallet output: {other:?}"),
+        };
+
+        let output = run_wallet_command([
+            "pending",
+            "--chain-file",
+            chain_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--alice-balance",
+            "100",
+        ])
+        .unwrap();
+
+        match output {
+            WalletOutput::PendingList(list) => {
+                assert_eq!(list.transactions.len(), 1);
+                assert_eq!(list.transactions[0].tx_hash, tx_hash);
+                assert_eq!(list.transactions[0].received_order, 0);
+                assert_eq!(list.transactions[0].from, alice());
+                assert_eq!(list.transactions[0].to, bob());
+                assert_eq!(list.transactions[0].amount, XriqAmount::from_base_units(25));
+                assert_eq!(list.transactions[0].fee, XriqAmount::from_base_units(2));
+                assert_eq!(list.transactions[0].nonce, 0);
+            }
+            other => panic!("unexpected wallet output: {other:?}"),
+        }
+
+        let _ = fs::remove_file(chain_path);
+        let _ = fs::remove_file(transfer_path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn renders_pending_json_without_secret_material() {
+        let chain_path = temp_chain_path();
+        let transfer_path = temp_draft_path();
+        let pending_path = temp_pending_path();
+        let chain_text = chain_path.to_string_lossy().to_string();
+        let transfer_text = transfer_path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let transfer = run_wallet_command([
+            "transfer",
+            "--chain-id",
+            "xriq-devnet",
+            "--from",
+            alice().as_str(),
+            "--to",
+            bob().as_str(),
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--expires-at-height",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+        fs::write(&transfer_path, transfer.to_string()).unwrap();
+        run_wallet_command([
+            "submit",
+            "--chain-file",
+            chain_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--transfer-file",
+            transfer_text.as_str(),
+            "--alice-balance",
+            "100",
+        ])
+        .unwrap();
+
+        let output = run_wallet_command([
+            "pending",
+            "--chain-file",
+            chain_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+
+        assert!(output.contains("\"format_version\": \"xriq-wallet-json-v1\""));
+        assert!(output.contains("\"command\": \"pending\""));
+        assert!(output.contains("\"pending_count\": 1"));
         assert!(output.contains("\"received_order\": 0"));
         assert!(output.contains("\"from\": \"xriqdev1alice00000000000\""));
         assert!(output.contains("\"to\": \"xriqdev1bobbb00000000000\""));

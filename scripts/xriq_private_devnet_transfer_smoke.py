@@ -301,6 +301,30 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_equal(wallet_submit_status, "nonce", 1, "wallet submit pending status")
     require_equal(wallet_submit_status, "amount_base_units", "5", "wallet submit pending status")
 
+    wallet_pending = run_wallet_json(
+        xriq_dir,
+        "pending",
+        "--chain-file",
+        str(chain_file),
+        "--pending-file",
+        str(wallet_submit_pending_file),
+        "--alice-balance",
+        args.alice_balance,
+    )
+    write_json(artifact_dir / "wallet-pending.json", wallet_pending)
+    require_equal(wallet_pending, "command", "pending", "wallet pending")
+    require_equal(wallet_pending, "pending_count", 1, "wallet pending")
+    wallet_pending_transactions = wallet_pending.get("transactions")
+    if not isinstance(wallet_pending_transactions, list) or len(wallet_pending_transactions) != 1:
+        raise SmokeError("wallet pending: expected one pending transaction")
+    wallet_pending_transaction = wallet_pending_transactions[0]
+    if not isinstance(wallet_pending_transaction, dict):
+        raise SmokeError("wallet pending: expected transaction object")
+    require_equal(wallet_pending_transaction, "tx_hash", wallet_submit_tx_hash, "wallet pending")
+    require_equal(wallet_pending_transaction, "received_order", 0, "wallet pending")
+    require_equal(wallet_pending_transaction, "nonce", 1, "wallet pending")
+    require_equal(wallet_pending_transaction, "amount_base_units", "5", "wallet pending")
+
     block = run_node_json(
         xriq_dir,
         "block-detail",

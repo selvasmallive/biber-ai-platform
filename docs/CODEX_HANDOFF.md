@@ -110,14 +110,14 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `83%`.
+- Phase 1 estimated completion: about `84%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
-- Wallet transfer draft/submit flow: about `80%`.
+- Wallet transfer draft/submit flow: about `82%`.
 - File-backed node runner and deterministic replay: about `72%`.
 - Snapshot export/import and restore workflow: about `76%`.
 - Read-only/private RPC and explorer/dashboard support: about `74%`.
-- Local smoke/regression coverage: about `86%`.
+- Local smoke/regression coverage: about `87%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -137,6 +137,30 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ wallet pending-list checkpoint: `xriq-wallet pending` now
+  replays the local file-backed private-devnet chain, loads
+  `--pending-file`, and returns a read-only pending transaction list in text or
+  `xriq-wallet-json-v1` format. The JSON output uses `command: pending`,
+  `pending_count`, and an ordered `transactions` array with transaction hash,
+  received order, transparent from/to addresses, base-unit amount/fee, nonce,
+  and optional expiration height. This is a local private-devnet inspection
+  helper only; it does not produce blocks, mutate the chain or pending file, or
+  print private keys, seed phrases, or production custody material. The
+  isolated transfer/replay/snapshot smoke now writes `wallet-pending.json`
+  after `xriq-wallet submit` and pending `xriq-wallet tx status`, using the
+  separate wallet pending file from the main snapshot path. Local verification
+  passed `cargo fmt --all --manifest-path xriq/Cargo.toml -- --check`,
+  bundled Python syntax compilation for
+  `scripts/xriq_private_devnet_transfer_smoke.py`,
+  `cargo clippy -p xriq-wallet --manifest-path xriq/Cargo.toml -- -D warnings`,
+  `cargo test -p xriq-wallet --manifest-path xriq/Cargo.toml -j 1` with
+  `29 passed`, `cargo test -p xriq-node --manifest-path xriq/Cargo.toml -j 1`
+  with `51 passed`, and the isolated transfer smoke using
+  `CARGO_TARGET_DIR=target-codex-wallet-pending-list-smoke`. The smoke artifact
+  directory was
+  `xriq/target/xriq-private-devnet-transfer-smoke-20260526T175305Z`. No Vast
+  sync, API/vLLM restart, training, OpenAI mentor call, or credential change
+  was used.
 - Latest native XRIQ wallet pending-submit checkpoint: `xriq-wallet submit`
   now reads a wallet transfer draft or `xriq-node-transfer-submit-v1` JSON
   transfer body from `--transfer-file`, validates it against the replayed
