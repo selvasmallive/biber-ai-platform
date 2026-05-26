@@ -58,6 +58,21 @@ pub struct ExplorerAccountDetail {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExplorerAccountTransaction {
+    pub block_height: u64,
+    pub block_hash: Hash32,
+    pub transaction_index: usize,
+    pub direction: &'static str,
+    pub tx_hash: Hash32,
+    pub from: Address,
+    pub to: Address,
+    pub amount: XriqAmount,
+    pub fee: XriqAmount,
+    pub nonce: u64,
+    pub expires_at_height: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExplorerMempoolDetail {
     pub pending_count: usize,
     pub transactions: Vec<ExplorerPendingTransaction>,
@@ -145,6 +160,34 @@ impl<'a, S: ChainStore> ExplorerService<'a, S> {
             balance: account.balance,
             nonce: account.nonce,
         })
+    }
+
+    pub fn account_transactions(
+        &self,
+        address: &Address,
+        limit: usize,
+    ) -> Vec<ExplorerAccountTransaction> {
+        if limit == 0 {
+            return Vec::new();
+        }
+
+        let mut transactions = Vec::new();
+        for record in self.store.blocks_by_height_desc(self.store.len()) {
+            for (transaction_index, transaction) in record.block.transactions.iter().enumerate() {
+                if transaction.from == *address || transaction.to == *address {
+                    transactions.push(account_transaction_summary(
+                        record,
+                        transaction_index,
+                        transaction,
+                        address,
+                    ));
+                    if transactions.len() == limit {
+                        return transactions;
+                    }
+                }
+            }
+        }
+        transactions
     }
 
     pub fn mempool(&self) -> ExplorerMempoolDetail {
@@ -279,6 +322,32 @@ pub fn render_account_detail(account: &ExplorerAccountDetail) -> String {
     output
 }
 
+pub fn render_account_transactions(
+    address: &Address,
+    transactions: &[ExplorerAccountTransaction],
+) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "account transactions {}", address).expect("write to String");
+    writeln!(&mut output, "transactions: {}", transactions.len()).expect("write to String");
+    for transaction in transactions {
+        writeln!(
+            &mut output,
+            "- height {height} #{index} {direction} {tx_hash} {from} -> {to} amount={amount} fee={fee} nonce={nonce}",
+            height = transaction.block_height,
+            index = transaction.transaction_index,
+            direction = transaction.direction,
+            tx_hash = hash_hex(transaction.tx_hash),
+            from = transaction.from,
+            to = transaction.to,
+            amount = transaction.amount,
+            fee = transaction.fee,
+            nonce = transaction.nonce,
+        )
+        .expect("write to String");
+    }
+    output
+}
+
 pub fn render_mempool(detail: &ExplorerMempoolDetail) -> String {
     let mut output = String::new();
     writeln!(&mut output, "mempool pending: {}", detail.pending_count).expect("write to String");
@@ -345,6 +414,37 @@ fn transaction_summary((index, tx): (usize, &Transaction)) -> ExplorerTransactio
     }
 }
 
+fn account_transaction_summary(
+    record: &StoredBlock,
+    transaction_index: usize,
+    transaction: &Transaction,
+    address: &Address,
+) -> ExplorerAccountTransaction {
+    ExplorerAccountTransaction {
+        block_height: record.block.header.height,
+        block_hash: record.block_hash,
+        transaction_index,
+        direction: account_transaction_direction(transaction, address),
+        tx_hash: transaction_hash(transaction),
+        from: transaction.from.clone(),
+        to: transaction.to.clone(),
+        amount: transaction.amount,
+        fee: transaction.fee,
+        nonce: transaction.nonce,
+        expires_at_height: transaction.expires_at_height,
+    }
+}
+
+fn account_transaction_direction(transaction: &Transaction, address: &Address) -> &'static str {
+    if transaction.from == *address && transaction.to == *address {
+        "self"
+    } else if transaction.from == *address {
+        "sent"
+    } else {
+        "received"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -366,11 +466,21 @@ mod tests {
     }
 
     fn transaction(from: Address, nonce: u64, amount: u128, fee: u128) -> Transaction {
+        transaction_to(from, address("bobbb"), nonce, amount, fee)
+    }
+
+    fn transaction_to(
+        from: Address,
+        to: Address,
+        nonce: u64,
+        amount: u128,
+        fee: u128,
+    ) -> Transaction {
         Transaction {
             version: Transaction::SUPPORTED_VERSION,
             chain_id: "xriq-devnet".to_string(),
             from,
-            to: address("bobbb"),
+            to,
             amount: XriqAmount::from_base_units(amount),
             fee: XriqAmount::from_base_units(fee),
             nonce,
@@ -433,7 +543,14 @@ mod tests {
             )
             .unwrap();
         store
-            .append_block(hash(2), block(2, hash(1), Vec::new()))
+            .append_block(
+                hash(2),
+                block(
+                    2,
+                    hash(1),
+                    vec![transaction_to(address("bobbb"), address("alice"), 0, 5, 2)],
+                ),
+            )
             .unwrap();
 
         (RpcService::new(ledger, mempool, hash(2)), store)
@@ -518,6 +635,29 @@ mod tests {
     }
 
     #[test]
+    fn lists_account_transactions_descending_with_direction() {
+        let (rpc, store) = fixture();
+        let explorer = ExplorerService::new(rpc, &store);
+
+        let alice_transactions = explorer.account_transactions(&address("alice"), 10);
+
+        assert_eq!(alice_transactions.len(), 2);
+        assert_eq!(alice_transactions[0].block_height, 2);
+        assert_eq!(alice_transactions[0].direction, "received");
+        assert_eq!(alice_transactions[0].from, address("bobbb"));
+        assert_eq!(alice_transactions[1].block_height, 1);
+        assert_eq!(alice_transactions[1].direction, "sent");
+        assert_eq!(alice_transactions[1].to, address("bobbb"));
+        assert_eq!(explorer.account_transactions(&address("alice"), 1).len(), 1);
+        assert!(explorer
+            .account_transactions(&address("alice"), 0)
+            .is_empty());
+        assert!(explorer
+            .account_transactions(&address("davee"), 10)
+            .is_empty());
+    }
+
+    #[test]
     fn lists_pending_mempool_transactions_in_order() {
         let (rpc, store) = fixture();
         let explorer = ExplorerService::new(rpc, &store);
@@ -569,6 +709,14 @@ mod tests {
         assert!(account.contains("account xriqdev1alice00000000000"));
         assert!(account.contains("balance: 100"));
         assert!(account.contains("nonce: 1"));
+
+        let account_transactions = render_account_transactions(
+            &address("alice"),
+            &explorer.account_transactions(&address("alice"), 2),
+        );
+        assert!(account_transactions.contains("account transactions xriqdev1alice00000000000"));
+        assert!(account_transactions.contains("received"));
+        assert!(account_transactions.contains("sent"));
 
         let mempool = render_mempool(&explorer.mempool());
         assert!(mempool.contains("mempool pending: 2"));

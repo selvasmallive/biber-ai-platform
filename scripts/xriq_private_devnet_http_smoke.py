@@ -375,6 +375,27 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         write_json(artifact_dir / "account-bob.json", bob)
         require_equal(bob, "balance_base_units", args.amount, "bob account")
 
+        alice_transactions = http_json(
+            base_url,
+            "GET",
+            f"/v1/accounts/{ALICE}/transactions?limit=5",
+        )
+        write_json(artifact_dir / "account-alice-transactions.json", alice_transactions)
+        require_equal(
+            alice_transactions,
+            "transaction_count",
+            1,
+            "alice account transactions",
+        )
+        transactions = alice_transactions.get("transactions")
+        if not isinstance(transactions, list) or not transactions:
+            raise SmokeError("alice account transactions: expected one transaction")
+        first_account_transaction = transactions[0]
+        if not isinstance(first_account_transaction, dict):
+            raise SmokeError("alice account transactions: expected transaction object")
+        require_equal(first_account_transaction, "tx_hash", tx_hash, "alice account transaction")
+        require_equal(first_account_transaction, "direction", "sent", "alice account transaction")
+
         final_mempool = http_json(base_url, "GET", "/v1/mempool")
         write_json(artifact_dir / "final-mempool.json", final_mempool)
         require_equal(final_mempool, "pending_count", 0, "final mempool")

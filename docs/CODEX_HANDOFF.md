@@ -110,14 +110,14 @@ Use this 2026-05-25 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `65%`.
+- Phase 1 estimated completion: about `66%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `67%`.
 - File-backed node runner and deterministic replay: about `70%`.
 - Snapshot export/import and restore workflow: about `68%`.
-- Read-only/private RPC and explorer/dashboard support: about `63%`.
-- Local smoke/regression coverage: about `67%`.
+- Read-only/private RPC and explorer/dashboard support: about `65%`.
+- Local smoke/regression coverage: about `68%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -226,6 +226,20 @@ not an active target because the GPU was terminated to save cost.
   target-dir smoke attempt before the script fix mixed a new wallet binary with
   the stale default node binary and returned `unknown_json_field:
   transaction_hash`; rerunning after the script fix passed. No Vast sync,
+  API/vLLM restart, training, OpenAI mentor call, or credential change was used.
+- Latest native XRIQ account transaction history checkpoint: `xriq-explorer`
+  now exposes confirmed account transaction history view models with
+  `sent`/`received`/`self` direction. `xriq-node account-transactions` renders
+  the same history from a replayed chain file, and the local HTTP wrapper now
+  exposes `GET /v1/accounts/{address}/transactions?limit=<n>`. The HTTP smoke
+  now writes `account-alice-transactions.json` and verifies the account-history
+  transaction hash and direction after producing a block. Local verification
+  passed `cargo fmt --all --manifest-path xriq/Cargo.toml -- --check`,
+  `cargo test -p xriq-explorer --manifest-path xriq/Cargo.toml -j 1` with
+  `8 passed`, `cargo test -p xriq-node --manifest-path xriq/Cargo.toml -j 1`
+  with `51 passed`, bundled Python syntax compilation for
+  `scripts/xriq_private_devnet_http_smoke.py`, and the local HTTP smoke using
+  `CARGO_TARGET_DIR=target-codex-account-history-smoke`. No Vast sync,
   API/vLLM restart, training, OpenAI mentor call, or credential change was used.
 - Latest XRIQ-only focus checkpoint: the user narrowed the active project goal
   to completing the XRIQ private-devnet prototype first. A narrow usability

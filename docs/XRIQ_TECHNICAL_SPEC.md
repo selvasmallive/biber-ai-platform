@@ -465,10 +465,11 @@ loopback-first, dependency-free, read-only HTTP wrapper over the existing
 file-backed JSON runner outputs. The current implemented endpoints are
 `/health`, `/v1/chain/status`, `/v1/explorer/overview?limit=5`,
 `/v1/blocks/{height_or_hash}`, `/v1/transactions/{hash}`,
-`/v1/accounts/{address}`, and `/v1/mempool`. Transaction lookup scans
-confirmed transactions in persisted blocks. When `--pending-file` is
-configured, transaction lookup checks confirmed blocks first and then durable
-pending state.
+`/v1/accounts/{address}`, `/v1/accounts/{address}/transactions?limit=5`, and
+`/v1/mempool`. Transaction lookup scans confirmed transactions in persisted
+blocks. Account transaction lookup scans confirmed persisted blocks in
+descending height order. When `--pending-file` is configured, transaction lookup
+checks confirmed blocks first and then durable pending state.
 
 Block detail lookup accepts decimal heights, the `latest` selector, or
 64-character lowercase hex block hashes.
@@ -739,8 +740,11 @@ As of 2026-05-17:
   - local private-devnet block detail command that replays the persisted chain
     file and renders one block by height, latest selector, or block hash,
     including transaction hashes and transfer summaries
-  - local private-devnet account detail command that replays the persisted
+- local private-devnet account detail command that replays the persisted
     chain file and renders one account balance and nonce by address
+  - local private-devnet account transaction history command that replays the
+    persisted chain file and lists confirmed transactions involving one account
+    in descending block order
   - local private-devnet mempool detail command that replays the persisted
     chain file and can preview a wallet draft in the pending-transaction view
     without mutating storage
@@ -833,6 +837,7 @@ As of 2026-05-17:
   - latest block listing from storage by descending height
   - block detail with transaction hashes and transfer summaries
   - account balance and nonce lookup
+  - account transaction history with sent/received/self direction
   - pending mempool transaction detail and deterministic order
   - dependency-free text rendering for private-devnet inspection
   - dependency-free JSON rendering through the file-backed `xriq-node` runner
