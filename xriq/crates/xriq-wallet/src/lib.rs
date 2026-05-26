@@ -2737,6 +2737,29 @@ mod tests {
     }
 
     #[test]
+    fn wallet_chain_check_json_matches_checked_fixture() {
+        let path = temp_chain_path();
+        let path_text = path.to_string_lossy().to_string();
+        let output = run_wallet_command([
+            "check",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        let fixture =
+            include_str!("../../../fixtures/private-devnet/wallet-chain-check-empty.json");
+
+        assert_eq!(output.trim_end(), fixture.trim_end());
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
     fn renders_json_transfer_expiration_as_null_when_absent() {
         let output = run_wallet_command([
             "transfer",

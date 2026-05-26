@@ -117,7 +117,7 @@ unless the user changes the project scope again.
 - File-backed node runner and deterministic replay: about `75%`.
 - Snapshot export/import and restore workflow: about `76%`.
 - Read-only/private RPC and explorer/dashboard support: about `74%`.
-- Local smoke/regression coverage: about `90%`.
+- Local smoke/regression coverage: about `91%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -137,6 +137,19 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ wallet fixture checkpoint: added
+  `xriq/fixtures/private-devnet/wallet-chain-check-empty.json` as a checked
+  golden example for `xriq-wallet check --format json` on an empty replayed
+  private-devnet chain. `xriq-wallet` now has an exact-match fixture regression
+  test for the wallet chain-check output alongside the existing wallet transfer
+  submit fixture. `docs/XRIQ_NODE_JSON_SCHEMA.md`, `xriq/README.md`, and
+  `docs/XRIQ_TECHNICAL_SPEC.md` document the fixture coverage. Local
+  verification passed the XRIQ Cargo format check,
+  `cargo test -p xriq-wallet --manifest-path xriq/Cargo.toml -j 1` with
+  `34 passed`, and `cargo clippy -p xriq-wallet --manifest-path
+  xriq/Cargo.toml -- -D warnings`. This was a local fixture/regression
+  checkpoint only; no isolated smoke rerun, Vast sync, API/vLLM restart,
+  training, OpenAI mentor call, or credential change was used.
 - Latest native XRIQ wallet chain-check checkpoint: `xriq-wallet check` now
   wraps the existing file-backed private-devnet replay verification path and
   returns wallet-facing text or `xriq-wallet-json-v1` output with

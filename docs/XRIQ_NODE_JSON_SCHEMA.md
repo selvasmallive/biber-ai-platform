@@ -7,13 +7,17 @@ file-backed `xriq-node` runner. It is for local private-devnet tooling, BIBER
 agents, scripts, and future HTTP/RPC adapters. It is not a public API, mainnet
 API, wallet-custody interface, or exchange-listing interface.
 
-Current format version: `xriq-node-json-v1`.
+Current node format version: `xriq-node-json-v1`. Wallet helper JSON uses
+`xriq-wallet-json-v1` except for wallet-generated transaction submit bodies,
+which intentionally use `xriq-node-transfer-submit-v1` because they are accepted
+directly by node submission paths.
 
 Checked examples live in `xriq/fixtures/private-devnet/` and are compared by
 Rust tests so schema drift is intentional. The current checked set covers fresh
 node status, empty mempool detail, initial Alice account detail, wallet transfer
-submit body, produced transfer block JSON, block detail JSON with transaction
-hashes, produced pending-block JSON, and preflight transfer JSON.
+submit body, empty wallet chain-check JSON, produced transfer block JSON, block
+detail JSON with transaction hashes, produced pending-block JSON, and preflight
+transfer JSON.
 
 Snapshot export/import uses the same successful runner response envelope with
 commands `snapshot-export` and `snapshot-import`. The snapshot directory itself
@@ -109,6 +113,39 @@ Shape:
   "state_root": "64-hex-character-state-root",
   "pending_transactions": 0,
   "stored_blocks": 1
+}
+```
+
+## Wallet Chain Check
+
+Command:
+
+```bash
+cargo run -p xriq-wallet -- check \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --alice-balance 100 \
+  --format json
+```
+
+The wallet-facing chain check wraps the same file-backed replay verification as
+`xriq-node chain-check`, but uses the wallet JSON format and private-devnet
+test-identity warning. It does not mutate the chain file or pending file.
+
+Shape:
+
+```json
+{
+  "format_version": "xriq-wallet-json-v1",
+  "command": "check",
+  "warning": "private-devnet-test-identity-only",
+  "verified": true,
+  "chain_id": "xriq-devnet",
+  "current_height": 0,
+  "latest_block_hash": "64-hex-character-block-hash",
+  "state_root": "64-hex-character-state-root",
+  "pending_transactions": 0,
+  "stored_blocks": 0
 }
 ```
 
@@ -1029,6 +1066,7 @@ The repository also includes checked private-devnet golden files under
 `xriq/fixtures/private-devnet/`:
 
 - `wallet-transfer-submit.json`
+- `wallet-chain-check-empty.json`
 - `node-produce-transfer-block.json`
 - `node-block-detail-transfer.json`
 - `node-produce-pending-block.json`

@@ -454,9 +454,9 @@ targets before use. See
 Checked private-devnet JSON fixtures live in `fixtures/private-devnet/`.
 They are used by Rust tests as golden examples for wallet/node schema drift.
 Current checked fixtures cover fresh node status, empty mempool detail, initial
-Alice account detail, wallet transfer submit body, produced transfer block
-JSON, block detail JSON with transaction hashes, produced pending-block JSON,
-and preflight transfer JSON.
+Alice account detail, wallet transfer submit body, empty wallet chain-check
+JSON, produced transfer block JSON, block detail JSON with transaction hashes,
+produced pending-block JSON, and preflight transfer JSON.
 
 Private-devnet read-only HTTP wrapper:
 
