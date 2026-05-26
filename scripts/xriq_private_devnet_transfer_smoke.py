@@ -223,6 +223,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_equal(wallet_tx_status, "block_height", 1, "wallet tx status")
     require_equal(wallet_tx_status, "amount_base_units", args.amount, "wallet tx status")
 
+    wallet_auto_nonce_transfer = run_wallet_json(
+        xriq_dir,
+        "transfer",
+        "--chain-id",
+        "xriq-devnet",
+        "--from",
+        ALICE,
+        "--to",
+        BOB,
+        "--amount",
+        "5",
+        "--fee",
+        args.fee,
+        "--nonce",
+        "auto",
+        "--chain-file",
+        str(chain_file),
+        "--alice-balance",
+        args.alice_balance,
+        "--expires-at-height",
+        args.expires_at_height,
+    )
+    write_json(artifact_dir / "wallet-transfer-auto-nonce.json", wallet_auto_nonce_transfer)
+    require_equal(
+        wallet_auto_nonce_transfer,
+        "format_version",
+        "xriq-node-transfer-submit-v1",
+        "wallet auto nonce transfer",
+    )
+    require_equal(wallet_auto_nonce_transfer, "nonce", 1, "wallet auto nonce transfer")
+    require_equal(wallet_auto_nonce_transfer, "from", ALICE, "wallet auto nonce transfer")
+    require_equal(wallet_auto_nonce_transfer, "to", BOB, "wallet auto nonce transfer")
+
     block = run_node_json(
         xriq_dir,
         "block-detail",

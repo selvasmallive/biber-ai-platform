@@ -886,6 +886,9 @@ As of 2026-05-17:
     status inspection, plus pending status inspection from wallet drafts or
     durable pending files
   - transfer draft construction
+  - local `xriq-wallet transfer --nonce auto` support that replays the
+    file-backed chain and derives the sender account nonce before constructing
+    a private-devnet transfer draft
   - deterministic transaction-hash output for local status lookup
   - hash-bound test-only signatures through `xriq-crypto`
   - no real private-key, seed-phrase, or production custody support

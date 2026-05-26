@@ -248,7 +248,7 @@ pub fn help_text() -> String {
         "  xriq-wallet balance --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet history --chain-file <path> --address <address> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-wallet tx status --chain-file <path> --tx-hash <64-hex> [--draft-file <path>|--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
-        "  xriq-wallet transfer --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--expires-at-height <height>] [--format text|json]",
+        "  xriq-wallet transfer --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number|auto> [--chain-file <path>] [--alice-balance <base-units>] [--expires-at-height <height>] [--format text|json]",
         "",
         "Warning: this wallet is for private devnet tests only and does not manage real keys.",
     ]
@@ -503,6 +503,8 @@ fn run_transfer_command(args: &[String]) -> Result<WalletOutput, WalletError> {
         "--amount",
         "--fee",
         "--nonce",
+        "--chain-file",
+        "--alice-balance",
         "--expires-at-height",
         "--format",
     ])?;
@@ -512,7 +514,7 @@ fn run_transfer_command(args: &[String]) -> Result<WalletOutput, WalletError> {
     let to = parse_address(flags.required("--to")?)?;
     let amount = parse_amount("--amount", flags.required("--amount")?)?;
     let fee = parse_amount("--fee", flags.required("--fee")?)?;
-    let nonce = parse_u64("--nonce", flags.required("--nonce")?)?;
+    let nonce = resolve_transfer_nonce(&flags, from.clone())?;
     let expires_at_height = flags
         .optional("--expires-at-height")
         .map(|value| parse_u64("--expires-at-height", value))
@@ -530,6 +532,21 @@ fn run_transfer_command(args: &[String]) -> Result<WalletOutput, WalletError> {
         WalletOutputFormat::Text => WalletOutput::TransferDraft(draft),
         WalletOutputFormat::Json => WalletOutput::TransferSubmitJson(draft),
     })
+}
+
+fn resolve_transfer_nonce(flags: &FlagParser, from: Address) -> Result<u64, WalletError> {
+    let nonce = flags.required("--nonce")?;
+    if nonce != "auto" {
+        return parse_u64("--nonce", nonce);
+    }
+    let chain_file = flags.required("--chain-file")?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let account = private_devnet_file_account_detail_data(chain_file, alice_balance, from)
+        .map_err(|error| WalletError::Node(error.to_string()))?;
+    Ok(account.nonce)
 }
 
 fn parse_address(value: &str) -> Result<Address, WalletError> {
@@ -1242,6 +1259,69 @@ mod tests {
             }
             other => panic!("unexpected wallet output: {other:?}"),
         }
+    }
+
+    #[test]
+    fn parses_transfer_command_with_auto_nonce_from_replayed_account() {
+        let path = temp_chain_path();
+        let path_text = path.to_string_lossy().to_string();
+        produce_confirmed_transfer(&path);
+        let output = run_wallet_command([
+            "transfer",
+            "--chain-id",
+            "xriq-devnet",
+            "--from",
+            alice().as_str(),
+            "--to",
+            bob().as_str(),
+            "--amount",
+            "5",
+            "--fee",
+            "2",
+            "--nonce",
+            "auto",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--expires-at-height",
+            "100",
+        ])
+        .unwrap();
+
+        match output {
+            WalletOutput::TransferDraft(draft) => {
+                assert_eq!(draft.transaction.from, alice());
+                assert_eq!(draft.transaction.to, bob());
+                assert_eq!(draft.transaction.amount, XriqAmount::from_base_units(5));
+                assert_eq!(draft.transaction.nonce, 1);
+            }
+            other => panic!("unexpected wallet output: {other:?}"),
+        }
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn rejects_auto_nonce_without_chain_file() {
+        assert_eq!(
+            run_wallet_command([
+                "transfer",
+                "--chain-id",
+                "xriq-devnet",
+                "--from",
+                alice().as_str(),
+                "--to",
+                bob().as_str(),
+                "--amount",
+                "5",
+                "--fee",
+                "2",
+                "--nonce",
+                "auto",
+            ]),
+            Err(WalletError::MissingFlag("--chain-file"))
+        );
     }
 
     #[test]

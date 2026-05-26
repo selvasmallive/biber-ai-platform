@@ -213,6 +213,18 @@ cargo run -p xriq-wallet -- transfer \
   --expires-at-height 100 \
   --format json \
   > target/xriq-wallet-transfer-submit.json
+
+cargo run -p xriq-wallet -- transfer \
+  --chain-id xriq-devnet \
+  --from xriqdev1alice00000000000 \
+  --to xriqdev1bobbb00000000000 \
+  --amount 5 \
+  --fee 2 \
+  --nonce auto \
+  --chain-file target/xriq-devnet-chain.bin \
+  --alice-balance 100 \
+  --expires-at-height 100 \
+  --format json
 ```
 
 Private-devnet wallet account list and balance lookup:
@@ -280,9 +292,9 @@ python scripts/xriq_private_devnet_transfer_smoke.py
 This uses only Python stdlib plus Cargo/Rust. It creates a fresh artifact
 directory under `xriq/target/`, performs one private-devnet transfer, verifies
 transaction/block/account detail, verifies `xriq-wallet accounts`,
-`xriq-wallet balance`, confirmed `xriq-wallet history`, and
-`xriq-wallet tx status`, exports and imports a snapshot, verifies snapshot
-list/detail/check flows, runs
+`xriq-wallet balance`, confirmed `xriq-wallet history`,
+`xriq-wallet tx status`, and `xriq-wallet transfer --nonce auto`, exports and
+imports a snapshot, verifies snapshot list/detail/check flows, runs
 `chain-check` against the restored snapshot targets, and leaves any
 live/restored BIBER API chain files untouched.
 
