@@ -1,0 +1,14 @@
+{
+  "format_version": "xriq-wallet-json-v1",
+  "command": "send-pending",
+  "warning": "private-devnet-test-identity-only",
+  "status": "pending",
+  "tx_hash": "fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565",
+  "received_order": 0,
+  "from": "xriqdev1alice00000000000",
+  "to": "xriqdev1bobbb00000000000",
+  "amount_base_units": "25",
+  "fee_base_units": "2",
+  "nonce": 0,
+  "expires_at_height": 100
+}

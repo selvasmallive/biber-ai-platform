@@ -2915,6 +2915,47 @@ mod tests {
     }
 
     #[test]
+    fn wallet_send_json_matches_checked_fixture() {
+        let chain_path = temp_chain_path();
+        let pending_path = temp_pending_path();
+        let chain_text = chain_path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let output = run_wallet_command([
+            "send",
+            "--chain-file",
+            chain_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--chain-id",
+            "xriq-devnet",
+            "--from",
+            alice().as_str(),
+            "--to",
+            bob().as_str(),
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--alice-balance",
+            "100",
+            "--expires-at-height",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        let fixture = include_str!("../../../fixtures/private-devnet/wallet-send-pending.json");
+
+        assert_eq!(output.trim_end(), fixture.trim_end());
+
+        let _ = fs::remove_file(chain_path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
     fn renders_json_transfer_expiration_as_null_when_absent() {
         let output = run_wallet_command([
             "transfer",

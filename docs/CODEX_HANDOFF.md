@@ -117,7 +117,7 @@ unless the user changes the project scope again.
 - File-backed node runner and deterministic replay: about `75%`.
 - Snapshot export/import and restore workflow: about `76%`.
 - Read-only/private RPC and explorer/dashboard support: about `74%`.
-- Local smoke/regression coverage: about `92%`.
+- Local smoke/regression coverage: about `93%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -137,6 +137,19 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ wallet send-fixture checkpoint: added
+  `xriq/fixtures/private-devnet/wallet-send-pending.json` as a checked golden
+  example for `xriq-wallet send --format json`. `xriq-wallet` now has an
+  exact-match fixture regression test for the direct wallet pending-send output
+  alongside the existing wallet transfer-submit and wallet chain-check
+  fixtures. `docs/XRIQ_NODE_JSON_SCHEMA.md`, `xriq/README.md`, and
+  `docs/XRIQ_TECHNICAL_SPEC.md` document the new fixture coverage. Local
+  verification passed the XRIQ Cargo format check,
+  `cargo test -p xriq-wallet --manifest-path xriq/Cargo.toml -j 1` with
+  `37 passed`, and `cargo clippy -p xriq-wallet --manifest-path
+  xriq/Cargo.toml -- -D warnings`. This was a local fixture/regression
+  checkpoint only; no isolated smoke rerun, Vast sync, API/vLLM restart,
+  training, OpenAI mentor call, or credential change was used.
 - Latest native XRIQ wallet direct-send checkpoint: added `xriq-wallet send`,
   a one-command private-devnet helper that builds a test transfer and submits
   it directly to a durable pending file without requiring an intermediate

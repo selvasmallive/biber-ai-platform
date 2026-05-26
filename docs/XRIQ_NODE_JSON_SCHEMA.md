@@ -15,9 +15,9 @@ directly by node submission paths.
 Checked examples live in `xriq/fixtures/private-devnet/` and are compared by
 Rust tests so schema drift is intentional. The current checked set covers fresh
 node status, empty mempool detail, initial Alice account detail, wallet transfer
-submit body, empty wallet chain-check JSON, produced transfer block JSON, block
-detail JSON with transaction hashes, produced pending-block JSON, and preflight
-transfer JSON.
+submit body, empty wallet chain-check JSON, wallet direct-send pending JSON,
+produced transfer block JSON, block detail JSON with transaction hashes,
+produced pending-block JSON, and preflight transfer JSON.
 
 Snapshot export/import uses the same successful runner response envelope with
 commands `snapshot-export` and `snapshot-import`. The snapshot directory itself
@@ -1110,6 +1110,7 @@ The repository also includes checked private-devnet golden files under
 
 - `wallet-transfer-submit.json`
 - `wallet-chain-check-empty.json`
+- `wallet-send-pending.json`
 - `node-produce-transfer-block.json`
 - `node-block-detail-transfer.json`
 - `node-produce-pending-block.json`
