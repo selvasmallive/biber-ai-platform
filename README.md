@@ -252,6 +252,9 @@ including Rust format/test/clippy checks plus the transfer and HTTP smokes, run:
 python scripts/xriq_phase1_local_check.py
 ```
 
+The Phase 1 private-devnet release-candidate checklist is in
+`docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md`.
+
 ## 7. Vast Connection Needed
 
 To deploy this to your Vast.ai GPU, use the instance SSH command:

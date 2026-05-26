@@ -110,7 +110,7 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `91%`.
+- Phase 1 estimated completion: about `92%`.
 - Rust workspace/crate structure: about `86%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `87%`.
@@ -118,6 +118,7 @@ unless the user changes the project scope again.
 - Snapshot export/import and restore workflow: about `80%`.
 - Read-only/private RPC and explorer/dashboard support: about `76%`.
 - Local smoke/regression coverage: about `96%`.
+- Phase 1 release/readiness documentation: about `80%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -137,6 +138,18 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1 RC checklist checkpoint: added
+  `docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md` as the go/no-go checklist for calling
+  Phase 1 private-devnet complete. It records Phase 1 scope, required local
+  validation through `python scripts/xriq_phase1_local_check.py`, functional
+  coverage, release-candidate conditions, non-production limitations, and the
+  rule that a `phase1-xriq-private-devnet-rc1` tag must not be created without
+  explicit user agreement. `README.md`, `xriq/README.md`, and
+  `docs/XRIQ_TECHNICAL_SPEC.md` now link/mention this checklist. This was a
+  docs/readiness checkpoint after the local validation gate was already proven;
+  verification was limited to `git diff --check`. No Rust smoke rerun, Vast
+  sync, API/vLLM restart, training, OpenAI mentor call, or credential change was
+  used.
 - Latest native XRIQ Phase 1 local-check checkpoint: added
   `scripts/xriq_phase1_local_check.py`, a CPU-only validation wrapper for the
   current XRIQ private-devnet Phase 1 scope. It runs XRIQ Cargo format checks,
@@ -8479,10 +8492,14 @@ candidate-promotion steps in this section unless the user explicitly resumes
 Phase 2. The current low-cost Phase 1 next step is to keep tightening
 private-devnet readiness with small local Rust checkpoints, using
 `python scripts/xriq_phase1_local_check.py` as the one-command CPU-only
-verification gate before handoff/commit/push. Useful remaining Phase 1 targets
-are: final runbook cleanup, final smoke artifact review, a Phase 1 release
-candidate tag/checklist, and any narrow wallet/operator safety polish discovered
-by the local check. Public XRIQ and BIBER MVP remain deferred.
+verification gate before handoff/commit/push. Use
+`docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md` as the go/no-go checklist for deciding
+when Phase 1 is ready to mark as a release candidate. Useful remaining Phase 1
+targets are: final runbook cleanup, final smoke artifact review, and any narrow
+wallet/operator safety polish discovered by the local check. Do not create the
+`phase1-xriq-private-devnet-rc1` tag unless the user explicitly agrees that the
+private-devnet prototype is ready to be marked as an RC. Public XRIQ and BIBER
+MVP remain deferred.
 
 Historical Phase 2/BIBER notes remain below for later reference only.
 

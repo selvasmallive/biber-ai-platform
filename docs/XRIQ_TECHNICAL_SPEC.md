@@ -857,6 +857,8 @@ As of 2026-05-17:
     `scripts/xriq_phase1_local_check.py`, which runs XRIQ format checks,
     workspace tests, workspace clippy, and the transfer plus HTTP smokes
     without using Vast or BIBER runtime state
+  - Phase 1 private-devnet release-candidate checklist in
+    `docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md`
   - node transaction submission
   - node transaction submission rejects invalid hash-bound test-only signatures
     before mempool insert

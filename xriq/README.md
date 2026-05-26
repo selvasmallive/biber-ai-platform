@@ -41,6 +41,9 @@ format/test/clippy set plus the isolated transfer and HTTP smokes:
 python scripts/xriq_phase1_local_check.py
 ```
 
+The Phase 1 release-candidate checklist is documented at
+`../docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md`.
+
 Private-devnet node status smoke:
 
 ```bash
