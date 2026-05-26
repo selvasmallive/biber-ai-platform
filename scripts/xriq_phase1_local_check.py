@@ -267,6 +267,7 @@ def main(argv: list[str] | None = None) -> int:
                 "py_compile",
                 str(ROOT / "scripts" / "xriq_private_devnet_transfer_smoke.py"),
                 str(ROOT / "scripts" / "xriq_private_devnet_http_smoke.py"),
+                str(ROOT / "scripts" / "xriq_phase1_rc_readiness.py"),
             ],
             None,
         ),

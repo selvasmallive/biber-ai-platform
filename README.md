@@ -256,6 +256,13 @@ python scripts/xriq_phase1_local_check.py
 The Phase 1 private-devnet release-candidate checklist is in
 `docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md`.
 
+After a clean local check, future sessions can cheaply re-check the latest
+Phase 1 summary and checklist pointers without rerunning Rust:
+
+```bash
+python scripts/xriq_phase1_rc_readiness.py --require-clean-git
+```
+
 ## 7. Vast Connection Needed
 
 To deploy this to your Vast.ai GPU, use the instance SSH command:

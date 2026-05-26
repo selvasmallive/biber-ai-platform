@@ -57,6 +57,13 @@ generated transfer and HTTP smoke JSON artifacts that prove snapshot export,
 latest discovery, latest replay check, explicit snapshot check, snapshot import,
 restored chain check, and wallet-flow post-block verification.
 
+After committing the RC checkpoint, run the cheap readiness checker before
+asking the user for tag approval:
+
+```bash
+python scripts/xriq_phase1_rc_readiness.py --require-clean-git
+```
+
 ## Functional Checklist
 
 - [x] Rust workspace is split into small crates for core, crypto, ledger,
@@ -96,6 +103,8 @@ Phase 1 can be called an RC only when all of these are true:
 - The local gate's `artifact_checks` list is non-empty and all listed files
   exist under the generated Phase 1 check artifact root.
 - `git status --short` is clean after committing/pushing the RC checkpoint.
+- `python scripts/xriq_phase1_rc_readiness.py --require-clean-git` reports
+  `ready_for_rc_tag: true`.
 - `docs/CODEX_HANDOFF.md` records the latest validation artifact path and Phase
   1 percentage/status.
 - `README.md`, `xriq/README.md`, and this checklist point future sessions to the
@@ -121,5 +130,6 @@ These are not Phase 1 blockers because they belong to later phases:
 
 After this checklist passes and is committed, the next recommended checkpoint is
 a `phase1-xriq-private-devnet-rc1` Git tag on the passing commit. Do not create
-that tag until the user explicitly agrees that the private-devnet prototype is
-ready to be marked as an RC.
+that tag until the readiness checker passes with `--require-clean-git` and the
+user explicitly agrees that the private-devnet prototype is ready to be marked
+as an RC.
