@@ -534,6 +534,7 @@ xriq-wallet key generate
 xriq-wallet key import
 xriq-wallet key export-public
 xriq-wallet balance
+xriq-wallet history
 xriq-wallet transfer
 xriq-wallet tx status
 ```
@@ -876,6 +877,8 @@ As of 2026-05-17:
   - deterministic test identity generation from labels
   - file-backed local `xriq-wallet balance` lookup for account balance and
     nonce inspection
+  - file-backed local `xriq-wallet history` lookup for transparent account
+    transaction history inspection
   - file-backed local `xriq-wallet tx status` lookup for confirmed transaction
     status inspection, plus pending status inspection from wallet drafts or
     durable pending files

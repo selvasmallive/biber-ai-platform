@@ -21,7 +21,7 @@ only until security and legal/compliance review says otherwise.
 - `xriq-rpc`: local private-devnet RPC endpoint behavior.
 - `xriq-storage`: local block storage for private-devnet tests.
 - `xriq-wallet`: private-devnet wallet CLI for test identities, local balance
-  lookup, and transfers.
+  lookup, account history lookup, transaction status lookup, and transfers.
 
 ## Commands
 
@@ -224,6 +224,17 @@ cargo run -p xriq-wallet -- balance \
   --format json
 ```
 
+Private-devnet wallet account history lookup:
+
+```bash
+cargo run -p xriq-wallet -- history \
+  --chain-file target/xriq-devnet-chain.bin \
+  --address xriqdev1alice00000000000 \
+  --alice-balance 100 \
+  --limit 10 \
+  --format json
+```
+
 Private-devnet wallet transaction status lookup:
 
 ```bash
@@ -262,8 +273,8 @@ python scripts/xriq_private_devnet_transfer_smoke.py
 This uses only Python stdlib plus Cargo/Rust. It creates a fresh artifact
 directory under `xriq/target/`, performs one private-devnet transfer, verifies
 transaction/block/account detail, verifies `xriq-wallet balance` and
-confirmed `xriq-wallet tx status`, exports and imports a snapshot, verifies
-snapshot list/detail/check flows, runs
+confirmed `xriq-wallet history` and `xriq-wallet tx status`, exports and
+imports a snapshot, verifies snapshot list/detail/check flows, runs
 `chain-check` against the restored snapshot targets, and leaves any
 live/restored BIBER API chain files untouched.
 

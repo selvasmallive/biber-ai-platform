@@ -278,6 +278,37 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     )
     require_equal(wallet_alice_balance, "nonce", alice["nonce"], "wallet alice balance")
 
+    wallet_alice_history = run_wallet_json(
+        xriq_dir,
+        "history",
+        "--chain-file",
+        str(chain_file),
+        "--alice-balance",
+        args.alice_balance,
+        "--address",
+        ALICE,
+        "--limit",
+        "5",
+    )
+    write_json(artifact_dir / "wallet-history-alice.json", wallet_alice_history)
+    require_equal(wallet_alice_history, "command", "history", "wallet alice history")
+    require_equal(wallet_alice_history, "address", ALICE, "wallet alice history")
+    require_equal(wallet_alice_history, "transaction_count", 1, "wallet alice history")
+    wallet_transactions = wallet_alice_history.get("transactions")
+    if not isinstance(wallet_transactions, list) or len(wallet_transactions) != 1:
+        raise SmokeError("wallet alice history: expected one transaction")
+    wallet_history_transaction = wallet_transactions[0]
+    if not isinstance(wallet_history_transaction, dict):
+        raise SmokeError("wallet alice history: expected transaction object")
+    require_equal(wallet_history_transaction, "tx_hash", tx_hash, "wallet alice history")
+    require_equal(wallet_history_transaction, "direction", "sent", "wallet alice history")
+    require_equal(
+        wallet_history_transaction,
+        "amount_base_units",
+        args.amount,
+        "wallet alice history",
+    )
+
     bob = run_node_json(
         xriq_dir,
         "account-detail",
