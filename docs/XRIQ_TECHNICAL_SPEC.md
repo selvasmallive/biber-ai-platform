@@ -533,6 +533,7 @@ Minimum private-devnet wallet commands:
 xriq-wallet key generate
 xriq-wallet key import
 xriq-wallet key export-public
+xriq-wallet accounts
 xriq-wallet balance
 xriq-wallet history
 xriq-wallet transfer
@@ -875,6 +876,8 @@ As of 2026-05-17:
     replays imported chain and pending files before restored targets are used
 - Implemented private-devnet wallet CLI baseline:
   - deterministic test identity generation from labels
+  - file-backed local `xriq-wallet accounts` lookup for deterministic account
+    list inspection
   - file-backed local `xriq-wallet balance` lookup for account balance and
     nonce inspection
   - file-backed local `xriq-wallet history` lookup for transparent account

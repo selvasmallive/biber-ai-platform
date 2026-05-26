@@ -12,6 +12,7 @@ from typing import Any
 
 ALICE = "xriqdev1alice00000000000"
 BOB = "xriqdev1bobbb00000000000"
+FEE_SINK = "xriqdev1fees000000000000"
 
 
 class SmokeError(RuntimeError):
@@ -277,6 +278,46 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "wallet alice balance",
     )
     require_equal(wallet_alice_balance, "nonce", alice["nonce"], "wallet alice balance")
+
+    wallet_accounts = run_wallet_json(
+        xriq_dir,
+        "accounts",
+        "--chain-file",
+        str(chain_file),
+        "--alice-balance",
+        args.alice_balance,
+        "--limit",
+        "10",
+    )
+    write_json(artifact_dir / "wallet-accounts.json", wallet_accounts)
+    require_equal(wallet_accounts, "command", "accounts", "wallet accounts")
+    require_equal(wallet_accounts, "account_count", 3, "wallet accounts")
+    wallet_account_rows = wallet_accounts.get("accounts")
+    if not isinstance(wallet_account_rows, list):
+        raise SmokeError("wallet accounts: expected accounts array")
+    accounts_by_address = {
+        account.get("address"): account
+        for account in wallet_account_rows
+        if isinstance(account, dict)
+    }
+    require_equal(
+        accounts_by_address.get(ALICE) or {},
+        "balance_base_units",
+        alice["balance_base_units"],
+        "wallet accounts alice",
+    )
+    require_equal(
+        accounts_by_address.get(BOB) or {},
+        "balance_base_units",
+        args.amount,
+        "wallet accounts bob",
+    )
+    require_equal(
+        accounts_by_address.get(FEE_SINK) or {},
+        "balance_base_units",
+        args.fee,
+        "wallet accounts fee sink",
+    )
 
     wallet_alice_history = run_wallet_json(
         xriq_dir,

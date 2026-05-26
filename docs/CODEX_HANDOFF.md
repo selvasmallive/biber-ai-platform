@@ -110,14 +110,14 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `80%`.
+- Phase 1 estimated completion: about `81%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
-- Wallet transfer draft/submit flow: about `75%`.
+- Wallet transfer draft/submit flow: about `76%`.
 - File-backed node runner and deterministic replay: about `72%`.
 - Snapshot export/import and restore workflow: about `76%`.
 - Read-only/private RPC and explorer/dashboard support: about `74%`.
-- Local smoke/regression coverage: about `83%`.
+- Local smoke/regression coverage: about `84%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -137,6 +137,27 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ wallet account-list checkpoint: `xriq-wallet accounts`
+  now replays the local file-backed private-devnet chain and returns a
+  deterministic transparent account list for wallet/operator inspection. It
+  supports text and `--format json`, emits `xriq-wallet-json-v1` with
+  `command: accounts`, account count, addresses, `balance_base_units`, and
+  nonces. It is private-devnet-only and does not print private keys, seed
+  phrases, or production custody material. The isolated transfer, replay, and
+  snapshot smoke now writes `wallet-accounts.json` after block production and
+  verifies Alice, Bob, and the deterministic fee sink balances. Local
+  verification passed
+  `cargo fmt --all --manifest-path xriq/Cargo.toml -- --check`, bundled Python
+  syntax compilation for `scripts/xriq_private_devnet_transfer_smoke.py`,
+  `cargo clippy -p xriq-wallet --manifest-path xriq/Cargo.toml -- -D warnings`,
+  `cargo test -p xriq-wallet --manifest-path xriq/Cargo.toml -j 1` with
+  `23 passed`, `cargo test -p xriq-node --manifest-path xriq/Cargo.toml -j 1`
+  with `51 passed`, and the isolated transfer smoke using
+  `CARGO_TARGET_DIR=target-codex-wallet-accounts-smoke`. The smoke artifact
+  directory was
+  `xriq/target/xriq-private-devnet-transfer-smoke-20260526T173327Z`. No Vast
+  sync, API/vLLM restart, training, OpenAI mentor call, or credential change
+  was used.
 - Latest native XRIQ wallet history checkpoint: `xriq-wallet history` now
   replays the local file-backed private-devnet chain and returns transparent
   account transaction history for a wallet address. It supports text and

@@ -8,8 +8,8 @@ use std::fmt;
 use xriq_core::{Address, AddressError, Hash32, SignatureBytes, Transaction, XriqAmount};
 use xriq_crypto::{test_only_signature_for_hash, transaction_hash, transaction_signing_hash};
 use xriq_node::{
-    private_devnet_file_account_detail_data, private_devnet_file_account_transactions_data,
-    private_devnet_file_transaction_detail_data,
+    private_devnet_file_account_detail_data, private_devnet_file_account_list_data,
+    private_devnet_file_account_transactions_data, private_devnet_file_transaction_detail_data,
     private_devnet_file_transaction_detail_with_pending_file_data, PrivateDevnetTransactionDetail,
 };
 
@@ -44,6 +44,19 @@ pub struct WalletBalance {
     pub address: Address,
     pub balance: XriqAmount,
     pub nonce: u64,
+    pub warning: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletAccountSummary {
+    pub address: Address,
+    pub balance: XriqAmount,
+    pub nonce: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletAccountList {
+    pub accounts: Vec<WalletAccountSummary>,
     pub warning: &'static str,
 }
 
@@ -95,6 +108,8 @@ pub enum WalletTransactionStatus {
 pub enum WalletOutput {
     Help(String),
     TestIdentity(TestIdentity),
+    AccountList(WalletAccountList),
+    AccountListJson(WalletAccountList),
     Balance(WalletBalance),
     BalanceJson(WalletBalance),
     AccountHistory(WalletAccountHistory),
@@ -164,6 +179,8 @@ impl fmt::Display for WalletOutput {
                 writeln!(formatter, "label={}", identity.label)?;
                 write!(formatter, "address={}", identity.address)
             }
+            Self::AccountList(list) => formatter.write_str(&render_accounts(list)),
+            Self::AccountListJson(list) => formatter.write_str(&render_accounts_json(list)),
             Self::Balance(balance) => {
                 writeln!(formatter, "warning={}", balance.warning)?;
                 writeln!(formatter, "address={}", balance.address)?;
@@ -227,6 +244,7 @@ pub fn help_text() -> String {
     [
         "xriq-wallet private-devnet commands:",
         "  xriq-wallet key generate --label <lowercase-label>",
+        "  xriq-wallet accounts --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-wallet balance --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet history --chain-file <path> --address <address> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-wallet tx status --chain-file <path> --tx-hash <64-hex> [--draft-file <path>|--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
@@ -250,6 +268,7 @@ where
         None => Err(WalletError::MissingCommand),
         Some("help" | "--help" | "-h") => Ok(WalletOutput::Help(help_text())),
         Some("key") => run_key_command(&args[1..]),
+        Some("accounts") => run_accounts_command(&args[1..]),
         Some("balance") => run_balance_command(&args[1..]),
         Some("history") => run_history_command(&args[1..]),
         Some("tx") => run_tx_command(&args[1..]),
@@ -316,6 +335,39 @@ fn run_tx_command(args: &[String]) -> Result<WalletOutput, WalletError> {
         Some(command) => Err(WalletError::UnknownCommand(format!("tx {command}"))),
         None => Err(WalletError::MissingCommand),
     }
+}
+
+fn run_accounts_command(args: &[String]) -> Result<WalletOutput, WalletError> {
+    let flags = FlagParser::parse(args)?;
+    flags.reject_unknown(&["--chain-file", "--alice-balance", "--limit", "--format"])?;
+    let output_format = WalletOutputFormat::parse(flags.optional("--format"))?;
+    let chain_file = flags.required("--chain-file")?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let limit = flags
+        .optional("--limit")
+        .map(|value| parse_usize("--limit", value))
+        .transpose()?
+        .unwrap_or(25);
+    let accounts = private_devnet_file_account_list_data(chain_file, alice_balance, limit)
+        .map_err(|error| WalletError::Node(error.to_string()))?
+        .into_iter()
+        .map(|account| WalletAccountSummary {
+            address: account.address,
+            balance: account.balance,
+            nonce: account.nonce,
+        })
+        .collect();
+    let list = WalletAccountList {
+        accounts,
+        warning: TEST_IDENTITY_WARNING,
+    };
+    Ok(match output_format {
+        WalletOutputFormat::Text => WalletOutput::AccountList(list),
+        WalletOutputFormat::Json => WalletOutput::AccountListJson(list),
+    })
 }
 
 fn run_balance_command(args: &[String]) -> Result<WalletOutput, WalletError> {
@@ -743,6 +795,68 @@ fn render_balance_json(balance: &WalletBalance) -> String {
     output
 }
 
+fn render_accounts(list: &WalletAccountList) -> String {
+    let mut output = String::new();
+    {
+        use fmt::Write;
+        writeln!(&mut output, "warning={}", list.warning).expect("write to String");
+        writeln!(&mut output, "account_count={}", list.accounts.len()).expect("write to String");
+        for account in &list.accounts {
+            writeln!(
+                &mut output,
+                "- {address} balance_base_units={balance} nonce={nonce}",
+                address = account.address,
+                balance = account.balance.base_units(),
+                nonce = account.nonce
+            )
+            .expect("write to String");
+        }
+    }
+    output
+}
+
+fn render_accounts_json(list: &WalletAccountList) -> String {
+    let mut output = String::new();
+    output.push_str("{\n");
+    output.push_str("  \"format_version\": \"xriq-wallet-json-v1\",\n");
+    output.push_str("  \"command\": \"accounts\",\n");
+    output.push_str("  \"warning\": ");
+    output.push_str(&json_string(list.warning));
+    output.push_str(",\n");
+    output.push_str("  \"account_count\": ");
+    output.push_str(&list.accounts.len().to_string());
+    output.push_str(",\n");
+    output.push_str("  \"accounts\": [\n");
+    for (index, account) in list.accounts.iter().enumerate() {
+        push_account_summary_json(&mut output, account, "    ");
+        if index + 1 != list.accounts.len() {
+            output.push(',');
+        }
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
+fn push_account_summary_json(output: &mut String, account: &WalletAccountSummary, indent: &str) {
+    output.push_str(indent);
+    output.push_str("{\n");
+    output.push_str(indent);
+    output.push_str("  \"address\": ");
+    output.push_str(&json_string(account.address.as_str()));
+    output.push_str(",\n");
+    output.push_str(indent);
+    output.push_str("  \"balance_base_units\": ");
+    output.push_str(&json_string(&account.balance.base_units().to_string()));
+    output.push_str(",\n");
+    output.push_str(indent);
+    output.push_str("  \"nonce\": ");
+    output.push_str(&account.nonce.to_string());
+    output.push('\n');
+    output.push_str(indent);
+    output.push('}');
+}
+
 fn render_history(history: &WalletAccountHistory) -> String {
     let mut output = String::new();
     {
@@ -983,6 +1097,10 @@ mod tests {
         Address::parse("xriqdev1bobbb00000000000").unwrap()
     }
 
+    fn fee_sink() -> Address {
+        Address::parse("xriqdev1fees000000000000").unwrap()
+    }
+
     fn temp_chain_path() -> std::path::PathBuf {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -1178,6 +1296,84 @@ mod tests {
         assert!(output.contains("\"address\": \"xriqdev1alice00000000000\""));
         assert!(output.contains("\"balance_base_units\": \"100\""));
         assert!(output.contains("\"nonce\": 0"));
+        assert!(!output.contains("private_key"));
+        assert!(!output.contains("seed"));
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn parses_accounts_command_for_confirmed_chain() {
+        let path = temp_chain_path();
+        let path_text = path.to_string_lossy().to_string();
+        produce_confirmed_transfer(&path);
+        let output = run_wallet_command([
+            "accounts",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--limit",
+            "10",
+        ])
+        .unwrap();
+
+        match output {
+            WalletOutput::AccountList(list) => {
+                assert_eq!(list.warning, TEST_IDENTITY_WARNING);
+                assert_eq!(list.accounts.len(), 3);
+                assert!(list.accounts.iter().any(|account| {
+                    account.address == alice()
+                        && account.balance == XriqAmount::from_base_units(73)
+                        && account.nonce == 1
+                }));
+                assert!(list.accounts.iter().any(|account| {
+                    account.address == bob()
+                        && account.balance == XriqAmount::from_base_units(25)
+                        && account.nonce == 0
+                }));
+                assert!(list.accounts.iter().any(|account| {
+                    account.address == fee_sink()
+                        && account.balance == XriqAmount::from_base_units(2)
+                        && account.nonce == 0
+                }));
+            }
+            other => panic!("unexpected wallet output: {other:?}"),
+        }
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn renders_accounts_json_for_confirmed_chain() {
+        let path = temp_chain_path();
+        let path_text = path.to_string_lossy().to_string();
+        produce_confirmed_transfer(&path);
+        let output = run_wallet_command([
+            "accounts",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--limit",
+            "10",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+
+        assert!(output.contains("\"format_version\": \"xriq-wallet-json-v1\""));
+        assert!(output.contains("\"command\": \"accounts\""));
+        assert!(output.contains("\"warning\": \"private-devnet-test-identity-only\""));
+        assert!(output.contains("\"account_count\": 3"));
+        assert!(output.contains("\"address\": \"xriqdev1alice00000000000\""));
+        assert!(output.contains("\"balance_base_units\": \"73\""));
+        assert!(output.contains("\"nonce\": 1"));
+        assert!(output.contains("\"address\": \"xriqdev1bobbb00000000000\""));
+        assert!(output.contains("\"balance_base_units\": \"25\""));
+        assert!(output.contains("\"address\": \"xriqdev1fees000000000000\""));
+        assert!(output.contains("\"balance_base_units\": \"2\""));
         assert!(!output.contains("private_key"));
         assert!(!output.contains("seed"));
 
