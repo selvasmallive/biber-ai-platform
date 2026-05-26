@@ -440,6 +440,10 @@ cargo run -p xriq-node -- snapshot-list \
   --limit 10 \
   --format json
 
+cargo run -p xriq-node -- snapshot-latest \
+  --snapshot-root target \
+  --format json
+
 cargo run -p xriq-node -- snapshot-detail \
   --snapshot-dir target/xriq-devnet-snapshot \
   --format json
@@ -459,10 +463,11 @@ cargo run -p xriq-node -- chain-check \
 The snapshot workflow copies `chain.bin`, optional `pending.tsv`, and
 `manifest.json` into a new snapshot directory. Import refuses to overwrite
 existing target files. `snapshot-list` scans one snapshot root for immediate
-child directories containing XRIQ snapshot manifests; `snapshot-detail` reads
-one snapshot manifest and reports the deterministic tip/status fields needed
-before restore. `snapshot-check` replays the snapshot chain/pending files and
-confirms they still match the manifest before restore. After import,
+child directories containing XRIQ snapshot manifests; `snapshot-latest` returns
+the first snapshot using the same deterministic ordering; `snapshot-detail`
+reads one snapshot manifest and reports the deterministic tip/status fields
+needed before restore. `snapshot-check` replays the snapshot chain/pending files
+and confirms they still match the manifest before restore. After import,
 `chain-check` replays the restored chain/pending files to verify the fresh
 targets before use. See
 `../docs/XRIQ_SNAPSHOT_EXPORT_IMPORT.md`.
@@ -512,6 +517,7 @@ GET /v1/accounts/{address}
 GET /v1/accounts/{address}/transactions?limit=5
 GET /v1/mempool
 GET /v1/snapshots?limit=5
+GET /v1/snapshots/latest
 GET /v1/snapshots/{snapshot-name}
 GET /v1/snapshots/{snapshot-name}/check
 POST /v1/mempool
@@ -558,10 +564,11 @@ The local runner can inspect the same durable pending state with
 
 When the server is started with `--snapshot-root <path>`,
 `GET /v1/snapshots?limit=<n>` lists immediate child snapshot directories under
-that root, `GET /v1/snapshots/{snapshot-name}` reads one snapshot manifest, and
-`GET /v1/snapshots/{snapshot-name}/check` replays the snapshot chain/pending
-files to verify them before restore. Snapshot names must be a single safe path
-segment.
+that root, `GET /v1/snapshots/latest` returns the same detail shape for the
+latest discovered snapshot, `GET /v1/snapshots/{snapshot-name}` reads one
+snapshot manifest, and `GET /v1/snapshots/{snapshot-name}/check` replays the
+snapshot chain/pending files to verify them before restore. Snapshot names must
+be a single safe path segment.
 
 `POST /v1/blocks` is available only through `serve-private --pending-file
 <path>`. It produces one private-devnet block from the durable pending file,

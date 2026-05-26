@@ -639,6 +639,14 @@ cargo run -p xriq-node -- snapshot-list \
   --format json
 ```
 
+Latest command:
+
+```bash
+cargo run -p xriq-node -- snapshot-latest \
+  --snapshot-root target \
+  --format json
+```
+
 Detail command:
 
 ```bash
@@ -658,7 +666,9 @@ cargo run -p xriq-node -- snapshot-check \
 
 `snapshot-list` scans only immediate child directories under `snapshot_root`
 that contain an XRIQ snapshot manifest. It sorts results deterministically by
-height descending, then snapshot name descending. `snapshot-detail` reads one
+height descending, then snapshot name descending. `snapshot-latest` returns the
+first entry using that same ordering and the same detail shape as
+`snapshot-detail`, with `command: snapshot-latest`. `snapshot-detail` reads one
 snapshot manifest and resolves `chain_file` and `pending_file` to paths inside
 that snapshot directory. `snapshot-check` replays the snapshot's chain file and
 optional pending file, then compares the replayed status with manifest fields.
@@ -668,12 +678,15 @@ started with `--snapshot-root <path>`:
 
 ```bash
 GET /v1/snapshots?limit=5
+GET /v1/snapshots/latest
 GET /v1/snapshots/{snapshot-name}
 GET /v1/snapshots/{snapshot-name}/check
 ```
 
-Snapshot names in the HTTP path must be one safe path segment. The `/check`
-route returns the same `snapshot-check` JSON shape as the CLI command.
+Snapshot names in the HTTP path must be one safe path segment.
+`/v1/snapshots/latest` returns the same `snapshot-latest` JSON shape as the CLI
+command. The `/check` route returns the same `snapshot-check` JSON shape as the
+CLI command.
 
 List shape:
 
@@ -722,6 +735,9 @@ Detail shape:
   "stored_blocks": 1
 }
 ```
+
+Latest shape is the same as detail shape, except `command` is
+`snapshot-latest`.
 
 Check shape:
 
@@ -1144,6 +1160,7 @@ Implemented read-only endpoints:
 - `GET /v1/accounts/{address}/transactions?limit=5`
 - `GET /v1/mempool`
 - `GET /v1/snapshots?limit=5` when `--snapshot-root <path>` is configured
+- `GET /v1/snapshots/latest` when `--snapshot-root <path>` is configured
 - `GET /v1/snapshots/{snapshot-name}` when `--snapshot-root <path>` is configured
 - `GET /v1/snapshots/{snapshot-name}/check` when `--snapshot-root <path>` is configured
 - `POST /v1/mempool` when `serve-private --pending-file <path>` is used

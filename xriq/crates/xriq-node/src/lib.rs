@@ -245,6 +245,7 @@ pub enum NodeRunnerError {
     SnapshotFileRead { path: String, error: String },
     SnapshotFileWrite { path: String, error: String },
     SnapshotTargetExists(String),
+    SnapshotNotFound(String),
     InvalidSnapshotManifest(String),
     InvalidPendingRecord(String),
     InvalidDraftLine(String),
@@ -546,6 +547,7 @@ impl fmt::Display for NodeRunnerError {
             Self::SnapshotTargetExists(path) => {
                 write!(formatter, "snapshot target already exists: {path}")
             }
+            Self::SnapshotNotFound(path) => write!(formatter, "snapshot not found: {path}"),
             Self::InvalidSnapshotManifest(message) => {
                 write!(formatter, "invalid snapshot manifest: {message}")
             }
@@ -613,6 +615,7 @@ impl NodeRunnerError {
             Self::SnapshotFileRead { .. } => "snapshot_file_read",
             Self::SnapshotFileWrite { .. } => "snapshot_file_write",
             Self::SnapshotTargetExists(_) => "snapshot_target_exists",
+            Self::SnapshotNotFound(_) => "snapshot_not_found",
             Self::InvalidSnapshotManifest(_) => "invalid_snapshot_manifest",
             Self::InvalidPendingRecord(_) => "invalid_pending_record",
             Self::InvalidDraftLine(_) => "invalid_draft_line",
@@ -654,6 +657,7 @@ pub fn node_help_text() -> String {
         "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-list --snapshot-root <path> [--limit <count>] [--format text|json]",
+        "  xriq-node snapshot-latest --snapshot-root <path> [--format text|json]",
         "  xriq-node snapshot-detail --snapshot-dir <path> [--format text|json]",
         "  xriq-node snapshot-check --snapshot-dir <path> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-export --chain-file <path> --snapshot-dir <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
@@ -739,6 +743,7 @@ where
         Some("mempool-detail") => run_mempool_detail_command(&args[1..]),
         Some("transaction-detail") => run_transaction_detail_command(&args[1..]),
         Some("snapshot-list") => run_snapshot_list_command(&args[1..]),
+        Some("snapshot-latest") => run_snapshot_latest_command(&args[1..]),
         Some("snapshot-detail") => run_snapshot_detail_command(&args[1..]),
         Some("snapshot-check") => run_snapshot_check_command(&args[1..]),
         Some("snapshot-export") => run_snapshot_export_command(&args[1..]),
@@ -867,6 +872,7 @@ pub fn private_devnet_http_response_with_body(
             runner_json_http_response(args)
         }
         "/v1/snapshots" => snapshot_list_http_response(config, query),
+        "/v1/snapshots/latest" => snapshot_latest_http_response(config),
         "/v1/blocks" => {
             let mut args = private_devnet_http_runner_args("block-list", config);
             if let Some(limit) = query_value(query, "limit") {
@@ -1396,6 +1402,35 @@ fn snapshot_list_http_response(
     }
 }
 
+fn snapshot_latest_http_response(
+    config: &PrivateDevnetHttpServerConfig,
+) -> PrivateDevnetHttpResponse {
+    let Some(snapshot_root) = &config.snapshot_root else {
+        return http_error_response(
+            501,
+            "not_implemented",
+            "snapshot discovery requires --snapshot-root",
+        );
+    };
+    match private_devnet_snapshot_latest_data(snapshot_root) {
+        Ok(snapshot) => http_json_response(
+            200,
+            render_snapshot_detail_json("snapshot-latest", &snapshot),
+        ),
+        Err(error) => http_json_response(
+            node_runner_error_http_status(&error),
+            render_node_runner_error_json(
+                &[
+                    "snapshot-latest".to_string(),
+                    "--format".to_string(),
+                    "json".to_string(),
+                ],
+                &error,
+            ),
+        ),
+    }
+}
+
 fn snapshot_detail_http_response(
     config: &PrivateDevnetHttpServerConfig,
     snapshot_name: &str,
@@ -1660,6 +1695,7 @@ fn node_runner_error_http_status(error: &NodeRunnerError) -> u16 {
             | ExplorerError::BlockNotFound
             | ExplorerError::TransactionNotFound,
         ) => 404,
+        NodeRunnerError::SnapshotNotFound(_) => 404,
         NodeRunnerError::SnapshotTargetExists(_) => 409,
         NodeRunnerError::InvalidSnapshotManifest(_) => 400,
         _ => 500,
@@ -2043,6 +2079,25 @@ pub fn private_devnet_snapshot_list_data(
     });
     snapshots.truncate(limit);
     Ok(snapshots)
+}
+
+pub fn private_devnet_snapshot_latest(
+    snapshot_root: impl AsRef<Path>,
+) -> Result<String, NodeRunnerError> {
+    let snapshot = private_devnet_snapshot_latest_data(snapshot_root)?;
+    Ok(render_snapshot_detail(&snapshot))
+}
+
+pub fn private_devnet_snapshot_latest_data(
+    snapshot_root: impl AsRef<Path>,
+) -> Result<PrivateDevnetSnapshotSummary, NodeRunnerError> {
+    let snapshot_root = snapshot_root.as_ref();
+    private_devnet_snapshot_list_data(snapshot_root, 1)?
+        .into_iter()
+        .next()
+        .ok_or_else(|| {
+            NodeRunnerError::SnapshotNotFound(snapshot_root.to_string_lossy().to_string())
+        })
 }
 
 pub fn private_devnet_snapshot_detail(
@@ -3028,6 +3083,22 @@ fn run_snapshot_list_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRu
                 Path::new(snapshot_root),
                 &snapshots,
             ))
+        }
+    })
+}
+
+fn run_snapshot_latest_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&["--snapshot-root", "--format"])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let snapshot_root = flags.required("--snapshot-root")?;
+    Ok(match output_format {
+        RunnerOutputFormat::Text => {
+            private_devnet_snapshot_latest(snapshot_root).map(NodeRunnerOutput::SnapshotDetail)?
+        }
+        RunnerOutputFormat::Json => {
+            let snapshot = private_devnet_snapshot_latest_data(snapshot_root)?;
+            NodeRunnerOutput::Json(render_snapshot_detail_json("snapshot-latest", &snapshot))
         }
     })
 }
@@ -7259,6 +7330,31 @@ mod tests {
         assert!(snapshot_list.contains("\"current_height\": 1"));
         assert!(snapshot_list.contains("\"pending_transactions\": 1"));
 
+        let snapshot_latest = run_node_command([
+            "snapshot-latest",
+            "--snapshot-root",
+            snapshot_root_text.as_str(),
+        ])
+        .unwrap()
+        .to_string();
+        assert!(snapshot_latest.contains("snapshot snapshot-a"));
+        assert!(snapshot_latest.contains("current_height=1"));
+        assert!(snapshot_latest.contains("pending_transactions=1"));
+
+        let snapshot_latest_json = run_node_command([
+            "snapshot-latest",
+            "--snapshot-root",
+            snapshot_root_text.as_str(),
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(snapshot_latest_json.contains("\"command\": \"snapshot-latest\""));
+        assert!(snapshot_latest_json.contains("\"snapshot_name\": \"snapshot-a\""));
+        assert!(snapshot_latest_json.contains("\"current_height\": 1"));
+        assert!(snapshot_latest_json.contains("\"pending_transactions\": 1"));
+
         let snapshot_detail =
             run_node_command(["snapshot-detail", "--snapshot-dir", snapshot_text.as_str()])
                 .unwrap()
@@ -7367,6 +7463,23 @@ mod tests {
         let _ = fs::remove_file(pending_path);
         let _ = fs::remove_file(imported_path);
         let _ = fs::remove_file(imported_pending_path);
+        let _ = fs::remove_dir_all(snapshot_root);
+    }
+
+    #[test]
+    fn node_runner_snapshot_latest_rejects_empty_snapshot_root() {
+        let snapshot_root = temp_snapshot_dir();
+        let snapshot_root_text = snapshot_root.to_string_lossy().to_string();
+        fs::create_dir_all(&snapshot_root).unwrap();
+
+        let error = run_node_command([
+            "snapshot-latest",
+            "--snapshot-root",
+            snapshot_root_text.as_str(),
+        ])
+        .unwrap_err();
+        assert!(matches!(error, NodeRunnerError::SnapshotNotFound(_)));
+
         let _ = fs::remove_dir_all(snapshot_root);
     }
 
@@ -8698,6 +8811,17 @@ mod tests {
             .body
             .contains("\"snapshot_name\": \"http-snapshot\""));
         assert!(snapshot_list.body.contains("\"current_height\": 3"));
+
+        let snapshot_latest =
+            private_devnet_http_response(&discovery_config, "GET", "/v1/snapshots/latest");
+        assert_eq!(snapshot_latest.status_code, 200);
+        assert!(snapshot_latest
+            .body
+            .contains("\"command\": \"snapshot-latest\""));
+        assert!(snapshot_latest
+            .body
+            .contains("\"snapshot_name\": \"http-snapshot\""));
+        assert!(snapshot_latest.body.contains("\"current_height\": 3"));
 
         let snapshot_detail =
             private_devnet_http_response(&discovery_config, "GET", "/v1/snapshots/http-snapshot");

@@ -546,6 +546,23 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_equal(first_snapshot, "snapshot_name", "snapshot", "snapshot list")
     require_equal(first_snapshot, "current_height", 1, "snapshot list")
 
+    snapshot_latest = run_node_json(
+        xriq_dir,
+        "snapshot-latest",
+        "--snapshot-root",
+        str(artifact_dir),
+    )
+    write_json(artifact_dir / "snapshot-latest.json", snapshot_latest)
+    require_equal(snapshot_latest, "command", "snapshot-latest", "snapshot latest")
+    require_equal(snapshot_latest, "snapshot_name", "snapshot", "snapshot latest")
+    require_equal(snapshot_latest, "current_height", 1, "snapshot latest")
+    require_equal(
+        snapshot_latest,
+        "state_root",
+        snapshot_export["state_root"],
+        "snapshot latest",
+    )
+
     snapshot_detail = run_node_json(
         xriq_dir,
         "snapshot-detail",
