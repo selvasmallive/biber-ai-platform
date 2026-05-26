@@ -121,6 +121,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     snapshot_dir = artifact_dir / "snapshot"
     imported_chain_file = artifact_dir / "imported-chain.bin"
     imported_pending_file = artifact_dir / "imported-pending.tsv"
+    wallet_flow_chain_file = artifact_dir / "wallet-flow-chain.bin"
+    wallet_flow_pending_file = artifact_dir / "wallet-flow-pending.tsv"
 
     wallet = run_wallet_json(
         xriq_dir,
@@ -610,6 +612,145 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_equal(imported_transaction, "status", "confirmed", "imported transaction")
     require_equal(imported_transaction, "block_height", 1, "imported transaction")
 
+    wallet_flow_transfer = run_wallet_json(
+        xriq_dir,
+        "transfer",
+        "--chain-id",
+        "xriq-devnet",
+        "--from",
+        ALICE,
+        "--to",
+        BOB,
+        "--amount",
+        args.amount,
+        "--fee",
+        args.fee,
+        "--nonce",
+        "auto",
+        "--chain-file",
+        str(wallet_flow_chain_file),
+        "--alice-balance",
+        args.alice_balance,
+        "--expires-at-height",
+        args.expires_at_height,
+    )
+    wallet_flow_transfer_file = artifact_dir / "wallet-flow-transfer.json"
+    write_json(wallet_flow_transfer_file, wallet_flow_transfer)
+    require_equal(
+        wallet_flow_transfer,
+        "format_version",
+        "xriq-node-transfer-submit-v1",
+        "wallet flow transfer",
+    )
+    require_equal(wallet_flow_transfer, "nonce", 0, "wallet flow transfer")
+    require_equal(wallet_flow_transfer, "amount_base_units", args.amount, "wallet flow transfer")
+
+    wallet_flow_submit = run_wallet_json(
+        xriq_dir,
+        "submit",
+        "--chain-file",
+        str(wallet_flow_chain_file),
+        "--pending-file",
+        str(wallet_flow_pending_file),
+        "--transfer-file",
+        str(wallet_flow_transfer_file),
+        "--alice-balance",
+        args.alice_balance,
+    )
+    write_json(artifact_dir / "wallet-flow-submit-pending.json", wallet_flow_submit)
+    require_equal(wallet_flow_submit, "command", "submit-pending", "wallet flow submit")
+    require_equal(wallet_flow_submit, "status", "pending", "wallet flow submit")
+    wallet_flow_tx_hash = require_transaction_hash(wallet_flow_submit, "wallet flow submit")
+
+    wallet_flow_pending_before = run_wallet_json(
+        xriq_dir,
+        "pending",
+        "--chain-file",
+        str(wallet_flow_chain_file),
+        "--pending-file",
+        str(wallet_flow_pending_file),
+        "--alice-balance",
+        args.alice_balance,
+    )
+    write_json(artifact_dir / "wallet-flow-pending-before-block.json", wallet_flow_pending_before)
+    require_equal(wallet_flow_pending_before, "pending_count", 1, "wallet flow pending before")
+    wallet_flow_pending_transactions = wallet_flow_pending_before.get("transactions")
+    if (
+        not isinstance(wallet_flow_pending_transactions, list)
+        or len(wallet_flow_pending_transactions) != 1
+    ):
+        raise SmokeError("wallet flow pending before: expected one pending transaction")
+    wallet_flow_pending_transaction = wallet_flow_pending_transactions[0]
+    if not isinstance(wallet_flow_pending_transaction, dict):
+        raise SmokeError("wallet flow pending before: expected transaction object")
+    require_equal(
+        wallet_flow_pending_transaction,
+        "tx_hash",
+        wallet_flow_tx_hash,
+        "wallet flow pending before",
+    )
+
+    wallet_flow_produced = run_node_json(
+        xriq_dir,
+        "produce-pending-block",
+        "--chain-file",
+        str(wallet_flow_chain_file),
+        "--pending-file",
+        str(wallet_flow_pending_file),
+        "--alice-balance",
+        args.alice_balance,
+        "--timestamp-ms",
+        args.timestamp_ms,
+    )
+    write_json(artifact_dir / "wallet-flow-produced-pending-block.json", wallet_flow_produced)
+    require_equal(
+        wallet_flow_produced,
+        "command",
+        "produce-pending-block",
+        "wallet flow produce",
+    )
+    require_equal(wallet_flow_produced, "current_height", 1, "wallet flow produce")
+    require_equal(wallet_flow_produced, "applied_transactions", 1, "wallet flow produce")
+    require_equal(wallet_flow_produced, "pending_transactions", 0, "wallet flow produce")
+    included_hashes = wallet_flow_produced.get("included_transaction_hashes")
+    if included_hashes != [wallet_flow_tx_hash]:
+        raise SmokeError(
+            "wallet flow produce: expected included transaction hash "
+            f"{wallet_flow_tx_hash!r}, got {included_hashes!r}"
+        )
+    if wallet_flow_pending_file.exists() and wallet_flow_pending_file.stat().st_size != 0:
+        raise SmokeError(f"wallet flow pending file was not compacted: {wallet_flow_pending_file}")
+
+    wallet_flow_pending_after = run_wallet_json(
+        xriq_dir,
+        "pending",
+        "--chain-file",
+        str(wallet_flow_chain_file),
+        "--pending-file",
+        str(wallet_flow_pending_file),
+        "--alice-balance",
+        args.alice_balance,
+    )
+    write_json(artifact_dir / "wallet-flow-pending-after-block.json", wallet_flow_pending_after)
+    require_equal(wallet_flow_pending_after, "pending_count", 0, "wallet flow pending after")
+
+    wallet_flow_confirmed = run_wallet_json(
+        xriq_dir,
+        "tx",
+        "status",
+        "--chain-file",
+        str(wallet_flow_chain_file),
+        "--alice-balance",
+        args.alice_balance,
+        "--tx-hash",
+        wallet_flow_tx_hash,
+    )
+    write_json(artifact_dir / "wallet-flow-tx-status-confirmed.json", wallet_flow_confirmed)
+    require_equal(wallet_flow_confirmed, "status", "confirmed", "wallet flow confirmed")
+    require_equal(wallet_flow_confirmed, "tx_hash", wallet_flow_tx_hash, "wallet flow confirmed")
+    require_equal(wallet_flow_confirmed, "block_height", 1, "wallet flow confirmed")
+    require_equal(wallet_flow_confirmed, "amount_base_units", args.amount, "wallet flow confirmed")
+
     summary = {
         "ok": "xriq-private-devnet-transfer-smoke",
         "artifact_dir": str(artifact_dir),
@@ -617,7 +758,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "pending_file": str(pending_file),
         "snapshot_dir": str(snapshot_dir),
         "imported_chain_file": str(imported_chain_file),
+        "wallet_flow_chain_file": str(wallet_flow_chain_file),
         "transaction_hash": tx_hash,
+        "wallet_flow_transaction_hash": wallet_flow_tx_hash,
         "block_height": 1,
         "alice_balance_base_units": alice["balance_base_units"],
         "bob_balance_base_units": bob["balance_base_units"],

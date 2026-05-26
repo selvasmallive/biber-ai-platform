@@ -160,6 +160,43 @@ cargo run -p xriq-node -- produce-pending-block \
   --timestamp-ms 1000
 ```
 
+Private-devnet wallet pending-to-block lifecycle:
+
+```bash
+cargo run -p xriq-wallet -- transfer \
+  --chain-id xriq-devnet \
+  --from xriqdev1alice00000000000 \
+  --to xriqdev1bobbb00000000000 \
+  --amount 25 \
+  --fee 2 \
+  --nonce auto \
+  --chain-file target/xriq-devnet-chain.bin \
+  --alice-balance 100 \
+  --expires-at-height 100 \
+  --format json \
+  > target/xriq-wallet-transfer-submit.json
+
+cargo run -p xriq-wallet -- submit \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --transfer-file target/xriq-wallet-transfer-submit.json \
+  --alice-balance 100 \
+  --format json
+
+cargo run -p xriq-node -- produce-pending-block \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --alice-balance 100 \
+  --timestamp-ms 1000 \
+  --format json
+
+cargo run -p xriq-wallet -- tx status \
+  --chain-file target/xriq-devnet-chain.bin \
+  --tx-hash <hash-from-wallet-submit> \
+  --alice-balance 100 \
+  --format json
+```
+
 Private-devnet client preflight transfer smoke:
 
 ```bash
@@ -314,7 +351,9 @@ transaction/block/account detail, verifies `xriq-wallet accounts`,
 `xriq-wallet submit` plus `xriq-wallet pending` against a separate durable
 pending file, exports and imports a snapshot, verifies snapshot
 list/detail/check flows, runs `chain-check` against the restored snapshot
-targets, and leaves any live/restored BIBER API chain files untouched.
+targets, then runs a separate wallet pending-to-block lifecycle through
+`xriq-node produce-pending-block`, and leaves any live/restored BIBER API chain
+files untouched.
 
 Windows-friendly local HTTP/RPC smoke from the repo root:
 

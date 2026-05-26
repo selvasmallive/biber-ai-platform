@@ -840,7 +840,10 @@ As of 2026-05-17:
     HTTP pending state, durable
     pending-block production, client preflight transfer flow, explorer
     overview, block detail, account list/detail, transaction-list behavior, and
-    snapshot list/detail/check flows against persisted chain files, and
+    snapshot list/detail/check flows against persisted chain files, plus a
+    separate wallet pending-to-block lifecycle from wallet transfer JSON through
+    durable pending submission, pending inspection, pending-block production,
+    and confirmed wallet transaction status, and
     persists representative JSON response examples beside the smoke artifacts
     for future BIBER agents and HTTP/RPC adapters
   - node transaction submission
