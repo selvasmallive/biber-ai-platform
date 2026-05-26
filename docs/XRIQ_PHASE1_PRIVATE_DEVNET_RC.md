@@ -1,6 +1,8 @@
 # XRIQ Phase 1 Private-Devnet Release Candidate Checklist
 
 Status: Phase 1 readiness checklist for the local/private XRIQ prototype.
+RC1 tag status: `phase1-xriq-private-devnet-rc1` was created and pushed after
+explicit user approval at commit `688bf913`.
 
 This document is the go/no-go checklist for calling **Phase 1: XRIQ
 private-devnet prototype** complete. It does not approve public XRIQ launch,
@@ -136,8 +138,8 @@ These are not Phase 1 blockers because they belong to later phases:
 
 ## Phase 1 Exit Note
 
-After this checklist passes and is committed, the next recommended checkpoint is
-a `phase1-xriq-private-devnet-rc1` Git tag on the passing commit. Do not create
-that tag until the readiness checker passes with `--require-clean-git
---require-origin-main --require-rc-tag-available` and the user explicitly
-agrees that the private-devnet prototype is ready to be marked as an RC.
+The `phase1-xriq-private-devnet-rc1` Git tag has been created and pushed. Do
+not recreate, move, or overwrite that tag unless the user explicitly requests a
+corrective tag operation and understands the release-history risk. If future
+post-RC work needs another release candidate, use a new deliberate tag such as
+RC2 instead of moving RC1.

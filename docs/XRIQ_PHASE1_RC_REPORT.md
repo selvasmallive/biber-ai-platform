@@ -1,6 +1,8 @@
 # XRIQ Phase 1 RC Report
 
 Status: release-candidate decision packet for the local/private XRIQ prototype.
+RC1 tag status: `phase1-xriq-private-devnet-rc1` was created and pushed after
+explicit user approval at commit `688bf913`.
 
 This report summarizes the current Phase 1 private-devnet state for a human
 decision about whether to create the `phase1-xriq-private-devnet-rc1` Git tag.
@@ -93,14 +95,15 @@ This Phase 1 candidate does not include:
 
 ## Tag Decision
 
-Only after the readiness checker passes with `--require-clean-git
---require-origin-main --require-rc-tag-available`, ask the user for explicit
-approval to create:
+The readiness checker passed with `--require-clean-git --require-origin-main
+--require-rc-tag-available`, the user explicitly approved RC1, and the tag was
+created:
 
 ```text
 phase1-xriq-private-devnet-rc1
 ```
 
-Do not create or push that tag from a general "continue" request. The approval
-must clearly say that the user approves marking the XRIQ private-devnet
-prototype as Phase 1 RC1.
+Do not create or push that tag from a general "continue" request. Do not
+recreate, move, or overwrite the tag unless the user explicitly requests a
+corrective tag operation and understands the release-history risk. Future
+post-RC release candidates should use a new deliberate tag such as RC2.

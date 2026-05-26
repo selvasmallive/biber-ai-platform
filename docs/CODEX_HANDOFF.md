@@ -110,15 +110,16 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `97%`.
+- Phase 1 estimated completion: `100%` for the approved private-devnet RC1
+  scope.
 - Rust workspace/crate structure: about `86%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `87%`.
 - File-backed node runner and deterministic replay: about `76%`.
 - Snapshot export/import and restore workflow: about `80%`.
 - Read-only/private RPC and explorer/dashboard support: about `76%`.
-- Local smoke/regression coverage: about `97%`.
-- Phase 1 release/readiness documentation: about `97%`.
+- Local smoke/regression coverage: about `100%` for the RC1 gate.
+- Phase 1 release/readiness documentation: about `100%` for RC1.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -138,6 +139,24 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1 RC1 tag checkpoint: the user explicitly approved
+  marking XRIQ private-devnet Phase 1 as RC1 and creating/pushing the
+  `phase1-xriq-private-devnet-rc1` tag. Before tagging, the strict readiness
+  gate passed with
+  `python scripts/xriq_phase1_rc_readiness.py --require-clean-git
+  --require-origin-main --require-rc-tag-available`, reporting
+  `ready_for_rc_tag: true`, `origin_main_matches_head: true`, and
+  `rc_tag_available: true`. The annotated Git tag
+  `phase1-xriq-private-devnet-rc1` was created and pushed to GitHub. It points
+  to commit `688bf913a0ba8e86ddf3a6a8c0951ee57a128731` (`688bf913`), whose
+  latest full local validation artifact is
+  `xriq/target/xriq-phase1-local-check-20260526T164037/summary.json`.
+  Phase 1 private-devnet RC1 is now complete from the source-control/readiness
+  perspective. A later handoff-only commit may leave `main` ahead of this tag;
+  that is expected and does not move the RC1 release point. Do not recreate or
+  move this tag unless the user explicitly asks for a corrective tag operation
+  and understands the release-history risk. No Vast sync, API/vLLM restart,
+  training, OpenAI mentor call, or credential change was used.
 - Latest native XRIQ Phase 1 RC tag-availability checkpoint: tightened
   `scripts/xriq_phase1_rc_readiness.py` with
   `--require-rc-tag-available`, which verifies
@@ -8569,22 +8588,18 @@ Active Phase 1 override as of 2026-05-26: while the user is asking to continue
 the current project, treat "the project" as XRIQ private-devnet Phase 1 only.
 Do not follow BIBER MVP, Vast, adapter, runtime-profile, model-training, or
 candidate-promotion steps in this section unless the user explicitly resumes
-Phase 2. The current low-cost Phase 1 next step is to keep tightening
-private-devnet readiness with small local Rust checkpoints, using
+Phase 2. Phase 1 private-devnet RC1 has now been approved, tagged, and pushed
+as `phase1-xriq-private-devnet-rc1` at commit `688bf913`. Do not recreate or
+move the RC1 tag unless the user explicitly requests a corrective tag operation.
+The pre-tag command with `--require-rc-tag-available` should now report that
+the RC1 tag already exists; that is expected after a successful tag. For any
+post-RC Phase 1 patch, keep using
 `python scripts/xriq_phase1_local_check.py` as the one-command CPU-only
 verification gate before handoff/commit/push. Use
-`python scripts/xriq_phase1_rc_readiness.py --require-clean-git
---require-origin-main --require-rc-tag-available` after the checkpoint
-commit/push to confirm the latest validation artifact, docs, pushed
-`origin/main` state, and unused RC tag name are tag-ready. Use
 `docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md` as the go/no-go checklist for deciding
-when Phase 1 is ready to mark as a release candidate. Use
-`docs/XRIQ_PHASE1_RC_REPORT.md` as the human-readable decision packet before
-asking for tag approval. Useful remaining Phase 1 targets are: run the final
-readiness checker after commit/push, ask the user whether to mark Phase 1 as an
-RC, and only then create the
-`phase1-xriq-private-devnet-rc1` tag if explicitly approved. Public XRIQ and
-BIBER MVP remain deferred.
+whether a future post-RC patch should become a new tag such as RC2; if RC2 is
+needed, add a deliberate RC2 readiness/tag step instead of moving RC1. Public
+XRIQ and BIBER MVP remain deferred unless the user explicitly starts Phase 2.
 
 Historical Phase 2/BIBER notes remain below for later reference only. Ignore
 any "current immediate next step" language below while Phase 1 override remains
