@@ -95,18 +95,19 @@ curl http://127.0.0.1:8787/v1/snapshots/xriq-devnet-snapshot
 After import, verify:
 
 ```bash
-cargo run -p xriq-node -- status \
+cargo run -p xriq-node -- chain-check \
   --chain-file target/xriq-devnet-restored-chain.bin \
+  --pending-file target/xriq-devnet-restored-pending.tsv \
   --alice-balance 100 \
   --format json
 ```
 
-If a pending file was restored, also verify:
+This replays the restored chain and validates any restored pending records.
+For a read-only status view without pending validation, use:
 
 ```bash
-cargo run -p xriq-node -- mempool-detail \
+cargo run -p xriq-node -- status \
   --chain-file target/xriq-devnet-restored-chain.bin \
-  --pending-file target/xriq-devnet-restored-pending.tsv \
   --alice-balance 100 \
   --format json
 ```

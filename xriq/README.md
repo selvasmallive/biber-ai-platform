@@ -231,8 +231,8 @@ python scripts/xriq_private_devnet_transfer_smoke.py
 This uses only Python stdlib plus Cargo/Rust. It creates a fresh artifact
 directory under `xriq/target/`, performs one private-devnet transfer, verifies
 transaction/block/account detail, exports/imports a snapshot, verifies snapshot
-list/detail/check flows, and leaves any live/restored BIBER API chain files
-untouched.
+list/detail/check flows, runs `chain-check` against the restored snapshot
+targets, and leaves any live/restored BIBER API chain files untouched.
 
 Windows-friendly local HTTP/RPC smoke from the repo root:
 
@@ -288,6 +288,12 @@ cargo run -p xriq-node -- snapshot-check \
   --snapshot-dir target/xriq-devnet-snapshot \
   --alice-balance 100 \
   --format json
+
+cargo run -p xriq-node -- chain-check \
+  --chain-file target/xriq-devnet-restored-chain.bin \
+  --pending-file target/xriq-devnet-restored-pending.tsv \
+  --alice-balance 100 \
+  --format json
 ```
 
 The snapshot workflow copies `chain.bin`, optional `pending.tsv`, and
@@ -296,7 +302,9 @@ existing target files. `snapshot-list` scans one snapshot root for immediate
 child directories containing XRIQ snapshot manifests; `snapshot-detail` reads
 one snapshot manifest and reports the deterministic tip/status fields needed
 before restore. `snapshot-check` replays the snapshot chain/pending files and
-confirms they still match the manifest before restore. See
+confirms they still match the manifest before restore. After import,
+`chain-check` replays the restored chain/pending files to verify the fresh
+targets before use. See
 `../docs/XRIQ_SNAPSHOT_EXPORT_IMPORT.md`.
 
 Checked private-devnet JSON fixtures live in `fixtures/private-devnet/`.

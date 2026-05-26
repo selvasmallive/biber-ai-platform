@@ -542,7 +542,9 @@ Shape:
 ```
 
 For import, `command` is `snapshot-import` and `chain_file`/`pending_file`
-refer to the server's configured target files.
+refer to the server's configured target files. After import, run `chain-check`
+against the restored chain and pending files; its `verified: true` response is
+the post-restore replay contract.
 
 ## Snapshot Discovery
 

@@ -351,6 +351,38 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     )
     require_equal(snapshot_import, "state_root", snapshot_export["state_root"], "snapshot import")
 
+    imported_chain_check = run_node_json(
+        xriq_dir,
+        "chain-check",
+        "--chain-file",
+        str(imported_chain_file),
+        "--pending-file",
+        str(imported_pending_file),
+        "--alice-balance",
+        args.alice_balance,
+    )
+    write_json(artifact_dir / "imported-chain-check.json", imported_chain_check)
+    require_equal(imported_chain_check, "command", "chain-check", "imported chain check")
+    require_equal(imported_chain_check, "verified", True, "imported chain check")
+    require_equal(
+        imported_chain_check,
+        "current_height",
+        snapshot_export["current_height"],
+        "imported chain check",
+    )
+    require_equal(
+        imported_chain_check,
+        "state_root",
+        snapshot_export["state_root"],
+        "imported chain check",
+    )
+    require_equal(
+        imported_chain_check,
+        "pending_transactions",
+        snapshot_export["pending_transactions"],
+        "imported chain check",
+    )
+
     imported_transaction = run_node_json(
         xriq_dir,
         "transaction-detail",

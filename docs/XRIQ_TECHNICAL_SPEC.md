@@ -868,6 +868,8 @@ As of 2026-05-17:
     snapshot-check`; discovery reads local snapshot manifests under an
     operator-provided root, and check replays the snapshot files to compare the
     deterministic tip/status fields before restore
+  - post-restore snapshot regression through `xriq-node chain-check`, which
+    replays imported chain and pending files before restored targets are used
 - Implemented private-devnet wallet CLI baseline:
   - deterministic test identity generation from labels
   - transfer draft construction

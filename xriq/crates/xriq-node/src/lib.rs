@@ -7270,6 +7270,24 @@ mod tests {
         assert!(import_json.contains("\"current_height\": 1"));
         assert!(import_json.contains("\"pending_transactions\": 1"));
 
+        let imported_chain_check = run_node_command([
+            "chain-check",
+            "--chain-file",
+            imported_text.as_str(),
+            "--pending-file",
+            imported_pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(imported_chain_check.contains("\"command\": \"chain-check\""));
+        assert!(imported_chain_check.contains("\"verified\": true"));
+        assert!(imported_chain_check.contains("\"current_height\": 1"));
+        assert!(imported_chain_check.contains("\"pending_transactions\": 1"));
+
         let imported_mempool = run_node_command([
             "mempool-detail",
             "--chain-file",
