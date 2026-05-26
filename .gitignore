@@ -10,6 +10,8 @@ __pycache__/
 .venv/
 venv/
 target/
+target-codex*/
+**/target-codex*/
 
 *.log
 *.tmp

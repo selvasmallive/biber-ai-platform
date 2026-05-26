@@ -825,6 +825,7 @@ As of 2026-05-17:
 - Implemented private-devnet wallet CLI baseline:
   - deterministic test identity generation from labels
   - transfer draft construction
+  - deterministic transaction-hash output for local status lookup
   - hash-bound test-only signatures through `xriq-crypto`
   - no real private-key, seed-phrase, or production custody support
 - Implemented private-devnet explorer baseline:

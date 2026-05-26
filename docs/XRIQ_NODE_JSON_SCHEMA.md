@@ -275,6 +275,7 @@ amount=25
 fee=2
 nonce=0
 expires_at_height=100
+transaction_hash=64-hex-character-transaction-hash
 signature_bytes=48
 ```
 
@@ -292,6 +293,7 @@ Example JSON request body:
   "fee_base_units": "2",
   "nonce": 0,
   "expires_at_height": 100,
+  "transaction_hash": "64-hex-character-transaction-hash",
   "signature_bytes": 48
 }
 ```
@@ -300,8 +302,9 @@ JSON notes:
 
 - `amount_base_units` and `fee_base_units` may be strings or integer numbers.
 - `expires_at_height` may be an integer, string, `null`, or omitted.
-- `warning` and `signature_bytes` are metadata emitted by the private-devnet
-  wallet for operator safety and are ignored by the submit helper.
+- `warning`, `transaction_hash`, and `signature_bytes` are metadata emitted by
+  the private-devnet wallet for operator safety/status lookup and are ignored by
+  the submit helper; the node recomputes the canonical transaction hash.
 - `timestamp_ms` and `consensus_round` are optional private-devnet block
   production helpers and default to `1000` and `0`.
 - The server reconstructs the current test-only private-devnet signature path;

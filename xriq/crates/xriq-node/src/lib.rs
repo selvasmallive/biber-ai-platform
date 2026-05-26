@@ -3077,6 +3077,7 @@ fn is_allowed_draft_field(field: &str) -> bool {
             | "fee"
             | "nonce"
             | "expires_at_height"
+            | "transaction_hash"
             | "signature_bytes"
     )
 }
@@ -3370,6 +3371,7 @@ fn is_allowed_transaction_json_field(field: &str) -> bool {
             | "fee"
             | "nonce"
             | "expires_at_height"
+            | "transaction_hash"
             | "timestamp_ms"
             | "consensus_round"
             | "signature_bytes"

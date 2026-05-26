@@ -6,7 +6,7 @@
 use std::fmt;
 
 use xriq_core::{Address, AddressError, SignatureBytes, Transaction, XriqAmount};
-use xriq_crypto::{test_only_signature_for_hash, transaction_signing_hash};
+use xriq_crypto::{test_only_signature_for_hash, transaction_hash, transaction_signing_hash};
 
 const TEST_IDENTITY_WARNING: &str = "private-devnet-test-identity-only";
 
@@ -108,6 +108,11 @@ impl fmt::Display for WalletOutput {
                     Some(height) => writeln!(formatter, "expires_at_height={height}")?,
                     None => writeln!(formatter, "expires_at_height=")?,
                 }
+                writeln!(
+                    formatter,
+                    "transaction_hash={}",
+                    hash_hex(transaction_hash(tx))
+                )?;
                 write!(
                     formatter,
                     "signature_bytes={}",
@@ -312,6 +317,9 @@ fn render_transfer_submit_json(draft: &TransferDraft) -> String {
     output.push_str("  \"expires_at_height\": ");
     output.push_str(&json_optional_u64(tx.expires_at_height));
     output.push_str(",\n");
+    output.push_str("  \"transaction_hash\": ");
+    output.push_str(&json_string(&hash_hex(transaction_hash(tx))));
+    output.push_str(",\n");
     output.push_str("  \"signature_bytes\": ");
     output.push_str(&tx.signature.as_slice().len().to_string());
     output.push_str("\n}");
@@ -345,6 +353,15 @@ fn json_string(value: &str) -> String {
         }
     }
     output.push('"');
+    output
+}
+
+fn hash_hex(hash: xriq_core::Hash32) -> String {
+    let mut output = String::with_capacity(64);
+    for byte in hash.as_bytes() {
+        use fmt::Write;
+        write!(&mut output, "{byte:02x}").expect("writing to String cannot fail");
+    }
     output
 }
 
@@ -560,6 +577,7 @@ mod tests {
         assert!(json.contains("\"fee_base_units\": \"2\""));
         assert!(json.contains("\"nonce\": 7"));
         assert!(json.contains("\"expires_at_height\": 100"));
+        assert!(json.contains("\"transaction_hash\":"));
         assert!(json.contains("\"signature_bytes\":"));
         assert!(!json.contains("private_key"));
         assert!(!json.contains("seed"));
@@ -688,6 +706,7 @@ mod tests {
         .to_string();
 
         assert!(output.contains("warning=private-devnet-test-identity-only"));
+        assert!(output.contains("transaction_hash="));
         assert!(output.contains("signature_bytes="));
         assert!(!output.contains("private_key"));
         assert!(!output.contains("seed"));

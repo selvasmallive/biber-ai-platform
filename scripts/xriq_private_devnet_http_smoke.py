@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -34,7 +35,14 @@ def default_artifact_dir(root: Path) -> Path:
 
 def executable_path(xriq_dir: Path, name: str) -> Path:
     suffix = ".exe" if sys.platform.startswith("win") else ""
-    return xriq_dir / "target" / "debug" / f"{name}{suffix}"
+    target_dir = os.environ.get("CARGO_TARGET_DIR")
+    if target_dir:
+        target_path = Path(target_dir)
+        if not target_path.is_absolute():
+            target_path = xriq_dir / target_path
+    else:
+        target_path = xriq_dir / "target"
+    return target_path / "debug" / f"{name}{suffix}"
 
 
 def run_command(cwd: Path, *args: str) -> str:
@@ -284,6 +292,13 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             transfer_body + "\n",
             encoding="utf-8",
         )
+        try:
+            wallet_payload = json.loads(transfer_body)
+        except json.JSONDecodeError as exc:
+            raise SmokeError(f"wallet transfer JSON was invalid: {exc}") from exc
+        if not isinstance(wallet_payload, dict):
+            raise SmokeError("wallet transfer JSON was not an object")
+        wallet_tx_hash = require_transaction_hash(wallet_payload, "wallet transfer")
         pending_submit = http_json(
             base_url,
             "POST",
@@ -294,6 +309,11 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         write_json(artifact_dir / "pending-submit.json", pending_submit)
         require_equal(pending_submit, "status", "pending", "pending submit")
         tx_hash = require_transaction_hash(pending_submit, "pending submit")
+        if tx_hash != wallet_tx_hash:
+            raise SmokeError(
+                "pending submit: wallet transaction_hash did not match node tx_hash "
+                f"({wallet_tx_hash} != {tx_hash})"
+            )
 
         pending_mempool = http_json(base_url, "GET", "/v1/mempool")
         write_json(artifact_dir / "pending-mempool.json", pending_mempool)

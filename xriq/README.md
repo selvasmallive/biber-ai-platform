@@ -341,9 +341,14 @@ API. The JSON body can be produced by `xriq-wallet transfer --format json`.
   "fee_base_units": "2",
   "nonce": 0,
   "expires_at_height": 100,
+  "transaction_hash": "64-hex-character-transaction-hash",
   "signature_bytes": 48
 }
 ```
+
+`transaction_hash` is emitted by the private-devnet wallet so local operators
+can immediately query `GET /v1/transactions/{hash}` after submission. The node
+still recomputes the canonical transaction hash during validation.
 
 Keep generated chain data, node databases, wallets, and testnet artifacts out of
 Git.

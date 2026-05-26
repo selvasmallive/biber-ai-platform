@@ -9,5 +9,6 @@
   "fee_base_units": "2",
   "nonce": 0,
   "expires_at_height": 100,
+  "transaction_hash": "fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565",
   "signature_bytes": 60
 }

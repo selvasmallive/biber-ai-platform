@@ -110,14 +110,14 @@ Use this 2026-05-25 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `64%`.
+- Phase 1 estimated completion: about `65%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
-- Wallet transfer draft/submit flow: about `65%`.
+- Wallet transfer draft/submit flow: about `67%`.
 - File-backed node runner and deterministic replay: about `70%`.
 - Snapshot export/import and restore workflow: about `68%`.
 - Read-only/private RPC and explorer/dashboard support: about `63%`.
-- Local smoke/regression coverage: about `66%`.
+- Local smoke/regression coverage: about `67%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -209,6 +209,24 @@ not an active target because the GPU was terminated to save cost.
   `scripts/xriq_private_devnet_http_smoke.py`, and the local HTTP smoke using
   the bundled Python runtime. No Vast sync, API/vLLM restart, training, OpenAI
   mentor call, or credential change was used.
+- Latest native XRIQ wallet transaction-hash checkpoint: `xriq-wallet transfer`
+  now emits deterministic `transaction_hash` metadata in both text draft and
+  `xriq-node-transfer-submit-v1` JSON output. `xriq-node` accepts this field as
+  wallet metadata while still recomputing the canonical transaction hash during
+  submit/pending validation. The local HTTP smoke now parses the wallet JSON and
+  verifies the wallet-emitted `transaction_hash` matches the node returned
+  pending `tx_hash`. The HTTP smoke binary lookup now honors
+  `CARGO_TARGET_DIR`, and `.gitignore` ignores local `target-codex*/`
+  directories so isolated Windows Cargo runs do not pollute git status. Local
+  verification passed `cargo fmt ... -- --check`,
+  wallet tests with `13 passed`, node tests with `51 passed`, bundled Python
+  syntax compilation for `scripts/xriq_private_devnet_http_smoke.py`, and the
+  local HTTP smoke using
+  `CARGO_TARGET_DIR=target-codex-wallet-hash-smoke2`. The first alternate
+  target-dir smoke attempt before the script fix mixed a new wallet binary with
+  the stale default node binary and returned `unknown_json_field:
+  transaction_hash`; rerunning after the script fix passed. No Vast sync,
+  API/vLLM restart, training, OpenAI mentor call, or credential change was used.
 - Latest XRIQ-only focus checkpoint: the user narrowed the active project goal
   to completing the XRIQ private-devnet prototype first. A narrow usability
   step extended `scripts/biber_xriq_private_devnet_client.py` beyond read-only
