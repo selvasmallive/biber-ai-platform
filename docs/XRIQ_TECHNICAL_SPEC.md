@@ -876,6 +876,8 @@ As of 2026-05-17:
   - deterministic test identity generation from labels
   - file-backed local `xriq-wallet balance` lookup for account balance and
     nonce inspection
+  - file-backed local `xriq-wallet tx status` lookup for confirmed transaction
+    status inspection
   - transfer draft construction
   - deterministic transaction-hash output for local status lookup
   - hash-bound test-only signatures through `xriq-crypto`

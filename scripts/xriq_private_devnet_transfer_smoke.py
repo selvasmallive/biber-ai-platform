@@ -204,6 +204,24 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_equal(transaction, "block_height", 1, "transaction")
     require_equal(transaction, "amount_base_units", args.amount, "transaction")
 
+    wallet_tx_status = run_wallet_json(
+        xriq_dir,
+        "tx",
+        "status",
+        "--chain-file",
+        str(chain_file),
+        "--alice-balance",
+        args.alice_balance,
+        "--tx-hash",
+        tx_hash,
+    )
+    write_json(artifact_dir / "wallet-tx-status.json", wallet_tx_status)
+    require_equal(wallet_tx_status, "command", "tx-status", "wallet tx status")
+    require_equal(wallet_tx_status, "status", "confirmed", "wallet tx status")
+    require_equal(wallet_tx_status, "tx_hash", tx_hash, "wallet tx status")
+    require_equal(wallet_tx_status, "block_height", 1, "wallet tx status")
+    require_equal(wallet_tx_status, "amount_base_units", args.amount, "wallet tx status")
+
     block = run_node_json(
         xriq_dir,
         "block-detail",

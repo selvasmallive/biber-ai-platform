@@ -224,7 +224,17 @@ cargo run -p xriq-wallet -- balance \
   --format json
 ```
 
-This is a local private-devnet helper over the file-backed chain state. It does
+Private-devnet wallet transaction status lookup:
+
+```bash
+cargo run -p xriq-wallet -- tx status \
+  --chain-file target/xriq-devnet-chain.bin \
+  --tx-hash <hash-from-wallet-transfer-or-node-submit> \
+  --alice-balance 100 \
+  --format json
+```
+
+These are local private-devnet helpers over the file-backed chain state. They do
 not connect to a public network or manage production custody.
 
 One-command private-devnet smoke from the repo root:
@@ -244,8 +254,9 @@ python scripts/xriq_private_devnet_transfer_smoke.py
 
 This uses only Python stdlib plus Cargo/Rust. It creates a fresh artifact
 directory under `xriq/target/`, performs one private-devnet transfer, verifies
-transaction/block/account detail, verifies `xriq-wallet balance`, exports and
-imports a snapshot, verifies snapshot list/detail/check flows, runs
+transaction/block/account detail, verifies `xriq-wallet balance` and
+`xriq-wallet tx status`, exports and imports a snapshot, verifies snapshot
+list/detail/check flows, runs
 `chain-check` against the restored snapshot targets, and leaves any
 live/restored BIBER API chain files untouched.
 

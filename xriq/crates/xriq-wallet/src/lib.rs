@@ -5,9 +5,12 @@
 
 use std::fmt;
 
-use xriq_core::{Address, AddressError, SignatureBytes, Transaction, XriqAmount};
+use xriq_core::{Address, AddressError, Hash32, SignatureBytes, Transaction, XriqAmount};
 use xriq_crypto::{test_only_signature_for_hash, transaction_hash, transaction_signing_hash};
-use xriq_node::private_devnet_file_account_detail_data;
+use xriq_node::{
+    private_devnet_file_account_detail_data, private_devnet_file_transaction_detail_data,
+    private_devnet_file_transaction_detail_with_pending_file_data, PrivateDevnetTransactionDetail,
+};
 
 const TEST_IDENTITY_WARNING: &str = "private-devnet-test-identity-only";
 
@@ -44,11 +47,35 @@ pub struct WalletBalance {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletConfirmedTransactionStatus {
+    pub tx_hash: Hash32,
+    pub block_height: u64,
+    pub block_hash: Hash32,
+    pub transaction_index: usize,
+    pub transaction: Transaction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletPendingTransactionStatus {
+    pub tx_hash: Hash32,
+    pub received_order: u64,
+    pub transaction: Transaction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WalletTransactionStatus {
+    Confirmed(WalletConfirmedTransactionStatus),
+    Pending(WalletPendingTransactionStatus),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WalletOutput {
     Help(String),
     TestIdentity(TestIdentity),
     Balance(WalletBalance),
     BalanceJson(WalletBalance),
+    TransactionStatus(WalletTransactionStatus),
+    TransactionStatusJson(WalletTransactionStatus),
     TransferDraft(TransferDraft),
     TransferSubmitJson(TransferDraft),
 }
@@ -64,6 +91,7 @@ pub enum WalletError {
     InvalidLabel,
     InvalidAddress(AddressError),
     InvalidNumber { flag: &'static str, value: String },
+    InvalidHash { flag: &'static str, value: String },
     InvalidFormat(String),
     Node(String),
 }
@@ -90,6 +118,10 @@ impl fmt::Display for WalletError {
             Self::InvalidNumber { flag, value } => {
                 write!(formatter, "invalid number for {flag}: {value}")
             }
+            Self::InvalidHash { flag, value } => write!(
+                formatter,
+                "invalid hash for {flag}: {value}; expected 64 lowercase hexadecimal characters"
+            ),
             Self::InvalidFormat(value) => {
                 write!(formatter, "invalid format: {value}; expected text or json")
             }
@@ -118,6 +150,10 @@ impl fmt::Display for WalletOutput {
                 write!(formatter, "nonce={}", balance.nonce)
             }
             Self::BalanceJson(balance) => formatter.write_str(&render_balance_json(balance)),
+            Self::TransactionStatus(status) => formatter.write_str(&render_tx_status(status)),
+            Self::TransactionStatusJson(status) => {
+                formatter.write_str(&render_tx_status_json(status))
+            }
             Self::TransferDraft(draft) => {
                 let tx = &draft.transaction;
                 writeln!(formatter, "warning={}", draft.warning)?;
@@ -165,6 +201,7 @@ pub fn help_text() -> String {
         "xriq-wallet private-devnet commands:",
         "  xriq-wallet key generate --label <lowercase-label>",
         "  xriq-wallet balance --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-wallet tx status --chain-file <path> --tx-hash <64-hex> [--draft-file <path>|--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet transfer --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--expires-at-height <height>] [--format text|json]",
         "",
         "Warning: this wallet is for private devnet tests only and does not manage real keys.",
@@ -186,6 +223,7 @@ where
         Some("help" | "--help" | "-h") => Ok(WalletOutput::Help(help_text())),
         Some("key") => run_key_command(&args[1..]),
         Some("balance") => run_balance_command(&args[1..]),
+        Some("tx") => run_tx_command(&args[1..]),
         Some("transfer") => run_transfer_command(&args[1..]),
         Some(command) => Err(WalletError::UnknownCommand(command.to_string())),
     }
@@ -243,6 +281,14 @@ fn run_key_command(args: &[String]) -> Result<WalletOutput, WalletError> {
     }
 }
 
+fn run_tx_command(args: &[String]) -> Result<WalletOutput, WalletError> {
+    match args.first().map(String::as_str) {
+        Some("status") => run_tx_status_command(&args[1..]),
+        Some(command) => Err(WalletError::UnknownCommand(format!("tx {command}"))),
+        None => Err(WalletError::MissingCommand),
+    }
+}
+
 fn run_balance_command(args: &[String]) -> Result<WalletOutput, WalletError> {
     let flags = FlagParser::parse(args)?;
     flags.reject_unknown(&["--chain-file", "--address", "--alice-balance", "--format"])?;
@@ -264,6 +310,52 @@ fn run_balance_command(args: &[String]) -> Result<WalletOutput, WalletError> {
     Ok(match output_format {
         WalletOutputFormat::Text => WalletOutput::Balance(balance),
         WalletOutputFormat::Json => WalletOutput::BalanceJson(balance),
+    })
+}
+
+fn run_tx_status_command(args: &[String]) -> Result<WalletOutput, WalletError> {
+    let flags = FlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--tx-hash",
+        "--draft-file",
+        "--pending-file",
+        "--alice-balance",
+        "--format",
+    ])?;
+    let output_format = WalletOutputFormat::parse(flags.optional("--format"))?;
+    let chain_file = flags.required("--chain-file")?;
+    let tx_hash = parse_hash("--tx-hash", flags.required("--tx-hash")?)?;
+    let draft_file = flags.optional("--draft-file");
+    let pending_file = flags.optional("--pending-file");
+    if draft_file.is_some() && pending_file.is_some() {
+        return Err(WalletError::InvalidFormat(
+            "--draft-file and --pending-file cannot be used together".to_string(),
+        ));
+    }
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let detail = match pending_file {
+        Some(pending_file) => private_devnet_file_transaction_detail_with_pending_file_data(
+            chain_file,
+            pending_file,
+            alice_balance,
+            tx_hash,
+        ),
+        None => private_devnet_file_transaction_detail_data(
+            chain_file,
+            draft_file,
+            alice_balance,
+            tx_hash,
+        ),
+    }
+    .map_err(|error| WalletError::Node(error.to_string()))?;
+    let status = wallet_transaction_status(detail);
+    Ok(match output_format {
+        WalletOutputFormat::Text => WalletOutput::TransactionStatus(status),
+        WalletOutputFormat::Json => WalletOutput::TransactionStatusJson(status),
     })
 }
 
@@ -327,6 +419,35 @@ fn parse_u128(flag: &'static str, value: &str) -> Result<u128, WalletError> {
     })
 }
 
+fn parse_hash(flag: &'static str, value: &str) -> Result<Hash32, WalletError> {
+    parse_hash_hex(value).map_err(|_| WalletError::InvalidHash {
+        flag,
+        value: value.to_string(),
+    })
+}
+
+fn parse_hash_hex(value: &str) -> Result<Hash32, ()> {
+    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(());
+    }
+    let mut bytes = [0u8; 32];
+    for index in 0..32 {
+        let high = hex_nibble(value.as_bytes()[index * 2])?;
+        let low = hex_nibble(value.as_bytes()[index * 2 + 1])?;
+        bytes[index] = (high << 4) | low;
+    }
+    Ok(Hash32::from_bytes(bytes))
+}
+
+fn hex_nibble(byte: u8) -> Result<u8, ()> {
+    match byte {
+        b'0'..=b'9' => Ok(byte - b'0'),
+        b'a'..=b'f' => Ok(byte - b'a' + 10),
+        b'A'..=b'F' => Ok(byte - b'A' + 10),
+        _ => Err(()),
+    }
+}
+
 fn is_valid_label(label: &str) -> bool {
     !label.is_empty()
         && label.len() <= 32
@@ -374,6 +495,142 @@ fn render_transfer_submit_json(draft: &TransferDraft) -> String {
     output.push_str(&tx.signature.as_slice().len().to_string());
     output.push_str("\n}");
     output
+}
+
+fn wallet_transaction_status(detail: PrivateDevnetTransactionDetail) -> WalletTransactionStatus {
+    match detail {
+        PrivateDevnetTransactionDetail::Confirmed(detail) => {
+            WalletTransactionStatus::Confirmed(WalletConfirmedTransactionStatus {
+                tx_hash: detail.tx_hash,
+                block_height: detail.block_height,
+                block_hash: detail.block_hash,
+                transaction_index: detail.transaction_index,
+                transaction: detail.transaction,
+            })
+        }
+        PrivateDevnetTransactionDetail::Pending(detail) => {
+            WalletTransactionStatus::Pending(WalletPendingTransactionStatus {
+                tx_hash: detail.tx_hash,
+                received_order: detail.received_order,
+                transaction: detail.transaction,
+            })
+        }
+    }
+}
+
+fn render_tx_status(status: &WalletTransactionStatus) -> String {
+    let mut output = String::new();
+    match status {
+        WalletTransactionStatus::Confirmed(status) => {
+            use fmt::Write;
+            writeln!(&mut output, "warning={TEST_IDENTITY_WARNING}").expect("write to String");
+            writeln!(&mut output, "status=confirmed").expect("write to String");
+            writeln!(&mut output, "tx_hash={}", hash_hex(status.tx_hash)).expect("write to String");
+            writeln!(&mut output, "block_height={}", status.block_height).expect("write to String");
+            writeln!(&mut output, "block_hash={}", hash_hex(status.block_hash))
+                .expect("write to String");
+            writeln!(
+                &mut output,
+                "transaction_index={}",
+                status.transaction_index
+            )
+            .expect("write to String");
+            push_transaction_text_fields(&mut output, &status.transaction);
+        }
+        WalletTransactionStatus::Pending(status) => {
+            use fmt::Write;
+            writeln!(&mut output, "warning={TEST_IDENTITY_WARNING}").expect("write to String");
+            writeln!(&mut output, "status=pending").expect("write to String");
+            writeln!(&mut output, "tx_hash={}", hash_hex(status.tx_hash)).expect("write to String");
+            writeln!(&mut output, "received_order={}", status.received_order)
+                .expect("write to String");
+            push_transaction_text_fields(&mut output, &status.transaction);
+        }
+    }
+    output
+}
+
+fn push_transaction_text_fields(output: &mut String, transaction: &Transaction) {
+    use fmt::Write;
+    writeln!(output, "from={}", transaction.from).expect("write to String");
+    writeln!(output, "to={}", transaction.to).expect("write to String");
+    writeln!(
+        output,
+        "amount_base_units={}",
+        transaction.amount.base_units()
+    )
+    .expect("write to String");
+    writeln!(output, "fee_base_units={}", transaction.fee.base_units()).expect("write to String");
+    writeln!(output, "nonce={}", transaction.nonce).expect("write to String");
+    write!(
+        output,
+        "expires_at_height={}",
+        transaction
+            .expires_at_height
+            .map(|height| height.to_string())
+            .unwrap_or_default()
+    )
+    .expect("write to String");
+}
+
+fn render_tx_status_json(status: &WalletTransactionStatus) -> String {
+    let mut output = String::new();
+    output.push_str("{\n");
+    output.push_str("  \"format_version\": \"xriq-wallet-json-v1\",\n");
+    output.push_str("  \"command\": \"tx-status\",\n");
+    output.push_str("  \"warning\": ");
+    output.push_str(&json_string(TEST_IDENTITY_WARNING));
+    output.push_str(",\n");
+    match status {
+        WalletTransactionStatus::Confirmed(status) => {
+            output.push_str("  \"status\": \"confirmed\",\n");
+            output.push_str("  \"tx_hash\": ");
+            output.push_str(&json_string(&hash_hex(status.tx_hash)));
+            output.push_str(",\n");
+            output.push_str("  \"block_height\": ");
+            output.push_str(&status.block_height.to_string());
+            output.push_str(",\n");
+            output.push_str("  \"block_hash\": ");
+            output.push_str(&json_string(&hash_hex(status.block_hash)));
+            output.push_str(",\n");
+            output.push_str("  \"transaction_index\": ");
+            output.push_str(&status.transaction_index.to_string());
+            output.push_str(",\n");
+            push_transaction_json_fields(&mut output, &status.transaction);
+        }
+        WalletTransactionStatus::Pending(status) => {
+            output.push_str("  \"status\": \"pending\",\n");
+            output.push_str("  \"tx_hash\": ");
+            output.push_str(&json_string(&hash_hex(status.tx_hash)));
+            output.push_str(",\n");
+            output.push_str("  \"received_order\": ");
+            output.push_str(&status.received_order.to_string());
+            output.push_str(",\n");
+            push_transaction_json_fields(&mut output, &status.transaction);
+        }
+    }
+    output.push_str("\n}");
+    output
+}
+
+fn push_transaction_json_fields(output: &mut String, transaction: &Transaction) {
+    output.push_str("  \"from\": ");
+    output.push_str(&json_string(transaction.from.as_str()));
+    output.push_str(",\n");
+    output.push_str("  \"to\": ");
+    output.push_str(&json_string(transaction.to.as_str()));
+    output.push_str(",\n");
+    output.push_str("  \"amount_base_units\": ");
+    output.push_str(&json_string(&transaction.amount.base_units().to_string()));
+    output.push_str(",\n");
+    output.push_str("  \"fee_base_units\": ");
+    output.push_str(&json_string(&transaction.fee.base_units().to_string()));
+    output.push_str(",\n");
+    output.push_str("  \"nonce\": ");
+    output.push_str(&transaction.nonce.to_string());
+    output.push_str(",\n");
+    output.push_str("  \"expires_at_height\": ");
+    output.push_str(&json_optional_u64(transaction.expires_at_height));
 }
 
 fn render_balance_json(balance: &WalletBalance) -> String {
@@ -491,6 +748,9 @@ fn flag_to_static(flag: &str) -> &'static str {
         "--chain-file" => "--chain-file",
         "--address" => "--address",
         "--alice-balance" => "--alice-balance",
+        "--tx-hash" => "--tx-hash",
+        "--draft-file" => "--draft-file",
+        "--pending-file" => "--pending-file",
         "--chain-id" => "--chain-id",
         "--from" => "--from",
         "--to" => "--to",
@@ -525,6 +785,40 @@ mod tests {
             .expect("time moved backwards")
             .as_nanos();
         std::env::temp_dir().join(format!("xriq-wallet-balance-{nanos}.bin"))
+    }
+
+    fn produce_confirmed_transfer(path: &std::path::Path) -> String {
+        let path_text = path.to_string_lossy().to_string();
+        xriq_node::run_node_command([
+            "produce-transfer-block",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            alice().as_str(),
+            "--to",
+            bob().as_str(),
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--expires-at-height",
+            "100",
+        ])
+        .unwrap();
+        let draft = build_test_transfer(TransferRequest {
+            chain_id: "xriq-devnet".to_string(),
+            from: alice(),
+            to: bob(),
+            amount: XriqAmount::from_base_units(25),
+            fee: XriqAmount::from_base_units(2),
+            nonce: 0,
+            expires_at_height: Some(100),
+        });
+        hash_hex(transaction_hash(&draft.transaction))
     }
 
     #[test]
@@ -674,6 +968,95 @@ mod tests {
         assert!(output.contains("\"nonce\": 0"));
         assert!(!output.contains("private_key"));
         assert!(!output.contains("seed"));
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn parses_tx_status_command_for_confirmed_transaction() {
+        let path = temp_chain_path();
+        let path_text = path.to_string_lossy().to_string();
+        let tx_hash = produce_confirmed_transfer(&path);
+        let output = run_wallet_command([
+            "tx",
+            "status",
+            "--chain-file",
+            path_text.as_str(),
+            "--tx-hash",
+            tx_hash.as_str(),
+            "--alice-balance",
+            "100",
+        ])
+        .unwrap();
+
+        match output {
+            WalletOutput::TransactionStatus(WalletTransactionStatus::Confirmed(status)) => {
+                assert_eq!(hash_hex(status.tx_hash), tx_hash);
+                assert_eq!(status.block_height, 1);
+                assert_eq!(status.transaction_index, 0);
+                assert_eq!(status.transaction.from, alice());
+                assert_eq!(status.transaction.to, bob());
+            }
+            other => panic!("unexpected wallet output: {other:?}"),
+        }
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn renders_tx_status_json_for_confirmed_transaction() {
+        let path = temp_chain_path();
+        let path_text = path.to_string_lossy().to_string();
+        let tx_hash = produce_confirmed_transfer(&path);
+        let output = run_wallet_command([
+            "tx",
+            "status",
+            "--chain-file",
+            path_text.as_str(),
+            "--tx-hash",
+            tx_hash.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+
+        assert!(output.contains("\"format_version\": \"xriq-wallet-json-v1\""));
+        assert!(output.contains("\"command\": \"tx-status\""));
+        assert!(output.contains("\"status\": \"confirmed\""));
+        assert!(output.contains(&format!("\"tx_hash\": \"{tx_hash}\"")));
+        assert!(output.contains("\"block_height\": 1"));
+        assert!(output.contains("\"transaction_index\": 0"));
+        assert!(output.contains("\"from\": \"xriqdev1alice00000000000\""));
+        assert!(output.contains("\"to\": \"xriqdev1bobbb00000000000\""));
+        assert!(output.contains("\"amount_base_units\": \"25\""));
+        assert!(output.contains("\"fee_base_units\": \"2\""));
+        assert!(!output.contains("private_key"));
+        assert!(!output.contains("seed"));
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn rejects_invalid_tx_status_hash() {
+        let path = temp_chain_path();
+        let path_text = path.to_string_lossy().to_string();
+        assert_eq!(
+            run_wallet_command([
+                "tx",
+                "status",
+                "--chain-file",
+                path_text.as_str(),
+                "--tx-hash",
+                "not-a-hash",
+            ]),
+            Err(WalletError::InvalidHash {
+                flag: "--tx-hash",
+                value: "not-a-hash".to_string(),
+            })
+        );
 
         let _ = fs::remove_file(path);
     }
