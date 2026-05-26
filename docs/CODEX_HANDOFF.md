@@ -110,14 +110,14 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `86%`.
+- Phase 1 estimated completion: about `87%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
-- Wallet transfer draft/submit flow: about `84%`.
-- File-backed node runner and deterministic replay: about `74%`.
+- Wallet transfer draft/submit flow: about `85%`.
+- File-backed node runner and deterministic replay: about `75%`.
 - Snapshot export/import and restore workflow: about `76%`.
 - Read-only/private RPC and explorer/dashboard support: about `74%`.
-- Local smoke/regression coverage: about `89%`.
+- Local smoke/regression coverage: about `90%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -137,6 +137,29 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ wallet chain-check checkpoint: `xriq-wallet check` now
+  wraps the existing file-backed private-devnet replay verification path and
+  returns wallet-facing text or `xriq-wallet-json-v1` output with
+  `command: check`, `verified: true`, chain id, height, latest block hash,
+  state root, pending transaction count, and stored block count. It supports
+  optional `--pending-file`, so wallet/operator flows can verify durable
+  pending state before and after block production without mutating chain or
+  pending files. The isolated transfer/replay/snapshot smoke now writes
+  `wallet-check-initial.json`, `wallet-flow-check-before-block.json`, and
+  `wallet-flow-check-after-block.json`, proving the wallet check path reports
+  pending count `1` before `produce-pending-block` and `0` after pending-file
+  compaction. Local verification passed `cargo fmt --all --manifest-path
+  xriq/Cargo.toml -- --check`, bundled Python syntax compilation for
+  `scripts/xriq_private_devnet_transfer_smoke.py`, `cargo test -p xriq-wallet
+  --manifest-path xriq/Cargo.toml -j 1` with `33 passed`, `cargo clippy -p
+  xriq-wallet --manifest-path xriq/Cargo.toml -- -D warnings`, `cargo test -p
+  xriq-node --manifest-path xriq/Cargo.toml -j 1` with `51 passed`, and the
+  isolated transfer smoke using
+  `CARGO_TARGET_DIR=target-codex-wallet-chain-check-smoke`. The smoke artifact
+  directory was
+  `xriq/target/xriq-private-devnet-transfer-smoke-20260526T183959Z`. No Vast
+  sync, API/vLLM restart, training, OpenAI mentor call, or credential change
+  was used.
 - Latest native XRIQ wallet status checkpoint: `xriq-wallet status` now replays
   the local file-backed private-devnet chain and returns wallet-facing chain
   status in text or `xriq-wallet-json-v1` format. It supports optional

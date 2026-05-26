@@ -22,7 +22,8 @@ only until security and legal/compliance review says otherwise.
 - `xriq-storage`: local block storage for private-devnet tests.
 - `xriq-wallet`: private-devnet wallet CLI for test identities, local account
   status, local account list, balance lookup, account history lookup,
-  transaction status lookup, pending inspection/submission, and transfers.
+  transaction status lookup, chain verification, pending inspection/submission,
+  and transfers.
 
 ## Commands
 
@@ -247,6 +248,16 @@ cargo run -p xriq-wallet -- status \
   --format json
 ```
 
+Private-devnet wallet chain verification:
+
+```bash
+cargo run -p xriq-wallet -- check \
+  --chain-file target/xriq-devnet-chain.bin \
+  --pending-file target/xriq-devnet-pending.tsv \
+  --alice-balance 100 \
+  --format json
+```
+
 Private-devnet wallet JSON submit body:
 
 ```bash
@@ -357,7 +368,7 @@ This uses only Python stdlib plus Cargo/Rust. It creates a fresh artifact
 directory under `xriq/target/`, performs one private-devnet transfer, verifies
 transaction/block/account detail, verifies `xriq-wallet accounts`,
 `xriq-wallet balance`, confirmed `xriq-wallet history`,
-`xriq-wallet tx status`, `xriq-wallet status`,
+`xriq-wallet tx status`, `xriq-wallet status`, `xriq-wallet check`,
 `xriq-wallet transfer --nonce auto`, and
 `xriq-wallet submit` plus `xriq-wallet pending` against a separate durable
 pending file, exports and imports a snapshot, verifies snapshot

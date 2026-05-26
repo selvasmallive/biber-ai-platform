@@ -173,6 +173,21 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_equal(wallet_initial_status, "pending_transactions", 0, "wallet initial status")
     require_equal(wallet_initial_status, "stored_blocks", 0, "wallet initial status")
 
+    wallet_initial_check = run_wallet_json(
+        xriq_dir,
+        "check",
+        "--chain-file",
+        str(chain_file),
+        "--alice-balance",
+        args.alice_balance,
+    )
+    write_json(artifact_dir / "wallet-check-initial.json", wallet_initial_check)
+    require_equal(wallet_initial_check, "command", "check", "wallet initial check")
+    require_equal(wallet_initial_check, "verified", True, "wallet initial check")
+    require_equal(wallet_initial_check, "current_height", 0, "wallet initial check")
+    require_equal(wallet_initial_check, "pending_transactions", 0, "wallet initial check")
+    require_equal(wallet_initial_check, "stored_blocks", 0, "wallet initial check")
+
     preflight = run_node_json(
         xriq_dir,
         "preflight-transfer",
@@ -724,6 +739,27 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     )
     require_equal(wallet_flow_status_before, "stored_blocks", 0, "wallet flow status before")
 
+    wallet_flow_check_before = run_wallet_json(
+        xriq_dir,
+        "check",
+        "--chain-file",
+        str(wallet_flow_chain_file),
+        "--pending-file",
+        str(wallet_flow_pending_file),
+        "--alice-balance",
+        args.alice_balance,
+    )
+    write_json(artifact_dir / "wallet-flow-check-before-block.json", wallet_flow_check_before)
+    require_equal(wallet_flow_check_before, "command", "check", "wallet flow check before")
+    require_equal(wallet_flow_check_before, "verified", True, "wallet flow check before")
+    require_equal(wallet_flow_check_before, "current_height", 0, "wallet flow check before")
+    require_equal(
+        wallet_flow_check_before,
+        "pending_transactions",
+        1,
+        "wallet flow check before",
+    )
+
     wallet_flow_produced = run_node_json(
         xriq_dir,
         "produce-pending-block",
@@ -787,6 +823,27 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "wallet flow status after",
     )
     require_equal(wallet_flow_status_after, "stored_blocks", 1, "wallet flow status after")
+
+    wallet_flow_check_after = run_wallet_json(
+        xriq_dir,
+        "check",
+        "--chain-file",
+        str(wallet_flow_chain_file),
+        "--pending-file",
+        str(wallet_flow_pending_file),
+        "--alice-balance",
+        args.alice_balance,
+    )
+    write_json(artifact_dir / "wallet-flow-check-after-block.json", wallet_flow_check_after)
+    require_equal(wallet_flow_check_after, "command", "check", "wallet flow check after")
+    require_equal(wallet_flow_check_after, "verified", True, "wallet flow check after")
+    require_equal(wallet_flow_check_after, "current_height", 1, "wallet flow check after")
+    require_equal(
+        wallet_flow_check_after,
+        "pending_transactions",
+        0,
+        "wallet flow check after",
+    )
 
     wallet_flow_confirmed = run_wallet_json(
         xriq_dir,

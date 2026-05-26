@@ -9,12 +9,13 @@ use xriq_core::{Address, AddressError, Hash32, SignatureBytes, Transaction, Xriq
 use xriq_crypto::{test_only_signature_for_hash, transaction_hash, transaction_signing_hash};
 use xriq_node::{
     private_devnet_file_account_detail_data, private_devnet_file_account_list_data,
-    private_devnet_file_account_transactions_data,
+    private_devnet_file_account_transactions_data, private_devnet_file_chain_check,
     private_devnet_file_mempool_detail_with_pending_file_data, private_devnet_file_status,
     private_devnet_file_status_with_pending_file, private_devnet_file_submit_pending_transfer_body,
     private_devnet_file_transaction_detail_data,
     private_devnet_file_transaction_detail_with_pending_file_data, NodeStatus,
-    PrivateDevnetPendingTransactionDetail, PrivateDevnetTransactionDetail,
+    PrivateDevnetChainCheckStatus, PrivateDevnetPendingTransactionDetail,
+    PrivateDevnetTransactionDetail,
 };
 
 const TEST_IDENTITY_WARNING: &str = "private-devnet-test-identity-only";
@@ -53,6 +54,18 @@ pub struct WalletBalance {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WalletChainStatus {
+    pub chain_id: String,
+    pub current_height: u64,
+    pub latest_block_hash: Hash32,
+    pub state_root: Hash32,
+    pub pending_transactions: usize,
+    pub stored_blocks: usize,
+    pub warning: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletChainCheck {
+    pub verified: bool,
     pub chain_id: String,
     pub current_height: u64,
     pub latest_block_hash: Hash32,
@@ -159,6 +172,8 @@ pub enum WalletOutput {
     PendingListJson(WalletPendingList),
     PendingSubmission(WalletPendingSubmission),
     PendingSubmissionJson(WalletPendingSubmission),
+    ChainCheck(WalletChainCheck),
+    ChainCheckJson(WalletChainCheck),
     ChainStatus(WalletChainStatus),
     ChainStatusJson(WalletChainStatus),
     TransactionStatus(WalletTransactionStatus),
@@ -249,6 +264,8 @@ impl fmt::Display for WalletOutput {
             Self::PendingSubmissionJson(submission) => {
                 formatter.write_str(&render_pending_submission_json(submission))
             }
+            Self::ChainCheck(check) => formatter.write_str(&render_chain_check(check)),
+            Self::ChainCheckJson(check) => formatter.write_str(&render_chain_check_json(check)),
             Self::ChainStatus(status) => formatter.write_str(&render_chain_status(status)),
             Self::ChainStatusJson(status) => formatter.write_str(&render_chain_status_json(status)),
             Self::TransactionStatus(status) => formatter.write_str(&render_tx_status(status)),
@@ -306,6 +323,7 @@ pub fn help_text() -> String {
         "  xriq-wallet history --chain-file <path> --address <address> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-wallet pending --chain-file <path> --pending-file <path> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet status --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-wallet check --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet submit --chain-file <path> --pending-file <path> --transfer-file <path> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet tx status --chain-file <path> --tx-hash <64-hex> [--draft-file <path>|--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet transfer --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number|auto> [--chain-file <path>] [--alice-balance <base-units>] [--expires-at-height <height>] [--format text|json]",
@@ -333,6 +351,7 @@ where
         Some("history") => run_history_command(&args[1..]),
         Some("pending") => run_pending_command(&args[1..]),
         Some("status") => run_status_command(&args[1..]),
+        Some("check") => run_check_command(&args[1..]),
         Some("submit") => run_submit_command(&args[1..]),
         Some("tx") => run_tx_command(&args[1..]),
         Some("transfer") => run_transfer_command(&args[1..]),
@@ -582,6 +601,30 @@ fn run_status_command(args: &[String]) -> Result<WalletOutput, WalletError> {
     Ok(match output_format {
         WalletOutputFormat::Text => WalletOutput::ChainStatus(status),
         WalletOutputFormat::Json => WalletOutput::ChainStatusJson(status),
+    })
+}
+
+fn run_check_command(args: &[String]) -> Result<WalletOutput, WalletError> {
+    let flags = FlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--pending-file",
+        "--alice-balance",
+        "--format",
+    ])?;
+    let output_format = WalletOutputFormat::parse(flags.optional("--format"))?;
+    let chain_file = flags.required("--chain-file")?;
+    let pending_file = flags.optional("--pending-file");
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let check = private_devnet_file_chain_check(chain_file, pending_file, alice_balance)
+        .map_err(|error| WalletError::Node(error.to_string()))?;
+    let check = wallet_chain_check(check);
+    Ok(match output_format {
+        WalletOutputFormat::Text => WalletOutput::ChainCheck(check),
+        WalletOutputFormat::Json => WalletOutput::ChainCheckJson(check),
     })
 }
 
@@ -873,6 +916,21 @@ fn wallet_chain_status(status: NodeStatus) -> WalletChainStatus {
     }
 }
 
+fn wallet_chain_check(status: PrivateDevnetChainCheckStatus) -> WalletChainCheck {
+    let verified = status.verified;
+    let status = wallet_chain_status(status.status);
+    WalletChainCheck {
+        verified,
+        chain_id: status.chain_id,
+        current_height: status.current_height,
+        latest_block_hash: status.latest_block_hash,
+        state_root: status.state_root,
+        pending_transactions: status.pending_transactions,
+        stored_blocks: status.stored_blocks,
+        warning: TEST_IDENTITY_WARNING,
+    }
+}
+
 fn render_chain_status(status: &WalletChainStatus) -> String {
     let mut output = String::new();
     {
@@ -925,6 +983,66 @@ fn render_chain_status_json(status: &WalletChainStatus) -> String {
     output.push_str(",\n");
     output.push_str("  \"stored_blocks\": ");
     output.push_str(&status.stored_blocks.to_string());
+    output.push_str("\n}");
+    output
+}
+
+fn render_chain_check(check: &WalletChainCheck) -> String {
+    let mut output = String::new();
+    {
+        use fmt::Write;
+        writeln!(&mut output, "warning={}", check.warning).expect("write to String");
+        writeln!(&mut output, "command=check").expect("write to String");
+        writeln!(&mut output, "verified={}", check.verified).expect("write to String");
+        writeln!(&mut output, "chain_id={}", check.chain_id).expect("write to String");
+        writeln!(&mut output, "current_height={}", check.current_height).expect("write to String");
+        writeln!(
+            &mut output,
+            "latest_block_hash={}",
+            hash_hex(check.latest_block_hash)
+        )
+        .expect("write to String");
+        writeln!(&mut output, "state_root={}", hash_hex(check.state_root))
+            .expect("write to String");
+        writeln!(
+            &mut output,
+            "pending_transactions={}",
+            check.pending_transactions
+        )
+        .expect("write to String");
+        write!(&mut output, "stored_blocks={}", check.stored_blocks).expect("write to String");
+    }
+    output
+}
+
+fn render_chain_check_json(check: &WalletChainCheck) -> String {
+    let mut output = String::new();
+    output.push_str("{\n");
+    output.push_str("  \"format_version\": \"xriq-wallet-json-v1\",\n");
+    output.push_str("  \"command\": \"check\",\n");
+    output.push_str("  \"warning\": ");
+    output.push_str(&json_string(check.warning));
+    output.push_str(",\n");
+    output.push_str("  \"verified\": ");
+    output.push_str(if check.verified { "true" } else { "false" });
+    output.push_str(",\n");
+    output.push_str("  \"chain_id\": ");
+    output.push_str(&json_string(&check.chain_id));
+    output.push_str(",\n");
+    output.push_str("  \"current_height\": ");
+    output.push_str(&check.current_height.to_string());
+    output.push_str(",\n");
+    output.push_str("  \"latest_block_hash\": ");
+    output.push_str(&json_string(&hash_hex(check.latest_block_hash)));
+    output.push_str(",\n");
+    output.push_str("  \"state_root\": ");
+    output.push_str(&json_string(&hash_hex(check.state_root)));
+    output.push_str(",\n");
+    output.push_str("  \"pending_transactions\": ");
+    output.push_str(&check.pending_transactions.to_string());
+    output.push_str(",\n");
+    output.push_str("  \"stored_blocks\": ");
+    output.push_str(&check.stored_blocks.to_string());
     output.push_str("\n}");
     output
 }
@@ -2070,6 +2188,106 @@ mod tests {
 
         assert!(output.contains("\"format_version\": \"xriq-wallet-json-v1\""));
         assert!(output.contains("\"command\": \"status\""));
+        assert!(output.contains("\"chain_id\": \"xriq-devnet\""));
+        assert!(output.contains("\"current_height\": 0"));
+        assert!(output.contains("\"pending_transactions\": 1"));
+        assert!(output.contains("\"stored_blocks\": 0"));
+        assert!(!output.contains("private_key"));
+        assert!(!output.contains("seed"));
+
+        let _ = fs::remove_file(chain_path);
+        let _ = fs::remove_file(transfer_path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn parses_check_command_for_empty_chain() {
+        let chain_path = temp_chain_path();
+        let chain_text = chain_path.to_string_lossy().to_string();
+        let output = run_wallet_command([
+            "check",
+            "--chain-file",
+            chain_text.as_str(),
+            "--alice-balance",
+            "100",
+        ])
+        .unwrap();
+
+        match output {
+            WalletOutput::ChainCheck(check) => {
+                assert!(check.verified);
+                assert_eq!(check.chain_id, "xriq-devnet");
+                assert_eq!(check.current_height, 0);
+                assert_eq!(check.latest_block_hash, Hash32::ZERO);
+                assert_eq!(check.pending_transactions, 0);
+                assert_eq!(check.stored_blocks, 0);
+                assert_eq!(check.warning, TEST_IDENTITY_WARNING);
+            }
+            other => panic!("unexpected wallet output: {other:?}"),
+        }
+
+        let _ = fs::remove_file(chain_path);
+    }
+
+    #[test]
+    fn renders_check_json_with_pending_count() {
+        let chain_path = temp_chain_path();
+        let transfer_path = temp_draft_path();
+        let pending_path = temp_pending_path();
+        let chain_text = chain_path.to_string_lossy().to_string();
+        let transfer_text = transfer_path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let transfer = run_wallet_command([
+            "transfer",
+            "--chain-id",
+            "xriq-devnet",
+            "--from",
+            alice().as_str(),
+            "--to",
+            bob().as_str(),
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--expires-at-height",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+        fs::write(&transfer_path, transfer.to_string()).unwrap();
+        run_wallet_command([
+            "submit",
+            "--chain-file",
+            chain_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--transfer-file",
+            transfer_text.as_str(),
+            "--alice-balance",
+            "100",
+        ])
+        .unwrap();
+
+        let output = run_wallet_command([
+            "check",
+            "--chain-file",
+            chain_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+
+        assert!(output.contains("\"format_version\": \"xriq-wallet-json-v1\""));
+        assert!(output.contains("\"command\": \"check\""));
+        assert!(output.contains("\"verified\": true"));
         assert!(output.contains("\"chain_id\": \"xriq-devnet\""));
         assert!(output.contains("\"current_height\": 0"));
         assert!(output.contains("\"pending_transactions\": 1"));
