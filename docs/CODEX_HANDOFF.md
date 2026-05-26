@@ -110,14 +110,14 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `90%`.
-- Rust workspace/crate structure: about `85%`.
+- Phase 1 estimated completion: about `91%`.
+- Rust workspace/crate structure: about `86%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `87%`.
 - File-backed node runner and deterministic replay: about `76%`.
 - Snapshot export/import and restore workflow: about `80%`.
 - Read-only/private RPC and explorer/dashboard support: about `76%`.
-- Local smoke/regression coverage: about `95%`.
+- Local smoke/regression coverage: about `96%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -137,6 +137,21 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1 local-check checkpoint: added
+  `scripts/xriq_phase1_local_check.py`, a CPU-only validation wrapper for the
+  current XRIQ private-devnet Phase 1 scope. It runs XRIQ Cargo format checks,
+  Python smoke syntax checks, full XRIQ workspace tests, full XRIQ workspace
+  clippy, the isolated transfer/replay/snapshot smoke, and the local
+  submit-capable HTTP smoke with fresh artifact directories under
+  `xriq/target/`. It does not use Vast, vLLM, BIBER API, model training, or
+  restored runtime state. `README.md` and `xriq/README.md` now document the new
+  one-command local validation path. Local verification passed by running
+  `python scripts/xriq_phase1_local_check.py`; the generated summary was
+  `xriq/target/xriq-phase1-local-check-20260526T163059/summary.json` and
+  reported completed steps: `cargo fmt check`, `python smoke syntax check`,
+  `cargo test workspace`, `cargo clippy workspace`, `transfer smoke`, and
+  `http smoke`. No Vast sync, API/vLLM restart, training, OpenAI mentor call,
+  or credential change was used.
 - Latest native XRIQ snapshot-latest-check checkpoint: added `xriq-node
   snapshot-latest-check --snapshot-root <path> [--alice-balance <base-units>]
   [--format text|json]` and local HTTP `GET /v1/snapshots/latest/check` so
@@ -8456,6 +8471,20 @@ tail -f /workspace/biber-logs/vllm.log
   - credential status changes, without recording secret values
 
 ## Recommended Next Steps
+
+Active Phase 1 override as of 2026-05-26: while the user is asking to continue
+the current project, treat "the project" as XRIQ private-devnet Phase 1 only.
+Do not follow BIBER MVP, Vast, adapter, runtime-profile, model-training, or
+candidate-promotion steps in this section unless the user explicitly resumes
+Phase 2. The current low-cost Phase 1 next step is to keep tightening
+private-devnet readiness with small local Rust checkpoints, using
+`python scripts/xriq_phase1_local_check.py` as the one-command CPU-only
+verification gate before handoff/commit/push. Useful remaining Phase 1 targets
+are: final runbook cleanup, final smoke artifact review, a Phase 1 release
+candidate tag/checklist, and any narrow wallet/operator safety polish discovered
+by the local check. Public XRIQ and BIBER MVP remain deferred.
+
+Historical Phase 2/BIBER notes remain below for later reference only.
 
 Current immediate next step: continue narrow BIBER MVP client workflow work on
 top of the stable adapter. The latest v4 retry prompt/context was

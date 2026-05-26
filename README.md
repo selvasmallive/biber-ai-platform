@@ -245,6 +245,13 @@ That smoke also covers local HTTP snapshot export/import using fresh files under
 `xriq/target/`, including confirmed transaction lookup and the latest
 transaction-list endpoint.
 
+To run the full CPU-only Phase 1 local validation set from this workstation,
+including Rust format/test/clippy checks plus the transfer and HTTP smokes, run:
+
+```bash
+python scripts/xriq_phase1_local_check.py
+```
+
 ## 7. Vast Connection Needed
 
 To deploy this to your Vast.ai GPU, use the instance SSH command:

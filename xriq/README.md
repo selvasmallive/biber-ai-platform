@@ -34,6 +34,13 @@ cargo test
 cargo clippy -- -D warnings
 ```
 
+From the repo root, the full CPU-only Phase 1 local check runs the Rust
+format/test/clippy set plus the isolated transfer and HTTP smokes:
+
+```bash
+python scripts/xriq_phase1_local_check.py
+```
+
 Private-devnet node status smoke:
 
 ```bash

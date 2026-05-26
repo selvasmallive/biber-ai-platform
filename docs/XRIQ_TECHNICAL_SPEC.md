@@ -853,6 +853,10 @@ As of 2026-05-17:
     and confirmed wallet transaction status, and
     persists representative JSON response examples beside the smoke artifacts
     for future BIBER agents and HTTP/RPC adapters
+  - CPU-only Phase 1 local verification wrapper through
+    `scripts/xriq_phase1_local_check.py`, which runs XRIQ format checks,
+    workspace tests, workspace clippy, and the transfer plus HTTP smokes
+    without using Vast or BIBER runtime state
   - node transaction submission
   - node transaction submission rejects invalid hash-bound test-only signatures
     before mempool insert
