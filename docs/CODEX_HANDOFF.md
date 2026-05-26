@@ -110,7 +110,7 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `95%`.
+- Phase 1 estimated completion: about `96%`.
 - Rust workspace/crate structure: about `86%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `87%`.
@@ -118,7 +118,7 @@ unless the user changes the project scope again.
 - Snapshot export/import and restore workflow: about `80%`.
 - Read-only/private RPC and explorer/dashboard support: about `76%`.
 - Local smoke/regression coverage: about `97%`.
-- Phase 1 release/readiness documentation: about `95%`.
+- Phase 1 release/readiness documentation: about `96%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -150,8 +150,9 @@ not an active target because the GPU was terminated to save cost.
   `docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md` now link the report. The readiness
   checker now requires the report and the handoff reference before returning
   tag-ready. After this commit/push, rerun
-  `python scripts/xriq_phase1_rc_readiness.py --require-clean-git`; if it
-  reports `ready_for_rc_tag: true`, the only remaining Phase 1 action is to ask
+  `python scripts/xriq_phase1_rc_readiness.py --require-clean-git
+  --require-origin-main`; if it reports `ready_for_rc_tag: true` and
+  `origin_main_matches_head: true`, the only remaining Phase 1 action is to ask
   the user for explicit approval to create and push
   `phase1-xriq-private-devnet-rc1`. No Vast sync, API/vLLM restart, training,
   OpenAI mentor call, or credential change was used.
@@ -162,8 +163,10 @@ not an active target because the GPU was terminated to save cost.
   smoke artifact checks, and the README/RC-checklist/handoff references needed
   before an explicit user-approved RC tag decision. It supports
   `--require-clean-git` for the final after-commit check and does not create the
-  `phase1-xriq-private-devnet-rc1` tag. The local gate's Python syntax step now
-  also compiles this readiness checker. `README.md`, `xriq/README.md`, and
+  `phase1-xriq-private-devnet-rc1` tag. Later tightened follow-up added
+  `--require-origin-main` so final readiness also proves the local HEAD matches
+  `origin/main` before tagging. The local gate's Python syntax step now
+  compiles this readiness checker. `README.md`, `xriq/README.md`, and
   `docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md` document the checker. Local
   verification passed with bundled Python syntax compilation for
   `scripts/xriq_phase1_local_check.py` and
@@ -173,8 +176,9 @@ not an active target because the GPU was terminated to save cost.
   readiness script reported 15 artifact checks and four docs checked; it
   reported `ready_for_rc_tag: false` only because the checkpoint files were
   still uncommitted during the pre-commit run. After this commit/push, rerun
-  `python scripts/xriq_phase1_rc_readiness.py --require-clean-git`; if it
-  reports `ready_for_rc_tag: true`, the only remaining action before tagging is
+  `python scripts/xriq_phase1_rc_readiness.py --require-clean-git
+  --require-origin-main`; if it reports `ready_for_rc_tag: true` and
+  `origin_main_matches_head: true`, the only remaining action before tagging is
   explicit user approval. No Vast sync, API/vLLM restart, training, OpenAI
   mentor call, or credential change was used.
 - Latest native XRIQ Phase 1 local-check artifact-validation checkpoint:
@@ -8547,9 +8551,9 @@ Phase 2. The current low-cost Phase 1 next step is to keep tightening
 private-devnet readiness with small local Rust checkpoints, using
 `python scripts/xriq_phase1_local_check.py` as the one-command CPU-only
 verification gate before handoff/commit/push. Use
-`python scripts/xriq_phase1_rc_readiness.py --require-clean-git` after the
-checkpoint commit/push to confirm the latest validation artifact and docs are
-tag-ready. Use
+`python scripts/xriq_phase1_rc_readiness.py --require-clean-git
+--require-origin-main` after the checkpoint commit/push to confirm the latest
+validation artifact, docs, and pushed `origin/main` state are tag-ready. Use
 `docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md` as the go/no-go checklist for deciding
 when Phase 1 is ready to mark as a release candidate. Use
 `docs/XRIQ_PHASE1_RC_REPORT.md` as the human-readable decision packet before

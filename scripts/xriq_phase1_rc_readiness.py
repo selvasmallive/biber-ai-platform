@@ -25,10 +25,12 @@ REQUIRED_COMPLETED_STEPS = [
 REQUIRED_DOC_REFERENCES = {
     "README.md": [
         "scripts/xriq_phase1_local_check.py",
+        "--require-origin-main",
         "docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md",
     ],
     "xriq/README.md": [
         "scripts/xriq_phase1_local_check.py",
+        "--require-origin-main",
         "../docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md",
     ],
     "docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md": [
@@ -40,12 +42,14 @@ REQUIRED_DOC_REFERENCES = {
     "docs/XRIQ_PHASE1_RC_REPORT.md": [
         "phase1-xriq-private-devnet-rc1",
         "xriq-phase1-local-check",
+        "--require-origin-main",
         "ready_for_rc_tag",
         "Do not create or push that tag from a general \"continue\" request.",
     ],
     "docs/CODEX_HANDOFF.md": [
         "Phase 1 goal: XRIQ private-devnet prototype only",
         "docs/XRIQ_PHASE1_RC_REPORT.md",
+        "--require-origin-main",
         "xriq-phase1-local-check",
     ],
 }
@@ -72,6 +76,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--require-clean-git",
         action="store_true",
         help="Fail unless git status --short is clean. Use after commit/push.",
+    )
+    parser.add_argument(
+        "--require-origin-main",
+        action="store_true",
+        help="Fail unless local HEAD matches origin/main. Use before RC tagging.",
     )
     return parser.parse_args(argv)
 
@@ -179,6 +188,23 @@ def git_status_short() -> str:
     return result.stdout.strip()
 
 
+def git_rev_parse(ref: str, *, required: bool) -> str | None:
+    result = subprocess.run(
+        ["git", "rev-parse", ref],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        if required:
+            raise ReadinessError(
+                f"git rev-parse {ref} failed with exit code "
+                f"{result.returncode}: {result.stderr}"
+            )
+        return None
+    return result.stdout.strip()
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     summary_path = (args.summary or latest_summary_path()).resolve()
@@ -190,14 +216,26 @@ def main(argv: list[str] | None = None) -> int:
     if args.require_clean_git and not git_clean:
         raise ReadinessError(f"git working tree is not clean:\n{git_status}")
 
+    head_commit = git_rev_parse("HEAD", required=True)
+    origin_main_commit = git_rev_parse("origin/main", required=False)
+    origin_main_matches_head = origin_main_commit == head_commit
+    if args.require_origin_main and not origin_main_matches_head:
+        raise ReadinessError(
+            "local HEAD does not match origin/main; push or fast-forward before "
+            f"tagging (HEAD={head_commit}, origin/main={origin_main_commit})"
+        )
+
     report = {
         "ok": "xriq-phase1-rc-readiness",
-        "ready_for_rc_tag": git_clean,
+        "ready_for_rc_tag": git_clean and origin_main_matches_head,
         "summary": summary_result["summary"],
         "completed_steps": summary_result["completed_steps"],
         "artifact_checks": summary_result["artifact_checks"],
         "docs_checked": docs_checked,
         "git_clean": git_clean,
+        "head_commit": head_commit,
+        "origin_main_commit": origin_main_commit,
+        "origin_main_matches_head": origin_main_matches_head,
     }
     if not git_clean:
         report["git_status"] = git_status
