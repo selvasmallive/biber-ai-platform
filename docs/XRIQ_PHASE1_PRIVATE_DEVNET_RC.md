@@ -38,7 +38,9 @@ The gate must complete all default steps without skips:
 - `cargo test workspace`
 - `cargo clippy workspace`
 - `transfer smoke`
+- `transfer smoke artifact check`
 - `http smoke`
+- `http smoke artifact check`
 
 The generated `summary.json` under `xriq/target/xriq-phase1-local-check-*`
 must report:
@@ -49,6 +51,11 @@ must report:
   "skipped": []
 }
 ```
+
+The same summary must also include non-empty `artifact_checks` entries for the
+generated transfer and HTTP smoke JSON artifacts that prove snapshot export,
+latest discovery, latest replay check, explicit snapshot check, snapshot import,
+restored chain check, and wallet-flow post-block verification.
 
 ## Functional Checklist
 
@@ -86,6 +93,8 @@ must report:
 Phase 1 can be called an RC only when all of these are true:
 
 - `python scripts/xriq_phase1_local_check.py` passes with no skipped steps.
+- The local gate's `artifact_checks` list is non-empty and all listed files
+  exist under the generated Phase 1 check artifact root.
 - `git status --short` is clean after committing/pushing the RC checkpoint.
 - `docs/CODEX_HANDOFF.md` records the latest validation artifact path and Phase
   1 percentage/status.

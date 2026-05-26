@@ -55,8 +55,8 @@ def run_step(
     cwd: Path = ROOT,
     env: dict[str, str] | None = None,
 ) -> None:
-    print(f"==> {name}")
-    print("$ " + " ".join(command))
+    print(f"==> {name}", flush=True)
+    print("$ " + " ".join(command), flush=True)
     merged_env = os.environ.copy()
     if env:
         merged_env.update(env)
@@ -69,6 +69,173 @@ def cargo_env(target_dir: str) -> dict[str, str]:
     return {"CARGO_TARGET_DIR": target_dir}
 
 
+def read_json_artifact(path: Path) -> dict[str, object]:
+    if not path.exists():
+        raise CheckError(f"required smoke artifact is missing: {path}")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise CheckError(f"required smoke artifact is not valid JSON: {path}: {error}") from error
+    if not isinstance(payload, dict):
+        raise CheckError(f"required smoke artifact is not a JSON object: {path}")
+    return payload
+
+
+def require_artifact_equal(
+    payload: dict[str, object],
+    key: str,
+    expected: object,
+    context: str,
+) -> None:
+    actual = payload.get(key)
+    if actual != expected:
+        raise CheckError(
+            f"{context}: expected {key}={expected!r}, got {actual!r}"
+        )
+
+
+def require_artifact_empty_list(
+    payload: dict[str, object],
+    key: str,
+    context: str,
+) -> None:
+    actual = payload.get(key)
+    if actual != []:
+        raise CheckError(f"{context}: expected empty {key}, got {actual!r}")
+
+
+def check_artifact(
+    artifact_dir: Path,
+    name: str,
+    context: str,
+    expected_fields: dict[str, object],
+    *,
+    empty_list_fields: list[str] | None = None,
+) -> Path:
+    path = artifact_dir / name
+    payload = read_json_artifact(path)
+    for key, expected in expected_fields.items():
+        require_artifact_equal(payload, key, expected, context)
+    for key in empty_list_fields or []:
+        require_artifact_empty_list(payload, key, context)
+    return path
+
+
+def validate_transfer_artifacts(artifact_dir: Path) -> list[str]:
+    checked = [
+        check_artifact(
+            artifact_dir,
+            "summary.json",
+            "transfer smoke summary",
+            {"ok": "xriq-private-devnet-transfer-smoke"},
+        ),
+        check_artifact(
+            artifact_dir,
+            "snapshot-export.json",
+            "transfer snapshot export",
+            {"command": "snapshot-export", "current_height": 1},
+        ),
+        check_artifact(
+            artifact_dir,
+            "snapshot-latest.json",
+            "transfer snapshot latest",
+            {
+                "command": "snapshot-latest",
+                "snapshot_name": "snapshot",
+                "current_height": 1,
+            },
+        ),
+        check_artifact(
+            artifact_dir,
+            "snapshot-latest-check.json",
+            "transfer snapshot latest check",
+            {"command": "snapshot-latest-check", "verified": True},
+            empty_list_fields=["mismatches"],
+        ),
+        check_artifact(
+            artifact_dir,
+            "snapshot-check.json",
+            "transfer snapshot check",
+            {"command": "snapshot-check", "verified": True},
+            empty_list_fields=["mismatches"],
+        ),
+        check_artifact(
+            artifact_dir,
+            "snapshot-import.json",
+            "transfer snapshot import",
+            {"command": "snapshot-import", "current_height": 1},
+        ),
+        check_artifact(
+            artifact_dir,
+            "imported-chain-check.json",
+            "transfer imported chain check",
+            {"command": "chain-check", "verified": True, "current_height": 1},
+        ),
+        check_artifact(
+            artifact_dir,
+            "wallet-flow-check-after-block.json",
+            "transfer wallet flow check after block",
+            {
+                "command": "check",
+                "verified": True,
+                "current_height": 1,
+                "pending_transactions": 0,
+            },
+        ),
+    ]
+    return [str(path) for path in checked]
+
+
+def validate_http_artifacts(artifact_dir: Path) -> list[str]:
+    checked = [
+        check_artifact(
+            artifact_dir,
+            "summary.json",
+            "http smoke summary",
+            {"ok": "xriq-private-devnet-http-smoke"},
+        ),
+        check_artifact(
+            artifact_dir,
+            "snapshot-export.json",
+            "http snapshot export",
+            {"command": "snapshot-export", "current_height": 1},
+        ),
+        check_artifact(
+            artifact_dir,
+            "http-snapshot-latest.json",
+            "http snapshot latest",
+            {"command": "snapshot-latest", "snapshot_name": "http-snapshot"},
+        ),
+        check_artifact(
+            artifact_dir,
+            "http-snapshot-latest-check.json",
+            "http snapshot latest check",
+            {"command": "snapshot-latest-check", "verified": True},
+            empty_list_fields=["mismatches"],
+        ),
+        check_artifact(
+            artifact_dir,
+            "http-snapshot-check.json",
+            "http snapshot check",
+            {"command": "snapshot-check", "verified": True},
+            empty_list_fields=["mismatches"],
+        ),
+        check_artifact(
+            artifact_dir,
+            "snapshot-import.json",
+            "http snapshot import",
+            {"command": "snapshot-import", "current_height": 1},
+        ),
+        check_artifact(
+            artifact_dir,
+            "imported-chain-check.json",
+            "http imported chain check",
+            {"command": "chain-check", "verified": True, "current_height": 1},
+        ),
+    ]
+    return [str(path) for path in checked]
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     artifact_root = (args.artifact_root or default_artifact_root()).resolve()
@@ -76,6 +243,7 @@ def main(argv: list[str] | None = None) -> int:
 
     completed: list[str] = []
     skipped: list[str] = []
+    artifact_checks: list[str] = []
 
     steps: list[tuple[str, list[str], dict[str, str] | None]] = [
         (
@@ -157,6 +325,8 @@ def main(argv: list[str] | None = None) -> int:
             env=cargo_env("target-codex-xriq-phase1-transfer-smoke"),
         )
         completed.append("transfer smoke")
+        artifact_checks.extend(validate_transfer_artifacts(transfer_dir))
+        completed.append("transfer smoke artifact check")
         run_step(
             "http smoke",
             [
@@ -168,16 +338,19 @@ def main(argv: list[str] | None = None) -> int:
             env=cargo_env("target-codex-xriq-phase1-http-smoke"),
         )
         completed.append("http smoke")
+        artifact_checks.extend(validate_http_artifacts(http_dir))
+        completed.append("http smoke artifact check")
 
     summary = {
         "ok": "xriq-phase1-local-check",
         "artifact_root": str(artifact_root),
+        "artifact_checks": artifact_checks,
         "completed": completed,
         "skipped": skipped,
     }
     summary_path = artifact_root / "summary.json"
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps(summary, indent=2, sort_keys=True))
+    print(json.dumps(summary, indent=2, sort_keys=True), flush=True)
     return 0
 
 

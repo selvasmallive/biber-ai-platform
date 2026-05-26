@@ -110,15 +110,15 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `92%`.
+- Phase 1 estimated completion: about `93%`.
 - Rust workspace/crate structure: about `86%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `87%`.
 - File-backed node runner and deterministic replay: about `76%`.
 - Snapshot export/import and restore workflow: about `80%`.
 - Read-only/private RPC and explorer/dashboard support: about `76%`.
-- Local smoke/regression coverage: about `96%`.
-- Phase 1 release/readiness documentation: about `80%`.
+- Local smoke/regression coverage: about `97%`.
+- Phase 1 release/readiness documentation: about `85%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -138,6 +138,21 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1 local-check artifact-validation checkpoint:
+  tightened `scripts/xriq_phase1_local_check.py` so the CPU-only gate now
+  verifies critical generated transfer and HTTP smoke JSON artifacts after the
+  smokes run. The gate checks snapshot export, latest snapshot discovery,
+  latest snapshot replay check, explicit snapshot replay check, snapshot import,
+  restored-chain verification, and the transfer wallet-flow post-block check.
+  Its `summary.json` now records `artifact_checks` plus the completed
+  `transfer smoke artifact check` and `http smoke artifact check` steps.
+  `README.md`, `xriq/README.md`, and
+  `docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md` now document this stronger local
+  gate. Local verification passed with
+  `python scripts/xriq_phase1_local_check.py`; the generated summary was
+  `xriq/target/xriq-phase1-local-check-20260526T164037/summary.json`, with no
+  skipped steps and 15 verified smoke artifact files. No Vast sync, API/vLLM
+  restart, training, OpenAI mentor call, or credential change was used.
 - Latest native XRIQ Phase 1 RC checklist checkpoint: added
   `docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md` as the go/no-go checklist for calling
   Phase 1 private-devnet complete. It records Phase 1 scope, required local
