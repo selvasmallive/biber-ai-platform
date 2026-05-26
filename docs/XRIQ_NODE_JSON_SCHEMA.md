@@ -544,6 +544,80 @@ Shape:
 For import, `command` is `snapshot-import` and `chain_file`/`pending_file`
 refer to the server's configured target files.
 
+## Snapshot Discovery
+
+List command:
+
+```bash
+cargo run -p xriq-node -- snapshot-list \
+  --snapshot-root target \
+  --limit 10 \
+  --format json
+```
+
+Detail command:
+
+```bash
+cargo run -p xriq-node -- snapshot-detail \
+  --snapshot-dir target/xriq-devnet-snapshot \
+  --format json
+```
+
+`snapshot-list` scans only immediate child directories under `snapshot_root`
+that contain an XRIQ snapshot manifest. It sorts results deterministically by
+height descending, then snapshot name descending. `snapshot-detail` reads one
+snapshot manifest and resolves `chain_file` and `pending_file` to paths inside
+that snapshot directory. These are local private-devnet operator commands, not
+public HTTP endpoints.
+
+List shape:
+
+```json
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "snapshot-list",
+  "warning": "private-devnet-only-no-public-token",
+  "snapshot_format_version": "xriq-private-devnet-snapshot-v1",
+  "snapshot_root": "target",
+  "snapshot_count": 1,
+  "snapshots": [
+    {
+      "snapshot_name": "xriq-devnet-snapshot",
+      "snapshot_dir": "target/xriq-devnet-snapshot",
+      "chain_file": "target/xriq-devnet-snapshot/chain.bin",
+      "pending_file": "target/xriq-devnet-snapshot/pending.tsv",
+      "chain_id": "xriq-devnet",
+      "current_height": 1,
+      "latest_block_hash": "64-hex-character-block-hash",
+      "state_root": "64-hex-character-state-root",
+      "pending_transactions": 0,
+      "stored_blocks": 1
+    }
+  ]
+}
+```
+
+Detail shape:
+
+```json
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "snapshot-detail",
+  "warning": "private-devnet-only-no-public-token",
+  "snapshot_format_version": "xriq-private-devnet-snapshot-v1",
+  "snapshot_name": "xriq-devnet-snapshot",
+  "snapshot_dir": "target/xriq-devnet-snapshot",
+  "chain_file": "target/xriq-devnet-snapshot/chain.bin",
+  "pending_file": "target/xriq-devnet-snapshot/pending.tsv",
+  "chain_id": "xriq-devnet",
+  "current_height": 1,
+  "latest_block_hash": "64-hex-character-block-hash",
+  "state_root": "64-hex-character-state-root",
+  "pending_transactions": 0,
+  "stored_blocks": 1
+}
+```
+
 ## Preflight Transfer Flow
 
 Command:

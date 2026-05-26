@@ -56,6 +56,23 @@ cargo run -p xriq-node -- snapshot-import \
   --format json
 ```
 
+List and inspect local snapshots before restore:
+
+```bash
+cargo run -p xriq-node -- snapshot-list \
+  --snapshot-root target \
+  --limit 10 \
+  --format json
+
+cargo run -p xriq-node -- snapshot-detail \
+  --snapshot-dir target/xriq-devnet-snapshot \
+  --format json
+```
+
+`snapshot-list` scans immediate child directories under the supplied root for
+XRIQ manifests. `snapshot-detail` reads one manifest and reports the same
+height/hash/state-root fields used for restore checks.
+
 After import, verify:
 
 ```bash

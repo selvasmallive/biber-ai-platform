@@ -110,14 +110,14 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `70%`.
+- Phase 1 estimated completion: about `71%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `67%`.
 - File-backed node runner and deterministic replay: about `71%`.
-- Snapshot export/import and restore workflow: about `68%`.
+- Snapshot export/import and restore workflow: about `70%`.
 - Read-only/private RPC and explorer/dashboard support: about `71%`.
-- Local smoke/regression coverage: about `73%`.
+- Local smoke/regression coverage: about `74%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -172,6 +172,25 @@ not an active target because the GPU was terminated to save cost.
   `xriq/target/xriq-private-devnet-http-smoke-20260526T124501Z`. No Vast sync,
   API/vLLM restart, training, OpenAI mentor call, or credential change was
   used.
+- Latest native XRIQ snapshot-discovery checkpoint: `xriq-node snapshot-list`
+  now scans an operator-provided local snapshot root for immediate child
+  directories containing XRIQ snapshot manifests, and `xriq-node
+  snapshot-detail` reads one snapshot manifest before restore. Both commands
+  support text and `--format json`, resolve `chain.bin`/`pending.tsv` paths
+  inside the snapshot directory, and report deterministic height, latest block
+  hash, state root, pending count, and stored-block count. The isolated
+  transfer/replay/snapshot smoke now writes `snapshot-list.json` and
+  `snapshot-detail.json` after export and before import. Local verification
+  passed `cargo fmt --all --manifest-path xriq/Cargo.toml -- --check`,
+  bundled Python syntax compilation for
+  `scripts/xriq_private_devnet_transfer_smoke.py`,
+  `cargo test -p xriq-node --manifest-path xriq/Cargo.toml -j 1` with
+  `51 passed`, and the isolated transfer smoke using
+  `CARGO_TARGET_DIR=target-codex-snapshot-discovery-smoke`. The smoke artifact
+  directory was
+  `xriq/target/xriq-private-devnet-transfer-smoke-20260526T125640Z`. No Vast
+  sync, API/vLLM restart, training, OpenAI mentor call, or credential change
+  was used.
 - Latest native XRIQ chain-check checkpoint: `xriq-node chain-check` now
   explicitly replays and validates the configured private-devnet chain file,
   optionally loads and validates durable pending-file records, and returns

@@ -230,8 +230,9 @@ python scripts/xriq_private_devnet_transfer_smoke.py
 
 This uses only Python stdlib plus Cargo/Rust. It creates a fresh artifact
 directory under `xriq/target/`, performs one private-devnet transfer, verifies
-transaction/block/account detail, exports/imports a snapshot, and leaves any
-live/restored BIBER API chain files untouched.
+transaction/block/account detail, exports/imports a snapshot, verifies snapshot
+list/detail discovery, and leaves any live/restored BIBER API chain files
+untouched.
 
 Windows-friendly local HTTP/RPC smoke from the repo root:
 
@@ -273,11 +274,23 @@ cargo run -p xriq-node -- snapshot-import \
   --pending-file target/xriq-devnet-restored-pending.tsv \
   --alice-balance 100 \
   --format json
+
+cargo run -p xriq-node -- snapshot-list \
+  --snapshot-root target \
+  --limit 10 \
+  --format json
+
+cargo run -p xriq-node -- snapshot-detail \
+  --snapshot-dir target/xriq-devnet-snapshot \
+  --format json
 ```
 
 The snapshot workflow copies `chain.bin`, optional `pending.tsv`, and
 `manifest.json` into a new snapshot directory. Import refuses to overwrite
-existing target files. See `../docs/XRIQ_SNAPSHOT_EXPORT_IMPORT.md`.
+existing target files. `snapshot-list` scans one snapshot root for immediate
+child directories containing XRIQ snapshot manifests; `snapshot-detail` reads
+one snapshot manifest and reports the deterministic tip/status fields needed
+before restore. See `../docs/XRIQ_SNAPSHOT_EXPORT_IMPORT.md`.
 
 Checked private-devnet JSON fixtures live in `fixtures/private-devnet/`.
 They are used by Rust tests as golden examples for wallet/node schema drift.

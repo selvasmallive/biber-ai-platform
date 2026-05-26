@@ -282,6 +282,38 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_equal(snapshot_export, "command", "snapshot-export", "snapshot export")
     require_equal(snapshot_export, "current_height", 1, "snapshot export")
 
+    snapshot_list = run_node_json(
+        xriq_dir,
+        "snapshot-list",
+        "--snapshot-root",
+        str(artifact_dir),
+        "--limit",
+        "5",
+    )
+    write_json(artifact_dir / "snapshot-list.json", snapshot_list)
+    require_equal(snapshot_list, "command", "snapshot-list", "snapshot list")
+    require_equal(snapshot_list, "snapshot_count", 1, "snapshot list")
+    snapshots = snapshot_list.get("snapshots")
+    if not isinstance(snapshots, list) or not snapshots:
+        raise SmokeError("snapshot list: expected one snapshot entry")
+    first_snapshot = snapshots[0]
+    if not isinstance(first_snapshot, dict):
+        raise SmokeError("snapshot list: expected snapshot object")
+    require_equal(first_snapshot, "snapshot_name", "snapshot", "snapshot list")
+    require_equal(first_snapshot, "current_height", 1, "snapshot list")
+
+    snapshot_detail = run_node_json(
+        xriq_dir,
+        "snapshot-detail",
+        "--snapshot-dir",
+        str(snapshot_dir),
+    )
+    write_json(artifact_dir / "snapshot-detail.json", snapshot_detail)
+    require_equal(snapshot_detail, "command", "snapshot-detail", "snapshot detail")
+    require_equal(snapshot_detail, "snapshot_name", "snapshot", "snapshot detail")
+    require_equal(snapshot_detail, "current_height", 1, "snapshot detail")
+    require_equal(snapshot_detail, "state_root", snapshot_export["state_root"], "snapshot detail")
+
     snapshot_import = run_node_json(
         xriq_dir,
         "snapshot-import",

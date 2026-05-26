@@ -828,10 +828,10 @@ As of 2026-05-17:
     confirmed transaction detail, selected JSON outputs, draft-block, durable
     HTTP pending state, durable
     pending-block production, client preflight transfer flow, explorer
-    overview, block detail, account list/detail, and transaction-list behavior
-    against persisted chain files, and persists representative JSON response
-    examples beside the smoke artifacts for future BIBER agents and HTTP/RPC
-    adapters
+    overview, block detail, account list/detail, transaction-list behavior, and
+    snapshot list/detail discovery against persisted chain files, and persists
+    representative JSON response examples beside the smoke artifacts for future
+    BIBER agents and HTTP/RPC adapters
   - node transaction submission
   - node transaction submission rejects invalid hash-bound test-only signatures
     before mempool insert
@@ -858,6 +858,10 @@ As of 2026-05-17:
     and `xriq-node snapshot-import`; the MVP snapshot copies the replayable
     chain file, optional durable pending file, and manifest into a new
     directory, and import refuses to overwrite existing target files
+  - private-devnet snapshot discovery through `xriq-node snapshot-list` and
+    `xriq-node snapshot-detail`; discovery reads local snapshot manifests under
+    an operator-provided root and reports deterministic tip/status fields before
+    restore
 - Implemented private-devnet wallet CLI baseline:
   - deterministic test identity generation from labels
   - transfer draft construction

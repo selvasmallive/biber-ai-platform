@@ -106,6 +106,15 @@ pub struct PrivateDevnetSnapshotStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateDevnetSnapshotSummary {
+    pub snapshot_name: String,
+    pub snapshot_dir: String,
+    pub chain_file: String,
+    pub pending_file: Option<String>,
+    pub status: NodeStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateDevnetHttpServerConfig {
     pub bind: String,
     pub chain_file: String,
@@ -207,6 +216,8 @@ pub enum NodeRunnerOutput {
     TransactionList(String),
     MempoolDetail(String),
     TransactionDetail(String),
+    SnapshotList(String),
+    SnapshotDetail(String),
     Snapshot(PrivateDevnetSnapshotStatus),
     Json(String),
 }
@@ -489,7 +500,9 @@ impl fmt::Display for NodeRunnerOutput {
             | Self::AccountTransactions(detail)
             | Self::TransactionList(detail)
             | Self::MempoolDetail(detail)
-            | Self::TransactionDetail(detail) => formatter.write_str(detail),
+            | Self::TransactionDetail(detail)
+            | Self::SnapshotList(detail)
+            | Self::SnapshotDetail(detail) => formatter.write_str(detail),
             Self::Snapshot(status) => write!(formatter, "{status}"),
             Self::Json(json) => formatter.write_str(json),
         }
@@ -629,6 +642,8 @@ pub fn node_help_text() -> String {
         "  xriq-node transaction-list --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node snapshot-list --snapshot-root <path> [--limit <count>] [--format text|json]",
+        "  xriq-node snapshot-detail --snapshot-dir <path> [--format text|json]",
         "  xriq-node snapshot-export --chain-file <path> --snapshot-dir <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-import --snapshot-dir <path> --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>]",
@@ -711,6 +726,8 @@ where
         Some("transaction-list") => run_transaction_list_command(&args[1..]),
         Some("mempool-detail") => run_mempool_detail_command(&args[1..]),
         Some("transaction-detail") => run_transaction_detail_command(&args[1..]),
+        Some("snapshot-list") => run_snapshot_list_command(&args[1..]),
+        Some("snapshot-detail") => run_snapshot_detail_command(&args[1..]),
         Some("snapshot-export") => run_snapshot_export_command(&args[1..]),
         Some("snapshot-import") => run_snapshot_import_command(&args[1..]),
         Some(command) => Err(NodeRunnerError::UnknownCommand(command.to_string())),
@@ -1777,6 +1794,66 @@ fn private_devnet_import_snapshot(
     })
 }
 
+pub fn private_devnet_snapshot_list(
+    snapshot_root: impl AsRef<Path>,
+    limit: usize,
+) -> Result<String, NodeRunnerError> {
+    let snapshot_root = snapshot_root.as_ref();
+    let snapshots = private_devnet_snapshot_list_data(snapshot_root, limit)?;
+    Ok(render_snapshot_list(snapshot_root, &snapshots))
+}
+
+pub fn private_devnet_snapshot_list_data(
+    snapshot_root: impl AsRef<Path>,
+    limit: usize,
+) -> Result<Vec<PrivateDevnetSnapshotSummary>, NodeRunnerError> {
+    let snapshot_root = snapshot_root.as_ref();
+    let entries =
+        fs::read_dir(snapshot_root).map_err(|error| NodeRunnerError::SnapshotFileRead {
+            path: snapshot_root.to_string_lossy().to_string(),
+            error: error.to_string(),
+        })?;
+    let mut snapshots = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| NodeRunnerError::SnapshotFileRead {
+            path: snapshot_root.to_string_lossy().to_string(),
+            error: error.to_string(),
+        })?;
+        let path = entry.path();
+        let file_type = entry
+            .file_type()
+            .map_err(|error| NodeRunnerError::SnapshotFileRead {
+                path: path.to_string_lossy().to_string(),
+                error: error.to_string(),
+            })?;
+        if file_type.is_dir() && path.join(SNAPSHOT_MANIFEST_FILE).exists() {
+            snapshots.push(read_private_devnet_snapshot_summary(&path)?);
+        }
+    }
+    snapshots.sort_by(|left, right| {
+        right
+            .status
+            .current_height
+            .cmp(&left.status.current_height)
+            .then_with(|| right.snapshot_name.cmp(&left.snapshot_name))
+    });
+    snapshots.truncate(limit);
+    Ok(snapshots)
+}
+
+pub fn private_devnet_snapshot_detail(
+    snapshot_dir: impl AsRef<Path>,
+) -> Result<String, NodeRunnerError> {
+    let snapshot = private_devnet_snapshot_detail_data(snapshot_dir)?;
+    Ok(render_snapshot_detail(&snapshot))
+}
+
+pub fn private_devnet_snapshot_detail_data(
+    snapshot_dir: impl AsRef<Path>,
+) -> Result<PrivateDevnetSnapshotSummary, NodeRunnerError> {
+    read_private_devnet_snapshot_summary(snapshot_dir.as_ref())
+}
+
 pub fn private_devnet_file_submit_pending_transfer_body(
     chain_file: impl AsRef<Path>,
     pending_file: impl AsRef<Path>,
@@ -2699,6 +2776,46 @@ fn run_transaction_detail_command(args: &[String]) -> Result<NodeRunnerOutput, N
     })
 }
 
+fn run_snapshot_list_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&["--snapshot-root", "--limit", "--format"])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let snapshot_root = flags.required("--snapshot-root")?;
+    let limit = flags
+        .optional("--limit")
+        .map(|value| parse_usize("--limit", value))
+        .transpose()?
+        .unwrap_or(25);
+    Ok(match output_format {
+        RunnerOutputFormat::Text => private_devnet_snapshot_list(snapshot_root, limit)
+            .map(NodeRunnerOutput::SnapshotList)?,
+        RunnerOutputFormat::Json => {
+            let snapshots = private_devnet_snapshot_list_data(snapshot_root, limit)?;
+            NodeRunnerOutput::Json(render_snapshot_list_json(
+                "snapshot-list",
+                Path::new(snapshot_root),
+                &snapshots,
+            ))
+        }
+    })
+}
+
+fn run_snapshot_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&["--snapshot-dir", "--format"])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let snapshot_dir = flags.required("--snapshot-dir")?;
+    Ok(match output_format {
+        RunnerOutputFormat::Text => {
+            private_devnet_snapshot_detail(snapshot_dir).map(NodeRunnerOutput::SnapshotDetail)?
+        }
+        RunnerOutputFormat::Json => {
+            let snapshot = private_devnet_snapshot_detail_data(snapshot_dir)?;
+            NodeRunnerOutput::Json(render_snapshot_detail_json("snapshot-detail", &snapshot))
+        }
+    })
+}
+
 fn run_snapshot_export_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
     flags.reject_unknown(&[
@@ -3232,6 +3349,170 @@ fn validate_snapshot_manifest(snapshot_dir: &Path) -> Result<(), NodeRunnerError
         ));
     }
     Ok(())
+}
+
+fn read_private_devnet_snapshot_summary(
+    snapshot_dir: &Path,
+) -> Result<PrivateDevnetSnapshotSummary, NodeRunnerError> {
+    validate_snapshot_manifest(snapshot_dir)?;
+    let manifest_path = snapshot_dir.join(SNAPSHOT_MANIFEST_FILE);
+    let manifest =
+        fs::read_to_string(&manifest_path).map_err(|error| NodeRunnerError::SnapshotFileRead {
+            path: manifest_path.to_string_lossy().to_string(),
+            error: error.to_string(),
+        })?;
+    let chain_file_name = snapshot_manifest_required_string(&manifest, "chain_file")?;
+    let pending_file_name = snapshot_manifest_optional_string(&manifest, "pending_file")?;
+    let chain_file = snapshot_dir.join(&chain_file_name);
+    if !chain_file.exists() {
+        return Err(NodeRunnerError::SnapshotFileRead {
+            path: chain_file.to_string_lossy().to_string(),
+            error: "snapshot chain file is missing".to_string(),
+        });
+    }
+    let pending_file = if let Some(pending_file_name) = pending_file_name {
+        let pending_file = snapshot_dir.join(pending_file_name);
+        if !pending_file.exists() {
+            return Err(NodeRunnerError::SnapshotFileRead {
+                path: pending_file.to_string_lossy().to_string(),
+                error: "snapshot pending file is missing".to_string(),
+            });
+        }
+        Some(pending_file.to_string_lossy().to_string())
+    } else {
+        None
+    };
+    let snapshot_name = snapshot_dir
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| snapshot_dir.to_string_lossy().to_string());
+    Ok(PrivateDevnetSnapshotSummary {
+        snapshot_name,
+        snapshot_dir: snapshot_dir.to_string_lossy().to_string(),
+        chain_file: chain_file.to_string_lossy().to_string(),
+        pending_file,
+        status: NodeStatus {
+            warning: PRIVATE_DEVNET_RUNNER_WARNING,
+            chain_id: snapshot_manifest_required_string(&manifest, "chain_id")?,
+            current_height: snapshot_manifest_required_u64(&manifest, "current_height")?,
+            latest_block_hash: snapshot_manifest_required_hash(&manifest, "latest_block_hash")?,
+            state_root: snapshot_manifest_required_hash(&manifest, "state_root")?,
+            pending_transactions: snapshot_manifest_required_usize(
+                &manifest,
+                "pending_transactions",
+            )?,
+            stored_blocks: snapshot_manifest_required_usize(&manifest, "stored_blocks")?,
+        },
+    })
+}
+
+fn snapshot_manifest_required_string(
+    manifest: &str,
+    field: &'static str,
+) -> Result<String, NodeRunnerError> {
+    snapshot_manifest_optional_string(manifest, field)?.ok_or_else(|| {
+        NodeRunnerError::InvalidSnapshotManifest(format!("missing string field {field}"))
+    })
+}
+
+fn snapshot_manifest_optional_string(
+    manifest: &str,
+    field: &'static str,
+) -> Result<Option<String>, NodeRunnerError> {
+    let value = snapshot_manifest_value(manifest, field)?;
+    if value.starts_with("null") {
+        return Ok(None);
+    }
+    let Some(rest) = value.strip_prefix('"') else {
+        return Err(NodeRunnerError::InvalidSnapshotManifest(format!(
+            "field {field} must be a string or null"
+        )));
+    };
+    let mut end = None;
+    for (index, character) in rest.char_indices() {
+        if character == '\\' {
+            return Err(NodeRunnerError::InvalidSnapshotManifest(format!(
+                "escaped string field {field} is not supported"
+            )));
+        }
+        if character == '"' {
+            end = Some(index);
+            break;
+        }
+    }
+    let Some(end) = end else {
+        return Err(NodeRunnerError::InvalidSnapshotManifest(format!(
+            "unterminated string field {field}"
+        )));
+    };
+    Ok(Some(rest[..end].to_string()))
+}
+
+fn snapshot_manifest_required_u64(
+    manifest: &str,
+    field: &'static str,
+) -> Result<u64, NodeRunnerError> {
+    let digits = snapshot_manifest_number_digits(manifest, field)?;
+    digits
+        .parse()
+        .map_err(|_| NodeRunnerError::InvalidSnapshotManifest(format!("invalid number {field}")))
+}
+
+fn snapshot_manifest_required_usize(
+    manifest: &str,
+    field: &'static str,
+) -> Result<usize, NodeRunnerError> {
+    let digits = snapshot_manifest_number_digits(manifest, field)?;
+    digits
+        .parse()
+        .map_err(|_| NodeRunnerError::InvalidSnapshotManifest(format!("invalid number {field}")))
+}
+
+fn snapshot_manifest_required_hash(
+    manifest: &str,
+    field: &'static str,
+) -> Result<Hash32, NodeRunnerError> {
+    let value = snapshot_manifest_required_string(manifest, field)?;
+    parse_hash(field, &value).map_err(|_| {
+        NodeRunnerError::InvalidSnapshotManifest(format!("field {field} must be a 64-hex hash"))
+    })
+}
+
+fn snapshot_manifest_number_digits<'a>(
+    manifest: &'a str,
+    field: &'static str,
+) -> Result<&'a str, NodeRunnerError> {
+    let value = snapshot_manifest_value(manifest, field)?;
+    let end = value
+        .char_indices()
+        .find_map(|(index, character)| (!character.is_ascii_digit()).then_some(index))
+        .unwrap_or(value.len());
+    if end == 0 {
+        return Err(NodeRunnerError::InvalidSnapshotManifest(format!(
+            "field {field} must be a number"
+        )));
+    }
+    Ok(&value[..end])
+}
+
+fn snapshot_manifest_value<'a>(
+    manifest: &'a str,
+    field: &'static str,
+) -> Result<&'a str, NodeRunnerError> {
+    let key = format!("\"{field}\"");
+    let Some(key_start) = manifest.find(&key) else {
+        return Err(NodeRunnerError::InvalidSnapshotManifest(format!(
+            "missing field {field}"
+        )));
+    };
+    let after_key = &manifest[key_start + key.len()..];
+    let after_space = after_key.trim_start();
+    let Some(after_colon) = after_space.strip_prefix(':') else {
+        return Err(NodeRunnerError::InvalidSnapshotManifest(format!(
+            "field {field} is missing a colon"
+        )));
+    };
+    Ok(after_colon.trim_start())
 }
 
 fn render_pending_transaction_record(tx_hash: Hash32, transaction: &Transaction) -> String {
@@ -3852,6 +4133,66 @@ fn render_snapshot_status_json(command: &str, status: &PrivateDevnetSnapshotStat
     output
 }
 
+fn render_snapshot_list_json(
+    command: &str,
+    snapshot_root: &Path,
+    snapshots: &[PrivateDevnetSnapshotSummary],
+) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_success_json_preamble(&mut output, command);
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(PRIVATE_DEVNET_RUNNER_WARNING)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"snapshot_format_version\": {},",
+        json_string(PRIVATE_DEVNET_SNAPSHOT_FORMAT_VERSION)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"snapshot_root\": {},",
+        json_string(&snapshot_root.to_string_lossy())
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"snapshot_count\": {},", snapshots.len()).expect("write to String");
+    writeln!(&mut output, "  \"snapshots\": [").expect("write to String");
+    for (index, snapshot) in snapshots.iter().enumerate() {
+        push_snapshot_summary_json(&mut output, snapshot, "    ");
+        if index + 1 != snapshots.len() {
+            output.push(',');
+        }
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
+fn render_snapshot_detail_json(command: &str, snapshot: &PrivateDevnetSnapshotSummary) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_success_json_preamble(&mut output, command);
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(PRIVATE_DEVNET_RUNNER_WARNING)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"snapshot_format_version\": {},",
+        json_string(PRIVATE_DEVNET_SNAPSHOT_FORMAT_VERSION)
+    )
+    .expect("write to String");
+    push_snapshot_summary_json_fields(&mut output, snapshot, "  ");
+    output.push_str("\n}");
+    output
+}
+
 fn render_snapshot_manifest_json(status: &PrivateDevnetSnapshotStatus) -> String {
     let mut output = String::new();
     writeln!(&mut output, "{{").expect("write to String");
@@ -3886,6 +4227,80 @@ fn render_snapshot_manifest_json(status: &PrivateDevnetSnapshotStatus) -> String
     .expect("write to String");
     push_node_status_json_fields_without_warning(&mut output, &status.status, "  ", false);
     output.push_str("\n}\n");
+    output
+}
+
+fn render_snapshot_list(
+    snapshot_root: &Path,
+    snapshots: &[PrivateDevnetSnapshotSummary],
+) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "snapshot root: {}", snapshot_root.display()).expect("write to String");
+    writeln!(&mut output, "snapshots: {}", snapshots.len()).expect("write to String");
+    for snapshot in snapshots {
+        writeln!(
+            &mut output,
+            "- {} height={} pending={} stored_blocks={} state_root={} dir={}",
+            snapshot.snapshot_name,
+            snapshot.status.current_height,
+            snapshot.status.pending_transactions,
+            snapshot.status.stored_blocks,
+            hash_hex(snapshot.status.state_root),
+            snapshot.snapshot_dir
+        )
+        .expect("write to String");
+    }
+    output
+}
+
+fn render_snapshot_detail(snapshot: &PrivateDevnetSnapshotSummary) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "snapshot {}", snapshot.snapshot_name).expect("write to String");
+    writeln!(
+        &mut output,
+        "snapshot_format_version={}",
+        PRIVATE_DEVNET_SNAPSHOT_FORMAT_VERSION
+    )
+    .expect("write to String");
+    writeln!(&mut output, "snapshot_dir={}", snapshot.snapshot_dir).expect("write to String");
+    writeln!(&mut output, "chain_file={}", snapshot.chain_file).expect("write to String");
+    writeln!(
+        &mut output,
+        "pending_file={}",
+        snapshot.pending_file.as_deref().unwrap_or("none")
+    )
+    .expect("write to String");
+    writeln!(&mut output, "chain_id={}", snapshot.status.chain_id).expect("write to String");
+    writeln!(
+        &mut output,
+        "current_height={}",
+        snapshot.status.current_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "latest_block_hash={}",
+        hash_hex(snapshot.status.latest_block_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "state_root={}",
+        hash_hex(snapshot.status.state_root)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "pending_transactions={}",
+        snapshot.status.pending_transactions
+    )
+    .expect("write to String");
+    write!(
+        &mut output,
+        "stored_blocks={}",
+        snapshot.status.stored_blocks
+    )
+    .expect("write to String");
     output
 }
 
@@ -4525,6 +4940,48 @@ fn push_node_status_json_fields_without_warning(
     }
 }
 
+fn push_snapshot_summary_json(
+    output: &mut String,
+    snapshot: &PrivateDevnetSnapshotSummary,
+    indent: &str,
+) {
+    writeln!(output, "{indent}{{").expect("write to String");
+    push_snapshot_summary_json_fields(output, snapshot, &format!("{indent}  "));
+    write!(output, "\n{indent}}}").expect("write to String");
+}
+
+fn push_snapshot_summary_json_fields(
+    output: &mut String,
+    snapshot: &PrivateDevnetSnapshotSummary,
+    indent: &str,
+) {
+    writeln!(
+        output,
+        "{indent}\"snapshot_name\": {},",
+        json_string(&snapshot.snapshot_name)
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}\"snapshot_dir\": {},",
+        json_string(&snapshot.snapshot_dir)
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}\"chain_file\": {},",
+        json_string(&snapshot.chain_file)
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{indent}\"pending_file\": {},",
+        json_optional_string(snapshot.pending_file.as_deref())
+    )
+    .expect("write to String");
+    push_node_status_json_fields_without_warning(output, &snapshot.status, indent, false);
+}
+
 fn push_block_summary_json(output: &mut String, block: &ExplorerBlockSummary, indent: &str) {
     writeln!(output, "{indent}{{").expect("write to String");
     writeln!(output, "{indent}  \"height\": {},", block.height).expect("write to String");
@@ -4990,6 +5447,7 @@ fn flag_to_static(flag: &str) -> &'static str {
         "--block-hash" => "--block-hash",
         "--address" => "--address",
         "--tx-hash" => "--tx-hash",
+        "--snapshot-root" => "--snapshot-root",
         "--snapshot-dir" => "--snapshot-dir",
         "--from" => "--from",
         "--to" => "--to",
@@ -6333,11 +6791,13 @@ mod tests {
         let pending_path = path.with_extension("pending");
         let imported_path = path.with_extension("imported.bin");
         let imported_pending_path = path.with_extension("imported.pending");
-        let snapshot_dir = temp_snapshot_dir();
+        let snapshot_root = temp_snapshot_dir();
+        let snapshot_dir = snapshot_root.join("snapshot-a");
         let path_text = path.to_string_lossy().to_string();
         let pending_text = pending_path.to_string_lossy().to_string();
         let imported_text = imported_path.to_string_lossy().to_string();
         let imported_pending_text = imported_pending_path.to_string_lossy().to_string();
+        let snapshot_root_text = snapshot_root.to_string_lossy().to_string();
         let snapshot_text = snapshot_dir.to_string_lossy().to_string();
 
         run_node_command([
@@ -6408,6 +6868,45 @@ mod tests {
         assert!(manifest.contains("\"snapshot_format_version\":"));
         assert!(manifest.contains("\"pending_file\": \"pending.tsv\""));
 
+        let snapshot_list = run_node_command([
+            "snapshot-list",
+            "--snapshot-root",
+            snapshot_root_text.as_str(),
+            "--limit",
+            "5",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(snapshot_list.contains("\"command\": \"snapshot-list\""));
+        assert!(snapshot_list.contains("\"snapshot_count\": 1"));
+        assert!(snapshot_list.contains("\"snapshot_name\": \"snapshot-a\""));
+        assert!(snapshot_list.contains("\"current_height\": 1"));
+        assert!(snapshot_list.contains("\"pending_transactions\": 1"));
+
+        let snapshot_detail =
+            run_node_command(["snapshot-detail", "--snapshot-dir", snapshot_text.as_str()])
+                .unwrap()
+                .to_string();
+        assert!(snapshot_detail.contains("snapshot snapshot-a"));
+        assert!(snapshot_detail.contains("current_height=1"));
+        assert!(snapshot_detail.contains("pending_transactions=1"));
+
+        let snapshot_detail_json = run_node_command([
+            "snapshot-detail",
+            "--snapshot-dir",
+            snapshot_text.as_str(),
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(snapshot_detail_json.contains("\"command\": \"snapshot-detail\""));
+        assert!(snapshot_detail_json.contains("\"snapshot_name\": \"snapshot-a\""));
+        assert!(snapshot_detail_json.contains("\"current_height\": 1"));
+        assert!(snapshot_detail_json.contains("\"pending_transactions\": 1"));
+
         let import_json = run_node_command([
             "snapshot-import",
             "--snapshot-dir",
@@ -6446,7 +6945,7 @@ mod tests {
         let _ = fs::remove_file(pending_path);
         let _ = fs::remove_file(imported_path);
         let _ = fs::remove_file(imported_pending_path);
-        let _ = fs::remove_dir_all(snapshot_dir);
+        let _ = fs::remove_dir_all(snapshot_root);
     }
 
     #[test]
