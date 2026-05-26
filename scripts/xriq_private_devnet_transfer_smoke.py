@@ -117,6 +117,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
 
     chain_file = artifact_dir / "chain.bin"
     pending_file = artifact_dir / "pending.tsv"
+    wallet_submit_pending_file = artifact_dir / "wallet-submit-pending.tsv"
     snapshot_dir = artifact_dir / "snapshot"
     imported_chain_file = artifact_dir / "imported-chain.bin"
     imported_pending_file = artifact_dir / "imported-pending.tsv"
@@ -255,6 +256,50 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_equal(wallet_auto_nonce_transfer, "nonce", 1, "wallet auto nonce transfer")
     require_equal(wallet_auto_nonce_transfer, "from", ALICE, "wallet auto nonce transfer")
     require_equal(wallet_auto_nonce_transfer, "to", BOB, "wallet auto nonce transfer")
+
+    wallet_submit_pending = run_wallet_json(
+        xriq_dir,
+        "submit",
+        "--chain-file",
+        str(chain_file),
+        "--pending-file",
+        str(wallet_submit_pending_file),
+        "--transfer-file",
+        str(artifact_dir / "wallet-transfer-auto-nonce.json"),
+        "--alice-balance",
+        args.alice_balance,
+    )
+    write_json(artifact_dir / "wallet-submit-pending.json", wallet_submit_pending)
+    require_equal(wallet_submit_pending, "command", "submit-pending", "wallet submit pending")
+    require_equal(wallet_submit_pending, "status", "pending", "wallet submit pending")
+    require_equal(wallet_submit_pending, "nonce", 1, "wallet submit pending")
+    require_equal(wallet_submit_pending, "amount_base_units", "5", "wallet submit pending")
+    wallet_submit_tx_hash = require_transaction_hash(wallet_submit_pending, "wallet submit pending")
+
+    wallet_submit_status = run_wallet_json(
+        xriq_dir,
+        "tx",
+        "status",
+        "--chain-file",
+        str(chain_file),
+        "--pending-file",
+        str(wallet_submit_pending_file),
+        "--alice-balance",
+        args.alice_balance,
+        "--tx-hash",
+        wallet_submit_tx_hash,
+    )
+    write_json(artifact_dir / "wallet-submit-pending-status.json", wallet_submit_status)
+    require_equal(wallet_submit_status, "command", "tx-status", "wallet submit pending status")
+    require_equal(wallet_submit_status, "status", "pending", "wallet submit pending status")
+    require_equal(
+        wallet_submit_status,
+        "tx_hash",
+        wallet_submit_tx_hash,
+        "wallet submit pending status",
+    )
+    require_equal(wallet_submit_status, "nonce", 1, "wallet submit pending status")
+    require_equal(wallet_submit_status, "amount_base_units", "5", "wallet submit pending status")
 
     block = run_node_json(
         xriq_dir,

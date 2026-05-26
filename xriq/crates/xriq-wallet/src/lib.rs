@@ -3,14 +3,16 @@
 //! This crate deliberately uses deterministic test identities and fake
 //! signatures. It is not production key management.
 
-use std::fmt;
+use std::{fmt, fs};
 
 use xriq_core::{Address, AddressError, Hash32, SignatureBytes, Transaction, XriqAmount};
 use xriq_crypto::{test_only_signature_for_hash, transaction_hash, transaction_signing_hash};
 use xriq_node::{
     private_devnet_file_account_detail_data, private_devnet_file_account_list_data,
-    private_devnet_file_account_transactions_data, private_devnet_file_transaction_detail_data,
-    private_devnet_file_transaction_detail_with_pending_file_data, PrivateDevnetTransactionDetail,
+    private_devnet_file_account_transactions_data,
+    private_devnet_file_submit_pending_transfer_body, private_devnet_file_transaction_detail_data,
+    private_devnet_file_transaction_detail_with_pending_file_data,
+    PrivateDevnetPendingTransactionDetail, PrivateDevnetTransactionDetail,
 };
 
 const TEST_IDENTITY_WARNING: &str = "private-devnet-test-identity-only";
@@ -99,6 +101,14 @@ pub struct WalletPendingTransactionStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletPendingSubmission {
+    pub tx_hash: Hash32,
+    pub received_order: u64,
+    pub transaction: Transaction,
+    pub warning: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WalletTransactionStatus {
     Confirmed(WalletConfirmedTransactionStatus),
     Pending(WalletPendingTransactionStatus),
@@ -114,6 +124,8 @@ pub enum WalletOutput {
     BalanceJson(WalletBalance),
     AccountHistory(WalletAccountHistory),
     AccountHistoryJson(WalletAccountHistory),
+    PendingSubmission(WalletPendingSubmission),
+    PendingSubmissionJson(WalletPendingSubmission),
     TransactionStatus(WalletTransactionStatus),
     TransactionStatusJson(WalletTransactionStatus),
     TransferDraft(TransferDraft),
@@ -194,6 +206,12 @@ impl fmt::Display for WalletOutput {
             Self::BalanceJson(balance) => formatter.write_str(&render_balance_json(balance)),
             Self::AccountHistory(history) => formatter.write_str(&render_history(history)),
             Self::AccountHistoryJson(history) => formatter.write_str(&render_history_json(history)),
+            Self::PendingSubmission(submission) => {
+                formatter.write_str(&render_pending_submission(submission))
+            }
+            Self::PendingSubmissionJson(submission) => {
+                formatter.write_str(&render_pending_submission_json(submission))
+            }
             Self::TransactionStatus(status) => formatter.write_str(&render_tx_status(status)),
             Self::TransactionStatusJson(status) => {
                 formatter.write_str(&render_tx_status_json(status))
@@ -247,6 +265,7 @@ pub fn help_text() -> String {
         "  xriq-wallet accounts --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-wallet balance --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet history --chain-file <path> --address <address> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
+        "  xriq-wallet submit --chain-file <path> --pending-file <path> --transfer-file <path> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet tx status --chain-file <path> --tx-hash <64-hex> [--draft-file <path>|--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet transfer --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number|auto> [--chain-file <path>] [--alice-balance <base-units>] [--expires-at-height <height>] [--format text|json]",
         "",
@@ -271,6 +290,7 @@ where
         Some("accounts") => run_accounts_command(&args[1..]),
         Some("balance") => run_balance_command(&args[1..]),
         Some("history") => run_history_command(&args[1..]),
+        Some("submit") => run_submit_command(&args[1..]),
         Some("tx") => run_tx_command(&args[1..]),
         Some("transfer") => run_transfer_command(&args[1..]),
         Some(command) => Err(WalletError::UnknownCommand(command.to_string())),
@@ -445,6 +465,42 @@ fn run_history_command(args: &[String]) -> Result<WalletOutput, WalletError> {
     Ok(match output_format {
         WalletOutputFormat::Text => WalletOutput::AccountHistory(history),
         WalletOutputFormat::Json => WalletOutput::AccountHistoryJson(history),
+    })
+}
+
+fn run_submit_command(args: &[String]) -> Result<WalletOutput, WalletError> {
+    let flags = FlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--pending-file",
+        "--transfer-file",
+        "--alice-balance",
+        "--format",
+    ])?;
+    let output_format = WalletOutputFormat::parse(flags.optional("--format"))?;
+    let chain_file = flags.required("--chain-file")?;
+    let pending_file = flags.required("--pending-file")?;
+    let transfer_file = flags.required("--transfer-file")?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let body = fs::read_to_string(transfer_file).map_err(|error| {
+        WalletError::Node(format!(
+            "could not read transfer file {transfer_file}: {error}"
+        ))
+    })?;
+    let detail = private_devnet_file_submit_pending_transfer_body(
+        chain_file,
+        pending_file,
+        alice_balance,
+        &body,
+    )
+    .map_err(|error| WalletError::Node(error.to_string()))?;
+    let submission = wallet_pending_submission(detail);
+    Ok(match output_format {
+        WalletOutputFormat::Text => WalletOutput::PendingSubmission(submission),
+        WalletOutputFormat::Json => WalletOutput::PendingSubmissionJson(submission),
     })
 }
 
@@ -675,6 +731,52 @@ fn wallet_transaction_status(detail: PrivateDevnetTransactionDetail) -> WalletTr
             })
         }
     }
+}
+
+fn wallet_pending_submission(
+    detail: PrivateDevnetPendingTransactionDetail,
+) -> WalletPendingSubmission {
+    WalletPendingSubmission {
+        tx_hash: detail.tx_hash,
+        received_order: detail.received_order,
+        transaction: detail.transaction,
+        warning: TEST_IDENTITY_WARNING,
+    }
+}
+
+fn render_pending_submission(submission: &WalletPendingSubmission) -> String {
+    let mut output = String::new();
+    {
+        use fmt::Write;
+        writeln!(&mut output, "warning={}", submission.warning).expect("write to String");
+        writeln!(&mut output, "command=submit-pending").expect("write to String");
+        writeln!(&mut output, "status=pending").expect("write to String");
+        writeln!(&mut output, "tx_hash={}", hash_hex(submission.tx_hash)).expect("write to String");
+        writeln!(&mut output, "received_order={}", submission.received_order)
+            .expect("write to String");
+    }
+    push_transaction_text_fields(&mut output, &submission.transaction);
+    output
+}
+
+fn render_pending_submission_json(submission: &WalletPendingSubmission) -> String {
+    let mut output = String::new();
+    output.push_str("{\n");
+    output.push_str("  \"format_version\": \"xriq-wallet-json-v1\",\n");
+    output.push_str("  \"command\": \"submit-pending\",\n");
+    output.push_str("  \"warning\": ");
+    output.push_str(&json_string(submission.warning));
+    output.push_str(",\n");
+    output.push_str("  \"status\": \"pending\",\n");
+    output.push_str("  \"tx_hash\": ");
+    output.push_str(&json_string(&hash_hex(submission.tx_hash)));
+    output.push_str(",\n");
+    output.push_str("  \"received_order\": ");
+    output.push_str(&submission.received_order.to_string());
+    output.push_str(",\n");
+    push_transaction_json_fields(&mut output, &submission.transaction);
+    output.push_str("\n}");
+    output
 }
 
 fn render_tx_status(status: &WalletTransactionStatus) -> String {
@@ -1086,6 +1188,7 @@ fn flag_to_static(flag: &str) -> &'static str {
         "--tx-hash" => "--tx-hash",
         "--draft-file" => "--draft-file",
         "--pending-file" => "--pending-file",
+        "--transfer-file" => "--transfer-file",
         "--chain-id" => "--chain-id",
         "--from" => "--from",
         "--to" => "--to",
@@ -1166,6 +1269,14 @@ mod tests {
             .expect("time moved backwards")
             .as_nanos();
         std::env::temp_dir().join(format!("xriq-wallet-draft-{nanos}.txt"))
+    }
+
+    fn temp_pending_path() -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("time moved backwards")
+            .as_nanos();
+        std::env::temp_dir().join(format!("xriq-wallet-pending-{nanos}.tsv"))
     }
 
     #[test]
@@ -1322,6 +1433,131 @@ mod tests {
             ]),
             Err(WalletError::MissingFlag("--chain-file"))
         );
+    }
+
+    #[test]
+    fn parses_submit_command_for_wallet_json_transfer_file() {
+        let chain_path = temp_chain_path();
+        let transfer_path = temp_draft_path();
+        let pending_path = temp_pending_path();
+        let chain_text = chain_path.to_string_lossy().to_string();
+        let transfer_text = transfer_path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let transfer = run_wallet_command([
+            "transfer",
+            "--chain-id",
+            "xriq-devnet",
+            "--from",
+            alice().as_str(),
+            "--to",
+            bob().as_str(),
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--expires-at-height",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+        fs::write(&transfer_path, transfer.to_string()).unwrap();
+
+        let output = run_wallet_command([
+            "submit",
+            "--chain-file",
+            chain_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--transfer-file",
+            transfer_text.as_str(),
+            "--alice-balance",
+            "100",
+        ])
+        .unwrap();
+
+        match output {
+            WalletOutput::PendingSubmission(submission) => {
+                assert_eq!(submission.received_order, 0);
+                assert_eq!(submission.transaction.from, alice());
+                assert_eq!(submission.transaction.to, bob());
+                assert_eq!(
+                    submission.transaction.amount,
+                    XriqAmount::from_base_units(25)
+                );
+            }
+            other => panic!("unexpected wallet output: {other:?}"),
+        }
+        assert!(fs::read_to_string(&pending_path)
+            .unwrap()
+            .contains("xriqdev1alice00000000000"));
+
+        let _ = fs::remove_file(chain_path);
+        let _ = fs::remove_file(transfer_path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn renders_submit_json_and_pending_status() {
+        let chain_path = temp_chain_path();
+        let transfer_path = temp_draft_path();
+        let pending_path = temp_pending_path();
+        let chain_text = chain_path.to_string_lossy().to_string();
+        let transfer_text = transfer_path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let transfer = run_wallet_command([
+            "transfer",
+            "--chain-id",
+            "xriq-devnet",
+            "--from",
+            alice().as_str(),
+            "--to",
+            bob().as_str(),
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--expires-at-height",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+        fs::write(&transfer_path, transfer.to_string()).unwrap();
+
+        let output = run_wallet_command([
+            "submit",
+            "--chain-file",
+            chain_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--transfer-file",
+            transfer_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+
+        assert!(output.contains("\"format_version\": \"xriq-wallet-json-v1\""));
+        assert!(output.contains("\"command\": \"submit-pending\""));
+        assert!(output.contains("\"status\": \"pending\""));
+        assert!(output.contains("\"received_order\": 0"));
+        assert!(output.contains("\"from\": \"xriqdev1alice00000000000\""));
+        assert!(output.contains("\"to\": \"xriqdev1bobbb00000000000\""));
+        assert!(output.contains("\"amount_base_units\": \"25\""));
+        assert!(!output.contains("private_key"));
+        assert!(!output.contains("seed"));
+
+        let _ = fs::remove_file(chain_path);
+        let _ = fs::remove_file(transfer_path);
+        let _ = fs::remove_file(pending_path);
     }
 
     #[test]
