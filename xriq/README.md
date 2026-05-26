@@ -51,7 +51,7 @@ After the local check has passed and the RC checkpoint is committed, the latest
 summary can be re-checked without rerunning Rust:
 
 ```bash
-python scripts/xriq_phase1_rc_readiness.py --require-clean-git --require-origin-main
+python scripts/xriq_phase1_rc_readiness.py --require-clean-git --require-origin-main --require-rc-tag-available
 ```
 
 Private-devnet node status smoke:

@@ -61,7 +61,7 @@ After committing the RC checkpoint, run the cheap readiness checker before
 asking the user for tag approval:
 
 ```bash
-python scripts/xriq_phase1_rc_readiness.py --require-clean-git --require-origin-main
+python scripts/xriq_phase1_rc_readiness.py --require-clean-git --require-origin-main --require-rc-tag-available
 ```
 
 The current human-readable decision report is
@@ -107,8 +107,9 @@ Phase 1 can be called an RC only when all of these are true:
   exist under the generated Phase 1 check artifact root.
 - `git status --short` is clean after committing/pushing the RC checkpoint.
 - `python scripts/xriq_phase1_rc_readiness.py --require-clean-git
-  --require-origin-main` reports `ready_for_rc_tag: true` and
-  `origin_main_matches_head: true`.
+  --require-origin-main --require-rc-tag-available` reports
+  `ready_for_rc_tag: true`, `origin_main_matches_head: true`, and
+  `rc_tag_available: true`.
 - `docs/CODEX_HANDOFF.md` records the latest validation artifact path and Phase
   1 percentage/status.
 - `README.md`, `xriq/README.md`, and this checklist point future sessions to the
@@ -138,5 +139,5 @@ These are not Phase 1 blockers because they belong to later phases:
 After this checklist passes and is committed, the next recommended checkpoint is
 a `phase1-xriq-private-devnet-rc1` Git tag on the passing commit. Do not create
 that tag until the readiness checker passes with `--require-clean-git
---require-origin-main` and the user explicitly agrees that the private-devnet
-prototype is ready to be marked as an RC.
+--require-origin-main --require-rc-tag-available` and the user explicitly
+agrees that the private-devnet prototype is ready to be marked as an RC.

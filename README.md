@@ -261,7 +261,7 @@ After a clean local check, future sessions can cheaply re-check the latest
 Phase 1 summary and checklist pointers without rerunning Rust:
 
 ```bash
-python scripts/xriq_phase1_rc_readiness.py --require-clean-git --require-origin-main
+python scripts/xriq_phase1_rc_readiness.py --require-clean-git --require-origin-main --require-rc-tag-available
 ```
 
 ## 7. Vast Connection Needed

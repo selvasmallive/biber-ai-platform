@@ -10,6 +10,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 SUMMARY_ROOT = ROOT / "xriq" / "target"
+RC_TAG = "phase1-xriq-private-devnet-rc1"
 
 REQUIRED_COMPLETED_STEPS = [
     "cargo fmt check",
@@ -26,11 +27,13 @@ REQUIRED_DOC_REFERENCES = {
     "README.md": [
         "scripts/xriq_phase1_local_check.py",
         "--require-origin-main",
+        "--require-rc-tag-available",
         "docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md",
     ],
     "xriq/README.md": [
         "scripts/xriq_phase1_local_check.py",
         "--require-origin-main",
+        "--require-rc-tag-available",
         "../docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md",
     ],
     "docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md": [
@@ -43,6 +46,7 @@ REQUIRED_DOC_REFERENCES = {
         "phase1-xriq-private-devnet-rc1",
         "xriq-phase1-local-check",
         "--require-origin-main",
+        "--require-rc-tag-available",
         "ready_for_rc_tag",
         "Do not create or push that tag from a general \"continue\" request.",
     ],
@@ -50,6 +54,7 @@ REQUIRED_DOC_REFERENCES = {
         "Phase 1 goal: XRIQ private-devnet prototype only",
         "docs/XRIQ_PHASE1_RC_REPORT.md",
         "--require-origin-main",
+        "--require-rc-tag-available",
         "xriq-phase1-local-check",
     ],
 }
@@ -81,6 +86,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--require-origin-main",
         action="store_true",
         help="Fail unless local HEAD matches origin/main. Use before RC tagging.",
+    )
+    parser.add_argument(
+        "--require-rc-tag-available",
+        action="store_true",
+        help=(
+            "Fail if phase1-xriq-private-devnet-rc1 already exists locally or "
+            "on origin."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -205,6 +218,27 @@ def git_rev_parse(ref: str, *, required: bool) -> str | None:
     return result.stdout.strip()
 
 
+def local_tag_exists(tag_name: str) -> bool:
+    return git_rev_parse(f"refs/tags/{tag_name}", required=False) is not None
+
+
+def origin_tag_exists(tag_name: str, *, required: bool) -> bool | None:
+    result = subprocess.run(
+        ["git", "ls-remote", "--tags", "origin", tag_name],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        if required:
+            raise ReadinessError(
+                "git ls-remote tag check failed with exit code "
+                f"{result.returncode}: {result.stderr}"
+            )
+        return None
+    return result.stdout.strip() != ""
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     summary_path = (args.summary or latest_summary_path()).resolve()
@@ -225,9 +259,21 @@ def main(argv: list[str] | None = None) -> int:
             f"tagging (HEAD={head_commit}, origin/main={origin_main_commit})"
         )
 
+    local_rc_tag_exists = local_tag_exists(RC_TAG)
+    origin_rc_tag_exists = origin_tag_exists(
+        RC_TAG, required=args.require_rc_tag_available
+    )
+    rc_tag_available = not local_rc_tag_exists and origin_rc_tag_exists is False
+    if args.require_rc_tag_available and not rc_tag_available:
+        raise ReadinessError(
+            f"{RC_TAG} is not available for a new RC tag "
+            f"(local_exists={local_rc_tag_exists}, "
+            f"origin_exists={origin_rc_tag_exists})"
+        )
+
     report = {
         "ok": "xriq-phase1-rc-readiness",
-        "ready_for_rc_tag": git_clean and origin_main_matches_head,
+        "ready_for_rc_tag": git_clean and origin_main_matches_head and rc_tag_available,
         "summary": summary_result["summary"],
         "completed_steps": summary_result["completed_steps"],
         "artifact_checks": summary_result["artifact_checks"],
@@ -236,6 +282,10 @@ def main(argv: list[str] | None = None) -> int:
         "head_commit": head_commit,
         "origin_main_commit": origin_main_commit,
         "origin_main_matches_head": origin_main_matches_head,
+        "rc_tag": RC_TAG,
+        "local_rc_tag_exists": local_rc_tag_exists,
+        "origin_rc_tag_exists": origin_rc_tag_exists,
+        "rc_tag_available": rc_tag_available,
     }
     if not git_clean:
         report["git_status"] = git_status

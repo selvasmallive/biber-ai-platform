@@ -58,7 +58,7 @@ The gate covers:
 After this report and handoff are committed and pushed, run:
 
 ```bash
-python scripts/xriq_phase1_rc_readiness.py --require-clean-git --require-origin-main
+python scripts/xriq_phase1_rc_readiness.py --require-clean-git --require-origin-main --require-rc-tag-available
 ```
 
 The expected result before asking for tag approval is:
@@ -67,14 +67,15 @@ The expected result before asking for tag approval is:
 {
   "ok": "xriq-phase1-rc-readiness",
   "origin_main_matches_head": true,
+  "rc_tag_available": true,
   "ready_for_rc_tag": true
 }
 ```
 
 The readiness checker validates the latest local-check summary, required
 completed steps, checked artifact files, clean git state, local HEAD matching
-`origin/main`, and the documentation references needed for future sessions to
-resume safely.
+`origin/main`, availability of the `phase1-xriq-private-devnet-rc1` tag name,
+and the documentation references needed for future sessions to resume safely.
 
 ## Explicit Non-Production Boundaries
 
@@ -93,7 +94,8 @@ This Phase 1 candidate does not include:
 ## Tag Decision
 
 Only after the readiness checker passes with `--require-clean-git
---require-origin-main`, ask the user for explicit approval to create:
+--require-origin-main --require-rc-tag-available`, ask the user for explicit
+approval to create:
 
 ```text
 phase1-xriq-private-devnet-rc1

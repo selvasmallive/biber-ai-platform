@@ -110,7 +110,7 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `96%`.
+- Phase 1 estimated completion: about `97%`.
 - Rust workspace/crate structure: about `86%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `87%`.
@@ -118,7 +118,7 @@ unless the user changes the project scope again.
 - Snapshot export/import and restore workflow: about `80%`.
 - Read-only/private RPC and explorer/dashboard support: about `76%`.
 - Local smoke/regression coverage: about `97%`.
-- Phase 1 release/readiness documentation: about `96%`.
+- Phase 1 release/readiness documentation: about `97%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -138,6 +138,23 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1 RC tag-availability checkpoint: tightened
+  `scripts/xriq_phase1_rc_readiness.py` with
+  `--require-rc-tag-available`, which verifies
+  `phase1-xriq-private-devnet-rc1` is absent locally and on `origin` before
+  returning tag-ready. The report now includes `rc_tag`,
+  `local_rc_tag_exists`, `origin_rc_tag_exists`, `rc_tag_available`,
+  `head_commit`, and `origin_main_commit`. `README.md`, `xriq/README.md`,
+  `docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md`, `docs/XRIQ_PHASE1_RC_REPORT.md`,
+  and this handoff now use the strict final command:
+  `python scripts/xriq_phase1_rc_readiness.py --require-clean-git
+  --require-origin-main --require-rc-tag-available`. Local verification passed
+  bundled Python syntax compilation, `git diff --check`, and a pre-commit
+  readiness run with `--require-origin-main --require-rc-tag-available`; the
+  latter confirmed the RC tag name was available on `origin` and only reported
+  `ready_for_rc_tag: false` because this checkpoint was still uncommitted. No
+  Vast sync, API/vLLM restart, training, OpenAI mentor call, tag creation, or
+  credential change was used.
 - Latest native XRIQ Phase 1 RC-report checkpoint: added
   `docs/XRIQ_PHASE1_RC_REPORT.md` as the human-readable decision packet for
   deciding whether to mark the local/private XRIQ prototype as
@@ -151,9 +168,10 @@ not an active target because the GPU was terminated to save cost.
   checker now requires the report and the handoff reference before returning
   tag-ready. After this commit/push, rerun
   `python scripts/xriq_phase1_rc_readiness.py --require-clean-git
-  --require-origin-main`; if it reports `ready_for_rc_tag: true` and
-  `origin_main_matches_head: true`, the only remaining Phase 1 action is to ask
-  the user for explicit approval to create and push
+  --require-origin-main --require-rc-tag-available`; if it reports
+  `ready_for_rc_tag: true`, `origin_main_matches_head: true`, and
+  `rc_tag_available: true`, the only remaining Phase 1 action is to ask the
+  user for explicit approval to create and push
   `phase1-xriq-private-devnet-rc1`. No Vast sync, API/vLLM restart, training,
   OpenAI mentor call, or credential change was used.
 - Latest native XRIQ Phase 1 RC-readiness checkpoint: added
@@ -165,7 +183,10 @@ not an active target because the GPU was terminated to save cost.
   `--require-clean-git` for the final after-commit check and does not create the
   `phase1-xriq-private-devnet-rc1` tag. Later tightened follow-up added
   `--require-origin-main` so final readiness also proves the local HEAD matches
-  `origin/main` before tagging. The local gate's Python syntax step now
+  `origin/main` before tagging; latest follow-up adds
+  `--require-rc-tag-available` so the final readiness check also proves the
+  `phase1-xriq-private-devnet-rc1` tag does not already exist locally or on
+  `origin`. The local gate's Python syntax step now
   compiles this readiness checker. `README.md`, `xriq/README.md`, and
   `docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md` document the checker. Local
   verification passed with bundled Python syntax compilation for
@@ -177,8 +198,9 @@ not an active target because the GPU was terminated to save cost.
   reported `ready_for_rc_tag: false` only because the checkpoint files were
   still uncommitted during the pre-commit run. After this commit/push, rerun
   `python scripts/xriq_phase1_rc_readiness.py --require-clean-git
-  --require-origin-main`; if it reports `ready_for_rc_tag: true` and
-  `origin_main_matches_head: true`, the only remaining action before tagging is
+  --require-origin-main --require-rc-tag-available`; if it reports
+  `ready_for_rc_tag: true`, `origin_main_matches_head: true`, and
+  `rc_tag_available: true`, the only remaining action before tagging is
   explicit user approval. No Vast sync, API/vLLM restart, training, OpenAI
   mentor call, or credential change was used.
 - Latest native XRIQ Phase 1 local-check artifact-validation checkpoint:
@@ -8552,8 +8574,9 @@ private-devnet readiness with small local Rust checkpoints, using
 `python scripts/xriq_phase1_local_check.py` as the one-command CPU-only
 verification gate before handoff/commit/push. Use
 `python scripts/xriq_phase1_rc_readiness.py --require-clean-git
---require-origin-main` after the checkpoint commit/push to confirm the latest
-validation artifact, docs, and pushed `origin/main` state are tag-ready. Use
+--require-origin-main --require-rc-tag-available` after the checkpoint
+commit/push to confirm the latest validation artifact, docs, pushed
+`origin/main` state, and unused RC tag name are tag-ready. Use
 `docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md` as the go/no-go checklist for deciding
 when Phase 1 is ready to mark as a release candidate. Use
 `docs/XRIQ_PHASE1_RC_REPORT.md` as the human-readable decision packet before
