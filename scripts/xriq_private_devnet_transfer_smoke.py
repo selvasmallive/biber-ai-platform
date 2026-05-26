@@ -314,6 +314,21 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_equal(snapshot_detail, "current_height", 1, "snapshot detail")
     require_equal(snapshot_detail, "state_root", snapshot_export["state_root"], "snapshot detail")
 
+    snapshot_check = run_node_json(
+        xriq_dir,
+        "snapshot-check",
+        "--snapshot-dir",
+        str(snapshot_dir),
+        "--alice-balance",
+        args.alice_balance,
+    )
+    write_json(artifact_dir / "snapshot-check.json", snapshot_check)
+    require_equal(snapshot_check, "command", "snapshot-check", "snapshot check")
+    require_equal(snapshot_check, "verified", True, "snapshot check")
+    mismatches = snapshot_check.get("mismatches")
+    if mismatches != []:
+        raise SmokeError(f"snapshot check: expected no mismatches, got {mismatches!r}")
+
     snapshot_import = run_node_json(
         xriq_dir,
         "snapshot-import",

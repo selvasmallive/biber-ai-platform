@@ -67,11 +67,18 @@ cargo run -p xriq-node -- snapshot-list \
 cargo run -p xriq-node -- snapshot-detail \
   --snapshot-dir target/xriq-devnet-snapshot \
   --format json
+
+cargo run -p xriq-node -- snapshot-check \
+  --snapshot-dir target/xriq-devnet-snapshot \
+  --alice-balance 100 \
+  --format json
 ```
 
 `snapshot-list` scans immediate child directories under the supplied root for
 XRIQ manifests. `snapshot-detail` reads one manifest and reports the same
-height/hash/state-root fields used for restore checks.
+height/hash/state-root fields used for restore checks. `snapshot-check`
+replays the snapshot's chain and optional pending file, then compares the
+replayed status to the manifest before restore.
 
 The local HTTP wrapper can expose the same discovery surface when started with
 `--snapshot-root <path>`:

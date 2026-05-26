@@ -115,6 +115,14 @@ pub struct PrivateDevnetSnapshotSummary {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrivateDevnetSnapshotCheckStatus {
+    pub verified: bool,
+    pub snapshot: PrivateDevnetSnapshotSummary,
+    pub replayed_status: NodeStatus,
+    pub mismatches: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateDevnetHttpServerConfig {
     pub bind: String,
     pub chain_file: String,
@@ -219,6 +227,7 @@ pub enum NodeRunnerOutput {
     TransactionDetail(String),
     SnapshotList(String),
     SnapshotDetail(String),
+    SnapshotCheck(String),
     Snapshot(PrivateDevnetSnapshotStatus),
     Json(String),
 }
@@ -503,7 +512,8 @@ impl fmt::Display for NodeRunnerOutput {
             | Self::MempoolDetail(detail)
             | Self::TransactionDetail(detail)
             | Self::SnapshotList(detail)
-            | Self::SnapshotDetail(detail) => formatter.write_str(detail),
+            | Self::SnapshotDetail(detail)
+            | Self::SnapshotCheck(detail) => formatter.write_str(detail),
             Self::Snapshot(status) => write!(formatter, "{status}"),
             Self::Json(json) => formatter.write_str(json),
         }
@@ -645,6 +655,7 @@ pub fn node_help_text() -> String {
         "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-list --snapshot-root <path> [--limit <count>] [--format text|json]",
         "  xriq-node snapshot-detail --snapshot-dir <path> [--format text|json]",
+        "  xriq-node snapshot-check --snapshot-dir <path> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-export --chain-file <path> --snapshot-dir <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-import --snapshot-dir <path> --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>] [--snapshot-root <path>]",
@@ -729,6 +740,7 @@ where
         Some("transaction-detail") => run_transaction_detail_command(&args[1..]),
         Some("snapshot-list") => run_snapshot_list_command(&args[1..]),
         Some("snapshot-detail") => run_snapshot_detail_command(&args[1..]),
+        Some("snapshot-check") => run_snapshot_check_command(&args[1..]),
         Some("snapshot-export") => run_snapshot_export_command(&args[1..]),
         Some("snapshot-import") => run_snapshot_import_command(&args[1..]),
         Some(command) => Err(NodeRunnerError::UnknownCommand(command.to_string())),
@@ -1986,6 +1998,34 @@ pub fn private_devnet_snapshot_detail_data(
     read_private_devnet_snapshot_summary(snapshot_dir.as_ref())
 }
 
+pub fn private_devnet_snapshot_check(
+    snapshot_dir: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+) -> Result<String, NodeRunnerError> {
+    let status = private_devnet_snapshot_check_data(snapshot_dir, alice_balance)?;
+    Ok(render_snapshot_check(&status))
+}
+
+pub fn private_devnet_snapshot_check_data(
+    snapshot_dir: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+) -> Result<PrivateDevnetSnapshotCheckStatus, NodeRunnerError> {
+    let snapshot = read_private_devnet_snapshot_summary(snapshot_dir.as_ref())?;
+    let check = private_devnet_file_chain_check(
+        &snapshot.chain_file,
+        snapshot.pending_file.as_deref(),
+        alice_balance,
+    )?;
+    let replayed_status = check.status;
+    let mismatches = snapshot_status_mismatches(&snapshot.status, &replayed_status);
+    Ok(PrivateDevnetSnapshotCheckStatus {
+        verified: check.verified && mismatches.is_empty(),
+        snapshot,
+        replayed_status,
+        mismatches,
+    })
+}
+
 pub fn private_devnet_file_submit_pending_transfer_body(
     chain_file: impl AsRef<Path>,
     pending_file: impl AsRef<Path>,
@@ -2948,6 +2988,25 @@ fn run_snapshot_detail_command(args: &[String]) -> Result<NodeRunnerOutput, Node
     })
 }
 
+fn run_snapshot_check_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&["--snapshot-dir", "--alice-balance", "--format"])?;
+    let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let snapshot_dir = flags.required("--snapshot-dir")?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    Ok(match output_format {
+        RunnerOutputFormat::Text => private_devnet_snapshot_check(snapshot_dir, alice_balance)
+            .map(NodeRunnerOutput::SnapshotCheck)?,
+        RunnerOutputFormat::Json => {
+            let status = private_devnet_snapshot_check_data(snapshot_dir, alice_balance)?;
+            NodeRunnerOutput::Json(render_snapshot_check_json("snapshot-check", &status))
+        }
+    })
+}
+
 fn run_snapshot_export_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
     flags.reject_unknown(&[
@@ -3536,6 +3595,29 @@ fn read_private_devnet_snapshot_summary(
             stored_blocks: snapshot_manifest_required_usize(&manifest, "stored_blocks")?,
         },
     })
+}
+
+fn snapshot_status_mismatches(manifest: &NodeStatus, replayed: &NodeStatus) -> Vec<String> {
+    let mut mismatches = Vec::new();
+    if manifest.chain_id != replayed.chain_id {
+        mismatches.push("chain_id".to_string());
+    }
+    if manifest.current_height != replayed.current_height {
+        mismatches.push("current_height".to_string());
+    }
+    if manifest.latest_block_hash != replayed.latest_block_hash {
+        mismatches.push("latest_block_hash".to_string());
+    }
+    if manifest.state_root != replayed.state_root {
+        mismatches.push("state_root".to_string());
+    }
+    if manifest.pending_transactions != replayed.pending_transactions {
+        mismatches.push("pending_transactions".to_string());
+    }
+    if manifest.stored_blocks != replayed.stored_blocks {
+        mismatches.push("stored_blocks".to_string());
+    }
+    mismatches
 }
 
 fn snapshot_manifest_required_string(
@@ -4325,6 +4407,46 @@ fn render_snapshot_detail_json(command: &str, snapshot: &PrivateDevnetSnapshotSu
     output
 }
 
+fn render_snapshot_check_json(command: &str, status: &PrivateDevnetSnapshotCheckStatus) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_success_json_preamble(&mut output, command);
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(PRIVATE_DEVNET_RUNNER_WARNING)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"snapshot_format_version\": {},",
+        json_string(PRIVATE_DEVNET_SNAPSHOT_FORMAT_VERSION)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"verified\": {},", status.verified).expect("write to String");
+    writeln!(&mut output, "  \"mismatches\": [").expect("write to String");
+    for (index, mismatch) in status.mismatches.iter().enumerate() {
+        write!(&mut output, "    {}", json_string(mismatch)).expect("write to String");
+        if index + 1 != status.mismatches.len() {
+            output.push(',');
+        }
+        output.push('\n');
+    }
+    writeln!(&mut output, "  ],").expect("write to String");
+    writeln!(&mut output, "  \"snapshot\": {{").expect("write to String");
+    push_snapshot_summary_json_fields(&mut output, &status.snapshot, "    ");
+    writeln!(&mut output, "\n  }},").expect("write to String");
+    writeln!(&mut output, "  \"replayed_status\": {{").expect("write to String");
+    push_node_status_json_fields_without_warning(
+        &mut output,
+        &status.replayed_status,
+        "    ",
+        false,
+    );
+    output.push_str("\n  }\n}");
+    output
+}
+
 fn render_snapshot_manifest_json(status: &PrivateDevnetSnapshotStatus) -> String {
     let mut output = String::new();
     writeln!(&mut output, "{{").expect("write to String");
@@ -4431,6 +4553,66 @@ fn render_snapshot_detail(snapshot: &PrivateDevnetSnapshotSummary) -> String {
         &mut output,
         "stored_blocks={}",
         snapshot.status.stored_blocks
+    )
+    .expect("write to String");
+    output
+}
+
+fn render_snapshot_check(status: &PrivateDevnetSnapshotCheckStatus) -> String {
+    let mut output = String::new();
+    writeln!(
+        &mut output,
+        "snapshot check {}",
+        status.snapshot.snapshot_name
+    )
+    .expect("write to String");
+    writeln!(&mut output, "verified={}", status.verified).expect("write to String");
+    writeln!(
+        &mut output,
+        "mismatches={}",
+        if status.mismatches.is_empty() {
+            "none".to_string()
+        } else {
+            status.mismatches.join(",")
+        }
+    )
+    .expect("write to String");
+    writeln!(&mut output, "snapshot_dir={}", status.snapshot.snapshot_dir)
+        .expect("write to String");
+    writeln!(
+        &mut output,
+        "manifest_current_height={}",
+        status.snapshot.status.current_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "replayed_current_height={}",
+        status.replayed_status.current_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "manifest_latest_block_hash={}",
+        hash_hex(status.snapshot.status.latest_block_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "replayed_latest_block_hash={}",
+        hash_hex(status.replayed_status.latest_block_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "manifest_state_root={}",
+        hash_hex(status.snapshot.status.state_root)
+    )
+    .expect("write to String");
+    write!(
+        &mut output,
+        "replayed_state_root={}",
+        hash_hex(status.replayed_status.state_root)
     )
     .expect("write to String");
     output
@@ -7038,6 +7220,36 @@ mod tests {
         assert!(snapshot_detail_json.contains("\"snapshot_name\": \"snapshot-a\""));
         assert!(snapshot_detail_json.contains("\"current_height\": 1"));
         assert!(snapshot_detail_json.contains("\"pending_transactions\": 1"));
+
+        let snapshot_check = run_node_command([
+            "snapshot-check",
+            "--snapshot-dir",
+            snapshot_text.as_str(),
+            "--alice-balance",
+            "100",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(snapshot_check.contains("snapshot check snapshot-a"));
+        assert!(snapshot_check.contains("verified=true"));
+        assert!(snapshot_check.contains("mismatches=none"));
+
+        let snapshot_check_json = run_node_command([
+            "snapshot-check",
+            "--snapshot-dir",
+            snapshot_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(snapshot_check_json.contains("\"command\": \"snapshot-check\""));
+        assert!(snapshot_check_json.contains("\"verified\": true"));
+        assert!(snapshot_check_json.contains("\"mismatches\": ["));
+        assert!(snapshot_check_json.contains("\"snapshot_name\": \"snapshot-a\""));
+        assert!(snapshot_check_json.contains("\"replayed_status\": {"));
 
         let import_json = run_node_command([
             "snapshot-import",

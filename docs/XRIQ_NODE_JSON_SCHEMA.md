@@ -563,11 +563,21 @@ cargo run -p xriq-node -- snapshot-detail \
   --format json
 ```
 
+Check command:
+
+```bash
+cargo run -p xriq-node -- snapshot-check \
+  --snapshot-dir target/xriq-devnet-snapshot \
+  --alice-balance 100 \
+  --format json
+```
+
 `snapshot-list` scans only immediate child directories under `snapshot_root`
 that contain an XRIQ snapshot manifest. It sorts results deterministically by
 height descending, then snapshot name descending. `snapshot-detail` reads one
 snapshot manifest and resolves `chain_file` and `pending_file` to paths inside
-that snapshot directory.
+that snapshot directory. `snapshot-check` replays the snapshot's chain file and
+optional pending file, then compares the replayed status with manifest fields.
 
 HTTP endpoints when `xriq-node serve-readonly` or `xriq-node serve-private` is
 started with `--snapshot-root <path>`:
@@ -624,6 +634,39 @@ Detail shape:
   "state_root": "64-hex-character-state-root",
   "pending_transactions": 0,
   "stored_blocks": 1
+}
+```
+
+Check shape:
+
+```json
+{
+  "format_version": "xriq-node-json-v1",
+  "command": "snapshot-check",
+  "warning": "private-devnet-only-no-public-token",
+  "snapshot_format_version": "xriq-private-devnet-snapshot-v1",
+  "verified": true,
+  "mismatches": [],
+  "snapshot": {
+    "snapshot_name": "xriq-devnet-snapshot",
+    "snapshot_dir": "target/xriq-devnet-snapshot",
+    "chain_file": "target/xriq-devnet-snapshot/chain.bin",
+    "pending_file": "target/xriq-devnet-snapshot/pending.tsv",
+    "chain_id": "xriq-devnet",
+    "current_height": 1,
+    "latest_block_hash": "64-hex-character-block-hash",
+    "state_root": "64-hex-character-state-root",
+    "pending_transactions": 0,
+    "stored_blocks": 1
+  },
+  "replayed_status": {
+    "chain_id": "xriq-devnet",
+    "current_height": 1,
+    "latest_block_hash": "64-hex-character-block-hash",
+    "state_root": "64-hex-character-state-root",
+    "pending_transactions": 0,
+    "stored_blocks": 1
+  }
 }
 ```
 
