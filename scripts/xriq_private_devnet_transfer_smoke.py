@@ -239,6 +239,27 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_equal(alice, "balance_base_units", "73", "alice account")
     require_equal(alice, "nonce", 1, "alice account")
 
+    wallet_alice_balance = run_wallet_json(
+        xriq_dir,
+        "balance",
+        "--chain-file",
+        str(chain_file),
+        "--alice-balance",
+        args.alice_balance,
+        "--address",
+        ALICE,
+    )
+    write_json(artifact_dir / "wallet-balance-alice.json", wallet_alice_balance)
+    require_equal(wallet_alice_balance, "command", "balance", "wallet alice balance")
+    require_equal(wallet_alice_balance, "address", ALICE, "wallet alice balance")
+    require_equal(
+        wallet_alice_balance,
+        "balance_base_units",
+        alice["balance_base_units"],
+        "wallet alice balance",
+    )
+    require_equal(wallet_alice_balance, "nonce", alice["nonce"], "wallet alice balance")
+
     bob = run_node_json(
         xriq_dir,
         "account-detail",

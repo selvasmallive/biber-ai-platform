@@ -20,7 +20,8 @@ only until security and legal/compliance review says otherwise.
   read-only local HTTP wrapper.
 - `xriq-rpc`: local private-devnet RPC endpoint behavior.
 - `xriq-storage`: local block storage for private-devnet tests.
-- `xriq-wallet`: private-devnet wallet CLI for test identities and transfers.
+- `xriq-wallet`: private-devnet wallet CLI for test identities, local balance
+  lookup, and transfers.
 
 ## Commands
 
@@ -213,6 +214,19 @@ cargo run -p xriq-wallet -- transfer \
   > target/xriq-wallet-transfer-submit.json
 ```
 
+Private-devnet wallet balance lookup:
+
+```bash
+cargo run -p xriq-wallet -- balance \
+  --chain-file target/xriq-devnet-chain.bin \
+  --address xriqdev1alice00000000000 \
+  --alice-balance 100 \
+  --format json
+```
+
+This is a local private-devnet helper over the file-backed chain state. It does
+not connect to a public network or manage production custody.
+
 One-command private-devnet smoke from the repo root:
 
 ```bash
@@ -230,9 +244,10 @@ python scripts/xriq_private_devnet_transfer_smoke.py
 
 This uses only Python stdlib plus Cargo/Rust. It creates a fresh artifact
 directory under `xriq/target/`, performs one private-devnet transfer, verifies
-transaction/block/account detail, exports/imports a snapshot, verifies snapshot
-list/detail/check flows, runs `chain-check` against the restored snapshot
-targets, and leaves any live/restored BIBER API chain files untouched.
+transaction/block/account detail, verifies `xriq-wallet balance`, exports and
+imports a snapshot, verifies snapshot list/detail/check flows, runs
+`chain-check` against the restored snapshot targets, and leaves any
+live/restored BIBER API chain files untouched.
 
 Windows-friendly local HTTP/RPC smoke from the repo root:
 

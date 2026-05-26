@@ -9,3 +9,4 @@ description = "XRIQ private-devnet wallet CLI."
 [dependencies]
 xriq-crypto = { path = "../xriq-crypto" }
 xriq-core = { path = "../xriq-core" }
+xriq-node = { path = "../xriq-node" }

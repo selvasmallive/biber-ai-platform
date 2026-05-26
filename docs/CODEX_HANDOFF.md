@@ -110,14 +110,14 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `76%`.
+- Phase 1 estimated completion: about `77%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
-- Wallet transfer draft/submit flow: about `67%`.
+- Wallet transfer draft/submit flow: about `69%`.
 - File-backed node runner and deterministic replay: about `72%`.
 - Snapshot export/import and restore workflow: about `76%`.
 - Read-only/private RPC and explorer/dashboard support: about `74%`.
-- Local smoke/regression coverage: about `79%`.
+- Local smoke/regression coverage: about `80%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -137,6 +137,26 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ wallet balance checkpoint: `xriq-wallet balance` now reads
+  replayed local private-devnet account state from a file-backed chain through
+  the existing node replay/account-detail path. It supports text and
+  `--format json`, emits `xriq-wallet-json-v1` with `command: balance`,
+  address, `balance_base_units`, and nonce, and does not print private keys,
+  seed phrases, or production custody material. The isolated transfer, replay,
+  and snapshot smoke now writes `wallet-balance-alice.json` after block
+  production and verifies it matches the node account-detail output. Local
+  verification passed
+  `cargo fmt --all --manifest-path xriq/Cargo.toml -- --check`, bundled Python
+  syntax compilation for
+  `scripts/xriq_private_devnet_transfer_smoke.py`,
+  `cargo test -p xriq-wallet --manifest-path xriq/Cargo.toml -j 1` with
+  `15 passed`, `cargo test -p xriq-node --manifest-path xriq/Cargo.toml -j 1`
+  with `51 passed`, and the isolated transfer smoke using
+  `CARGO_TARGET_DIR=target-codex-wallet-balance-smoke`. The smoke artifact
+  directory was
+  `xriq/target/xriq-private-devnet-transfer-smoke-20260526T163231Z`. No Vast
+  sync, API/vLLM restart, training, OpenAI mentor call, or credential change
+  was used.
 - Latest native XRIQ HTTP restored-chain-check checkpoint: after HTTP
   `POST /v1/snapshots/import`, the local HTTP smoke now calls
   `GET /v1/chain/check` against the restored `serve-private` process. It writes

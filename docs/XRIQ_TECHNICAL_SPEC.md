@@ -874,6 +874,8 @@ As of 2026-05-17:
     replays imported chain and pending files before restored targets are used
 - Implemented private-devnet wallet CLI baseline:
   - deterministic test identity generation from labels
+  - file-backed local `xriq-wallet balance` lookup for account balance and
+    nonce inspection
   - transfer draft construction
   - deterministic transaction-hash output for local status lookup
   - hash-bound test-only signatures through `xriq-crypto`
