@@ -647,6 +647,15 @@ cargo run -p xriq-node -- snapshot-latest \
   --format json
 ```
 
+Latest check command:
+
+```bash
+cargo run -p xriq-node -- snapshot-latest-check \
+  --snapshot-root target \
+  --alice-balance 100 \
+  --format json
+```
+
 Detail command:
 
 ```bash
@@ -668,10 +677,13 @@ cargo run -p xriq-node -- snapshot-check \
 that contain an XRIQ snapshot manifest. It sorts results deterministically by
 height descending, then snapshot name descending. `snapshot-latest` returns the
 first entry using that same ordering and the same detail shape as
-`snapshot-detail`, with `command: snapshot-latest`. `snapshot-detail` reads one
-snapshot manifest and resolves `chain_file` and `pending_file` to paths inside
-that snapshot directory. `snapshot-check` replays the snapshot's chain file and
-optional pending file, then compares the replayed status with manifest fields.
+`snapshot-detail`, with `command: snapshot-latest`. `snapshot-latest-check`
+replays that same first entry and returns the same check shape as
+`snapshot-check`, with `command: snapshot-latest-check`. `snapshot-detail` reads
+one snapshot manifest and resolves `chain_file` and `pending_file` to paths
+inside that snapshot directory. `snapshot-check` replays the snapshot's chain
+file and optional pending file, then compares the replayed status with manifest
+fields.
 
 HTTP endpoints when `xriq-node serve-readonly` or `xriq-node serve-private` is
 started with `--snapshot-root <path>`:
@@ -679,14 +691,16 @@ started with `--snapshot-root <path>`:
 ```bash
 GET /v1/snapshots?limit=5
 GET /v1/snapshots/latest
+GET /v1/snapshots/latest/check
 GET /v1/snapshots/{snapshot-name}
 GET /v1/snapshots/{snapshot-name}/check
 ```
 
 Snapshot names in the HTTP path must be one safe path segment.
 `/v1/snapshots/latest` returns the same `snapshot-latest` JSON shape as the CLI
-command. The `/check` route returns the same `snapshot-check` JSON shape as the
-CLI command.
+command. `/v1/snapshots/latest/check` returns the same
+`snapshot-latest-check` JSON shape as the CLI command. The named `/check` route
+returns the same `snapshot-check` JSON shape as the CLI command.
 
 List shape:
 
@@ -771,6 +785,9 @@ Check shape:
   }
 }
 ```
+
+Latest check shape is the same as check shape, except `command` is
+`snapshot-latest-check`.
 
 ## Preflight Transfer Flow
 
@@ -1161,6 +1178,7 @@ Implemented read-only endpoints:
 - `GET /v1/mempool`
 - `GET /v1/snapshots?limit=5` when `--snapshot-root <path>` is configured
 - `GET /v1/snapshots/latest` when `--snapshot-root <path>` is configured
+- `GET /v1/snapshots/latest/check` when `--snapshot-root <path>` is configured
 - `GET /v1/snapshots/{snapshot-name}` when `--snapshot-root <path>` is configured
 - `GET /v1/snapshots/{snapshot-name}/check` when `--snapshot-root <path>` is configured
 - `POST /v1/mempool` when `serve-private --pending-file <path>` is used

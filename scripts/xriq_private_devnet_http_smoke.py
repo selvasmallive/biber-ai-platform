@@ -553,6 +553,21 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "snapshot latest",
         )
 
+        snapshot_latest_check = http_json(base_url, "GET", "/v1/snapshots/latest/check")
+        write_json(artifact_dir / "http-snapshot-latest-check.json", snapshot_latest_check)
+        require_equal(
+            snapshot_latest_check,
+            "command",
+            "snapshot-latest-check",
+            "snapshot latest check",
+        )
+        require_equal(snapshot_latest_check, "verified", True, "snapshot latest check")
+        latest_mismatches = snapshot_latest_check.get("mismatches")
+        if latest_mismatches != []:
+            raise SmokeError(
+                f"snapshot latest check: expected no mismatches, got {latest_mismatches!r}"
+            )
+
         snapshot_detail = http_json(base_url, "GET", "/v1/snapshots/http-snapshot")
         write_json(artifact_dir / "http-snapshot-detail.json", snapshot_detail)
         require_equal(snapshot_detail, "command", "snapshot-detail", "snapshot detail")

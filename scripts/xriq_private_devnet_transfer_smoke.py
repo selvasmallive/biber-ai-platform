@@ -563,6 +563,28 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "snapshot latest",
     )
 
+    snapshot_latest_check = run_node_json(
+        xriq_dir,
+        "snapshot-latest-check",
+        "--snapshot-root",
+        str(artifact_dir),
+        "--alice-balance",
+        args.alice_balance,
+    )
+    write_json(artifact_dir / "snapshot-latest-check.json", snapshot_latest_check)
+    require_equal(
+        snapshot_latest_check,
+        "command",
+        "snapshot-latest-check",
+        "snapshot latest check",
+    )
+    require_equal(snapshot_latest_check, "verified", True, "snapshot latest check")
+    latest_mismatches = snapshot_latest_check.get("mismatches")
+    if latest_mismatches != []:
+        raise SmokeError(
+            f"snapshot latest check: expected no mismatches, got {latest_mismatches!r}"
+        )
+
     snapshot_detail = run_node_json(
         xriq_dir,
         "snapshot-detail",

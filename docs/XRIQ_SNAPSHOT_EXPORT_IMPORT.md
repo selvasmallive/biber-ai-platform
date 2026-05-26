@@ -68,6 +68,11 @@ cargo run -p xriq-node -- snapshot-latest \
   --snapshot-root target \
   --format json
 
+cargo run -p xriq-node -- snapshot-latest-check \
+  --snapshot-root target \
+  --alice-balance 100 \
+  --format json
+
 cargo run -p xriq-node -- snapshot-detail \
   --snapshot-dir target/xriq-devnet-snapshot \
   --format json
@@ -80,10 +85,11 @@ cargo run -p xriq-node -- snapshot-check \
 
 `snapshot-list` scans immediate child directories under the supplied root for
 XRIQ manifests. `snapshot-latest` returns the first snapshot using the same
-height/name ordering. `snapshot-detail` reads one manifest and reports the same
-height/hash/state-root fields used for restore checks. `snapshot-check` replays
-the snapshot's chain and optional pending file, then compares the replayed
-status to the manifest before restore.
+height/name ordering. `snapshot-latest-check` replays that first snapshot before
+restore without requiring its name. `snapshot-detail` reads one manifest and
+reports the same height/hash/state-root fields used for restore checks.
+`snapshot-check` replays the snapshot's chain and optional pending file, then
+compares the replayed status to the manifest before restore.
 
 The local HTTP wrapper can expose the same discovery surface when started with
 `--snapshot-root <path>`:
@@ -95,6 +101,7 @@ cargo run -p xriq-node -- serve-readonly \
 
 curl http://127.0.0.1:8787/v1/snapshots?limit=10
 curl http://127.0.0.1:8787/v1/snapshots/latest
+curl http://127.0.0.1:8787/v1/snapshots/latest/check
 curl http://127.0.0.1:8787/v1/snapshots/xriq-devnet-snapshot
 curl http://127.0.0.1:8787/v1/snapshots/xriq-devnet-snapshot/check
 curl http://127.0.0.1:8787/v1/chain/check

@@ -110,14 +110,14 @@ Use this 2026-05-26 Phase 1 baseline for future percentage/status comparisons
 unless the user changes the project scope again.
 
 - Phase 1 goal: XRIQ private-devnet prototype only.
-- Phase 1 estimated completion: about `89%`.
+- Phase 1 estimated completion: about `90%`.
 - Rust workspace/crate structure: about `85%`.
 - Core ledger/block/mempool/consensus/storage primitives: about `70%`.
 - Wallet transfer draft/submit flow: about `87%`.
 - File-backed node runner and deterministic replay: about `76%`.
-- Snapshot export/import and restore workflow: about `78%`.
-- Read-only/private RPC and explorer/dashboard support: about `75%`.
-- Local smoke/regression coverage: about `94%`.
+- Snapshot export/import and restore workflow: about `80%`.
+- Read-only/private RPC and explorer/dashboard support: about `76%`.
+- Local smoke/regression coverage: about `95%`.
 - Production/public XRIQ, exchange readiness, audits, privacy protocol,
   validator economics, custody, liquidity, bridges, and mainnet launch are not
   part of Phase 1 and must not be counted in this percentage.
@@ -137,6 +137,33 @@ As of the latest 2026-05-26 checkpoint, the active work mode is local
 workstation development for XRIQ private-devnet. The previous Vast deployment is
 not an active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ snapshot-latest-check checkpoint: added `xriq-node
+  snapshot-latest-check --snapshot-root <path> [--alice-balance <base-units>]
+  [--format text|json]` and local HTTP `GET /v1/snapshots/latest/check` so
+  restore/operator flows can replay-verify the latest discovered snapshot
+  without first copying its name from `snapshot-list`. The command and route use
+  the same deterministic ordering as `snapshot-latest` and return the same
+  check shape as `snapshot-check`, with `command: snapshot-latest-check`. The
+  transfer/replay smoke now writes `snapshot-latest-check.json`, and the HTTP
+  smoke writes `http-snapshot-latest-check.json`. Docs updated:
+  `docs/XRIQ_NODE_JSON_SCHEMA.md`, `docs/XRIQ_SNAPSHOT_EXPORT_IMPORT.md`,
+  `docs/XRIQ_TECHNICAL_SPEC.md`, and `xriq/README.md`. Local verification
+  passed `cargo fmt --all --manifest-path xriq/Cargo.toml -- --check`, bundled
+  Python syntax compilation for the transfer and HTTP smokes,
+  `cargo test -p xriq-node --manifest-path xriq/Cargo.toml -j 1` with
+  `52 passed` using `CARGO_TARGET_DIR=target-codex-snapshot-latest-check-test`,
+  `cargo clippy -p xriq-node --manifest-path xriq/Cargo.toml -- -D warnings`
+  using `CARGO_TARGET_DIR=target-codex-snapshot-latest-check-clippy`, the
+  isolated transfer smoke using
+  `CARGO_TARGET_DIR=target-codex-snapshot-latest-check-smoke` with artifact
+  directory
+  `xriq/target/xriq-private-devnet-transfer-smoke-20260526T-snapshot-latest-check`,
+  and the isolated HTTP smoke using
+  `CARGO_TARGET_DIR=target-codex-snapshot-latest-check-http-smoke` with
+  artifact directory
+  `xriq/target/xriq-private-devnet-http-smoke-20260526T-snapshot-latest-check`.
+  No Vast sync, API/vLLM restart, training, OpenAI mentor call, or credential
+  change was used.
 - Latest native XRIQ snapshot-latest checkpoint: added `xriq-node
   snapshot-latest --snapshot-root <path> [--format text|json]` and local HTTP
   `GET /v1/snapshots/latest` for operator restore flows. Both use the existing

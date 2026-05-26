@@ -388,8 +388,8 @@ transaction/block/account detail, verifies `xriq-wallet accounts`,
 `xriq-wallet transfer --nonce auto`, and
 `xriq-wallet submit` plus `xriq-wallet send` and `xriq-wallet pending` against
 a separate durable pending file, exports and imports a snapshot, verifies snapshot
-list/detail/check flows, runs `chain-check` against the restored snapshot
-targets, then runs a separate wallet pending-to-block lifecycle through
+list/latest/latest-check/detail/check flows, runs `chain-check` against the
+restored snapshot targets, then runs a separate wallet pending-to-block lifecycle through
 `xriq-node produce-pending-block`, and leaves any live/restored BIBER API chain
 files untouched.
 
@@ -405,8 +405,9 @@ process on a temporary localhost port, submits a wallet transfer through
 produces a block through `POST /v1/blocks`, and verifies transaction, block,
 block list, account list/detail, account transaction history, latest
 transaction list, mempool, explorer overview, chain check, snapshot export, and
-snapshot list/detail/check, snapshot import, post-import chain-check endpoints,
-and pending `xriq-wallet tx status` against the durable pending file.
+snapshot list/latest/latest-check/detail/check, snapshot import, post-import
+chain-check endpoints, and pending `xriq-wallet tx status` against the durable
+pending file.
 
 The current machine-readable runner contract is documented in
 `../docs/XRIQ_NODE_JSON_SCHEMA.md`.
@@ -444,6 +445,11 @@ cargo run -p xriq-node -- snapshot-latest \
   --snapshot-root target \
   --format json
 
+cargo run -p xriq-node -- snapshot-latest-check \
+  --snapshot-root target \
+  --alice-balance 100 \
+  --format json
+
 cargo run -p xriq-node -- snapshot-detail \
   --snapshot-dir target/xriq-devnet-snapshot \
   --format json
@@ -464,10 +470,12 @@ The snapshot workflow copies `chain.bin`, optional `pending.tsv`, and
 `manifest.json` into a new snapshot directory. Import refuses to overwrite
 existing target files. `snapshot-list` scans one snapshot root for immediate
 child directories containing XRIQ snapshot manifests; `snapshot-latest` returns
-the first snapshot using the same deterministic ordering; `snapshot-detail`
-reads one snapshot manifest and reports the deterministic tip/status fields
-needed before restore. `snapshot-check` replays the snapshot chain/pending files
-and confirms they still match the manifest before restore. After import,
+the first snapshot using the same deterministic ordering; `snapshot-latest-check`
+replays that latest snapshot before restore without requiring its name;
+`snapshot-detail` reads one snapshot manifest and reports the deterministic
+tip/status fields needed before restore. `snapshot-check` replays the snapshot
+chain/pending files and confirms they still match the manifest before restore.
+After import,
 `chain-check` replays the restored chain/pending files to verify the fresh
 targets before use. See
 `../docs/XRIQ_SNAPSHOT_EXPORT_IMPORT.md`.
@@ -518,6 +526,7 @@ GET /v1/accounts/{address}/transactions?limit=5
 GET /v1/mempool
 GET /v1/snapshots?limit=5
 GET /v1/snapshots/latest
+GET /v1/snapshots/latest/check
 GET /v1/snapshots/{snapshot-name}
 GET /v1/snapshots/{snapshot-name}/check
 POST /v1/mempool
@@ -565,7 +574,8 @@ The local runner can inspect the same durable pending state with
 When the server is started with `--snapshot-root <path>`,
 `GET /v1/snapshots?limit=<n>` lists immediate child snapshot directories under
 that root, `GET /v1/snapshots/latest` returns the same detail shape for the
-latest discovered snapshot, `GET /v1/snapshots/{snapshot-name}` reads one
+latest discovered snapshot, `GET /v1/snapshots/latest/check` replays that
+latest snapshot before restore, `GET /v1/snapshots/{snapshot-name}` reads one
 snapshot manifest, and `GET /v1/snapshots/{snapshot-name}/check` replays the
 snapshot chain/pending files to verify them before restore. Snapshot names must
 be a single safe path segment.

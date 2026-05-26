@@ -474,8 +474,8 @@ file-backed JSON runner outputs. The current implemented endpoints are
 `/v1/accounts?limit=5`, `/v1/accounts/{address}`,
 `/v1/accounts/{address}/transactions?limit=5`, `/v1/mempool`, and, when
 `--snapshot-root <path>` is configured, `/v1/snapshots?limit=5` plus
-`/v1/snapshots/latest`, `/v1/snapshots/{snapshot_name}`, and
-`/v1/snapshots/{snapshot_name}/check`.
+`/v1/snapshots/latest`, `/v1/snapshots/latest/check`,
+`/v1/snapshots/{snapshot_name}`, and `/v1/snapshots/{snapshot_name}/check`.
 Transaction lookup scans confirmed transactions in persisted blocks. Account
 list scans replayed private-devnet accounts in deterministic address order.
 Block-list, transaction-list, and account-transaction lookup scan confirmed
@@ -818,8 +818,9 @@ As of 2026-05-17:
   - local HTTP snapshot export/import through `POST /v1/snapshots/export` and
     `POST /v1/snapshots/import`
   - optional local HTTP snapshot discovery through `GET /v1/snapshots` and
-    `GET /v1/snapshots/latest` / `GET /v1/snapshots/{snapshot_name}` when
-    `--snapshot-root <path>` is configured, plus
+    `GET /v1/snapshots/latest` / `GET /v1/snapshots/latest/check` /
+    `GET /v1/snapshots/{snapshot_name}` when `--snapshot-root <path>` is
+    configured, plus
     `GET /v1/snapshots/{snapshot_name}/check` for HTTP-accessible pre-restore
     replay verification
   - private-devnet client preflight transfer flow through
@@ -846,7 +847,7 @@ As of 2026-05-17:
     HTTP pending state, durable
     pending-block production, client preflight transfer flow, explorer
     overview, block detail, account list/detail, transaction-list behavior, and
-    snapshot list/detail/check flows against persisted chain files, plus a
+    snapshot list/latest/latest-check/detail/check flows against persisted chain files, plus a
     separate wallet pending-to-block lifecycle from wallet transfer JSON through
     durable pending submission, pending inspection, pending-block production,
     and confirmed wallet transaction status, and
@@ -879,10 +880,11 @@ As of 2026-05-17:
     chain file, optional durable pending file, and manifest into a new
     directory, and import refuses to overwrite existing target files
   - private-devnet snapshot discovery and verification through `xriq-node
-    snapshot-list`, `xriq-node snapshot-latest`, `xriq-node snapshot-detail`,
-    and `xriq-node snapshot-check`; discovery reads local snapshot manifests
-    under an operator-provided root, and check replays the snapshot files to
-    compare the deterministic tip/status fields before restore
+    snapshot-list`, `xriq-node snapshot-latest`,
+    `xriq-node snapshot-latest-check`, `xriq-node snapshot-detail`, and
+    `xriq-node snapshot-check`; discovery reads local snapshot manifests under
+    an operator-provided root, and check replays the snapshot files to compare
+    the deterministic tip/status fields before restore
   - post-restore snapshot regression through `xriq-node chain-check`, which
     replays imported chain and pending files before restored targets are used
 - Implemented private-devnet wallet CLI baseline:
