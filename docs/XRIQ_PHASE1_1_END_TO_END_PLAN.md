@@ -109,6 +109,9 @@ Use local development for Milestones A and B by default. Do not provision paid
 GCP resources until the local contracts and first indexer replay tests are
 stable enough to justify deployment.
 
+Milestone A contract details are tracked in
+`docs/XRIQ_PHASE1_1_CONTRACTS.md`.
+
 ## Recommended Phase 1.1 Milestones
 
 ### Milestone A: Contracts
@@ -117,6 +120,9 @@ stable enough to justify deployment.
   20022 mapping.
 - Add checked fixtures for stable response examples.
 - Keep all endpoints private-devnet/local.
+- Treat exchange UI as future decentralized exchange UI, but defer real DEX
+  trading/liquidity contracts until token, smart-contract/native-module,
+  legal-risk, and security review gates exist.
 
 ### Milestone B: PostgreSQL Indexer
 

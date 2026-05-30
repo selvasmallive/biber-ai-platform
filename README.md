@@ -258,6 +258,8 @@ The Phase 1 private-devnet release-candidate checklist is in
 The current RC decision report is in `docs/XRIQ_PHASE1_RC_REPORT.md`.
 The post-RC end-to-end Phase 1.1 plan is in
 `docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md`.
+The Phase 1.1 API/database contract baseline is in
+`docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The GCP resource plan for Phase 1.1 is in `docs/XRIQ_GCP_RESOURCE_PLAN.md`.
 
 After a clean local check, future sessions can cheaply re-check the latest

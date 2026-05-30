@@ -16,6 +16,9 @@ Continue Milestone A locally:
 - ISO 20022 mapping contracts
 - local validation scripts
 
+The current Milestone A contract baseline is
+`docs/XRIQ_PHASE1_1_CONTRACTS.md`.
+
 Provision GCP only after the local contracts and first indexer prototype are
 stable enough to deploy.
 

@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `15%` overall. Current Rust
+- Phase 1.1 estimated completion: about `16%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, ISO 20022 adapter, admin portal, exchange UI, and smart contracts are not
   implemented yet.
@@ -157,6 +157,21 @@ workstation development for XRIQ Phase 1.1 end-to-end planning after the
 completed private-devnet RC1 tag. The previous Vast deployment is not an active
 target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 contract checkpoint: added
+  `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
+  defines private/local product API groups for health, explorer, wallet, admin,
+  ISO 20022 mapping, and future deferred DEX contracts; defines PostgreSQL
+  read-model table contracts for blocks, transactions, accounts, balances,
+  account transactions, mempool entries, snapshots, indexer runs, audit events,
+  and ISO 20022 mapped messages; and sets fixture requirements for the next
+  implementation checkpoint. It records that Exchange UI should be treated as
+  future decentralized exchange UI, but real swaps, liquidity, custody, bridges,
+  and market-facing claims remain deferred until token, smart-contract/native
+  module, legal-risk, and security review gates exist. Updated
+  `README.md`, `docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md`,
+  `docs/XRIQ_GCP_RESOURCE_PLAN.md`, and this handoff. Phase 1.1 status is now
+  about `16%` overall. No GCP resources were provisioned, no Rust behavior
+  changed, and no credentials were changed.
 - Latest native XRIQ Phase 1.1 planning checkpoint: added
   `docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md` as the post-RC1 local/private
   end-to-end plan. It makes ISO 20022 compatibility part of Phase 1.1 as an
