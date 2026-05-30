@@ -1,11 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import { AccountSummary, ExplorerSnapshot } from "./api";
+import {
+  AccountSummary,
+  ExplorerSnapshot,
+  WalletBalanceResponse,
+  WalletDraftPreviewResponse,
+  WalletStatusResponse,
+  loadWalletBalance,
+  loadWalletDraftPreview,
+  loadWalletStatus,
+} from "./api";
 
 const DEFAULT_RECIPIENT = "xriqdev1bobbb00000000000";
 const MIN_PRIVATE_DEVNET_FEE = 2n;
 const PREVIEW_WARNING = "private-devnet-preview-only-no-signing-no-submit";
 
 interface WalletShellProps {
+  apiBaseUrl: string;
   snapshot: ExplorerSnapshot | null;
   activeAccountAddress: string;
   onAccountSelect: (address: string) => void;
@@ -32,7 +42,14 @@ interface DraftValidation {
   remaining: bigint | null;
 }
 
+type ApiState<T> =
+  | { status: "idle"; data: null; error: null }
+  | { status: "loading"; data: T | null; error: null }
+  | { status: "ready"; data: T; error: null }
+  | { status: "error"; data: T | null; error: string };
+
 export function WalletShell({
+  apiBaseUrl,
   snapshot,
   activeAccountAddress,
   onAccountSelect,
@@ -53,6 +70,21 @@ export function WalletShell({
   const [expiresAtHeight, setExpiresAtHeight] = useState(
     snapshot ? (snapshot.network.current_height + 100).toString() : "",
   );
+  const [walletStatus, setWalletStatus] = useState<ApiState<WalletStatusResponse>>({
+    status: "idle",
+    data: null,
+    error: null,
+  });
+  const [walletBalance, setWalletBalance] = useState<ApiState<WalletBalanceResponse>>({
+    status: "idle",
+    data: null,
+    error: null,
+  });
+  const [apiPreview, setApiPreview] = useState<ApiState<WalletDraftPreviewResponse>>({
+    status: "idle",
+    data: null,
+    error: null,
+  });
 
   useEffect(() => {
     if (!selectedAccount || !snapshot) {
@@ -72,6 +104,72 @@ export function WalletShell({
   const fromAccount =
     accounts.find((account) => account.address === fromAddress) ?? selectedAccount;
 
+  useEffect(() => {
+    if (!snapshot) {
+      setWalletStatus({ status: "idle", data: null, error: null });
+      return;
+    }
+
+    let cancelled = false;
+    setWalletStatus((current) => ({
+      status: "loading",
+      data: current.data,
+      error: null,
+    }));
+    void loadWalletStatus(apiBaseUrl)
+      .then((data) => {
+        if (!cancelled) {
+          setWalletStatus({ status: "ready", data, error: null });
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setWalletStatus((current) => ({
+            status: "error",
+            data: current.data,
+            error: error instanceof Error ? error.message : "Wallet status failed",
+          }));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, snapshot]);
+
+  useEffect(() => {
+    if (!fromAddress) {
+      setWalletBalance({ status: "idle", data: null, error: null });
+      return;
+    }
+
+    let cancelled = false;
+    setWalletBalance((current) => ({
+      status: "loading",
+      data: current.data,
+      error: null,
+    }));
+    void loadWalletBalance(apiBaseUrl, fromAddress)
+      .then((data) => {
+        if (!cancelled) {
+          setWalletBalance({ status: "ready", data, error: null });
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setWalletBalance((current) => ({
+            status: "error",
+            data: current.data,
+            error: error instanceof Error ? error.message : "Wallet balance failed",
+          }));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, fromAddress]);
+
   const validation = useMemo(
     () =>
       validateDraft({
@@ -85,6 +183,21 @@ export function WalletShell({
       }),
     [amount, expiresAtHeight, fee, fromAccount, fromAddress, nonce, toAddress],
   );
+
+  const balancePreview = apiPreview.data
+    ? {
+        balance: parseNullableInteger(apiPreview.data.balance.available_base_units),
+        debit: parseNullableInteger(apiPreview.data.balance.debit_base_units),
+        remaining: parseNullableInteger(apiPreview.data.balance.remaining_base_units),
+      }
+    : {
+        balance:
+          walletBalance.data?.balance_base_units === undefined
+            ? validation.balance
+            : parseInteger(walletBalance.data.balance_base_units),
+        debit: validation.debit,
+        remaining: validation.remaining,
+      };
 
   const preview = useMemo<DraftPreview>(
     () => ({
@@ -102,6 +215,7 @@ export function WalletShell({
     }),
     [amount, expiresAtHeight, fee, fromAddress, nonce, snapshot?.network.network, toAddress],
   );
+  const previewJson = apiPreview.data ?? preview;
 
   function handleFromChange(address: string) {
     setFromAddress(address);
@@ -113,17 +227,59 @@ export function WalletShell({
     if (toAddress.trim() === "" || toAddress === address) {
       setToAddress(defaultRecipient(accounts, address));
     }
+    setApiPreview({ status: "idle", data: null, error: null });
+  }
+
+  function handleDraftFieldChange(update: () => void) {
+    update();
+    setApiPreview({ status: "idle", data: null, error: null });
+  }
+
+  async function handleCheckPreview() {
+    if (validation.errors.length > 0) {
+      return;
+    }
+
+    setApiPreview((current) => ({
+      status: "loading",
+      data: current.data,
+      error: null,
+    }));
+    try {
+      const data = await loadWalletDraftPreview(apiBaseUrl, {
+        from_address: fromAddress,
+        to_address: toAddress.trim(),
+        amount_base_units: amount.trim(),
+        fee_base_units: fee.trim(),
+        nonce: nonce.trim(),
+        expires_at_height: expiresAtHeight.trim(),
+      });
+      setApiPreview({ status: "ready", data, error: null });
+    } catch (error) {
+      setApiPreview((current) => ({
+        status: "error",
+        data: current.data,
+        error: error instanceof Error ? error.message : "Wallet preview failed",
+      }));
+    }
   }
 
   return (
     <section className="panel detailPanel widePanel walletPanel">
       <div className="panelTitle">
         <h2>Wallet Preview</h2>
-        <span>{validation.errors.length === 0 ? "ready" : "check"}</span>
+        <span>{apiPreview.status === "ready" ? "api" : validation.errors.length === 0 ? "ready" : "check"}</span>
       </div>
 
       <div className="walletGrid">
         <div className="walletForm" aria-label="Private-devnet wallet transfer preview">
+          <div className="walletApiStrip" aria-label="Wallet API status">
+            <span>{walletStatus.status}</span>
+            <strong>{walletStatus.data?.capabilities.draft ? "draft" : "local"}</strong>
+            <strong>{walletStatus.data?.capabilities.submit ? "submit" : "no-submit"}</strong>
+            <strong>{walletStatus.data?.capabilities.send ? "send" : "no-send"}</strong>
+          </div>
+
           <label>
             From
             <select
@@ -147,7 +303,9 @@ export function WalletShell({
             To
             <input
               value={toAddress}
-              onChange={(event) => setToAddress(event.target.value)}
+              onChange={(event) =>
+                handleDraftFieldChange(() => setToAddress(event.target.value))
+              }
               spellCheck={false}
             />
           </label>
@@ -158,7 +316,9 @@ export function WalletShell({
               <input
                 inputMode="numeric"
                 value={amount}
-                onChange={(event) => setAmount(event.target.value)}
+                onChange={(event) =>
+                  handleDraftFieldChange(() => setAmount(event.target.value))
+                }
               />
             </label>
             <label>
@@ -166,7 +326,9 @@ export function WalletShell({
               <input
                 inputMode="numeric"
                 value={fee}
-                onChange={(event) => setFee(event.target.value)}
+                onChange={(event) =>
+                  handleDraftFieldChange(() => setFee(event.target.value))
+                }
               />
             </label>
             <label>
@@ -174,7 +336,9 @@ export function WalletShell({
               <input
                 inputMode="numeric"
                 value={nonce}
-                onChange={(event) => setNonce(event.target.value)}
+                onChange={(event) =>
+                  handleDraftFieldChange(() => setNonce(event.target.value))
+                }
               />
             </label>
             <label>
@@ -182,15 +346,28 @@ export function WalletShell({
               <input
                 inputMode="numeric"
                 value={expiresAtHeight}
-                onChange={(event) => setExpiresAtHeight(event.target.value)}
+                onChange={(event) =>
+                  handleDraftFieldChange(() => setExpiresAtHeight(event.target.value))
+                }
               />
             </label>
           </div>
 
           <div className="balanceStrip" aria-label="Transfer balance preview">
-            <BalanceMetric label="Available" value={validation.balance} />
-            <BalanceMetric label="Debit" value={validation.debit} />
-            <BalanceMetric label="Remaining" value={validation.remaining} />
+            <BalanceMetric label="Available" value={balancePreview.balance} />
+            <BalanceMetric label="Debit" value={balancePreview.debit} />
+            <BalanceMetric label="Remaining" value={balancePreview.remaining} />
+          </div>
+
+          <div className="walletActions">
+            <button
+              type="button"
+              onClick={() => void handleCheckPreview()}
+              disabled={validation.errors.length > 0 || apiPreview.status === "loading"}
+            >
+              Check Preview
+            </button>
+            <span>{apiPreview.status}</span>
           </div>
 
           {validation.errors.length > 0 ? (
@@ -202,10 +379,16 @@ export function WalletShell({
           ) : (
             <p className="mutedText">Preview only. No signing or submission.</p>
           )}
+          {apiPreview.status === "error" ? (
+            <p className="errorText">{apiPreview.error}</p>
+          ) : null}
+          {walletStatus.status === "error" ? (
+            <p className="errorText">{walletStatus.error}</p>
+          ) : null}
         </div>
 
         <pre className="previewBox" aria-label="Wallet transfer draft preview">
-          {JSON.stringify(preview, null, 2)}
+          {JSON.stringify(previewJson, null, 2)}
         </pre>
       </div>
     </section>
@@ -284,6 +467,10 @@ function parseInteger(value: string): bigint | null {
     return null;
   }
   return BigInt(trimmed);
+}
+
+function parseNullableInteger(value: string | null): bigint | null {
+  return value === null ? null : parseInteger(value);
 }
 
 function defaultRecipient(accounts: AccountSummary[], fromAddress: string) {

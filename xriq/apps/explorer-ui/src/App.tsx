@@ -340,6 +340,7 @@ function App() {
         />
         <AccountDetailPanel detail={accountDetail} history={accountHistory} />
         <WalletShell
+          apiBaseUrl={apiBaseUrl}
           snapshot={snapshot}
           activeAccountAddress={activeAccountAddress}
           onAccountSelect={(address) => setSelectedAccountAddress(address)}

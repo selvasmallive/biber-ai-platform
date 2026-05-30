@@ -40,6 +40,9 @@ for (const route of [
   "/api/v1/accounts?limit=5",
   "/api/v1/accounts/",
   "/transactions?limit=5",
+  "/api/v1/wallet/status",
+  "/api/v1/wallet/accounts/",
+  "/api/v1/wallet/transfers/draft-preview",
   "/api/v1/admin/indexer/status",
 ]) {
   if (!apiSource.includes(route)) {
@@ -69,6 +72,8 @@ for (const requiredText of [
   "xriq-wallet-transfer-preview-v1",
   "private-devnet-preview-only-no-signing-no-submit",
   'mutation: "none"',
+  "loadWalletDraftPreview",
+  "Check Preview",
 ]) {
   if (!walletSource.includes(requiredText)) {
     throw new Error(`missing wallet preview marker: ${requiredText}`);

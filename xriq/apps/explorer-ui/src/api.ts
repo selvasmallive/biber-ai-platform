@@ -155,6 +155,67 @@ export interface ExplorerSnapshot {
   indexer: IndexerStatusResponse;
 }
 
+export interface WalletStatusResponse {
+  environment: "private-devnet";
+  network: string;
+  warning: string;
+  current_height: number;
+  latest_block_hash: string;
+  state_root: string;
+  account_count: number;
+  pending_transactions: number;
+  capabilities: {
+    draft: boolean;
+    submit: boolean;
+    send: boolean;
+  };
+}
+
+export interface WalletBalanceResponse {
+  environment: "private-devnet";
+  network: string;
+  warning: string;
+  address: string;
+  balance_base_units: string;
+  nonce: number;
+  height: number;
+  state_root: string;
+}
+
+export interface WalletDraftPreviewRequest {
+  from_address: string;
+  to_address: string;
+  amount_base_units: string;
+  fee_base_units: string;
+  nonce: string;
+  expires_at_height: string;
+}
+
+export interface WalletDraftPreviewResponse {
+  environment: "private-devnet";
+  network: string;
+  warning: string;
+  mutation: "none";
+  validation: {
+    ok: boolean;
+    errors: string[];
+  };
+  draft: {
+    chain_id: string;
+    from_address: string;
+    to_address: string;
+    amount_base_units: string;
+    fee_base_units: string;
+    nonce: number;
+    expires_at_height: number | null;
+  };
+  balance: {
+    available_base_units: string | null;
+    debit_base_units: string | null;
+    remaining_base_units: string | null;
+  };
+}
+
 export async function loadExplorerSnapshot(
   baseUrl: string,
 ): Promise<ExplorerSnapshot> {
@@ -235,6 +296,46 @@ export async function loadAccountHistory(
   return fetchJson<AccountHistoryResponse>(
     normalizeBaseUrl(baseUrl),
     `/api/v1/accounts/${encodeURIComponent(address)}/transactions?limit=5`,
+  );
+}
+
+export async function loadWalletStatus(
+  baseUrl: string,
+): Promise<WalletStatusResponse> {
+  return fetchJson<WalletStatusResponse>(
+    normalizeBaseUrl(baseUrl),
+    "/api/v1/wallet/status",
+  );
+}
+
+export async function loadWalletBalance(
+  baseUrl: string,
+  address: string,
+): Promise<WalletBalanceResponse> {
+  return fetchJson<WalletBalanceResponse>(
+    normalizeBaseUrl(baseUrl),
+    `/api/v1/wallet/accounts/${encodeURIComponent(address)}/balance`,
+  );
+}
+
+export async function loadWalletDraftPreview(
+  baseUrl: string,
+  request: WalletDraftPreviewRequest,
+): Promise<WalletDraftPreviewResponse> {
+  const params = new URLSearchParams({
+    from_address: request.from_address,
+    to_address: request.to_address,
+    amount_base_units: request.amount_base_units,
+    fee_base_units: request.fee_base_units,
+    nonce: request.nonce,
+  });
+  if (request.expires_at_height.trim() !== "") {
+    params.set("expires_at_height", request.expires_at_height.trim());
+  }
+
+  return fetchJson<WalletDraftPreviewResponse>(
+    normalizeBaseUrl(baseUrl),
+    `/api/v1/wallet/transfers/draft-preview?${params.toString()}`,
   );
 }
 

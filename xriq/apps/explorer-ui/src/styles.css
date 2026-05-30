@@ -174,7 +174,9 @@ h3 {
 
 .walletForm,
 .walletFields,
-.balanceStrip {
+.balanceStrip,
+.walletActions,
+.walletApiStrip {
   display: grid;
   gap: 12px;
 }
@@ -206,6 +208,38 @@ h3 {
 
 .balanceStrip {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.walletApiStrip,
+.walletActions {
+  align-items: center;
+  grid-template-columns: repeat(4, minmax(0, max-content));
+}
+
+.walletApiStrip span,
+.walletApiStrip strong,
+.walletActions span {
+  min-height: 30px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #e7efe9;
+  color: #1d654d;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.walletActions button {
+  min-height: 40px;
+  border-radius: 6px;
+  padding: 0 14px;
+  background: #16324f;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.walletActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
 }
 
 .balanceStrip div {
@@ -493,7 +527,9 @@ td {
   .heroPanel,
   .walletGrid,
   .walletFields,
-  .balanceStrip {
+  .balanceStrip,
+  .walletActions,
+  .walletApiStrip {
     grid-template-columns: 1fr;
   }
 
