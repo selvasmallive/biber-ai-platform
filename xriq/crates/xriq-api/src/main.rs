@@ -1,13 +1,16 @@
 use std::{
     env,
     fmt::Write as _,
+    fs,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
     path::Path,
     process,
 };
 
-use xriq_api::{product_api_http_response, ApiHttpResponse, XriqApiService};
+use xriq_api::{
+    pending_mempool_entries_from_tsv, product_api_http_response, ApiHttpResponse, XriqApiService,
+};
 use xriq_core::XriqAmount;
 use xriq_indexer::index_private_devnet_store;
 use xriq_storage::FileChainStore;
@@ -43,7 +46,7 @@ where
 
 fn run_request(args: &[&str]) -> Result<String, String> {
     let config = RequestConfig::parse(args)?;
-    let service = build_service(config.chain_file, config.alice_balance)?;
+    let service = build_service(config.chain_file, config.pending_file, config.alice_balance)?;
     let response = product_api_http_response(&service, config.method, config.target);
 
     Ok(format!(
@@ -54,7 +57,7 @@ fn run_request(args: &[&str]) -> Result<String, String> {
 
 fn run_serve_readonly(args: &[&str]) -> Result<String, String> {
     let config = ServeConfig::parse(args)?;
-    let service = build_service(config.chain_file, config.alice_balance)?;
+    let service = build_service(config.chain_file, config.pending_file, config.alice_balance)?;
     let listener = TcpListener::bind(config.bind)
         .map_err(|error| format!("could not bind xriq-api to {}: {error}", config.bind))?;
     eprintln!(
@@ -81,6 +84,7 @@ fn run_serve_readonly(args: &[&str]) -> Result<String, String> {
 
 fn build_service(
     chain_file: &str,
+    pending_file: Option<&str>,
     alice_balance: Option<XriqAmount>,
 ) -> Result<XriqApiService, String> {
     if !Path::new(chain_file).exists() {
@@ -92,7 +96,21 @@ fn build_service(
         .map_err(|error| format!("could not open chain file {chain_file}: {error:?}"))?;
     let snapshot = index_private_devnet_store(&store, alice_balance)
         .map_err(|error| format!("index replay failed: {error}"))?;
-    Ok(XriqApiService::new(snapshot))
+    let expected_chain_id = snapshot.chain_id.clone();
+    let mut service = XriqApiService::new(snapshot);
+    if let Some(pending_file) = pending_file {
+        let pending_path = Path::new(pending_file);
+        if pending_path.exists() {
+            let pending_text = fs::read_to_string(pending_path)
+                .map_err(|error| format!("could not read pending file {pending_file}: {error}"))?;
+            let pending_entries =
+                pending_mempool_entries_from_tsv(&pending_text, &expected_chain_id).map_err(
+                    |error| format!("could not parse pending file {pending_file}: {error}"),
+                )?;
+            service = service.with_pending_mempool_entries(pending_entries);
+        }
+    }
+    Ok(service)
 }
 
 fn handle_connection(service: &XriqApiService, mut stream: TcpStream) -> Result<(), String> {
@@ -157,8 +175,8 @@ fn bad_request_response(message: &str) -> ApiHttpResponse {
 fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
-        "  xriq-api request --chain-file <path> [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind 127.0.0.1:8090]",
+        "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
+        "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090]",
         "",
         "Examples:",
         "  xriq-api request --chain-file target/xriq-devnet.bin --alice-balance 100 --target /api/v1/health",
@@ -170,6 +188,7 @@ fn help_text() -> String {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RequestConfig<'a> {
     chain_file: &'a str,
+    pending_file: Option<&'a str>,
     alice_balance: Option<XriqAmount>,
     method: &'a str,
     target: &'a str,
@@ -178,9 +197,16 @@ struct RequestConfig<'a> {
 impl<'a> RequestConfig<'a> {
     fn parse(args: &'a [&'a str]) -> Result<Self, String> {
         let flags = FlagParser::parse(args)?;
-        flags.reject_unknown(&["--chain-file", "--alice-balance", "--method", "--target"])?;
+        flags.reject_unknown(&[
+            "--chain-file",
+            "--pending-file",
+            "--alice-balance",
+            "--method",
+            "--target",
+        ])?;
         Ok(Self {
             chain_file: flags.required("--chain-file")?,
+            pending_file: flags.optional("--pending-file"),
             alice_balance: flags
                 .optional("--alice-balance")
                 .map(parse_amount)
@@ -194,6 +220,7 @@ impl<'a> RequestConfig<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ServeConfig<'a> {
     chain_file: &'a str,
+    pending_file: Option<&'a str>,
     alice_balance: Option<XriqAmount>,
     bind: &'a str,
 }
@@ -201,9 +228,15 @@ struct ServeConfig<'a> {
 impl<'a> ServeConfig<'a> {
     fn parse(args: &'a [&'a str]) -> Result<Self, String> {
         let flags = FlagParser::parse(args)?;
-        flags.reject_unknown(&["--chain-file", "--alice-balance", "--bind"])?;
+        flags.reject_unknown(&[
+            "--chain-file",
+            "--pending-file",
+            "--alice-balance",
+            "--bind",
+        ])?;
         Ok(Self {
             chain_file: flags.required("--chain-file")?,
+            pending_file: flags.optional("--pending-file"),
             alice_balance: flags
                 .optional("--alice-balance")
                 .map(parse_amount)
@@ -313,6 +346,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(config.chain_file, "target/xriq.bin");
+        assert_eq!(config.pending_file, None);
         assert_eq!(config.alice_balance.unwrap().base_units(), 100);
         assert_eq!(config.method, "GET");
         assert_eq!(config.target, "/api/v1/health");
@@ -323,9 +357,16 @@ mod tests {
 
     #[test]
     fn serve_config_defaults_to_localhost_private_devnet_port() {
-        let config = ServeConfig::parse(&["--chain-file", "target/xriq.bin"]).unwrap();
+        let config = ServeConfig::parse(&[
+            "--chain-file",
+            "target/xriq.bin",
+            "--pending-file",
+            "target/xriq-pending.tsv",
+        ])
+        .unwrap();
 
         assert_eq!(config.chain_file, "target/xriq.bin");
+        assert_eq!(config.pending_file, Some("target/xriq-pending.tsv"));
         assert_eq!(config.alice_balance, None);
         assert_eq!(config.bind, DEFAULT_BIND);
     }

@@ -90,6 +90,7 @@ name = "xriq-api"
 version = "0.1.0"
 dependencies = [
  "xriq-core",
+ "xriq-crypto",
  "xriq-indexer",
  "xriq-storage",
 ]

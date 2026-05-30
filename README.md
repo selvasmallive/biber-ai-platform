@@ -272,13 +272,17 @@ from `xriq/` with `cargo test -p xriq-api`. It defines product-facing
 private-devnet response models plus `/api/v1/...` route/render behavior over
 the indexed read model, including read-only wallet status/account/transaction
 status and draft-preview routes. It includes a local read-only socket server
-for private-devnet smoke testing.
+for private-devnet smoke testing. Pass `--pending-file <path>` to inspect an
+existing durable private-devnet pending TSV in `/api/v1/mempool`; this remains
+read-only and does not enable wallet submission or block production in
+`xriq-api`.
 
 ```bash
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/health
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/wallet/status
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target '/api/v1/wallet/transfers/draft-preview?from_address=xriqdev1alice00000000000&to_address=xriqdev1bobbb00000000000&amount_base_units=25&fee_base_units=2&nonce=1&expires_at_height=100'
-cargo run -p xriq-api -- serve-readonly --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --bind 127.0.0.1:8090
+cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --target '/api/v1/mempool?limit=5'
+cargo run -p xriq-api -- serve-readonly --chain-file target/xriq-indexer-replay-smoke.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --bind 127.0.0.1:8090
 ```
 
 The first ISO 20022 compatibility adapter scaffold is
@@ -298,7 +302,7 @@ state. The wallet panel does not sign, submit, persist, or manage private keys.
 
 ```powershell
 cd xriq
-cargo run -p xriq-api -- serve-readonly --chain-file target\xriq-indexer-replay-smoke.bin --alice-balance 100 --bind 127.0.0.1:8090
+cargo run -p xriq-api -- serve-readonly --chain-file target\xriq-indexer-replay-smoke.bin --pending-file target\xriq-devnet-pending.tsv --alice-balance 100 --bind 127.0.0.1:8090
 
 cd apps\explorer-ui
 npm.cmd install

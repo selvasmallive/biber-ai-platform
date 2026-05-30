@@ -72,13 +72,16 @@ can be smoke-tested without opening a socket:
 
 ```bash
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/health
+cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --target '/api/v1/mempool?limit=5'
 ```
 
 To expose the same product API routes over localhost for a browser/client
-smoke, run:
+smoke, run. The optional `--pending-file` is read-only in `xriq-api`: it lets
+the Admin panel inspect durable private-devnet pending entries while wallet
+submit and block production remain disabled in the product API.
 
 ```bash
-cargo run -p xriq-api -- serve-readonly --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --bind 127.0.0.1:8090
+cargo run -p xriq-api -- serve-readonly --chain-file target/xriq-indexer-replay-smoke.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --bind 127.0.0.1:8090
 ```
 
 The first Phase 1.1 ISO 20022 compatibility adapter scaffold can be checked
@@ -98,7 +101,7 @@ audit-event state. The wallet panel does not sign, submit, persist, or manage
 private keys.
 
 ```powershell
-cargo run -p xriq-api -- serve-readonly --chain-file target\xriq-indexer-replay-smoke.bin --alice-balance 100 --bind 127.0.0.1:8090
+cargo run -p xriq-api -- serve-readonly --chain-file target\xriq-indexer-replay-smoke.bin --pending-file target\xriq-devnet-pending.tsv --alice-balance 100 --bind 127.0.0.1:8090
 cd apps\explorer-ui
 npm.cmd install
 npm.cmd run check

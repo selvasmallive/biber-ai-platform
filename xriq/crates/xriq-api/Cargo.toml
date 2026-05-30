@@ -8,5 +8,6 @@ description = "XRIQ private-devnet product API service boundary."
 
 [dependencies]
 xriq-core = { path = "../xriq-core" }
+xriq-crypto = { path = "../xriq-crypto" }
 xriq-indexer = { path = "../xriq-indexer" }
 xriq-storage = { path = "../xriq-storage" }

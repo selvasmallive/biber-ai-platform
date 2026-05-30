@@ -117,6 +117,8 @@ for (const requiredText of [
   "block_production_status",
   "Mempool",
   "mempool",
+  "First Pending",
+  "amount_base_units",
   "submit_status",
   "produce_block_status",
   "walletStatus",

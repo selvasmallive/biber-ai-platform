@@ -65,14 +65,14 @@ Rust
  |-- Blockchain node        ~70% for private-devnet; RC1 baseline exists
  |-- Consensus engine       ~60% for private-devnet; single-authority baseline
  |-- Wallet backend         ~50%; CLI flows plus product read/preview routes exist
- |-- APIs                   ~51%; local HTTP wrappers plus wallet/admin/node/mempool read routes exist
+ |-- APIs                   ~52%; local HTTP wrappers plus wallet/admin/node/pending-file mempool read routes exist
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
  |-- Wallet UI              ~12%; preview-only shell wired to wallet draft-preview API
  |-- Explorer               ~20%; shell plus basic detail panels read product API
  |-- Exchange UI            0%; deferred high legal/compliance-risk surface
- `-- Admin portal           ~18%; read-only node/status, mempool, snapshot, and audit panel exists
+ `-- Admin portal           ~19%; read-only node/status, pending mempool, snapshot, and audit panel exists
 
 SQL/PostgreSQL
  |-- Explorer indexing      ~25%; schema, indexer, SQL plan, and verify path exist
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first read-only admin node-status UI checkpoint, Phase 1.1 status is
-about `49%`: the contract document, PostgreSQL read-model schema, JSON
+After the first read-only pending-file mempool UI checkpoint, Phase 1.1 status
+is about `50%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -109,11 +109,11 @@ That wallet panel can now call the product wallet draft-preview API and render
 the server validation/balance response. The same React app now includes a
 read-only Admin Status panel that summarizes network tip state, indexer
 current/last-run status, node health/read-only mode, wallet draft/submit/send
-capability flags, a read-only mempool status, a read-only snapshot catalog, and
-indexed audit events from the product API. Actual repeated live database smoke
-coverage, real wallet submission APIs, mutating admin controls,
-block-production controls, real snapshot export/import controls, and deeper ISO
-adapter integration are still pending.
+capability flags, read-only durable pending-file mempool status, a read-only
+snapshot catalog, and indexed audit events from the product API. Actual
+repeated live database smoke coverage, real wallet submission APIs, mutating
+admin controls, block-production controls, real snapshot export/import
+controls, and deeper ISO adapter integration are still pending.
 
 ## Phase 1.1 Build Order
 
@@ -186,9 +186,11 @@ when intentionally applying the read model to a local development database.
 - Current scaffold: `xriq/crates/xriq-api` exposes read-only private-devnet
   response models, `/api/v1/...` route/render behavior over
   `IndexedChainSnapshot`, wallet status/account/balance/history/transaction
-  status/draft-preview routes, a read-only `/api/v1/mempool` status route,
+  status/draft-preview routes, a read-only `/api/v1/mempool` status route that
+  can inspect an optional durable pending TSV through `--pending-file`,
   read-only admin node-status, audit events, and snapshot catalog routes, a
-  `request` CLI smoke path, and a local `serve-readonly` socket wrapper.
+  `request` CLI smoke path, and a local `serve-readonly` socket wrapper. The
+  pending-file path does not enable product API submit or block production.
   Focused verification is:
 
 ```bash
@@ -197,6 +199,7 @@ cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.b
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/wallet/status
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/admin/node/status
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/mempool
+cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --target /api/v1/mempool?limit=5
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/admin/audit-events
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/snapshots
 ```
@@ -252,8 +255,10 @@ npm.cmd run build
   `/api/v1/wallet/status`, plus a read-only node status section backed by
   `/api/v1/admin/node/status`, read-only snapshot catalog and audit-event
   sections backed by `/api/v1/snapshots` and `/api/v1/admin/audit-events`, and
-  a read-only mempool status section backed by `/api/v1/mempool`. It displays
-  local private-devnet status only and has no mutating controls.
+  a read-only mempool status section backed by `/api/v1/mempool`. When the API
+  is started with `--pending-file`, the panel shows the first pending
+  transaction hash, amount, and pending status. It displays local
+  private-devnet status only and has no mutating controls.
 
 ## Guardrails
 

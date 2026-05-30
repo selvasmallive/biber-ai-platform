@@ -5,9 +5,15 @@
 //! binary can expose those routes through a local read-only private-devnet
 //! socket for Phase 1.1 smoke testing.
 
-use std::{collections::BTreeMap, fmt::Write as _};
+use std::{
+    collections::BTreeMap,
+    fmt::{self, Write as _},
+};
 
-use xriq_core::{Address, PRIVATE_DEVNET_MIN_FEE_BASE_UNITS};
+use xriq_core::{
+    Address, Hash32, SignatureBytes, Transaction, XriqAmount, PRIVATE_DEVNET_MIN_FEE_BASE_UNITS,
+};
+use xriq_crypto::transaction_hash;
 use xriq_indexer::{
     IndexedAccount, IndexedAccountBalance, IndexedAccountTransaction, IndexedAuditEvent,
     IndexedBlock, IndexedChainSnapshot, IndexedTransaction,
@@ -26,11 +32,23 @@ pub const SNAPSHOT_READONLY_WARNING: &str =
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XriqApiService {
     snapshot: IndexedChainSnapshot,
+    pending_entries: Vec<MempoolEntryResponse>,
 }
 
 impl XriqApiService {
     pub fn new(snapshot: IndexedChainSnapshot) -> Self {
-        Self { snapshot }
+        Self {
+            snapshot,
+            pending_entries: Vec::new(),
+        }
+    }
+
+    pub fn with_pending_mempool_entries(
+        mut self,
+        pending_entries: Vec<MempoolEntryResponse>,
+    ) -> Self {
+        self.pending_entries = pending_entries;
+        self
     }
 
     pub fn health(&self) -> HealthResponse {
@@ -71,7 +89,7 @@ impl XriqApiService {
                 latest_block_hash: self.snapshot.latest_block_hash.clone(),
                 state_root: self.snapshot.state_root.clone(),
                 stored_blocks: self.snapshot.read_model.blocks.len(),
-                pending_transactions: 0,
+                pending_transactions: self.pending_entries.len(),
             },
             indexer: self.admin_indexer_status(),
             totals: TotalsResponse {
@@ -171,18 +189,30 @@ impl XriqApiService {
     }
 
     pub fn mempool(&self, limit: usize) -> MempoolResponse {
+        let entries = self
+            .pending_entries
+            .iter()
+            .take(limit)
+            .cloned()
+            .collect::<Vec<_>>();
+        let next_cursor = list_next_cursor(
+            self.pending_entries.len(),
+            entries.len(),
+            entries.last().map(|entry| entry.tx_hash.clone()),
+        );
+
         MempoolResponse {
             environment: API_ENVIRONMENT,
             network: self.snapshot.chain_id.clone(),
             warning: MEMPOOL_READONLY_WARNING,
             current_height: self.snapshot.current_height,
-            pending_count: 0,
+            pending_count: self.pending_entries.len(),
             limit,
-            next_cursor: None,
+            next_cursor,
             inspect_status: "enabled",
             submit_status: "disabled",
             produce_block_status: "disabled",
-            entries: Vec::new(),
+            entries,
         }
     }
 
@@ -436,7 +466,7 @@ impl XriqApiService {
             latest_block_hash: self.snapshot.latest_block_hash.clone(),
             state_root: self.snapshot.state_root.clone(),
             stored_blocks: self.snapshot.read_model.blocks.len(),
-            pending_transactions: 0,
+            pending_transactions: self.pending_entries.len(),
             wallet_submit_status: "disabled",
             block_production_status: "disabled",
         }
@@ -835,6 +865,48 @@ pub struct MempoolEntryResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingMempoolParseError {
+    pub line: usize,
+    pub message: String,
+}
+
+impl PendingMempoolParseError {
+    fn new(line: usize, message: impl Into<String>) -> Self {
+        Self {
+            line,
+            message: message.into(),
+        }
+    }
+}
+
+impl fmt::Display for PendingMempoolParseError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "line {}: {}", self.line, self.message)
+    }
+}
+
+impl std::error::Error for PendingMempoolParseError {}
+
+pub fn pending_mempool_entries_from_tsv(
+    text: &str,
+    expected_chain_id: &str,
+) -> Result<Vec<MempoolEntryResponse>, PendingMempoolParseError> {
+    let mut entries = Vec::new();
+    for (line_index, raw_line) in text.lines().enumerate() {
+        let line = raw_line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        entries.push(parse_pending_mempool_entry(
+            line,
+            line_index + 1,
+            expected_chain_id,
+        )?);
+    }
+    Ok(entries)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountListResponse {
     pub environment: &'static str,
     pub network: String,
@@ -1134,6 +1206,159 @@ fn transactions_for_block(
             .then_with(|| left.tx_hash.cmp(&right.tx_hash))
     });
     values
+}
+
+fn parse_pending_mempool_entry(
+    line: &str,
+    line_number: usize,
+    expected_chain_id: &str,
+) -> Result<MempoolEntryResponse, PendingMempoolParseError> {
+    let parts = line.split('\t').collect::<Vec<_>>();
+    if parts.len() != 11 {
+        return Err(PendingMempoolParseError::new(
+            line_number,
+            "expected 11 tab-separated pending record fields",
+        ));
+    }
+    if parts[0] != "xriq-pending-transaction-v1" {
+        return Err(PendingMempoolParseError::new(
+            line_number,
+            "unsupported pending record version",
+        ));
+    }
+
+    let tx_hash = parts[1];
+    if !is_lower_hex(tx_hash, 64) {
+        return Err(PendingMempoolParseError::new(
+            line_number,
+            "tx_hash must be 64 lowercase hex characters",
+        ));
+    }
+    let version = parse_u16_field(parts[2], "version", line_number)?;
+    let chain_id = parts[3];
+    if chain_id != expected_chain_id {
+        return Err(PendingMempoolParseError::new(
+            line_number,
+            format!("wrong chain_id: expected {expected_chain_id}, got {chain_id}"),
+        ));
+    }
+    let from = Address::parse(parts[4]).map_err(|_| {
+        PendingMempoolParseError::new(line_number, "from_address is not a valid devnet address")
+    })?;
+    let to = Address::parse(parts[5]).map_err(|_| {
+        PendingMempoolParseError::new(line_number, "to_address is not a valid devnet address")
+    })?;
+    let amount = parse_amount_field(parts[6], "amount_base_units", line_number)?;
+    let fee = parse_amount_field(parts[7], "fee_base_units", line_number)?;
+    let nonce = parse_u64_field(parts[8], "nonce", line_number)?;
+    let expires_at_height = match parts[9] {
+        "null" => None,
+        value => Some(parse_u64_field(value, "expires_at_height", line_number)?),
+    };
+    let signature = parse_hex_bytes(parts[10]).ok_or_else(|| {
+        PendingMempoolParseError::new(line_number, "signature must be lowercase hex bytes")
+    })?;
+
+    let transaction = Transaction {
+        version,
+        chain_id: chain_id.to_string(),
+        from: from.clone(),
+        to: to.clone(),
+        amount,
+        fee,
+        nonce,
+        memo_hash: None,
+        expires_at_height,
+        signature: SignatureBytes::new(signature),
+    };
+    let computed_hash = hash_hex(transaction_hash(&transaction));
+    if computed_hash != tx_hash {
+        return Err(PendingMempoolParseError::new(
+            line_number,
+            "pending record hash does not match transaction fields",
+        ));
+    }
+
+    Ok(MempoolEntryResponse {
+        tx_hash: tx_hash.to_string(),
+        from_address: from.to_string(),
+        to_address: to.to_string(),
+        amount_base_units: amount.base_units().to_string(),
+        fee_base_units: fee.base_units().to_string(),
+        nonce,
+        status: "pending".to_string(),
+        first_seen_at_utc: None,
+        last_seen_at_utc: None,
+    })
+}
+
+fn parse_u16_field(
+    value: &str,
+    field: &str,
+    line_number: usize,
+) -> Result<u16, PendingMempoolParseError> {
+    value.parse::<u16>().map_err(|_| {
+        PendingMempoolParseError::new(line_number, format!("{field} must be an integer"))
+    })
+}
+
+fn parse_u64_field(
+    value: &str,
+    field: &str,
+    line_number: usize,
+) -> Result<u64, PendingMempoolParseError> {
+    value.parse::<u64>().map_err(|_| {
+        PendingMempoolParseError::new(line_number, format!("{field} must be an integer"))
+    })
+}
+
+fn parse_amount_field(
+    value: &str,
+    field: &str,
+    line_number: usize,
+) -> Result<XriqAmount, PendingMempoolParseError> {
+    value
+        .parse::<u128>()
+        .map(XriqAmount::from_base_units)
+        .map_err(|_| {
+            PendingMempoolParseError::new(line_number, format!("{field} must be base-unit integer"))
+        })
+}
+
+fn parse_hex_bytes(value: &str) -> Option<Vec<u8>> {
+    if !value.len().is_multiple_of(2) || !is_lower_hex(value, value.len()) {
+        return None;
+    }
+    let mut bytes = Vec::with_capacity(value.len() / 2);
+    for pair in value.as_bytes().chunks_exact(2) {
+        let high = hex_nibble(pair[0])?;
+        let low = hex_nibble(pair[1])?;
+        bytes.push((high << 4) | low);
+    }
+    Some(bytes)
+}
+
+fn is_lower_hex(value: &str, expected_len: usize) -> bool {
+    value.len() == expected_len
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn hex_nibble(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        _ => None,
+    }
+}
+
+fn hash_hex(hash: Hash32) -> String {
+    let mut output = String::with_capacity(64);
+    for byte in hash.as_bytes() {
+        write!(&mut output, "{byte:02x}").expect("write to String");
+    }
+    output
 }
 
 fn list_next_cursor<T: Into<String>>(
@@ -2288,6 +2513,7 @@ fn civil_from_days(days_since_unix_epoch: i64) -> (i64, u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use xriq_crypto::{test_only_signature_for_hash, transaction_signing_hash};
     use xriq_indexer::{
         IndexReplaySummary, IndexedAccount, IndexedAccountBalance, IndexedAccountTransaction,
         IndexedAuditEvent, IndexedReadModel, INDEXER_ENVIRONMENT, INDEXER_PRIVATE_DEVNET_WARNING,
@@ -2299,6 +2525,52 @@ mod tests {
 
     fn service() -> XriqApiService {
         XriqApiService::new(snapshot())
+    }
+
+    fn service_with_pending_mempool() -> XriqApiService {
+        let snapshot = snapshot();
+        let pending_entries =
+            pending_mempool_entries_from_tsv(&pending_record(), &snapshot.chain_id).unwrap();
+        XriqApiService::new(snapshot).with_pending_mempool_entries(pending_entries)
+    }
+
+    fn pending_record() -> String {
+        let mut transaction = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from: Address::parse("xriqdev1alice00000000000").unwrap(),
+            to: Address::parse("xriqdev1carol00000000000").unwrap(),
+            amount: XriqAmount::from_base_units(10),
+            fee: XriqAmount::from_base_units(2),
+            nonce: 1,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+        };
+        transaction.signature =
+            test_only_signature_for_hash(transaction_signing_hash(&transaction));
+        [
+            "xriq-pending-transaction-v1".to_string(),
+            hash_hex(transaction_hash(&transaction)),
+            transaction.version.to_string(),
+            transaction.chain_id.clone(),
+            transaction.from.to_string(),
+            transaction.to.to_string(),
+            transaction.amount.base_units().to_string(),
+            transaction.fee.base_units().to_string(),
+            transaction.nonce.to_string(),
+            transaction.expires_at_height.unwrap().to_string(),
+            bytes_hex(transaction.signature.as_slice()),
+        ]
+        .join("\t")
+    }
+
+    fn bytes_hex(bytes: &[u8]) -> String {
+        let mut output = String::with_capacity(bytes.len() * 2);
+        for byte in bytes {
+            write!(&mut output, "{byte:02x}").expect("write to String");
+        }
+        output
     }
 
     fn snapshot() -> IndexedChainSnapshot {
@@ -2481,6 +2753,9 @@ mod tests {
         assert_eq!(overview.totals.accounts, 2);
         assert_eq!(overview.indexer.status, "current");
         assert_eq!(overview.indexer.last_run.blocks_indexed, 1);
+
+        let overview_with_pending = service_with_pending_mempool().explorer_overview();
+        assert_eq!(overview_with_pending.chain.pending_transactions, 1);
     }
 
     #[test]
@@ -2535,6 +2810,39 @@ mod tests {
         assert_eq!(mempool.submit_status, "disabled");
         assert_eq!(mempool.produce_block_status, "disabled");
         assert!(mempool.entries.is_empty());
+    }
+
+    #[test]
+    fn mempool_status_can_read_durable_pending_file_entries_without_mutation() {
+        let api = service_with_pending_mempool();
+
+        let mempool = api.mempool(5);
+        assert_eq!(mempool.warning, MEMPOOL_READONLY_WARNING);
+        assert_eq!(mempool.pending_count, 1);
+        assert_eq!(mempool.entries.len(), 1);
+        assert_eq!(mempool.entries[0].from_address, "xriqdev1alice00000000000");
+        assert_eq!(mempool.entries[0].to_address, "xriqdev1carol00000000000");
+        assert_eq!(mempool.entries[0].amount_base_units, "10");
+        assert_eq!(mempool.entries[0].fee_base_units, "2");
+        assert_eq!(mempool.entries[0].nonce, 1);
+        assert_eq!(mempool.entries[0].status, "pending");
+        assert_eq!(mempool.submit_status, "disabled");
+        assert_eq!(mempool.produce_block_status, "disabled");
+    }
+
+    #[test]
+    fn pending_mempool_parser_rejects_wrong_chain_or_hash() {
+        let wrong_chain = pending_record().replace("xriq-devnet", "xriq-other");
+        let wrong_chain_error =
+            pending_mempool_entries_from_tsv(&wrong_chain, "xriq-devnet").unwrap_err();
+        assert!(wrong_chain_error.message.contains("wrong chain_id"));
+
+        let valid_record = pending_record();
+        let valid_hash = valid_record.split('\t').nth(1).unwrap().to_string();
+        let wrong_hash = valid_record.replacen(&valid_hash, &"0".repeat(64), 1);
+        let wrong_hash_error =
+            pending_mempool_entries_from_tsv(&wrong_hash, "xriq-devnet").unwrap_err();
+        assert!(wrong_hash_error.message.contains("hash does not match"));
     }
 
     #[test]
@@ -2648,6 +2956,11 @@ mod tests {
         assert_eq!(status.pending_transactions, 0);
         assert_eq!(status.wallet_submit_status, "disabled");
         assert_eq!(status.block_production_status, "disabled");
+
+        let status_with_pending = service_with_pending_mempool().admin_node_status();
+        assert_eq!(status_with_pending.pending_transactions, 1);
+        assert_eq!(status_with_pending.wallet_submit_status, "disabled");
+        assert_eq!(status_with_pending.block_production_status, "disabled");
     }
 
     #[test]
@@ -2756,6 +3069,14 @@ mod tests {
         assert!(mempool
             .body
             .contains("\"produce_block_status\": \"disabled\""));
+
+        let pending_api = service_with_pending_mempool();
+        let pending_mempool =
+            product_api_http_response(&pending_api, "GET", "/api/v1/mempool?limit=5");
+        assert_eq!(pending_mempool.status_code, 200);
+        assert!(pending_mempool.body.contains("\"pending_count\": 1"));
+        assert!(pending_mempool.body.contains("\"status\": \"pending\""));
+        assert!(pending_mempool.body.contains("xriqdev1carol00000000000"));
 
         let audit = product_api_http_response(&api, "GET", "/api/v1/admin/audit-events?limit=5");
         assert_eq!(audit.status_code, 200);

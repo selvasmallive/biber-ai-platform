@@ -10,6 +10,7 @@ export function AdminStatusPanel({ snapshot, loadStatus }: AdminStatusPanelProps
   const indexer = snapshot?.indexer;
   const wallet = snapshot?.walletStatus;
   const mempool = snapshot?.mempool;
+  const firstPending = mempool?.entries[0];
   const snapshotCatalog = snapshot?.snapshots.snapshots[0];
   const latestAuditEvent = snapshot?.auditEvents.audit_events[0];
 
@@ -71,6 +72,9 @@ export function AdminStatusPanel({ snapshot, loadStatus }: AdminStatusPanelProps
             ["Height", mempool?.current_height ?? "-"],
             ["Pending", mempool?.pending_count ?? "-"],
             ["Entries", mempool?.entries.length ?? "-"],
+            ["First Pending", firstPending?.tx_hash ?? "-"],
+            ["First Amount", firstPending?.amount_base_units ?? "-"],
+            ["First Status", firstPending?.status ?? "-"],
             ["Inspect", mempool?.inspect_status ?? "-"],
             ["Submit", mempool?.submit_status ?? "-"],
             ["Produce Block", mempool?.produce_block_status ?? "-"],
