@@ -69,8 +69,8 @@ Rust
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
- |-- Wallet UI              0%; not started
- |-- Explorer               ~18%; shell plus basic detail panels read product API
+ |-- Wallet UI              ~8%; preview-only local draft shell, no signing/submission
+ |-- Explorer               ~20%; shell plus basic detail panels read product API
  |-- Exchange UI            0%; deferred high legal/compliance-risk surface
  `-- Admin portal           0%; not started
 
@@ -88,8 +88,8 @@ comes from the completed Rust private-devnet foundation. The actual end-to-end
 product surfaces, especially PostgreSQL indexing and React UI, are still at the
 starting line.
 
-After the first React explorer detail-panel checkpoint, Phase 1.1 status is
-about `36%`: the contract document, PostgreSQL read-model schema, JSON
+After the first React wallet-preview checkpoint, Phase 1.1 status is about
+`38%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -99,9 +99,13 @@ response boundary with `/api/v1/...` route/render behavior, a local
 `xriq-iso20022` preview mapping crate exist. The first React + TypeScript
 explorer shell in `xriq/apps/explorer-ui` can render health, network totals,
 blocks, transactions, accounts, block detail, transaction detail, account
-detail, and account transaction history from the local product API. Actual
-repeated live database smoke coverage, wallet UI, admin UI, and deeper ISO
-adapter integration are still pending.
+detail, and account transaction history from the local product API. The same
+app now includes a preview-only wallet panel that selects local indexed
+accounts, shows balance/debit/remaining math, and renders a deterministic
+draft JSON preview without signing, submission, key handling, persistence, or
+custody behavior. Actual repeated live database smoke coverage, real wallet
+submission APIs, admin UI, and deeper ISO adapter integration are still
+pending.
 
 ## Phase 1.1 Build Order
 
@@ -217,6 +221,10 @@ npm.cmd run build
 - Add a React + TypeScript private-devnet wallet UI for test identities,
   balance, transfer draft/submit/send, status, and history.
 - Keep all copy visibly private-devnet/test-only.
+- Current scaffold: `xriq/apps/explorer-ui` includes a preview-only wallet
+  panel that uses indexed account data and renders
+  `xriq-wallet-transfer-preview-v1` JSON. It intentionally does not sign,
+  submit, persist, or manage private keys.
 
 ### Milestone G: Admin Portal
 

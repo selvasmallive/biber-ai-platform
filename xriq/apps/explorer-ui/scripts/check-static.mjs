@@ -13,6 +13,7 @@ const requiredFiles = [
   "src/api.ts",
   "src/main.tsx",
   "src/styles.css",
+  "src/wallet.tsx",
   "src/vite-env.d.ts",
 ];
 
@@ -55,14 +56,42 @@ for (const requiredText of [
   "Block Detail",
   "Transaction Detail",
   "Account Detail",
+  "WalletShell",
 ]) {
   if (!appSource.includes(requiredText)) {
     throw new Error(`missing UI marker: ${requiredText}`);
   }
 }
 
+const walletSource = readFileSync(join(root, "src/wallet.tsx"), "utf8");
+for (const requiredText of [
+  "Wallet Preview",
+  "xriq-wallet-transfer-preview-v1",
+  "private-devnet-preview-only-no-signing-no-submit",
+  'mutation: "none"',
+]) {
+  if (!walletSource.includes(requiredText)) {
+    throw new Error(`missing wallet preview marker: ${requiredText}`);
+  }
+}
+
+for (const forbiddenText of [
+  "fetch(",
+  "/transfers/submit",
+  "/transfers/send",
+  "private_key",
+  "seed_phrase",
+]) {
+  if (walletSource.toLowerCase().includes(forbiddenText)) {
+    throw new Error(`forbidden wallet preview behavior found: ${forbiddenText}`);
+  }
+}
+
 for (const forbiddenText of ["mainnet", "liquidity", "custody", "swap"]) {
-  if (appSource.toLowerCase().includes(forbiddenText)) {
+  if (
+    appSource.toLowerCase().includes(forbiddenText) ||
+    walletSource.toLowerCase().includes(forbiddenText)
+  ) {
     throw new Error(`forbidden public-market term found in UI: ${forbiddenText}`);
   }
 }

@@ -13,6 +13,7 @@ import {
   loadTransactionDetail,
 } from "./api";
 import "./styles.css";
+import { WalletShell } from "./wallet";
 
 type LoadState =
   | { status: "loading"; snapshot: ExplorerSnapshot | null; error: null }
@@ -338,6 +339,11 @@ function App() {
           onAccountSelect={setSelectedAccountAddress}
         />
         <AccountDetailPanel detail={accountDetail} history={accountHistory} />
+        <WalletShell
+          snapshot={snapshot}
+          activeAccountAddress={activeAccountAddress}
+          onAccountSelect={(address) => setSelectedAccountAddress(address)}
+        />
       </section>
 
       <footer className="footerLine">

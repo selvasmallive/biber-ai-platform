@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `36%` overall. Current Rust
+- Phase 1.1 estimated completion: about `38%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, admin portal, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -151,7 +151,8 @@ unless the user changes the project scope again.
   network connectivity. The first React + TypeScript explorer UI shell exists
   in `xriq/apps/explorer-ui` and renders local product API health, totals,
   network metadata, blocks, transactions, accounts, and basic drill-down detail
-  panels.
+  panels. The same app now includes a preview-only wallet transfer draft panel
+  that does not sign, submit, persist, or manage private keys.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -342,6 +343,21 @@ active target because the GPU was terminated to save cost.
   against live local `xriq-api` and Vite dev servers, no browser console
   errors, `cargo test -p xriq-api`, and `git diff --check`. Phase 1.1 status
   is now about `36%` overall. No GCP resources were provisioned, no public/DEX
+  behavior was added, and no credentials were changed.
+- Latest native XRIQ Phase 1.1 wallet preview UI checkpoint: extended
+  `xriq/apps/explorer-ui` with a `WalletShell` component that reuses the
+  indexed account list from the product API. The panel selects a local
+  private-devnet sender, shows balance/debit/remaining math, validates amount,
+  fee, nonce, expiry, and recipient fields, and renders a deterministic
+  `xriq-wallet-transfer-preview-v1` JSON draft with
+  `private-devnet-preview-only-no-signing-no-submit` and `mutation: "none"`.
+  Static guardrails require the wallet preview markers and reject client-side
+  submit/send routes plus private-key/seed fields. Verification passed with
+  `npm.cmd run check`, `npm.cmd run build`, `cargo test -p xriq-api`, and
+  browser verification against live local `xriq-api` plus Vite servers showing
+  the wallet preview/version/warning/mutation markers with no console errors.
+  Phase 1.1 status is now about `38%` overall. No GCP resources were
+  provisioned, no public/DEX behavior was added, no signing/submission/custody
   behavior was added, and no credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
