@@ -271,6 +271,12 @@ chain file into the current in-memory read model, run:
 cargo run -p xriq-indexer -- replay --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --format json
 ```
 
+To emit an idempotent local PostgreSQL write plan for the same replay, use:
+
+```bash
+cargo run -p xriq-indexer -- replay --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --format sql
+```
+
 After a clean local check, future sessions can cheaply re-check the latest
 Phase 1 summary and checklist pointers without rerunning Rust:
 

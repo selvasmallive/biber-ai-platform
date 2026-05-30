@@ -4,6 +4,8 @@
 //! PostgreSQL schema in `xriq/db/schema.sql`. It intentionally keeps storage
 //! in memory for now so replay behavior can be tested before wiring a database.
 
+mod postgres;
+
 use std::{collections::BTreeMap, fmt};
 
 use xriq_core::{
@@ -17,6 +19,8 @@ use xriq_crypto::{
 };
 use xriq_ledger::{LedgerError, LedgerState};
 use xriq_storage::{ChainStore, StoredBlock};
+
+pub use postgres::{postgres_write_plan, PostgresWritePlan, PostgresWritePlanError};
 
 pub const INDEXER_ACTOR: &str = "xriq-indexer";
 pub const INDEXER_ENVIRONMENT: &str = "private-devnet";

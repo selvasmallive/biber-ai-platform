@@ -1,7 +1,7 @@
 use std::{env, fmt::Write as _, process};
 
 use xriq_core::XriqAmount;
-use xriq_indexer::{index_private_devnet_store, IndexedChainSnapshot};
+use xriq_indexer::{index_private_devnet_store, postgres_write_plan, IndexedChainSnapshot};
 use xriq_storage::FileChainStore;
 
 fn main() {
@@ -46,13 +46,16 @@ fn run_replay(args: &[&str]) -> Result<String, String> {
     Ok(match format {
         OutputFormat::Text => render_snapshot_text(&snapshot),
         OutputFormat::Json => render_snapshot_json(&snapshot),
+        OutputFormat::Sql => postgres_write_plan(&snapshot)
+            .map_err(|error| format!("could not build postgres write plan: {error}"))?
+            .to_sql(),
     })
 }
 
 fn help_text() -> String {
     [
         "xriq-indexer private-devnet commands:",
-        "  xriq-indexer replay --chain-file <path> [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-indexer replay --chain-file <path> [--alice-balance <base-units>] [--format text|json|sql]",
     ]
     .join("\n")
 }
@@ -303,6 +306,7 @@ fn json_string(value: &str) -> String {
 enum OutputFormat {
     Text,
     Json,
+    Sql,
 }
 
 impl OutputFormat {
@@ -310,7 +314,10 @@ impl OutputFormat {
         match value.unwrap_or("text") {
             "text" => Ok(Self::Text),
             "json" => Ok(Self::Json),
-            value => Err(format!("invalid format: {value}; expected text or json")),
+            "sql" => Ok(Self::Sql),
+            value => Err(format!(
+                "invalid format: {value}; expected text, json, or sql"
+            )),
         }
     }
 }

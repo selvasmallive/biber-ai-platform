@@ -88,11 +88,12 @@ comes from the completed Rust private-devnet foundation. The actual end-to-end
 product surfaces, especially PostgreSQL indexing and React UI, are still at the
 starting line.
 
-After the first Milestone B replay-command checkpoint, Phase 1.1 status is
-about `21%`: the contract document, PostgreSQL read-model schema, JSON
+After the first Milestone B SQL write-plan checkpoint, Phase 1.1 status is
+about `22%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
-indexer scaffold, and local chain replay command exist. Actual PostgreSQL
-persistence, API service, UI, and ISO adapter implementation are still pending.
+indexer scaffold, local chain replay command, and idempotent PostgreSQL SQL
+write-plan export exist. Actual PostgreSQL execution, API service, UI, and ISO
+adapter implementation are still pending.
 
 ## Phase 1.1 Build Order
 
@@ -141,11 +142,12 @@ Milestone A contract details are tracked in
 - Add idempotent replay tests.
 - Current scaffold: `xriq/crates/xriq-indexer` builds the PostgreSQL-facing
   in-memory read model from existing chain/ledger state, tests idempotent
-  replay before wiring a database connection, and exposes a local replay
-  command:
+  replay before wiring a database connection, exposes a local replay command,
+  and can emit an idempotent SQL write plan:
 
 ```bash
 cargo run -p xriq-indexer -- replay --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --format json
+cargo run -p xriq-indexer -- replay --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --format sql
 ```
 
 ### Milestone C: ISO 20022 Adapter

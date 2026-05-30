@@ -63,6 +63,13 @@ indexer read model with:
 cargo run -p xriq-indexer -- replay --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --format json
 ```
 
+To inspect the idempotent PostgreSQL write plan without requiring a running
+database, use:
+
+```bash
+cargo run -p xriq-indexer -- replay --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --format sql
+```
+
 After the local check has passed and the RC checkpoint is committed, the latest
 summary can be re-checked without rerunning Rust:
 
