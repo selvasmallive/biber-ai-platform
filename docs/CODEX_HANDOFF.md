@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `28%` overall. Current Rust
+- Phase 1.1 estimated completion: about `30%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, admin portal, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -143,8 +143,9 @@ unless the user changes the project scope again.
   now has the first deterministic Rust read-model indexer scaffold and local
   replay command plus idempotent SQL write-plan export and a dry-run local
   PostgreSQL apply path, optional local Postgres service, and dry-run/live
-  verification command. The first Rust product API service boundary now exists
-  in `xriq/crates/xriq-api`, but it is not an HTTP server yet. The first ISO
+  verification command. The first Rust product API service and route/render
+  boundary now exists in `xriq/crates/xriq-api`, but it does not bind a live
+  HTTP socket yet. The first ISO
   20022 compatibility adapter exists in `xriq/crates/xriq-iso20022`, but it is
   a private-devnet preview mapping layer only, not certification or payment
   network connectivity.
@@ -277,6 +278,19 @@ active target because the GPU was terminated to save cost.
   about `28%` overall. No GCP resources were provisioned, no public/DEX
   behavior was added, no certification/payment-network claim was added, and no
   credentials were changed.
+- Latest native XRIQ Phase 1.1 product API route/render checkpoint: extended
+  `xriq/crates/xriq-api` with dependency-light GET route/render behavior for
+  `/api/v1/health`, `/api/v1/version`, `/api/v1/network`,
+  `/api/v1/explorer/overview`, block list/detail, transaction list/detail,
+  account list/detail, account transaction history, and admin indexer status.
+  This renders contract-shaped JSON and HTTP response strings from the
+  existing `IndexedChainSnapshot` read model, but it does not bind a live
+  socket yet. Focused verification passed with `cargo test -p xriq-api` and
+  `cargo clippy -p xriq-api -- -D warnings`; the first parallel test attempt
+  hit a transient Windows linker lock while clippy was running, and the serial
+  rerun passed. Phase 1.1 status is now about `30%` overall. No GCP resources
+  were provisioned, no public/DEX behavior was added, no live server was
+  started, and no credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
   defines private/local product API groups for health, explorer, wallet, admin,

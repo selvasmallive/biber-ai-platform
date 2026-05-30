@@ -8,8 +8,9 @@ Phase 1.1. It does not change the Phase 1 RC1 tag, create a production API,
 launch a public network, approve custody, or enable trading.
 
 Current implementation scaffold: `xriq/crates/xriq-api` defines the first
-read-only Rust service boundary for these contracts over the indexed
-private-devnet read model. It is not an HTTP server yet.
+read-only Rust service boundary and `/api/v1/...` route/render behavior for
+these contracts over the indexed private-devnet read model. It does not bind a
+live HTTP socket yet.
 The `xriq/crates/xriq-iso20022` crate defines the first ISO 20022-aligned
 preview mappings for payment initiation, payment status, and account statement
 responses. These mappings remain private-devnet-only and explicitly not

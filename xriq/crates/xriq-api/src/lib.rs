@@ -1,10 +1,10 @@
 //! Product-facing API service boundary for the XRIQ private devnet.
 //!
-//! This crate intentionally does not start an HTTP server yet. It defines the
-//! stable response models and read-only behavior that a later local HTTP layer
+//! This crate intentionally does not bind a socket yet. It defines stable
+//! response models plus HTTP route/render behavior that a later local server
 //! can expose for explorer, account-history, and admin views.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Write as _};
 
 use xriq_indexer::{
     IndexedAccount, IndexedAccountBalance, IndexedAccountTransaction, IndexedBlock,
@@ -273,6 +273,115 @@ impl XriqApiService {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApiHttpResponse {
+    pub status_code: u16,
+    pub reason: &'static str,
+    pub body: String,
+}
+
+impl ApiHttpResponse {
+    pub fn to_http_response(&self) -> String {
+        format!(
+            "HTTP/1.1 {} {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            self.status_code,
+            self.reason,
+            self.body.len(),
+            self.body
+        )
+    }
+}
+
+pub fn product_api_http_response(
+    service: &XriqApiService,
+    method: &str,
+    target: &str,
+) -> ApiHttpResponse {
+    if method != "GET" {
+        return api_error_response(
+            405,
+            "method_not_allowed",
+            "XRIQ product API scaffold currently supports GET only",
+        );
+    }
+
+    let (path, query) = split_http_target(target);
+    match path {
+        "/api/v1/health" => api_json_response(200, render_health_json(&service.health())),
+        "/api/v1/version" => api_json_response(200, render_version_json(&service.version())),
+        "/api/v1/network" => api_json_response(200, render_network_json(&service.network())),
+        "/api/v1/explorer/overview" => api_json_response(
+            200,
+            render_explorer_overview_json(&service.explorer_overview()),
+        ),
+        "/api/v1/blocks" => match limit_from_query(query, 25) {
+            Ok(limit) => api_json_response(200, render_block_list_json(&service.blocks(limit))),
+            Err(message) => api_error_response(400, "bad_request", &message),
+        },
+        "/api/v1/transactions" => match limit_from_query(query, 25) {
+            Ok(limit) => api_json_response(
+                200,
+                render_transaction_list_json(&service.transactions(limit)),
+            ),
+            Err(message) => api_error_response(400, "bad_request", &message),
+        },
+        "/api/v1/accounts" => match limit_from_query(query, 25) {
+            Ok(limit) => api_json_response(200, render_account_list_json(&service.accounts(limit))),
+            Err(message) => api_error_response(400, "bad_request", &message),
+        },
+        "/api/v1/admin/indexer/status" => api_json_response(
+            200,
+            render_indexer_status_json(&service.admin_indexer_status()),
+        ),
+        path => dynamic_product_api_http_response(service, path, query),
+    }
+}
+
+fn dynamic_product_api_http_response(
+    service: &XriqApiService,
+    path: &str,
+    query: Option<&str>,
+) -> ApiHttpResponse {
+    if let Some(block_id) = path.strip_prefix("/api/v1/blocks/") {
+        return match service.block(block_id) {
+            Ok(block) => api_json_response(200, render_block_detail_json(&block)),
+            Err(error) => api_not_found_response(error),
+        };
+    }
+
+    if let Some(tx_hash) = path.strip_prefix("/api/v1/transactions/") {
+        return match service.transaction(tx_hash) {
+            Ok(transaction) => api_json_response(
+                200,
+                render_transaction_detail_json(&transaction, &service.snapshot().chain_id),
+            ),
+            Err(error) => api_not_found_response(error),
+        };
+    }
+
+    if let Some(account_path) = path.strip_prefix("/api/v1/accounts/") {
+        if let Some(address) = account_path.strip_suffix("/transactions") {
+            return match limit_from_query(query, 25) {
+                Ok(limit) => api_json_response(
+                    200,
+                    render_account_history_json(&service.account_transactions(address, limit)),
+                ),
+                Err(message) => api_error_response(400, "bad_request", &message),
+            };
+        }
+
+        return match service.account(account_path) {
+            Ok(account) => api_json_response(
+                200,
+                render_account_detail_json(&account, &service.snapshot().chain_id),
+            ),
+            Err(error) => api_not_found_response(error),
+        };
+    }
+
+    api_error_response(404, "not_found", "XRIQ product API endpoint not found")
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ApiError {
     AccountNotFound,
     BlockNotFound,
@@ -535,6 +644,582 @@ fn list_next_cursor<T: Into<String>>(
     } else {
         None
     }
+}
+
+fn api_json_response(status_code: u16, body: String) -> ApiHttpResponse {
+    ApiHttpResponse {
+        status_code,
+        reason: http_reason(status_code),
+        body,
+    }
+}
+
+fn api_error_response(status_code: u16, code: &str, message: &str) -> ApiHttpResponse {
+    api_json_response(
+        status_code,
+        format!(
+            "{{\n  \"environment\": {},\n  \"error\": {{\n    \"code\": {},\n    \"message\": {}\n  }}\n}}",
+            json_string(API_ENVIRONMENT),
+            json_string(code),
+            json_string(message)
+        ),
+    )
+}
+
+fn api_not_found_response(error: ApiError) -> ApiHttpResponse {
+    match error {
+        ApiError::AccountNotFound => {
+            api_error_response(404, "account_not_found", "XRIQ account not found")
+        }
+        ApiError::BlockNotFound => {
+            api_error_response(404, "block_not_found", "XRIQ block not found")
+        }
+        ApiError::TransactionNotFound => {
+            api_error_response(404, "transaction_not_found", "XRIQ transaction not found")
+        }
+    }
+}
+
+fn http_reason(status_code: u16) -> &'static str {
+    match status_code {
+        200 => "OK",
+        400 => "Bad Request",
+        404 => "Not Found",
+        405 => "Method Not Allowed",
+        _ => "Internal Server Error",
+    }
+}
+
+fn split_http_target(target: &str) -> (&str, Option<&str>) {
+    target
+        .split_once('?')
+        .map_or((target, None), |(path, query)| (path, Some(query)))
+}
+
+fn limit_from_query(query: Option<&str>, default_limit: usize) -> Result<usize, String> {
+    let Some(value) = query_param(query, "limit") else {
+        return Ok(default_limit);
+    };
+    value
+        .parse::<usize>()
+        .map_err(|_| format!("invalid limit: {value}"))
+}
+
+fn query_param<'a>(query: Option<&'a str>, key: &str) -> Option<&'a str> {
+    query?.split('&').find_map(|pair| {
+        let (candidate, value) = pair.split_once('=')?;
+        if candidate == key {
+            Some(value)
+        } else {
+            None
+        }
+    })
+}
+
+fn render_health_json(response: &HealthResponse) -> String {
+    format!(
+        "{{\n  \"ok\": {},\n  \"network\": {},\n  \"environment\": {},\n  \"service\": {},\n  \"version\": {}\n}}",
+        response.ok,
+        json_string(&response.network),
+        json_string(response.environment),
+        json_string(response.service),
+        json_string(response.version)
+    )
+}
+
+fn render_version_json(response: &VersionResponse) -> String {
+    format!(
+        "{{\n  \"environment\": {},\n  \"service\": {},\n  \"version\": {},\n  \"indexer_version\": {}\n}}",
+        json_string(response.environment),
+        json_string(response.service),
+        json_string(response.version),
+        json_string(response.indexer_version)
+    )
+}
+
+fn render_network_json(response: &NetworkResponse) -> String {
+    format!(
+        "{{\n  \"environment\": {},\n  \"network\": {},\n  \"current_height\": {},\n  \"latest_block_hash\": {},\n  \"state_root\": {}\n}}",
+        json_string(response.environment),
+        json_string(&response.network),
+        response.current_height,
+        json_string(&response.latest_block_hash),
+        json_string(&response.state_root)
+    )
+}
+
+fn render_explorer_overview_json(response: &ExplorerOverviewResponse) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"environment\": {},",
+        json_string(response.environment)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"network\": {},",
+        json_string(&response.network)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"chain\": {{").expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"current_height\": {},",
+        response.chain.current_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"latest_block_hash\": {},",
+        json_string(&response.chain.latest_block_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"state_root\": {},",
+        json_string(&response.chain.state_root)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"stored_blocks\": {},",
+        response.chain.stored_blocks
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"pending_transactions\": {}",
+        response.chain.pending_transactions
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  }},").expect("write to String");
+    output.push_str("  \"indexer\": ");
+    output.push_str(&render_indexer_status_json_inline(&response.indexer, 2));
+    output.push_str(",\n");
+    writeln!(&mut output, "  \"totals\": {{").expect("write to String");
+    writeln!(&mut output, "    \"blocks\": {},", response.totals.blocks).expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"transactions\": {},",
+        response.totals.transactions
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"accounts\": {}",
+        response.totals.accounts
+    )
+    .expect("write to String");
+    output.push_str("  }\n}");
+    output
+}
+
+fn render_block_list_json(response: &BlockListResponse) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"environment\": {},",
+        json_string(response.environment)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"network\": {},",
+        json_string(&response.network)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"limit\": {},", response.limit).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"next_cursor\": {},",
+        json_optional_string(response.next_cursor.as_deref())
+    )
+    .expect("write to String");
+    output.push_str("  \"blocks\": [");
+    for (index, block) in response.blocks.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_block_json_inline(block, 4));
+    }
+    if !response.blocks.is_empty() {
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
+fn render_block_detail_json(response: &BlockDetailResponse) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_response_header(&mut output, response.environment, &response.network);
+    writeln!(&mut output, "  \"height\": {},", response.height).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"block_hash\": {},",
+        json_string(&response.block_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"previous_block_hash\": {},",
+        json_string(&response.previous_block_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"state_root\": {},",
+        json_string(&response.state_root)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"transactions_root\": {},",
+        json_string(&response.transactions_root)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"transaction_count\": {},",
+        response.transaction_count
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"timestamp_utc\": {},",
+        json_string(&response.timestamp_utc)
+    )
+    .expect("write to String");
+    output.push_str("  \"transactions\": [");
+    for (index, transaction) in response.transactions.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_transaction_json_inline(transaction, 4));
+    }
+    if !response.transactions.is_empty() {
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
+fn render_transaction_list_json(response: &TransactionListResponse) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_response_header(&mut output, response.environment, &response.network);
+    writeln!(&mut output, "  \"limit\": {},", response.limit).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"next_cursor\": {},",
+        json_optional_string(response.next_cursor.as_deref())
+    )
+    .expect("write to String");
+    output.push_str("  \"transactions\": [");
+    for (index, transaction) in response.transactions.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_transaction_json_inline(transaction, 4));
+    }
+    if !response.transactions.is_empty() {
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
+fn render_transaction_detail_json(response: &TransactionResponse, network: &str) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_response_header(&mut output, API_ENVIRONMENT, network);
+    writeln!(
+        &mut output,
+        "  \"tx_hash\": {},",
+        json_string(&response.tx_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"block_height\": {},",
+        response.block_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"block_hash\": {},",
+        json_string(&response.block_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"transaction_index\": {},",
+        response.transaction_index
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"status\": {},",
+        json_string(&response.status)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"from_address\": {},",
+        json_string(&response.from_address)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"to_address\": {},",
+        json_string(&response.to_address)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"amount_base_units\": {},",
+        json_string(&response.amount_base_units)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"fee_base_units\": {},",
+        json_string(&response.fee_base_units)
+    )
+    .expect("write to String");
+    write!(&mut output, "  \"nonce\": {}\n}}", response.nonce).expect("write to String");
+    output
+}
+
+fn render_account_list_json(response: &AccountListResponse) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_response_header(&mut output, response.environment, &response.network);
+    writeln!(&mut output, "  \"limit\": {},", response.limit).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"next_cursor\": {},",
+        json_optional_string(response.next_cursor.as_deref())
+    )
+    .expect("write to String");
+    output.push_str("  \"accounts\": [");
+    for (index, account) in response.accounts.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_account_json_inline(account, 4));
+    }
+    if !response.accounts.is_empty() {
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
+fn render_account_detail_json(response: &AccountResponse, network: &str) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_response_header(&mut output, API_ENVIRONMENT, network);
+    writeln!(
+        &mut output,
+        "  \"address\": {},",
+        json_string(&response.address)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"balance_base_units\": {},",
+        json_string(&response.balance_base_units)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"nonce\": {},", response.nonce).expect("write to String");
+    writeln!(&mut output, "  \"height\": {},", response.height).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"state_root\": {},",
+        json_string(&response.state_root)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"first_seen_height\": {},",
+        json_optional_u64(response.first_seen_height)
+    )
+    .expect("write to String");
+    write!(
+        &mut output,
+        "  \"last_seen_height\": {}\n}}",
+        json_optional_u64(response.last_seen_height)
+    )
+    .expect("write to String");
+    output
+}
+
+fn render_account_history_json(response: &AccountHistoryResponse) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_response_header(&mut output, response.environment, &response.network);
+    writeln!(
+        &mut output,
+        "  \"address\": {},",
+        json_string(&response.address)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"limit\": {},", response.limit).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"next_cursor\": {},",
+        json_optional_string(response.next_cursor.as_deref())
+    )
+    .expect("write to String");
+    output.push_str("  \"transactions\": [");
+    for (index, transaction) in response.transactions.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_account_transaction_json_inline(transaction, 4));
+    }
+    if !response.transactions.is_empty() {
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
+fn render_indexer_status_json(response: &IndexerStatusResponse) -> String {
+    render_indexer_status_json_inline(response, 0)
+}
+
+fn render_block_json_inline(block: &BlockResponse, indent: usize) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    format!(
+        "{spaces}{{\n{nested}\"height\": {},\n{nested}\"block_hash\": {},\n{nested}\"previous_block_hash\": {},\n{nested}\"state_root\": {},\n{nested}\"transactions_root\": {},\n{nested}\"transaction_count\": {},\n{nested}\"timestamp_utc\": {}\n{spaces}}}",
+        block.height,
+        json_string(&block.block_hash),
+        json_string(&block.previous_block_hash),
+        json_string(&block.state_root),
+        json_string(&block.transactions_root),
+        block.transaction_count,
+        json_string(&block.timestamp_utc)
+    )
+}
+
+fn render_transaction_json_inline(transaction: &TransactionResponse, indent: usize) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    format!(
+        "{spaces}{{\n{nested}\"tx_hash\": {},\n{nested}\"block_height\": {},\n{nested}\"block_hash\": {},\n{nested}\"transaction_index\": {},\n{nested}\"status\": {},\n{nested}\"from_address\": {},\n{nested}\"to_address\": {},\n{nested}\"amount_base_units\": {},\n{nested}\"fee_base_units\": {},\n{nested}\"nonce\": {}\n{spaces}}}",
+        json_string(&transaction.tx_hash),
+        transaction.block_height,
+        json_string(&transaction.block_hash),
+        transaction.transaction_index,
+        json_string(&transaction.status),
+        json_string(&transaction.from_address),
+        json_string(&transaction.to_address),
+        json_string(&transaction.amount_base_units),
+        json_string(&transaction.fee_base_units),
+        transaction.nonce
+    )
+}
+
+fn render_account_json_inline(account: &AccountResponse, indent: usize) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    format!(
+        "{spaces}{{\n{nested}\"address\": {},\n{nested}\"balance_base_units\": {},\n{nested}\"nonce\": {},\n{nested}\"height\": {},\n{nested}\"state_root\": {},\n{nested}\"first_seen_height\": {},\n{nested}\"last_seen_height\": {}\n{spaces}}}",
+        json_string(&account.address),
+        json_string(&account.balance_base_units),
+        account.nonce,
+        account.height,
+        json_string(&account.state_root),
+        json_optional_u64(account.first_seen_height),
+        json_optional_u64(account.last_seen_height)
+    )
+}
+
+fn render_account_transaction_json_inline(
+    transaction: &AccountTransactionResponse,
+    indent: usize,
+) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    format!(
+        "{spaces}{{\n{nested}\"address\": {},\n{nested}\"tx_hash\": {},\n{nested}\"direction\": {},\n{nested}\"block_height\": {},\n{nested}\"transaction_index\": {},\n{nested}\"amount_base_units\": {},\n{nested}\"fee_base_units\": {}\n{spaces}}}",
+        json_string(&transaction.address),
+        json_string(&transaction.tx_hash),
+        json_string(transaction.direction),
+        transaction.block_height,
+        transaction.transaction_index,
+        json_string(&transaction.amount_base_units),
+        json_string(&transaction.fee_base_units)
+    )
+}
+
+fn render_indexer_status_json_inline(response: &IndexerStatusResponse, indent: usize) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    let deep = " ".repeat(indent + 4);
+    format!(
+        "{spaces}{{\n{nested}\"environment\": {},\n{nested}\"service\": {},\n{nested}\"status\": {},\n{nested}\"latest_indexed_height\": {},\n{nested}\"latest_indexed_block_hash\": {},\n{nested}\"lag_blocks\": {},\n{nested}\"last_run\": {{\n{deep}\"run_id\": {},\n{deep}\"status\": {},\n{deep}\"from_height\": {},\n{deep}\"to_height\": {},\n{deep}\"blocks_indexed\": {},\n{deep}\"transactions_indexed\": {}\n{nested}}}\n{spaces}}}",
+        json_string(response.environment),
+        json_string(response.service),
+        json_string(response.status),
+        response.latest_indexed_height,
+        json_string(&response.latest_indexed_block_hash),
+        response.lag_blocks,
+        json_string(&response.last_run.run_id),
+        json_string(response.last_run.status),
+        json_optional_u64(response.last_run.from_height),
+        json_optional_u64(response.last_run.to_height),
+        response.last_run.blocks_indexed,
+        response.last_run.transactions_indexed
+    )
+}
+
+fn push_response_header(output: &mut String, environment: &str, network: &str) {
+    writeln!(output, "  \"environment\": {},", json_string(environment)).expect("write to String");
+    writeln!(output, "  \"network\": {},", json_string(network)).expect("write to String");
+}
+
+fn json_optional_string(value: Option<&str>) -> String {
+    value.map(json_string).unwrap_or_else(|| "null".to_string())
+}
+
+fn json_optional_u64(value: Option<u64>) -> String {
+    value
+        .map(|number| number.to_string())
+        .unwrap_or_else(|| "null".to_string())
+}
+
+fn json_string(value: &str) -> String {
+    let mut output = String::with_capacity(value.len() + 2);
+    output.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            '\u{08}' => output.push_str("\\b"),
+            '\u{0c}' => output.push_str("\\f"),
+            character if character < '\u{20}' => {
+                write!(&mut output, "\\u{:04x}", character as u32).expect("write to String");
+            }
+            character => output.push(character),
+        }
+    }
+    output.push('"');
+    output
 }
 
 fn timestamp_ms_to_utc(timestamp_ms: u64) -> String {
@@ -832,6 +1517,92 @@ mod tests {
             .starts_with("private-devnet-replay-1-"));
         assert_eq!(status.last_run.from_height, Some(1));
         assert_eq!(status.last_run.to_height, Some(1));
+    }
+
+    #[test]
+    fn product_api_http_routes_render_contract_json() {
+        let api = service();
+
+        let health = product_api_http_response(&api, "GET", "/api/v1/health");
+        assert_eq!(health.status_code, 200);
+        assert!(health.body.contains("\"service\": \"xriq-api\""));
+        assert!(health.body.contains("\"environment\": \"private-devnet\""));
+
+        let overview = product_api_http_response(&api, "GET", "/api/v1/explorer/overview");
+        assert_eq!(overview.status_code, 200);
+        assert!(overview.body.contains("\"current_height\": 1"));
+        assert!(overview.body.contains("\"indexer\""));
+        assert!(overview.body.contains("\"transactions\": 1"));
+
+        let blocks = product_api_http_response(&api, "GET", "/api/v1/blocks?limit=5");
+        assert_eq!(blocks.status_code, 200);
+        assert!(blocks.body.contains("\"blocks\""));
+        assert!(blocks.body.contains(BLOCK_HASH));
+
+        let block = product_api_http_response(&api, "GET", "/api/v1/blocks/1");
+        assert_eq!(block.status_code, 200);
+        assert!(block
+            .body
+            .contains("\"timestamp_utc\": \"1970-01-01T00:00:01Z\""));
+        assert!(block.body.contains(TX_HASH));
+
+        let transaction =
+            product_api_http_response(&api, "GET", &format!("/api/v1/transactions/{TX_HASH}"));
+        assert_eq!(transaction.status_code, 200);
+        assert!(transaction
+            .body
+            .contains("\"environment\": \"private-devnet\""));
+        assert!(transaction.body.contains("\"network\": \"xriq-devnet\""));
+        assert!(transaction.body.contains("\"status\": \"confirmed\""));
+        assert!(transaction.body.contains("\"amount_base_units\": \"25\""));
+
+        let account =
+            product_api_http_response(&api, "GET", "/api/v1/accounts/xriqdev1alice00000000000");
+        assert_eq!(account.status_code, 200);
+        assert!(account.body.contains("\"environment\": \"private-devnet\""));
+        assert!(account.body.contains("\"network\": \"xriq-devnet\""));
+        assert!(account.body.contains("\"balance_base_units\": \"73\""));
+
+        let account_history = product_api_http_response(
+            &api,
+            "GET",
+            "/api/v1/accounts/xriqdev1alice00000000000/transactions?limit=5",
+        );
+        assert_eq!(account_history.status_code, 200);
+        assert!(account_history.body.contains("\"direction\": \"sent\""));
+        assert!(account_history.body.contains("\"fee_base_units\": \"2\""));
+
+        let status = product_api_http_response(&api, "GET", "/api/v1/admin/indexer/status");
+        assert_eq!(status.status_code, 200);
+        assert!(status.body.contains("\"service\": \"xriq-indexer\""));
+    }
+
+    #[test]
+    fn product_api_http_routes_handle_errors_without_mutation() {
+        let api = service();
+
+        let missing_block = product_api_http_response(&api, "GET", "/api/v1/blocks/99");
+        assert_eq!(missing_block.status_code, 404);
+        assert!(missing_block.body.contains("\"code\": \"block_not_found\""));
+
+        let bad_limit = product_api_http_response(&api, "GET", "/api/v1/accounts?limit=bad");
+        assert_eq!(bad_limit.status_code, 400);
+        assert!(bad_limit.body.contains("\"code\": \"bad_request\""));
+
+        let unsupported_method = product_api_http_response(&api, "POST", "/api/v1/accounts");
+        assert_eq!(unsupported_method.status_code, 405);
+        assert!(unsupported_method
+            .body
+            .contains("currently supports GET only"));
+
+        let missing_route = product_api_http_response(&api, "GET", "/api/v1/dex/pairs");
+        assert_eq!(missing_route.status_code, 404);
+        assert!(missing_route.body.contains("\"code\": \"not_found\""));
+
+        let raw = product_api_http_response(&api, "GET", "/api/v1/network").to_http_response();
+        assert!(raw.starts_with("HTTP/1.1 200 OK\r\n"));
+        assert!(raw.contains("Content-Type: application/json"));
+        assert!(raw.contains("\"network\": \"xriq-devnet\""));
     }
 
     #[test]

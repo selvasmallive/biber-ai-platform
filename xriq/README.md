@@ -9,8 +9,8 @@ only until security and legal/compliance review says otherwise.
 - `xriq-consensus`: deterministic private-devnet block production.
 - `xriq-crypto`: canonical hashing and test-only signature verification boundary.
 - `xriq-api`: product-facing private-devnet API response models and read-only
-  service boundary for indexed explorer/admin data; this is not an HTTP server
-  yet.
+  `/api/v1/...` route/render behavior for indexed explorer/admin data; this
+  does not bind a live HTTP socket yet.
 - `xriq-explorer`: read-only private-devnet explorer view models and text UI.
 - `xriq-indexer`: deterministic Phase 1.1 read-model indexing scaffold for the
   future PostgreSQL-backed explorer/admin/API surfaces.
