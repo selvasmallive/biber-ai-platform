@@ -9,8 +9,8 @@ use std::{collections::BTreeMap, fmt::Write as _};
 
 use xriq_core::{Address, PRIVATE_DEVNET_MIN_FEE_BASE_UNITS};
 use xriq_indexer::{
-    IndexedAccount, IndexedAccountBalance, IndexedAccountTransaction, IndexedBlock,
-    IndexedChainSnapshot, IndexedTransaction,
+    IndexedAccount, IndexedAccountBalance, IndexedAccountTransaction, IndexedAuditEvent,
+    IndexedBlock, IndexedChainSnapshot, IndexedTransaction,
 };
 
 pub const API_ENVIRONMENT: &str = "private-devnet";
@@ -18,6 +18,8 @@ pub const API_SERVICE: &str = "xriq-api";
 pub const API_VERSION: &str = "phase1.1-dev";
 pub const INDEXER_SERVICE: &str = "xriq-indexer";
 pub const WALLET_PREVIEW_WARNING: &str = "private-devnet-preview-only-no-signing-no-submit";
+pub const SNAPSHOT_READONLY_WARNING: &str =
+    "private-devnet-read-only-snapshot-catalog-export-import-disabled";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XriqApiService {
@@ -404,8 +406,67 @@ impl XriqApiService {
         }
     }
 
+    pub fn admin_audit_events(&self, limit: usize) -> AuditEventListResponse {
+        let mut audit_events = self
+            .snapshot
+            .read_model
+            .audit_events
+            .values()
+            .map(audit_event_response)
+            .collect::<Vec<_>>();
+        audit_events.sort_by(|left, right| right.event_id.cmp(&left.event_id));
+        let total = audit_events.len();
+        audit_events.truncate(limit);
+        let next_cursor = list_next_cursor(
+            total,
+            audit_events.len(),
+            audit_events.last().map(|event| event.event_id.clone()),
+        );
+
+        AuditEventListResponse {
+            environment: API_ENVIRONMENT,
+            network: self.snapshot.chain_id.clone(),
+            limit,
+            next_cursor,
+            audit_events,
+        }
+    }
+
+    pub fn snapshots(&self) -> SnapshotListResponse {
+        SnapshotListResponse {
+            environment: API_ENVIRONMENT,
+            network: self.snapshot.chain_id.clone(),
+            warning: SNAPSHOT_READONLY_WARNING,
+            snapshots: vec![self.current_snapshot_response()],
+        }
+    }
+
+    pub fn snapshot_detail(&self, snapshot_name: &str) -> Result<SnapshotResponse, ApiError> {
+        let snapshot = self.current_snapshot_response();
+        if snapshot.snapshot_name == snapshot_name {
+            Ok(snapshot)
+        } else {
+            Err(ApiError::SnapshotNotFound)
+        }
+    }
+
     pub fn snapshot(&self) -> &IndexedChainSnapshot {
         &self.snapshot
+    }
+
+    fn current_snapshot_response(&self) -> SnapshotResponse {
+        SnapshotResponse {
+            snapshot_name: "current-indexed-chain".to_string(),
+            snapshot_dir: "read-model://current-indexed-chain".to_string(),
+            current_height: self.snapshot.current_height,
+            latest_block_hash: self.snapshot.latest_block_hash.clone(),
+            state_root: self.snapshot.state_root.clone(),
+            block_count: self.snapshot.read_model.blocks.len(),
+            transaction_count: self.snapshot.read_model.transactions.len(),
+            audit_event_count: self.snapshot.read_model.audit_events.len(),
+            export_status: "disabled",
+            import_status: "disabled",
+        }
     }
 }
 
@@ -465,6 +526,9 @@ pub fn product_api_http_response(
             Ok(limit) => api_json_response(200, render_account_list_json(&service.accounts(limit))),
             Err(message) => api_error_response(400, "bad_request", &message),
         },
+        "/api/v1/snapshots" => {
+            api_json_response(200, render_snapshot_list_json(&service.snapshots()))
+        }
         "/api/v1/wallet/status" => {
             api_json_response(200, render_wallet_status_json(&service.wallet_status()))
         }
@@ -490,6 +554,13 @@ pub fn product_api_http_response(
             200,
             render_indexer_status_json(&service.admin_indexer_status()),
         ),
+        "/api/v1/admin/audit-events" => match limit_from_query(query, 25) {
+            Ok(limit) => api_json_response(
+                200,
+                render_audit_event_list_json(&service.admin_audit_events(limit)),
+            ),
+            Err(message) => api_error_response(400, "bad_request", &message),
+        },
         path => dynamic_product_api_http_response(service, path, query),
     }
 }
@@ -566,6 +637,13 @@ fn dynamic_product_api_http_response(
         }
     }
 
+    if let Some(snapshot_name) = path.strip_prefix("/api/v1/snapshots/") {
+        return match service.snapshot_detail(snapshot_name) {
+            Ok(snapshot) => api_json_response(200, render_snapshot_json(&snapshot)),
+            Err(error) => api_not_found_response(error),
+        };
+    }
+
     api_error_response(404, "not_found", "XRIQ product API endpoint not found")
 }
 
@@ -573,6 +651,7 @@ fn dynamic_product_api_http_response(
 pub enum ApiError {
     AccountNotFound,
     BlockNotFound,
+    SnapshotNotFound,
     TransactionNotFound,
 }
 
@@ -841,6 +920,47 @@ pub struct IndexerRunResponse {
     pub transactions_indexed: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuditEventListResponse {
+    pub environment: &'static str,
+    pub network: String,
+    pub limit: usize,
+    pub next_cursor: Option<String>,
+    pub audit_events: Vec<AuditEventResponse>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuditEventResponse {
+    pub event_id: String,
+    pub actor: &'static str,
+    pub action: &'static str,
+    pub resource_type: &'static str,
+    pub resource_id: Option<String>,
+    pub environment: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SnapshotListResponse {
+    pub environment: &'static str,
+    pub network: String,
+    pub warning: &'static str,
+    pub snapshots: Vec<SnapshotResponse>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SnapshotResponse {
+    pub snapshot_name: String,
+    pub snapshot_dir: String,
+    pub current_height: u64,
+    pub latest_block_hash: String,
+    pub state_root: String,
+    pub block_count: usize,
+    pub transaction_count: usize,
+    pub audit_event_count: usize,
+    pub export_status: &'static str,
+    pub import_status: &'static str,
+}
+
 fn block_response(block: &IndexedBlock) -> BlockResponse {
     BlockResponse {
         height: block.height,
@@ -895,6 +1015,17 @@ fn account_transaction_response(
         transaction_index: transaction.transaction_index,
         amount_base_units: transaction.amount_base_units.clone(),
         fee_base_units: transaction.fee_base_units.clone(),
+    }
+}
+
+fn audit_event_response(event: &IndexedAuditEvent) -> AuditEventResponse {
+    AuditEventResponse {
+        event_id: event.event_id.clone(),
+        actor: event.actor,
+        action: event.action,
+        resource_type: event.resource_type,
+        resource_id: event.resource_id.clone(),
+        environment: event.environment,
     }
 }
 
@@ -956,6 +1087,9 @@ fn api_not_found_response(error: ApiError) -> ApiHttpResponse {
         }
         ApiError::BlockNotFound => {
             api_error_response(404, "block_not_found", "XRIQ block not found")
+        }
+        ApiError::SnapshotNotFound => {
+            api_error_response(404, "snapshot_not_found", "XRIQ snapshot not found")
         }
         ApiError::TransactionNotFound => {
             api_error_response(404, "transaction_not_found", "XRIQ transaction not found")
@@ -1636,6 +1770,61 @@ fn render_indexer_status_json(response: &IndexerStatusResponse) -> String {
     render_indexer_status_json_inline(response, 0)
 }
 
+fn render_audit_event_list_json(response: &AuditEventListResponse) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_response_header(&mut output, response.environment, &response.network);
+    writeln!(&mut output, "  \"limit\": {},", response.limit).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"next_cursor\": {},",
+        json_optional_string(response.next_cursor.as_deref())
+    )
+    .expect("write to String");
+    output.push_str("  \"audit_events\": [");
+    for (index, event) in response.audit_events.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_audit_event_json_inline(event, 4));
+    }
+    if !response.audit_events.is_empty() {
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
+fn render_snapshot_list_json(response: &SnapshotListResponse) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_response_header(&mut output, response.environment, &response.network);
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(response.warning)
+    )
+    .expect("write to String");
+    output.push_str("  \"snapshots\": [");
+    for (index, snapshot) in response.snapshots.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_snapshot_json_inline(snapshot, 4));
+    }
+    if !response.snapshots.is_empty() {
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
+fn render_snapshot_json(response: &SnapshotResponse) -> String {
+    render_snapshot_json_inline(response, 0)
+}
+
 fn render_block_json_inline(block: &BlockResponse, indent: usize) -> String {
     let spaces = " ".repeat(indent);
     let nested = " ".repeat(indent + 2);
@@ -1699,6 +1888,38 @@ fn render_account_transaction_json_inline(
         transaction.transaction_index,
         json_string(&transaction.amount_base_units),
         json_string(&transaction.fee_base_units)
+    )
+}
+
+fn render_audit_event_json_inline(event: &AuditEventResponse, indent: usize) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    format!(
+        "{spaces}{{\n{nested}\"event_id\": {},\n{nested}\"actor\": {},\n{nested}\"action\": {},\n{nested}\"resource_type\": {},\n{nested}\"resource_id\": {},\n{nested}\"environment\": {}\n{spaces}}}",
+        json_string(&event.event_id),
+        json_string(event.actor),
+        json_string(event.action),
+        json_string(event.resource_type),
+        json_optional_string(event.resource_id.as_deref()),
+        json_string(event.environment)
+    )
+}
+
+fn render_snapshot_json_inline(snapshot: &SnapshotResponse, indent: usize) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    format!(
+        "{spaces}{{\n{nested}\"snapshot_name\": {},\n{nested}\"snapshot_dir\": {},\n{nested}\"current_height\": {},\n{nested}\"latest_block_hash\": {},\n{nested}\"state_root\": {},\n{nested}\"block_count\": {},\n{nested}\"transaction_count\": {},\n{nested}\"audit_event_count\": {},\n{nested}\"export_status\": {},\n{nested}\"import_status\": {}\n{spaces}}}",
+        json_string(&snapshot.snapshot_name),
+        json_string(&snapshot.snapshot_dir),
+        snapshot.current_height,
+        json_string(&snapshot.latest_block_hash),
+        json_string(&snapshot.state_root),
+        snapshot.block_count,
+        snapshot.transaction_count,
+        snapshot.audit_event_count,
+        json_string(snapshot.export_status),
+        json_string(snapshot.import_status)
     )
 }
 
@@ -2151,6 +2372,39 @@ mod tests {
     }
 
     #[test]
+    fn admin_audit_events_and_snapshots_are_read_only() {
+        let api = service();
+
+        let audit = api.admin_audit_events(10);
+        assert_eq!(audit.environment, API_ENVIRONMENT);
+        assert_eq!(audit.audit_events.len(), 1);
+        assert_eq!(audit.audit_events[0].event_id, "index-block:1");
+        assert_eq!(audit.audit_events[0].actor, INDEXER_SERVICE);
+        assert_eq!(audit.audit_events[0].action, "index_block");
+        assert_eq!(
+            audit.audit_events[0].resource_id.as_deref(),
+            Some(BLOCK_HASH)
+        );
+
+        let snapshots = api.snapshots();
+        assert_eq!(snapshots.warning, SNAPSHOT_READONLY_WARNING);
+        assert_eq!(snapshots.snapshots.len(), 1);
+        assert_eq!(
+            snapshots.snapshots[0].snapshot_name,
+            "current-indexed-chain"
+        );
+        assert_eq!(snapshots.snapshots[0].block_count, 1);
+        assert_eq!(snapshots.snapshots[0].transaction_count, 1);
+        assert_eq!(snapshots.snapshots[0].audit_event_count, 1);
+        assert_eq!(snapshots.snapshots[0].export_status, "disabled");
+        assert_eq!(snapshots.snapshots[0].import_status, "disabled");
+        assert_eq!(
+            api.snapshot_detail("missing-snapshot"),
+            Err(ApiError::SnapshotNotFound)
+        );
+    }
+
+    #[test]
     fn product_api_http_routes_render_contract_json() {
         let api = service();
 
@@ -2206,6 +2460,26 @@ mod tests {
         let status = product_api_http_response(&api, "GET", "/api/v1/admin/indexer/status");
         assert_eq!(status.status_code, 200);
         assert!(status.body.contains("\"service\": \"xriq-indexer\""));
+
+        let audit = product_api_http_response(&api, "GET", "/api/v1/admin/audit-events?limit=5");
+        assert_eq!(audit.status_code, 200);
+        assert!(audit.body.contains("\"audit_events\""));
+        assert!(audit.body.contains("\"action\": \"index_block\""));
+
+        let snapshots = product_api_http_response(&api, "GET", "/api/v1/snapshots");
+        assert_eq!(snapshots.status_code, 200);
+        assert!(snapshots.body.contains(SNAPSHOT_READONLY_WARNING));
+        assert!(snapshots
+            .body
+            .contains("\"snapshot_name\": \"current-indexed-chain\""));
+        assert!(snapshots.body.contains("\"export_status\": \"disabled\""));
+
+        let snapshot_detail =
+            product_api_http_response(&api, "GET", "/api/v1/snapshots/current-indexed-chain");
+        assert_eq!(snapshot_detail.status_code, 200);
+        assert!(snapshot_detail
+            .body
+            .contains("\"import_status\": \"disabled\""));
 
         let wallet_status = product_api_http_response(&api, "GET", "/api/v1/wallet/status");
         assert_eq!(wallet_status.status_code, 200);

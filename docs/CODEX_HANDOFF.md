@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `44%` overall. Current Rust
+- Phase 1.1 estimated completion: about `46%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -156,7 +156,8 @@ unless the user changes the project scope again.
   panels. The same app now includes a preview-only wallet transfer draft panel
   wired to the product wallet draft-preview API. It does not sign, submit,
   persist, or manage private keys. The same app now includes a read-only Admin
-  Status panel backed by product API network, indexer, and wallet-status routes.
+  Status panel backed by product API network, indexer, wallet-status,
+  snapshot-catalog, and audit-event routes.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -413,6 +414,25 @@ active target because the GPU was terminated to save cost.
   about `44%` overall. No GCP resources were provisioned, no public/DEX behavior
   was added, no mutating admin controls were added, no signing/submission
   behavior was added, and no credentials were changed.
+- Latest native XRIQ Phase 1.1 read-only admin snapshot/audit checkpoint:
+  extended `xriq-api` with GET-only `/api/v1/admin/audit-events`,
+  `/api/v1/snapshots`, and `/api/v1/snapshots/current-indexed-chain` routes.
+  These expose deterministic indexed audit events and a read-only in-memory
+  snapshot catalog with export/import status explicitly `disabled`; they do not
+  perform snapshot export/import and do not add POST admin behavior. Extended
+  `xriq/apps/explorer-ui` so `AdminStatusPanel` renders Snapshot Catalog and
+  Audit Events sections from the same-origin product API proxy. Static
+  guardrails now require the new admin routes/markers and continue rejecting
+  public-market wording in UI source. Verification passed with `cargo fmt`,
+  `cargo test -p xriq-api`, `cargo clippy -p xriq-api -- -D warnings`,
+  `npm.cmd run check`, `npm.cmd run build`, CLI request smokes for
+  `/api/v1/admin/audit-events` and `/api/v1/snapshots`, and browser
+  verification against live local `xriq-api` plus Vite servers showing
+  `Snapshot Catalog`, `Audit Events`, `current-indexed-chain`, `index_block`,
+  and export/import disabled. Phase 1.1 status is now about `46%` overall. No
+  GCP resources were provisioned, no public/DEX behavior was added, no mutating
+  admin controls were added, no signing/submission behavior was added, and no
+  credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
   defines private/local product API groups for health, explorer, wallet, admin,

@@ -93,8 +93,8 @@ lives at `apps/explorer-ui`. It reads the product API through the dev server's
 same-origin `/api` proxy, shows basic block, transaction, and account detail
 panels, includes a preview-only wallet transfer draft surface wired to the
 product wallet draft-preview API, and shows a read-only admin status panel for
-network, indexer, and wallet capability state. The wallet panel does not sign,
-submit, persist, or manage private keys.
+network, indexer, wallet capability, snapshot catalog, and audit-event state.
+The wallet panel does not sign, submit, persist, or manage private keys.
 
 ```powershell
 cargo run -p xriq-api -- serve-readonly --chain-file target\xriq-indexer-replay-smoke.bin --alice-balance 100 --bind 127.0.0.1:8090

@@ -45,6 +45,8 @@ for (const route of [
   "/api/v1/wallet/accounts/",
   "/api/v1/wallet/transfers/draft-preview",
   "/api/v1/admin/indexer/status",
+  "/api/v1/admin/audit-events?limit=5",
+  "/api/v1/snapshots",
 ]) {
   if (!apiSource.includes(route)) {
     throw new Error(`missing API route in client: ${route}`);
@@ -108,8 +110,14 @@ for (const forbiddenText of ["mainnet", "liquidity", "custody", "swap"]) {
 for (const requiredText of [
   "Admin Status",
   "walletStatus",
+  "auditEvents",
+  "snapshots",
   "capabilities.submit",
   "capabilities.send",
+  "Snapshot Catalog",
+  "Audit Events",
+  "export_status",
+  "import_status",
 ]) {
   if (!adminSource.includes(requiredText)) {
     throw new Error(`missing admin status marker: ${requiredText}`);

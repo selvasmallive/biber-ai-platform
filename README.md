@@ -293,8 +293,8 @@ the `xriq-api` `/api/v1/...` routes through Vite's same-origin `/api` proxy,
 shows basic block, transaction, and account detail panels, includes a
 preview-only wallet transfer draft surface wired to the product wallet
 draft-preview API, and shows a read-only admin status panel for network,
-indexer, and wallet capability state. The wallet panel does not sign, submit,
-persist, or manage private keys.
+indexer, wallet capability, snapshot catalog, and audit-event state. The wallet
+panel does not sign, submit, persist, or manage private keys.
 
 ```powershell
 cd xriq

@@ -65,19 +65,19 @@ Rust
  |-- Blockchain node        ~70% for private-devnet; RC1 baseline exists
  |-- Consensus engine       ~60% for private-devnet; single-authority baseline
  |-- Wallet backend         ~50%; CLI flows plus product read/preview routes exist
- |-- APIs                   ~45%; local HTTP wrappers and wallet read/preview routes exist
+ |-- APIs                   ~48%; local HTTP wrappers plus wallet/admin read routes exist
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
  |-- Wallet UI              ~12%; preview-only shell wired to wallet draft-preview API
  |-- Explorer               ~20%; shell plus basic detail panels read product API
  |-- Exchange UI            0%; deferred high legal/compliance-risk surface
- `-- Admin portal           ~8%; read-only network/indexer/wallet status panel exists
+ `-- Admin portal           ~14%; read-only status, snapshot, and audit panel exists
 
 SQL/PostgreSQL
  |-- Explorer indexing      ~25%; schema, indexer, SQL plan, and verify path exist
  |-- Analytics              ~5%; read-model totals exist, deeper analytics deferred
- `-- Audit data             ~15%; schema and indexed block audit events exist
+ `-- Audit data             ~18%; schema, indexed block audit events, and read API exist
 
 ISO 20022
  `-- Compatibility adapter  ~20%; first preview mapping crate exists
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first read-only admin status UI checkpoint, Phase 1.1 status is about
-`44%`: the contract document, PostgreSQL read-model schema, JSON
+After the first read-only admin snapshot/audit UI checkpoint, Phase 1.1 status
+is about `46%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -108,10 +108,11 @@ draft JSON preview without signing, submission, key handling, or persistence.
 That wallet panel can now call the product wallet draft-preview API and render
 the server validation/balance response. The same React app now includes a
 read-only Admin Status panel that summarizes network tip state, indexer
-current/last-run status, and wallet draft/submit/send capability flags from the
-product API. Actual repeated live database smoke coverage, real wallet
-submission APIs, mutating admin controls, and deeper ISO adapter integration
-are still pending.
+current/last-run status, wallet draft/submit/send capability flags, a
+read-only snapshot catalog, and indexed audit events from the product API.
+Actual repeated live database smoke coverage, real wallet submission APIs,
+mutating admin controls, real snapshot export/import controls, and deeper ISO
+adapter integration are still pending.
 
 ## Phase 1.1 Build Order
 
@@ -184,13 +185,16 @@ when intentionally applying the read model to a local development database.
 - Current scaffold: `xriq/crates/xriq-api` exposes read-only private-devnet
   response models, `/api/v1/...` route/render behavior over
   `IndexedChainSnapshot`, wallet status/account/balance/history/transaction
-  status/draft-preview routes, a `request` CLI smoke path, and a local
-  `serve-readonly` socket wrapper. Focused verification is:
+  status/draft-preview routes, read-only admin audit events and snapshot catalog
+  routes, a `request` CLI smoke path, and a local `serve-readonly` socket
+  wrapper. Focused verification is:
 
 ```bash
 cargo test -p xriq-api
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/health
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/wallet/status
+cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/admin/audit-events
+cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/snapshots
 ```
 
 ### Milestone D: ISO 20022 Adapter
@@ -241,8 +245,9 @@ npm.cmd run build
   status, and audit events.
 - Current scaffold: `xriq/apps/explorer-ui` includes a read-only Admin Status
   panel backed by `/api/v1/network`, `/api/v1/admin/indexer/status`, and
-  `/api/v1/wallet/status`. It displays local private-devnet status only and has
-  no mutating controls.
+  `/api/v1/wallet/status`, plus read-only snapshot catalog and audit-event
+  sections backed by `/api/v1/snapshots` and `/api/v1/admin/audit-events`.
+  It displays local private-devnet status only and has no mutating controls.
 
 ## Guardrails
 

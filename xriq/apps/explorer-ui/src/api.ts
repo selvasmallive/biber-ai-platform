@@ -154,6 +154,8 @@ export interface ExplorerSnapshot {
   accounts: AccountListResponse;
   indexer: IndexerStatusResponse;
   walletStatus: WalletStatusResponse;
+  auditEvents: AdminAuditEventsResponse;
+  snapshots: SnapshotListResponse;
 }
 
 export interface WalletStatusResponse {
@@ -217,6 +219,43 @@ export interface WalletDraftPreviewResponse {
   };
 }
 
+export interface AdminAuditEvent {
+  event_id: string;
+  actor: string;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  environment: "private-devnet";
+}
+
+export interface AdminAuditEventsResponse {
+  environment: "private-devnet";
+  network: string;
+  limit: number;
+  next_cursor: string | null;
+  audit_events: AdminAuditEvent[];
+}
+
+export interface SnapshotSummary {
+  snapshot_name: string;
+  snapshot_dir: string;
+  current_height: number;
+  latest_block_hash: string;
+  state_root: string;
+  block_count: number;
+  transaction_count: number;
+  audit_event_count: number;
+  export_status: string;
+  import_status: string;
+}
+
+export interface SnapshotListResponse {
+  environment: "private-devnet";
+  network: string;
+  warning: string;
+  snapshots: SnapshotSummary[];
+}
+
 export async function loadExplorerSnapshot(
   baseUrl: string,
 ): Promise<ExplorerSnapshot> {
@@ -230,6 +269,8 @@ export async function loadExplorerSnapshot(
     accounts,
     indexer,
     walletStatus,
+    auditEvents,
+    snapshots,
   ] = await Promise.all([
     fetchJson<HealthResponse>(cleanBaseUrl, "/api/v1/health"),
     fetchJson<NetworkResponse>(cleanBaseUrl, "/api/v1/network"),
@@ -248,6 +289,11 @@ export async function loadExplorerSnapshot(
       "/api/v1/admin/indexer/status",
     ),
     fetchJson<WalletStatusResponse>(cleanBaseUrl, "/api/v1/wallet/status"),
+    fetchJson<AdminAuditEventsResponse>(
+      cleanBaseUrl,
+      "/api/v1/admin/audit-events?limit=5",
+    ),
+    fetchJson<SnapshotListResponse>(cleanBaseUrl, "/api/v1/snapshots"),
   ]);
 
   return {
@@ -260,6 +306,8 @@ export async function loadExplorerSnapshot(
     accounts,
     indexer,
     walletStatus,
+    auditEvents,
+    snapshots,
   };
 }
 

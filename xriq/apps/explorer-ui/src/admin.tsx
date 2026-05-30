@@ -8,6 +8,8 @@ interface AdminStatusPanelProps {
 export function AdminStatusPanel({ snapshot, loadStatus }: AdminStatusPanelProps) {
   const indexer = snapshot?.indexer;
   const wallet = snapshot?.walletStatus;
+  const snapshotCatalog = snapshot?.snapshots.snapshots[0];
+  const latestAuditEvent = snapshot?.auditEvents.audit_events[0];
 
   return (
     <section className="panel detailPanel widePanel adminPanel">
@@ -46,6 +48,30 @@ export function AdminStatusPanel({ snapshot, loadStatus }: AdminStatusPanelProps
             ["Draft", wallet?.capabilities.draft ? "enabled" : "disabled"],
             ["Submit", wallet?.capabilities.submit ? "enabled" : "disabled"],
             ["Send", wallet?.capabilities.send ? "enabled" : "disabled"],
+          ]}
+        />
+        <StatusBlock
+          title="Snapshot Catalog"
+          rows={[
+            ["Warning", snapshot?.snapshots.warning ?? "-"],
+            ["Name", snapshotCatalog?.snapshot_name ?? "-"],
+            ["Height", snapshotCatalog?.current_height ?? "-"],
+            ["Blocks", snapshotCatalog?.block_count ?? "-"],
+            ["Transactions", snapshotCatalog?.transaction_count ?? "-"],
+            ["Audit Events", snapshotCatalog?.audit_event_count ?? "-"],
+            ["Export", snapshotCatalog?.export_status ?? "-"],
+            ["Import", snapshotCatalog?.import_status ?? "-"],
+          ]}
+        />
+        <StatusBlock
+          title="Audit Events"
+          rows={[
+            ["Count", snapshot?.auditEvents.audit_events.length ?? "-"],
+            ["Latest", latestAuditEvent?.event_id ?? "-"],
+            ["Actor", latestAuditEvent?.actor ?? "-"],
+            ["Action", latestAuditEvent?.action ?? "-"],
+            ["Resource", latestAuditEvent?.resource_type ?? "-"],
+            ["Resource Id", latestAuditEvent?.resource_id ?? "-"],
           ]}
         />
       </div>
