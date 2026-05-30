@@ -66,6 +66,7 @@ GPU/volume, use `readme-reinstantiate.md`.
 | `mysql` | MySQL database |
 | `redis` | Queue/cache |
 | `adminer` | Web DB viewer |
+| `postgres` | Optional local XRIQ Phase 1.1 PostgreSQL read model |
 
 On no-Docker Vast.ai templates, `scripts/vast_bootstrap_direct.sh` starts only `api` and `biber-dev-core`. MySQL, Redis, and Adminer remain Docker-only until a managed database/queue path is added.
 
@@ -281,6 +282,16 @@ To validate the local PostgreSQL apply path without touching a database:
 
 ```bash
 cargo run -p xriq-indexer -- apply-postgres --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --schema-file db/schema.sql --dry-run true
+```
+
+To start the optional local XRIQ PostgreSQL read model and verify counts after
+an explicit apply, use the local-only dev URL below:
+
+```powershell
+docker compose up -d postgres
+$env:XRIQ_POSTGRES_URL = "postgresql://xriq:xriq-local-dev-password@localhost:5433/xriq_private_dev"
+cargo run -p xriq-indexer -- apply-postgres --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --schema-file db/schema.sql --dry-run false
+cargo run -p xriq-indexer -- verify-postgres --database-url-env XRIQ_POSTGRES_URL --dry-run false
 ```
 
 After a clean local check, future sessions can cheaply re-check the latest

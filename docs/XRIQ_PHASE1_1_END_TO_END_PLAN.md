@@ -88,13 +88,14 @@ comes from the completed Rust private-devnet foundation. The actual end-to-end
 product surfaces, especially PostgreSQL indexing and React UI, are still at the
 starting line.
 
-After the first Milestone B local apply-path checkpoint, Phase 1.1 status is
-about `23%`: the contract document, PostgreSQL read-model schema, JSON
-fixtures, local contract validation script, deterministic Rust read-model
+After the first Milestone B local verification-path checkpoint, Phase 1.1
+status is about `24%`: the contract document, PostgreSQL read-model schema,
+JSON fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
-write-plan export, and dry-run database apply path exist. Actual live
-PostgreSQL verification, API service, UI, and ISO adapter implementation are
-still pending.
+write-plan export, dry-run database apply path, optional local Postgres service,
+and `verify-postgres` verification command exist. Actual repeated live database
+smoke coverage, API service, UI, and ISO adapter implementation are still
+pending.
 
 ## Phase 1.1 Build Order
 
@@ -150,7 +151,12 @@ Milestone A contract details are tracked in
 cargo run -p xriq-indexer -- replay --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --format json
 cargo run -p xriq-indexer -- replay --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --format sql
 cargo run -p xriq-indexer -- apply-postgres --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --schema-file db/schema.sql --dry-run true
+cargo run -p xriq-indexer -- verify-postgres --dry-run true
 ```
+
+The root `docker-compose.yml` now includes an optional local Postgres service
+named `postgres`; use it with `XRIQ_POSTGRES_URL` and `--dry-run false` only
+when intentionally applying the read model to a local development database.
 
 ### Milestone C: ISO 20022 Adapter
 

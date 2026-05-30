@@ -76,8 +76,24 @@ To dry-run the local PostgreSQL apply path without invoking `psql`, use:
 cargo run -p xriq-indexer -- apply-postgres --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --schema-file db/schema.sql --dry-run true
 ```
 
-Real local database application is explicit only: set `XRIQ_POSTGRES_URL`, make
-sure `psql` is installed, and pass `--dry-run false`.
+The root `docker-compose.yml` includes an optional local-only Postgres service
+named `postgres` for the Phase 1.1 read model. Real local database application
+is explicit only: start Postgres, set `XRIQ_POSTGRES_URL`, make sure `psql` is
+installed, and pass `--dry-run false`.
+
+```powershell
+docker compose up -d postgres
+$env:XRIQ_POSTGRES_URL = "postgresql://xriq:xriq-local-dev-password@localhost:5433/xriq_private_dev"
+cargo run -p xriq-indexer -- apply-postgres --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --schema-file db/schema.sql --dry-run false
+cargo run -p xriq-indexer -- verify-postgres --database-url-env XRIQ_POSTGRES_URL --dry-run false
+```
+
+The verification command also supports a dry run when a database is not
+available:
+
+```bash
+cargo run -p xriq-indexer -- verify-postgres --dry-run true
+```
 
 After the local check has passed and the RC checkpoint is committed, the latest
 summary can be re-checked without rerunning Rust:

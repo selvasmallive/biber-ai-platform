@@ -135,14 +135,15 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `23%` overall. Current Rust
+- Phase 1.1 estimated completion: about `24%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, ISO 20022 adapter, admin portal, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
   read-model schema, JSON fixtures, and a local validation script. Milestone B
   now has the first deterministic Rust read-model indexer scaffold and local
   replay command plus idempotent SQL write-plan export and a dry-run local
-  PostgreSQL apply path, but no live local database verification yet.
+  PostgreSQL apply path, optional local Postgres service, and dry-run/live
+  verification command.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -229,6 +230,26 @@ active target because the GPU was terminated to save cost.
   Phase 1.1 status is now about `23%` overall. No GCP resources were
   provisioned, no live database was required, no public/DEX behavior was added,
   and no credentials were changed.
+- Latest native XRIQ Phase 1.1 local PostgreSQL verification checkpoint: added
+  an optional root Compose `postgres` service for the local-only XRIQ read
+  model and extended `xriq-indexer` with `verify-postgres`. The verification
+  command defaults to `--dry-run true`, reports the database URL source without
+  printing secrets, and only invokes local `psql` when `--dry-run false` is
+  explicit. The live query reports counts for blocks, transactions, accounts,
+  account balances, account transaction history, audit events, indexer runs,
+  and latest indexed height. Recommended local flow:
+  `docker compose up -d postgres`, set
+  `XRIQ_POSTGRES_URL=postgresql://xriq:xriq-local-dev-password@localhost:5433/xriq_private_dev`,
+  run `apply-postgres --dry-run false`, then run
+  `verify-postgres --database-url-env XRIQ_POSTGRES_URL --dry-run false`.
+  Local verification for this checkpoint passed `docker compose config`,
+  `cargo test -p xriq-indexer`, `cargo clippy -p xriq-indexer -- -D warnings`,
+  `cargo run -p xriq-indexer -- apply-postgres ... --dry-run true`, and
+  `cargo run -p xriq-indexer -- verify-postgres --dry-run true`. Live local DB
+  apply/verify was not run because Docker Desktop was not running and host
+  `psql` was not installed on the workstation. Phase 1.1 status is now about
+  `24%` overall. No GCP resources were provisioned, no public/DEX behavior was
+  added, and no credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
   defines private/local product API groups for health, explorer, wallet, admin,

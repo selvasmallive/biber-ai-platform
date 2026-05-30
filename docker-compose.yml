@@ -101,6 +101,28 @@ services:
     depends_on:
       - mysql
 
+  postgres:
+    image: postgres:16
+    container_name: xriq-postgres
+    environment:
+      POSTGRES_DB: ${XRIQ_POSTGRES_DB:-xriq_private_dev}
+      POSTGRES_USER: ${XRIQ_POSTGRES_USER:-xriq}
+      POSTGRES_PASSWORD: ${XRIQ_POSTGRES_PASSWORD:-xriq-local-dev-password}
+    ports:
+      - "5433:5432"
+    volumes:
+      - xriq_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${XRIQ_POSTGRES_USER:-xriq} -d ${XRIQ_POSTGRES_DB:-xriq_private_dev}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   mysql_data:
   hf_cache:
+  xriq_postgres_data:

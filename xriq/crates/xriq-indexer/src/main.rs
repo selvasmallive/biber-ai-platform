@@ -31,6 +31,7 @@ where
         Some("help" | "--help" | "-h") => Ok(help_text()),
         Some("replay") => run_replay(&args[1..]),
         Some("apply-postgres") => run_apply_postgres(&args[1..]),
+        Some("verify-postgres") => run_verify_postgres(&args[1..]),
         Some(command) => Err(format!("unknown command: {command}")),
         None => Err("missing command".to_string()),
     }
@@ -108,11 +109,40 @@ fn run_apply_postgres(args: &[&str]) -> Result<String, String> {
     }))
 }
 
+fn run_verify_postgres(args: &[&str]) -> Result<String, String> {
+    let flags = FlagParser::parse(args)?;
+    flags.reject_unknown(&["--database-url", "--database-url-env", "--dry-run"])?;
+    let dry_run = parse_bool(flags.optional("--dry-run").unwrap_or("true"))?;
+    let database_url = database_url_from_flags(&flags)?;
+    let verification_sql = postgres_verification_sql();
+    let verification_output = if dry_run {
+        None
+    } else {
+        let database_url = database_url
+            .value
+            .as_ref()
+            .ok_or_else(|| "database url is required when --dry-run false".to_string())?;
+        Some(run_psql_query(
+            database_url,
+            verification_sql,
+            "indexer verification",
+        )?)
+    };
+
+    Ok(render_verify_postgres_summary(&VerifyPostgresSummary {
+        dry_run,
+        database_url_configured: database_url.value.is_some(),
+        database_url_source: database_url.source.as_str(),
+        verification_output: verification_output.as_deref(),
+    }))
+}
+
 fn help_text() -> String {
     [
         "xriq-indexer private-devnet commands:",
         "  xriq-indexer replay --chain-file <path> [--alice-balance <base-units>] [--format text|json|sql]",
         "  xriq-indexer apply-postgres --chain-file <path> [--alice-balance <base-units>] [--schema-file db/schema.sql] [--database-url-env XRIQ_POSTGRES_URL|--database-url <url>] [--dry-run true|false]",
+        "  xriq-indexer verify-postgres [--database-url-env XRIQ_POSTGRES_URL|--database-url <url>] [--dry-run true|false]",
     ]
     .join("\n")
 }
@@ -382,6 +412,14 @@ struct ApplyPostgresSummary<'a> {
     write_plan_statements: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct VerifyPostgresSummary<'a> {
+    dry_run: bool,
+    database_url_configured: bool,
+    database_url_source: &'a str,
+    verification_output: Option<&'a str>,
+}
+
 fn render_apply_postgres_summary(summary: &ApplyPostgresSummary<'_>) -> String {
     let mut output = String::new();
     writeln!(&mut output, "warning=private-devnet-only-no-public-token").expect("write to String");
@@ -430,11 +468,49 @@ fn render_apply_postgres_summary(summary: &ApplyPostgresSummary<'_>) -> String {
     output
 }
 
+fn render_verify_postgres_summary(summary: &VerifyPostgresSummary<'_>) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "warning=private-devnet-only-no-public-token").expect("write to String");
+    writeln!(&mut output, "environment=private-devnet").expect("write to String");
+    writeln!(
+        &mut output,
+        "mode={}",
+        if summary.dry_run { "dry-run" } else { "verify" }
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "database_url_source={}",
+        summary.database_url_source
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "database_url_configured={}",
+        summary.database_url_configured
+    )
+    .expect("write to String");
+    writeln!(&mut output, "verification_query_available=true").expect("write to String");
+    writeln!(
+        &mut output,
+        "verification_query_executed={}",
+        !summary.dry_run
+    )
+    .expect("write to String");
+    if let Some(verification_output) = summary.verification_output {
+        output.push_str(verification_output.trim());
+    } else {
+        write!(&mut output, "verification_result=not-run").expect("write to String");
+    }
+    output
+}
+
 fn run_psql_sql(database_url: &str, sql: &str, label: &str) -> Result<(), String> {
     let mut child = Command::new("psql")
-        .arg(database_url)
         .arg("-v")
         .arg("ON_ERROR_STOP=1")
+        .arg("-d")
+        .arg(database_url)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -455,6 +531,48 @@ fn run_psql_sql(database_url: &str, sql: &str, label: &str) -> Result<(), String
 
     let stderr = String::from_utf8_lossy(&output.stderr).replace(database_url, "<database-url>");
     Err(format!("psql failed while applying {label}: {stderr}"))
+}
+
+fn run_psql_query(database_url: &str, sql: &str, label: &str) -> Result<String, String> {
+    let mut child = Command::new("psql")
+        .arg("-v")
+        .arg("ON_ERROR_STOP=1")
+        .arg("-d")
+        .arg(database_url)
+        .arg("-t")
+        .arg("-A")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("could not start psql for {label}: {error}"))?;
+    child
+        .stdin
+        .take()
+        .ok_or_else(|| format!("could not open psql stdin for {label}"))?
+        .write_all(sql.as_bytes())
+        .map_err(|error| format!("could not send {label} SQL to psql: {error}"))?;
+    let output = child
+        .wait_with_output()
+        .map_err(|error| format!("could not wait for psql {label}: {error}"))?;
+    if output.status.success() {
+        return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).replace(database_url, "<database-url>");
+    Err(format!("psql failed while running {label}: {stderr}"))
+}
+
+fn postgres_verification_sql() -> &'static str {
+    "\
+SELECT 'blocks=' || count(*) FROM xriq_blocks;\n\
+SELECT 'transactions=' || count(*) FROM xriq_transactions;\n\
+SELECT 'accounts=' || count(*) FROM xriq_accounts;\n\
+SELECT 'account_balances=' || count(*) FROM xriq_account_balances;\n\
+SELECT 'account_transactions=' || count(*) FROM xriq_account_transactions;\n\
+SELECT 'audit_events=' || count(*) FROM xriq_audit_events;\n\
+SELECT 'indexer_runs=' || count(*) FROM xriq_indexer_runs;\n\
+SELECT 'latest_height=' || COALESCE(MAX(height)::text, 'none') FROM xriq_blocks;\n"
 }
 
 fn json_optional_u64(value: Option<u64>) -> String {
@@ -502,6 +620,43 @@ impl OutputFormat {
                 "invalid format: {value}; expected text, json, or sql"
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verify_postgres_defaults_to_dry_run() {
+        let output = run(["verify-postgres"]).unwrap();
+
+        assert!(output.contains("mode=dry-run"));
+        assert!(output.contains("database_url_source=XRIQ_POSTGRES_URL"));
+        assert!(output.contains("verification_query_available=true"));
+        assert!(output.contains("verification_query_executed=false"));
+        assert!(output.contains("verification_result=not-run"));
+    }
+
+    #[test]
+    fn verify_postgres_rejects_unknown_flags() {
+        let error = run(["verify-postgres", "--chain-file", "target/test.bin"]).unwrap_err();
+
+        assert!(error.contains("unknown flag: --chain-file"));
+    }
+
+    #[test]
+    fn postgres_verification_sql_covers_phase1_1_tables() {
+        let sql = postgres_verification_sql();
+
+        assert!(sql.contains("xriq_blocks"));
+        assert!(sql.contains("xriq_transactions"));
+        assert!(sql.contains("xriq_accounts"));
+        assert!(sql.contains("xriq_account_balances"));
+        assert!(sql.contains("xriq_account_transactions"));
+        assert!(sql.contains("xriq_audit_events"));
+        assert!(sql.contains("xriq_indexer_runs"));
+        assert!(sql.contains("latest_height"));
     }
 }
 
