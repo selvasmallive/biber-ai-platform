@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `54%` overall. Current Rust
+- Phase 1.1 estimated completion: about `55%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -155,8 +155,9 @@ unless the user changes the project scope again.
   draft-preview routes, including pending-file-aware wallet transaction status
   for durable pending hashes. The first React + TypeScript explorer UI shell exists
   in `xriq/apps/explorer-ui` and renders local product API health, totals,
-  network metadata, blocks, transactions, accounts, and basic drill-down detail
-  panels. The same app now includes a preview-only wallet transfer draft panel
+  network metadata, blocks, confirmed transactions, pending transactions,
+  accounts, and basic drill-down detail panels. The same app now includes a
+  preview-only wallet transfer draft panel
   wired to the product wallet draft-preview API. It does not sign, submit,
   persist, or manage private keys. The same app now includes a read-only ISO
   20022 Preview panel backed by product API payment-initiation,
@@ -183,6 +184,17 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 pending transactions explorer checkpoint:
+  added `xriq/apps/explorer-ui/src/mempool.tsx` and wired it into the local
+  React explorer. The new read-only Pending Transactions panel renders durable
+  pending-file entries from `/api/v1/mempool`, lets the operator select a
+  pending hash, and fetches `/api/v1/wallet/transactions/{hash}/status` to show
+  pending wallet status plus null block/index fields. It does not sign, submit,
+  produce blocks, persist secrets, or add mutating controls. Static UI
+  guardrails now require the mempool panel file and markers. Phase 1.1 status
+  is now about `55%` overall. No GCP resources were provisioned, no Vast/GPU
+  work was used, no public/DEX behavior was added, and no credentials were
+  changed.
 - Latest native XRIQ Phase 1.1 pending wallet-status UI checkpoint: extended
   `xriq/apps/explorer-ui` so the read-only Admin Status panel fetches
   `/api/v1/wallet/transactions/{hash}/status` for the first pending mempool

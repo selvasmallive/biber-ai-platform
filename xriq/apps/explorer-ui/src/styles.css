@@ -166,6 +166,10 @@ h3 {
   border-color: rgba(29, 101, 77, 0.24);
 }
 
+.mempoolPanel {
+  border-color: rgba(140, 65, 35, 0.24);
+}
+
 .adminPanel {
   border-color: rgba(108, 63, 0, 0.24);
 }
@@ -544,6 +548,10 @@ td {
   color: #68778a;
   font-size: 0.82rem;
   font-weight: 800;
+}
+
+.pendingDetail {
+  margin-top: 16px;
 }
 
 .mutedText,

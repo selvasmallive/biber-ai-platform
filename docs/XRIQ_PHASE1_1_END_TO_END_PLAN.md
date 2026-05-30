@@ -70,7 +70,7 @@ Rust
 
 React + TypeScript
  |-- Wallet UI              ~13%; preview shell plus pending status lookup from admin/mempool view
- |-- Explorer               ~22%; shell plus detail and ISO preview panels read product API
+ |-- Explorer               ~24%; shell plus detail, pending transaction, and ISO preview panels read product API
  |-- Exchange UI            0%; deferred high legal/compliance-risk surface
  `-- Admin portal           ~21%; read-only node/status, pending mempool, pending wallet status, snapshot, and audit panel exists
 
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first read-only pending wallet-status UI checkpoint, Phase 1.1 status
-is about `54%`: the contract document, PostgreSQL read-model schema, JSON
+After the first read-only pending transactions explorer checkpoint, Phase 1.1
+status is about `55%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -103,7 +103,8 @@ private-devnet wallet status, account list, balance, history, transaction
 status, pending-file transaction status with null block fields, and
 non-mutating transfer draft-preview routes. The first React + TypeScript
 explorer shell in `xriq/apps/explorer-ui` can render health, network totals,
-blocks, transactions, accounts, block detail, transaction detail, account
+blocks, confirmed transactions, pending transactions, accounts, block detail,
+transaction detail, selected pending wallet transaction status, account
 detail, and account transaction history from the local product API. The same
 app now includes a preview-only wallet panel that selects local indexed
 accounts, shows balance/debit/remaining math, and renders a deterministic
@@ -242,8 +243,9 @@ cargo test -p xriq-iso20022
 - Current scaffold: `xriq/apps/explorer-ui` is a Vite React + TypeScript
   local explorer shell. It reads `xriq-api` through a same-origin `/api` proxy
   and currently shows private-devnet health, height/totals, network metadata,
-  latest blocks, latest transactions, accounts, plus selected block,
-  transaction, account detail panels, and a read-only ISO 20022 preview panel
+  latest blocks, latest confirmed transactions, read-only pending transactions
+  from `/api/v1/mempool`, accounts, plus selected block, transaction, pending
+  wallet status, account detail panels, and a read-only ISO 20022 preview panel
   for the selected transaction/account.
 
 ```bash

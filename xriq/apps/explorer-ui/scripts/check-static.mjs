@@ -14,6 +14,7 @@ const requiredFiles = [
   "src/api.ts",
   "src/iso.tsx",
   "src/main.tsx",
+  "src/mempool.tsx",
   "src/styles.css",
   "src/wallet.tsx",
   "src/vite-env.d.ts",
@@ -70,6 +71,7 @@ for (const requiredText of [
   "Transaction Detail",
   "Account Detail",
   "WalletShell",
+  "PendingTransactionsPanel",
   "IsoPreviewPanel",
   "AdminStatusPanel",
 ]) {
@@ -81,6 +83,7 @@ for (const requiredText of [
 const walletSource = readFileSync(join(root, "src/wallet.tsx"), "utf8");
 const adminSource = readFileSync(join(root, "src/admin.tsx"), "utf8");
 const isoSource = readFileSync(join(root, "src/iso.tsx"), "utf8");
+const mempoolSource = readFileSync(join(root, "src/mempool.tsx"), "utf8");
 for (const requiredText of [
   "Wallet Preview",
   "xriq-wallet-transfer-preview-v1",
@@ -111,6 +114,7 @@ for (const forbiddenText of ["mainnet", "liquidity", "custody", "swap"]) {
     appSource.toLowerCase().includes(forbiddenText) ||
     walletSource.toLowerCase().includes(forbiddenText) ||
     adminSource.toLowerCase().includes(forbiddenText) ||
+    mempoolSource.toLowerCase().includes(forbiddenText) ||
     isoSource.toLowerCase().includes(forbiddenText)
   ) {
     throw new Error(`forbidden public-market term found in UI: ${forbiddenText}`);
@@ -131,6 +135,20 @@ for (const requiredText of [
 ]) {
   if (!isoSource.includes(requiredText)) {
     throw new Error(`missing ISO preview marker: ${requiredText}`);
+  }
+}
+
+for (const requiredText of [
+  "Pending Transactions",
+  "Selected Pending Status",
+  "loadWalletTransactionStatus",
+  "No pending transactions",
+  "block_height",
+  "transaction_index",
+  "mempoolPanel",
+]) {
+  if (!mempoolSource.includes(requiredText)) {
+    throw new Error(`missing mempool panel marker: ${requiredText}`);
   }
 }
 
