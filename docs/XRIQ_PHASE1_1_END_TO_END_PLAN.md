@@ -69,7 +69,7 @@ Rust
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
- |-- Wallet UI              ~13%; preview shell plus pending status lookup from admin/mempool view
+ |-- Wallet UI              ~18%; preview shell plus read-only confirmed/pending activity detail
  |-- Explorer               ~25%; shell plus detail, pending transaction, snapshot, and ISO preview panels read product API
  |-- Exchange UI            0%; deferred high legal/compliance-risk surface
  `-- Admin portal           ~25%; read-only node/status, pending mempool, pending wallet status, snapshot catalog, and audit events panels exist
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first local Phase 1.1 wallet failure-smoke checkpoint, Phase 1.1
-status is about `59%`: the contract document, PostgreSQL read-model schema, JSON
+After the first local Phase 1.1 wallet activity checkpoint, Phase 1.1
+status is about `60%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -112,7 +112,11 @@ app now includes a preview-only wallet panel that selects local indexed
 accounts, shows balance/debit/remaining math, and renders a deterministic
 draft JSON preview without signing, submission, key handling, or persistence.
 That wallet panel can now call the product wallet draft-preview API and render
-the server validation/balance response. The same React app now includes a
+the server validation/balance response, and now includes a read-only Wallet
+Activity panel that combines confirmed product transaction rows with durable
+pending mempool rows for the selected account and shows selected status,
+direction, counterparty, amount, fee, nonce, pending-block, and transaction-index
+detail. The same React app now includes a
 read-only ISO 20022 Preview panel that calls the product ISO preview routes
 for the selected transaction/account and renders payment initiation, payment
 status, account statement, mapping-version, not-certified, and unsupported

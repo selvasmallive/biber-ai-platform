@@ -103,6 +103,12 @@ for (const requiredText of [
   "Nonce must be a non-negative integer.",
   "Expiry must be empty or a non-negative integer.",
   "Debit exceeds available balance.",
+  "Wallet Activity",
+  "Selected Wallet Activity",
+  "read-only confirmed and pending",
+  "No wallet activity",
+  "Pending Block",
+  "walletActivityRows",
 ]) {
   if (!walletSource.includes(requiredText)) {
     throw new Error(`missing wallet preview marker: ${requiredText}`);

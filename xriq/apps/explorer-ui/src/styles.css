@@ -319,6 +319,18 @@ h3 {
   opacity: 0.56;
 }
 
+.walletActivity {
+  margin-top: 16px;
+}
+
+.walletActivity .miniTable {
+  margin-top: 0;
+}
+
+.walletActivityDetail {
+  margin-top: 14px;
+}
+
 .balanceStrip div {
   min-width: 0;
   min-height: 72px;

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AccountSummary,
   ExplorerSnapshot,
+  MempoolEntry,
+  TransactionSummary,
   WalletBalanceResponse,
   WalletDraftPreviewResponse,
   WalletStatusResponse,
@@ -40,6 +42,20 @@ interface DraftValidation {
   balance: bigint | null;
   debit: bigint | null;
   remaining: bigint | null;
+}
+
+interface WalletActivityRow {
+  id: string;
+  txHash: string;
+  source: "confirmed" | "pending";
+  status: string;
+  direction: "sent" | "received";
+  amount: string;
+  fee: string;
+  nonce: number;
+  block: string;
+  transactionIndex: string;
+  counterparty: string;
 }
 
 type ApiState<T> =
@@ -85,6 +101,7 @@ export function WalletShell({
     data: null,
     error: null,
   });
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selectedAccount || !snapshot) {
@@ -103,6 +120,14 @@ export function WalletShell({
 
   const fromAccount =
     accounts.find((account) => account.address === fromAddress) ?? selectedAccount;
+  const walletActivity = useMemo(
+    () => walletActivityRows(snapshot, fromAddress),
+    [fromAddress, snapshot],
+  );
+  const selectedActivity =
+    walletActivity.find((activity) => activity.id === selectedActivityId) ??
+    walletActivity[0] ??
+    null;
 
   useEffect(() => {
     if (!snapshot) {
@@ -385,6 +410,12 @@ export function WalletShell({
           {walletStatus.status === "error" ? (
             <p className="errorText">{walletStatus.error}</p>
           ) : null}
+
+          <WalletActivity
+            activeActivity={selectedActivity}
+            rows={walletActivity}
+            onActivitySelect={setSelectedActivityId}
+          />
         </div>
 
         <pre className="previewBox" aria-label="Wallet transfer draft preview">
@@ -392,6 +423,105 @@ export function WalletShell({
         </pre>
       </div>
     </section>
+  );
+}
+
+function WalletActivity({
+  activeActivity,
+  rows,
+  onActivitySelect,
+}: {
+  activeActivity: WalletActivityRow | null;
+  rows: WalletActivityRow[];
+  onActivitySelect: (activityId: string) => void;
+}) {
+  return (
+    <div className="walletActivity" aria-label="Wallet Activity">
+      <div className="subHeading">
+        <h3>Wallet Activity</h3>
+        <span>read-only confirmed and pending</span>
+      </div>
+      <div className="miniTable walletActivityTable">
+        <table>
+          <thead>
+            <tr>
+              <th>Hash</th>
+              <th>State</th>
+              <th>Direction</th>
+              <th>Amount</th>
+              <th>Block</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length > 0 ? (
+              rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className={activeActivity?.id === row.id ? "selectedRow" : undefined}
+                >
+                  <td>
+                    <button
+                      className="rowButton"
+                      type="button"
+                      onClick={() => onActivitySelect(row.id)}
+                    >
+                      {shortHash(row.txHash)}
+                    </button>
+                  </td>
+                  <td>{row.source}</td>
+                  <td>{row.direction}</td>
+                  <td>{row.amount}</td>
+                  <td>{row.block}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={5}>No wallet activity</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="walletActivityDetail">
+        <div className="subHeading">
+          <h3>Selected Wallet Activity</h3>
+          <span>{activeActivity ? activeActivity.source : "idle"}</span>
+        </div>
+        {activeActivity ? (
+          <dl className="detailList">
+            <WalletDetail label="Hash" value={activeActivity.txHash} compact />
+            <WalletDetail label="Status" value={activeActivity.status} />
+            <WalletDetail label="Direction" value={activeActivity.direction} />
+            <WalletDetail label="Counterparty" value={activeActivity.counterparty} compact />
+            <WalletDetail label="Amount" value={activeActivity.amount} />
+            <WalletDetail label="Fee" value={activeActivity.fee} />
+            <WalletDetail label="Nonce" value={activeActivity.nonce} />
+            <WalletDetail label="Pending Block" value={activeActivity.block} />
+            <WalletDetail label="Transaction Index" value={activeActivity.transactionIndex} />
+          </dl>
+        ) : (
+          <p className="mutedText">No wallet activity selected</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WalletDetail({
+  label,
+  value,
+  compact = false,
+}: {
+  label: string;
+  value: string | number;
+  compact?: boolean;
+}) {
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd className={compact ? "mono truncate" : undefined}>{value}</dd>
+    </>
   );
 }
 
@@ -461,6 +591,69 @@ function validateDraft({
   return { errors, balance, debit, remaining };
 }
 
+function walletActivityRows(
+  snapshot: ExplorerSnapshot | null,
+  address: string,
+): WalletActivityRow[] {
+  if (!snapshot || !address) {
+    return [];
+  }
+
+  const confirmed = snapshot.transactions.transactions
+    .filter((transaction) => walletTransactionMatches(transaction, address))
+    .map((transaction) => confirmedActivityRow(transaction, address));
+  const pending = snapshot.mempool.entries
+    .filter((entry) => walletPendingMatches(entry, address))
+    .map((entry) => pendingActivityRow(entry, address));
+
+  return [...pending, ...confirmed];
+}
+
+function walletTransactionMatches(transaction: TransactionSummary, address: string) {
+  return transaction.from_address === address || transaction.to_address === address;
+}
+
+function walletPendingMatches(entry: MempoolEntry, address: string) {
+  return entry.from_address === address || entry.to_address === address;
+}
+
+function confirmedActivityRow(transaction: TransactionSummary, address: string): WalletActivityRow {
+  const direction = transaction.from_address === address ? "sent" : "received";
+  const counterparty =
+    direction === "sent" ? transaction.to_address : transaction.from_address;
+  return {
+    id: `confirmed:${transaction.tx_hash}:${direction}`,
+    txHash: transaction.tx_hash,
+    source: "confirmed",
+    status: transaction.status,
+    direction,
+    amount: transaction.amount_base_units,
+    fee: transaction.fee_base_units,
+    nonce: transaction.nonce,
+    block: transaction.block_height.toString(),
+    transactionIndex: transaction.transaction_index.toString(),
+    counterparty,
+  };
+}
+
+function pendingActivityRow(entry: MempoolEntry, address: string): WalletActivityRow {
+  const direction = entry.from_address === address ? "sent" : "received";
+  const counterparty = direction === "sent" ? entry.to_address : entry.from_address;
+  return {
+    id: `pending:${entry.tx_hash}:${direction}`,
+    txHash: entry.tx_hash,
+    source: "pending",
+    status: entry.status,
+    direction,
+    amount: entry.amount_base_units,
+    fee: entry.fee_base_units,
+    nonce: entry.nonce,
+    block: "pending",
+    transactionIndex: "pending",
+    counterparty,
+  };
+}
+
 function parseInteger(value: string): bigint | null {
   const trimmed = value.trim();
   if (!/^\d+$/.test(trimmed)) {
@@ -482,4 +675,8 @@ function defaultRecipient(accounts: AccountSummary[], fromAddress: string) {
 
 function shortAddress(value: string) {
   return value.length > 18 ? `${value.slice(0, 12)}...${value.slice(-4)}` : value;
+}
+
+function shortHash(value: string) {
+  return value.length > 18 ? `${value.slice(0, 10)}...${value.slice(-6)}` : value;
 }
