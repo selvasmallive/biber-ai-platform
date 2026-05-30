@@ -88,10 +88,11 @@ comes from the completed Rust private-devnet foundation. The actual end-to-end
 product surfaces, especially PostgreSQL indexing and React UI, are still at the
 starting line.
 
-After the first Milestone A artifact checkpoint, Phase 1.1 status is about
-`17%`: the contract document, PostgreSQL read-model schema, JSON fixtures, and
-local contract validation script exist, but the indexer/API/UI/ISO adapter
-implementation is still pending.
+After the first Milestone B scaffold checkpoint, Phase 1.1 status is about
+`20%`: the contract document, PostgreSQL read-model schema, JSON fixtures, local
+contract validation script, and deterministic Rust read-model indexer scaffold
+exist. Actual PostgreSQL persistence, API service, UI, and ISO adapter
+implementation are still pending.
 
 ## Phase 1.1 Build Order
 
@@ -138,6 +139,9 @@ Milestone A contract details are tracked in
 - Add a local indexer command or service that reads the file-backed chain and
   writes indexed blocks, transactions, accounts, balances, and audit events.
 - Add idempotent replay tests.
+- Current scaffold: `xriq/crates/xriq-indexer` builds the PostgreSQL-facing
+  in-memory read model from existing chain/ledger state and tests idempotent
+  replay before wiring a database connection.
 
 ### Milestone C: ISO 20022 Adapter
 

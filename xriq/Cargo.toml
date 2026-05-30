@@ -4,6 +4,7 @@ members = [
     "crates/xriq-consensus",
     "crates/xriq-crypto",
     "crates/xriq-explorer",
+    "crates/xriq-indexer",
     "crates/xriq-ledger",
     "crates/xriq-mempool",
     "crates/xriq-node",

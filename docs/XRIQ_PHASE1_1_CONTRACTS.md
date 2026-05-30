@@ -352,13 +352,14 @@ xriq/fixtures/phase1_1/
 
 ## Next Implementation Step
 
-Turn this contract document into concrete artifacts:
+Continue Milestone B by wiring the deterministic indexer scaffold to a local
+command or PostgreSQL-backed persistence adapter:
 
-1. Add `xriq/db/schema.sql` with the PostgreSQL read-model tables.
-2. Add JSON fixtures under `xriq/fixtures/phase1_1/`.
-3. Add a local validation script that checks the schema and fixtures can be
-   parsed without needing GCP.
-4. Only after that, build the Rust indexer.
+1. Keep `xriq-indexer` as the pure, deterministic read-model layer.
+2. Add a local replay command that reads the file-backed chain and emits or
+   writes indexed blocks, transactions, accounts, balances, and audit events.
+3. Add PostgreSQL integration only after replay behavior stays idempotent in
+   local tests.
 
 ## Concrete Artifacts
 
@@ -367,6 +368,7 @@ The first local contract artifacts now exist:
 ```text
 xriq/db/schema.sql
 xriq/fixtures/phase1_1/
+xriq/crates/xriq-indexer/
 scripts/xriq_phase1_1_contract_check.py
 ```
 
@@ -380,3 +382,14 @@ The check validates that the PostgreSQL read-model schema contains the required
 10 tables and that the 14 Phase 1.1 JSON fixtures parse, declare
 `environment: "private-devnet"`, avoid sensitive key/seed fields, and keep
 money-like values as integer base-unit strings.
+
+Run the focused Rust indexer scaffold tests from `xriq/`:
+
+```bash
+cargo test -p xriq-indexer
+```
+
+The indexer scaffold currently builds a PostgreSQL-facing in-memory read model
+for blocks, confirmed transactions, accounts, balances, account transaction
+history, and audit events. It detects conflicting replay at the same block
+height and keeps repeat replay idempotent.

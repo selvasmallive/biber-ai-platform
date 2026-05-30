@@ -9,6 +9,8 @@ only until security and legal/compliance review says otherwise.
 - `xriq-consensus`: deterministic private-devnet block production.
 - `xriq-crypto`: canonical hashing and test-only signature verification boundary.
 - `xriq-explorer`: read-only private-devnet explorer view models and text UI.
+- `xriq-indexer`: deterministic Phase 1.1 read-model indexing scaffold for the
+  future PostgreSQL-backed explorer/admin/API surfaces.
 - `xriq-ledger`: deterministic private-devnet account state transitions.
 - `xriq-mempool`: deterministic pending-transaction checks and ordering.
 - `xriq-node`: minimal local private-devnet node loop with deterministic replay
@@ -48,6 +50,11 @@ The current RC decision report is documented at
 `../docs/XRIQ_PHASE1_RC_REPORT.md`.
 The post-RC end-to-end Phase 1.1 plan is documented at
 `../docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md`.
+The first Phase 1.1 indexer scaffold can be checked with:
+
+```bash
+cargo test -p xriq-indexer
+```
 
 After the local check has passed and the RC checkpoint is committed, the latest
 summary can be re-checked without rerunning Rust:

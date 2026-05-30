@@ -118,6 +118,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "xriq-indexer"
+version = "0.1.0"
+dependencies = [
+ "xriq-core",
+ "xriq-crypto",
+ "xriq-ledger",
+ "xriq-storage",
+]
+
+[[package]]
 name = "xriq-ledger"
 version = "0.1.0"
 dependencies = [

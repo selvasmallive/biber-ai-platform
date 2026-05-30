@@ -135,15 +135,17 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `17%` overall. Current Rust
+- Phase 1.1 estimated completion: about `20%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, ISO 20022 adapter, admin portal, exchange UI, and smart contracts are not
-  implemented yet. Milestone A now has contract docs, a PostgreSQL read-model
-  schema, JSON fixtures, and a local validation script.
+  fully implemented yet. Milestone A now has contract docs, a PostgreSQL
+  read-model schema, JSON fixtures, and a local validation script. Milestone B
+  now has the first deterministic Rust read-model indexer scaffold, but no
+  database persistence yet.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
-  for the immediate Milestone A contracts work. Prepare a project/region/budget
-  plan, but delay paid Cloud SQL/Cloud Run/Artifact Registry resources until
-  local contracts and indexer replay tests are stable.
+  for the current local contracts/indexer scaffold work. Prepare a
+  project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
+  Registry resources until local contracts and indexer replay tests are stable.
 - Remaining OpenAI/Codex key cost estimate for Phase 1 only, excluding Vast GPU,
   servers, production infrastructure, audits, public launch, and any BIBER MVP
   expansion:
@@ -154,9 +156,9 @@ unless the user changes the project scope again.
 ## Immediate Resume State
 
 As of the latest 2026-05-30 checkpoint, the active work mode is local
-workstation development for XRIQ Phase 1.1 end-to-end planning after the
-completed private-devnet RC1 tag. The previous Vast deployment is not an active
-target because the GPU was terminated to save cost.
+workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
+the completed private-devnet RC1 tag. The previous Vast deployment is not an
+active target because the GPU was terminated to save cost.
 
 - Latest native XRIQ Phase 1.1 contract-artifact checkpoint: added
   `xriq/db/schema.sql`, `xriq/fixtures/phase1_1/`, and
@@ -173,6 +175,16 @@ target because the GPU was terminated to save cost.
   `python scripts/xriq_phase1_1_contract_check.py`, reporting 10 tables and 14
   fixtures. Phase 1.1 status is now about `17%` overall. No GCP resources were
   provisioned, no Rust behavior changed, and no credentials were changed.
+- Latest native XRIQ Phase 1.1 indexer scaffold checkpoint: added
+  `xriq/crates/xriq-indexer` and registered it in the Rust workspace. The crate
+  builds a PostgreSQL-facing in-memory read model from the existing
+  file-backed chain/ledger state for blocks, confirmed transactions, accounts,
+  final balances, account transaction history, and deterministic audit events.
+  It includes idempotent replay behavior and conflict detection for a different
+  block at an already-indexed height. Focused verification passed with
+  `cargo test -p xriq-indexer` (`4` tests). Phase 1.1 status is now about
+  `20%` overall. No GCP resources were provisioned, no database was required,
+  no public/DEX behavior was added, and no credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
   defines private/local product API groups for health, explorer, wallet, admin,

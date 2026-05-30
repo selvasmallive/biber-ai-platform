@@ -23,7 +23,8 @@ The local PostgreSQL schema and fixtures are `xriq/db/schema.sql` and
 `python scripts/xriq_phase1_1_contract_check.py`.
 
 Provision GCP only after the local contracts and first indexer prototype are
-stable enough to deploy.
+stable enough to deploy. The first Rust-only indexer scaffold is
+`xriq/crates/xriq-indexer`; it still does not require GCP.
 
 ## Recommended GCP Shape
 
@@ -66,7 +67,9 @@ Provision only if the API/database contracts are stable:
 ### After Milestone B
 
 Provision a small Cloud SQL for PostgreSQL instance only after the local
-PostgreSQL schema and indexer replay tests pass.
+PostgreSQL schema and indexer replay tests pass and a local persistence adapter
+exists. The current `xriq-indexer` crate is intentionally in-memory, so it does
+not justify Cloud SQL yet.
 
 ### After Milestone C/D
 
