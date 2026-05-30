@@ -33,8 +33,12 @@ for (const route of [
   "/api/v1/network",
   "/api/v1/explorer/overview",
   "/api/v1/blocks?limit=5",
+  "/api/v1/blocks/",
   "/api/v1/transactions?limit=5",
+  "/api/v1/transactions/",
   "/api/v1/accounts?limit=5",
+  "/api/v1/accounts/",
+  "/transactions?limit=5",
   "/api/v1/admin/indexer/status",
 ]) {
   if (!apiSource.includes(route)) {
@@ -48,6 +52,9 @@ for (const requiredText of [
   "XRIQ Explorer",
   "private-devnet",
   "xriq-topology.svg",
+  "Block Detail",
+  "Transaction Detail",
+  "Account Detail",
 ]) {
   if (!appSource.includes(requiredText)) {
     throw new Error(`missing UI marker: ${requiredText}`);

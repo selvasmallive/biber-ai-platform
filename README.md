@@ -286,7 +286,8 @@ production payment-network support.
 
 The first React + TypeScript explorer UI shell is in
 `xriq/apps/explorer-ui`. It is a local private-devnet dashboard that reads the
-`xriq-api` `/api/v1/...` routes through Vite's same-origin `/api` proxy.
+`xriq-api` `/api/v1/...` routes through Vite's same-origin `/api` proxy and
+shows basic block, transaction, and account detail panels.
 
 ```powershell
 cd xriq

@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `34%` overall. Current Rust
+- Phase 1.1 estimated completion: about `36%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, admin portal, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -150,7 +150,8 @@ unless the user changes the project scope again.
   a private-devnet preview mapping layer only, not certification or payment
   network connectivity. The first React + TypeScript explorer UI shell exists
   in `xriq/apps/explorer-ui` and renders local product API health, totals,
-  network metadata, blocks, transactions, and accounts.
+  network metadata, blocks, transactions, accounts, and basic drill-down detail
+  panels.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -327,6 +328,20 @@ active target because the GPU was terminated to save cost.
   `127.0.0.1:5173`, and browser verification showing private-devnet data:
   height=1, blocks=1, transactions=1, accounts=3. Phase 1.1 status is now
   about `34%` overall. No GCP resources were provisioned, no public/DEX
+  behavior was added, and no credentials were changed.
+- Latest native XRIQ Phase 1.1 explorer detail-panel checkpoint: extended
+  `xriq/apps/explorer-ui` with typed detail fetches for
+  `/api/v1/blocks/{height-or-hash}`, `/api/v1/transactions/{hash}`,
+  `/api/v1/accounts/{address}`, and
+  `/api/v1/accounts/{address}/transactions?limit=5`. The UI now has selectable
+  block, transaction, and account rows plus read-only detail panels for block
+  hashes/roots/embedded transactions, transaction status/from/to/amount/fee,
+  account balance/nonce/state root, and account transaction history. The
+  static checker now requires those detail routes and UI markers. Verification
+  passed with `npm.cmd run check`, `npm.cmd run build`, browser verification
+  against live local `xriq-api` and Vite dev servers, no browser console
+  errors, `cargo test -p xriq-api`, and `git diff --check`. Phase 1.1 status
+  is now about `36%` overall. No GCP resources were provisioned, no public/DEX
   behavior was added, and no credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It

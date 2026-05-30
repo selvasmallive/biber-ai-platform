@@ -53,6 +53,12 @@ export interface BlockListResponse {
   blocks: BlockSummary[];
 }
 
+export interface BlockDetailResponse extends BlockSummary {
+  environment: "private-devnet";
+  network: string;
+  transactions: TransactionSummary[];
+}
+
 export interface TransactionSummary {
   tx_hash: string;
   block_height: number;
@@ -74,6 +80,11 @@ export interface TransactionListResponse {
   transactions: TransactionSummary[];
 }
 
+export interface TransactionDetailResponse extends TransactionSummary {
+  environment: "private-devnet";
+  network: string;
+}
+
 export interface AccountSummary {
   address: string;
   balance_base_units: string;
@@ -90,6 +101,30 @@ export interface AccountListResponse {
   limit: number;
   next_cursor: string | null;
   accounts: AccountSummary[];
+}
+
+export interface AccountDetailResponse extends AccountSummary {
+  environment: "private-devnet";
+  network: string;
+}
+
+export interface AccountTransaction {
+  address: string;
+  tx_hash: string;
+  direction: string;
+  block_height: number;
+  transaction_index: number;
+  amount_base_units: string;
+  fee_base_units: string;
+}
+
+export interface AccountHistoryResponse {
+  environment: "private-devnet";
+  network: string;
+  address: string;
+  limit: number;
+  next_cursor: string | null;
+  transactions: AccountTransaction[];
 }
 
 export interface IndexerStatusResponse {
@@ -161,6 +196,46 @@ export async function loadExplorerSnapshot(
     accounts,
     indexer,
   };
+}
+
+export async function loadBlockDetail(
+  baseUrl: string,
+  heightOrHash: string,
+): Promise<BlockDetailResponse> {
+  return fetchJson<BlockDetailResponse>(
+    normalizeBaseUrl(baseUrl),
+    `/api/v1/blocks/${encodeURIComponent(heightOrHash)}`,
+  );
+}
+
+export async function loadTransactionDetail(
+  baseUrl: string,
+  txHash: string,
+): Promise<TransactionDetailResponse> {
+  return fetchJson<TransactionDetailResponse>(
+    normalizeBaseUrl(baseUrl),
+    `/api/v1/transactions/${encodeURIComponent(txHash)}`,
+  );
+}
+
+export async function loadAccountDetail(
+  baseUrl: string,
+  address: string,
+): Promise<AccountDetailResponse> {
+  return fetchJson<AccountDetailResponse>(
+    normalizeBaseUrl(baseUrl),
+    `/api/v1/accounts/${encodeURIComponent(address)}`,
+  );
+}
+
+export async function loadAccountHistory(
+  baseUrl: string,
+  address: string,
+): Promise<AccountHistoryResponse> {
+  return fetchJson<AccountHistoryResponse>(
+    normalizeBaseUrl(baseUrl),
+    `/api/v1/accounts/${encodeURIComponent(address)}/transactions?limit=5`,
+  );
 }
 
 async function fetchJson<T>(baseUrl: string, path: string): Promise<T> {

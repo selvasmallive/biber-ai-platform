@@ -90,7 +90,8 @@ cargo test -p xriq-iso20022
 
 The first React + TypeScript explorer UI shell lives at
 `apps/explorer-ui`. It reads the product API through the dev server's
-same-origin `/api` proxy.
+same-origin `/api` proxy and shows basic block, transaction, and account
+detail panels.
 
 ```powershell
 cargo run -p xriq-api -- serve-readonly --chain-file target\xriq-indexer-replay-smoke.bin --alice-balance 100 --bind 127.0.0.1:8090
