@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `52%` overall. Current Rust
+- Phase 1.1 estimated completion: about `53%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -152,7 +152,8 @@ unless the user changes the project scope again.
   payment-initiation, transaction-status, and account-statement preview routes.
   `xriq-api` now includes private-devnet wallet status,
   account list, balance, history, transaction status, and non-mutating
-  draft-preview routes. The first React + TypeScript explorer UI shell exists
+  draft-preview routes, including pending-file-aware wallet transaction status
+  for durable pending hashes. The first React + TypeScript explorer UI shell exists
   in `xriq/apps/explorer-ui` and renders local product API health, totals,
   network metadata, blocks, transactions, accounts, and basic drill-down detail
   panels. The same app now includes a preview-only wallet transfer draft panel
@@ -542,6 +543,27 @@ active target because the GPU was terminated to save cost.
   resources were provisioned, no public/DEX behavior was added, no mutating
   admin controls were added, no wallet submission/block-production behavior
   was added, and no credentials were changed.
+- Latest native XRIQ Phase 1.1 pending wallet transaction-status checkpoint:
+  extended `xriq-api` so `GET /api/v1/wallet/transactions/{hash}/status`
+  checks confirmed indexed transactions first and then the optional
+  `--pending-file` mempool entries. Pending wallet status responses return
+  `status: "pending"` with `block_height`, `block_hash`, and
+  `transaction_index` set to `null` until the transaction is confirmed.
+  `wallet_status.pending_transactions` now reflects the read-only pending-file
+  count. Confirmed wallet transaction-status JSON remains unchanged for
+  confirmed rows. Verification passed `cargo fmt`, isolated-target
+  `cargo test -p xriq-api -j 1` (`16` lib tests plus `5` binary tests),
+  isolated-target `cargo clippy -p xriq-api -- -D warnings`, and a CLI smoke
+  that created a durable pending transaction with `xriq-wallet send`, then
+  queried `/api/v1/wallet/transactions/<pending-hash>/status` through
+  `xriq-api request --pending-file` and received `200 OK`, `status:
+  "pending"`, and null block fields. The first default-target test attempt hit
+  the known Windows linker/executable lock and was rerun with
+  `CARGO_TARGET_DIR=target-codex-pending-wallet-status`. Phase 1.1 status is
+  now about `53%` overall. No GCP resources were provisioned, no public/DEX
+  behavior was added, no mutating admin controls were added, no wallet
+  submission/block-production behavior was added, and no credentials were
+  changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
   defines private/local product API groups for health, explorer, wallet, admin,

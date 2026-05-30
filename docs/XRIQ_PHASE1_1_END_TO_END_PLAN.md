@@ -64,8 +64,8 @@ Current status after Phase 1 RC1:
 Rust
  |-- Blockchain node        ~70% for private-devnet; RC1 baseline exists
  |-- Consensus engine       ~60% for private-devnet; single-authority baseline
- |-- Wallet backend         ~50%; CLI flows plus product read/preview routes exist
- |-- APIs                   ~54%; local HTTP wrappers plus wallet/admin/node/pending-file mempool/ISO preview read routes exist
+ |-- Wallet backend         ~51%; CLI flows plus product read/preview/pending-status routes exist
+ |-- APIs                   ~55%; local HTTP wrappers plus wallet/admin/node/pending-file mempool/pending-status/ISO preview read routes exist
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first read-only ISO 20022 UI checkpoint, Phase 1.1 status
-is about `52%`: the contract document, PostgreSQL read-model schema, JSON
+After the first read-only pending wallet-status checkpoint, Phase 1.1 status
+is about `53%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -100,7 +100,8 @@ response boundary with `/api/v1/...` route/render behavior, a local
 adapter through private-devnet GET-only payment-initiation, payment-status,
 and account-statement preview routes. `xriq-api` now includes
 private-devnet wallet status, account list, balance, history, transaction
-status, and non-mutating transfer draft-preview routes. The first React + TypeScript
+status, pending-file transaction status with null block fields, and
+non-mutating transfer draft-preview routes. The first React + TypeScript
 explorer shell in `xriq/apps/explorer-ui` can render health, network totals,
 blocks, transactions, accounts, block detail, transaction detail, account
 detail, and account transaction history from the local product API. The same
@@ -194,6 +195,8 @@ when intentionally applying the read model to a local development database.
   `IndexedChainSnapshot`, wallet status/account/balance/history/transaction
   status/draft-preview routes, a read-only `/api/v1/mempool` status route that
   can inspect an optional durable pending TSV through `--pending-file`,
+  pending-file-aware wallet transaction status for
+  `/api/v1/wallet/transactions/{hash}/status`,
   read-only admin node-status, audit events, snapshot catalog routes, and
   GET-only ISO 20022 preview routes, a
   `request` CLI smoke path, and a local `serve-readonly` socket wrapper. The

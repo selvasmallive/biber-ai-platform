@@ -79,7 +79,10 @@ cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.b
 To expose the same product API routes over localhost for a browser/client
 smoke, run. The optional `--pending-file` is read-only in `xriq-api`: it lets
 the Admin panel inspect durable private-devnet pending entries while wallet
-submit and block production remain disabled in the product API.
+submit and block production remain disabled in the product API. The same
+pending file also lets
+`/api/v1/wallet/transactions/{hash}/status` report pending transaction hashes
+with null block fields until a private-devnet block confirms them.
 
 ```bash
 cargo run -p xriq-api -- serve-readonly --chain-file target/xriq-indexer-replay-smoke.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --bind 127.0.0.1:8090

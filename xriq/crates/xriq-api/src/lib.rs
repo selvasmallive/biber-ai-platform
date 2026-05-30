@@ -313,7 +313,7 @@ impl XriqApiService {
             latest_block_hash: self.snapshot.latest_block_hash.clone(),
             state_root: self.snapshot.state_root.clone(),
             account_count: self.snapshot.read_model.account_balances.len(),
-            pending_transactions: 0,
+            pending_transactions: self.pending_entries.len(),
             can_draft: true,
             can_submit: false,
             can_send: false,
@@ -350,16 +350,33 @@ impl XriqApiService {
         &self,
         tx_hash: &str,
     ) -> Result<WalletTransactionStatusResponse, ApiError> {
-        let transaction = self.transaction(tx_hash)?;
+        if let Ok(transaction) = self.transaction(tx_hash) {
+            return Ok(WalletTransactionStatusResponse {
+                environment: API_ENVIRONMENT,
+                network: self.snapshot.chain_id.clone(),
+                warning: WALLET_PREVIEW_WARNING,
+                tx_hash: transaction.tx_hash,
+                status: transaction.status,
+                block_height: Some(transaction.block_height),
+                block_hash: Some(transaction.block_hash),
+                transaction_index: Some(transaction.transaction_index),
+            });
+        }
+
+        let pending = self
+            .pending_entries
+            .iter()
+            .find(|entry| entry.tx_hash == tx_hash)
+            .ok_or(ApiError::TransactionNotFound)?;
         Ok(WalletTransactionStatusResponse {
             environment: API_ENVIRONMENT,
             network: self.snapshot.chain_id.clone(),
             warning: WALLET_PREVIEW_WARNING,
-            tx_hash: transaction.tx_hash,
-            status: transaction.status,
-            block_height: transaction.block_height,
-            block_hash: transaction.block_hash,
-            transaction_index: transaction.transaction_index,
+            tx_hash: pending.tx_hash.clone(),
+            status: pending.status.clone(),
+            block_height: None,
+            block_hash: None,
+            transaction_index: None,
         })
     }
 
@@ -1065,9 +1082,9 @@ pub struct WalletTransactionStatusResponse {
     pub warning: &'static str,
     pub tx_hash: String,
     pub status: String,
-    pub block_height: u64,
-    pub block_hash: String,
-    pub transaction_index: usize,
+    pub block_height: Option<u64>,
+    pub block_hash: Option<String>,
+    pub transaction_index: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2228,19 +2245,19 @@ fn render_wallet_transaction_status_json(response: &WalletTransactionStatusRespo
     writeln!(
         &mut output,
         "  \"block_height\": {},",
-        response.block_height
+        json_optional_u64(response.block_height)
     )
     .expect("write to String");
     writeln!(
         &mut output,
         "  \"block_hash\": {},",
-        json_string(&response.block_hash)
+        json_optional_string(response.block_hash.as_deref())
     )
     .expect("write to String");
     write!(
         &mut output,
         "  \"transaction_index\": {}\n}}",
-        response.transaction_index
+        json_optional_usize(response.transaction_index)
     )
     .expect("write to String");
     output
@@ -2870,6 +2887,12 @@ fn json_optional_u64(value: Option<u64>) -> String {
         .unwrap_or_else(|| "null".to_string())
 }
 
+fn json_optional_usize(value: Option<usize>) -> String {
+    value
+        .map(|number| number.to_string())
+        .unwrap_or_else(|| "null".to_string())
+}
+
 fn json_string(value: &str) -> String {
     let mut output = String::with_capacity(value.len() + 2);
     output.push('"');
@@ -3294,7 +3317,19 @@ mod tests {
 
         let tx_status = api.wallet_transaction_status(TX_HASH).unwrap();
         assert_eq!(tx_status.status, "confirmed");
-        assert_eq!(tx_status.block_height, 1);
+        assert_eq!(tx_status.block_height, Some(1));
+
+        let pending_api = service_with_pending_mempool();
+        let pending_entry = pending_api.mempool(5).entries[0].clone();
+        let pending_status = pending_api
+            .wallet_transaction_status(&pending_entry.tx_hash)
+            .unwrap();
+        assert_eq!(pending_api.wallet_status().pending_transactions, 1);
+        assert_eq!(pending_status.status, "pending");
+        assert_eq!(pending_status.block_height, None);
+        assert_eq!(pending_status.block_hash, None);
+        assert_eq!(pending_status.transaction_index, None);
+        assert_eq!(pending_status.tx_hash, pending_entry.tx_hash);
 
         let preview = api.wallet_transfer_draft_preview(WalletTransferDraftPreviewRequest {
             chain_id: "xriq-devnet".to_string(),
@@ -3523,6 +3558,23 @@ mod tests {
         assert!(pending_mempool.body.contains("\"pending_count\": 1"));
         assert!(pending_mempool.body.contains("\"status\": \"pending\""));
         assert!(pending_mempool.body.contains("xriqdev1carol00000000000"));
+        let pending_hash = pending_api.mempool(5).entries[0].tx_hash.clone();
+        let pending_wallet_status = product_api_http_response(
+            &pending_api,
+            "GET",
+            &format!("/api/v1/wallet/transactions/{pending_hash}/status"),
+        );
+        assert_eq!(pending_wallet_status.status_code, 200);
+        assert!(pending_wallet_status
+            .body
+            .contains("\"status\": \"pending\""));
+        assert!(pending_wallet_status
+            .body
+            .contains("\"block_height\": null"));
+        assert!(pending_wallet_status.body.contains("\"block_hash\": null"));
+        assert!(pending_wallet_status
+            .body
+            .contains("\"transaction_index\": null"));
 
         let audit = product_api_http_response(&api, "GET", "/api/v1/admin/audit-events?limit=5");
         assert_eq!(audit.status_code, 200);
