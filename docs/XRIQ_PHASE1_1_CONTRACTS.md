@@ -352,12 +352,12 @@ xriq/fixtures/phase1_1/
 
 ## Next Implementation Step
 
-Continue Milestone B by wiring the deterministic indexer scaffold to a local
-command or PostgreSQL-backed persistence adapter:
+Continue Milestone B by wiring the deterministic indexer scaffold to a
+PostgreSQL-backed persistence adapter:
 
 1. Keep `xriq-indexer` as the pure, deterministic read-model layer.
-2. Add a local replay command that reads the file-backed chain and emits or
-   writes indexed blocks, transactions, accounts, balances, and audit events.
+2. Keep using the local replay command to validate file-backed chain replay and
+   read-model counts before database work.
 3. Add PostgreSQL integration only after replay behavior stays idempotent in
    local tests.
 
@@ -389,7 +389,15 @@ Run the focused Rust indexer scaffold tests from `xriq/`:
 cargo test -p xriq-indexer
 ```
 
+Run the local replay command from `xriq/` against an existing private-devnet
+chain file:
+
+```bash
+cargo run -p xriq-indexer -- replay --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --format json
+```
+
 The indexer scaffold currently builds a PostgreSQL-facing in-memory read model
 for blocks, confirmed transactions, accounts, balances, account transaction
 history, and audit events. It detects conflicting replay at the same block
-height and keeps repeat replay idempotent.
+height, validates canonical private-devnet block replay for the command path,
+and keeps repeat replay idempotent.

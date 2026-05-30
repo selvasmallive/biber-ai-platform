@@ -4,15 +4,24 @@
 //! PostgreSQL schema in `xriq/db/schema.sql`. It intentionally keeps storage
 //! in memory for now so replay behavior can be tested before wiring a database.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt};
 
-use xriq_core::{Address, Hash32, Transaction, XriqAmount};
-use xriq_crypto::{account_state_root, transaction_hash};
-use xriq_ledger::LedgerState;
+use xriq_core::{
+    Address, BlockValidationError, GenesisConfig, GenesisConfigError, Hash32, ParentHeaderView,
+    Transaction, XriqAmount,
+};
+use xriq_crypto::{
+    account_state_root, block_hash as canonical_block_hash, transaction_hash,
+    transactions_root as canonical_transactions_root, SignatureVerificationError,
+    TestOnlySignatureVerifier,
+};
+use xriq_ledger::{LedgerError, LedgerState};
 use xriq_storage::{ChainStore, StoredBlock};
 
 pub const INDEXER_ACTOR: &str = "xriq-indexer";
 pub const INDEXER_ENVIRONMENT: &str = "private-devnet";
+pub const INDEXER_PRIVATE_DEVNET_WARNING: &str = "private-devnet-only-no-public-token";
+pub const PRIVATE_DEVNET_ALICE_ADDRESS: &str = "xriqdev1alice00000000000";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IndexedBlock {
@@ -86,6 +95,18 @@ pub struct IndexedReadModel {
     pub audit_events: BTreeMap<String, IndexedAuditEvent>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexedChainSnapshot {
+    pub warning: &'static str,
+    pub environment: &'static str,
+    pub chain_id: String,
+    pub current_height: u64,
+    pub latest_block_hash: String,
+    pub state_root: String,
+    pub read_model: IndexedReadModel,
+    pub summary: IndexReplaySummary,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct IndexReplaySummary {
     pub blocks_seen: usize,
@@ -115,6 +136,74 @@ pub enum IndexerError {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IndexReplayError {
+    Genesis(GenesisConfigError),
+    Header(BlockValidationError),
+    MissingStoredBlock { height: u64 },
+    UnexpectedStoredBlockHeight { minimum: u64, actual: u64 },
+    UnexpectedStoredBlockCount { expected: usize, actual: usize },
+    WrongStoredBlockHash { expected: String, actual: String },
+    UnauthorizedProducer { expected: String, actual: String },
+    TooManyBlockTransactions { max: usize, actual: usize },
+    TransactionSignature(SignatureVerificationError),
+    WrongTransactionsRoot { expected: String, actual: String },
+    Ledger(LedgerError),
+    WrongStateRoot { expected: String, actual: String },
+    BlockSignature(SignatureVerificationError),
+    Indexer(IndexerError),
+}
+
+impl fmt::Display for IndexReplayError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Genesis(error) => write!(formatter, "genesis error: {error:?}"),
+            Self::Header(error) => write!(formatter, "block header error: {error:?}"),
+            Self::MissingStoredBlock { height } => {
+                write!(formatter, "missing stored block at height {height}")
+            }
+            Self::UnexpectedStoredBlockHeight { minimum, actual } => write!(
+                formatter,
+                "unexpected stored block height: expected at least {minimum}, got {actual}"
+            ),
+            Self::UnexpectedStoredBlockCount { expected, actual } => write!(
+                formatter,
+                "unexpected stored block count: expected {expected}, got {actual}"
+            ),
+            Self::WrongStoredBlockHash { expected, actual } => write!(
+                formatter,
+                "wrong stored block hash: expected {expected}, got {actual}"
+            ),
+            Self::UnauthorizedProducer { expected, actual } => {
+                write!(
+                    formatter,
+                    "unauthorized producer: expected {expected}, got {actual}"
+                )
+            }
+            Self::TooManyBlockTransactions { max, actual } => write!(
+                formatter,
+                "too many block transactions: max {max}, got {actual}"
+            ),
+            Self::TransactionSignature(error) => {
+                write!(formatter, "transaction signature error: {error:?}")
+            }
+            Self::WrongTransactionsRoot { expected, actual } => write!(
+                formatter,
+                "wrong transactions root: expected {expected}, got {actual}"
+            ),
+            Self::Ledger(error) => write!(formatter, "ledger error: {error:?}"),
+            Self::WrongStateRoot { expected, actual } => {
+                write!(
+                    formatter,
+                    "wrong state root: expected {expected}, got {actual}"
+                )
+            }
+            Self::BlockSignature(error) => write!(formatter, "block signature error: {error:?}"),
+            Self::Indexer(error) => write!(formatter, "indexer error: {error:?}"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 struct BlockApplyCounts {
     blocks_indexed: usize,
@@ -122,6 +211,39 @@ struct BlockApplyCounts {
     transactions_indexed: usize,
     account_transactions_indexed: usize,
     audit_events_indexed: usize,
+}
+
+pub fn private_devnet_indexer_genesis(alice_balance: Option<XriqAmount>) -> GenesisConfig {
+    let genesis = GenesisConfig::private_devnet();
+    match alice_balance {
+        Some(balance) => genesis.with_account(
+            Address::parse(PRIVATE_DEVNET_ALICE_ADDRESS)
+                .expect("private devnet Alice address is valid"),
+            balance,
+            0,
+        ),
+        None => genesis,
+    }
+}
+
+pub fn index_private_devnet_store<S: ChainStore>(
+    store: &S,
+    alice_balance: Option<XriqAmount>,
+) -> Result<IndexedChainSnapshot, IndexReplayError> {
+    let genesis = private_devnet_indexer_genesis(alice_balance);
+    let replay = replay_private_devnet_store(store, &genesis)?;
+    let (read_model, summary) =
+        index_chain_snapshot(store, &replay.ledger).map_err(IndexReplayError::Indexer)?;
+    Ok(IndexedChainSnapshot {
+        warning: INDEXER_PRIVATE_DEVNET_WARNING,
+        environment: INDEXER_ENVIRONMENT,
+        chain_id: replay.ledger.config().chain_id.clone(),
+        current_height: replay.ledger.current_height(),
+        latest_block_hash: hash_hex(replay.latest_block_hash),
+        state_root: hash_hex(account_state_root(&replay.ledger.state_root_entries())),
+        read_model,
+        summary,
+    })
 }
 
 impl IndexedReadModel {
@@ -386,6 +508,146 @@ impl IndexedReadModel {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ReplayPrivateDevnetStoreResult {
+    ledger: LedgerState,
+    latest_block_hash: Hash32,
+}
+
+fn replay_private_devnet_store<S: ChainStore>(
+    store: &S,
+    genesis: &GenesisConfig,
+) -> Result<ReplayPrivateDevnetStoreResult, IndexReplayError> {
+    let mut ledger = LedgerState::from_genesis(genesis).map_err(IndexReplayError::Genesis)?;
+    let mut latest_block_hash = genesis.genesis_block_hash;
+    let Some(latest_record) = store.latest_block() else {
+        return Ok(ReplayPrivateDevnetStoreResult {
+            ledger,
+            latest_block_hash,
+        });
+    };
+
+    let minimum_height = genesis
+        .initial_height
+        .checked_add(1)
+        .ok_or(IndexReplayError::Header(
+            BlockValidationError::HeightOverflow,
+        ))?;
+    let latest_height = latest_record.block.header.height;
+    if latest_height < minimum_height {
+        return Err(IndexReplayError::UnexpectedStoredBlockHeight {
+            minimum: minimum_height,
+            actual: latest_height,
+        });
+    }
+
+    let mut height = minimum_height;
+    while height <= latest_height {
+        let record = store
+            .block_by_height(height)
+            .ok_or(IndexReplayError::MissingStoredBlock { height })?;
+        replay_private_devnet_block(&mut ledger, genesis, latest_block_hash, record)?;
+        latest_block_hash = record.block_hash;
+        if height == latest_height {
+            break;
+        }
+        height = height.checked_add(1).ok_or(IndexReplayError::Header(
+            BlockValidationError::HeightOverflow,
+        ))?;
+    }
+
+    let expected_blocks = ledger
+        .current_height()
+        .checked_sub(genesis.initial_height)
+        .ok_or(IndexReplayError::UnexpectedStoredBlockHeight {
+            minimum: genesis.initial_height,
+            actual: ledger.current_height(),
+        })?;
+    let expected_blocks = usize::try_from(expected_blocks)
+        .map_err(|_| IndexReplayError::Header(BlockValidationError::HeightOverflow))?;
+    if store.len() != expected_blocks {
+        return Err(IndexReplayError::UnexpectedStoredBlockCount {
+            expected: expected_blocks,
+            actual: store.len(),
+        });
+    }
+
+    Ok(ReplayPrivateDevnetStoreResult {
+        ledger,
+        latest_block_hash,
+    })
+}
+
+fn replay_private_devnet_block(
+    ledger: &mut LedgerState,
+    genesis: &GenesisConfig,
+    parent_block_hash: Hash32,
+    record: &StoredBlock,
+) -> Result<(), IndexReplayError> {
+    let expected_hash = canonical_block_hash(&record.block);
+    if record.block_hash != expected_hash {
+        return Err(IndexReplayError::WrongStoredBlockHash {
+            expected: hash_hex(expected_hash),
+            actual: hash_hex(record.block_hash),
+        });
+    }
+
+    let parent = ParentHeaderView {
+        chain_id: ledger.config().chain_id.clone(),
+        height: ledger.current_height(),
+        block_hash: parent_block_hash,
+    };
+    record
+        .block
+        .header
+        .validate_against_parent(&parent)
+        .map_err(IndexReplayError::Header)?;
+    if record.block.header.producer != genesis.authority {
+        return Err(IndexReplayError::UnauthorizedProducer {
+            expected: genesis.authority.to_string(),
+            actual: record.block.header.producer.to_string(),
+        });
+    }
+    if record.block.transactions.len() > genesis.max_transactions_per_block {
+        return Err(IndexReplayError::TooManyBlockTransactions {
+            max: genesis.max_transactions_per_block,
+            actual: record.block.transactions.len(),
+        });
+    }
+    for transaction in &record.block.transactions {
+        TestOnlySignatureVerifier
+            .verify_transaction(transaction)
+            .map_err(IndexReplayError::TransactionSignature)?;
+    }
+    let expected_transactions_root = canonical_transactions_root(&record.block.transactions);
+    if record.block.header.transactions_root != expected_transactions_root {
+        return Err(IndexReplayError::WrongTransactionsRoot {
+            expected: hash_hex(expected_transactions_root),
+            actual: hash_hex(record.block.header.transactions_root),
+        });
+    }
+
+    let mut next_ledger = ledger.clone();
+    for transaction in &record.block.transactions {
+        next_ledger
+            .apply_transaction(transaction)
+            .map_err(IndexReplayError::Ledger)?;
+    }
+    let expected_state_root = account_state_root(&next_ledger.state_root_entries());
+    if record.block.header.state_root != expected_state_root {
+        return Err(IndexReplayError::WrongStateRoot {
+            expected: hash_hex(expected_state_root),
+            actual: hash_hex(record.block.header.state_root),
+        });
+    }
+    TestOnlySignatureVerifier
+        .verify_block_header(&record.block.header)
+        .map_err(IndexReplayError::BlockSignature)?;
+    next_ledger.set_current_height(record.block.header.height);
+    *ledger = next_ledger;
+    Ok(())
+}
+
 pub fn index_chain_snapshot<S: ChainStore>(
     store: &S,
     ledger: &LedgerState,
@@ -431,6 +693,9 @@ fn amount_string(amount: XriqAmount) -> String {
 mod tests {
     use super::*;
     use xriq_core::{Block, BlockHeader, SignatureBytes, Transaction};
+    use xriq_crypto::{
+        block_header_signing_hash, test_only_signature_for_hash, transaction_signing_hash,
+    };
     use xriq_ledger::{Account, LedgerConfig, LedgerState};
     use xriq_storage::{ChainStore, InMemoryChainStore};
 
@@ -459,6 +724,19 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(vec![1, 2, 3]),
         }
+    }
+
+    fn signed_transaction(
+        from: Address,
+        to: Address,
+        nonce: u64,
+        amount: u128,
+        fee: u128,
+    ) -> Transaction {
+        let mut transaction = transaction(from, to, nonce, amount, fee);
+        transaction.signature =
+            test_only_signature_for_hash(transaction_signing_hash(&transaction));
+        transaction
     }
 
     fn block(height: u64, previous_block_hash: Hash32, transactions: Vec<Transaction>) -> Block {
@@ -508,6 +786,36 @@ mod tests {
         let tx1_hash = hash_hex(transaction_hash(&tx1));
         let tx2_hash = hash_hex(transaction_hash(&tx2));
         (store, ledger, tx1_hash, tx2_hash)
+    }
+
+    fn canonical_private_devnet_store() -> (InMemoryChainStore, String) {
+        let genesis = private_devnet_indexer_genesis(Some(XriqAmount::from_base_units(100)));
+        let tx = signed_transaction(address("alice"), address("bobbb"), 0, 25, 2);
+        let mut ledger = LedgerState::from_genesis(&genesis).unwrap();
+        ledger.apply_transaction(&tx).unwrap();
+        let state_root = account_state_root(&ledger.state_root_entries());
+        let transactions_root = canonical_transactions_root(std::slice::from_ref(&tx));
+        let mut header = BlockHeader {
+            version: BlockHeader::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            height: 1,
+            previous_block_hash: Hash32::ZERO,
+            state_root,
+            transactions_root,
+            timestamp_ms: 1_001,
+            producer: genesis.authority,
+            consensus_round: 0,
+            signature: SignatureBytes::new(Vec::new()),
+        };
+        header.signature = test_only_signature_for_hash(block_header_signing_hash(&header));
+        let mut store = InMemoryChainStore::new();
+        let block_hash = store
+            .append_block_with_canonical_hash(Block {
+                header,
+                transactions: vec![tx],
+            })
+            .unwrap();
+        (store, hash_hex(block_hash))
     }
 
     #[test]
@@ -599,5 +907,23 @@ mod tests {
             model.replay_chain(&changed_store, &ledger),
             Err(IndexerError::ConflictingBlockHeight { height: 1 })
         );
+    }
+
+    #[test]
+    fn indexes_private_devnet_store_with_replayed_metadata() {
+        let (store, block_hash) = canonical_private_devnet_store();
+
+        let snapshot =
+            index_private_devnet_store(&store, Some(XriqAmount::from_base_units(100))).unwrap();
+
+        assert_eq!(snapshot.warning, INDEXER_PRIVATE_DEVNET_WARNING);
+        assert_eq!(snapshot.environment, "private-devnet");
+        assert_eq!(snapshot.chain_id, "xriq-devnet");
+        assert_eq!(snapshot.current_height, 1);
+        assert_eq!(snapshot.latest_block_hash, block_hash);
+        assert_eq!(snapshot.summary.blocks_seen, 1);
+        assert_eq!(snapshot.read_model.blocks.len(), 1);
+        assert_eq!(snapshot.read_model.transactions.len(), 1);
+        assert_eq!(snapshot.read_model.account_balances.len(), 3);
     }
 }

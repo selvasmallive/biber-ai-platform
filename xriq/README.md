@@ -56,6 +56,13 @@ The first Phase 1.1 indexer scaffold can be checked with:
 cargo test -p xriq-indexer
 ```
 
+After producing a local private-devnet chain file, replay it through the
+indexer read model with:
+
+```bash
+cargo run -p xriq-indexer -- replay --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --format json
+```
+
 After the local check has passed and the RC checkpoint is committed, the latest
 summary can be re-checked without rerunning Rust:
 

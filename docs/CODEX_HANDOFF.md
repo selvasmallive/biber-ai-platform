@@ -135,13 +135,13 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `20%` overall. Current Rust
+- Phase 1.1 estimated completion: about `21%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, ISO 20022 adapter, admin portal, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
   read-model schema, JSON fixtures, and a local validation script. Milestone B
-  now has the first deterministic Rust read-model indexer scaffold, but no
-  database persistence yet.
+  now has the first deterministic Rust read-model indexer scaffold and local
+  replay command, but no database persistence yet.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -185,6 +185,21 @@ active target because the GPU was terminated to save cost.
   `cargo test -p xriq-indexer` (`4` tests). Phase 1.1 status is now about
   `20%` overall. No GCP resources were provisioned, no database was required,
   no public/DEX behavior was added, and no credentials were changed.
+- Latest native XRIQ Phase 1.1 indexer replay-command checkpoint: extended
+  `xriq/crates/xriq-indexer` with canonical private-devnet chain replay
+  validation and a local CLI command:
+  `cargo run -p xriq-indexer -- replay --chain-file <path> --alice-balance 100 --format json`.
+  The command opens a file-backed chain, replays and validates canonical block
+  hashes, parent headers, producer, transaction signatures, transaction root,
+  state root, and block signature, then emits stable JSON/text read-model
+  counts for blocks, confirmed transactions, accounts, balances, account
+  transaction history, and audit events. Focused verification passed with
+  `cargo test -p xriq-indexer` (`5` tests). CLI smoke passed by producing a
+  fresh transfer block with `xriq-node` and replaying it with `xriq-indexer`,
+  reporting 1 block, 1 transaction, 3 accounts, 3 account balances, 2 account
+  transaction records, and 1 audit event. Phase 1.1 status is now about `21%`
+  overall. No GCP resources were provisioned, no database was required, no
+  public/DEX behavior was added, and no credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
   defines private/local product API groups for health, explorer, wallet, admin,
