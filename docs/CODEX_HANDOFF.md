@@ -135,9 +135,9 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `42%` overall. Current Rust
+- Phase 1.1 estimated completion: about `44%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
-  UI, admin portal, exchange UI, and smart contracts are not
+  UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
   read-model schema, JSON fixtures, and a local validation script. Milestone B
   now has the first deterministic Rust read-model indexer scaffold and local
@@ -155,7 +155,8 @@ unless the user changes the project scope again.
   network metadata, blocks, transactions, accounts, and basic drill-down detail
   panels. The same app now includes a preview-only wallet transfer draft panel
   wired to the product wallet draft-preview API. It does not sign, submit,
-  persist, or manage private keys.
+  persist, or manage private keys. The same app now includes a read-only Admin
+  Status panel backed by product API network, indexer, and wallet-status routes.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -397,6 +398,21 @@ active target because the GPU was terminated to save cost.
   resources were provisioned, no public/DEX behavior was added, no
   signing/submission/custody behavior was added, and no credentials were
   changed.
+- Latest native XRIQ Phase 1.1 read-only admin status UI checkpoint: extended
+  `xriq/apps/explorer-ui` with an `AdminStatusPanel` that reads the existing
+  product API snapshot and displays network environment/height/tip/state root,
+  indexer `current` plus last-run `completed` status/counts, and wallet
+  warning/account/pending/capability state. `src/api.ts` now includes
+  `/api/v1/wallet/status` in the main explorer snapshot so the admin panel can
+  show draft/submit/send flags from the server contract. Static guardrails now
+  require admin status markers and still reject public-market wording in UI
+  source. Verification passed with `npm.cmd run check`, `npm.cmd run build`,
+  and browser verification against live local `xriq-api` plus Vite servers
+  showing `Admin Status`, `current`, `completed`, wallet warning, draft enabled,
+  and submit/send disabled with no console errors. Phase 1.1 status is now
+  about `44%` overall. No GCP resources were provisioned, no public/DEX behavior
+  was added, no mutating admin controls were added, no signing/submission
+  behavior was added, and no credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
   defines private/local product API groups for health, explorer, wallet, admin,

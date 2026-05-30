@@ -10,6 +10,7 @@ const requiredFiles = [
   "vite.config.ts",
   "public/xriq-topology.svg",
   "src/App.tsx",
+  "src/admin.tsx",
   "src/api.ts",
   "src/main.tsx",
   "src/styles.css",
@@ -60,6 +61,7 @@ for (const requiredText of [
   "Transaction Detail",
   "Account Detail",
   "WalletShell",
+  "AdminStatusPanel",
 ]) {
   if (!appSource.includes(requiredText)) {
     throw new Error(`missing UI marker: ${requiredText}`);
@@ -67,6 +69,7 @@ for (const requiredText of [
 }
 
 const walletSource = readFileSync(join(root, "src/wallet.tsx"), "utf8");
+const adminSource = readFileSync(join(root, "src/admin.tsx"), "utf8");
 for (const requiredText of [
   "Wallet Preview",
   "xriq-wallet-transfer-preview-v1",
@@ -95,9 +98,21 @@ for (const forbiddenText of [
 for (const forbiddenText of ["mainnet", "liquidity", "custody", "swap"]) {
   if (
     appSource.toLowerCase().includes(forbiddenText) ||
-    walletSource.toLowerCase().includes(forbiddenText)
+    walletSource.toLowerCase().includes(forbiddenText) ||
+    adminSource.toLowerCase().includes(forbiddenText)
   ) {
     throw new Error(`forbidden public-market term found in UI: ${forbiddenText}`);
+  }
+}
+
+for (const requiredText of [
+  "Admin Status",
+  "walletStatus",
+  "capabilities.submit",
+  "capabilities.send",
+]) {
+  if (!adminSource.includes(requiredText)) {
+    throw new Error(`missing admin status marker: ${requiredText}`);
   }
 }
 

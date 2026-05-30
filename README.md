@@ -287,12 +287,14 @@ The first ISO 20022 compatibility adapter scaffold is
 it does not claim ISO certification, bank connectivity, SWIFT connectivity, or
 production payment-network support.
 
-The first React + TypeScript explorer and wallet-preview UI shell is in
-`xriq/apps/explorer-ui`. It is a local private-devnet dashboard that reads the
-`xriq-api` `/api/v1/...` routes through Vite's same-origin `/api` proxy, shows
-basic block, transaction, and account detail panels, and includes a preview-only
-wallet transfer draft surface wired to the product wallet draft-preview API.
-The wallet panel does not sign, submit, persist, or manage private keys.
+The first React + TypeScript explorer, wallet-preview, and admin-status UI shell
+is in `xriq/apps/explorer-ui`. It is a local private-devnet dashboard that reads
+the `xriq-api` `/api/v1/...` routes through Vite's same-origin `/api` proxy,
+shows basic block, transaction, and account detail panels, includes a
+preview-only wallet transfer draft surface wired to the product wallet
+draft-preview API, and shows a read-only admin status panel for network,
+indexer, and wallet capability state. The wallet panel does not sign, submit,
+persist, or manage private keys.
 
 ```powershell
 cd xriq

@@ -88,12 +88,13 @@ with:
 cargo test -p xriq-iso20022
 ```
 
-The first React + TypeScript explorer and wallet-preview UI shell lives at
-`apps/explorer-ui`. It reads the product API through the dev server's
+The first React + TypeScript explorer, wallet-preview, and admin-status UI shell
+lives at `apps/explorer-ui`. It reads the product API through the dev server's
 same-origin `/api` proxy, shows basic block, transaction, and account detail
-panels, and includes a preview-only wallet transfer draft surface wired to the
-product wallet draft-preview API. The wallet panel does not sign, submit,
-persist, or manage private keys.
+panels, includes a preview-only wallet transfer draft surface wired to the
+product wallet draft-preview API, and shows a read-only admin status panel for
+network, indexer, and wallet capability state. The wallet panel does not sign,
+submit, persist, or manage private keys.
 
 ```powershell
 cargo run -p xriq-api -- serve-readonly --chain-file target\xriq-indexer-replay-smoke.bin --alice-balance 100 --bind 127.0.0.1:8090

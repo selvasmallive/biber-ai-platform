@@ -1,0 +1,83 @@
+import { ExplorerSnapshot } from "./api";
+
+interface AdminStatusPanelProps {
+  snapshot: ExplorerSnapshot | null;
+  loadStatus: string;
+}
+
+export function AdminStatusPanel({ snapshot, loadStatus }: AdminStatusPanelProps) {
+  const indexer = snapshot?.indexer;
+  const wallet = snapshot?.walletStatus;
+
+  return (
+    <section className="panel detailPanel widePanel adminPanel">
+      <div className="panelTitle">
+        <h2>Admin Status</h2>
+        <span>{loadStatus}</span>
+      </div>
+
+      <div className="adminGrid" aria-label="Private-devnet admin status">
+        <StatusBlock
+          title="Network"
+          rows={[
+            ["Environment", snapshot?.network.environment ?? "private-devnet"],
+            ["Height", snapshot?.network.current_height ?? "-"],
+            ["Tip Hash", snapshot?.network.latest_block_hash ?? "-"],
+            ["State Root", snapshot?.network.state_root ?? "-"],
+          ]}
+        />
+        <StatusBlock
+          title="Indexer"
+          rows={[
+            ["Status", indexer?.status ?? "-"],
+            ["Lag", indexer?.lag_blocks ?? "-"],
+            ["Run Status", indexer?.last_run.status ?? "-"],
+            ["Run", indexer?.last_run.run_id ?? "-"],
+            ["Blocks", indexer?.last_run.blocks_indexed ?? "-"],
+            ["Transactions", indexer?.last_run.transactions_indexed ?? "-"],
+          ]}
+        />
+        <StatusBlock
+          title="Wallet"
+          rows={[
+            ["Warning", wallet?.warning ?? "-"],
+            ["Accounts", wallet?.account_count ?? "-"],
+            ["Pending", wallet?.pending_transactions ?? "-"],
+            ["Draft", wallet?.capabilities.draft ? "enabled" : "disabled"],
+            ["Submit", wallet?.capabilities.submit ? "enabled" : "disabled"],
+            ["Send", wallet?.capabilities.send ? "enabled" : "disabled"],
+          ]}
+        />
+      </div>
+    </section>
+  );
+}
+
+function StatusBlock({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: Array<[string, string | number]>;
+}) {
+  return (
+    <div className="adminBlock">
+      <h3>{title}</h3>
+      <dl className="detailList">
+        {rows.map(([label, value]) => (
+          <FragmentRow key={label} label={label} value={value} />
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+function FragmentRow({ label, value }: { label: string; value: string | number }) {
+  const isLong = typeof value === "string" && value.length > 24;
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd className={isLong ? "mono truncate" : undefined}>{value}</dd>
+    </>
+  );
+}

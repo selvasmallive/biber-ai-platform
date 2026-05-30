@@ -153,6 +153,7 @@ export interface ExplorerSnapshot {
   transactions: TransactionListResponse;
   accounts: AccountListResponse;
   indexer: IndexerStatusResponse;
+  walletStatus: WalletStatusResponse;
 }
 
 export interface WalletStatusResponse {
@@ -228,6 +229,7 @@ export async function loadExplorerSnapshot(
     transactions,
     accounts,
     indexer,
+    walletStatus,
   ] = await Promise.all([
     fetchJson<HealthResponse>(cleanBaseUrl, "/api/v1/health"),
     fetchJson<NetworkResponse>(cleanBaseUrl, "/api/v1/network"),
@@ -245,6 +247,7 @@ export async function loadExplorerSnapshot(
       cleanBaseUrl,
       "/api/v1/admin/indexer/status",
     ),
+    fetchJson<WalletStatusResponse>(cleanBaseUrl, "/api/v1/wallet/status"),
   ]);
 
   return {
@@ -256,6 +259,7 @@ export async function loadExplorerSnapshot(
     transactions,
     accounts,
     indexer,
+    walletStatus,
   };
 }
 

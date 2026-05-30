@@ -72,7 +72,7 @@ React + TypeScript
  |-- Wallet UI              ~12%; preview-only shell wired to wallet draft-preview API
  |-- Explorer               ~20%; shell plus basic detail panels read product API
  |-- Exchange UI            0%; deferred high legal/compliance-risk surface
- `-- Admin portal           0%; not started
+ `-- Admin portal           ~8%; read-only network/indexer/wallet status panel exists
 
 SQL/PostgreSQL
  |-- Explorer indexing      ~25%; schema, indexer, SQL plan, and verify path exist
@@ -83,13 +83,13 @@ ISO 20022
  `-- Compatibility adapter  ~20%; first preview mapping crate exists
 ```
 
-Overall Phase 1.1 end-to-end solution status: about `15%`. Most of that value
-comes from the completed Rust private-devnet foundation. The actual end-to-end
-product surfaces, especially PostgreSQL indexing and React UI, are still at the
-starting line.
+Initial post-RC1 Phase 1.1 baseline status was about `15%`. Most of that value
+came from the completed Rust private-devnet foundation. At that point, the
+actual end-to-end product surfaces, especially PostgreSQL indexing and React
+UI, were still at the starting line.
 
-After the first API-backed wallet UI checkpoint, Phase 1.1 status is about
-`42%`: the contract document, PostgreSQL read-model schema, JSON
+After the first read-only admin status UI checkpoint, Phase 1.1 status is about
+`44%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -106,9 +106,12 @@ app now includes a preview-only wallet panel that selects local indexed
 accounts, shows balance/debit/remaining math, and renders a deterministic
 draft JSON preview without signing, submission, key handling, or persistence.
 That wallet panel can now call the product wallet draft-preview API and render
-the server validation/balance response. Actual repeated live database smoke
-coverage, real wallet submission APIs, admin UI, and deeper ISO adapter
-integration are still pending.
+the server validation/balance response. The same React app now includes a
+read-only Admin Status panel that summarizes network tip state, indexer
+current/last-run status, and wallet draft/submit/send capability flags from the
+product API. Actual repeated live database smoke coverage, real wallet
+submission APIs, mutating admin controls, and deeper ISO adapter integration
+are still pending.
 
 ## Phase 1.1 Build Order
 
@@ -236,6 +239,10 @@ npm.cmd run build
 
 - Add local admin views for node health, indexer status, snapshot export/import
   status, and audit events.
+- Current scaffold: `xriq/apps/explorer-ui` includes a read-only Admin Status
+  panel backed by `/api/v1/network`, `/api/v1/admin/indexer/status`, and
+  `/api/v1/wallet/status`. It displays local private-devnet status only and has
+  no mutating controls.
 
 ## Guardrails
 
