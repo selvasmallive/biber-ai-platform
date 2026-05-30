@@ -153,6 +153,44 @@ def assert_api_ok(
     return payload
 
 
+def assert_api_status(
+    api_binary: Path,
+    xriq_dir: Path,
+    chain_file: Path,
+    pending_file: Path,
+    target: str,
+    expected_status: int,
+    artifact_path: Path,
+    validate: Callable[[dict[str, Any]], None],
+) -> dict[str, Any]:
+    output = run_command(
+        f"xriq-api {target}",
+        [
+            str(api_binary),
+            "request",
+            "--chain-file",
+            str(chain_file),
+            "--pending-file",
+            str(pending_file),
+            "--alice-balance",
+            "100",
+            "--target",
+            target,
+        ],
+        cwd=xriq_dir,
+    )
+    status_code, reason, payload = parse_api_request_output(output, target)
+    if status_code != expected_status:
+        raise SmokeError(
+            f"{target}: expected HTTP {expected_status}, got {status_code} {reason}: {payload}"
+        )
+    if "environment" in payload:
+        require_equal(payload, "environment", "private-devnet", target)
+    validate(payload)
+    write_json(artifact_path, payload)
+    return payload
+
+
 def npm_command() -> str:
     return "npm.cmd" if sys.platform.startswith("win") else "npm"
 
@@ -194,6 +232,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     completed: list[str] = []
     skipped: list[str] = []
     routes_checked: list[str] = []
+    failure_routes_checked: list[str] = []
 
     if args.skip_contract_check:
         skipped.append("phase1.1 contract check")
@@ -331,6 +370,24 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             validate,
         )
 
+    def check_status(
+        target: str,
+        name: str,
+        expected_status: int,
+        validate: Callable[[dict[str, Any]], None],
+    ) -> dict[str, Any]:
+        failure_routes_checked.append(target)
+        return assert_api_status(
+            api_binary,
+            xriq_dir,
+            chain_file,
+            pending_file,
+            target,
+            expected_status,
+            api_artifact_dir / f"{name}.json",
+            validate,
+        )
+
     def validate_health(payload: dict[str, Any]) -> None:
         require_equal(payload, "ok", True, "health")
         require_equal(payload, "service", "xriq-api", "health")
@@ -434,6 +491,62 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         require_equal(validation, "ok", True, "draft preview validation")
         require_equal(balance, "remaining_base_units", "66", "draft preview balance")
 
+    def validate_draft_validation_failure(
+        payload: dict[str, Any],
+        context: str,
+        expected_errors: list[str],
+    ) -> None:
+        require_equal(payload, "mutation", "none", context)
+        validation = payload.get("validation")
+        if not isinstance(validation, dict):
+            raise SmokeError(f"{context}: expected validation object")
+        require_equal(validation, "ok", False, context)
+        errors = require_list(validation.get("errors"), context)
+        joined_errors = "\n".join(str(error) for error in errors)
+        for expected_error in expected_errors:
+            if expected_error not in joined_errors:
+                raise SmokeError(
+                    f"{context}: missing expected error {expected_error!r} in {errors!r}"
+                )
+
+    def validate_combined_draft_failure(payload: dict[str, Any]) -> None:
+        validate_draft_validation_failure(
+            payload,
+            "combined draft failure",
+            [
+                "sender and recipient must differ",
+                "amount must be greater than zero",
+                "fee must be at least 2 base units",
+                "nonce must match sender nonce 1",
+                "expiry must be greater than current height",
+            ],
+        )
+
+    def validate_balance_draft_failure(payload: dict[str, Any]) -> None:
+        validate_draft_validation_failure(
+            payload,
+            "balance draft failure",
+            ["debit exceeds available balance"],
+        )
+        balance = payload.get("balance")
+        if not isinstance(balance, dict):
+            raise SmokeError("balance draft failure: expected balance object")
+        require_equal(balance, "available_base_units", "73", "balance draft failure")
+        require_equal(balance, "debit_base_units", "1002", "balance draft failure")
+        require_equal(balance, "remaining_base_units", None, "balance draft failure")
+
+    def validate_malformed_draft_request(payload: dict[str, Any]) -> None:
+        error = payload.get("error")
+        if not isinstance(error, dict):
+            raise SmokeError("malformed draft request: expected error object")
+        require_equal(error, "code", "bad_request", "malformed draft request")
+        message = error.get("message")
+        if not isinstance(message, str) or "invalid amount_base_units" not in message:
+            raise SmokeError(
+                "malformed draft request: expected invalid amount message, got "
+                f"{message!r}"
+            )
+
     def validate_node_status(payload: dict[str, Any]) -> None:
         require_equal(payload, "mode", "serve-readonly", "node status")
         require_equal(payload, "pending_transactions", 1, "node status")
@@ -527,6 +640,24 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "wallet-draft-preview",
         validate_draft_preview,
     )
+    check_status(
+        f"/api/v1/wallet/transfers/draft-preview?from_address={ALICE}&to_address={ALICE}&amount_base_units=0&fee_base_units=1&nonce=0&expires_at_height=1",
+        "wallet-draft-preview-combined-failure",
+        200,
+        validate_combined_draft_failure,
+    )
+    check_status(
+        f"/api/v1/wallet/transfers/draft-preview?from_address={ALICE}&to_address={CAROL}&amount_base_units=1000&fee_base_units=2&nonce=1&expires_at_height=100",
+        "wallet-draft-preview-balance-failure",
+        200,
+        validate_balance_draft_failure,
+    )
+    check_status(
+        f"/api/v1/wallet/transfers/draft-preview?from_address={ALICE}&to_address={CAROL}&amount_base_units=abc&fee_base_units=2&nonce=1&expires_at_height=100",
+        "wallet-draft-preview-malformed-request",
+        400,
+        validate_malformed_draft_request,
+    )
     check("/api/v1/admin/node/status", "admin-node-status", validate_node_status)
     check("/api/v1/admin/indexer/status", "admin-indexer-status", validate_indexer)
     check("/api/v1/admin/audit-events?limit=5", "admin-audit-events", validate_audit)
@@ -548,6 +679,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         validate_iso_statement,
     )
     completed.append("product API route smoke")
+    completed.append("wallet draft failure smoke")
 
     summary = {
         "ok": "xriq-phase1-1-local-e2e-smoke",
@@ -557,6 +689,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "confirmed_tx_hash": confirmed_tx_hash,
         "pending_tx_hash": pending_tx_hash,
         "routes_checked": routes_checked,
+        "failure_routes_checked": failure_routes_checked,
         "completed": completed,
         "skipped": skipped,
     }

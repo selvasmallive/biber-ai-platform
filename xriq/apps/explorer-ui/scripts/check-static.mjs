@@ -97,6 +97,12 @@ for (const requiredText of [
   'mutation: "none"',
   "loadWalletDraftPreview",
   "Check Preview",
+  "Sender and recipient must differ.",
+  "Amount must be a positive integer.",
+  "Fee must be at least 2 base units.",
+  "Nonce must be a non-negative integer.",
+  "Expiry must be empty or a non-negative integer.",
+  "Debit exceeds available balance.",
 ]) {
   if (!walletSource.includes(requiredText)) {
     throw new Error(`missing wallet preview marker: ${requiredText}`);

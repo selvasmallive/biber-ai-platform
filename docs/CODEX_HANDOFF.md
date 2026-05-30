@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `58%` overall. Current Rust
+- Phase 1.1 estimated completion: about `59%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -169,7 +169,7 @@ unless the user changes the project scope again.
   end-to-end smoke script now creates a confirmed transfer plus one durable
   pending transfer, checks contract/UI guardrails, and verifies the product API
   routes that feed the explorer, wallet, mempool, snapshot, audit, admin, and
-  ISO preview panels.
+  ISO preview panels, including wallet draft-preview failure cases.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -197,11 +197,16 @@ active target because the GPU was terminated to save cost.
   and verifies 25 product API routes covering health, network, explorer,
   blocks, transactions, accounts, mempool, wallet status/balance/transaction
   status/draft preview, admin node/indexer/audit events, snapshot catalog/detail,
-  and ISO 20022 preview responses. It opens no socket, starts no browser, uses
-  no GCP/Vast/GPU resources, does not mutate public/DEX behavior, and changes
-  no credentials. Run it locally with the bundled or system Python:
+  and ISO 20022 preview responses. Latest extension added three wallet
+  draft-preview failure checks: combined domain-validation errors, over-balance
+  debit validation, and malformed amount bad-request handling. The React UI
+  static guardrail now also requires visible local wallet validation messages
+  for same-recipient, amount, fee, nonce, expiry, and over-balance failures
+  before any real submit/send control is added. It opens no socket, starts no
+  browser, uses no GCP/Vast/GPU resources, does not mutate public/DEX behavior,
+  and changes no credentials. Run it locally with the bundled or system Python:
   `python scripts/xriq_phase1_1_local_e2e_smoke.py`. Phase 1.1 status is now
-  about `58%` overall.
+  about `59%` overall.
 - Latest native XRIQ Phase 1.1 audit events UI checkpoint: added
   `xriq/apps/explorer-ui/src/audit.tsx` and wired it into the local React
   explorer. The new read-only Audit Events panel renders indexed audit rows
