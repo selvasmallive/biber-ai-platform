@@ -270,11 +270,14 @@ it from `xriq/` with `cargo test -p xriq-indexer`.
 The first Rust API service-boundary scaffold is `xriq/crates/xriq-api`; test it
 from `xriq/` with `cargo test -p xriq-api`. It defines product-facing
 private-devnet response models plus `/api/v1/...` route/render behavior over
-the indexed read model, and includes a local read-only socket server for
-private-devnet smoke testing.
+the indexed read model, including read-only wallet status/account/transaction
+status and draft-preview routes. It includes a local read-only socket server
+for private-devnet smoke testing.
 
 ```bash
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/health
+cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/wallet/status
+cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target '/api/v1/wallet/transfers/draft-preview?from_address=xriqdev1alice00000000000&to_address=xriqdev1bobbb00000000000&amount_base_units=25&fee_base_units=2&nonce=1&expires_at_height=100'
 cargo run -p xriq-api -- serve-readonly --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --bind 127.0.0.1:8090
 ```
 

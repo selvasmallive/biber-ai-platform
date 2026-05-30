@@ -673,8 +673,19 @@ GET /api/v1/transactions/{hash}
 GET /api/v1/accounts?limit=5
 GET /api/v1/accounts/{address}
 GET /api/v1/accounts/{address}/transactions?limit=5
+GET /api/v1/wallet/status
+GET /api/v1/wallet/accounts?limit=5
+GET /api/v1/wallet/accounts/{address}/balance
+GET /api/v1/wallet/accounts/{address}/history?limit=5
+GET /api/v1/wallet/transactions/{hash}/status
+GET /api/v1/wallet/transfers/draft-preview?from_address=<address>&to_address=<address>&amount_base_units=<n>&fee_base_units=<n>&nonce=<n>&expires_at_height=<height>
 GET /api/v1/admin/indexer/status
 ```
+
+The product wallet API routes are private-devnet preview/read routes only.
+`draft-preview` validates transfer fields and reports balance/debit/remaining
+math with `mutation: "none"`; it does not sign, submit, persist, or manage
+private keys. The mutating wallet submit/send contract remains deferred.
 
 `GET /v1/blocks/{height-or-hash-or-latest}` returns the same block-detail JSON
 shape for either a decimal block height, `latest`, or a 64-character lowercase

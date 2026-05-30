@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `38%` overall. Current Rust
+- Phase 1.1 estimated completion: about `40%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, admin portal, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -148,7 +148,9 @@ unless the user changes the project scope again.
   `xriq/crates/xriq-api`. The first ISO
   20022 compatibility adapter exists in `xriq/crates/xriq-iso20022`, but it is
   a private-devnet preview mapping layer only, not certification or payment
-  network connectivity. The first React + TypeScript explorer UI shell exists
+  network connectivity. `xriq-api` now includes private-devnet wallet status,
+  account list, balance, history, transaction status, and non-mutating
+  draft-preview routes. The first React + TypeScript explorer UI shell exists
   in `xriq/apps/explorer-ui` and renders local product API health, totals,
   network metadata, blocks, transactions, accounts, and basic drill-down detail
   panels. The same app now includes a preview-only wallet transfer draft panel
@@ -357,6 +359,23 @@ active target because the GPU was terminated to save cost.
   browser verification against live local `xriq-api` plus Vite servers showing
   the wallet preview/version/warning/mutation markers with no console errors.
   Phase 1.1 status is now about `38%` overall. No GCP resources were
+  provisioned, no public/DEX behavior was added, no signing/submission/custody
+  behavior was added, and no credentials were changed.
+- Latest native XRIQ Phase 1.1 wallet product API checkpoint: extended
+  `xriq/crates/xriq-api` with private-devnet wallet read/preview routes over
+  the indexed read model: `GET /api/v1/wallet/status`,
+  `GET /api/v1/wallet/accounts`, `GET /api/v1/wallet/accounts/{address}/balance`,
+  `GET /api/v1/wallet/accounts/{address}/history`,
+  `GET /api/v1/wallet/transactions/{hash}/status`, and
+  `GET /api/v1/wallet/transfers/draft-preview?...`. The draft-preview route
+  validates sender, recipient, amount, fee, nonce, expiry, and balance/debit
+  math, returns `private-devnet-preview-only-no-signing-no-submit`, and always
+  reports `mutation: "none"`. It does not sign, submit, persist pending state,
+  or manage private keys; POST draft/submit/send remain deferred. Verification
+  passed with `cargo fmt`, `cargo test -p xriq-api`,
+  `cargo clippy -p xriq-api -- -D warnings`, and CLI request smokes for
+  `/api/v1/wallet/status` and `/api/v1/wallet/transfers/draft-preview?...`.
+  Phase 1.1 status is now about `40%` overall. No GCP resources were
   provisioned, no public/DEX behavior was added, no signing/submission/custody
   behavior was added, and no credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added

@@ -7,6 +7,7 @@
 
 use std::{collections::BTreeMap, fmt::Write as _};
 
+use xriq_core::{Address, PRIVATE_DEVNET_MIN_FEE_BASE_UNITS};
 use xriq_indexer::{
     IndexedAccount, IndexedAccountBalance, IndexedAccountTransaction, IndexedBlock,
     IndexedChainSnapshot, IndexedTransaction,
@@ -16,6 +17,7 @@ pub const API_ENVIRONMENT: &str = "private-devnet";
 pub const API_SERVICE: &str = "xriq-api";
 pub const API_VERSION: &str = "phase1.1-dev";
 pub const INDEXER_SERVICE: &str = "xriq-indexer";
+pub const WALLET_PREVIEW_WARNING: &str = "private-devnet-preview-only-no-signing-no-submit";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XriqApiService {
@@ -246,6 +248,140 @@ impl XriqApiService {
         }
     }
 
+    pub fn wallet_status(&self) -> WalletStatusResponse {
+        WalletStatusResponse {
+            environment: API_ENVIRONMENT,
+            network: self.snapshot.chain_id.clone(),
+            warning: WALLET_PREVIEW_WARNING,
+            current_height: self.snapshot.current_height,
+            latest_block_hash: self.snapshot.latest_block_hash.clone(),
+            state_root: self.snapshot.state_root.clone(),
+            account_count: self.snapshot.read_model.account_balances.len(),
+            pending_transactions: 0,
+            can_draft: true,
+            can_submit: false,
+            can_send: false,
+        }
+    }
+
+    pub fn wallet_accounts(&self, limit: usize) -> WalletAccountListResponse {
+        let accounts = self.accounts(limit);
+        WalletAccountListResponse {
+            environment: accounts.environment,
+            network: accounts.network,
+            warning: WALLET_PREVIEW_WARNING,
+            limit: accounts.limit,
+            next_cursor: accounts.next_cursor,
+            accounts: accounts.accounts,
+        }
+    }
+
+    pub fn wallet_balance(&self, address: &str) -> Result<WalletBalanceResponse, ApiError> {
+        let account = self.account(address)?;
+        Ok(WalletBalanceResponse {
+            environment: API_ENVIRONMENT,
+            network: self.snapshot.chain_id.clone(),
+            warning: WALLET_PREVIEW_WARNING,
+            address: account.address,
+            balance_base_units: account.balance_base_units,
+            nonce: account.nonce,
+            height: account.height,
+            state_root: account.state_root,
+        })
+    }
+
+    pub fn wallet_transaction_status(
+        &self,
+        tx_hash: &str,
+    ) -> Result<WalletTransactionStatusResponse, ApiError> {
+        let transaction = self.transaction(tx_hash)?;
+        Ok(WalletTransactionStatusResponse {
+            environment: API_ENVIRONMENT,
+            network: self.snapshot.chain_id.clone(),
+            warning: WALLET_PREVIEW_WARNING,
+            tx_hash: transaction.tx_hash,
+            status: transaction.status,
+            block_height: transaction.block_height,
+            block_hash: transaction.block_hash,
+            transaction_index: transaction.transaction_index,
+        })
+    }
+
+    pub fn wallet_transfer_draft_preview(
+        &self,
+        request: WalletTransferDraftPreviewRequest,
+    ) -> WalletTransferDraftPreviewResponse {
+        let from_account = self.account(&request.from_address).ok();
+        let balance = from_account
+            .as_ref()
+            .and_then(|account| account.balance_base_units.parse::<u128>().ok());
+        let debit = request
+            .amount_base_units
+            .checked_add(request.fee_base_units);
+        let remaining = match (balance, debit) {
+            (Some(balance), Some(debit)) if balance >= debit => Some(balance - debit),
+            _ => None,
+        };
+        let mut errors = Vec::new();
+
+        if from_account.is_none() {
+            errors.push("sender account not found".to_string());
+        }
+        if request.from_address == request.to_address {
+            errors.push("sender and recipient must differ".to_string());
+        }
+        if request.amount_base_units == 0 {
+            errors.push("amount must be greater than zero".to_string());
+        }
+        if request.fee_base_units < PRIVATE_DEVNET_MIN_FEE_BASE_UNITS {
+            errors.push(format!(
+                "fee must be at least {PRIVATE_DEVNET_MIN_FEE_BASE_UNITS} base units"
+            ));
+        }
+        if let Some(account) = &from_account {
+            if request.nonce != account.nonce {
+                errors.push(format!("nonce must match sender nonce {}", account.nonce));
+            }
+        }
+        if request
+            .expires_at_height
+            .is_some_and(|height| height <= self.snapshot.current_height)
+        {
+            errors.push("expiry must be greater than current height".to_string());
+        }
+        if debit.is_none() {
+            errors.push("amount plus fee overflows base-unit range".to_string());
+        }
+        if matches!((balance, debit), (Some(balance), Some(debit)) if debit > balance) {
+            errors.push("debit exceeds available balance".to_string());
+        }
+
+        WalletTransferDraftPreviewResponse {
+            environment: API_ENVIRONMENT,
+            network: self.snapshot.chain_id.clone(),
+            warning: WALLET_PREVIEW_WARNING,
+            mutation: "none",
+            validation: WalletDraftValidationResponse {
+                ok: errors.is_empty(),
+                errors,
+            },
+            draft: WalletTransferDraftResponse {
+                chain_id: request.chain_id,
+                from_address: request.from_address,
+                to_address: request.to_address,
+                amount_base_units: request.amount_base_units.to_string(),
+                fee_base_units: request.fee_base_units.to_string(),
+                nonce: request.nonce,
+                expires_at_height: request.expires_at_height,
+            },
+            balance: WalletDraftBalanceResponse {
+                available_base_units: balance.map(|value| value.to_string()),
+                debit_base_units: debit.map(|value| value.to_string()),
+                remaining_base_units: remaining.map(|value| value.to_string()),
+            },
+        }
+    }
+
     pub fn admin_indexer_status(&self) -> IndexerStatusResponse {
         IndexerStatusResponse {
             environment: API_ENVIRONMENT,
@@ -329,6 +465,27 @@ pub fn product_api_http_response(
             Ok(limit) => api_json_response(200, render_account_list_json(&service.accounts(limit))),
             Err(message) => api_error_response(400, "bad_request", &message),
         },
+        "/api/v1/wallet/status" => {
+            api_json_response(200, render_wallet_status_json(&service.wallet_status()))
+        }
+        "/api/v1/wallet/accounts" => match limit_from_query(query, 25) {
+            Ok(limit) => api_json_response(
+                200,
+                render_wallet_account_list_json(&service.wallet_accounts(limit)),
+            ),
+            Err(message) => api_error_response(400, "bad_request", &message),
+        },
+        "/api/v1/wallet/transfers/draft-preview" => {
+            match wallet_draft_preview_request_from_query(query, &service.snapshot().chain_id) {
+                Ok(request) => api_json_response(
+                    200,
+                    render_wallet_transfer_draft_preview_json(
+                        &service.wallet_transfer_draft_preview(request),
+                    ),
+                ),
+                Err(message) => api_error_response(400, "bad_request", &message),
+            }
+        }
         "/api/v1/admin/indexer/status" => api_json_response(
             200,
             render_indexer_status_json(&service.admin_indexer_status()),
@@ -377,6 +534,36 @@ fn dynamic_product_api_http_response(
             ),
             Err(error) => api_not_found_response(error),
         };
+    }
+
+    if let Some(account_path) = path.strip_prefix("/api/v1/wallet/accounts/") {
+        if let Some(address) = account_path.strip_suffix("/balance") {
+            return match service.wallet_balance(address) {
+                Ok(balance) => api_json_response(200, render_wallet_balance_json(&balance)),
+                Err(error) => api_not_found_response(error),
+            };
+        }
+
+        if let Some(address) = account_path.strip_suffix("/history") {
+            return match limit_from_query(query, 25) {
+                Ok(limit) => api_json_response(
+                    200,
+                    render_account_history_json(&service.account_transactions(address, limit)),
+                ),
+                Err(message) => api_error_response(400, "bad_request", &message),
+            };
+        }
+    }
+
+    if let Some(tx_path) = path.strip_prefix("/api/v1/wallet/transactions/") {
+        if let Some(tx_hash) = tx_path.strip_suffix("/status") {
+            return match service.wallet_transaction_status(tx_hash) {
+                Ok(status) => {
+                    api_json_response(200, render_wallet_transaction_status_json(&status))
+                }
+                Err(error) => api_not_found_response(error),
+            };
+        }
     }
 
     api_error_response(404, "not_found", "XRIQ product API endpoint not found")
@@ -536,6 +723,101 @@ pub struct AccountTransactionResponse {
     pub transaction_index: usize,
     pub amount_base_units: String,
     pub fee_base_units: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletStatusResponse {
+    pub environment: &'static str,
+    pub network: String,
+    pub warning: &'static str,
+    pub current_height: u64,
+    pub latest_block_hash: String,
+    pub state_root: String,
+    pub account_count: usize,
+    pub pending_transactions: usize,
+    pub can_draft: bool,
+    pub can_submit: bool,
+    pub can_send: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletAccountListResponse {
+    pub environment: &'static str,
+    pub network: String,
+    pub warning: &'static str,
+    pub limit: usize,
+    pub next_cursor: Option<String>,
+    pub accounts: Vec<AccountResponse>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletBalanceResponse {
+    pub environment: &'static str,
+    pub network: String,
+    pub warning: &'static str,
+    pub address: String,
+    pub balance_base_units: String,
+    pub nonce: u64,
+    pub height: u64,
+    pub state_root: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletTransactionStatusResponse {
+    pub environment: &'static str,
+    pub network: String,
+    pub warning: &'static str,
+    pub tx_hash: String,
+    pub status: String,
+    pub block_height: u64,
+    pub block_hash: String,
+    pub transaction_index: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletTransferDraftPreviewRequest {
+    pub chain_id: String,
+    pub from_address: String,
+    pub to_address: String,
+    pub amount_base_units: u128,
+    pub fee_base_units: u128,
+    pub nonce: u64,
+    pub expires_at_height: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletTransferDraftPreviewResponse {
+    pub environment: &'static str,
+    pub network: String,
+    pub warning: &'static str,
+    pub mutation: &'static str,
+    pub validation: WalletDraftValidationResponse,
+    pub draft: WalletTransferDraftResponse,
+    pub balance: WalletDraftBalanceResponse,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletDraftValidationResponse {
+    pub ok: bool,
+    pub errors: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletTransferDraftResponse {
+    pub chain_id: String,
+    pub from_address: String,
+    pub to_address: String,
+    pub amount_base_units: String,
+    pub fee_base_units: String,
+    pub nonce: u64,
+    pub expires_at_height: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletDraftBalanceResponse {
+    pub available_base_units: Option<String>,
+    pub debit_base_units: Option<String>,
+    pub remaining_base_units: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -715,6 +997,63 @@ fn query_param<'a>(query: Option<&'a str>, key: &str) -> Option<&'a str> {
             None
         }
     })
+}
+
+fn wallet_draft_preview_request_from_query(
+    query: Option<&str>,
+    default_chain_id: &str,
+) -> Result<WalletTransferDraftPreviewRequest, String> {
+    let chain_id = query_param(query, "chain_id")
+        .unwrap_or(default_chain_id)
+        .to_string();
+    if chain_id != default_chain_id {
+        return Err(format!("chain_id must be {default_chain_id}"));
+    }
+
+    let from_address = required_query_param_any(query, &["from_address", "from"])?;
+    let to_address = required_query_param_any(query, &["to_address", "to"])?;
+    Address::parse(from_address).map_err(|error| {
+        format!("invalid from_address: {from_address}; expected private-devnet address ({error:?})")
+    })?;
+    Address::parse(to_address).map_err(|error| {
+        format!("invalid to_address: {to_address}; expected private-devnet address ({error:?})")
+    })?;
+
+    Ok(WalletTransferDraftPreviewRequest {
+        chain_id,
+        from_address: from_address.to_string(),
+        to_address: to_address.to_string(),
+        amount_base_units: parse_u128_query(
+            required_query_param_any(query, &["amount_base_units", "amount"])?,
+            "amount_base_units",
+        )?,
+        fee_base_units: parse_u128_query(
+            required_query_param_any(query, &["fee_base_units", "fee"])?,
+            "fee_base_units",
+        )?,
+        nonce: parse_u64_query(required_query_param_any(query, &["nonce"])?, "nonce")?,
+        expires_at_height: query_param(query, "expires_at_height")
+            .map(|value| parse_u64_query(value, "expires_at_height"))
+            .transpose()?,
+    })
+}
+
+fn required_query_param_any<'a>(query: Option<&'a str>, keys: &[&str]) -> Result<&'a str, String> {
+    keys.iter()
+        .find_map(|key| query_param(query, key))
+        .ok_or_else(|| format!("missing required query parameter: {}", keys[0]))
+}
+
+fn parse_u128_query(value: &str, key: &str) -> Result<u128, String> {
+    value
+        .parse::<u128>()
+        .map_err(|_| format!("invalid {key}: {value}"))
+}
+
+fn parse_u64_query(value: &str, key: &str) -> Result<u64, String> {
+    value
+        .parse::<u64>()
+        .map_err(|_| format!("invalid {key}: {value}"))
 }
 
 fn render_health_json(response: &HealthResponse) -> String {
@@ -1095,6 +1434,204 @@ fn render_account_history_json(response: &AccountHistoryResponse) -> String {
     output
 }
 
+fn render_wallet_status_json(response: &WalletStatusResponse) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_response_header(&mut output, response.environment, &response.network);
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(response.warning)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"current_height\": {},",
+        response.current_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"latest_block_hash\": {},",
+        json_string(&response.latest_block_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"state_root\": {},",
+        json_string(&response.state_root)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"account_count\": {},",
+        response.account_count
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"pending_transactions\": {},",
+        response.pending_transactions
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"capabilities\": {{").expect("write to String");
+    writeln!(&mut output, "    \"draft\": {},", response.can_draft).expect("write to String");
+    writeln!(&mut output, "    \"submit\": {},", response.can_submit).expect("write to String");
+    writeln!(&mut output, "    \"send\": {}", response.can_send).expect("write to String");
+    output.push_str("  }\n}");
+    output
+}
+
+fn render_wallet_account_list_json(response: &WalletAccountListResponse) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_response_header(&mut output, response.environment, &response.network);
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(response.warning)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"limit\": {},", response.limit).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"next_cursor\": {},",
+        json_optional_string(response.next_cursor.as_deref())
+    )
+    .expect("write to String");
+    output.push_str("  \"accounts\": [");
+    for (index, account) in response.accounts.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_account_json_inline(account, 4));
+    }
+    if !response.accounts.is_empty() {
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
+fn render_wallet_balance_json(response: &WalletBalanceResponse) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_response_header(&mut output, response.environment, &response.network);
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(response.warning)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"address\": {},",
+        json_string(&response.address)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"balance_base_units\": {},",
+        json_string(&response.balance_base_units)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"nonce\": {},", response.nonce).expect("write to String");
+    writeln!(&mut output, "  \"height\": {},", response.height).expect("write to String");
+    write!(
+        &mut output,
+        "  \"state_root\": {}\n}}",
+        json_string(&response.state_root)
+    )
+    .expect("write to String");
+    output
+}
+
+fn render_wallet_transaction_status_json(response: &WalletTransactionStatusResponse) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_response_header(&mut output, response.environment, &response.network);
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(response.warning)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"tx_hash\": {},",
+        json_string(&response.tx_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"status\": {},",
+        json_string(&response.status)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"block_height\": {},",
+        response.block_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"block_hash\": {},",
+        json_string(&response.block_hash)
+    )
+    .expect("write to String");
+    write!(
+        &mut output,
+        "  \"transaction_index\": {}\n}}",
+        response.transaction_index
+    )
+    .expect("write to String");
+    output
+}
+
+fn render_wallet_transfer_draft_preview_json(
+    response: &WalletTransferDraftPreviewResponse,
+) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_response_header(&mut output, response.environment, &response.network);
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(response.warning)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"mutation\": {},",
+        json_string(response.mutation)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"validation\": {{").expect("write to String");
+    writeln!(&mut output, "    \"ok\": {},", response.validation.ok).expect("write to String");
+    output.push_str("    \"errors\": [");
+    for (index, error) in response.validation.errors.iter().enumerate() {
+        if index > 0 {
+            output.push_str(", ");
+        }
+        output.push_str(&json_string(error));
+    }
+    output.push_str("]\n  },\n");
+    output.push_str("  \"draft\": ");
+    output.push_str(&render_wallet_transfer_draft_json_inline(
+        &response.draft,
+        2,
+    ));
+    output.push_str(",\n  \"balance\": ");
+    output.push_str(&render_wallet_draft_balance_json_inline(
+        &response.balance,
+        2,
+    ));
+    output.push_str("\n}");
+    output
+}
+
 fn render_indexer_status_json(response: &IndexerStatusResponse) -> String {
     render_indexer_status_json_inline(response, 0)
 }
@@ -1162,6 +1699,38 @@ fn render_account_transaction_json_inline(
         transaction.transaction_index,
         json_string(&transaction.amount_base_units),
         json_string(&transaction.fee_base_units)
+    )
+}
+
+fn render_wallet_transfer_draft_json_inline(
+    draft: &WalletTransferDraftResponse,
+    indent: usize,
+) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    format!(
+        "{spaces}{{\n{nested}\"chain_id\": {},\n{nested}\"from_address\": {},\n{nested}\"to_address\": {},\n{nested}\"amount_base_units\": {},\n{nested}\"fee_base_units\": {},\n{nested}\"nonce\": {},\n{nested}\"expires_at_height\": {}\n{spaces}}}",
+        json_string(&draft.chain_id),
+        json_string(&draft.from_address),
+        json_string(&draft.to_address),
+        json_string(&draft.amount_base_units),
+        json_string(&draft.fee_base_units),
+        draft.nonce,
+        json_optional_u64(draft.expires_at_height)
+    )
+}
+
+fn render_wallet_draft_balance_json_inline(
+    balance: &WalletDraftBalanceResponse,
+    indent: usize,
+) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    format!(
+        "{spaces}{{\n{nested}\"available_base_units\": {},\n{nested}\"debit_base_units\": {},\n{nested}\"remaining_base_units\": {}\n{spaces}}}",
+        json_optional_string(balance.available_base_units.as_deref()),
+        json_optional_string(balance.debit_base_units.as_deref()),
+        json_optional_string(balance.remaining_base_units.as_deref())
     )
 }
 
@@ -1505,6 +2074,67 @@ mod tests {
     }
 
     #[test]
+    fn wallet_preview_api_is_read_only_and_deterministic() {
+        let api = service();
+
+        let status = api.wallet_status();
+        assert_eq!(status.environment, API_ENVIRONMENT);
+        assert_eq!(status.warning, WALLET_PREVIEW_WARNING);
+        assert!(status.can_draft);
+        assert!(!status.can_submit);
+        assert!(!status.can_send);
+
+        let accounts = api.wallet_accounts(25);
+        assert_eq!(accounts.warning, WALLET_PREVIEW_WARNING);
+        assert_eq!(accounts.accounts.len(), 2);
+
+        let balance = api.wallet_balance("xriqdev1alice00000000000").unwrap();
+        assert_eq!(balance.balance_base_units, "73");
+        assert_eq!(balance.nonce, 1);
+
+        let tx_status = api.wallet_transaction_status(TX_HASH).unwrap();
+        assert_eq!(tx_status.status, "confirmed");
+        assert_eq!(tx_status.block_height, 1);
+
+        let preview = api.wallet_transfer_draft_preview(WalletTransferDraftPreviewRequest {
+            chain_id: "xriq-devnet".to_string(),
+            from_address: "xriqdev1alice00000000000".to_string(),
+            to_address: "xriqdev1bobbb00000000000".to_string(),
+            amount_base_units: 25,
+            fee_base_units: 2,
+            nonce: 1,
+            expires_at_height: Some(100),
+        });
+        assert_eq!(preview.warning, WALLET_PREVIEW_WARNING);
+        assert_eq!(preview.mutation, "none");
+        assert!(preview.validation.ok);
+        assert_eq!(preview.balance.available_base_units.as_deref(), Some("73"));
+        assert_eq!(preview.balance.debit_base_units.as_deref(), Some("27"));
+        assert_eq!(preview.balance.remaining_base_units.as_deref(), Some("46"));
+
+        let invalid = api.wallet_transfer_draft_preview(WalletTransferDraftPreviewRequest {
+            chain_id: "xriq-devnet".to_string(),
+            from_address: "xriqdev1alice00000000000".to_string(),
+            to_address: "xriqdev1alice00000000000".to_string(),
+            amount_base_units: 0,
+            fee_base_units: 1,
+            nonce: 0,
+            expires_at_height: Some(1),
+        });
+        assert!(!invalid.validation.ok);
+        assert!(invalid
+            .validation
+            .errors
+            .iter()
+            .any(|error| error.contains("sender and recipient")));
+        assert!(invalid
+            .validation
+            .errors
+            .iter()
+            .any(|error| error.contains("fee must be at least")));
+    }
+
+    #[test]
     fn indexer_status_uses_deterministic_replay_metadata() {
         let status = service().admin_indexer_status();
 
@@ -1576,6 +2206,54 @@ mod tests {
         let status = product_api_http_response(&api, "GET", "/api/v1/admin/indexer/status");
         assert_eq!(status.status_code, 200);
         assert!(status.body.contains("\"service\": \"xriq-indexer\""));
+
+        let wallet_status = product_api_http_response(&api, "GET", "/api/v1/wallet/status");
+        assert_eq!(wallet_status.status_code, 200);
+        assert!(wallet_status.body.contains(WALLET_PREVIEW_WARNING));
+        assert!(wallet_status.body.contains("\"submit\": false"));
+
+        let wallet_accounts =
+            product_api_http_response(&api, "GET", "/api/v1/wallet/accounts?limit=5");
+        assert_eq!(wallet_accounts.status_code, 200);
+        assert!(wallet_accounts.body.contains("\"accounts\""));
+
+        let wallet_balance = product_api_http_response(
+            &api,
+            "GET",
+            "/api/v1/wallet/accounts/xriqdev1alice00000000000/balance",
+        );
+        assert_eq!(wallet_balance.status_code, 200);
+        assert!(wallet_balance
+            .body
+            .contains("\"balance_base_units\": \"73\""));
+
+        let wallet_history = product_api_http_response(
+            &api,
+            "GET",
+            "/api/v1/wallet/accounts/xriqdev1alice00000000000/history?limit=5",
+        );
+        assert_eq!(wallet_history.status_code, 200);
+        assert!(wallet_history.body.contains("\"direction\": \"sent\""));
+
+        let wallet_tx_status = product_api_http_response(
+            &api,
+            "GET",
+            &format!("/api/v1/wallet/transactions/{TX_HASH}/status"),
+        );
+        assert_eq!(wallet_tx_status.status_code, 200);
+        assert!(wallet_tx_status.body.contains("\"status\": \"confirmed\""));
+
+        let draft_preview = product_api_http_response(
+            &api,
+            "GET",
+            "/api/v1/wallet/transfers/draft-preview?from_address=xriqdev1alice00000000000&to_address=xriqdev1bobbb00000000000&amount_base_units=25&fee_base_units=2&nonce=1&expires_at_height=100",
+        );
+        assert_eq!(draft_preview.status_code, 200);
+        assert!(draft_preview.body.contains("\"mutation\": \"none\""));
+        assert!(draft_preview.body.contains("\"ok\": true"));
+        assert!(draft_preview
+            .body
+            .contains("\"remaining_base_units\": \"46\""));
     }
 
     #[test]
@@ -1595,6 +2273,16 @@ mod tests {
         assert!(unsupported_method
             .body
             .contains("currently supports GET only"));
+
+        let bad_draft = product_api_http_response(
+            &api,
+            "GET",
+            "/api/v1/wallet/transfers/draft-preview?from_address=xriqdev1alice00000000000",
+        );
+        assert_eq!(bad_draft.status_code, 400);
+        assert!(bad_draft
+            .body
+            .contains("missing required query parameter: to_address"));
 
         let missing_route = product_api_http_response(&api, "GET", "/api/v1/dex/pairs");
         assert_eq!(missing_route.status_code, 404);

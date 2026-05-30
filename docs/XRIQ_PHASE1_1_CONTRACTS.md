@@ -96,6 +96,7 @@ GET  /api/v1/wallet/status
 GET  /api/v1/wallet/accounts
 GET  /api/v1/wallet/accounts/{address}/balance
 GET  /api/v1/wallet/accounts/{address}/history
+GET  /api/v1/wallet/transfers/draft-preview?from_address=<address>&to_address=<address>&amount_base_units=<n>&fee_base_units=<n>&nonce=<n>&expires_at_height=<height>
 POST /api/v1/wallet/transfers/draft
 POST /api/v1/wallet/transfers/submit
 POST /api/v1/wallet/transfers/send
@@ -113,6 +114,8 @@ Required behavior:
 - no private key or seed phrase material in responses
 - all transfer responses include `warning`
 - all submitted transfers include `tx_hash`
+- `draft-preview` is an early read-only scaffold; it validates transfer fields
+  and reports balance/debit/remaining math with `mutation: "none"`
 - `draft` does not mutate chain or pending state
 - `submit` creates pending state
 - `send` is allowed only for private-devnet test identities

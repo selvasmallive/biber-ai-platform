@@ -64,8 +64,8 @@ Current status after Phase 1 RC1:
 Rust
  |-- Blockchain node        ~70% for private-devnet; RC1 baseline exists
  |-- Consensus engine       ~60% for private-devnet; single-authority baseline
- |-- Wallet backend         ~45%; CLI/backend flows exist, service API next
- |-- APIs                   ~40%; local HTTP wrappers and first product API boundary exist
+ |-- Wallet backend         ~50%; CLI flows plus product read/preview routes exist
+ |-- APIs                   ~45%; local HTTP wrappers and wallet read/preview routes exist
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
@@ -88,15 +88,17 @@ comes from the completed Rust private-devnet foundation. The actual end-to-end
 product surfaces, especially PostgreSQL indexing and React UI, are still at the
 starting line.
 
-After the first React wallet-preview checkpoint, Phase 1.1 status is about
-`38%`: the contract document, PostgreSQL read-model schema, JSON
+After the first wallet product-API checkpoint, Phase 1.1 status is about
+`40%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
 service, `verify-postgres` verification command, `xriq-api` read-only product
 response boundary with `/api/v1/...` route/render behavior, a local
 `serve-readonly` socket wrapper, a `request` CLI smoke path, and
-`xriq-iso20022` preview mapping crate exist. The first React + TypeScript
+`xriq-iso20022` preview mapping crate exist. `xriq-api` now includes
+private-devnet wallet status, account list, balance, history, transaction
+status, and non-mutating transfer draft-preview routes. The first React + TypeScript
 explorer shell in `xriq/apps/explorer-ui` can render health, network totals,
 blocks, transactions, accounts, block detail, transaction detail, account
 detail, and account transaction history from the local product API. The same
@@ -177,12 +179,14 @@ when intentionally applying the read model to a local development database.
   accounts, account history, and admin indexer status.
 - Current scaffold: `xriq/crates/xriq-api` exposes read-only private-devnet
   response models, `/api/v1/...` route/render behavior over
-  `IndexedChainSnapshot`, a `request` CLI smoke path, and a local
+  `IndexedChainSnapshot`, wallet status/account/balance/history/transaction
+  status/draft-preview routes, a `request` CLI smoke path, and a local
   `serve-readonly` socket wrapper. Focused verification is:
 
 ```bash
 cargo test -p xriq-api
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/health
+cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/wallet/status
 ```
 
 ### Milestone D: ISO 20022 Adapter
