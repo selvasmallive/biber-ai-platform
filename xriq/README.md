@@ -76,6 +76,16 @@ cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.b
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target '/api/v1/iso20022/transactions/<confirmed-tx-hash>/status'
 ```
 
+From the repo root, the current Phase 1.1 local product surface can be checked
+with one CPU-only end-to-end smoke. It runs the contract and UI static
+guardrails, builds the local Rust binaries, creates a confirmed transfer plus
+one durable pending transfer, and verifies the product API routes used by the
+explorer, wallet, mempool, snapshot, audit, admin, and ISO preview panels:
+
+```bash
+python scripts/xriq_phase1_1_local_e2e_smoke.py
+```
+
 To expose the same product API routes over localhost for a browser/client
 smoke, run. The optional `--pending-file` is read-only in `xriq-api`: it lets
 the Admin panel inspect durable private-devnet pending entries while wallet

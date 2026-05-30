@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first read-only audit events UI checkpoint, Phase 1.1 status is
-about `57%`: the contract document, PostgreSQL read-model schema, JSON
+After the first local Phase 1.1 end-to-end smoke checkpoint, Phase 1.1 status
+is about `58%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -124,7 +124,11 @@ pending wallet transaction status with null block/index fields, a read-only
 snapshot catalog, and indexed audit events from the product API. Actual
 repeated live database smoke coverage, real wallet submission APIs, mutating
 admin controls, block-production controls, real snapshot export/import
-controls, and deeper ISO adapter integration are still pending.
+controls, and deeper ISO adapter integration are still pending. The local
+`scripts/xriq_phase1_1_local_e2e_smoke.py` command now checks the current
+contract fixtures, React UI guardrails, and 25 product API routes across the
+explorer, wallet, mempool, snapshot, audit, admin, and ISO preview surfaces
+without opening a socket or using cloud/GPU resources.
 
 ## Phase 1.1 Build Order
 
@@ -255,6 +259,15 @@ cargo test -p xriq-iso20022
 cd xriq/apps/explorer-ui
 npm.cmd run check
 npm.cmd run build
+```
+
+From the repo root, the current Phase 1.1 local product surface can be checked
+with one CPU-only smoke. It creates a tiny confirmed transfer and one durable
+pending transfer, then verifies the API routes that feed the explorer, wallet,
+mempool, snapshot, audit, admin, and ISO preview panels:
+
+```bash
+python scripts/xriq_phase1_1_local_e2e_smoke.py
 ```
 
 ### Milestone F: Wallet UI

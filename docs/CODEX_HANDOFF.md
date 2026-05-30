@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `57%` overall. Current Rust
+- Phase 1.1 estimated completion: about `58%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -165,7 +165,11 @@ unless the user changes the project scope again.
   includes a read-only Admin
   Status panel backed by product API network, indexer, wallet-status,
   node-status, pending-file mempool-status, pending wallet transaction-status,
-  snapshot-catalog, and audit-event routes.
+  snapshot-catalog, and audit-event routes. A local CPU-only Phase 1.1
+  end-to-end smoke script now creates a confirmed transfer plus one durable
+  pending transfer, checks contract/UI guardrails, and verifies the product API
+  routes that feed the explorer, wallet, mempool, snapshot, audit, admin, and
+  ISO preview panels.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -184,6 +188,20 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 local end-to-end smoke checkpoint: added
+  `scripts/xriq_phase1_1_local_e2e_smoke.py`, a CPU-only one-command local
+  smoke for the current Phase 1.1 product surface. It runs the Phase 1.1
+  contract/schema/fixture checker, runs the React explorer UI static guardrail,
+  builds `xriq-node`, `xriq-wallet`, and `xriq-api`, creates a deterministic
+  confirmed private-devnet transfer plus one durable pending wallet transfer,
+  and verifies 25 product API routes covering health, network, explorer,
+  blocks, transactions, accounts, mempool, wallet status/balance/transaction
+  status/draft preview, admin node/indexer/audit events, snapshot catalog/detail,
+  and ISO 20022 preview responses. It opens no socket, starts no browser, uses
+  no GCP/Vast/GPU resources, does not mutate public/DEX behavior, and changes
+  no credentials. Run it locally with the bundled or system Python:
+  `python scripts/xriq_phase1_1_local_e2e_smoke.py`. Phase 1.1 status is now
+  about `58%` overall.
 - Latest native XRIQ Phase 1.1 audit events UI checkpoint: added
   `xriq/apps/explorer-ui/src/audit.tsx` and wired it into the local React
   explorer. The new read-only Audit Events panel renders indexed audit rows
