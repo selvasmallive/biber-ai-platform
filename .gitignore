@@ -27,6 +27,9 @@ adapters/
 .biber-runtime/
 .biber-logs/
 .biber-pids/
+node_modules/
+dist/
+*.tsbuildinfo
 
 .DS_Store
 Thumbs.db

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="360" viewBox="0 0 720 360" role="img" aria-labelledby="title desc">
+  <title id="title">XRIQ private-devnet topology</title>
+  <desc id="desc">A simple block, indexer, API, and explorer topology for the local private devnet.</desc>
+  <rect width="720" height="360" fill="#f5f7fb"/>
+  <path d="M102 180h140M292 180h136M478 180h140" fill="none" stroke="#486a8f" stroke-width="5" stroke-linecap="round"/>
+  <path d="M360 96v64M360 200v64" fill="none" stroke="#8a6f3e" stroke-width="4" stroke-linecap="round"/>
+  <g fill="#ffffff" stroke="#16324f" stroke-width="4">
+    <rect x="46" y="130" width="120" height="100" rx="8"/>
+    <rect x="242" y="130" width="120" height="100" rx="8"/>
+    <rect x="428" y="130" width="120" height="100" rx="8"/>
+    <rect x="584" y="130" width="90" height="100" rx="8"/>
+    <rect x="300" y="36" width="120" height="80" rx="8"/>
+    <rect x="300" y="244" width="120" height="80" rx="8"/>
+  </g>
+  <g fill="#16324f" font-family="Arial, sans-serif" font-size="20" font-weight="700" text-anchor="middle">
+    <text x="106" y="172">Node</text>
+    <text x="106" y="202">State</text>
+    <text x="302" y="172">Indexer</text>
+    <text x="302" y="202">Replay</text>
+    <text x="488" y="172">API</text>
+    <text x="488" y="202">Read</text>
+    <text x="629" y="172">UI</text>
+    <text x="629" y="202">View</text>
+    <text x="360" y="72">Blocks</text>
+    <text x="360" y="292">Audit</text>
+  </g>
+  <g fill="#21745a">
+    <circle cx="178" cy="180" r="8"/>
+    <circle cx="372" cy="180" r="8"/>
+    <circle cx="558" cy="180" r="8"/>
+  </g>
+</svg>

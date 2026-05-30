@@ -88,6 +88,19 @@ with:
 cargo test -p xriq-iso20022
 ```
 
+The first React + TypeScript explorer UI shell lives at
+`apps/explorer-ui`. It reads the product API through the dev server's
+same-origin `/api` proxy.
+
+```powershell
+cargo run -p xriq-api -- serve-readonly --chain-file target\xriq-indexer-replay-smoke.bin --alice-balance 100 --bind 127.0.0.1:8090
+cd apps\explorer-ui
+npm.cmd install
+npm.cmd run check
+npm.cmd run build
+npm.cmd run dev -- --port 5173
+```
+
 After producing a local private-devnet chain file, replay it through the
 indexer read model with:
 

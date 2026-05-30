@@ -284,6 +284,21 @@ The first ISO 20022 compatibility adapter scaffold is
 it does not claim ISO certification, bank connectivity, SWIFT connectivity, or
 production payment-network support.
 
+The first React + TypeScript explorer UI shell is in
+`xriq/apps/explorer-ui`. It is a local private-devnet dashboard that reads the
+`xriq-api` `/api/v1/...` routes through Vite's same-origin `/api` proxy.
+
+```powershell
+cd xriq
+cargo run -p xriq-api -- serve-readonly --chain-file target\xriq-indexer-replay-smoke.bin --alice-balance 100 --bind 127.0.0.1:8090
+
+cd apps\explorer-ui
+npm.cmd install
+npm.cmd run check
+npm.cmd run build
+npm.cmd run dev -- --port 5173
+```
+
 To replay an existing local chain file into the current in-memory read model,
 run:
 

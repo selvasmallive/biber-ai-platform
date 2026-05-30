@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `32%` overall. Current Rust
+- Phase 1.1 estimated completion: about `34%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, admin portal, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -148,7 +148,9 @@ unless the user changes the project scope again.
   `xriq/crates/xriq-api`. The first ISO
   20022 compatibility adapter exists in `xriq/crates/xriq-iso20022`, but it is
   a private-devnet preview mapping layer only, not certification or payment
-  network connectivity.
+  network connectivity. The first React + TypeScript explorer UI shell exists
+  in `xriq/apps/explorer-ui` and renders local product API health, totals,
+  network metadata, blocks, transactions, and accounts.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -308,6 +310,24 @@ active target because the GPU was terminated to save cost.
   Phase 1.1 status is now about `32%` overall. No GCP resources were
   provisioned, no public/DEX behavior was added, no credentials were changed,
   and the server was stopped after smoke testing.
+- Latest native XRIQ Phase 1.1 explorer UI shell checkpoint: added
+  `xriq/apps/explorer-ui`, a Vite React + TypeScript local private-devnet
+  explorer shell. It includes a typed `src/api.ts` client for
+  `/api/v1/health`, `/api/v1/network`, `/api/v1/explorer/overview`,
+  `/api/v1/blocks`, `/api/v1/transactions`, `/api/v1/accounts`, and
+  `/api/v1/admin/indexer/status`; the default dev flow uses Vite's same-origin
+  `/api` proxy to `http://127.0.0.1:8090` instead of widening the Rust API CORS
+  surface. The UI renders health, height/totals, network metadata, latest
+  blocks, latest transactions, accounts, and a small topology visual. Added
+  `npm.cmd run check` static guard, `npm.cmd run build` production build path,
+  `.gitignore` entries for `node_modules`, `dist`, and `*.tsbuildinfo`, plus
+  README/runbook instructions. Verification passed with
+  `npm.cmd run check`, `npm.cmd run build`, live local `xriq-api
+  serve-readonly` on `127.0.0.1:8090`, live Vite dev server on
+  `127.0.0.1:5173`, and browser verification showing private-devnet data:
+  height=1, blocks=1, transactions=1, accounts=3. Phase 1.1 status is now
+  about `34%` overall. No GCP resources were provisioned, no public/DEX
+  behavior was added, and no credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
   defines private/local product API groups for health, explorer, wallet, admin,

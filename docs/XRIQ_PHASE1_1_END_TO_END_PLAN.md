@@ -70,7 +70,7 @@ Rust
 
 React + TypeScript
  |-- Wallet UI              0%; not started
- |-- Explorer               0%; not started as web UI; Rust view models exist
+ |-- Explorer               ~10%; first React shell reads the product API
  |-- Exchange UI            0%; deferred high legal/compliance-risk surface
  `-- Admin portal           0%; not started
 
@@ -88,16 +88,19 @@ comes from the completed Rust private-devnet foundation. The actual end-to-end
 product surfaces, especially PostgreSQL indexing and React UI, are still at the
 starting line.
 
-After the first product API read-only socket checkpoint, Phase 1.1 status is
-about `32%`: the contract document, PostgreSQL read-model schema, JSON
+After the first React explorer shell checkpoint, Phase 1.1 status is about
+`34%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
 service, `verify-postgres` verification command, `xriq-api` read-only product
 response boundary with `/api/v1/...` route/render behavior, a local
 `serve-readonly` socket wrapper, a `request` CLI smoke path, and
-`xriq-iso20022` preview mapping crate exist. Actual repeated live database
-smoke coverage, UI, and deeper ISO adapter integration are still pending.
+`xriq-iso20022` preview mapping crate exist. The first React + TypeScript
+explorer shell in `xriq/apps/explorer-ui` can render health, network totals,
+blocks, transactions, and accounts from the local product API. Actual repeated
+live database smoke coverage, wallet UI, admin UI, and deeper ISO adapter
+integration are still pending.
 
 ## Phase 1.1 Build Order
 
@@ -196,6 +199,16 @@ cargo test -p xriq-iso20022
 
 - Add a React + TypeScript explorer showing chain status, blocks,
   transactions, accounts, mempool, and snapshots from indexed data.
+- Current scaffold: `xriq/apps/explorer-ui` is a Vite React + TypeScript
+  local explorer shell. It reads `xriq-api` through a same-origin `/api` proxy
+  and currently shows private-devnet health, height/totals, network metadata,
+  latest blocks, latest transactions, and accounts.
+
+```bash
+cd xriq/apps/explorer-ui
+npm.cmd run check
+npm.cmd run build
+```
 
 ### Milestone F: Wallet UI
 
