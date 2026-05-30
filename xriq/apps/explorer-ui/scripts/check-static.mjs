@@ -12,6 +12,7 @@ const requiredFiles = [
   "src/App.tsx",
   "src/admin.tsx",
   "src/api.ts",
+  "src/iso.tsx",
   "src/main.tsx",
   "src/styles.css",
   "src/wallet.tsx",
@@ -49,6 +50,9 @@ for (const route of [
   "/api/v1/admin/indexer/status",
   "/api/v1/admin/audit-events?limit=5",
   "/api/v1/snapshots",
+  "/api/v1/iso20022/payment-initiation/preview",
+  "/api/v1/iso20022/transactions/",
+  "/api/v1/iso20022/accounts/",
 ]) {
   if (!apiSource.includes(route)) {
     throw new Error(`missing API route in client: ${route}`);
@@ -65,6 +69,7 @@ for (const requiredText of [
   "Transaction Detail",
   "Account Detail",
   "WalletShell",
+  "IsoPreviewPanel",
   "AdminStatusPanel",
 ]) {
   if (!appSource.includes(requiredText)) {
@@ -74,6 +79,7 @@ for (const requiredText of [
 
 const walletSource = readFileSync(join(root, "src/wallet.tsx"), "utf8");
 const adminSource = readFileSync(join(root, "src/admin.tsx"), "utf8");
+const isoSource = readFileSync(join(root, "src/iso.tsx"), "utf8");
 for (const requiredText of [
   "Wallet Preview",
   "xriq-wallet-transfer-preview-v1",
@@ -103,9 +109,27 @@ for (const forbiddenText of ["mainnet", "liquidity", "custody", "swap"]) {
   if (
     appSource.toLowerCase().includes(forbiddenText) ||
     walletSource.toLowerCase().includes(forbiddenText) ||
-    adminSource.toLowerCase().includes(forbiddenText)
+    adminSource.toLowerCase().includes(forbiddenText) ||
+    isoSource.toLowerCase().includes(forbiddenText)
   ) {
     throw new Error(`forbidden public-market term found in UI: ${forbiddenText}`);
+  }
+}
+
+for (const requiredText of [
+  "ISO 20022 Preview",
+  "Payment Initiation",
+  "Payment Status",
+  "Account Statement",
+  "not_certified",
+  "unsupported_fields",
+  "loadIsoPaymentInitiationPreview",
+  "loadIsoPaymentStatusPreview",
+  "loadIsoAccountStatementPreview",
+  "Read only",
+]) {
+  if (!isoSource.includes(requiredText)) {
+    throw new Error(`missing ISO preview marker: ${requiredText}`);
   }
 }
 

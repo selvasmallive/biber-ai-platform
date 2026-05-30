@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `51%` overall. Current Rust
+- Phase 1.1 estimated completion: about `52%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -157,7 +157,10 @@ unless the user changes the project scope again.
   network metadata, blocks, transactions, accounts, and basic drill-down detail
   panels. The same app now includes a preview-only wallet transfer draft panel
   wired to the product wallet draft-preview API. It does not sign, submit,
-  persist, or manage private keys. The same app now includes a read-only Admin
+  persist, or manage private keys. The same app now includes a read-only ISO
+  20022 Preview panel backed by product API payment-initiation,
+  transaction-status, and account-statement preview routes. The same app now
+  includes a read-only Admin
   Status panel backed by product API network, indexer, wallet-status,
   node-status, pending-file mempool-status, snapshot-catalog, and audit-event
   routes.
@@ -522,6 +525,23 @@ active target because the GPU was terminated to save cost.
   1.1 status is now about `51%` overall. No GCP resources were provisioned, no
   public/DEX behavior was added, no mutating admin controls were added, and no
   credentials were changed.
+- Latest native XRIQ Phase 1.1 read-only ISO preview UI checkpoint: extended
+  `xriq/apps/explorer-ui` with `src/iso.tsx`, a read-only `IsoPreviewPanel`
+  that calls the product ISO preview routes for the selected transaction and
+  account. The panel renders payment initiation, payment status, account
+  statement, `xriq-iso20022-preview-v1`, `not_certified`, `XRIQ-DEV`, ISO
+  status such as `ACSC`, opening/closing balances, and unsupported-field
+  counts. Static guardrails now require the ISO panel, ISO API client routes,
+  and read-only marker while continuing to reject public-market wording in UI
+  source. Verification passed `npm.cmd run check`, escalated
+  `npm.cmd run build` after the known Windows/Vite sandbox config-read issue,
+  and browser smoke against live local `xriq-api` plus Vite servers showing
+  the ISO panel, mapping version, currency, `ACSC`, opening `100`, closing
+  `73`, `not_certified`, unsupported-field markers, read-only marker, and no
+  console errors. Phase 1.1 status is now about `52%` overall. No GCP
+  resources were provisioned, no public/DEX behavior was added, no mutating
+  admin controls were added, no wallet submission/block-production behavior
+  was added, and no credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
   defines private/local product API groups for health, explorer, wallet, admin,

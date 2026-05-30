@@ -13,6 +13,7 @@ import {
   loadTransactionDetail,
 } from "./api";
 import { AdminStatusPanel } from "./admin";
+import { IsoPreviewPanel } from "./iso";
 import "./styles.css";
 import { WalletShell } from "./wallet";
 
@@ -345,6 +346,11 @@ function App() {
           snapshot={snapshot}
           activeAccountAddress={activeAccountAddress}
           onAccountSelect={(address) => setSelectedAccountAddress(address)}
+        />
+        <IsoPreviewPanel
+          apiBaseUrl={apiBaseUrl}
+          transactionHash={activeTransactionHash}
+          accountAddress={activeAccountAddress}
         />
         <AdminStatusPanel snapshot={snapshot} loadStatus={loadState.status} />
       </section>

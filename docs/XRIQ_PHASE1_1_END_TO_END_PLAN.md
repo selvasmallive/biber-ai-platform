@@ -70,7 +70,7 @@ Rust
 
 React + TypeScript
  |-- Wallet UI              ~12%; preview-only shell wired to wallet draft-preview API
- |-- Explorer               ~20%; shell plus basic detail panels read product API
+ |-- Explorer               ~22%; shell plus detail and ISO preview panels read product API
  |-- Exchange UI            0%; deferred high legal/compliance-risk surface
  `-- Admin portal           ~19%; read-only node/status, pending mempool, snapshot, and audit panel exists
 
@@ -80,7 +80,7 @@ SQL/PostgreSQL
  `-- Audit data             ~18%; schema, indexed block audit events, and read API exist
 
 ISO 20022
- `-- Compatibility adapter  ~25%; preview mapping crate plus product API read routes exist
+ `-- Compatibility adapter  ~27%; preview crate, product API read routes, and UI panel exist
 ```
 
 Initial post-RC1 Phase 1.1 baseline status was about `15%`. Most of that value
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first read-only ISO 20022 product API checkpoint, Phase 1.1 status
-is about `51%`: the contract document, PostgreSQL read-model schema, JSON
+After the first read-only ISO 20022 UI checkpoint, Phase 1.1 status
+is about `52%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -109,6 +109,10 @@ accounts, shows balance/debit/remaining math, and renders a deterministic
 draft JSON preview without signing, submission, key handling, or persistence.
 That wallet panel can now call the product wallet draft-preview API and render
 the server validation/balance response. The same React app now includes a
+read-only ISO 20022 Preview panel that calls the product ISO preview routes
+for the selected transaction/account and renders payment initiation, payment
+status, account statement, mapping-version, not-certified, and unsupported
+field markers. The same React app now includes a
 read-only Admin Status panel that summarizes network tip state, indexer
 current/last-run status, node health/read-only mode, wallet draft/submit/send
 capability flags, read-only durable pending-file mempool status, a read-only
@@ -235,7 +239,8 @@ cargo test -p xriq-iso20022
   local explorer shell. It reads `xriq-api` through a same-origin `/api` proxy
   and currently shows private-devnet health, height/totals, network metadata,
   latest blocks, latest transactions, accounts, plus selected block,
-  transaction, and account detail panels.
+  transaction, account detail panels, and a read-only ISO 20022 preview panel
+  for the selected transaction/account.
 
 ```bash
 cd xriq/apps/explorer-ui

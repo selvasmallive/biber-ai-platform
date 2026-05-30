@@ -300,6 +300,71 @@ export interface SnapshotListResponse {
   snapshots: SnapshotSummary[];
 }
 
+export interface IsoTransferFields {
+  from_address: string;
+  to_address: string;
+  amount_base_units: string;
+  fee_base_units: string;
+  nonce: number;
+}
+
+export interface IsoPaymentInitiationPreviewResponse {
+  environment: "private-devnet";
+  not_certified: boolean;
+  mapping_version: string;
+  message_type: string;
+  message_id: string;
+  source_tx_hash: string;
+  xriq: IsoTransferFields;
+  iso20022_aligned: {
+    creditor_account: string;
+    debtor_account: string;
+    instructed_amount: string;
+    currency: string;
+    end_to_end_id: string;
+  };
+  unsupported_fields: string[];
+}
+
+export interface IsoPaymentStatusPreviewResponse {
+  environment: "private-devnet";
+  not_certified: boolean;
+  mapping_version: string;
+  message_type: string;
+  message_id: string;
+  source_tx_hash: string;
+  xriq_status: string;
+  iso20022_aligned: {
+    original_end_to_end_id: string;
+    transaction_status: string;
+    status_reason: string;
+    confirmed_block_height: number | null;
+  };
+  unsupported_fields: string[];
+}
+
+export interface IsoAccountStatementPreviewResponse {
+  environment: "private-devnet";
+  not_certified: boolean;
+  mapping_version: string;
+  message_type: string;
+  message_id: string;
+  account_address: string;
+  from: string;
+  to: string;
+  opening_balance_base_units: string;
+  closing_balance_base_units: string;
+  entries: Array<{
+    tx_hash: string;
+    direction: string;
+    amount_base_units: string;
+    fee_base_units: string;
+    status: string;
+    block_height: number;
+  }>;
+  unsupported_fields: string[];
+}
+
 export async function loadExplorerSnapshot(
   baseUrl: string,
 ): Promise<ExplorerSnapshot> {
@@ -441,6 +506,40 @@ export async function loadWalletDraftPreview(
   return fetchJson<WalletDraftPreviewResponse>(
     normalizeBaseUrl(baseUrl),
     `/api/v1/wallet/transfers/draft-preview?${params.toString()}`,
+  );
+}
+
+export async function loadIsoPaymentInitiationPreview(
+  baseUrl: string,
+  txHash: string,
+): Promise<IsoPaymentInitiationPreviewResponse> {
+  const params = new URLSearchParams({ tx_hash: txHash });
+  return fetchJson<IsoPaymentInitiationPreviewResponse>(
+    normalizeBaseUrl(baseUrl),
+    `/api/v1/iso20022/payment-initiation/preview?${params.toString()}`,
+  );
+}
+
+export async function loadIsoPaymentStatusPreview(
+  baseUrl: string,
+  txHash: string,
+): Promise<IsoPaymentStatusPreviewResponse> {
+  return fetchJson<IsoPaymentStatusPreviewResponse>(
+    normalizeBaseUrl(baseUrl),
+    `/api/v1/iso20022/transactions/${encodeURIComponent(txHash)}/status`,
+  );
+}
+
+export async function loadIsoAccountStatementPreview(
+  baseUrl: string,
+  address: string,
+  from: string,
+  to: string,
+): Promise<IsoAccountStatementPreviewResponse> {
+  const params = new URLSearchParams({ from, to });
+  return fetchJson<IsoAccountStatementPreviewResponse>(
+    normalizeBaseUrl(baseUrl),
+    `/api/v1/iso20022/accounts/${encodeURIComponent(address)}/statement?${params.toString()}`,
   );
 }
 
