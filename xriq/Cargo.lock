@@ -135,6 +135,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "xriq-iso20022"
+version = "0.1.0"
+dependencies = [
+ "xriq-api",
+]
+
+[[package]]
 name = "xriq-ledger"
 version = "0.1.0"
 dependencies = [

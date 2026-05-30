@@ -6,6 +6,7 @@ members = [
     "crates/xriq-crypto",
     "crates/xriq-explorer",
     "crates/xriq-indexer",
+    "crates/xriq-iso20022",
     "crates/xriq-ledger",
     "crates/xriq-mempool",
     "crates/xriq-node",

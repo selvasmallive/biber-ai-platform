@@ -135,16 +135,19 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `26%` overall. Current Rust
+- Phase 1.1 estimated completion: about `28%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
-  UI, ISO 20022 adapter, admin portal, exchange UI, and smart contracts are not
+  UI, admin portal, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
   read-model schema, JSON fixtures, and a local validation script. Milestone B
   now has the first deterministic Rust read-model indexer scaffold and local
   replay command plus idempotent SQL write-plan export and a dry-run local
   PostgreSQL apply path, optional local Postgres service, and dry-run/live
   verification command. The first Rust product API service boundary now exists
-  in `xriq/crates/xriq-api`, but it is not an HTTP server yet.
+  in `xriq/crates/xriq-api`, but it is not an HTTP server yet. The first ISO
+  20022 compatibility adapter exists in `xriq/crates/xriq-iso20022`, but it is
+  a private-devnet preview mapping layer only, not certification or payment
+  network connectivity.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -262,6 +265,18 @@ active target because the GPU was terminated to save cost.
   Phase 1.1 status is now about `26%` overall. No GCP resources were
   provisioned, no public/DEX behavior was added, no live HTTP API was started,
   and no credentials were changed.
+- Latest native XRIQ Phase 1.1 ISO 20022 adapter checkpoint: added
+  `xriq/crates/xriq-iso20022` and registered it in the Rust workspace. This
+  crate maps private-devnet `xriq-api` transaction/account-history response
+  models into payment initiation preview, payment status preview, and account
+  statement preview structs. It always carries `not_certified: true`,
+  `private-devnet`, `xriq-iso20022-preview-v1`, and explicit unsupported-field
+  lists for bank/SWIFT/fiat/legal-entity data XRIQ does not have. Focused
+  verification passed with `cargo test -p xriq-iso20022` and
+  `cargo clippy -p xriq-iso20022 -- -D warnings`. Phase 1.1 status is now
+  about `28%` overall. No GCP resources were provisioned, no public/DEX
+  behavior was added, no certification/payment-network claim was added, and no
+  credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
   defines private/local product API groups for health, explorer, wallet, admin,

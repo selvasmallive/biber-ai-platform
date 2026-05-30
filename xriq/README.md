@@ -14,6 +14,8 @@ only until security and legal/compliance review says otherwise.
 - `xriq-explorer`: read-only private-devnet explorer view models and text UI.
 - `xriq-indexer`: deterministic Phase 1.1 read-model indexing scaffold for the
   future PostgreSQL-backed explorer/admin/API surfaces.
+- `xriq-iso20022`: private-devnet ISO 20022-aligned preview mappings with
+  explicit non-certification and unsupported-field markers.
 - `xriq-ledger`: deterministic private-devnet account state transitions.
 - `xriq-mempool`: deterministic pending-transaction checks and ordering.
 - `xriq-node`: minimal local private-devnet node loop with deterministic replay
@@ -63,6 +65,13 @@ The first Phase 1.1 API service-boundary scaffold can be checked with:
 
 ```bash
 cargo test -p xriq-api
+```
+
+The first Phase 1.1 ISO 20022 compatibility adapter scaffold can be checked
+with:
+
+```bash
+cargo test -p xriq-iso20022
 ```
 
 After producing a local private-devnet chain file, replay it through the

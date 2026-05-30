@@ -80,7 +80,7 @@ SQL/PostgreSQL
  `-- Audit data             ~15%; schema and indexed block audit events exist
 
 ISO 20022
- `-- Compatibility adapter  0%; Phase 1.1 planned, not implemented
+ `-- Compatibility adapter  ~20%; first preview mapping crate exists
 ```
 
 Overall Phase 1.1 end-to-end solution status: about `15%`. Most of that value
@@ -88,14 +88,15 @@ comes from the completed Rust private-devnet foundation. The actual end-to-end
 product surfaces, especially PostgreSQL indexing and React UI, are still at the
 starting line.
 
-After the first Rust API service-boundary checkpoint, Phase 1.1 status is about
-`26%`: the contract document, PostgreSQL read-model schema, JSON fixtures, local
+After the first ISO 20022 adapter checkpoint, Phase 1.1 status is about `28%`:
+the contract document, PostgreSQL read-model schema, JSON fixtures, local
 contract validation script, deterministic Rust read-model indexer scaffold,
 local chain replay command, idempotent PostgreSQL SQL write-plan export,
 dry-run database apply path, optional local Postgres service, `verify-postgres`
-verification command, and `xriq-api` read-only product response boundary exist.
-Actual repeated live database smoke coverage, HTTP API server wiring, UI, and
-ISO adapter implementation are still pending.
+verification command, `xriq-api` read-only product response boundary, and
+`xriq-iso20022` preview mapping crate exist. Actual repeated live database
+smoke coverage, HTTP API server wiring, UI, and deeper ISO adapter integration
+are still pending.
 
 ## Phase 1.1 Build Order
 
@@ -176,6 +177,15 @@ cargo test -p xriq-api
 - Add `xriq-iso20022`.
 - Add mapping structs, fixtures, and tests.
 - Map only data XRIQ actually has.
+- Current scaffold: `xriq/crates/xriq-iso20022` maps private-devnet
+  transaction/account-history response models into payment initiation preview,
+  payment status preview, and account statement preview shapes. It includes
+  `not_certified: true` and explicit unsupported-field markers. Focused
+  verification is:
+
+```bash
+cargo test -p xriq-iso20022
+```
 
 ### Milestone E: Explorer UI
 

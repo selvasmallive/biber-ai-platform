@@ -272,6 +272,12 @@ from `xriq/` with `cargo test -p xriq-api`. It defines product-facing
 private-devnet response models over the indexed read model, but it is not an
 HTTP server yet.
 
+The first ISO 20022 compatibility adapter scaffold is
+`xriq/crates/xriq-iso20022`; test it from `xriq/` with
+`cargo test -p xriq-iso20022`. It creates private-devnet preview mappings only;
+it does not claim ISO certification, bank connectivity, SWIFT connectivity, or
+production payment-network support.
+
 To replay an existing local chain file into the current in-memory read model,
 run:
 
