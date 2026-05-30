@@ -15,7 +15,8 @@ Phase 1.1 private-devnet development.
 The `xriq/crates/xriq-iso20022` crate defines the first ISO 20022-aligned
 preview mappings for payment initiation, payment status, and account statement
 responses. These mappings remain private-devnet-only and explicitly not
-certified.
+certified. `xriq-api` now exposes the first GET-only ISO preview routes by
+calling that adapter from the product API boundary.
 
 ## Contract Principles
 
@@ -147,7 +148,7 @@ Required behavior:
 ### ISO 20022 Mapping APIs
 
 ```text
-POST /api/v1/iso20022/payment-initiation/preview
+GET  /api/v1/iso20022/payment-initiation/preview?tx_hash=<tx_hash>
 GET  /api/v1/iso20022/transactions/{tx_hash}/status
 GET  /api/v1/iso20022/accounts/{address}/statement?from=<ts>&to=<ts>
 ```
@@ -165,6 +166,8 @@ Required behavior:
 - include `not_certified: true`
 - include `environment: "private-devnet"`
 - do not claim SWIFT, bank, legal, compliance, or payment-network approval
+- keep the current implementation GET-only/read-only until explicit mutating
+  payment-initiation preview bodies are needed
 
 ### Future Decentralized Exchange APIs
 

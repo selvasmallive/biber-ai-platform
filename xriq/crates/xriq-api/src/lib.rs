@@ -18,6 +18,12 @@ use xriq_indexer::{
     IndexedAccount, IndexedAccountBalance, IndexedAccountTransaction, IndexedAuditEvent,
     IndexedBlock, IndexedChainSnapshot, IndexedTransaction,
 };
+use xriq_iso20022::{
+    account_statement_preview, payment_initiation_preview, payment_status_preview,
+    AccountStatementEntry, AccountStatementPreview, PaymentInitiationAligned,
+    PaymentInitiationPreview, PaymentStatusAligned, PaymentStatusPreview, XriqIsoAccountHistory,
+    XriqIsoAccountTransaction, XriqIsoTransaction, XriqTransferFields,
+};
 
 pub const API_ENVIRONMENT: &str = "private-devnet";
 pub const API_SERVICE: &str = "xriq-api";
@@ -432,6 +438,41 @@ impl XriqApiService {
         }
     }
 
+    pub fn iso20022_payment_initiation_preview(
+        &self,
+        tx_hash: &str,
+    ) -> Result<PaymentInitiationPreview, ApiError> {
+        let transaction = self.transaction(tx_hash)?;
+        Ok(payment_initiation_preview(&iso_transaction(&transaction)))
+    }
+
+    pub fn iso20022_transaction_status(
+        &self,
+        tx_hash: &str,
+    ) -> Result<PaymentStatusPreview, ApiError> {
+        let transaction = self.transaction(tx_hash)?;
+        Ok(payment_status_preview(&iso_transaction(&transaction)))
+    }
+
+    pub fn iso20022_account_statement(
+        &self,
+        address: &str,
+        from: &str,
+        to: &str,
+    ) -> Result<AccountStatementPreview, ApiError> {
+        let account = self.account(address)?;
+        let history = self.account_transactions(address, 25);
+        let opening_balance =
+            statement_opening_balance(&account.balance_base_units, &history.transactions);
+        Ok(account_statement_preview(
+            &iso_account_history(&history),
+            opening_balance,
+            account.balance_base_units,
+            from,
+            to,
+        ))
+    }
+
     pub fn admin_indexer_status(&self) -> IndexerStatusResponse {
         IndexerStatusResponse {
             environment: API_ENVIRONMENT,
@@ -620,6 +661,17 @@ pub fn product_api_http_response(
                 Err(message) => api_error_response(400, "bad_request", &message),
             }
         }
+        "/api/v1/iso20022/payment-initiation/preview" => {
+            match required_query_param_any(query, &["tx_hash"]) {
+                Ok(tx_hash) => match service.iso20022_payment_initiation_preview(tx_hash) {
+                    Ok(preview) => {
+                        api_json_response(200, render_iso_payment_initiation_preview_json(&preview))
+                    }
+                    Err(error) => api_not_found_response(error),
+                },
+                Err(message) => api_error_response(400, "bad_request", &message),
+            }
+        }
         "/api/v1/admin/indexer/status" => api_json_response(
             200,
             render_indexer_status_json(&service.admin_indexer_status()),
@@ -704,6 +756,28 @@ fn dynamic_product_api_http_response(
             return match service.wallet_transaction_status(tx_hash) {
                 Ok(status) => {
                     api_json_response(200, render_wallet_transaction_status_json(&status))
+                }
+                Err(error) => api_not_found_response(error),
+            };
+        }
+    }
+
+    if let Some(tx_path) = path.strip_prefix("/api/v1/iso20022/transactions/") {
+        if let Some(tx_hash) = tx_path.strip_suffix("/status") {
+            return match service.iso20022_transaction_status(tx_hash) {
+                Ok(status) => api_json_response(200, render_iso_payment_status_json(&status)),
+                Err(error) => api_not_found_response(error),
+            };
+        }
+    }
+
+    if let Some(account_path) = path.strip_prefix("/api/v1/iso20022/accounts/") {
+        if let Some(address) = account_path.strip_suffix("/statement") {
+            let from = query_param(query, "from").unwrap_or("1970-01-01T00:00:00Z");
+            let to = query_param(query, "to").unwrap_or("1970-01-01T00:00:02Z");
+            return match service.iso20022_account_statement(address, from, to) {
+                Ok(statement) => {
+                    api_json_response(200, render_iso_account_statement_json(&statement))
                 }
                 Err(error) => api_not_found_response(error),
             };
@@ -1176,6 +1250,79 @@ fn account_transaction_response(
         amount_base_units: transaction.amount_base_units.clone(),
         fee_base_units: transaction.fee_base_units.clone(),
     }
+}
+
+fn iso_transaction(transaction: &TransactionResponse) -> XriqIsoTransaction {
+    XriqIsoTransaction {
+        tx_hash: transaction.tx_hash.clone(),
+        confirmed_block_height: (transaction.status == "confirmed")
+            .then_some(transaction.block_height),
+        status: transaction.status.clone(),
+        from_address: transaction.from_address.clone(),
+        to_address: transaction.to_address.clone(),
+        amount_base_units: transaction.amount_base_units.clone(),
+        fee_base_units: transaction.fee_base_units.clone(),
+        nonce: transaction.nonce,
+    }
+}
+
+fn iso_account_history(history: &AccountHistoryResponse) -> XriqIsoAccountHistory {
+    XriqIsoAccountHistory {
+        address: history.address.clone(),
+        transactions: history
+            .transactions
+            .iter()
+            .map(|transaction| XriqIsoAccountTransaction {
+                tx_hash: transaction.tx_hash.clone(),
+                direction: transaction.direction.to_string(),
+                block_height: transaction.block_height,
+                amount_base_units: transaction.amount_base_units.clone(),
+                fee_base_units: transaction.fee_base_units.clone(),
+            })
+            .collect(),
+    }
+}
+
+fn statement_opening_balance(
+    closing_balance_base_units: &str,
+    transactions: &[AccountTransactionResponse],
+) -> String {
+    let Some(mut opening) = parse_base_units(closing_balance_base_units) else {
+        return closing_balance_base_units.to_string();
+    };
+
+    for transaction in transactions {
+        let Some(amount) = parse_base_units(&transaction.amount_base_units) else {
+            return closing_balance_base_units.to_string();
+        };
+        let Some(fee) = parse_base_units(&transaction.fee_base_units) else {
+            return closing_balance_base_units.to_string();
+        };
+        match transaction.direction {
+            "sent" => {
+                let Some(debit) = amount.checked_add(fee) else {
+                    return closing_balance_base_units.to_string();
+                };
+                let Some(next_opening) = opening.checked_add(debit) else {
+                    return closing_balance_base_units.to_string();
+                };
+                opening = next_opening;
+            }
+            "received" => {
+                let Some(next_opening) = opening.checked_sub(amount) else {
+                    return closing_balance_base_units.to_string();
+                };
+                opening = next_opening;
+            }
+            _ => {}
+        }
+    }
+
+    opening.to_string()
+}
+
+fn parse_base_units(value: &str) -> Option<u128> {
+    value.parse::<u128>().ok()
 }
 
 fn audit_event_response(event: &IndexedAuditEvent) -> AuditEventResponse {
@@ -2141,6 +2288,184 @@ fn render_wallet_transfer_draft_preview_json(
     output
 }
 
+fn render_iso_payment_initiation_preview_json(response: &PaymentInitiationPreview) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"environment\": {},",
+        json_string(response.environment)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"not_certified\": {},",
+        response.not_certified
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"mapping_version\": {},",
+        json_string(response.mapping_version)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"message_type\": {},",
+        json_string(response.message_type)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"message_id\": {},",
+        json_string(&response.message_id)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"source_tx_hash\": {},",
+        json_string(&response.source_tx_hash)
+    )
+    .expect("write to String");
+    output.push_str("  \"xriq\": ");
+    output.push_str(&render_iso_transfer_fields_inline(&response.xriq, 2));
+    output.push_str(",\n  \"iso20022_aligned\": ");
+    output.push_str(&render_iso_payment_initiation_aligned_inline(
+        &response.iso20022_aligned,
+        2,
+    ));
+    output.push_str(",\n  \"unsupported_fields\": ");
+    output.push_str(&render_string_array_inline(&response.unsupported_fields, 2));
+    output.push_str("\n}");
+    output
+}
+
+fn render_iso_payment_status_json(response: &PaymentStatusPreview) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"environment\": {},",
+        json_string(response.environment)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"not_certified\": {},",
+        response.not_certified
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"mapping_version\": {},",
+        json_string(response.mapping_version)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"message_type\": {},",
+        json_string(response.message_type)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"message_id\": {},",
+        json_string(&response.message_id)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"source_tx_hash\": {},",
+        json_string(&response.source_tx_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"xriq_status\": {},",
+        json_string(&response.xriq_status)
+    )
+    .expect("write to String");
+    output.push_str("  \"iso20022_aligned\": ");
+    output.push_str(&render_iso_payment_status_aligned_inline(
+        &response.iso20022_aligned,
+        2,
+    ));
+    output.push_str(",\n  \"unsupported_fields\": ");
+    output.push_str(&render_string_array_inline(&response.unsupported_fields, 2));
+    output.push_str("\n}");
+    output
+}
+
+fn render_iso_account_statement_json(response: &AccountStatementPreview) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"environment\": {},",
+        json_string(response.environment)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"not_certified\": {},",
+        response.not_certified
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"mapping_version\": {},",
+        json_string(response.mapping_version)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"message_type\": {},",
+        json_string(response.message_type)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"message_id\": {},",
+        json_string(&response.message_id)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"account_address\": {},",
+        json_string(&response.account_address)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"from\": {},", json_string(&response.from)).expect("write to String");
+    writeln!(&mut output, "  \"to\": {},", json_string(&response.to)).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"opening_balance_base_units\": {},",
+        json_string(&response.opening_balance_base_units)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"closing_balance_base_units\": {},",
+        json_string(&response.closing_balance_base_units)
+    )
+    .expect("write to String");
+    output.push_str("  \"entries\": [");
+    for (index, entry) in response.entries.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_iso_account_statement_entry_inline(entry, 4));
+    }
+    if !response.entries.is_empty() {
+        output.push('\n');
+    }
+    output.push_str("  ],\n  \"unsupported_fields\": ");
+    output.push_str(&render_string_array_inline(&response.unsupported_fields, 2));
+    output.push_str("\n}");
+    output
+}
+
 fn render_indexer_status_json(response: &IndexerStatusResponse) -> String {
     render_indexer_status_json_inline(response, 0)
 }
@@ -2424,6 +2749,89 @@ fn render_wallet_draft_balance_json_inline(
         json_optional_string(balance.debit_base_units.as_deref()),
         json_optional_string(balance.remaining_base_units.as_deref())
     )
+}
+
+fn render_iso_transfer_fields_inline(fields: &XriqTransferFields, indent: usize) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    format!(
+        "{spaces}{{\n{nested}\"from_address\": {},\n{nested}\"to_address\": {},\n{nested}\"amount_base_units\": {},\n{nested}\"fee_base_units\": {},\n{nested}\"nonce\": {}\n{spaces}}}",
+        json_string(&fields.from_address),
+        json_string(&fields.to_address),
+        json_string(&fields.amount_base_units),
+        json_string(&fields.fee_base_units),
+        fields.nonce
+    )
+}
+
+fn render_iso_payment_initiation_aligned_inline(
+    fields: &PaymentInitiationAligned,
+    indent: usize,
+) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    format!(
+        "{spaces}{{\n{nested}\"creditor_account\": {},\n{nested}\"debtor_account\": {},\n{nested}\"instructed_amount\": {},\n{nested}\"currency\": {},\n{nested}\"end_to_end_id\": {}\n{spaces}}}",
+        json_string(&fields.creditor_account),
+        json_string(&fields.debtor_account),
+        json_string(&fields.instructed_amount),
+        json_string(fields.currency),
+        json_string(&fields.end_to_end_id)
+    )
+}
+
+fn render_iso_payment_status_aligned_inline(
+    status: &PaymentStatusAligned,
+    indent: usize,
+) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    format!(
+        "{spaces}{{\n{nested}\"original_end_to_end_id\": {},\n{nested}\"transaction_status\": {},\n{nested}\"status_reason\": {},\n{nested}\"confirmed_block_height\": {}\n{spaces}}}",
+        json_string(&status.original_end_to_end_id),
+        json_string(status.transaction_status),
+        json_string(status.status_reason),
+        json_optional_u64(status.confirmed_block_height)
+    )
+}
+
+fn render_iso_account_statement_entry_inline(
+    entry: &AccountStatementEntry,
+    indent: usize,
+) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    format!(
+        "{spaces}{{\n{nested}\"tx_hash\": {},\n{nested}\"direction\": {},\n{nested}\"amount_base_units\": {},\n{nested}\"fee_base_units\": {},\n{nested}\"status\": {},\n{nested}\"block_height\": {}\n{spaces}}}",
+        json_string(&entry.tx_hash),
+        json_string(entry.direction),
+        json_string(&entry.amount_base_units),
+        json_string(&entry.fee_base_units),
+        json_string(entry.status),
+        entry.block_height
+    )
+}
+
+fn render_string_array_inline(values: &[&str], indent: usize) -> String {
+    let spaces = " ".repeat(indent);
+    if values.is_empty() {
+        return "[]".to_string();
+    }
+
+    let nested = " ".repeat(indent + 2);
+    let mut output = String::from("[");
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&nested);
+        output.push_str(&json_string(value));
+    }
+    output.push('\n');
+    output.push_str(&spaces);
+    output.push(']');
+    output
 }
 
 fn render_indexer_status_json_inline(response: &IndexerStatusResponse, indent: usize) -> String {
@@ -2997,6 +3405,44 @@ mod tests {
     }
 
     #[test]
+    fn iso20022_preview_methods_map_private_devnet_data_without_certification_claims() {
+        let api = service();
+
+        let initiation = api.iso20022_payment_initiation_preview(TX_HASH).unwrap();
+        assert_eq!(initiation.environment, API_ENVIRONMENT);
+        assert!(initiation.not_certified);
+        assert_eq!(initiation.message_type, "payment_initiation_preview");
+        assert_eq!(initiation.source_tx_hash, TX_HASH);
+        assert_eq!(initiation.iso20022_aligned.currency, "XRIQ-DEV");
+        assert_eq!(initiation.iso20022_aligned.end_to_end_id, TX_HASH);
+
+        let status = api.iso20022_transaction_status(TX_HASH).unwrap();
+        assert_eq!(status.message_type, "payment_status_preview");
+        assert_eq!(status.iso20022_aligned.transaction_status, "ACSC");
+        assert_eq!(status.iso20022_aligned.confirmed_block_height, Some(1));
+
+        let statement = api
+            .iso20022_account_statement(
+                "xriqdev1alice00000000000",
+                "1970-01-01T00:00:00Z",
+                "1970-01-01T00:00:02Z",
+            )
+            .unwrap();
+        assert_eq!(statement.message_type, "account_statement_preview");
+        assert_eq!(statement.opening_balance_base_units, "100");
+        assert_eq!(statement.closing_balance_base_units, "73");
+        assert_eq!(statement.entries.len(), 1);
+        assert_eq!(statement.entries[0].direction, "debit");
+        assert_eq!(statement.entries[0].status, "confirmed");
+        assert!(!statement.unsupported_fields.is_empty());
+
+        assert_eq!(
+            api.iso20022_transaction_status(&"9".repeat(64)),
+            Err(ApiError::TransactionNotFound)
+        );
+    }
+
+    #[test]
     fn product_api_http_routes_render_contract_json() {
         let api = service();
 
@@ -3145,6 +3591,41 @@ mod tests {
         assert!(draft_preview
             .body
             .contains("\"remaining_base_units\": \"46\""));
+
+        let iso_initiation = product_api_http_response(
+            &api,
+            "GET",
+            &format!("/api/v1/iso20022/payment-initiation/preview?tx_hash={TX_HASH}"),
+        );
+        assert_eq!(iso_initiation.status_code, 200);
+        assert!(iso_initiation
+            .body
+            .contains("\"message_type\": \"payment_initiation_preview\""));
+        assert!(iso_initiation.body.contains("\"not_certified\": true"));
+        assert!(iso_initiation.body.contains("\"currency\": \"XRIQ-DEV\""));
+
+        let iso_status = product_api_http_response(
+            &api,
+            "GET",
+            &format!("/api/v1/iso20022/transactions/{TX_HASH}/status"),
+        );
+        assert_eq!(iso_status.status_code, 200);
+        assert!(iso_status.body.contains("\"transaction_status\": \"ACSC\""));
+        assert!(iso_status.body.contains("\"confirmed_block_height\": 1"));
+
+        let iso_statement = product_api_http_response(
+            &api,
+            "GET",
+            "/api/v1/iso20022/accounts/xriqdev1alice00000000000/statement?from=1970-01-01T00:00:00Z&to=1970-01-01T00:00:02Z",
+        );
+        assert_eq!(iso_statement.status_code, 200);
+        assert!(iso_statement
+            .body
+            .contains("\"message_type\": \"account_statement_preview\""));
+        assert!(iso_statement
+            .body
+            .contains("\"opening_balance_base_units\": \"100\""));
+        assert!(iso_statement.body.contains("\"direction\": \"debit\""));
     }
 
     #[test]
@@ -3174,6 +3655,13 @@ mod tests {
         assert!(bad_draft
             .body
             .contains("missing required query parameter: to_address"));
+
+        let bad_iso =
+            product_api_http_response(&api, "GET", "/api/v1/iso20022/payment-initiation/preview");
+        assert_eq!(bad_iso.status_code, 400);
+        assert!(bad_iso
+            .body
+            .contains("missing required query parameter: tx_hash"));
 
         let missing_route = product_api_http_response(&api, "GET", "/api/v1/dex/pairs");
         assert_eq!(missing_route.status_code, 404);

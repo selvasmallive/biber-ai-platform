@@ -65,7 +65,7 @@ Rust
  |-- Blockchain node        ~70% for private-devnet; RC1 baseline exists
  |-- Consensus engine       ~60% for private-devnet; single-authority baseline
  |-- Wallet backend         ~50%; CLI flows plus product read/preview routes exist
- |-- APIs                   ~52%; local HTTP wrappers plus wallet/admin/node/pending-file mempool read routes exist
+ |-- APIs                   ~54%; local HTTP wrappers plus wallet/admin/node/pending-file mempool/ISO preview read routes exist
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
@@ -80,7 +80,7 @@ SQL/PostgreSQL
  `-- Audit data             ~18%; schema, indexed block audit events, and read API exist
 
 ISO 20022
- `-- Compatibility adapter  ~20%; first preview mapping crate exists
+ `-- Compatibility adapter  ~25%; preview mapping crate plus product API read routes exist
 ```
 
 Initial post-RC1 Phase 1.1 baseline status was about `15%`. Most of that value
@@ -88,15 +88,17 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first read-only pending-file mempool UI checkpoint, Phase 1.1 status
-is about `50%`: the contract document, PostgreSQL read-model schema, JSON
+After the first read-only ISO 20022 product API checkpoint, Phase 1.1 status
+is about `51%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
 service, `verify-postgres` verification command, `xriq-api` read-only product
 response boundary with `/api/v1/...` route/render behavior, a local
 `serve-readonly` socket wrapper, a `request` CLI smoke path, and
-`xriq-iso20022` preview mapping crate exist. `xriq-api` now includes
+`xriq-iso20022` preview mapping crate exist. `xriq-api` now calls the ISO
+adapter through private-devnet GET-only payment-initiation, payment-status,
+and account-statement preview routes. `xriq-api` now includes
 private-devnet wallet status, account list, balance, history, transaction
 status, and non-mutating transfer draft-preview routes. The first React + TypeScript
 explorer shell in `xriq/apps/explorer-ui` can render health, network totals,
@@ -188,7 +190,8 @@ when intentionally applying the read model to a local development database.
   `IndexedChainSnapshot`, wallet status/account/balance/history/transaction
   status/draft-preview routes, a read-only `/api/v1/mempool` status route that
   can inspect an optional durable pending TSV through `--pending-file`,
-  read-only admin node-status, audit events, and snapshot catalog routes, a
+  read-only admin node-status, audit events, snapshot catalog routes, and
+  GET-only ISO 20022 preview routes, a
   `request` CLI smoke path, and a local `serve-readonly` socket wrapper. The
   pending-file path does not enable product API submit or block production.
   Focused verification is:
@@ -202,6 +205,9 @@ cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.b
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --target /api/v1/mempool?limit=5
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/admin/audit-events
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/snapshots
+cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target '/api/v1/iso20022/payment-initiation/preview?tx_hash=<confirmed-tx-hash>'
+cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target '/api/v1/iso20022/transactions/<confirmed-tx-hash>/status'
+cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target '/api/v1/iso20022/accounts/xriqdev1alice00000000000/statement?from=1970-01-01T00:00:00Z&to=1970-01-01T00:00:02Z'
 ```
 
 ### Milestone D: ISO 20022 Adapter
@@ -212,8 +218,10 @@ cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.b
 - Current scaffold: `xriq/crates/xriq-iso20022` maps private-devnet
   transaction/account-history response models into payment initiation preview,
   payment status preview, and account statement preview shapes. It includes
-  `not_certified: true` and explicit unsupported-field markers. Focused
-  verification is:
+  `not_certified: true` and explicit unsupported-field markers. The adapter is
+  now dependency-direction friendly: `xriq-api` calls it for GET-only product
+  routes without making ISO certification, bank, SWIFT, legal-compliance, or
+  payment-network claims. Focused verification is:
 
 ```bash
 cargo test -p xriq-iso20022

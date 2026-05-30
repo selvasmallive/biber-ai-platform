@@ -7,4 +7,3 @@ repository.workspace = true
 description = "XRIQ private-devnet ISO 20022 compatibility preview mappings."
 
 [dependencies]
-xriq-api = { path = "../xriq-api" }

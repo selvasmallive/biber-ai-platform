@@ -92,6 +92,7 @@ dependencies = [
  "xriq-core",
  "xriq-crypto",
  "xriq-indexer",
+ "xriq-iso20022",
  "xriq-storage",
 ]
 
@@ -140,9 +141,6 @@ dependencies = [
 [[package]]
 name = "xriq-iso20022"
 version = "0.1.0"
-dependencies = [
- "xriq-api",
-]
 
 [[package]]
 name = "xriq-ledger"

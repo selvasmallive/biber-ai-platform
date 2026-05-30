@@ -10,4 +10,5 @@ description = "XRIQ private-devnet product API service boundary."
 xriq-core = { path = "../xriq-core" }
 xriq-crypto = { path = "../xriq-crypto" }
 xriq-indexer = { path = "../xriq-indexer" }
+xriq-iso20022 = { path = "../xriq-iso20022" }
 xriq-storage = { path = "../xriq-storage" }

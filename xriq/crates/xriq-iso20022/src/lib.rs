@@ -4,8 +4,6 @@
 //! certification, bank connectivity, SWIFT connectivity, legal compliance, or
 //! production payment-network support.
 
-use xriq_api::{AccountHistoryResponse, AccountTransactionResponse, TransactionResponse};
-
 pub const ISO_ENVIRONMENT: &str = "private-devnet";
 pub const ISO_MAPPING_VERSION: &str = "xriq-iso20022-preview-v1";
 pub const ISO_DEV_CURRENCY: &str = "XRIQ-DEV";
@@ -27,6 +25,33 @@ pub const ACCOUNT_STATEMENT_UNSUPPORTED_FIELDS: &[&str] = &[
     "booking_date_from_bank",
     "fiat_currency",
 ];
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XriqIsoTransaction {
+    pub tx_hash: String,
+    pub confirmed_block_height: Option<u64>,
+    pub status: String,
+    pub from_address: String,
+    pub to_address: String,
+    pub amount_base_units: String,
+    pub fee_base_units: String,
+    pub nonce: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XriqIsoAccountHistory {
+    pub address: String,
+    pub transactions: Vec<XriqIsoAccountTransaction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct XriqIsoAccountTransaction {
+    pub tx_hash: String,
+    pub direction: String,
+    pub block_height: u64,
+    pub amount_base_units: String,
+    pub fee_base_units: String,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PaymentInitiationPreview {
@@ -106,7 +131,7 @@ pub struct AccountStatementEntry {
     pub block_height: u64,
 }
 
-pub fn payment_initiation_preview(transaction: &TransactionResponse) -> PaymentInitiationPreview {
+pub fn payment_initiation_preview(transaction: &XriqIsoTransaction) -> PaymentInitiationPreview {
     PaymentInitiationPreview {
         environment: ISO_ENVIRONMENT,
         not_certified: true,
@@ -132,7 +157,7 @@ pub fn payment_initiation_preview(transaction: &TransactionResponse) -> PaymentI
     }
 }
 
-pub fn payment_status_preview(transaction: &TransactionResponse) -> PaymentStatusPreview {
+pub fn payment_status_preview(transaction: &XriqIsoTransaction) -> PaymentStatusPreview {
     let status = payment_status_mapping(transaction);
     PaymentStatusPreview {
         environment: ISO_ENVIRONMENT,
@@ -148,7 +173,7 @@ pub fn payment_status_preview(transaction: &TransactionResponse) -> PaymentStatu
 }
 
 pub fn account_statement_preview(
-    history: &AccountHistoryResponse,
+    history: &XriqIsoAccountHistory,
     opening_balance_base_units: impl Into<String>,
     closing_balance_base_units: impl Into<String>,
     from: impl Into<String>,
@@ -175,13 +200,13 @@ pub fn account_statement_preview(
     }
 }
 
-fn payment_status_mapping(transaction: &TransactionResponse) -> PaymentStatusAligned {
+fn payment_status_mapping(transaction: &XriqIsoTransaction) -> PaymentStatusAligned {
     match transaction.status.as_str() {
         "confirmed" => PaymentStatusAligned {
             original_end_to_end_id: transaction.tx_hash.clone(),
             transaction_status: "ACSC",
             status_reason: "accepted_settlement_completed_on_private_devnet",
-            confirmed_block_height: Some(transaction.block_height),
+            confirmed_block_height: transaction.confirmed_block_height,
         },
         "pending" => PaymentStatusAligned {
             original_end_to_end_id: transaction.tx_hash.clone(),
@@ -204,10 +229,10 @@ fn payment_status_mapping(transaction: &TransactionResponse) -> PaymentStatusAli
     }
 }
 
-fn account_statement_entry(transaction: &AccountTransactionResponse) -> AccountStatementEntry {
+fn account_statement_entry(transaction: &XriqIsoAccountTransaction) -> AccountStatementEntry {
     AccountStatementEntry {
         tx_hash: transaction.tx_hash.clone(),
-        direction: statement_direction(transaction.direction),
+        direction: statement_direction(&transaction.direction),
         amount_base_units: transaction.amount_base_units.clone(),
         fee_base_units: transaction.fee_base_units.clone(),
         status: "confirmed",
@@ -226,7 +251,7 @@ fn statement_direction(direction: &str) -> &'static str {
 
 fn statement_message_id(
     address: &str,
-    last_transaction: Option<&AccountTransactionResponse>,
+    last_transaction: Option<&XriqIsoAccountTransaction>,
 ) -> String {
     let account_label = address
         .strip_prefix("xriqdev1")
@@ -247,17 +272,13 @@ fn short_hash(tx_hash: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use xriq_api::{AccountHistoryResponse, AccountTransactionResponse, TransactionResponse};
 
     const TX_HASH: &str = "fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565";
 
-    fn transaction() -> TransactionResponse {
-        TransactionResponse {
+    fn transaction() -> XriqIsoTransaction {
+        XriqIsoTransaction {
             tx_hash: TX_HASH.to_string(),
-            block_height: 1,
-            block_hash: "fe349b87f4219a7edd3dc8cb430b27200eb3500ab9550692b1493d4c4312371d"
-                .to_string(),
-            transaction_index: 0,
+            confirmed_block_height: Some(1),
             status: "confirmed".to_string(),
             from_address: "xriqdev1alice00000000000".to_string(),
             to_address: "xriqdev1bobbb00000000000".to_string(),
@@ -267,19 +288,13 @@ mod tests {
         }
     }
 
-    fn history() -> AccountHistoryResponse {
-        AccountHistoryResponse {
-            environment: "private-devnet",
-            network: "xriq-devnet".to_string(),
+    fn history() -> XriqIsoAccountHistory {
+        XriqIsoAccountHistory {
             address: "xriqdev1alice00000000000".to_string(),
-            limit: 25,
-            next_cursor: None,
-            transactions: vec![AccountTransactionResponse {
-                address: "xriqdev1alice00000000000".to_string(),
+            transactions: vec![XriqIsoAccountTransaction {
                 tx_hash: TX_HASH.to_string(),
-                direction: "sent",
+                direction: "sent".to_string(),
                 block_height: 1,
-                transaction_index: 0,
                 amount_base_units: "25".to_string(),
                 fee_base_units: "2".to_string(),
             }],
@@ -336,6 +351,7 @@ mod tests {
     fn maps_non_confirmed_statuses_without_inventing_bank_data() {
         let mut pending = transaction();
         pending.status = "pending".to_string();
+        pending.confirmed_block_height = None;
         let pending_status = payment_status_preview(&pending);
 
         assert_eq!(pending_status.iso20022_aligned.transaction_status, "PDNG");

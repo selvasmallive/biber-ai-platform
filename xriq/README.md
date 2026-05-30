@@ -73,6 +73,7 @@ can be smoke-tested without opening a socket:
 ```bash
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/health
 cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --target '/api/v1/mempool?limit=5'
+cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target '/api/v1/iso20022/transactions/<confirmed-tx-hash>/status'
 ```
 
 To expose the same product API routes over localhost for a browser/client
@@ -90,6 +91,13 @@ with:
 ```bash
 cargo test -p xriq-iso20022
 ```
+
+The product API exposes the adapter through GET-only/read-only preview routes:
+`/api/v1/iso20022/payment-initiation/preview?tx_hash=<hash>`,
+`/api/v1/iso20022/transactions/{hash}/status`, and
+`/api/v1/iso20022/accounts/{address}/statement?from=<ts>&to=<ts>`. These are
+private-devnet previews only and do not claim ISO certification, bank/SWIFT
+connectivity, legal compliance, or production payment-network support.
 
 The first React + TypeScript explorer, wallet-preview, and admin-status UI shell
 lives at `apps/explorer-ui`. It reads the product API through the dev server's

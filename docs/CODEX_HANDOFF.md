@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `50%` overall. Current Rust
+- Phase 1.1 estimated completion: about `51%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -148,7 +148,9 @@ unless the user changes the project scope again.
   `xriq/crates/xriq-api`. The first ISO
   20022 compatibility adapter exists in `xriq/crates/xriq-iso20022`, but it is
   a private-devnet preview mapping layer only, not certification or payment
-  network connectivity. `xriq-api` now includes private-devnet wallet status,
+  network connectivity. `xriq-api` now exposes that adapter through GET-only
+  payment-initiation, transaction-status, and account-statement preview routes.
+  `xriq-api` now includes private-devnet wallet status,
   account list, balance, history, transaction status, and non-mutating
   draft-preview routes. The first React + TypeScript explorer UI shell exists
   in `xriq/apps/explorer-ui` and renders local product API health, totals,
@@ -499,6 +501,27 @@ active target because the GPU was terminated to save cost.
   provisioned, no public/DEX behavior was added, no mutating admin controls
   were added, no product API wallet submission/block-production behavior was
   added, and no credentials were changed.
+- Latest native XRIQ Phase 1.1 ISO product API preview checkpoint: reversed
+  the adapter dependency direction so `xriq-iso20022` is a standalone mapping
+  crate and `xriq-api` can call it from the product API boundary. Added
+  GET-only/read-only private-devnet routes for
+  `/api/v1/iso20022/payment-initiation/preview?tx_hash=<hash>`,
+  `/api/v1/iso20022/transactions/{hash}/status`, and
+  `/api/v1/iso20022/accounts/{address}/statement?from=<ts>&to=<ts>`. These
+  routes map confirmed indexed XRIQ data into ISO 20022-aligned preview JSON
+  with `not_certified: true`, `xriq-iso20022-preview-v1`, explicit unsupported
+  fields, and no bank/SWIFT/legal-compliance/payment-network claims. The
+  current implementation remains GET-only and does not add wallet submission,
+  custody, public DEX behavior, or production payment processing. Focused
+  verification passed `cargo fmt --check`, `cargo test -p xriq-iso20022`,
+  `cargo test -p xriq-api` (`16` lib tests plus `5` binary tests),
+  `cargo clippy -p xriq-iso20022 -- -D warnings`,
+  `cargo clippy -p xriq-api -- -D warnings`, bundled-Python
+  `scripts/xriq_phase1_1_contract_check.py`, CLI request smokes for all three
+  new ISO routes, `cargo test --workspace -j 1`, and `git diff --check`. Phase
+  1.1 status is now about `51%` overall. No GCP resources were provisioned, no
+  public/DEX behavior was added, no mutating admin controls were added, and no
+  credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
   defines private/local product API groups for health, explorer, wallet, admin,
