@@ -256,6 +256,8 @@ python scripts/xriq_phase1_local_check.py
 The Phase 1 private-devnet release-candidate checklist is in
 `docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md`.
 The current RC decision report is in `docs/XRIQ_PHASE1_RC_REPORT.md`.
+The post-RC end-to-end Phase 1.1 plan is in
+`docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md`.
 
 After a clean local check, future sessions can cheaply re-check the latest
 Phase 1 summary and checklist pointers without rerunning Rust:

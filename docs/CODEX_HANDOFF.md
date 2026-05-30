@@ -1,28 +1,32 @@
 # Codex Handoff
 
-Last updated: 2026-05-26
+Last updated: 2026-05-30
 
 ## Current Goal
 
-Phase 1 goal: finish the XRIQ private-devnet prototype from the current
-GitHub/local workstation state. Do not include BIBER MVP, model training,
-repo-adaptation, runtime-profile, or local-model platform work in Phase 1
-percentage/status reporting unless it directly unblocks XRIQ private-devnet.
-Those BIBER MVP items move to Phase 2 after Phase 1 is complete. The Vast GPU
-was terminated after the important BIBER runtime artifacts were backed up
-locally, so future sessions must not assume `/workspace`, vLLM, FastAPI, or
+Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Current
+next scope is Phase 1.1 planning/execution for the local/private end-to-end
+XRIQ prototype: Rust API/backend, React + TypeScript UI, PostgreSQL indexer,
+and ISO 20022 compatibility adapter. Do not include BIBER MVP, model training,
+repo-adaptation, runtime-profile, or local-model platform work in Phase 1.1
+percentage/status reporting unless the user explicitly resumes BIBER work. The
+Vast GPU was terminated after the important BIBER runtime artifacts were backed
+up locally, so future sessions must not assume `/workspace`, vLLM, FastAPI, or
 live Vast SSH access exists unless the user provides a fresh instance.
 
 - Current focus:
-  - Active narrowed focus as of 2026-05-25: complete the XRIQ private-devnet
-    prototype as Phase 1. Keep BIBER MVP work paused except for docs/resume
-    safety or narrow changes that directly unblock XRIQ private-devnet.
+  - Active focus as of 2026-05-30: start XRIQ Phase 1.1 end-to-end local
+    product prototype planning/execution after the completed Phase 1 RC1 tag.
+    Use `docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md` as the scope boundary.
   - Phase 2, after Phase 1: BIBER MVP/local model API, model registry, repo
     context, file-edit/test workflows, GitHub save/PR path, optional OpenAI
     mentor review, repo-adaptation eval/training loop, and Replit-replacement
     workflow improvements.
   - XRIQ private devnet: Rust-only private-devnet chain, replay startup, local
     runner/RPC tooling, wallet flow, explorer flow, and integration tests.
+  - XRIQ Phase 1.1: add local/private PostgreSQL indexing, Rust API service
+    contracts, React + TypeScript wallet/explorer/admin UI, and ISO 20022
+    adapter mapping without public launch or compliance claims.
 - Delayed scope:
   - Public XRIQ remains part of the later project plan, but do not implement
     public token economics, DEX/liquidity, validator rewards, public governance,
@@ -126,6 +130,13 @@ unless the user changes the project scope again.
 - Phase 2 goal, not counted in Phase 1: BIBER MVP and related model/platform
   work, including local-model runtime, repo-agent workflows, repo adaptation,
   model training, and OpenAI mentor orchestration.
+- Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
+  with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
+  and admin UI, and ISO 20022 compatibility adapter.
+- Phase 1.1 estimated completion: about `15%` overall. Current Rust
+  private-devnet foundation is real and tagged, but PostgreSQL indexing, React
+  UI, ISO 20022 adapter, admin portal, exchange UI, and smart contracts are not
+  implemented yet.
 - Remaining OpenAI/Codex key cost estimate for Phase 1 only, excluding Vast GPU,
   servers, production infrastructure, audits, public launch, and any BIBER MVP
   expansion:
@@ -135,10 +146,28 @@ unless the user changes the project scope again.
 
 ## Immediate Resume State
 
-As of the latest 2026-05-26 checkpoint, the active work mode is local
-workstation development for XRIQ private-devnet. The previous Vast deployment is
-not an active target because the GPU was terminated to save cost.
+As of the latest 2026-05-30 checkpoint, the active work mode is local
+workstation development for XRIQ Phase 1.1 end-to-end planning after the
+completed private-devnet RC1 tag. The previous Vast deployment is not an active
+target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 planning checkpoint: added
+  `docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md` as the post-RC1 local/private
+  end-to-end plan. It makes ISO 20022 compatibility part of Phase 1.1 as an
+  adapter/mapping layer, not as bank approval, legal compliance, payment-network
+  connectivity, or ISO certification. It maps the user's target architecture:
+  Rust node/consensus are RC1-baseline complete, wallet backend and APIs are
+  partial, smart contracts are deferred, React + TypeScript UI is not started,
+  and XRIQ PostgreSQL indexing/analytics/audit tables are not started. It sets
+  Phase 1.1 overall completion at about `15%` because the Rust private-devnet
+  foundation is complete for RC1 while the product/indexer/UI/ISO surfaces are
+  mostly unbuilt. It also sets the recommended build order: contracts,
+  PostgreSQL indexer, Rust API service, ISO 20022 adapter, explorer UI, wallet
+  UI, admin portal, then later exchange UI and smart contracts only after
+  review/stability. Updated `README.md`,
+  `xriq/README.md`, `docs/XRIQ_TECHNICAL_SPEC.md`, and this handoff. No Rust
+  behavior change, Vast sync, API/vLLM restart, training, OpenAI mentor call,
+  tag operation, or credential change was used.
 - Latest native XRIQ Phase 1 RC1 tag checkpoint: the user explicitly approved
   marking XRIQ private-devnet Phase 1 as RC1 and creating/pushing the
   `phase1-xriq-private-devnet-rc1` tag. Before tagging, the strict readiness

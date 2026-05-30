@@ -1,0 +1,154 @@
+# XRIQ Phase 1.1 End-To-End Plan
+
+Status: post-RC1 planning scope for the local/private XRIQ end-to-end
+prototype.
+
+Phase 1.1 starts after the approved `phase1-xriq-private-devnet-rc1` tag. Its
+goal is to turn the Rust private-devnet core into a local end-to-end product
+prototype without making public-mainnet, exchange-listing, custody, legal,
+banking, or investment claims.
+
+## Phase 1.1 Goal
+
+Build a local end-to-end XRIQ prototype with:
+
+- Rust node/backend APIs as the source of truth
+- React + TypeScript user interfaces for private-devnet operation
+- PostgreSQL indexing for explorer, analytics, and audit views
+- ISO 20022 compatibility adapter for future financial-system integration
+  mapping
+
+Phase 1.1 remains private/local. It should not launch a public cryptocurrency,
+public DEX, token sale, custody product, or production payment rail.
+
+## ISO 20022 Compatibility Scope
+
+ISO 20022 is part of Phase 1.1 as an adapter and mapping layer, not as a claim
+that XRIQ is bank-approved, legally compliant, or connected to regulated
+payment networks.
+
+Phase 1.1 should add:
+
+- an `xriq-iso20022` Rust crate or module
+- deterministic mappings from XRIQ private-devnet transfers to ISO
+  20022-aligned payment initiation/status/reporting shapes
+- JSON fixtures for the supported mapping subset
+- tests that prove XRIQ transaction IDs, account identifiers, amounts, fees,
+  confirmations, failures, and timestamps map consistently
+- explicit unsupported-field handling instead of silently inventing banking
+  data XRIQ does not have
+
+Recommended first subset:
+
+- payment/credit-transfer style mapping for a submitted XRIQ transfer
+- payment-status style mapping for pending, confirmed, and rejected transfers
+- account/statement/reporting style mapping for explorer-indexed account
+  activity
+
+Out of scope for Phase 1.1:
+
+- real bank connectivity
+- SWIFT connectivity
+- legal compliance certification
+- production payment processing
+- custody or fiat settlement
+- pretending XRIQ is an ISO 20022-certified network
+
+## Architecture Status
+
+Current status after Phase 1 RC1:
+
+```text
+Rust
+ |-- Blockchain node        ~70% for private-devnet; RC1 baseline exists
+ |-- Consensus engine       ~60% for private-devnet; single-authority baseline
+ |-- Wallet backend         ~45%; CLI/backend flows exist, service API next
+ |-- APIs                   ~35%; local HTTP wrappers exist, product API next
+ `-- Smart contracts        0%; defer VM until core/app flow is stable
+
+React + TypeScript
+ |-- Wallet UI              0%; not started
+ |-- Explorer               0%; not started as web UI; Rust view models exist
+ |-- Exchange UI            0%; deferred high legal/compliance-risk surface
+ `-- Admin portal           0%; not started
+
+SQL/PostgreSQL
+ |-- Explorer indexing      0%; not started for XRIQ
+ |-- Analytics              0%; not started
+ `-- Audit data             0%; not started for XRIQ
+
+ISO 20022
+ `-- Compatibility adapter  0%; Phase 1.1 planned, not implemented
+```
+
+Overall Phase 1.1 end-to-end solution status: about `15%`. Most of that value
+comes from the completed Rust private-devnet foundation. The actual end-to-end
+product surfaces, especially PostgreSQL indexing and React UI, are still at the
+starting line.
+
+## Phase 1.1 Build Order
+
+1. Define API and database contracts before building UI.
+2. Add PostgreSQL schema and indexer for blocks, transactions, accounts,
+   balances, mempool snapshots, and audit events.
+3. Add a Rust API service boundary for wallet/explorer/admin reads and safe
+   private-devnet submissions.
+4. Add ISO 20022 mapping crate with fixtures and tests.
+5. Build React + TypeScript explorer UI against the indexed API.
+6. Build React + TypeScript wallet UI for test identities and private-devnet
+   transfers only.
+7. Build admin portal for local node/indexer health, snapshots, and audit logs.
+8. Defer exchange UI until legal-risk, custody, DEX, market-abuse, and listing
+   guardrails are separately reviewed.
+9. Defer smart-contract VM until the node, indexer, wallet UI, and explorer UI
+   are stable.
+
+## Recommended Phase 1.1 Milestones
+
+### Milestone A: Contracts
+
+- Document REST/JSON API shapes for wallet, explorer, indexer, admin, and ISO
+  20022 mapping.
+- Add checked fixtures for stable response examples.
+- Keep all endpoints private-devnet/local.
+
+### Milestone B: PostgreSQL Indexer
+
+- Add XRIQ PostgreSQL schema.
+- Add a local indexer command or service that reads the file-backed chain and
+  writes indexed blocks, transactions, accounts, balances, and audit events.
+- Add idempotent replay tests.
+
+### Milestone C: ISO 20022 Adapter
+
+- Add `xriq-iso20022`.
+- Add mapping structs, fixtures, and tests.
+- Map only data XRIQ actually has.
+
+### Milestone D: Explorer UI
+
+- Add a React + TypeScript explorer showing chain status, blocks,
+  transactions, accounts, mempool, and snapshots from indexed data.
+
+### Milestone E: Wallet UI
+
+- Add a React + TypeScript private-devnet wallet UI for test identities,
+  balance, transfer draft/submit/send, status, and history.
+- Keep all copy visibly private-devnet/test-only.
+
+### Milestone F: Admin Portal
+
+- Add local admin views for node health, indexer status, snapshot export/import
+  status, and audit events.
+
+## Guardrails
+
+- Do not add public trading, liquidity, custody, bridges, fiat ramps, or token
+  sale behavior in Phase 1.1.
+- Do not call the Exchange UI production-ready. Treat it as deferred until legal
+  and compliance review.
+- Do not implement smart contracts before the basic end-to-end wallet,
+  explorer, indexer, and API flows are stable.
+- Keep `docs/XRIQ_LEGAL_RISK_REDUCTION.md` as a hard guardrail.
+- Keep the RC1 tag fixed; Phase 1.1 work happens after RC1 on `main` or a
+  future feature branch.

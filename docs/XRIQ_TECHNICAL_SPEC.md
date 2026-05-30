@@ -54,6 +54,12 @@ Future centralized-exchange compatibility is tracked in
 `docs/XRIQ_EXCHANGE_READINESS_CHECKLIST.md`. Treat it as a future-facing
 engineering checklist only; it does not make XRIQ listing-ready.
 
+Post-RC end-to-end scope is tracked in
+`docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md`. That plan makes ISO 20022
+compatibility part of Phase 1.1 as an adapter/mapping layer for future
+financial-system integration, not as a claim of bank approval, regulatory
+compliance, production payment processing, or ISO certification.
+
 ## Target Design Advantages
 
 XRIQ should be designed around a focused set of advantages instead of trying to

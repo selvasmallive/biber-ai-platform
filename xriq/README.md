@@ -46,6 +46,8 @@ The Phase 1 release-candidate checklist is documented at
 `../docs/XRIQ_PHASE1_PRIVATE_DEVNET_RC.md`.
 The current RC decision report is documented at
 `../docs/XRIQ_PHASE1_RC_REPORT.md`.
+The post-RC end-to-end Phase 1.1 plan is documented at
+`../docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md`.
 
 After the local check has passed and the RC checkpoint is committed, the latest
 summary can be re-checked without rerunning Rust:
