@@ -93,7 +93,7 @@ lives at `apps/explorer-ui`. It reads the product API through the dev server's
 same-origin `/api` proxy, shows basic block, transaction, and account detail
 panels, includes a preview-only wallet transfer draft surface wired to the
 product wallet draft-preview API, and shows a read-only admin status panel for
-network, indexer, wallet capability, mempool status, snapshot catalog, and
+node, network, indexer, wallet capability, mempool status, snapshot catalog, and
 audit-event state. The wallet panel does not sign, submit, persist, or manage
 private keys.
 

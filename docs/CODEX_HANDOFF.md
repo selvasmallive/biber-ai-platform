@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `48%` overall. Current Rust
+- Phase 1.1 estimated completion: about `49%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -157,7 +157,7 @@ unless the user changes the project scope again.
   wired to the product wallet draft-preview API. It does not sign, submit,
   persist, or manage private keys. The same app now includes a read-only Admin
   Status panel backed by product API network, indexer, wallet-status,
-  mempool-status, snapshot-catalog, and audit-event routes.
+  node-status, mempool-status, snapshot-catalog, and audit-event routes.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -451,6 +451,26 @@ active target because the GPU was terminated to save cost.
   No GCP resources were provisioned, no public/DEX behavior was added, no
   mutating admin controls were added, no wallet submission/block-production
   behavior was added, and no credentials were changed.
+- Latest native XRIQ Phase 1.1 read-only admin node-status checkpoint:
+  extended `xriq-api` with GET-only `/api/v1/admin/node/status`. The route
+  reports health/status from the indexed-chain snapshot with mode
+  `serve-readonly`, source `indexed-chain-snapshot`, current height, tip/state
+  roots, stored block count, `pending_transactions: 0`,
+  `wallet_submit_status: "disabled"`, and
+  `block_production_status: "disabled"`. Extended
+  `xriq/apps/explorer-ui` so `AdminStatusPanel` renders a Node section from
+  the same-origin product API proxy. Static guardrails now require the node
+  route/markers and continue rejecting public-market wording in UI source.
+  Verification passed with `cargo fmt`, `cargo test -p xriq-api`,
+  `cargo clippy -p xriq-api -- -D warnings`, `npm.cmd run check`,
+  `npm.cmd run build`, CLI smoke for `/api/v1/admin/node/status`, direct local
+  API smoke on `127.0.0.1:8090`, and browser verification against live local
+  `xriq-api` plus Vite servers showing Node, healthy, `serve-readonly`,
+  `indexed-chain-snapshot`, wallet submit disabled, block production disabled,
+  and no console errors. Phase 1.1 status is now about `49%` overall. No GCP
+  resources were provisioned, no public/DEX behavior was added, no mutating
+  admin controls were added, no wallet submission/block-production behavior was
+  added, and no credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
   defines private/local product API groups for health, explorer, wallet, admin,

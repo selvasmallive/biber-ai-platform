@@ -424,6 +424,24 @@ impl XriqApiService {
         }
     }
 
+    pub fn admin_node_status(&self) -> NodeStatusResponse {
+        NodeStatusResponse {
+            environment: API_ENVIRONMENT,
+            service: API_SERVICE,
+            status: "healthy",
+            mode: "serve-readonly",
+            source: "indexed-chain-snapshot",
+            network: self.snapshot.chain_id.clone(),
+            current_height: self.snapshot.current_height,
+            latest_block_hash: self.snapshot.latest_block_hash.clone(),
+            state_root: self.snapshot.state_root.clone(),
+            stored_blocks: self.snapshot.read_model.blocks.len(),
+            pending_transactions: 0,
+            wallet_submit_status: "disabled",
+            block_production_status: "disabled",
+        }
+    }
+
     pub fn admin_audit_events(&self, limit: usize) -> AuditEventListResponse {
         let mut audit_events = self
             .snapshot
@@ -576,6 +594,9 @@ pub fn product_api_http_response(
             200,
             render_indexer_status_json(&service.admin_indexer_status()),
         ),
+        "/api/v1/admin/node/status" => {
+            api_json_response(200, render_node_status_json(&service.admin_node_status()))
+        }
         "/api/v1/admin/audit-events" => match limit_from_query(query, 25) {
             Ok(limit) => api_json_response(
                 200,
@@ -968,6 +989,23 @@ pub struct IndexerRunResponse {
     pub to_height: Option<u64>,
     pub blocks_indexed: usize,
     pub transactions_indexed: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NodeStatusResponse {
+    pub environment: &'static str,
+    pub service: &'static str,
+    pub status: &'static str,
+    pub mode: &'static str,
+    pub source: &'static str,
+    pub network: String,
+    pub current_height: u64,
+    pub latest_block_hash: String,
+    pub state_root: String,
+    pub stored_blocks: usize,
+    pub pending_transactions: usize,
+    pub wallet_submit_status: &'static str,
+    pub block_production_status: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1882,6 +1920,85 @@ fn render_indexer_status_json(response: &IndexerStatusResponse) -> String {
     render_indexer_status_json_inline(response, 0)
 }
 
+fn render_node_status_json(response: &NodeStatusResponse) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"environment\": {},",
+        json_string(response.environment)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"service\": {},",
+        json_string(response.service)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"status\": {},",
+        json_string(response.status)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"mode\": {},", json_string(response.mode)).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"source\": {},",
+        json_string(response.source)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"network\": {},",
+        json_string(&response.network)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"current_height\": {},",
+        response.current_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"latest_block_hash\": {},",
+        json_string(&response.latest_block_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"state_root\": {},",
+        json_string(&response.state_root)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"stored_blocks\": {},",
+        response.stored_blocks
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"pending_transactions\": {},",
+        response.pending_transactions
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"wallet_submit_status\": {},",
+        json_string(response.wallet_submit_status)
+    )
+    .expect("write to String");
+    write!(
+        &mut output,
+        "  \"block_production_status\": {}\n}}",
+        json_string(response.block_production_status)
+    )
+    .expect("write to String");
+    output
+}
+
 fn render_audit_event_list_json(response: &AuditEventListResponse) -> String {
     let mut output = String::new();
     writeln!(&mut output, "{{").expect("write to String");
@@ -2518,6 +2635,22 @@ mod tests {
     }
 
     #[test]
+    fn admin_node_status_is_read_only_and_snapshot_backed() {
+        let status = service().admin_node_status();
+
+        assert_eq!(status.environment, API_ENVIRONMENT);
+        assert_eq!(status.service, API_SERVICE);
+        assert_eq!(status.status, "healthy");
+        assert_eq!(status.mode, "serve-readonly");
+        assert_eq!(status.source, "indexed-chain-snapshot");
+        assert_eq!(status.current_height, 1);
+        assert_eq!(status.stored_blocks, 1);
+        assert_eq!(status.pending_transactions, 0);
+        assert_eq!(status.wallet_submit_status, "disabled");
+        assert_eq!(status.block_production_status, "disabled");
+    }
+
+    #[test]
     fn admin_audit_events_and_snapshots_are_read_only() {
         let api = service();
 
@@ -2606,6 +2739,14 @@ mod tests {
         let status = product_api_http_response(&api, "GET", "/api/v1/admin/indexer/status");
         assert_eq!(status.status_code, 200);
         assert!(status.body.contains("\"service\": \"xriq-indexer\""));
+
+        let node_status = product_api_http_response(&api, "GET", "/api/v1/admin/node/status");
+        assert_eq!(node_status.status_code, 200);
+        assert!(node_status.body.contains("\"service\": \"xriq-api\""));
+        assert!(node_status.body.contains("\"mode\": \"serve-readonly\""));
+        assert!(node_status
+            .body
+            .contains("\"block_production_status\": \"disabled\""));
 
         let mempool = product_api_http_response(&api, "GET", "/api/v1/mempool?limit=5");
         assert_eq!(mempool.status_code, 200);

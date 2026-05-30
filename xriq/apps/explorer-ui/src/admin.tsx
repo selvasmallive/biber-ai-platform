@@ -6,6 +6,7 @@ interface AdminStatusPanelProps {
 }
 
 export function AdminStatusPanel({ snapshot, loadStatus }: AdminStatusPanelProps) {
+  const node = snapshot?.nodeStatus;
   const indexer = snapshot?.indexer;
   const wallet = snapshot?.walletStatus;
   const mempool = snapshot?.mempool;
@@ -20,6 +21,18 @@ export function AdminStatusPanel({ snapshot, loadStatus }: AdminStatusPanelProps
       </div>
 
       <div className="adminGrid" aria-label="Private-devnet admin status">
+        <StatusBlock
+          title="Node"
+          rows={[
+            ["Status", node?.status ?? "-"],
+            ["Mode", node?.mode ?? "-"],
+            ["Source", node?.source ?? "-"],
+            ["Stored Blocks", node?.stored_blocks ?? "-"],
+            ["Pending", node?.pending_transactions ?? "-"],
+            ["Wallet Submit", node?.wallet_submit_status ?? "-"],
+            ["Block Production", node?.block_production_status ?? "-"],
+          ]}
+        />
         <StatusBlock
           title="Network"
           rows={[

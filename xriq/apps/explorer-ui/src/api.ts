@@ -144,6 +144,22 @@ export interface IndexerStatusResponse {
   };
 }
 
+export interface NodeStatusResponse {
+  environment: "private-devnet";
+  service: string;
+  status: string;
+  mode: string;
+  source: string;
+  network: string;
+  current_height: number;
+  latest_block_hash: string;
+  state_root: string;
+  stored_blocks: number;
+  pending_transactions: number;
+  wallet_submit_status: string;
+  block_production_status: string;
+}
+
 export interface ExplorerSnapshot {
   loadedAt: string;
   health: HealthResponse;
@@ -153,6 +169,7 @@ export interface ExplorerSnapshot {
   transactions: TransactionListResponse;
   mempool: MempoolResponse;
   accounts: AccountListResponse;
+  nodeStatus: NodeStatusResponse;
   indexer: IndexerStatusResponse;
   walletStatus: WalletStatusResponse;
   auditEvents: AdminAuditEventsResponse;
@@ -295,6 +312,7 @@ export async function loadExplorerSnapshot(
     transactions,
     mempool,
     accounts,
+    nodeStatus,
     indexer,
     walletStatus,
     auditEvents,
@@ -313,6 +331,10 @@ export async function loadExplorerSnapshot(
     ),
     fetchJson<MempoolResponse>(cleanBaseUrl, "/api/v1/mempool?limit=5"),
     fetchJson<AccountListResponse>(cleanBaseUrl, "/api/v1/accounts?limit=5"),
+    fetchJson<NodeStatusResponse>(
+      cleanBaseUrl,
+      "/api/v1/admin/node/status",
+    ),
     fetchJson<IndexerStatusResponse>(
       cleanBaseUrl,
       "/api/v1/admin/indexer/status",
@@ -334,6 +356,7 @@ export async function loadExplorerSnapshot(
     transactions,
     mempool,
     accounts,
+    nodeStatus,
     indexer,
     walletStatus,
     auditEvents,

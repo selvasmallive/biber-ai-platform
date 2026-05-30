@@ -45,6 +45,7 @@ for (const route of [
   "/api/v1/wallet/status",
   "/api/v1/wallet/accounts/",
   "/api/v1/wallet/transfers/draft-preview",
+  "/api/v1/admin/node/status",
   "/api/v1/admin/indexer/status",
   "/api/v1/admin/audit-events?limit=5",
   "/api/v1/snapshots",
@@ -110,6 +111,10 @@ for (const forbiddenText of ["mainnet", "liquidity", "custody", "swap"]) {
 
 for (const requiredText of [
   "Admin Status",
+  "Node",
+  "nodeStatus",
+  "wallet_submit_status",
+  "block_production_status",
   "Mempool",
   "mempool",
   "submit_status",
