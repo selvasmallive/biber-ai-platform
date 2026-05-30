@@ -1,0 +1,19 @@
+{
+  "environment": "private-devnet",
+  "not_certified": true,
+  "mapping_version": "xriq-iso20022-preview-v1",
+  "message_type": "payment_status_preview",
+  "message_id": "iso-status-fceb9425",
+  "source_tx_hash": "fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565",
+  "xriq_status": "confirmed",
+  "iso20022_aligned": {
+    "original_end_to_end_id": "fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565",
+    "transaction_status": "ACSC",
+    "status_reason": "accepted_settlement_completed_on_private_devnet",
+    "confirmed_block_height": 1
+  },
+  "unsupported_fields": [
+    "interbank_settlement_date",
+    "clearing_system_reference"
+  ]
+}

@@ -359,3 +359,24 @@ Turn this contract document into concrete artifacts:
 3. Add a local validation script that checks the schema and fixtures can be
    parsed without needing GCP.
 4. Only after that, build the Rust indexer.
+
+## Concrete Artifacts
+
+The first local contract artifacts now exist:
+
+```text
+xriq/db/schema.sql
+xriq/fixtures/phase1_1/
+scripts/xriq_phase1_1_contract_check.py
+```
+
+Run the local contract check from the repo root:
+
+```bash
+python scripts/xriq_phase1_1_contract_check.py
+```
+
+The check validates that the PostgreSQL read-model schema contains the required
+10 tables and that the 14 Phase 1.1 JSON fixtures parse, declare
+`environment: "private-devnet"`, avoid sensitive key/seed fields, and keep
+money-like values as integer base-unit strings.

@@ -1,0 +1,15 @@
+{
+  "environment": "private-devnet",
+  "network": "xriq-devnet",
+  "tx_hash": "fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565",
+  "status": "confirmed",
+  "block_height": 1,
+  "block_hash": "fe349b87f4219a7edd3dc8cb430b27200eb3500ab9550692b1493d4c4312371d",
+  "transaction_index": 0,
+  "from_address": "xriqdev1alice00000000000",
+  "to_address": "xriqdev1bobbb00000000000",
+  "amount_base_units": "25",
+  "fee_base_units": "2",
+  "nonce": 0,
+  "created_at": "1970-01-01T00:00:01Z"
+}

@@ -1,0 +1,28 @@
+{
+  "environment": "private-devnet",
+  "not_certified": true,
+  "mapping_version": "xriq-iso20022-preview-v1",
+  "message_type": "payment_initiation_preview",
+  "message_id": "iso-preview-fceb9425",
+  "source_tx_hash": "fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565",
+  "xriq": {
+    "from_address": "xriqdev1alice00000000000",
+    "to_address": "xriqdev1bobbb00000000000",
+    "amount_base_units": "25",
+    "fee_base_units": "2",
+    "nonce": 0
+  },
+  "iso20022_aligned": {
+    "creditor_account": "xriqdev1bobbb00000000000",
+    "debtor_account": "xriqdev1alice00000000000",
+    "instructed_amount": "25",
+    "currency": "XRIQ-DEV",
+    "end_to_end_id": "fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565"
+  },
+  "unsupported_fields": [
+    "bank_bic",
+    "iban",
+    "clearing_system_member_id",
+    "legal_entity_identifier"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "environment": "private-devnet",
+  "network": "xriq-devnet",
+  "warning": "private-devnet-test-identity-only",
+  "tx_hash": "fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565",
+  "status": "confirmed",
+  "block_height": 1,
+  "block_hash": "fe349b87f4219a7edd3dc8cb430b27200eb3500ab9550692b1493d4c4312371d",
+  "transaction_index": 0
+}

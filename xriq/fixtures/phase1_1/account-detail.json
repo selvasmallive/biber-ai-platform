@@ -1,0 +1,11 @@
+{
+  "environment": "private-devnet",
+  "network": "xriq-devnet",
+  "address": "xriqdev1alice00000000000",
+  "balance_base_units": "73",
+  "nonce": 1,
+  "height": 1,
+  "state_root": "915a4319e23daea9370a2ea1dfe9b57ac0099be910f64d04a5f4b9dfb0c5d067",
+  "first_seen_height": 0,
+  "last_seen_height": 1
+}

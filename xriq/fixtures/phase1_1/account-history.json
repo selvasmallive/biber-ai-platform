@@ -1,0 +1,18 @@
+{
+  "environment": "private-devnet",
+  "network": "xriq-devnet",
+  "address": "xriqdev1alice00000000000",
+  "limit": 25,
+  "next_cursor": null,
+  "transactions": [
+    {
+      "tx_hash": "fceb942511656f49850212a35fd39ba162e76dcd74e98ace33049457ab719565",
+      "direction": "outbound",
+      "block_height": 1,
+      "transaction_index": 0,
+      "amount_base_units": "25",
+      "fee_base_units": "2",
+      "status": "confirmed"
+    }
+  ]
+}

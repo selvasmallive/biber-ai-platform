@@ -261,6 +261,8 @@ The post-RC end-to-end Phase 1.1 plan is in
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The GCP resource plan for Phase 1.1 is in `docs/XRIQ_GCP_RESOURCE_PLAN.md`.
+Validate the Phase 1.1 schema and fixtures locally with
+`python scripts/xriq_phase1_1_contract_check.py`.
 
 After a clean local check, future sessions can cheaply re-check the latest
 Phase 1 summary and checklist pointers without rerunning Rust:

@@ -88,6 +88,11 @@ comes from the completed Rust private-devnet foundation. The actual end-to-end
 product surfaces, especially PostgreSQL indexing and React UI, are still at the
 starting line.
 
+After the first Milestone A artifact checkpoint, Phase 1.1 status is about
+`17%`: the contract document, PostgreSQL read-model schema, JSON fixtures, and
+local contract validation script exist, but the indexer/API/UI/ISO adapter
+implementation is still pending.
+
 ## Phase 1.1 Build Order
 
 1. Define API and database contracts before building UI.
@@ -123,6 +128,9 @@ Milestone A contract details are tracked in
 - Treat exchange UI as future decentralized exchange UI, but defer real DEX
   trading/liquidity contracts until token, smart-contract/native-module,
   legal-risk, and security review gates exist.
+- Current artifacts: `docs/XRIQ_PHASE1_1_CONTRACTS.md`,
+  `xriq/db/schema.sql`, `xriq/fixtures/phase1_1/`, and
+  `scripts/xriq_phase1_1_contract_check.py`.
 
 ### Milestone B: PostgreSQL Indexer
 

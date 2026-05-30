@@ -18,6 +18,9 @@ Continue Milestone A locally:
 
 The current Milestone A contract baseline is
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
+The local PostgreSQL schema and fixtures are `xriq/db/schema.sql` and
+`xriq/fixtures/phase1_1/`; validate them with
+`python scripts/xriq_phase1_1_contract_check.py`.
 
 Provision GCP only after the local contracts and first indexer prototype are
 stable enough to deploy.

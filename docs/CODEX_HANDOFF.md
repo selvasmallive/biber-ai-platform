@@ -135,10 +135,11 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `16%` overall. Current Rust
+- Phase 1.1 estimated completion: about `17%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, ISO 20022 adapter, admin portal, exchange UI, and smart contracts are not
-  implemented yet.
+  implemented yet. Milestone A now has contract docs, a PostgreSQL read-model
+  schema, JSON fixtures, and a local validation script.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the immediate Milestone A contracts work. Prepare a project/region/budget
   plan, but delay paid Cloud SQL/Cloud Run/Artifact Registry resources until
@@ -157,6 +158,21 @@ workstation development for XRIQ Phase 1.1 end-to-end planning after the
 completed private-devnet RC1 tag. The previous Vast deployment is not an active
 target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 contract-artifact checkpoint: added
+  `xriq/db/schema.sql`, `xriq/fixtures/phase1_1/`, and
+  `scripts/xriq_phase1_1_contract_check.py`. The schema defines the first
+  PostgreSQL read-model tables for blocks, transactions, accounts, balances,
+  account transaction history, mempool entries, snapshots, indexer runs, audit
+  events, and ISO 20022 mapped messages. The fixture set adds 14 stable
+  product-facing JSON examples for explorer, wallet, admin, and ISO 20022
+  mapping surfaces. The local checker validates the required schema tables,
+  parses fixtures, requires `environment: "private-devnet"`, verifies selected
+  hash and integer base-unit string shapes, requires ISO mappings to declare
+  `not_certified: true`, and rejects sensitive-looking key/seed fields. Local
+  verification passed bundled Python syntax compilation and
+  `python scripts/xriq_phase1_1_contract_check.py`, reporting 10 tables and 14
+  fixtures. Phase 1.1 status is now about `17%` overall. No GCP resources were
+  provisioned, no Rust behavior changed, and no credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
   defines private/local product API groups for health, explorer, wallet, admin,
