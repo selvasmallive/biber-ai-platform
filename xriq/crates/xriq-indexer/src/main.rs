@@ -1,4 +1,10 @@
-use std::{env, fmt::Write as _, process};
+use std::{
+    env,
+    fmt::Write as _,
+    fs,
+    io::Write as _,
+    process::{self, Command, Stdio},
+};
 
 use xriq_core::XriqAmount;
 use xriq_indexer::{index_private_devnet_store, postgres_write_plan, IndexedChainSnapshot};
@@ -24,6 +30,7 @@ where
     match args.first().copied() {
         Some("help" | "--help" | "-h") => Ok(help_text()),
         Some("replay") => run_replay(&args[1..]),
+        Some("apply-postgres") => run_apply_postgres(&args[1..]),
         Some(command) => Err(format!("unknown command: {command}")),
         None => Err("missing command".to_string()),
     }
@@ -52,10 +59,60 @@ fn run_replay(args: &[&str]) -> Result<String, String> {
     })
 }
 
+fn run_apply_postgres(args: &[&str]) -> Result<String, String> {
+    let flags = FlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--alice-balance",
+        "--schema-file",
+        "--database-url",
+        "--database-url-env",
+        "--dry-run",
+    ])?;
+    let chain_file = flags.required("--chain-file")?;
+    let schema_file = flags.optional("--schema-file").unwrap_or("db/schema.sql");
+    let dry_run = parse_bool(flags.optional("--dry-run").unwrap_or("true"))?;
+    let database_url = database_url_from_flags(&flags)?;
+    let schema_sql = fs::read_to_string(schema_file)
+        .map_err(|error| format!("could not read schema file {schema_file}: {error}"))?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(parse_amount)
+        .transpose()?;
+    let store = FileChainStore::open(chain_file)
+        .map_err(|error| format!("could not open chain file {chain_file}: {error:?}"))?;
+    let snapshot = index_private_devnet_store(&store, alice_balance)
+        .map_err(|error| format!("index replay failed: {error}"))?;
+    let plan = postgres_write_plan(&snapshot)
+        .map_err(|error| format!("could not build postgres write plan: {error}"))?;
+
+    if !dry_run {
+        let database_url = database_url
+            .value
+            .as_ref()
+            .ok_or_else(|| "database url is required when --dry-run false".to_string())?;
+        run_psql_sql(database_url, &schema_sql, "schema")?;
+        run_psql_sql(database_url, &plan.to_sql(), "indexer write plan")?;
+    }
+
+    Ok(render_apply_postgres_summary(&ApplyPostgresSummary {
+        dry_run,
+        schema_file,
+        database_url_configured: database_url.value.is_some(),
+        database_url_source: database_url.source.as_str(),
+        current_height: snapshot.current_height,
+        latest_block_hash: snapshot.latest_block_hash.as_str(),
+        blocks_indexed: snapshot.summary.blocks_indexed,
+        transactions_indexed: snapshot.summary.transactions_indexed,
+        write_plan_statements: plan.statements.len(),
+    }))
+}
+
 fn help_text() -> String {
     [
         "xriq-indexer private-devnet commands:",
         "  xriq-indexer replay --chain-file <path> [--alice-balance <base-units>] [--format text|json|sql]",
+        "  xriq-indexer apply-postgres --chain-file <path> [--alice-balance <base-units>] [--schema-file db/schema.sql] [--database-url-env XRIQ_POSTGRES_URL|--database-url <url>] [--dry-run true|false]",
     ]
     .join("\n")
 }
@@ -272,6 +329,132 @@ fn parse_amount(value: &str) -> Result<XriqAmount, String> {
         .parse::<u128>()
         .map_err(|_| format!("invalid amount: {value}"))?;
     Ok(XriqAmount::from_base_units(base_units))
+}
+
+fn parse_bool(value: &str) -> Result<bool, String> {
+    match value {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        value => Err(format!("invalid boolean: {value}; expected true or false")),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DatabaseUrl {
+    value: Option<String>,
+    source: String,
+}
+
+fn database_url_from_flags(flags: &FlagParser<'_>) -> Result<DatabaseUrl, String> {
+    let explicit = flags.optional("--database-url");
+    let env_name = flags
+        .optional("--database-url-env")
+        .unwrap_or("XRIQ_POSTGRES_URL");
+    if explicit.is_some() && flags.optional("--database-url-env").is_some() {
+        return Err("use either --database-url or --database-url-env, not both".to_string());
+    }
+
+    if let Some(value) = explicit {
+        return Ok(DatabaseUrl {
+            value: Some(value.to_string()),
+            source: "--database-url".to_string(),
+        });
+    }
+
+    Ok(DatabaseUrl {
+        value: env::var(env_name)
+            .ok()
+            .filter(|value| !value.trim().is_empty()),
+        source: env_name.to_string(),
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ApplyPostgresSummary<'a> {
+    dry_run: bool,
+    schema_file: &'a str,
+    database_url_configured: bool,
+    database_url_source: &'a str,
+    current_height: u64,
+    latest_block_hash: &'a str,
+    blocks_indexed: usize,
+    transactions_indexed: usize,
+    write_plan_statements: usize,
+}
+
+fn render_apply_postgres_summary(summary: &ApplyPostgresSummary<'_>) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "warning=private-devnet-only-no-public-token").expect("write to String");
+    writeln!(&mut output, "environment=private-devnet").expect("write to String");
+    writeln!(
+        &mut output,
+        "mode={}",
+        if summary.dry_run { "dry-run" } else { "apply" }
+    )
+    .expect("write to String");
+    writeln!(&mut output, "schema_file={}", summary.schema_file).expect("write to String");
+    writeln!(
+        &mut output,
+        "database_url_source={}",
+        summary.database_url_source
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "database_url_configured={}",
+        summary.database_url_configured
+    )
+    .expect("write to String");
+    writeln!(&mut output, "current_height={}", summary.current_height).expect("write to String");
+    writeln!(
+        &mut output,
+        "latest_block_hash={}",
+        summary.latest_block_hash
+    )
+    .expect("write to String");
+    writeln!(&mut output, "blocks_indexed={}", summary.blocks_indexed).expect("write to String");
+    writeln!(
+        &mut output,
+        "transactions_indexed={}",
+        summary.transactions_indexed
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "write_plan_statements={}",
+        summary.write_plan_statements
+    )
+    .expect("write to String");
+    writeln!(&mut output, "schema_applied={}", !summary.dry_run).expect("write to String");
+    write!(&mut output, "write_plan_applied={}", !summary.dry_run).expect("write to String");
+    output
+}
+
+fn run_psql_sql(database_url: &str, sql: &str, label: &str) -> Result<(), String> {
+    let mut child = Command::new("psql")
+        .arg(database_url)
+        .arg("-v")
+        .arg("ON_ERROR_STOP=1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("could not start psql for {label}: {error}"))?;
+    child
+        .stdin
+        .take()
+        .ok_or_else(|| format!("could not open psql stdin for {label}"))?
+        .write_all(sql.as_bytes())
+        .map_err(|error| format!("could not send {label} SQL to psql: {error}"))?;
+    let output = child
+        .wait_with_output()
+        .map_err(|error| format!("could not wait for psql {label}: {error}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).replace(database_url, "<database-url>");
+    Err(format!("psql failed while applying {label}: {stderr}"))
 }
 
 fn json_optional_u64(value: Option<u64>) -> String {

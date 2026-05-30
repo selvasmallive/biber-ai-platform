@@ -277,6 +277,12 @@ To emit an idempotent local PostgreSQL write plan for the same replay, use:
 cargo run -p xriq-indexer -- replay --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --format sql
 ```
 
+To validate the local PostgreSQL apply path without touching a database:
+
+```bash
+cargo run -p xriq-indexer -- apply-postgres --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --schema-file db/schema.sql --dry-run true
+```
+
 After a clean local check, future sessions can cheaply re-check the latest
 Phase 1 summary and checklist pointers without rerunning Rust:
 

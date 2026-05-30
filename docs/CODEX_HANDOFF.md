@@ -135,14 +135,14 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `22%` overall. Current Rust
+- Phase 1.1 estimated completion: about `23%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, ISO 20022 adapter, admin portal, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
   read-model schema, JSON fixtures, and a local validation script. Milestone B
   now has the first deterministic Rust read-model indexer scaffold and local
-  replay command plus idempotent SQL write-plan export, but no live database
-  application path yet.
+  replay command plus idempotent SQL write-plan export and a dry-run local
+  PostgreSQL apply path, but no live local database verification yet.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -213,6 +213,20 @@ active target because the GPU was terminated to save cost.
   tests), `cargo clippy -p xriq-indexer -- -D warnings`, and a CLI smoke:
   `cargo run -p xriq-indexer -- replay --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --format sql`.
   Phase 1.1 status is now about `22%` overall. No GCP resources were
+  provisioned, no live database was required, no public/DEX behavior was added,
+  and no credentials were changed.
+- Latest native XRIQ Phase 1.1 PostgreSQL apply-path checkpoint: extended
+  `xriq-indexer` with `apply-postgres`. The command defaults to `--dry-run
+  true`, reads `db/schema.sql`, replays the chain, builds the SQL write plan,
+  and reports whether schema/write-plan application would occur without
+  invoking `psql` or requiring a database URL. Actual application requires an
+  explicit `--dry-run false` and a database URL from `XRIQ_POSTGRES_URL`,
+  `--database-url-env`, or `--database-url`; it invokes local `psql` for schema
+  SQL and then the generated write plan. Dry-run smoke passed with:
+  `cargo run -p xriq-indexer -- apply-postgres --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --schema-file db/schema.sql --dry-run true`,
+  reporting current_height=1, blocks_indexed=1, transactions_indexed=1,
+  write_plan_statements=12, schema_applied=false, write_plan_applied=false.
+  Phase 1.1 status is now about `23%` overall. No GCP resources were
   provisioned, no live database was required, no public/DEX behavior was added,
   and no credentials were changed.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added

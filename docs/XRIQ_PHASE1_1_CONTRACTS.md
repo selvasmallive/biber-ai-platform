@@ -352,15 +352,17 @@ xriq/fixtures/phase1_1/
 
 ## Next Implementation Step
 
-Continue Milestone B by wiring the deterministic indexer scaffold to an
-optional local PostgreSQL execution path:
+Continue Milestone B by validating the deterministic indexer scaffold against a
+real local PostgreSQL instance:
 
 1. Keep `xriq-indexer` as the pure, deterministic read-model layer.
 2. Keep using the local replay command to validate file-backed chain replay and
    read-model counts before database work.
 3. Use `--format sql` to inspect the idempotent SQL write plan before applying
    it to a local database.
-4. Add direct PostgreSQL execution only after the SQL write plan is stable.
+4. Use `apply-postgres --dry-run true` as the default safety check.
+5. Use `apply-postgres --dry-run false` only with a local database URL and
+   installed `psql`.
 
 ## Concrete Artifacts
 
@@ -401,6 +403,12 @@ To emit the local PostgreSQL write plan without requiring a running database:
 
 ```bash
 cargo run -p xriq-indexer -- replay --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --format sql
+```
+
+To validate the local apply path without requiring a running database or `psql`:
+
+```bash
+cargo run -p xriq-indexer -- apply-postgres --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --schema-file db/schema.sql --dry-run true
 ```
 
 The indexer scaffold currently builds a PostgreSQL-facing in-memory read model

@@ -70,6 +70,15 @@ database, use:
 cargo run -p xriq-indexer -- replay --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --format sql
 ```
 
+To dry-run the local PostgreSQL apply path without invoking `psql`, use:
+
+```bash
+cargo run -p xriq-indexer -- apply-postgres --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --schema-file db/schema.sql --dry-run true
+```
+
+Real local database application is explicit only: set `XRIQ_POSTGRES_URL`, make
+sure `psql` is installed, and pass `--dry-run false`.
+
 After the local check has passed and the RC checkpoint is committed, the latest
 summary can be re-checked without rerunning Rust:
 
