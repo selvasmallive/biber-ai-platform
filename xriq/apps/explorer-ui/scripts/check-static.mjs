@@ -12,6 +12,7 @@ const requiredFiles = [
   "src/App.tsx",
   "src/admin.tsx",
   "src/api.ts",
+  "src/audit.tsx",
   "src/iso.tsx",
   "src/main.tsx",
   "src/mempool.tsx",
@@ -72,6 +73,7 @@ for (const requiredText of [
   "Transaction Detail",
   "Account Detail",
   "WalletShell",
+  "AuditEventsPanel",
   "PendingTransactionsPanel",
   "SnapshotCatalogPanel",
   "IsoPreviewPanel",
@@ -84,6 +86,7 @@ for (const requiredText of [
 
 const walletSource = readFileSync(join(root, "src/wallet.tsx"), "utf8");
 const adminSource = readFileSync(join(root, "src/admin.tsx"), "utf8");
+const auditSource = readFileSync(join(root, "src/audit.tsx"), "utf8");
 const isoSource = readFileSync(join(root, "src/iso.tsx"), "utf8");
 const mempoolSource = readFileSync(join(root, "src/mempool.tsx"), "utf8");
 const snapshotsSource = readFileSync(join(root, "src/snapshots.tsx"), "utf8");
@@ -117,6 +120,7 @@ for (const forbiddenText of ["mainnet", "liquidity", "custody", "swap"]) {
     appSource.toLowerCase().includes(forbiddenText) ||
     walletSource.toLowerCase().includes(forbiddenText) ||
     adminSource.toLowerCase().includes(forbiddenText) ||
+    auditSource.toLowerCase().includes(forbiddenText) ||
     mempoolSource.toLowerCase().includes(forbiddenText) ||
     snapshotsSource.toLowerCase().includes(forbiddenText) ||
     isoSource.toLowerCase().includes(forbiddenText)
@@ -153,6 +157,20 @@ for (const requiredText of [
 ]) {
   if (!mempoolSource.includes(requiredText)) {
     throw new Error(`missing mempool panel marker: ${requiredText}`);
+  }
+}
+
+for (const requiredText of [
+  "Audit Events",
+  "Selected Audit Event",
+  "Read only indexed audit log",
+  "No audit events",
+  "resource_type",
+  "resource_id",
+  "auditPanel",
+]) {
+  if (!auditSource.includes(requiredText)) {
+    throw new Error(`missing audit panel marker: ${requiredText}`);
   }
 }
 

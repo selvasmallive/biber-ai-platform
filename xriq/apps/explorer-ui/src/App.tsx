@@ -13,6 +13,7 @@ import {
   loadTransactionDetail,
 } from "./api";
 import { AdminStatusPanel } from "./admin";
+import { AuditEventsPanel } from "./audit";
 import { IsoPreviewPanel } from "./iso";
 import { PendingTransactionsPanel } from "./mempool";
 import { SnapshotCatalogPanel } from "./snapshots";
@@ -324,6 +325,8 @@ function App() {
         <PendingTransactionsPanel apiBaseUrl={apiBaseUrl} snapshot={snapshot} />
 
         <SnapshotCatalogPanel apiBaseUrl={apiBaseUrl} snapshot={snapshot} />
+
+        <AuditEventsPanel snapshot={snapshot} />
 
         <TablePanel
           title="Accounts"

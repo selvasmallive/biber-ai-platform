@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `56%` overall. Current Rust
+- Phase 1.1 estimated completion: about `57%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -156,8 +156,8 @@ unless the user changes the project scope again.
   for durable pending hashes. The first React + TypeScript explorer UI shell exists
   in `xriq/apps/explorer-ui` and renders local product API health, totals,
   network metadata, blocks, confirmed transactions, pending transactions,
-  snapshot catalog, accounts, and basic drill-down detail panels. The same app
-  now includes a preview-only wallet transfer draft panel
+  snapshot catalog, audit events, accounts, and basic drill-down detail panels.
+  The same app now includes a preview-only wallet transfer draft panel
   wired to the product wallet draft-preview API. It does not sign, submit,
   persist, or manage private keys. The same app now includes a read-only ISO
   20022 Preview panel backed by product API payment-initiation,
@@ -184,6 +184,16 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 audit events UI checkpoint: added
+  `xriq/apps/explorer-ui/src/audit.tsx` and wired it into the local React
+  explorer. The new read-only Audit Events panel renders indexed audit rows
+  already loaded from `/api/v1/admin/audit-events?limit=5`, lets the operator
+  select an event, and shows actor/action/resource/environment detail. It does
+  not add audit mutation, admin mutation, signing, submission, or block
+  production behavior. Static UI guardrails now require the audit panel file
+  and markers. Phase 1.1 status is now about `57%` overall. No GCP resources
+  were provisioned, no Vast/GPU work was used, no public/DEX behavior was
+  added, and no credentials were changed.
 - Latest native XRIQ Phase 1.1 snapshot catalog UI checkpoint: added
   `xriq/apps/explorer-ui/src/snapshots.tsx` and wired it into the local React
   explorer. The new read-only Snapshot Catalog panel lists
