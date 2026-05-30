@@ -7,9 +7,10 @@ Last updated: 2026-05-30
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Current
 next scope is Phase 1.1 planning/execution for the local/private end-to-end
 XRIQ prototype: Rust API/backend, React + TypeScript UI, PostgreSQL indexer,
-and ISO 20022 compatibility adapter. Do not include BIBER MVP, model training,
-repo-adaptation, runtime-profile, or local-model platform work in Phase 1.1
-percentage/status reporting unless the user explicitly resumes BIBER work. The
+ISO 20022 compatibility adapter, and later Google Cloud deployment planning.
+Do not include BIBER MVP, model training, repo-adaptation, runtime-profile, or
+local-model platform work in Phase 1.1 percentage/status reporting unless the
+user explicitly resumes BIBER work. The
 Vast GPU was terminated after the important BIBER runtime artifacts were backed
 up locally, so future sessions must not assume `/workspace`, vLLM, FastAPI, or
 live Vast SSH access exists unless the user provides a fresh instance.
@@ -26,7 +27,8 @@ live Vast SSH access exists unless the user provides a fresh instance.
     runner/RPC tooling, wallet flow, explorer flow, and integration tests.
   - XRIQ Phase 1.1: add local/private PostgreSQL indexing, Rust API service
     contracts, React + TypeScript wallet/explorer/admin UI, and ISO 20022
-    adapter mapping without public launch or compliance claims.
+    adapter mapping without public launch or compliance claims. Use
+    `docs/XRIQ_GCP_RESOURCE_PLAN.md` before provisioning Google Cloud resources.
 - Delayed scope:
   - Public XRIQ remains part of the later project plan, but do not implement
     public token economics, DEX/liquidity, validator rewards, public governance,
@@ -137,6 +139,10 @@ unless the user changes the project scope again.
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, ISO 20022 adapter, admin portal, exchange UI, and smart contracts are not
   implemented yet.
+- Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
+  for the immediate Milestone A contracts work. Prepare a project/region/budget
+  plan, but delay paid Cloud SQL/Cloud Run/Artifact Registry resources until
+  local contracts and indexer replay tests are stable.
 - Remaining OpenAI/Codex key cost estimate for Phase 1 only, excluding Vast GPU,
   servers, production infrastructure, audits, public launch, and any BIBER MVP
   expansion:
@@ -168,6 +174,17 @@ target because the GPU was terminated to save cost.
   `xriq/README.md`, `docs/XRIQ_TECHNICAL_SPEC.md`, and this handoff. No Rust
   behavior change, Vast sync, API/vLLM restart, training, OpenAI mentor call,
   tag operation, or credential change was used.
+- Latest native XRIQ Phase 1.1 GCP planning checkpoint: added
+  `docs/XRIQ_GCP_RESOURCE_PLAN.md`. It states that no Google Cloud resources
+  are required for the immediate Milestone A contracts step, recommends local
+  development first, and lays out a future small managed GCP footprint: Cloud
+  Run services/jobs, Cloud SQL for PostgreSQL, Artifact Registry, Secret
+  Manager, Cloud Storage, and Cloud Build or GitHub Actions. It explicitly
+  defers GKE/Kubernetes, BigQuery, Pub/Sub, Dataflow, Vertex AI, public load
+  balancers, and multi-region production infrastructure until the local/private
+  end-to-end prototype justifies them. Updated `README.md`,
+  `docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md`, and this handoff. No GCP resources
+  were provisioned, no Rust behavior changed, and no credentials were changed.
 - Latest native XRIQ Phase 1 RC1 tag checkpoint: the user explicitly approved
   marking XRIQ private-devnet Phase 1 as RC1 and creating/pushing the
   `phase1-xriq-private-devnet-rc1` tag. Before tagging, the strict readiness

@@ -17,6 +17,8 @@ Build a local end-to-end XRIQ prototype with:
 - PostgreSQL indexing for explorer, analytics, and audit views
 - ISO 20022 compatibility adapter for future financial-system integration
   mapping
+- optional Google Cloud deployment later, following
+  `docs/XRIQ_GCP_RESOURCE_PLAN.md`
 
 Phase 1.1 remains private/local. It should not launch a public cryptocurrency,
 public DEX, token sale, custody product, or production payment rail.
@@ -103,6 +105,10 @@ starting line.
 9. Defer smart-contract VM until the node, indexer, wallet UI, and explorer UI
    are stable.
 
+Use local development for Milestones A and B by default. Do not provision paid
+GCP resources until the local contracts and first indexer replay tests are
+stable enough to justify deployment.
+
 ## Recommended Phase 1.1 Milestones
 
 ### Milestone A: Contracts
@@ -150,5 +156,6 @@ starting line.
 - Do not implement smart contracts before the basic end-to-end wallet,
   explorer, indexer, and API flows are stable.
 - Keep `docs/XRIQ_LEGAL_RISK_REDUCTION.md` as a hard guardrail.
+- Keep `docs/XRIQ_GCP_RESOURCE_PLAN.md` as the cloud resource guardrail.
 - Keep the RC1 tag fixed; Phase 1.1 work happens after RC1 on `main` or a
   future feature branch.
