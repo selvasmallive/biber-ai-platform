@@ -65,7 +65,7 @@ Rust
  |-- Blockchain node        ~70% for private-devnet; RC1 baseline exists
  |-- Consensus engine       ~60% for private-devnet; single-authority baseline
  |-- Wallet backend         ~45%; CLI/backend flows exist, service API next
- |-- APIs                   ~35%; local HTTP wrappers exist, product API next
+ |-- APIs                   ~40%; local HTTP wrappers and first product API boundary exist
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
@@ -75,9 +75,9 @@ React + TypeScript
  `-- Admin portal           0%; not started
 
 SQL/PostgreSQL
- |-- Explorer indexing      0%; not started for XRIQ
- |-- Analytics              0%; not started
- `-- Audit data             0%; not started for XRIQ
+ |-- Explorer indexing      ~25%; schema, indexer, SQL plan, and verify path exist
+ |-- Analytics              ~5%; read-model totals exist, deeper analytics deferred
+ `-- Audit data             ~15%; schema and indexed block audit events exist
 
 ISO 20022
  `-- Compatibility adapter  0%; Phase 1.1 planned, not implemented
@@ -88,14 +88,14 @@ comes from the completed Rust private-devnet foundation. The actual end-to-end
 product surfaces, especially PostgreSQL indexing and React UI, are still at the
 starting line.
 
-After the first Milestone B local verification-path checkpoint, Phase 1.1
-status is about `24%`: the contract document, PostgreSQL read-model schema,
-JSON fixtures, local contract validation script, deterministic Rust read-model
-indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
-write-plan export, dry-run database apply path, optional local Postgres service,
-and `verify-postgres` verification command exist. Actual repeated live database
-smoke coverage, API service, UI, and ISO adapter implementation are still
-pending.
+After the first Rust API service-boundary checkpoint, Phase 1.1 status is about
+`26%`: the contract document, PostgreSQL read-model schema, JSON fixtures, local
+contract validation script, deterministic Rust read-model indexer scaffold,
+local chain replay command, idempotent PostgreSQL SQL write-plan export,
+dry-run database apply path, optional local Postgres service, `verify-postgres`
+verification command, and `xriq-api` read-only product response boundary exist.
+Actual repeated live database smoke coverage, HTTP API server wiring, UI, and
+ISO adapter implementation are still pending.
 
 ## Phase 1.1 Build Order
 
@@ -158,24 +158,37 @@ The root `docker-compose.yml` now includes an optional local Postgres service
 named `postgres`; use it with `XRIQ_POSTGRES_URL` and `--dry-run false` only
 when intentionally applying the read model to a local development database.
 
-### Milestone C: ISO 20022 Adapter
+### Milestone C: Rust API Service Boundary
+
+- Add product-facing response models over the indexed read model.
+- Keep this as a Rust service boundary first, not an HTTP server.
+- Cover health, version, network, explorer overview, blocks, transactions,
+  accounts, account history, and admin indexer status.
+- Current scaffold: `xriq/crates/xriq-api` exposes read-only private-devnet
+  response models over `IndexedChainSnapshot`; focused verification is:
+
+```bash
+cargo test -p xriq-api
+```
+
+### Milestone D: ISO 20022 Adapter
 
 - Add `xriq-iso20022`.
 - Add mapping structs, fixtures, and tests.
 - Map only data XRIQ actually has.
 
-### Milestone D: Explorer UI
+### Milestone E: Explorer UI
 
 - Add a React + TypeScript explorer showing chain status, blocks,
   transactions, accounts, mempool, and snapshots from indexed data.
 
-### Milestone E: Wallet UI
+### Milestone F: Wallet UI
 
 - Add a React + TypeScript private-devnet wallet UI for test identities,
   balance, transfer draft/submit/send, status, and history.
 - Keep all copy visibly private-devnet/test-only.
 
-### Milestone F: Admin Portal
+### Milestone G: Admin Portal
 
 - Add local admin views for node health, indexer status, snapshot export/import
   status, and audit events.

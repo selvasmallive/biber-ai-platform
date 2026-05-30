@@ -265,8 +265,15 @@ The GCP resource plan for Phase 1.1 is in `docs/XRIQ_GCP_RESOURCE_PLAN.md`.
 Validate the Phase 1.1 schema and fixtures locally with
 `python scripts/xriq_phase1_1_contract_check.py`.
 The first Rust Milestone B indexer scaffold is `xriq/crates/xriq-indexer`; test
-it from `xriq/` with `cargo test -p xriq-indexer`. To replay an existing local
-chain file into the current in-memory read model, run:
+it from `xriq/` with `cargo test -p xriq-indexer`.
+
+The first Rust API service-boundary scaffold is `xriq/crates/xriq-api`; test it
+from `xriq/` with `cargo test -p xriq-api`. It defines product-facing
+private-devnet response models over the indexed read model, but it is not an
+HTTP server yet.
+
+To replay an existing local chain file into the current in-memory read model,
+run:
 
 ```bash
 cargo run -p xriq-indexer -- replay --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --format json

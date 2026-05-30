@@ -7,6 +7,10 @@ This document defines the first product-facing API and database contracts for
 Phase 1.1. It does not change the Phase 1 RC1 tag, create a production API,
 launch a public network, approve custody, or enable trading.
 
+Current implementation scaffold: `xriq/crates/xriq-api` defines the first
+read-only Rust service boundary for these contracts over the indexed
+private-devnet read model. It is not an HTTP server yet.
+
 ## Contract Principles
 
 - Rust node state remains the source of truth.

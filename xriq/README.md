@@ -8,6 +8,9 @@ only until security and legal/compliance review says otherwise.
 - `xriq-core`: dependency-free protocol types and validation helpers.
 - `xriq-consensus`: deterministic private-devnet block production.
 - `xriq-crypto`: canonical hashing and test-only signature verification boundary.
+- `xriq-api`: product-facing private-devnet API response models and read-only
+  service boundary for indexed explorer/admin data; this is not an HTTP server
+  yet.
 - `xriq-explorer`: read-only private-devnet explorer view models and text UI.
 - `xriq-indexer`: deterministic Phase 1.1 read-model indexing scaffold for the
   future PostgreSQL-backed explorer/admin/API surfaces.
@@ -54,6 +57,12 @@ The first Phase 1.1 indexer scaffold can be checked with:
 
 ```bash
 cargo test -p xriq-indexer
+```
+
+The first Phase 1.1 API service-boundary scaffold can be checked with:
+
+```bash
+cargo test -p xriq-api
 ```
 
 After producing a local private-devnet chain file, replay it through the
