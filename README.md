@@ -270,7 +270,13 @@ it from `xriq/` with `cargo test -p xriq-indexer`.
 The first Rust API service-boundary scaffold is `xriq/crates/xriq-api`; test it
 from `xriq/` with `cargo test -p xriq-api`. It defines product-facing
 private-devnet response models plus `/api/v1/...` route/render behavior over
-the indexed read model, but it does not bind a live HTTP socket yet.
+the indexed read model, and includes a local read-only socket server for
+private-devnet smoke testing.
+
+```bash
+cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/health
+cargo run -p xriq-api -- serve-readonly --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --bind 127.0.0.1:8090
+```
 
 The first ISO 20022 compatibility adapter scaffold is
 `xriq/crates/xriq-iso20022`; test it from `xriq/` with

@@ -1,8 +1,9 @@
 //! Product-facing API service boundary for the XRIQ private devnet.
 //!
-//! This crate intentionally does not bind a socket yet. It defines stable
-//! response models plus HTTP route/render behavior that a later local server
-//! can expose for explorer, account-history, and admin views.
+//! This crate defines stable response models plus HTTP route/render behavior
+//! for explorer, account-history, and admin views. The companion `xriq-api`
+//! binary can expose those routes through a local read-only private-devnet
+//! socket for Phase 1.1 smoke testing.
 
 use std::{collections::BTreeMap, fmt::Write as _};
 

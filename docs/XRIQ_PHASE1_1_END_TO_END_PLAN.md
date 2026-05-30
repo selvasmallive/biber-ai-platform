@@ -88,15 +88,16 @@ comes from the completed Rust private-devnet foundation. The actual end-to-end
 product surfaces, especially PostgreSQL indexing and React UI, are still at the
 starting line.
 
-After the first product API route/render checkpoint, Phase 1.1 status is about
-`30%`: the contract document, PostgreSQL read-model schema, JSON fixtures,
-local contract validation script, deterministic Rust read-model indexer
-scaffold, local chain replay command, idempotent PostgreSQL SQL write-plan
-export, dry-run database apply path, optional local Postgres service,
-`verify-postgres` verification command, `xriq-api` read-only product response
-boundary with `/api/v1/...` route/render behavior, and `xriq-iso20022` preview
-mapping crate exist. Actual repeated live database smoke coverage, live HTTP
-socket server wiring, UI, and deeper ISO adapter integration are still pending.
+After the first product API read-only socket checkpoint, Phase 1.1 status is
+about `32%`: the contract document, PostgreSQL read-model schema, JSON
+fixtures, local contract validation script, deterministic Rust read-model
+indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
+write-plan export, dry-run database apply path, optional local Postgres
+service, `verify-postgres` verification command, `xriq-api` read-only product
+response boundary with `/api/v1/...` route/render behavior, a local
+`serve-readonly` socket wrapper, a `request` CLI smoke path, and
+`xriq-iso20022` preview mapping crate exist. Actual repeated live database
+smoke coverage, UI, and deeper ISO adapter integration are still pending.
 
 ## Phase 1.1 Build Order
 
@@ -162,15 +163,18 @@ when intentionally applying the read model to a local development database.
 ### Milestone C: Rust API Service Boundary
 
 - Add product-facing response models over the indexed read model.
-- Keep this as a Rust service/route boundary first, not a live socket server.
+- Keep this as a Rust service/route boundary first, then expose a localhost
+  read-only socket wrapper for private-devnet smoke testing.
 - Cover health, version, network, explorer overview, blocks, transactions,
   accounts, account history, and admin indexer status.
 - Current scaffold: `xriq/crates/xriq-api` exposes read-only private-devnet
-  response models and `/api/v1/...` route/render behavior over
-  `IndexedChainSnapshot`; focused verification is:
+  response models, `/api/v1/...` route/render behavior over
+  `IndexedChainSnapshot`, a `request` CLI smoke path, and a local
+  `serve-readonly` socket wrapper. Focused verification is:
 
 ```bash
 cargo test -p xriq-api
+cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/health
 ```
 
 ### Milestone D: ISO 20022 Adapter

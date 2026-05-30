@@ -9,8 +9,9 @@ launch a public network, approve custody, or enable trading.
 
 Current implementation scaffold: `xriq/crates/xriq-api` defines the first
 read-only Rust service boundary and `/api/v1/...` route/render behavior for
-these contracts over the indexed private-devnet read model. It does not bind a
-live HTTP socket yet.
+these contracts over the indexed private-devnet read model. It also includes a
+local read-only `serve-readonly` socket wrapper and `request` smoke command for
+Phase 1.1 private-devnet development.
 The `xriq/crates/xriq-iso20022` crate defines the first ISO 20022-aligned
 preview mappings for payment initiation, payment status, and account statement
 responses. These mappings remain private-devnet-only and explicitly not

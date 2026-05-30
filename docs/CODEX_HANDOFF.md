@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `30%` overall. Current Rust
+- Phase 1.1 estimated completion: about `32%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, admin portal, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -143,9 +143,9 @@ unless the user changes the project scope again.
   now has the first deterministic Rust read-model indexer scaffold and local
   replay command plus idempotent SQL write-plan export and a dry-run local
   PostgreSQL apply path, optional local Postgres service, and dry-run/live
-  verification command. The first Rust product API service and route/render
-  boundary now exists in `xriq/crates/xriq-api`, but it does not bind a live
-  HTTP socket yet. The first ISO
+  verification command. The first Rust product API service, route/render
+  boundary, CLI smoke path, and local read-only socket wrapper now exist in
+  `xriq/crates/xriq-api`. The first ISO
   20022 compatibility adapter exists in `xriq/crates/xriq-iso20022`, but it is
   a private-devnet preview mapping layer only, not certification or payment
   network connectivity.
@@ -291,6 +291,23 @@ active target because the GPU was terminated to save cost.
   rerun passed. Phase 1.1 status is now about `30%` overall. No GCP resources
   were provisioned, no public/DEX behavior was added, no live server was
   started, and no credentials were changed.
+- Latest native XRIQ Phase 1.1 product API read-only server checkpoint:
+  extended `xriq/crates/xriq-api` with a binary CLI. `xriq-api request`
+  replays an existing file-backed private-devnet chain into the indexed read
+  model and renders one product API route without opening a socket.
+  `xriq-api serve-readonly` exposes the same GET-only `/api/v1/...` route
+  layer over a local socket, defaulting to `127.0.0.1:8090`; it requires an
+  existing chain file and remains private-devnet/read-only. Smoke commands:
+  `cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/health`,
+  `cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/blocks/1`,
+  plus a controlled localhost `serve-readonly` smoke on `127.0.0.1:18090`
+  returning `200` for `/api/v1/health`. Verification passed with
+  `cargo fmt --check`, `cargo test -p xriq-api`,
+  `cargo clippy -p xriq-api -- -D warnings`, `cargo test --workspace -j 1`,
+  `cargo clippy --workspace -- -D warnings`, and `git diff --check`.
+  Phase 1.1 status is now about `32%` overall. No GCP resources were
+  provisioned, no public/DEX behavior was added, no credentials were changed,
+  and the server was stopped after smoke testing.
 - Latest native XRIQ Phase 1.1 contract checkpoint: added
   `docs/XRIQ_PHASE1_1_CONTRACTS.md` as the Milestone A contract baseline. It
   defines private/local product API groups for health, explorer, wallet, admin,

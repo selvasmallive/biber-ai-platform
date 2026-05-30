@@ -8,9 +8,9 @@ only until security and legal/compliance review says otherwise.
 - `xriq-core`: dependency-free protocol types and validation helpers.
 - `xriq-consensus`: deterministic private-devnet block production.
 - `xriq-crypto`: canonical hashing and test-only signature verification boundary.
-- `xriq-api`: product-facing private-devnet API response models and read-only
-  `/api/v1/...` route/render behavior for indexed explorer/admin data; this
-  does not bind a live HTTP socket yet.
+- `xriq-api`: product-facing private-devnet API response models, read-only
+  `/api/v1/...` route/render behavior for indexed explorer/admin data, and a
+  local read-only socket server for Phase 1.1 smoke testing.
 - `xriq-explorer`: read-only private-devnet explorer view models and text UI.
 - `xriq-indexer`: deterministic Phase 1.1 read-model indexing scaffold for the
   future PostgreSQL-backed explorer/admin/API surfaces.
@@ -65,6 +65,20 @@ The first Phase 1.1 API service-boundary scaffold can be checked with:
 
 ```bash
 cargo test -p xriq-api
+```
+
+After producing a local private-devnet chain file, the product API route layer
+can be smoke-tested without opening a socket:
+
+```bash
+cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --target /api/v1/health
+```
+
+To expose the same product API routes over localhost for a browser/client
+smoke, run:
+
+```bash
+cargo run -p xriq-api -- serve-readonly --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --bind 127.0.0.1:8090
 ```
 
 The first Phase 1.1 ISO 20022 compatibility adapter scaffold can be checked
@@ -619,6 +633,32 @@ POST /v1/mempool
 POST /v1/blocks
 POST /v1/snapshots/export?snapshot_dir=<path>
 POST /v1/snapshots/import?snapshot_dir=<path>
+```
+
+Product API read-only HTTP wrapper:
+
+```bash
+cargo run -p xriq-api -- serve-readonly \
+  --chain-file target/xriq-indexer-replay-smoke.bin \
+  --alice-balance 100 \
+  --bind 127.0.0.1:8090
+```
+
+Initial product API endpoints:
+
+```text
+GET /api/v1/health
+GET /api/v1/version
+GET /api/v1/network
+GET /api/v1/explorer/overview
+GET /api/v1/blocks?limit=5
+GET /api/v1/blocks/{height-or-hash}
+GET /api/v1/transactions?limit=5
+GET /api/v1/transactions/{hash}
+GET /api/v1/accounts?limit=5
+GET /api/v1/accounts/{address}
+GET /api/v1/accounts/{address}/transactions?limit=5
+GET /api/v1/admin/indexer/status
 ```
 
 `GET /v1/blocks/{height-or-hash-or-latest}` returns the same block-detail JSON
