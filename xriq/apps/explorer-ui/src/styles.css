@@ -170,6 +170,10 @@ h3 {
   border-color: rgba(140, 65, 35, 0.24);
 }
 
+.snapshotPanel {
+  border-color: rgba(44, 86, 121, 0.24);
+}
+
 .adminPanel {
   border-color: rgba(108, 63, 0, 0.24);
 }
@@ -552,6 +556,28 @@ td {
 
 .pendingDetail {
   margin-top: 16px;
+}
+
+.snapshotDetail {
+  margin-top: 16px;
+}
+
+.snapshotGuard {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.snapshotGuard span,
+.snapshotGuard strong {
+  min-height: 30px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #e7edf3;
+  color: #2c5679;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .mutedText,

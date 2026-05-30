@@ -15,6 +15,7 @@ import {
 import { AdminStatusPanel } from "./admin";
 import { IsoPreviewPanel } from "./iso";
 import { PendingTransactionsPanel } from "./mempool";
+import { SnapshotCatalogPanel } from "./snapshots";
 import "./styles.css";
 import { WalletShell } from "./wallet";
 
@@ -321,6 +322,8 @@ function App() {
         />
 
         <PendingTransactionsPanel apiBaseUrl={apiBaseUrl} snapshot={snapshot} />
+
+        <SnapshotCatalogPanel apiBaseUrl={apiBaseUrl} snapshot={snapshot} />
 
         <TablePanel
           title="Accounts"

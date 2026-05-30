@@ -70,9 +70,9 @@ Rust
 
 React + TypeScript
  |-- Wallet UI              ~13%; preview shell plus pending status lookup from admin/mempool view
- |-- Explorer               ~24%; shell plus detail, pending transaction, and ISO preview panels read product API
+ |-- Explorer               ~25%; shell plus detail, pending transaction, snapshot, and ISO preview panels read product API
  |-- Exchange UI            0%; deferred high legal/compliance-risk surface
- `-- Admin portal           ~21%; read-only node/status, pending mempool, pending wallet status, snapshot, and audit panel exists
+ `-- Admin portal           ~23%; read-only node/status, pending mempool, pending wallet status, snapshot catalog, and audit panel exists
 
 SQL/PostgreSQL
  |-- Explorer indexing      ~25%; schema, indexer, SQL plan, and verify path exist
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first read-only pending transactions explorer checkpoint, Phase 1.1
-status is about `55%`: the contract document, PostgreSQL read-model schema, JSON
+After the first read-only snapshot catalog UI checkpoint, Phase 1.1 status is
+about `56%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -103,9 +103,10 @@ private-devnet wallet status, account list, balance, history, transaction
 status, pending-file transaction status with null block fields, and
 non-mutating transfer draft-preview routes. The first React + TypeScript
 explorer shell in `xriq/apps/explorer-ui` can render health, network totals,
-blocks, confirmed transactions, pending transactions, accounts, block detail,
-transaction detail, selected pending wallet transaction status, account
-detail, and account transaction history from the local product API. The same
+blocks, confirmed transactions, pending transactions, snapshot catalog,
+accounts, block detail, transaction detail, selected pending wallet
+transaction status, selected snapshot detail, account detail, and account
+transaction history from the local product API. The same
 app now includes a preview-only wallet panel that selects local indexed
 accounts, shows balance/debit/remaining math, and renders a deterministic
 draft JSON preview without signing, submission, key handling, or persistence.
@@ -245,8 +246,8 @@ cargo test -p xriq-iso20022
   and currently shows private-devnet health, height/totals, network metadata,
   latest blocks, latest confirmed transactions, read-only pending transactions
   from `/api/v1/mempool`, accounts, plus selected block, transaction, pending
-  wallet status, account detail panels, and a read-only ISO 20022 preview panel
-  for the selected transaction/account.
+  wallet status, snapshot catalog/detail, account detail panels, and a
+  read-only ISO 20022 preview panel for the selected transaction/account.
 
 ```bash
 cd xriq/apps/explorer-ui
@@ -277,8 +278,10 @@ npm.cmd run build
   a read-only mempool status section backed by `/api/v1/mempool`. When the API
   is started with `--pending-file`, the panel shows the first pending
   transaction hash, amount, pending status, and the product wallet transaction
-  status response for that pending hash. It displays local
-  private-devnet status only and has no mutating controls.
+  status response for that pending hash. The separate Snapshot Catalog panel
+  fetches `/api/v1/snapshots/{name}` for selected snapshot details and displays
+  export/import statuses as disabled. It displays local private-devnet status
+  only and has no mutating controls.
 
 ## Guardrails
 

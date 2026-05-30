@@ -509,6 +509,16 @@ export async function loadWalletTransactionStatus(
   );
 }
 
+export async function loadSnapshotDetail(
+  baseUrl: string,
+  snapshotName: string,
+): Promise<SnapshotSummary> {
+  return fetchJson<SnapshotSummary>(
+    normalizeBaseUrl(baseUrl),
+    `/api/v1/snapshots/${encodeURIComponent(snapshotName)}`,
+  );
+}
+
 export async function loadWalletDraftPreview(
   baseUrl: string,
   request: WalletDraftPreviewRequest,

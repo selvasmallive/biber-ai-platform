@@ -15,6 +15,7 @@ const requiredFiles = [
   "src/iso.tsx",
   "src/main.tsx",
   "src/mempool.tsx",
+  "src/snapshots.tsx",
   "src/styles.css",
   "src/wallet.tsx",
   "src/vite-env.d.ts",
@@ -72,6 +73,7 @@ for (const requiredText of [
   "Account Detail",
   "WalletShell",
   "PendingTransactionsPanel",
+  "SnapshotCatalogPanel",
   "IsoPreviewPanel",
   "AdminStatusPanel",
 ]) {
@@ -84,6 +86,7 @@ const walletSource = readFileSync(join(root, "src/wallet.tsx"), "utf8");
 const adminSource = readFileSync(join(root, "src/admin.tsx"), "utf8");
 const isoSource = readFileSync(join(root, "src/iso.tsx"), "utf8");
 const mempoolSource = readFileSync(join(root, "src/mempool.tsx"), "utf8");
+const snapshotsSource = readFileSync(join(root, "src/snapshots.tsx"), "utf8");
 for (const requiredText of [
   "Wallet Preview",
   "xriq-wallet-transfer-preview-v1",
@@ -115,6 +118,7 @@ for (const forbiddenText of ["mainnet", "liquidity", "custody", "swap"]) {
     walletSource.toLowerCase().includes(forbiddenText) ||
     adminSource.toLowerCase().includes(forbiddenText) ||
     mempoolSource.toLowerCase().includes(forbiddenText) ||
+    snapshotsSource.toLowerCase().includes(forbiddenText) ||
     isoSource.toLowerCase().includes(forbiddenText)
   ) {
     throw new Error(`forbidden public-market term found in UI: ${forbiddenText}`);
@@ -149,6 +153,21 @@ for (const requiredText of [
 ]) {
   if (!mempoolSource.includes(requiredText)) {
     throw new Error(`missing mempool panel marker: ${requiredText}`);
+  }
+}
+
+for (const requiredText of [
+  "Snapshot Catalog",
+  "Selected Snapshot Detail",
+  "Export and import controls disabled",
+  "loadSnapshotDetail",
+  "snapshot_dir",
+  "export_status",
+  "import_status",
+  "snapshotPanel",
+]) {
+  if (!snapshotsSource.includes(requiredText)) {
+    throw new Error(`missing snapshot panel marker: ${requiredText}`);
   }
 }
 
