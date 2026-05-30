@@ -8,6 +8,7 @@ interface AdminStatusPanelProps {
 export function AdminStatusPanel({ snapshot, loadStatus }: AdminStatusPanelProps) {
   const indexer = snapshot?.indexer;
   const wallet = snapshot?.walletStatus;
+  const mempool = snapshot?.mempool;
   const snapshotCatalog = snapshot?.snapshots.snapshots[0];
   const latestAuditEvent = snapshot?.auditEvents.audit_events[0];
 
@@ -48,6 +49,18 @@ export function AdminStatusPanel({ snapshot, loadStatus }: AdminStatusPanelProps
             ["Draft", wallet?.capabilities.draft ? "enabled" : "disabled"],
             ["Submit", wallet?.capabilities.submit ? "enabled" : "disabled"],
             ["Send", wallet?.capabilities.send ? "enabled" : "disabled"],
+          ]}
+        />
+        <StatusBlock
+          title="Mempool"
+          rows={[
+            ["Warning", mempool?.warning ?? "-"],
+            ["Height", mempool?.current_height ?? "-"],
+            ["Pending", mempool?.pending_count ?? "-"],
+            ["Entries", mempool?.entries.length ?? "-"],
+            ["Inspect", mempool?.inspect_status ?? "-"],
+            ["Submit", mempool?.submit_status ?? "-"],
+            ["Produce Block", mempool?.produce_block_status ?? "-"],
           ]}
         />
         <StatusBlock

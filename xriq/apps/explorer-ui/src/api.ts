@@ -151,6 +151,7 @@ export interface ExplorerSnapshot {
   overview: ExplorerOverviewResponse;
   blocks: BlockListResponse;
   transactions: TransactionListResponse;
+  mempool: MempoolResponse;
   accounts: AccountListResponse;
   indexer: IndexerStatusResponse;
   walletStatus: WalletStatusResponse;
@@ -219,6 +220,32 @@ export interface WalletDraftPreviewResponse {
   };
 }
 
+export interface MempoolEntry {
+  tx_hash: string;
+  from_address: string;
+  to_address: string;
+  amount_base_units: string;
+  fee_base_units: string;
+  nonce: number;
+  status: string;
+  first_seen_at_utc: string | null;
+  last_seen_at_utc: string | null;
+}
+
+export interface MempoolResponse {
+  environment: "private-devnet";
+  network: string;
+  warning: string;
+  current_height: number;
+  pending_count: number;
+  limit: number;
+  next_cursor: string | null;
+  inspect_status: string;
+  submit_status: string;
+  produce_block_status: string;
+  entries: MempoolEntry[];
+}
+
 export interface AdminAuditEvent {
   event_id: string;
   actor: string;
@@ -266,6 +293,7 @@ export async function loadExplorerSnapshot(
     overview,
     blocks,
     transactions,
+    mempool,
     accounts,
     indexer,
     walletStatus,
@@ -283,6 +311,7 @@ export async function loadExplorerSnapshot(
       cleanBaseUrl,
       "/api/v1/transactions?limit=5",
     ),
+    fetchJson<MempoolResponse>(cleanBaseUrl, "/api/v1/mempool?limit=5"),
     fetchJson<AccountListResponse>(cleanBaseUrl, "/api/v1/accounts?limit=5"),
     fetchJson<IndexerStatusResponse>(
       cleanBaseUrl,
@@ -303,6 +332,7 @@ export async function loadExplorerSnapshot(
     overview,
     blocks,
     transactions,
+    mempool,
     accounts,
     indexer,
     walletStatus,

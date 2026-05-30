@@ -18,6 +18,8 @@ pub const API_SERVICE: &str = "xriq-api";
 pub const API_VERSION: &str = "phase1.1-dev";
 pub const INDEXER_SERVICE: &str = "xriq-indexer";
 pub const WALLET_PREVIEW_WARNING: &str = "private-devnet-preview-only-no-signing-no-submit";
+pub const MEMPOOL_READONLY_WARNING: &str =
+    "private-devnet-read-only-mempool-status-submit-disabled";
 pub const SNAPSHOT_READONLY_WARNING: &str =
     "private-devnet-read-only-snapshot-catalog-export-import-disabled";
 
@@ -165,6 +167,22 @@ impl XriqApiService {
             limit,
             next_cursor,
             transactions,
+        }
+    }
+
+    pub fn mempool(&self, limit: usize) -> MempoolResponse {
+        MempoolResponse {
+            environment: API_ENVIRONMENT,
+            network: self.snapshot.chain_id.clone(),
+            warning: MEMPOOL_READONLY_WARNING,
+            current_height: self.snapshot.current_height,
+            pending_count: 0,
+            limit,
+            next_cursor: None,
+            inspect_status: "enabled",
+            submit_status: "disabled",
+            produce_block_status: "disabled",
+            entries: Vec::new(),
         }
     }
 
@@ -522,6 +540,10 @@ pub fn product_api_http_response(
             ),
             Err(message) => api_error_response(400, "bad_request", &message),
         },
+        "/api/v1/mempool" => match limit_from_query(query, 25) {
+            Ok(limit) => api_json_response(200, render_mempool_json(&service.mempool(limit))),
+            Err(message) => api_error_response(400, "bad_request", &message),
+        },
         "/api/v1/accounts" => match limit_from_query(query, 25) {
             Ok(limit) => api_json_response(200, render_account_list_json(&service.accounts(limit))),
             Err(message) => api_error_response(400, "bad_request", &message),
@@ -761,6 +783,34 @@ pub struct TransactionResponse {
     pub amount_base_units: String,
     pub fee_base_units: String,
     pub nonce: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MempoolResponse {
+    pub environment: &'static str,
+    pub network: String,
+    pub warning: &'static str,
+    pub current_height: u64,
+    pub pending_count: usize,
+    pub limit: usize,
+    pub next_cursor: Option<String>,
+    pub inspect_status: &'static str,
+    pub submit_status: &'static str,
+    pub produce_block_status: &'static str,
+    pub entries: Vec<MempoolEntryResponse>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MempoolEntryResponse {
+    pub tx_hash: String,
+    pub from_address: String,
+    pub to_address: String,
+    pub amount_base_units: String,
+    pub fee_base_units: String,
+    pub nonce: u64,
+    pub status: String,
+    pub first_seen_at_utc: Option<String>,
+    pub last_seen_at_utc: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1471,6 +1521,68 @@ fn render_transaction_detail_json(response: &TransactionResponse, network: &str)
     output
 }
 
+fn render_mempool_json(response: &MempoolResponse) -> String {
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    push_response_header(&mut output, response.environment, &response.network);
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(response.warning)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"current_height\": {},",
+        response.current_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"pending_count\": {},",
+        response.pending_count
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"limit\": {},", response.limit).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"next_cursor\": {},",
+        json_optional_string(response.next_cursor.as_deref())
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"inspect_status\": {},",
+        json_string(response.inspect_status)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"submit_status\": {},",
+        json_string(response.submit_status)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"produce_block_status\": {},",
+        json_string(response.produce_block_status)
+    )
+    .expect("write to String");
+    output.push_str("  \"entries\": [");
+    for (index, entry) in response.entries.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_mempool_entry_json_inline(entry, 4));
+    }
+    if !response.entries.is_empty() {
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    output
+}
+
 fn render_account_list_json(response: &AccountListResponse) -> String {
     let mut output = String::new();
     writeln!(&mut output, "{{").expect("write to String");
@@ -1855,6 +1967,23 @@ fn render_transaction_json_inline(transaction: &TransactionResponse, indent: usi
         json_string(&transaction.amount_base_units),
         json_string(&transaction.fee_base_units),
         transaction.nonce
+    )
+}
+
+fn render_mempool_entry_json_inline(entry: &MempoolEntryResponse, indent: usize) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    format!(
+        "{spaces}{{\n{nested}\"tx_hash\": {},\n{nested}\"from_address\": {},\n{nested}\"to_address\": {},\n{nested}\"amount_base_units\": {},\n{nested}\"fee_base_units\": {},\n{nested}\"nonce\": {},\n{nested}\"status\": {},\n{nested}\"first_seen_at_utc\": {},\n{nested}\"last_seen_at_utc\": {}\n{spaces}}}",
+        json_string(&entry.tx_hash),
+        json_string(&entry.from_address),
+        json_string(&entry.to_address),
+        json_string(&entry.amount_base_units),
+        json_string(&entry.fee_base_units),
+        entry.nonce,
+        json_string(&entry.status),
+        json_optional_string(entry.first_seen_at_utc.as_deref()),
+        json_optional_string(entry.last_seen_at_utc.as_deref())
     )
 }
 
@@ -2275,6 +2404,23 @@ mod tests {
     }
 
     #[test]
+    fn mempool_status_is_read_only_for_indexed_snapshot() {
+        let api = service();
+
+        let mempool = api.mempool(5);
+        assert_eq!(mempool.environment, API_ENVIRONMENT);
+        assert_eq!(mempool.warning, MEMPOOL_READONLY_WARNING);
+        assert_eq!(mempool.current_height, 1);
+        assert_eq!(mempool.pending_count, 0);
+        assert_eq!(mempool.limit, 5);
+        assert_eq!(mempool.next_cursor, None);
+        assert_eq!(mempool.inspect_status, "enabled");
+        assert_eq!(mempool.submit_status, "disabled");
+        assert_eq!(mempool.produce_block_status, "disabled");
+        assert!(mempool.entries.is_empty());
+    }
+
+    #[test]
     fn accounts_and_history_are_deterministic() {
         let api = service();
 
@@ -2460,6 +2606,15 @@ mod tests {
         let status = product_api_http_response(&api, "GET", "/api/v1/admin/indexer/status");
         assert_eq!(status.status_code, 200);
         assert!(status.body.contains("\"service\": \"xriq-indexer\""));
+
+        let mempool = product_api_http_response(&api, "GET", "/api/v1/mempool?limit=5");
+        assert_eq!(mempool.status_code, 200);
+        assert!(mempool.body.contains(MEMPOOL_READONLY_WARNING));
+        assert!(mempool.body.contains("\"pending_count\": 0"));
+        assert!(mempool.body.contains("\"submit_status\": \"disabled\""));
+        assert!(mempool
+            .body
+            .contains("\"produce_block_status\": \"disabled\""));
 
         let audit = product_api_http_response(&api, "GET", "/api/v1/admin/audit-events?limit=5");
         assert_eq!(audit.status_code, 200);
