@@ -203,6 +203,17 @@ export interface WalletBalanceResponse {
   state_root: string;
 }
 
+export interface WalletTransactionStatusResponse {
+  environment: "private-devnet";
+  network: string;
+  warning: string;
+  tx_hash: string;
+  status: string;
+  block_height: number | null;
+  block_hash: string | null;
+  transaction_index: number | null;
+}
+
 export interface WalletDraftPreviewRequest {
   from_address: string;
   to_address: string;
@@ -485,6 +496,16 @@ export async function loadWalletBalance(
   return fetchJson<WalletBalanceResponse>(
     normalizeBaseUrl(baseUrl),
     `/api/v1/wallet/accounts/${encodeURIComponent(address)}/balance`,
+  );
+}
+
+export async function loadWalletTransactionStatus(
+  baseUrl: string,
+  txHash: string,
+): Promise<WalletTransactionStatusResponse> {
+  return fetchJson<WalletTransactionStatusResponse>(
+    normalizeBaseUrl(baseUrl),
+    `/api/v1/wallet/transactions/${encodeURIComponent(txHash)}/status`,
   );
 }
 

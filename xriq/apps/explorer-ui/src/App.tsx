@@ -352,7 +352,11 @@ function App() {
           transactionHash={activeTransactionHash}
           accountAddress={activeAccountAddress}
         />
-        <AdminStatusPanel snapshot={snapshot} loadStatus={loadState.status} />
+        <AdminStatusPanel
+          apiBaseUrl={apiBaseUrl}
+          snapshot={snapshot}
+          loadStatus={loadState.status}
+        />
       </section>
 
       <footer className="footerLine">

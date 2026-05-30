@@ -1,18 +1,84 @@
-import { ExplorerSnapshot } from "./api";
+import { useEffect, useState } from "react";
+import {
+  ExplorerSnapshot,
+  WalletTransactionStatusResponse,
+  loadWalletTransactionStatus,
+} from "./api";
 
 interface AdminStatusPanelProps {
+  apiBaseUrl: string;
   snapshot: ExplorerSnapshot | null;
   loadStatus: string;
 }
 
-export function AdminStatusPanel({ snapshot, loadStatus }: AdminStatusPanelProps) {
+type WalletTxStatusState =
+  | { status: "idle"; data: null; error: null }
+  | { status: "loading"; data: WalletTransactionStatusResponse | null; error: null }
+  | { status: "ready"; data: WalletTransactionStatusResponse; error: null }
+  | { status: "error"; data: WalletTransactionStatusResponse | null; error: string };
+
+export function AdminStatusPanel({
+  apiBaseUrl,
+  snapshot,
+  loadStatus,
+}: AdminStatusPanelProps) {
   const node = snapshot?.nodeStatus;
   const indexer = snapshot?.indexer;
   const wallet = snapshot?.walletStatus;
   const mempool = snapshot?.mempool;
   const firstPending = mempool?.entries[0];
+  const [walletTxStatus, setWalletTxStatus] = useState<WalletTxStatusState>({
+    status: "idle",
+    data: null,
+    error: null,
+  });
   const snapshotCatalog = snapshot?.snapshots.snapshots[0];
   const latestAuditEvent = snapshot?.auditEvents.audit_events[0];
+  const pendingWalletStatus = firstPending
+    ? walletTxStatus.data?.status ?? walletTxStatus.status
+    : "-";
+  const pendingWalletBlock = firstPending
+    ? nullableNumber(walletTxStatus.data?.block_height)
+    : "-";
+  const pendingWalletIndex = firstPending
+    ? nullableNumber(walletTxStatus.data?.transaction_index)
+    : "-";
+
+  useEffect(() => {
+    if (!firstPending?.tx_hash) {
+      setWalletTxStatus({ status: "idle", data: null, error: null });
+      return;
+    }
+
+    let cancelled = false;
+    setWalletTxStatus((current) => ({
+      status: "loading",
+      data: current.data,
+      error: null,
+    }));
+    void loadWalletTransactionStatus(apiBaseUrl, firstPending.tx_hash)
+      .then((data) => {
+        if (!cancelled) {
+          setWalletTxStatus({ status: "ready", data, error: null });
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setWalletTxStatus((current) => ({
+            status: "error",
+            data: current.data,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Wallet transaction status failed",
+          }));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, firstPending?.tx_hash]);
 
   return (
     <section className="panel detailPanel widePanel adminPanel">
@@ -75,6 +141,9 @@ export function AdminStatusPanel({ snapshot, loadStatus }: AdminStatusPanelProps
             ["First Pending", firstPending?.tx_hash ?? "-"],
             ["First Amount", firstPending?.amount_base_units ?? "-"],
             ["First Status", firstPending?.status ?? "-"],
+            ["Wallet Tx Status", pendingWalletStatus],
+            ["Wallet Tx Block", pendingWalletBlock],
+            ["Wallet Tx Index", pendingWalletIndex],
             ["Inspect", mempool?.inspect_status ?? "-"],
             ["Submit", mempool?.submit_status ?? "-"],
             ["Produce Block", mempool?.produce_block_status ?? "-"],
@@ -107,6 +176,13 @@ export function AdminStatusPanel({ snapshot, loadStatus }: AdminStatusPanelProps
       </div>
     </section>
   );
+}
+
+function nullableNumber(value: number | null | undefined) {
+  if (value === null) {
+    return "null";
+  }
+  return value ?? "-";
 }
 
 function StatusBlock({

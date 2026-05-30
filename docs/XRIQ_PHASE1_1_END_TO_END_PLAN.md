@@ -69,10 +69,10 @@ Rust
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
- |-- Wallet UI              ~12%; preview-only shell wired to wallet draft-preview API
+ |-- Wallet UI              ~13%; preview shell plus pending status lookup from admin/mempool view
  |-- Explorer               ~22%; shell plus detail and ISO preview panels read product API
  |-- Exchange UI            0%; deferred high legal/compliance-risk surface
- `-- Admin portal           ~19%; read-only node/status, pending mempool, snapshot, and audit panel exists
+ `-- Admin portal           ~21%; read-only node/status, pending mempool, pending wallet status, snapshot, and audit panel exists
 
 SQL/PostgreSQL
  |-- Explorer indexing      ~25%; schema, indexer, SQL plan, and verify path exist
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first read-only pending wallet-status checkpoint, Phase 1.1 status
-is about `53%`: the contract document, PostgreSQL read-model schema, JSON
+After the first read-only pending wallet-status UI checkpoint, Phase 1.1 status
+is about `54%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -116,7 +116,8 @@ status, account statement, mapping-version, not-certified, and unsupported
 field markers. The same React app now includes a
 read-only Admin Status panel that summarizes network tip state, indexer
 current/last-run status, node health/read-only mode, wallet draft/submit/send
-capability flags, read-only durable pending-file mempool status, a read-only
+capability flags, read-only durable pending-file mempool status, the first
+pending wallet transaction status with null block/index fields, a read-only
 snapshot catalog, and indexed audit events from the product API. Actual
 repeated live database smoke coverage, real wallet submission APIs, mutating
 admin controls, block-production controls, real snapshot export/import
@@ -273,7 +274,8 @@ npm.cmd run build
   sections backed by `/api/v1/snapshots` and `/api/v1/admin/audit-events`, and
   a read-only mempool status section backed by `/api/v1/mempool`. When the API
   is started with `--pending-file`, the panel shows the first pending
-  transaction hash, amount, and pending status. It displays local
+  transaction hash, amount, pending status, and the product wallet transaction
+  status response for that pending hash. It displays local
   private-devnet status only and has no mutating controls.
 
 ## Guardrails

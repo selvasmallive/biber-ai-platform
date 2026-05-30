@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `53%` overall. Current Rust
+- Phase 1.1 estimated completion: about `54%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -163,8 +163,8 @@ unless the user changes the project scope again.
   transaction-status, and account-statement preview routes. The same app now
   includes a read-only Admin
   Status panel backed by product API network, indexer, wallet-status,
-  node-status, pending-file mempool-status, snapshot-catalog, and audit-event
-  routes.
+  node-status, pending-file mempool-status, pending wallet transaction-status,
+  snapshot-catalog, and audit-event routes.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -183,6 +183,16 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 pending wallet-status UI checkpoint: extended
+  `xriq/apps/explorer-ui` so the read-only Admin Status panel fetches
+  `/api/v1/wallet/transactions/{hash}/status` for the first pending mempool
+  hash when the product API is started with `--pending-file`. The panel now
+  shows the product wallet status plus null block/index fields for a durable
+  pending hash, without signing, submitting, block production, private keys, or
+  mutating admin controls. Static UI guardrails now require the wallet
+  transaction-status route and markers. Phase 1.1 status is now about `54%`
+  overall. No GCP resources were provisioned, no Vast/GPU work was used, no
+  public/DEX behavior was added, and no credentials were changed.
 - Latest native XRIQ Phase 1.1 contract-artifact checkpoint: added
   `xriq/db/schema.sql`, `xriq/fixtures/phase1_1/`, and
   `scripts/xriq_phase1_1_contract_check.py`. The schema defines the first
