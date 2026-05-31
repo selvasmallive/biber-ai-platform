@@ -19,6 +19,7 @@ from urllib.request import Request, urlopen
 ALICE = "xriqdev1alice00000000000"
 BOB = "xriqdev1bobbb00000000000"
 CAROL = "xriqdev1carol00000000000"
+FEES = "xriqdev1fees000000000000"
 
 
 class SmokeError(RuntimeError):
@@ -816,6 +817,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_transactions = None
     postgres_api_transaction_detail = None
     postgres_server_transaction_detail = None
+    postgres_api_accounts = None
+    postgres_server_accounts = None
     postgres_ui_status = None
     if args.postgres_docker_live:
         postgres_docker_live = run_postgres_docker_live(
@@ -1001,6 +1004,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             require_equal(payload, "read_only", True, context)
             validate_postgres_transaction_fields(payload, context)
 
+        def validate_postgres_accounts(payload: dict[str, Any], context: str) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(payload, "limit", 5, context)
+            require_equal(payload, "next_cursor", None, context)
+            accounts = require_list(payload.get("accounts"), context)
+            if len(accounts) != int(expected_counts["account_balances"]):
+                raise SmokeError(
+                    f"{context}: expected {expected_counts['account_balances']} accounts, "
+                    f"got {len(accounts)}"
+                )
+            by_address = {row.get("address"): row for row in accounts if isinstance(row, dict)}
+            expected_balances = {
+                ALICE: "73",
+                BOB: "25",
+                FEES: "2",
+            }
+            for address, balance in expected_balances.items():
+                account = by_address.get(address)
+                if not isinstance(account, dict):
+                    raise SmokeError(f"{context}: missing account {address}")
+                require_equal(account, "balance_base_units", balance, context)
+                require_equal(account, "height", int(expected_counts["latest_height"]), context)
+                require_hash(account.get("state_root"), f"{context} {address} state root")
+                first_seen = account.get("first_seen_height")
+                last_seen = account.get("last_seen_height")
+                if not (
+                    isinstance(first_seen, int) or first_seen is None
+                ) or not (isinstance(last_seen, int) or last_seen is None):
+                    raise SmokeError(
+                        f"{context}: expected integer or null first/last seen heights for {address}"
+                    )
+
         postgres_blocks_output = run_command(
             "xriq-api postgres blocks",
             [
@@ -1094,6 +1130,36 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         completed.append("postgres-backed api transaction detail")
 
+        postgres_accounts_output = run_command(
+            "xriq-api postgres accounts",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                "/api/v1/accounts?limit=5",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_accounts = parse_api_request_output(
+            postgres_accounts_output,
+            "xriq-api postgres accounts",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres accounts: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_accounts}"
+            )
+        validate_postgres_accounts(
+            postgres_api_accounts,
+            "xriq-api postgres accounts",
+        )
+        write_json(indexer_dir / "postgres-api-accounts.json", postgres_api_accounts)
+        completed.append("postgres-backed api accounts")
+
         server_port = free_local_port()
         server_bind = f"127.0.0.1:{server_port}"
         server_base_url = f"http://{server_bind}"
@@ -1121,6 +1187,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_transaction_detail = http_json(
                 server_base_url, f"/api/v1/transactions/{confirmed_tx_hash}"
             )
+            postgres_server_accounts = http_json(server_base_url, "/api/v1/accounts?limit=5")
             postgres_ui_artifact = indexer_dir / "postgres-admin-ui-read-model-status.json"
             run_command(
                 "xriq admin postgres UI status smoke",
@@ -1200,6 +1267,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_transaction_detail,
             "xriq-api serve-readonly postgres transaction detail",
         )
+        validate_postgres_accounts(
+            postgres_server_accounts,
+            "xriq-api serve-readonly postgres accounts",
+        )
         write_json(
             indexer_dir / "postgres-server-read-model-status.json", postgres_server_status
         )
@@ -1215,11 +1286,13 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             indexer_dir / "postgres-server-transaction-detail.json",
             postgres_server_transaction_detail,
         )
+        write_json(indexer_dir / "postgres-server-accounts.json", postgres_server_accounts)
         completed.append("postgres-backed server read-model status")
         completed.append("postgres-backed server explorer overview")
         completed.append("postgres-backed server blocks")
         completed.append("postgres-backed server transactions")
         completed.append("postgres-backed server transaction detail")
+        completed.append("postgres-backed server accounts")
         completed.append("postgres-backed admin UI read-model status")
     else:
         skipped.append("postgres docker live smoke")
@@ -1613,6 +1686,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_transaction_detail": (
                 str(indexer_dir / "postgres-server-transaction-detail.json")
                 if postgres_server_transaction_detail
+                else None
+            ),
+            "postgres_api_accounts": (
+                str(indexer_dir / "postgres-api-accounts.json")
+                if postgres_api_accounts
+                else None
+            ),
+            "postgres_server_accounts": (
+                str(indexer_dir / "postgres-server-accounts.json")
+                if postgres_server_accounts
                 else None
             ),
             "postgres_admin_ui_read_model_status": (

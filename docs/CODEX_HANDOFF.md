@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `73%` overall. Current Rust
+- Phase 1.1 estimated completion: about `74%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -155,8 +155,8 @@ unless the user changes the project scope again.
   configured, Postgres-backed product data routes for
   `/api/v1/explorer/overview`, `/api/v1/blocks?limit=...`,
   `/api/v1/transactions?limit=...`, and
-  `/api/v1/transactions/{tx_hash}` without changing the default file-backed
-  API path. The first ISO
+  `/api/v1/transactions/{tx_hash}`, and `/api/v1/accounts?limit=...` without
+  changing the default file-backed API path. The first ISO
   20022 compatibility adapter exists in `xriq/crates/xriq-iso20022`, but it is
   a private-devnet preview mapping layer only, not certification or payment
   network connectivity. `xriq-api` now exposes that adapter through GET-only
@@ -195,8 +195,8 @@ unless the user changes the project scope again.
   panels, including wallet account history and wallet draft-preview failure
   cases. Its explicit Docker live mode now also verifies the Admin UI Postgres
   status row mapping and the first Postgres-backed product
-  overview/block/transaction list and transaction-detail routes against the
-  live local read model.
+  overview/block/transaction list/transaction-detail/account-list routes
+  against the live local read model.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -215,6 +215,35 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 Postgres-backed accounts checkpoint:
+  extended `xriq-api request-postgres` and explicitly Postgres-enabled
+  `xriq-api serve-readonly` to return `/api/v1/accounts?limit=...` from the
+  local Docker Postgres read model. The response preserves the normal product
+  account-list shape (`environment`, `network`, `limit`, `next_cursor`,
+  `accounts`) and adds local-only `source: postgres-read-model`, `read_only:
+  true`, and the existing no-mutation warning. Without explicit Postgres
+  flags, `/api/v1/accounts?limit=...` still uses the default file-backed
+  indexed snapshot path. Bad `limit` values are rejected with `400
+  bad_request` before Docker is invoked. The live smoke now writes
+  `indexer/postgres-api-accounts.json` and
+  `indexer/postgres-server-accounts.json` in addition to the status, overview,
+  block, transaction-list, and transaction-detail artifacts. Expected smoke
+  account state is Alice balance `"73"`, Bob balance `"25"`, fee account
+  balance `"2"`, latest indexed height `1`, valid state roots, `limit: 5`, and
+  `next_cursor: null`. Verification passed `cargo fmt`,
+  bundled-Python `py_compile`, `cargo fmt --check`, `cargo test -p xriq-api`,
+  `cargo clippy -p xriq-api -- -D warnings`, default
+  `scripts/xriq_phase1_1_local_e2e_smoke.py`, and Docker live
+  `scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live`,
+  producing artifact directory
+  `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T093810Z` with
+  `indexer/postgres-api-accounts.json` and
+  `indexer/postgres-server-accounts.json` showing `source:
+  postgres-read-model`, `read_only: true`, the three indexed account balances,
+  and `next_cursor: null`. Phase 1.1 status is now about `74%` overall.
+- Recommended next narrow step: add the next read-only Postgres-backed product
+  route, preferably `/api/v1/accounts/{address}`, preserving default
+  file-backed behavior and keeping all Postgres use opt-in.
 - Latest native XRIQ Phase 1.1 Postgres-backed transaction detail checkpoint:
   extended `xriq-api request-postgres` and explicitly Postgres-enabled
   `xriq-api serve-readonly` to return `/api/v1/transactions/{tx_hash}` from
@@ -297,9 +326,6 @@ active target because the GPU was terminated to save cost.
   showing `source: postgres-read-model`, `read_only: true`, `limit: 5`,
   `next_cursor: null`, and one block at height `1`. Phase 1.1 status is now
   about `71%` overall.
-- Recommended next narrow step: add the next read-only Postgres-backed product
-  route, preferably `/api/v1/accounts?limit=...`, preserving default
-  file-backed behavior and keeping all Postgres use opt-in.
 - Latest native XRIQ Phase 1.1 Postgres-backed explorer overview checkpoint:
   extended `xriq-api request-postgres` and explicitly Postgres-enabled
   `xriq-api serve-readonly` to return `/api/v1/explorer/overview` from the
