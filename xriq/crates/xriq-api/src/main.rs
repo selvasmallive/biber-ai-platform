@@ -21,6 +21,7 @@ const POSTGRES_READ_MODEL_STATUS_ROUTE: &str = "/api/v1/admin/postgres/read-mode
 const POSTGRES_EXPLORER_OVERVIEW_ROUTE: &str = "/api/v1/explorer/overview";
 const POSTGRES_BLOCKS_ROUTE: &str = "/api/v1/blocks";
 const POSTGRES_TRANSACTIONS_ROUTE: &str = "/api/v1/transactions";
+const POSTGRES_TRANSACTION_DETAIL_PREFIX: &str = "/api/v1/transactions/";
 const POSTGRES_PRIVATE_DEVNET_NETWORK: &str = "xriq-devnet";
 const POSTGRES_READ_MODEL_WARNING: &str =
     "local-private-devnet-postgres-read-only-preview-no-mutation";
@@ -229,6 +230,9 @@ fn maybe_postgres_read_model_http_response(
     target: &str,
 ) -> Option<Result<ApiHttpResponse, String>> {
     let path = target.split('?').next().unwrap_or(target);
+    let is_transaction_detail = path
+        .strip_prefix(POSTGRES_TRANSACTION_DETAIL_PREFIX)
+        .is_some_and(|tx_hash| !tx_hash.is_empty());
     match (path, config) {
         (POSTGRES_READ_MODEL_STATUS_ROUTE, None) => {
             return Some(Ok(postgres_read_model_disabled_response()));
@@ -237,6 +241,7 @@ fn maybe_postgres_read_model_http_response(
             POSTGRES_EXPLORER_OVERVIEW_ROUTE | POSTGRES_BLOCKS_ROUTE | POSTGRES_TRANSACTIONS_ROUTE,
             None,
         ) => return None,
+        (_, None) if is_transaction_detail => return None,
         (
             POSTGRES_READ_MODEL_STATUS_ROUTE
             | POSTGRES_EXPLORER_OVERVIEW_ROUTE
@@ -246,6 +251,9 @@ fn maybe_postgres_read_model_http_response(
         ) => return Some(postgres_read_model_http_response(config, method, target)),
         _ => {}
     };
+    if let (true, Some(config)) = (is_transaction_detail, config) {
+        return Some(postgres_read_model_http_response(config, method, target));
+    }
     None
 }
 
@@ -263,40 +271,67 @@ fn postgres_read_model_http_response(
     }
 
     let path = target.split('?').next().unwrap_or(target);
-    let (sql, label, renderer): (String, &str, PostgresReadModelRenderer) = match path {
-        POSTGRES_READ_MODEL_STATUS_ROUTE => (
-            postgres_read_model_status_sql().to_string(),
-            "postgres read-model status",
-            render_postgres_read_model_status_json,
-        ),
-        POSTGRES_EXPLORER_OVERVIEW_ROUTE => (
-            postgres_explorer_overview_sql().to_string(),
-            "postgres explorer overview",
-            render_postgres_explorer_overview_json,
-        ),
-        POSTGRES_BLOCKS_ROUTE => match postgres_blocks_sql(target) {
-            Ok(sql) => (sql, "postgres blocks", render_postgres_blocks_json),
-            Err(message) => return Ok(local_api_error_response(400, "bad_request", &message)),
-        },
-        POSTGRES_TRANSACTIONS_ROUTE => match postgres_transactions_sql(target) {
+    let transaction_detail_tx_hash = path
+        .strip_prefix(POSTGRES_TRANSACTION_DETAIL_PREFIX)
+        .filter(|tx_hash| !tx_hash.is_empty());
+    let (sql, label, renderer): (String, &str, PostgresReadModelRenderer) = if let Some(tx_hash) =
+        transaction_detail_tx_hash
+    {
+        match postgres_transaction_detail_sql(tx_hash) {
             Ok(sql) => (
                 sql,
-                "postgres transactions",
-                render_postgres_transactions_json,
+                "postgres transaction detail",
+                render_postgres_transaction_detail_json,
             ),
-            Err(message) => return Ok(local_api_error_response(400, "bad_request", &message)),
-        },
-        _ => {
-            return Ok(local_api_error_response(
-                404,
-                "not_found",
-                "XRIQ Postgres read-model endpoint not found",
-            ));
+            Err(message) => {
+                return Ok(local_api_error_response(400, "bad_request", &message));
+            }
+        }
+    } else {
+        match path {
+            POSTGRES_READ_MODEL_STATUS_ROUTE => (
+                postgres_read_model_status_sql().to_string(),
+                "postgres read-model status",
+                render_postgres_read_model_status_json,
+            ),
+            POSTGRES_EXPLORER_OVERVIEW_ROUTE => (
+                postgres_explorer_overview_sql().to_string(),
+                "postgres explorer overview",
+                render_postgres_explorer_overview_json,
+            ),
+            POSTGRES_BLOCKS_ROUTE => match postgres_blocks_sql(target) {
+                Ok(sql) => (sql, "postgres blocks", render_postgres_blocks_json),
+                Err(message) => return Ok(local_api_error_response(400, "bad_request", &message)),
+            },
+            POSTGRES_TRANSACTIONS_ROUTE => match postgres_transactions_sql(target) {
+                Ok(sql) => (
+                    sql,
+                    "postgres transactions",
+                    render_postgres_transactions_json,
+                ),
+                Err(message) => return Ok(local_api_error_response(400, "bad_request", &message)),
+            },
+            _ => {
+                return Ok(local_api_error_response(
+                    404,
+                    "not_found",
+                    "XRIQ Postgres read-model endpoint not found",
+                ));
+            }
         }
     };
 
     let output = docker_psql_query(config.docker_container, config.database, &sql, label)?;
     let values = parse_key_value_lines(&output, label)?;
+    if label == "postgres transaction detail"
+        && values.get("found").map(String::as_str) != Some("true")
+    {
+        return Ok(local_api_error_response(
+            404,
+            "not_found",
+            "XRIQ transaction not found in Postgres read model",
+        ));
+    }
     let body = renderer(config, &values)?;
     Ok(ApiHttpResponse {
         status_code: 200,
@@ -530,6 +565,58 @@ FROM (
     SELECT 108 + row_index * 20, 'transaction_' || row_index || '_fee_base_units', fee_base_units FROM ranked
     UNION ALL
     SELECT 109 + row_index * 20, 'transaction_' || row_index || '_nonce', nonce::text FROM ranked
+) AS rows
+ORDER BY sort_order;
+"#
+    ))
+}
+
+fn postgres_transaction_detail_sql(tx_hash: &str) -> Result<String, String> {
+    validate_transaction_hash(tx_hash, "tx_hash")?;
+    Ok(format!(
+        r#"
+WITH selected AS (
+    SELECT
+        tx_hash,
+        block_height,
+        block_hash,
+        transaction_index,
+        status,
+        from_address,
+        to_address,
+        amount_base_units::text AS amount_base_units,
+        fee_base_units::text AS fee_base_units,
+        nonce
+    FROM xriq_transactions
+    WHERE tx_hash = '{tx_hash}'
+      AND block_height IS NOT NULL
+      AND block_hash IS NOT NULL
+      AND transaction_index IS NOT NULL
+    LIMIT 1
+)
+SELECT key || '=' || value
+FROM (
+    SELECT 0 AS sort_order, 'found' AS key, CASE WHEN EXISTS(SELECT 1 FROM selected) THEN 'true' ELSE 'false' END AS value
+    UNION ALL
+    SELECT 100, 'transaction_0_tx_hash', tx_hash FROM selected
+    UNION ALL
+    SELECT 101, 'transaction_0_block_height', block_height::text FROM selected
+    UNION ALL
+    SELECT 102, 'transaction_0_block_hash', block_hash FROM selected
+    UNION ALL
+    SELECT 103, 'transaction_0_transaction_index', transaction_index::text FROM selected
+    UNION ALL
+    SELECT 104, 'transaction_0_status', status FROM selected
+    UNION ALL
+    SELECT 105, 'transaction_0_from_address', from_address FROM selected
+    UNION ALL
+    SELECT 106, 'transaction_0_to_address', to_address FROM selected
+    UNION ALL
+    SELECT 107, 'transaction_0_amount_base_units', amount_base_units FROM selected
+    UNION ALL
+    SELECT 108, 'transaction_0_fee_base_units', fee_base_units FROM selected
+    UNION ALL
+    SELECT 109, 'transaction_0_nonce', nonce::text FROM selected
 ) AS rows
 ORDER BY sort_order;
 "#
@@ -828,6 +915,122 @@ fn render_postgres_transactions_json(
     Ok(output)
 }
 
+fn render_postgres_transaction_detail_json(
+    _config: &PostgresReadModelConfig<'_>,
+    values: &BTreeMap<String, String>,
+) -> Result<String, String> {
+    let prefix = "transaction_0_";
+    let tx_hash = required_string_for(
+        values,
+        &format!("{prefix}tx_hash"),
+        "postgres transaction detail",
+    )?;
+    let block_height = required_u64_for(
+        values,
+        &format!("{prefix}block_height"),
+        "postgres transaction detail",
+    )?;
+    let block_hash = required_string_for(
+        values,
+        &format!("{prefix}block_hash"),
+        "postgres transaction detail",
+    )?;
+    let transaction_index = required_u64_for(
+        values,
+        &format!("{prefix}transaction_index"),
+        "postgres transaction detail",
+    )?;
+    let status = required_string_for(
+        values,
+        &format!("{prefix}status"),
+        "postgres transaction detail",
+    )?;
+    let from_address = required_string_for(
+        values,
+        &format!("{prefix}from_address"),
+        "postgres transaction detail",
+    )?;
+    let to_address = required_string_for(
+        values,
+        &format!("{prefix}to_address"),
+        "postgres transaction detail",
+    )?;
+    let amount_base_units = required_string_for(
+        values,
+        &format!("{prefix}amount_base_units"),
+        "postgres transaction detail",
+    )?;
+    let fee_base_units = required_string_for(
+        values,
+        &format!("{prefix}fee_base_units"),
+        "postgres transaction detail",
+    )?;
+    let nonce = required_u64_for(
+        values,
+        &format!("{prefix}nonce"),
+        "postgres transaction detail",
+    )?;
+
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(&mut output, "  \"environment\": \"private-devnet\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"network\": {},",
+        json_string(POSTGRES_PRIVATE_DEVNET_NETWORK)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"source\": \"postgres-read-model\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(POSTGRES_READ_MODEL_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"read_only\": true,").expect("write to String");
+    writeln!(&mut output, "  \"tx_hash\": {},", json_string(tx_hash)).expect("write to String");
+    writeln!(&mut output, "  \"block_height\": {},", block_height).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"block_hash\": {},",
+        json_string(block_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"transaction_index\": {},",
+        transaction_index
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"status\": {},", json_string(status)).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"from_address\": {},",
+        json_string(from_address)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"to_address\": {},",
+        json_string(to_address)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"amount_base_units\": {},",
+        json_string(amount_base_units)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"fee_base_units\": {},",
+        json_string(fee_base_units)
+    )
+    .expect("write to String");
+    write!(&mut output, "  \"nonce\": {}\n}}", nonce).expect("write to String");
+    Ok(output)
+}
+
 fn render_postgres_transaction_json_inline(
     values: &BTreeMap<String, String>,
     index: u64,
@@ -972,7 +1175,7 @@ fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5",
+        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>",
         "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
@@ -981,6 +1184,7 @@ fn help_text() -> String {
         "  xriq-api request-postgres --target /api/v1/explorer/overview",
         "  xriq-api request-postgres --target /api/v1/blocks?limit=5",
         "  xriq-api request-postgres --target /api/v1/transactions?limit=5",
+        "  xriq-api request-postgres --target /api/v1/transactions/<tx_hash>",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100 --postgres-docker-container xriq-postgres --postgres-database xriq_phase1_1_smoke",
     ]
@@ -1153,6 +1357,15 @@ fn validate_docker_name(value: &str, context: &str) -> Result<(), String> {
     }
     Err(format!(
         "{context}: expected Docker name characters only, got {value:?}"
+    ))
+}
+
+fn validate_transaction_hash(value: &str, context: &str) -> Result<(), String> {
+    if value.len() == 64 && value.chars().all(|character| character.is_ascii_hexdigit()) {
+        return Ok(());
+    }
+    Err(format!(
+        "invalid {context}: expected 64-character hex string, got {value:?}"
     ))
 }
 
@@ -1441,6 +1654,45 @@ transaction_0_nonce=0
     }
 
     #[test]
+    fn postgres_transaction_detail_json_renders_product_shape() {
+        let config = PostgresRequestConfig::parse(&[
+            "--target",
+            "/api/v1/transactions/2222222222222222222222222222222222222222222222222222222222222222",
+        ])
+        .unwrap();
+        let values = parse_key_value_lines(
+            "\
+found=true
+transaction_0_tx_hash=2222222222222222222222222222222222222222222222222222222222222222
+transaction_0_block_height=1
+transaction_0_block_hash=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+transaction_0_transaction_index=0
+transaction_0_status=confirmed
+transaction_0_from_address=xriqdev1alice00000000000
+transaction_0_to_address=xriqdev1bobbb00000000000
+transaction_0_amount_base_units=25
+transaction_0_fee_base_units=2
+transaction_0_nonce=0
+",
+            "test postgres transaction detail",
+        )
+        .unwrap();
+
+        let body = render_postgres_transaction_detail_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"source\": \"postgres-read-model\""));
+        assert!(body.contains("\"read_only\": true"));
+        assert!(body.contains(
+            "\"tx_hash\": \"2222222222222222222222222222222222222222222222222222222222222222\""
+        ));
+        assert!(body.contains("\"block_height\": 1"));
+        assert!(body.contains("\"status\": \"confirmed\""));
+        assert!(body.contains("\"amount_base_units\": \"25\""));
+        assert!(body.contains("\"fee_base_units\": \"2\""));
+        assert!(body.contains("\"nonce\": 0"));
+    }
+
+    #[test]
     fn postgres_blocks_sql_rejects_invalid_limit_before_docker() {
         let response = run([
             "request-postgres",
@@ -1466,6 +1718,20 @@ transaction_0_nonce=0
         assert!(response.contains("status_code=400"));
         assert!(response.contains("\"code\": \"bad_request\""));
         assert!(response.contains("invalid limit"));
+    }
+
+    #[test]
+    fn postgres_transaction_detail_sql_rejects_invalid_hash_before_docker() {
+        let response = run([
+            "request-postgres",
+            "--target",
+            "/api/v1/transactions/not-a-valid-hash",
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=400"));
+        assert!(response.contains("\"code\": \"bad_request\""));
+        assert!(response.contains("invalid tx_hash"));
     }
 
     #[test]
@@ -1551,6 +1817,12 @@ transaction_0_nonce=0
             None,
             "GET",
             "/api/v1/transactions?limit=5"
+        )
+        .is_none());
+        assert!(maybe_postgres_read_model_http_response(
+            None,
+            "GET",
+            "/api/v1/transactions/2222222222222222222222222222222222222222222222222222222222222222"
         )
         .is_none());
     }

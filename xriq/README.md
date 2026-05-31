@@ -103,13 +103,15 @@ python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
 That live smoke also verifies the first explicit Postgres-backed API read paths,
 including `/api/v1/admin/postgres/read-model-status` and the opt-in
 Postgres-backed `/api/v1/explorer/overview`, `/api/v1/blocks?limit=5`, and
-`/api/v1/transactions?limit=5`, plus the Admin UI's Postgres read-model row
-mapping. It writes
+`/api/v1/transactions?limit=5` plus `/api/v1/transactions/{tx_hash}`, plus the
+Admin UI's Postgres read-model row mapping. It writes
 `indexer/postgres-api-explorer-overview.json`,
 `indexer/postgres-server-explorer-overview.json`,
 `indexer/postgres-api-blocks.json`, `indexer/postgres-server-blocks.json`,
 `indexer/postgres-api-transactions.json`,
-`indexer/postgres-server-transactions.json`, and
+`indexer/postgres-server-transactions.json`,
+`indexer/postgres-api-transaction-detail.json`,
+`indexer/postgres-server-transaction-detail.json`, and
 `indexer/postgres-admin-ui-read-model-status.json` under the smoke output
 directory.
 The default `xriq-api request` and `serve-readonly` flows still use file-backed
@@ -121,12 +123,13 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-m
 cargo run -p xriq-api -- request-postgres --target /api/v1/explorer/overview
 cargo run -p xriq-api -- request-postgres --target /api/v1/blocks?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions?limit=5
+cargo run -p xriq-api -- request-postgres --target /api/v1/transactions/<tx_hash>
 ```
 
 To expose the same Postgres read-model status, explorer overview, block list,
-and transaction list through the local read-only HTTP server, pass both
-explicit Postgres flags. Without these flags, the Postgres status route remains
-disabled and the normal file-backed routes keep working.
+transaction list, and transaction detail through the local read-only HTTP
+server, pass both explicit Postgres flags. Without these flags, the Postgres
+status route remains disabled and the normal file-backed routes keep working.
 
 ```bash
 cargo run -p xriq-api -- serve-readonly --chain-file target/xriq-indexer-replay-smoke.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --bind 127.0.0.1:8090 --postgres-docker-container xriq-postgres --postgres-database xriq_phase1_1_smoke
