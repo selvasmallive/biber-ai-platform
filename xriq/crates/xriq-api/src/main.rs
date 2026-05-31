@@ -11,7 +11,7 @@ use std::{
 
 use xriq_api::{
     pending_mempool_entries_from_tsv, product_api_http_response, ApiHttpResponse, XriqApiService,
-    MEMPOOL_READONLY_WARNING, SNAPSHOT_READONLY_WARNING,
+    MEMPOOL_READONLY_WARNING, SNAPSHOT_READONLY_WARNING, WALLET_PREVIEW_WARNING,
 };
 use xriq_core::{Address, XriqAmount};
 use xriq_indexer::index_private_devnet_store;
@@ -27,6 +27,7 @@ const POSTGRES_BLOCKS_ROUTE: &str = "/api/v1/blocks";
 const POSTGRES_BLOCK_DETAIL_PREFIX: &str = "/api/v1/blocks/";
 const POSTGRES_TRANSACTIONS_ROUTE: &str = "/api/v1/transactions";
 const POSTGRES_MEMPOOL_ROUTE: &str = "/api/v1/mempool";
+const POSTGRES_WALLET_STATUS_ROUTE: &str = "/api/v1/wallet/status";
 const POSTGRES_TRANSACTION_DETAIL_PREFIX: &str = "/api/v1/transactions/";
 const POSTGRES_WALLET_TRANSACTION_PREFIX: &str = "/api/v1/wallet/transactions/";
 const POSTGRES_WALLET_TRANSACTION_STATUS_SUFFIX: &str = "/status";
@@ -308,6 +309,7 @@ fn maybe_postgres_read_model_http_response(
             | POSTGRES_BLOCKS_ROUTE
             | POSTGRES_TRANSACTIONS_ROUTE
             | POSTGRES_MEMPOOL_ROUTE
+            | POSTGRES_WALLET_STATUS_ROUTE
             | POSTGRES_ACCOUNTS_ROUTE
             | POSTGRES_WALLET_ACCOUNTS_ROUTE
             | POSTGRES_SNAPSHOTS_ROUTE,
@@ -330,6 +332,7 @@ fn maybe_postgres_read_model_http_response(
             | POSTGRES_BLOCKS_ROUTE
             | POSTGRES_TRANSACTIONS_ROUTE
             | POSTGRES_MEMPOOL_ROUTE
+            | POSTGRES_WALLET_STATUS_ROUTE
             | POSTGRES_ACCOUNTS_ROUTE
             | POSTGRES_WALLET_ACCOUNTS_ROUTE
             | POSTGRES_SNAPSHOTS_ROUTE,
@@ -526,6 +529,11 @@ fn postgres_read_model_http_response(
                 Ok(sql) => (sql, "postgres mempool", render_postgres_mempool_json),
                 Err(message) => return Ok(local_api_error_response(400, "bad_request", &message)),
             },
+            POSTGRES_WALLET_STATUS_ROUTE => (
+                postgres_wallet_status_sql().to_string(),
+                "postgres wallet status",
+                render_postgres_wallet_status_json,
+            ),
             POSTGRES_ACCOUNTS_ROUTE => match postgres_accounts_sql(target) {
                 Ok(sql) => (sql, "postgres accounts", render_postgres_accounts_json),
                 Err(message) => return Ok(local_api_error_response(400, "bad_request", &message)),
@@ -1110,6 +1118,30 @@ FROM (
 ORDER BY sort_order;
 "#
     ))
+}
+
+fn postgres_wallet_status_sql() -> &'static str {
+    r#"
+WITH latest_block AS (
+    SELECT height, block_hash, state_root
+    FROM xriq_blocks
+    ORDER BY height DESC
+    LIMIT 1
+)
+SELECT key || '=' || value
+FROM (
+    SELECT 0 AS sort_order, 'current_height' AS key, COALESCE((SELECT height::text FROM latest_block), '0') AS value
+    UNION ALL
+    SELECT 1, 'latest_block_hash', COALESCE((SELECT block_hash FROM latest_block), 'none')
+    UNION ALL
+    SELECT 2, 'state_root', COALESCE((SELECT state_root FROM latest_block), 'none')
+    UNION ALL
+    SELECT 3, 'account_count', count(*)::text FROM xriq_account_balances
+    UNION ALL
+    SELECT 4, 'pending_transactions', count(*)::text FROM xriq_mempool_entries
+) AS rows
+ORDER BY sort_order;
+"#
 }
 
 fn postgres_transaction_detail_sql(tx_hash: &str) -> Result<String, String> {
@@ -2132,6 +2164,69 @@ fn render_postgres_mempool_json(
     Ok(output)
 }
 
+fn render_postgres_wallet_status_json(
+    _config: &PostgresReadModelConfig<'_>,
+    values: &BTreeMap<String, String>,
+) -> Result<String, String> {
+    let current_height = required_u64_for(values, "current_height", "postgres wallet status")?;
+    let latest_block_hash =
+        required_string_for(values, "latest_block_hash", "postgres wallet status")?;
+    let state_root = required_string_for(values, "state_root", "postgres wallet status")?;
+    let account_count = required_u64_for(values, "account_count", "postgres wallet status")?;
+    let pending_transactions =
+        required_u64_for(values, "pending_transactions", "postgres wallet status")?;
+
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(&mut output, "  \"environment\": \"private-devnet\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"network\": {},",
+        json_string(POSTGRES_PRIVATE_DEVNET_NETWORK)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"source\": \"postgres-read-model\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(WALLET_PREVIEW_WARNING)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"read_model_warning\": {},",
+        json_string(POSTGRES_READ_MODEL_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"read_only\": true,").expect("write to String");
+    writeln!(&mut output, "  \"current_height\": {},", current_height).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"latest_block_hash\": {},",
+        json_string(latest_block_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"state_root\": {},",
+        json_string(state_root)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"account_count\": {},", account_count).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"pending_transactions\": {},",
+        pending_transactions
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"capabilities\": {{").expect("write to String");
+    writeln!(&mut output, "    \"draft\": true,").expect("write to String");
+    writeln!(&mut output, "    \"submit\": false,").expect("write to String");
+    writeln!(&mut output, "    \"send\": false").expect("write to String");
+    output.push_str("  }\n}");
+    Ok(output)
+}
+
 fn render_postgres_transaction_detail_json(
     _config: &PostgresReadModelConfig<'_>,
     values: &BTreeMap<String, String>,
@@ -3007,7 +3102,7 @@ fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/node/status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/blocks/<height-or-hash>|/api/v1/transactions?limit=5|/api/v1/mempool?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5|/api/v1/snapshots?limit=5|/api/v1/snapshots/<snapshot_name>",
+        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/node/status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/blocks/<height-or-hash>|/api/v1/transactions?limit=5|/api/v1/mempool?limit=5|/api/v1/wallet/status|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5|/api/v1/snapshots?limit=5|/api/v1/snapshots/<snapshot_name>",
         "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
@@ -3021,6 +3116,7 @@ fn help_text() -> String {
         "  xriq-api request-postgres --target /api/v1/blocks/1",
         "  xriq-api request-postgres --target /api/v1/transactions?limit=5",
         "  xriq-api request-postgres --target /api/v1/mempool?limit=5",
+        "  xriq-api request-postgres --target /api/v1/wallet/status",
         "  xriq-api request-postgres --target /api/v1/transactions/<tx_hash>",
         "  xriq-api request-postgres --target /api/v1/wallet/transactions/<tx_hash>/status",
         "  xriq-api request-postgres --target /api/v1/accounts?limit=5",
@@ -3762,6 +3858,41 @@ mempool_entry_0_last_seen_at_utc=1970-01-01T00:00:01Z
     }
 
     #[test]
+    fn postgres_wallet_status_json_renders_product_shape() {
+        let config = PostgresRequestConfig::parse(&["--target", "/api/v1/wallet/status"]).unwrap();
+        let values = parse_key_value_lines(
+            "\
+current_height=1
+latest_block_hash=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+state_root=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+account_count=3
+pending_transactions=1
+",
+            "test postgres wallet status",
+        )
+        .unwrap();
+
+        let body = render_postgres_wallet_status_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"source\": \"postgres-read-model\""));
+        assert!(body.contains("\"read_only\": true"));
+        assert!(body.contains(WALLET_PREVIEW_WARNING));
+        assert!(body.contains(POSTGRES_READ_MODEL_WARNING));
+        assert!(body.contains("\"current_height\": 1"));
+        assert!(body.contains(
+            "\"latest_block_hash\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\""
+        ));
+        assert!(body.contains(
+            "\"state_root\": \"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\""
+        ));
+        assert!(body.contains("\"account_count\": 3"));
+        assert!(body.contains("\"pending_transactions\": 1"));
+        assert!(body.contains("\"draft\": true"));
+        assert!(body.contains("\"submit\": false"));
+        assert!(body.contains("\"send\": false"));
+    }
+
+    #[test]
     fn postgres_transaction_detail_json_renders_product_shape() {
         let config = PostgresRequestConfig::parse(&[
             "--target",
@@ -4454,6 +4585,9 @@ transaction_0_fee_base_units=2
         assert!(
             maybe_postgres_read_model_http_response(None, "GET", "/api/v1/mempool?limit=5")
                 .is_none()
+        );
+        assert!(
+            maybe_postgres_read_model_http_response(None, "GET", "/api/v1/wallet/status").is_none()
         );
         assert!(maybe_postgres_read_model_http_response(
             None,

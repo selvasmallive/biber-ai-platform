@@ -921,6 +921,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_transactions = None
     postgres_api_mempool = None
     postgres_server_mempool = None
+    postgres_api_wallet_status = None
+    postgres_server_wallet_status = None
     postgres_api_transaction_detail = None
     postgres_server_transaction_detail = None
     postgres_api_wallet_transaction_status = None
@@ -1302,6 +1304,40 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 if not isinstance(timestamp, str) or not timestamp.endswith("Z"):
                     raise SmokeError(f"{context}: expected UTC {field}, got {timestamp!r}")
 
+        def validate_postgres_wallet_status(payload: dict[str, Any], context: str) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(payload, "environment", "private-devnet", context)
+            require_equal(payload, "network", "xriq-devnet", context)
+            require_equal(
+                payload,
+                "warning",
+                "private-devnet-preview-only-no-signing-no-submit",
+                context,
+            )
+            require_equal(
+                payload,
+                "read_model_warning",
+                "local-private-devnet-postgres-read-only-preview-no-mutation",
+                context,
+            )
+            require_equal(payload, "current_height", int(expected_counts["latest_height"]), context)
+            require_hash(payload.get("latest_block_hash"), f"{context} latest block hash")
+            require_hash(payload.get("state_root"), f"{context} state root")
+            require_equal(payload, "account_count", int(expected_counts["account_balances"]), context)
+            require_equal(
+                payload,
+                "pending_transactions",
+                int(expected_counts["mempool_entries"]),
+                context,
+            )
+            capabilities = payload.get("capabilities")
+            if not isinstance(capabilities, dict):
+                raise SmokeError(f"{context}: expected capabilities object")
+            require_equal(capabilities, "draft", True, context)
+            require_equal(capabilities, "submit", False, context)
+            require_equal(capabilities, "send", False, context)
+
         def validate_postgres_transaction_detail(
             payload: dict[str, Any], context: str
         ) -> None:
@@ -1638,6 +1674,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_api_mempool,
         )
         completed.append("postgres-backed api mempool")
+
+        postgres_wallet_status_output = run_command(
+            "xriq-api postgres wallet status",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                "/api/v1/wallet/status",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_wallet_status = parse_api_request_output(
+            postgres_wallet_status_output,
+            "xriq-api postgres wallet status",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres wallet status: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_wallet_status}"
+            )
+        validate_postgres_wallet_status(
+            postgres_api_wallet_status,
+            "xriq-api postgres wallet status",
+        )
+        write_json(
+            indexer_dir / "postgres-api-wallet-status.json",
+            postgres_api_wallet_status,
+        )
+        completed.append("postgres-backed api wallet status")
 
         postgres_transaction_detail_output = run_command(
             "xriq-api postgres transaction detail",
@@ -2068,6 +2137,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 server_base_url, "/api/v1/transactions?limit=5"
             )
             postgres_server_mempool = http_json(server_base_url, "/api/v1/mempool?limit=5")
+            postgres_server_wallet_status = http_json(server_base_url, "/api/v1/wallet/status")
             postgres_server_transaction_detail = http_json(
                 server_base_url, f"/api/v1/transactions/{confirmed_tx_hash}"
             )
@@ -2189,6 +2259,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_mempool,
             "xriq-api serve-readonly postgres mempool",
         )
+        validate_postgres_wallet_status(
+            postgres_server_wallet_status,
+            "xriq-api serve-readonly postgres wallet status",
+        )
         validate_postgres_transaction_detail(
             postgres_server_transaction_detail,
             "xriq-api serve-readonly postgres transaction detail",
@@ -2262,6 +2336,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         write_json(indexer_dir / "postgres-server-mempool.json", postgres_server_mempool)
         write_json(
+            indexer_dir / "postgres-server-wallet-status.json",
+            postgres_server_wallet_status,
+        )
+        write_json(
             indexer_dir / "postgres-server-transaction-detail.json",
             postgres_server_transaction_detail,
         )
@@ -2314,6 +2392,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         completed.append("postgres-backed server block detail")
         completed.append("postgres-backed server transactions")
         completed.append("postgres-backed server mempool")
+        completed.append("postgres-backed server wallet status")
         completed.append("postgres-backed server transaction detail")
         completed.append("postgres-backed server wallet transaction status")
         completed.append("postgres-backed server pending wallet transaction status")
@@ -2747,6 +2826,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_mempool": (
                 str(indexer_dir / "postgres-server-mempool.json")
                 if postgres_server_mempool
+                else None
+            ),
+            "postgres_api_wallet_status": (
+                str(indexer_dir / "postgres-api-wallet-status.json")
+                if postgres_api_wallet_status
+                else None
+            ),
+            "postgres_server_wallet_status": (
+                str(indexer_dir / "postgres-server-wallet-status.json")
+                if postgres_server_wallet_status
                 else None
             ),
             "postgres_api_transaction_detail": (
