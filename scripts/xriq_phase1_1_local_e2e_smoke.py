@@ -933,6 +933,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_iso_transaction_status = None
     postgres_api_iso_payment_initiation = None
     postgres_server_iso_payment_initiation = None
+    postgres_api_iso_account_statement = None
+    postgres_server_iso_account_statement = None
     postgres_api_wallet_pending_transaction_status = None
     postgres_server_wallet_pending_transaction_status = None
     postgres_api_accounts = None
@@ -1502,6 +1504,41 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 if field not in unsupported:
                     raise SmokeError(f"{context}: missing unsupported field {field!r}")
 
+        def validate_postgres_iso_account_statement(
+            payload: dict[str, Any], context: str
+        ) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(payload, "environment", "private-devnet", context)
+            require_equal(payload, "not_certified", True, context)
+            require_equal(payload, "mapping_version", "xriq-iso20022-preview-v1", context)
+            require_equal(payload, "message_type", "account_statement_preview", context)
+            require_equal(payload, "message_id", "iso-statement-alice-0001", context)
+            require_equal(payload, "account_address", ALICE, context)
+            require_equal(payload, "from", "1970-01-01T00:00:00Z", context)
+            require_equal(payload, "to", "1970-01-01T00:00:02Z", context)
+            require_equal(payload, "opening_balance_base_units", "100", context)
+            require_equal(payload, "closing_balance_base_units", "73", context)
+            require_equal(
+                payload,
+                "read_model_warning",
+                "local-private-devnet-postgres-read-only-preview-no-mutation",
+                context,
+            )
+            entries = require_list(payload.get("entries"), context)
+            if len(entries) != 1 or not isinstance(entries[0], dict):
+                raise SmokeError(f"{context}: expected one statement entry")
+            require_equal(entries[0], "tx_hash", confirmed_tx_hash, context)
+            require_equal(entries[0], "direction", "debit", context)
+            require_equal(entries[0], "amount_base_units", "25", context)
+            require_equal(entries[0], "fee_base_units", "2", context)
+            require_equal(entries[0], "status", "confirmed", context)
+            require_equal(entries[0], "block_height", int(expected_counts["latest_height"]), context)
+            unsupported = require_list(payload.get("unsupported_fields"), context)
+            for field in ("bank_account_servicer", "booking_date_from_bank", "fiat_currency"):
+                if field not in unsupported:
+                    raise SmokeError(f"{context}: missing unsupported field {field!r}")
+
         def validate_postgres_pending_wallet_transaction_status(
             payload: dict[str, Any], context: str
         ) -> None:
@@ -2015,6 +2052,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         completed.append("postgres-backed api iso20022 payment initiation")
 
+        postgres_iso_account_statement_output = run_command(
+            "xriq-api postgres iso20022 account statement",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                f"/api/v1/iso20022/accounts/{ALICE}/statement?from=1970-01-01T00:00:00Z&to=1970-01-01T00:00:02Z",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_iso_account_statement = parse_api_request_output(
+            postgres_iso_account_statement_output,
+            "xriq-api postgres iso20022 account statement",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres iso20022 account statement: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_iso_account_statement}"
+            )
+        validate_postgres_iso_account_statement(
+            postgres_api_iso_account_statement,
+            "xriq-api postgres iso20022 account statement",
+        )
+        write_json(
+            indexer_dir / "postgres-api-iso-account-statement.json",
+            postgres_api_iso_account_statement,
+        )
+        completed.append("postgres-backed api iso20022 account statement")
+
         postgres_wallet_pending_transaction_status_output = run_command(
             "xriq-api postgres pending wallet transaction status",
             [
@@ -2395,6 +2465,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 server_base_url,
                 f"/api/v1/iso20022/payment-initiation/preview?tx_hash={confirmed_tx_hash}",
             )
+            postgres_server_iso_account_statement = http_json(
+                server_base_url,
+                f"/api/v1/iso20022/accounts/{ALICE}/statement?from=1970-01-01T00:00:00Z&to=1970-01-01T00:00:02Z",
+            )
             postgres_server_wallet_pending_transaction_status = http_json(
                 server_base_url, f"/api/v1/wallet/transactions/{pending_tx_hash}/status"
             )
@@ -2534,6 +2608,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_iso_payment_initiation,
             "xriq-api serve-readonly postgres iso20022 payment initiation",
         )
+        validate_postgres_iso_account_statement(
+            postgres_server_iso_account_statement,
+            "xriq-api serve-readonly postgres iso20022 account statement",
+        )
         validate_postgres_pending_wallet_transaction_status(
             postgres_server_wallet_pending_transaction_status,
             "xriq-api serve-readonly postgres pending wallet transaction status",
@@ -2623,6 +2701,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_iso_payment_initiation,
         )
         write_json(
+            indexer_dir / "postgres-server-iso-account-statement.json",
+            postgres_server_iso_account_statement,
+        )
+        write_json(
             indexer_dir / "postgres-server-wallet-pending-transaction-status.json",
             postgres_server_wallet_pending_transaction_status,
         )
@@ -2673,6 +2755,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         completed.append("postgres-backed server wallet transaction status")
         completed.append("postgres-backed server iso20022 transaction status")
         completed.append("postgres-backed server iso20022 payment initiation")
+        completed.append("postgres-backed server iso20022 account statement")
         completed.append("postgres-backed server pending wallet transaction status")
         completed.append("postgres-backed server accounts")
         completed.append("postgres-backed server wallet accounts")
@@ -3164,6 +3247,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_iso_payment_initiation": (
                 str(indexer_dir / "postgres-server-iso-payment-initiation.json")
                 if postgres_server_iso_payment_initiation
+                else None
+            ),
+            "postgres_api_iso_account_statement": (
+                str(indexer_dir / "postgres-api-iso-account-statement.json")
+                if postgres_api_iso_account_statement
+                else None
+            ),
+            "postgres_server_iso_account_statement": (
+                str(indexer_dir / "postgres-server-iso-account-statement.json")
+                if postgres_server_iso_account_statement
                 else None
             ),
             "postgres_api_wallet_pending_transaction_status": (

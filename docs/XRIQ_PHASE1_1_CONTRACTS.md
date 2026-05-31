@@ -158,6 +158,7 @@ Required behavior:
   `/api/v1/wallet/transfers/draft-preview?...`, and
   `/api/v1/iso20022/transactions/{tx_hash}/status`, and
   `/api/v1/iso20022/payment-initiation/preview?tx_hash=...`, and
+  `/api/v1/iso20022/accounts/{address}/statement?from=...&to=...`, and
   `/api/v1/transactions/{tx_hash}`, `/api/v1/accounts?limit=...`, and
   `/api/v1/accounts/{address}`, and
   `/api/v1/accounts/{address}/transactions?limit=...`, and
@@ -407,6 +408,7 @@ validated against the local Docker Postgres service:
    `/api/v1/wallet/transactions/{tx_hash}/status`, and
    `/api/v1/iso20022/transactions/{tx_hash}/status`, and
    `/api/v1/iso20022/payment-initiation/preview?tx_hash=...`, and
+   `/api/v1/iso20022/accounts/{address}/statement?from=...&to=...`, and
    `/api/v1/accounts?limit=...` plus `/api/v1/accounts/{address}`,
    `/api/v1/accounts/{address}/transactions?limit=...`, and
    `/api/v1/wallet/accounts?limit=...` plus
@@ -421,12 +423,12 @@ validated against the local Docker Postgres service:
    `not_certified: true` preview JSON without certification or payment-network
    claims. The ISO 20022 payment-initiation route now maps confirmed
    read-model transaction fields into `not_certified: true` preview JSON
-   without certification or payment-network claims. Add subsequent read-only
-   routes one at a time; the next narrow route should be ISO 20022 account
-   statement preview
-   `/api/v1/iso20022/accounts/{address}/statement?from=...&to=...` from
-   Postgres account history and balance fields, still read-only and
-   preview-only.
+   without certification or payment-network claims. The ISO 20022 account
+   statement route now maps read-model account history and balance fields into
+   `not_certified: true` preview JSON without certification or payment-network
+   claims. Before starting mutating wallet submit, block-production, snapshot
+   import/export, DEX, or smart-contract work, add a Phase 1.1 RC readiness
+   checklist and route-parity matrix.
 7. If host `psql` is unavailable but Docker Desktop is running, use
    `python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live` to
    apply and verify the generated SQL inside the local Compose Postgres
@@ -485,6 +487,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/transactions/<tx_hash
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/transactions/<tx_hash>/status
 cargo run -p xriq-api -- request-postgres --target /api/v1/iso20022/transactions/<tx_hash>/status
 cargo run -p xriq-api -- request-postgres --target '/api/v1/iso20022/payment-initiation/preview?tx_hash=<tx_hash>'
+cargo run -p xriq-api -- request-postgres --target '/api/v1/iso20022/accounts/<address>/statement?from=1970-01-01T00:00:00Z&to=1970-01-01T00:00:02Z'
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>
