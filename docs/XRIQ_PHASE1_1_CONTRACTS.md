@@ -397,6 +397,7 @@ validated against the local Docker Postgres service:
    `/api/v1/accounts?limit=...` plus `/api/v1/accounts/{address}`,
    `/api/v1/accounts/{address}/transactions?limit=...`, and
    `/api/v1/wallet/accounts?limit=...` plus
+   `/api/v1/wallet/accounts/{address}/balance` and
    `/api/v1/wallet/accounts/{address}/history?limit=...` as the first
    Postgres-backed product data routes. Add subsequent read-only routes one at
    a time.
@@ -436,9 +437,9 @@ cargo test -p xriq-indexer
 The first explicit Postgres-backed API read paths are local-only and use the
 Compose `postgres` container. They return status/count JSON plus the opt-in
 explorer overview, block-list, transaction-list, and transaction-detail shapes
-plus the account-list, wallet account-list, account-detail, account-history,
-and wallet account-history shapes from the read model without changing the default
-file-backed API request/server path:
+plus the account-list, wallet account-list, account-detail, wallet balance,
+account-history, and wallet account-history shapes from the read model without
+changing the default file-backed API request/server path:
 
 ```bash
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
@@ -449,6 +450,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/transactions/<tx_hash
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>
+cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts/<address>/balance
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>/transactions?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts/<address>/history?limit=5
 ```

@@ -823,6 +823,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_wallet_accounts = None
     postgres_api_account_detail = None
     postgres_server_account_detail = None
+    postgres_api_wallet_balance = None
+    postgres_server_wallet_balance = None
     postgres_api_account_history = None
     postgres_server_account_history = None
     postgres_api_wallet_account_history = None
@@ -1062,6 +1064,19 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                     f"{context}: expected integer first/last seen heights for {ALICE}"
                 )
 
+        def validate_postgres_wallet_balance(
+            payload: dict[str, Any], context: str
+        ) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(payload, "address", ALICE, context)
+            require_equal(payload, "balance_base_units", "73", context)
+            require_equal(payload, "nonce", 1, context)
+            require_equal(payload, "height", int(expected_counts["latest_height"]), context)
+            require_hash(payload.get("state_root"), f"{context} state root")
+            if "first_seen_height" in payload or "last_seen_height" in payload:
+                raise SmokeError(f"{context}: wallet balance must not expose first/last seen fields")
+
         def validate_postgres_account_history(
             payload: dict[str, Any], context: str
         ) -> None:
@@ -1271,6 +1286,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         completed.append("postgres-backed api account detail")
 
+        postgres_wallet_balance_output = run_command(
+            "xriq-api postgres wallet balance",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                f"/api/v1/wallet/accounts/{ALICE}/balance",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_wallet_balance = parse_api_request_output(
+            postgres_wallet_balance_output,
+            "xriq-api postgres wallet balance",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres wallet balance: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_wallet_balance}"
+            )
+        validate_postgres_wallet_balance(
+            postgres_api_wallet_balance,
+            "xriq-api postgres wallet balance",
+        )
+        write_json(
+            indexer_dir / "postgres-api-wallet-balance.json",
+            postgres_api_wallet_balance,
+        )
+        completed.append("postgres-backed api wallet balance")
+
         postgres_account_history_output = run_command(
             "xriq-api postgres account history",
             [
@@ -1369,6 +1417,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 server_base_url, "/api/v1/wallet/accounts?limit=5"
             )
             postgres_server_account_detail = http_json(server_base_url, f"/api/v1/accounts/{ALICE}")
+            postgres_server_wallet_balance = http_json(
+                server_base_url, f"/api/v1/wallet/accounts/{ALICE}/balance"
+            )
             postgres_server_account_history = http_json(
                 server_base_url, f"/api/v1/accounts/{ALICE}/transactions?limit=5"
             )
@@ -1466,6 +1517,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_account_detail,
             "xriq-api serve-readonly postgres account detail",
         )
+        validate_postgres_wallet_balance(
+            postgres_server_wallet_balance,
+            "xriq-api serve-readonly postgres wallet balance",
+        )
         validate_postgres_account_history(
             postgres_server_account_history,
             "xriq-api serve-readonly postgres account history",
@@ -1499,6 +1554,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_account_detail,
         )
         write_json(
+            indexer_dir / "postgres-server-wallet-balance.json",
+            postgres_server_wallet_balance,
+        )
+        write_json(
             indexer_dir / "postgres-server-account-history.json",
             postgres_server_account_history,
         )
@@ -1514,6 +1573,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         completed.append("postgres-backed server accounts")
         completed.append("postgres-backed server wallet accounts")
         completed.append("postgres-backed server account detail")
+        completed.append("postgres-backed server wallet balance")
         completed.append("postgres-backed server account history")
         completed.append("postgres-backed server wallet account history")
         completed.append("postgres-backed admin UI read-model status")
@@ -1939,6 +1999,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_account_detail": (
                 str(indexer_dir / "postgres-server-account-detail.json")
                 if postgres_server_account_detail
+                else None
+            ),
+            "postgres_api_wallet_balance": (
+                str(indexer_dir / "postgres-api-wallet-balance.json")
+                if postgres_api_wallet_balance
+                else None
+            ),
+            "postgres_server_wallet_balance": (
+                str(indexer_dir / "postgres-server-wallet-balance.json")
+                if postgres_server_wallet_balance
                 else None
             ),
             "postgres_api_account_history": (
