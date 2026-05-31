@@ -355,6 +355,7 @@ Postgres-backed `/api/v1/admin/node/status`, `/api/v1/admin/indexer/status`,
 `/api/v1/explorer/overview`, `/api/v1/blocks?limit=5`,
 `/api/v1/blocks/1`, `/api/v1/transactions?limit=5`,
 `/api/v1/mempool?limit=5`, and `/api/v1/wallet/status` plus
+`/api/v1/wallet/transfers/draft-preview?...` plus
 `/api/v1/transactions/{tx_hash}` and
 `/api/v1/wallet/transactions/{tx_hash}/status` for confirmed and pending hashes, plus
 `/api/v1/accounts?limit=5` plus `/api/v1/accounts/{address}` and
@@ -377,6 +378,8 @@ Postgres read-model row mapping. It writes
 `indexer/postgres-server-mempool.json`,
 `indexer/postgres-api-wallet-status.json`,
 `indexer/postgres-server-wallet-status.json`,
+`indexer/postgres-api-wallet-draft-preview.json`,
+`indexer/postgres-server-wallet-draft-preview.json`,
 `indexer/postgres-api-transaction-detail.json`,
 `indexer/postgres-server-transaction-detail.json`,
 `indexer/postgres-api-wallet-transaction-status.json`,
@@ -420,6 +423,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/blocks/1
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/mempool?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/status
+cargo run -p xriq-api -- request-postgres --target '/api/v1/wallet/transfers/draft-preview?from_address=xriqdev1alice00000000000&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=1&expires_at_height=100'
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions/<tx_hash>
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/transactions/<tx_hash>/status
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts?limit=5
@@ -433,7 +437,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/snapshots/current-ind
 ```
 
 To expose that read-model status, explorer overview, block list/detail, transaction
-list, mempool, wallet status, transaction detail, wallet transaction status, account list, wallet
+list, mempool, wallet status, wallet draft-preview, transaction detail, wallet transaction status, account list, wallet
 account list, account detail, wallet balance, account history, and wallet
 account history, audit events, snapshot list/detail, node status, and indexer
 status through the local read-only HTTP server, pass both explicit Postgres

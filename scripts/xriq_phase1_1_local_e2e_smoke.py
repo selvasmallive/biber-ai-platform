@@ -923,6 +923,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_mempool = None
     postgres_api_wallet_status = None
     postgres_server_wallet_status = None
+    postgres_api_wallet_draft_preview = None
+    postgres_server_wallet_draft_preview = None
     postgres_api_transaction_detail = None
     postgres_server_transaction_detail = None
     postgres_api_wallet_transaction_status = None
@@ -1338,6 +1340,50 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             require_equal(capabilities, "submit", False, context)
             require_equal(capabilities, "send", False, context)
 
+        def validate_postgres_wallet_draft_preview(
+            payload: dict[str, Any], context: str
+        ) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(payload, "environment", "private-devnet", context)
+            require_equal(payload, "network", "xriq-devnet", context)
+            require_equal(
+                payload,
+                "warning",
+                "private-devnet-preview-only-no-signing-no-submit",
+                context,
+            )
+            require_equal(
+                payload,
+                "read_model_warning",
+                "local-private-devnet-postgres-read-only-preview-no-mutation",
+                context,
+            )
+            require_equal(payload, "mutation", "none", context)
+            validation = payload.get("validation")
+            if not isinstance(validation, dict):
+                raise SmokeError(f"{context}: expected validation object")
+            require_equal(validation, "ok", True, context)
+            errors = require_list(validation.get("errors"), context)
+            if errors:
+                raise SmokeError(f"{context}: expected no validation errors, got {errors!r}")
+            draft = payload.get("draft")
+            if not isinstance(draft, dict):
+                raise SmokeError(f"{context}: expected draft object")
+            require_equal(draft, "chain_id", "xriq-devnet", context)
+            require_equal(draft, "from_address", ALICE, context)
+            require_equal(draft, "to_address", CAROL, context)
+            require_equal(draft, "amount_base_units", "5", context)
+            require_equal(draft, "fee_base_units", "2", context)
+            require_equal(draft, "nonce", 1, context)
+            require_equal(draft, "expires_at_height", 100, context)
+            balance = payload.get("balance")
+            if not isinstance(balance, dict):
+                raise SmokeError(f"{context}: expected balance object")
+            require_equal(balance, "available_base_units", "73", context)
+            require_equal(balance, "debit_base_units", "7", context)
+            require_equal(balance, "remaining_base_units", "66", context)
+
         def validate_postgres_transaction_detail(
             payload: dict[str, Any], context: str
         ) -> None:
@@ -1707,6 +1753,44 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_api_wallet_status,
         )
         completed.append("postgres-backed api wallet status")
+
+        wallet_draft_preview_target = (
+            f"/api/v1/wallet/transfers/draft-preview?from_address={ALICE}"
+            f"&to_address={CAROL}&amount_base_units=5&fee_base_units=2"
+            "&nonce=1&expires_at_height=100"
+        )
+        postgres_wallet_draft_preview_output = run_command(
+            "xriq-api postgres wallet draft preview",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                wallet_draft_preview_target,
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_wallet_draft_preview = parse_api_request_output(
+            postgres_wallet_draft_preview_output,
+            "xriq-api postgres wallet draft preview",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres wallet draft preview: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_wallet_draft_preview}"
+            )
+        validate_postgres_wallet_draft_preview(
+            postgres_api_wallet_draft_preview,
+            "xriq-api postgres wallet draft preview",
+        )
+        write_json(
+            indexer_dir / "postgres-api-wallet-draft-preview.json",
+            postgres_api_wallet_draft_preview,
+        )
+        completed.append("postgres-backed api wallet draft preview")
 
         postgres_transaction_detail_output = run_command(
             "xriq-api postgres transaction detail",
@@ -2138,6 +2222,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             )
             postgres_server_mempool = http_json(server_base_url, "/api/v1/mempool?limit=5")
             postgres_server_wallet_status = http_json(server_base_url, "/api/v1/wallet/status")
+            postgres_server_wallet_draft_preview = http_json(
+                server_base_url, wallet_draft_preview_target
+            )
             postgres_server_transaction_detail = http_json(
                 server_base_url, f"/api/v1/transactions/{confirmed_tx_hash}"
             )
@@ -2263,6 +2350,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_wallet_status,
             "xriq-api serve-readonly postgres wallet status",
         )
+        validate_postgres_wallet_draft_preview(
+            postgres_server_wallet_draft_preview,
+            "xriq-api serve-readonly postgres wallet draft preview",
+        )
         validate_postgres_transaction_detail(
             postgres_server_transaction_detail,
             "xriq-api serve-readonly postgres transaction detail",
@@ -2340,6 +2431,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_wallet_status,
         )
         write_json(
+            indexer_dir / "postgres-server-wallet-draft-preview.json",
+            postgres_server_wallet_draft_preview,
+        )
+        write_json(
             indexer_dir / "postgres-server-transaction-detail.json",
             postgres_server_transaction_detail,
         )
@@ -2393,6 +2488,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         completed.append("postgres-backed server transactions")
         completed.append("postgres-backed server mempool")
         completed.append("postgres-backed server wallet status")
+        completed.append("postgres-backed server wallet draft preview")
         completed.append("postgres-backed server transaction detail")
         completed.append("postgres-backed server wallet transaction status")
         completed.append("postgres-backed server pending wallet transaction status")
@@ -2836,6 +2932,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_wallet_status": (
                 str(indexer_dir / "postgres-server-wallet-status.json")
                 if postgres_server_wallet_status
+                else None
+            ),
+            "postgres_api_wallet_draft_preview": (
+                str(indexer_dir / "postgres-api-wallet-draft-preview.json")
+                if postgres_api_wallet_draft_preview
+                else None
+            ),
+            "postgres_server_wallet_draft_preview": (
+                str(indexer_dir / "postgres-server-wallet-draft-preview.json")
+                if postgres_server_wallet_draft_preview
                 else None
             ),
             "postgres_api_transaction_detail": (

@@ -13,7 +13,7 @@ use xriq_api::{
     pending_mempool_entries_from_tsv, product_api_http_response, ApiHttpResponse, XriqApiService,
     MEMPOOL_READONLY_WARNING, SNAPSHOT_READONLY_WARNING, WALLET_PREVIEW_WARNING,
 };
-use xriq_core::{Address, XriqAmount};
+use xriq_core::{Address, XriqAmount, PRIVATE_DEVNET_MIN_FEE_BASE_UNITS};
 use xriq_indexer::index_private_devnet_store;
 use xriq_storage::FileChainStore;
 
@@ -28,6 +28,7 @@ const POSTGRES_BLOCK_DETAIL_PREFIX: &str = "/api/v1/blocks/";
 const POSTGRES_TRANSACTIONS_ROUTE: &str = "/api/v1/transactions";
 const POSTGRES_MEMPOOL_ROUTE: &str = "/api/v1/mempool";
 const POSTGRES_WALLET_STATUS_ROUTE: &str = "/api/v1/wallet/status";
+const POSTGRES_WALLET_DRAFT_PREVIEW_ROUTE: &str = "/api/v1/wallet/transfers/draft-preview";
 const POSTGRES_TRANSACTION_DETAIL_PREFIX: &str = "/api/v1/transactions/";
 const POSTGRES_WALLET_TRANSACTION_PREFIX: &str = "/api/v1/wallet/transactions/";
 const POSTGRES_WALLET_TRANSACTION_STATUS_SUFFIX: &str = "/status";
@@ -310,6 +311,7 @@ fn maybe_postgres_read_model_http_response(
             | POSTGRES_TRANSACTIONS_ROUTE
             | POSTGRES_MEMPOOL_ROUTE
             | POSTGRES_WALLET_STATUS_ROUTE
+            | POSTGRES_WALLET_DRAFT_PREVIEW_ROUTE
             | POSTGRES_ACCOUNTS_ROUTE
             | POSTGRES_WALLET_ACCOUNTS_ROUTE
             | POSTGRES_SNAPSHOTS_ROUTE,
@@ -333,6 +335,7 @@ fn maybe_postgres_read_model_http_response(
             | POSTGRES_TRANSACTIONS_ROUTE
             | POSTGRES_MEMPOOL_ROUTE
             | POSTGRES_WALLET_STATUS_ROUTE
+            | POSTGRES_WALLET_DRAFT_PREVIEW_ROUTE
             | POSTGRES_ACCOUNTS_ROUTE
             | POSTGRES_WALLET_ACCOUNTS_ROUTE
             | POSTGRES_SNAPSHOTS_ROUTE,
@@ -534,6 +537,18 @@ fn postgres_read_model_http_response(
                 "postgres wallet status",
                 render_postgres_wallet_status_json,
             ),
+            POSTGRES_WALLET_DRAFT_PREVIEW_ROUTE => {
+                match postgres_wallet_draft_preview_sql(target) {
+                    Ok(sql) => (
+                        sql,
+                        "postgres wallet draft preview",
+                        render_postgres_wallet_draft_preview_json,
+                    ),
+                    Err(message) => {
+                        return Ok(local_api_error_response(400, "bad_request", &message))
+                    }
+                }
+            }
             POSTGRES_ACCOUNTS_ROUTE => match postgres_accounts_sql(target) {
                 Ok(sql) => (sql, "postgres accounts", render_postgres_accounts_json),
                 Err(message) => return Ok(local_api_error_response(400, "bad_request", &message)),
@@ -1142,6 +1157,64 @@ FROM (
 ) AS rows
 ORDER BY sort_order;
 "#
+}
+
+fn postgres_wallet_draft_preview_sql(target: &str) -> Result<String, String> {
+    let (_, query) = split_http_target(target);
+    let request = PostgresWalletDraftPreviewRequest::from_query(query)?;
+    Ok(format!(
+        r#"
+WITH latest_block AS (
+    SELECT height
+    FROM xriq_blocks
+    ORDER BY height DESC
+    LIMIT 1
+),
+sender AS (
+    SELECT
+        balance_base_units::text AS available_base_units,
+        nonce::text AS sender_nonce
+    FROM xriq_account_balances
+    WHERE address = '{from_address}'
+    LIMIT 1
+)
+SELECT key || '=' || value
+FROM (
+    SELECT 0 AS sort_order, 'current_height' AS key, COALESCE((SELECT height::text FROM latest_block), '0') AS value
+    UNION ALL
+    SELECT 1, 'sender_found', CASE WHEN EXISTS(SELECT 1 FROM sender) THEN 'true' ELSE 'false' END
+    UNION ALL
+    SELECT 2, 'available_base_units', COALESCE((SELECT available_base_units FROM sender), 'none')
+    UNION ALL
+    SELECT 3, 'sender_nonce', COALESCE((SELECT sender_nonce FROM sender), 'none')
+    UNION ALL
+    SELECT 10, 'draft_chain_id', '{chain_id}'
+    UNION ALL
+    SELECT 11, 'draft_from_address', '{from_address}'
+    UNION ALL
+    SELECT 12, 'draft_to_address', '{to_address}'
+    UNION ALL
+    SELECT 13, 'draft_amount_base_units', '{amount_base_units}'
+    UNION ALL
+    SELECT 14, 'draft_fee_base_units', '{fee_base_units}'
+    UNION ALL
+    SELECT 15, 'draft_nonce', '{nonce}'
+    UNION ALL
+    SELECT 16, 'draft_expires_at_height', '{expires_at_height}'
+) AS rows
+ORDER BY sort_order;
+"#,
+        chain_id = request.chain_id,
+        from_address = request.from_address,
+        to_address = request.to_address,
+        amount_base_units = request.amount_base_units,
+        fee_base_units = request.fee_base_units,
+        nonce = request.nonce,
+        expires_at_height = request
+            .expires_at_height
+            .map(|height| height.to_string())
+            .unwrap_or_else(|| "none".to_string())
+    ))
 }
 
 fn postgres_transaction_detail_sql(tx_hash: &str) -> Result<String, String> {
@@ -2227,6 +2300,152 @@ fn render_postgres_wallet_status_json(
     Ok(output)
 }
 
+fn render_postgres_wallet_draft_preview_json(
+    _config: &PostgresReadModelConfig<'_>,
+    values: &BTreeMap<String, String>,
+) -> Result<String, String> {
+    let context = "postgres wallet draft preview";
+    let current_height = required_u64_for(values, "current_height", context)?;
+    let sender_found = required_string_for(values, "sender_found", context)? == "true";
+    let available_base_units = optional_u128_from_values(values, "available_base_units", context)?;
+    let sender_nonce = optional_u64_from_values(values, "sender_nonce", context)?;
+    let chain_id = required_string_for(values, "draft_chain_id", context)?;
+    let from_address = required_string_for(values, "draft_from_address", context)?;
+    let to_address = required_string_for(values, "draft_to_address", context)?;
+    let amount_base_units = required_u128_for(values, "draft_amount_base_units", context)?;
+    let fee_base_units = required_u128_for(values, "draft_fee_base_units", context)?;
+    let nonce = required_u64_for(values, "draft_nonce", context)?;
+    let expires_at_height = optional_u64_from_values(values, "draft_expires_at_height", context)?;
+
+    let debit_base_units = amount_base_units.checked_add(fee_base_units);
+    let remaining_base_units = match (available_base_units, debit_base_units) {
+        (Some(balance), Some(debit)) if balance >= debit => Some(balance - debit),
+        _ => None,
+    };
+    let mut errors = Vec::new();
+
+    if !sender_found {
+        errors.push("sender account not found".to_string());
+    }
+    if from_address == to_address {
+        errors.push("sender and recipient must differ".to_string());
+    }
+    if amount_base_units == 0 {
+        errors.push("amount must be greater than zero".to_string());
+    }
+    if fee_base_units < PRIVATE_DEVNET_MIN_FEE_BASE_UNITS {
+        errors.push(format!(
+            "fee must be at least {PRIVATE_DEVNET_MIN_FEE_BASE_UNITS} base units"
+        ));
+    }
+    if let Some(sender_nonce) = sender_nonce {
+        if nonce != sender_nonce {
+            errors.push(format!("nonce must match sender nonce {sender_nonce}"));
+        }
+    }
+    if expires_at_height.is_some_and(|height| height <= current_height) {
+        errors.push("expiry must be greater than current height".to_string());
+    }
+    if debit_base_units.is_none() {
+        errors.push("amount plus fee overflows base-unit range".to_string());
+    }
+    if matches!(
+        (available_base_units, debit_base_units),
+        (Some(balance), Some(debit)) if debit > balance
+    ) {
+        errors.push("debit exceeds available balance".to_string());
+    }
+
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(&mut output, "  \"environment\": \"private-devnet\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"network\": {},",
+        json_string(POSTGRES_PRIVATE_DEVNET_NETWORK)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"source\": \"postgres-read-model\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(WALLET_PREVIEW_WARNING)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"read_model_warning\": {},",
+        json_string(POSTGRES_READ_MODEL_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"read_only\": true,").expect("write to String");
+    writeln!(&mut output, "  \"mutation\": \"none\",").expect("write to String");
+    writeln!(&mut output, "  \"validation\": {{").expect("write to String");
+    writeln!(&mut output, "    \"ok\": {},", errors.is_empty()).expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"errors\": {}",
+        json_string_array(&errors)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  }},").expect("write to String");
+    writeln!(&mut output, "  \"draft\": {{").expect("write to String");
+    writeln!(&mut output, "    \"chain_id\": {},", json_string(chain_id)).expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"from_address\": {},",
+        json_string(from_address)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"to_address\": {},",
+        json_string(to_address)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"amount_base_units\": {},",
+        json_string(&amount_base_units.to_string())
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"fee_base_units\": {},",
+        json_string(&fee_base_units.to_string())
+    )
+    .expect("write to String");
+    writeln!(&mut output, "    \"nonce\": {},", nonce).expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"expires_at_height\": {}",
+        json_optional_u64_value(expires_at_height)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  }},").expect("write to String");
+    writeln!(&mut output, "  \"balance\": {{").expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"available_base_units\": {},",
+        json_optional_u128_string(available_base_units)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"debit_base_units\": {},",
+        json_optional_u128_string(debit_base_units)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"remaining_base_units\": {}",
+        json_optional_u128_string(remaining_base_units)
+    )
+    .expect("write to String");
+    output.push_str("  }\n}");
+    Ok(output)
+}
+
 fn render_postgres_transaction_detail_json(
     _config: &PostgresReadModelConfig<'_>,
     values: &BTreeMap<String, String>,
@@ -3036,6 +3255,18 @@ fn required_u64_for(
         .map_err(|_| format!("{context}: invalid integer for {key}"))
 }
 
+fn required_u128_for(
+    values: &BTreeMap<String, String>,
+    key: &str,
+    context: &str,
+) -> Result<u128, String> {
+    values
+        .get(key)
+        .ok_or_else(|| format!("{context}: missing {key}"))?
+        .parse::<u128>()
+        .map_err(|_| format!("{context}: invalid integer for {key}"))
+}
+
 fn required_string_for<'a>(
     values: &'a BTreeMap<String, String>,
     key: &str,
@@ -3061,6 +3292,34 @@ fn optional_u64_json_for(
         Some(value) => value
             .parse::<u64>()
             .map(|number| number.to_string())
+            .map_err(|_| format!("{context}: invalid integer for {key}")),
+    }
+}
+
+fn optional_u64_from_values(
+    values: &BTreeMap<String, String>,
+    key: &str,
+    context: &str,
+) -> Result<Option<u64>, String> {
+    match values.get(key).map(String::as_str) {
+        Some("none") | None => Ok(None),
+        Some(value) => value
+            .parse::<u64>()
+            .map(Some)
+            .map_err(|_| format!("{context}: invalid integer for {key}")),
+    }
+}
+
+fn optional_u128_from_values(
+    values: &BTreeMap<String, String>,
+    key: &str,
+    context: &str,
+) -> Result<Option<u128>, String> {
+    match values.get(key).map(String::as_str) {
+        Some("none") | None => Ok(None),
+        Some(value) => value
+            .parse::<u128>()
+            .map(Some)
             .map_err(|_| format!("{context}: invalid integer for {key}")),
     }
 }
@@ -3098,11 +3357,29 @@ fn query_param<'a>(query: Option<&'a str>, key: &str) -> Option<&'a str> {
     })
 }
 
+fn required_query_param_any<'a>(query: Option<&'a str>, keys: &[&str]) -> Result<&'a str, String> {
+    keys.iter()
+        .find_map(|key| query_param(query, key))
+        .ok_or_else(|| format!("missing required query parameter: {}", keys[0]))
+}
+
+fn parse_u128_query(value: &str, key: &str) -> Result<u128, String> {
+    value
+        .parse::<u128>()
+        .map_err(|_| format!("invalid {key}: {value}"))
+}
+
+fn parse_u64_query(value: &str, key: &str) -> Result<u64, String> {
+    value
+        .parse::<u64>()
+        .map_err(|_| format!("invalid {key}: {value}"))
+}
+
 fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/node/status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/blocks/<height-or-hash>|/api/v1/transactions?limit=5|/api/v1/mempool?limit=5|/api/v1/wallet/status|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5|/api/v1/snapshots?limit=5|/api/v1/snapshots/<snapshot_name>",
+        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/node/status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/blocks/<height-or-hash>|/api/v1/transactions?limit=5|/api/v1/mempool?limit=5|/api/v1/wallet/status|/api/v1/wallet/transfers/draft-preview?...|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5|/api/v1/snapshots?limit=5|/api/v1/snapshots/<snapshot_name>",
         "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
@@ -3117,6 +3394,7 @@ fn help_text() -> String {
         "  xriq-api request-postgres --target /api/v1/transactions?limit=5",
         "  xriq-api request-postgres --target /api/v1/mempool?limit=5",
         "  xriq-api request-postgres --target /api/v1/wallet/status",
+        "  xriq-api request-postgres --target /api/v1/wallet/transfers/draft-preview?from_address=xriqdev1alice00000000000&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=1&expires_at_height=100",
         "  xriq-api request-postgres --target /api/v1/transactions/<tx_hash>",
         "  xriq-api request-postgres --target /api/v1/wallet/transactions/<tx_hash>/status",
         "  xriq-api request-postgres --target /api/v1/accounts?limit=5",
@@ -3203,6 +3481,57 @@ impl<'a> PostgresReadModelConfig<'a> {
         Ok(Self {
             docker_container,
             database,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PostgresWalletDraftPreviewRequest<'a> {
+    chain_id: &'a str,
+    from_address: &'a str,
+    to_address: &'a str,
+    amount_base_units: u128,
+    fee_base_units: u128,
+    nonce: u64,
+    expires_at_height: Option<u64>,
+}
+
+impl<'a> PostgresWalletDraftPreviewRequest<'a> {
+    fn from_query(query: Option<&'a str>) -> Result<Self, String> {
+        let chain_id = query_param(query, "chain_id").unwrap_or(POSTGRES_PRIVATE_DEVNET_NETWORK);
+        if chain_id != POSTGRES_PRIVATE_DEVNET_NETWORK {
+            return Err(format!(
+                "chain_id must be {POSTGRES_PRIVATE_DEVNET_NETWORK}"
+            ));
+        }
+
+        let from_address = required_query_param_any(query, &["from_address", "from"])?;
+        let to_address = required_query_param_any(query, &["to_address", "to"])?;
+        Address::parse(from_address).map_err(|error| {
+            format!(
+                "invalid from_address: {from_address}; expected private-devnet address ({error:?})"
+            )
+        })?;
+        Address::parse(to_address).map_err(|error| {
+            format!("invalid to_address: {to_address}; expected private-devnet address ({error:?})")
+        })?;
+
+        Ok(Self {
+            chain_id,
+            from_address,
+            to_address,
+            amount_base_units: parse_u128_query(
+                required_query_param_any(query, &["amount_base_units", "amount"])?,
+                "amount_base_units",
+            )?,
+            fee_base_units: parse_u128_query(
+                required_query_param_any(query, &["fee_base_units", "fee"])?,
+                "fee_base_units",
+            )?,
+            nonce: parse_u64_query(required_query_param_any(query, &["nonce"])?, "nonce")?,
+            expires_at_height: query_param(query, "expires_at_height")
+                .map(|value| parse_u64_query(value, "expires_at_height"))
+                .transpose()?,
         })
     }
 }
@@ -3364,6 +3693,30 @@ fn json_string(value: &str) -> String {
         }
     }
     output.push('"');
+    output
+}
+
+fn json_optional_u64_value(value: Option<u64>) -> String {
+    value
+        .map(|number| number.to_string())
+        .unwrap_or_else(|| "null".to_string())
+}
+
+fn json_optional_u128_string(value: Option<u128>) -> String {
+    value
+        .map(|number| json_string(&number.to_string()))
+        .unwrap_or_else(|| "null".to_string())
+}
+
+fn json_string_array(values: &[String]) -> String {
+    let mut output = String::from("[");
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            output.push_str(", ");
+        }
+        output.push_str(&json_string(value));
+    }
+    output.push(']');
     output
 }
 
@@ -3890,6 +4243,105 @@ pending_transactions=1
         assert!(body.contains("\"draft\": true"));
         assert!(body.contains("\"submit\": false"));
         assert!(body.contains("\"send\": false"));
+    }
+
+    #[test]
+    fn postgres_wallet_draft_preview_json_renders_product_shape() {
+        let config = PostgresRequestConfig::parse(&[
+            "--target",
+            "/api/v1/wallet/transfers/draft-preview?from_address=xriqdev1alice00000000000&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=1&expires_at_height=100",
+        ])
+        .unwrap();
+        let values = parse_key_value_lines(
+            "\
+current_height=1
+sender_found=true
+available_base_units=73
+sender_nonce=1
+draft_chain_id=xriq-devnet
+draft_from_address=xriqdev1alice00000000000
+draft_to_address=xriqdev1carol00000000000
+draft_amount_base_units=5
+draft_fee_base_units=2
+draft_nonce=1
+draft_expires_at_height=100
+",
+            "test postgres wallet draft preview",
+        )
+        .unwrap();
+
+        let body = render_postgres_wallet_draft_preview_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"source\": \"postgres-read-model\""));
+        assert!(body.contains("\"read_only\": true"));
+        assert!(body.contains(WALLET_PREVIEW_WARNING));
+        assert!(body.contains(POSTGRES_READ_MODEL_WARNING));
+        assert!(body.contains("\"mutation\": \"none\""));
+        assert!(body.contains("\"ok\": true"));
+        assert!(body.contains("\"errors\": []"));
+        assert!(body.contains("\"chain_id\": \"xriq-devnet\""));
+        assert!(body.contains("\"from_address\": \"xriqdev1alice00000000000\""));
+        assert!(body.contains("\"to_address\": \"xriqdev1carol00000000000\""));
+        assert!(body.contains("\"amount_base_units\": \"5\""));
+        assert!(body.contains("\"fee_base_units\": \"2\""));
+        assert!(body.contains("\"nonce\": 1"));
+        assert!(body.contains("\"expires_at_height\": 100"));
+        assert!(body.contains("\"available_base_units\": \"73\""));
+        assert!(body.contains("\"debit_base_units\": \"7\""));
+        assert!(body.contains("\"remaining_base_units\": \"66\""));
+    }
+
+    #[test]
+    fn postgres_wallet_draft_preview_json_renders_validation_errors() {
+        let config = PostgresRequestConfig::parse(&[
+            "--target",
+            "/api/v1/wallet/transfers/draft-preview?from_address=xriqdev1alice00000000000&to_address=xriqdev1alice00000000000&amount_base_units=0&fee_base_units=1&nonce=0&expires_at_height=1",
+        ])
+        .unwrap();
+        let values = parse_key_value_lines(
+            "\
+current_height=1
+sender_found=true
+available_base_units=73
+sender_nonce=1
+draft_chain_id=xriq-devnet
+draft_from_address=xriqdev1alice00000000000
+draft_to_address=xriqdev1alice00000000000
+draft_amount_base_units=0
+draft_fee_base_units=1
+draft_nonce=0
+draft_expires_at_height=1
+",
+            "test postgres wallet draft preview validation errors",
+        )
+        .unwrap();
+
+        let body = render_postgres_wallet_draft_preview_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"ok\": false"));
+        assert!(body.contains("sender and recipient must differ"));
+        assert!(body.contains("amount must be greater than zero"));
+        assert!(body.contains("fee must be at least 2 base units"));
+        assert!(body.contains("nonce must match sender nonce 1"));
+        assert!(body.contains("expiry must be greater than current height"));
+        assert!(body.contains("\"available_base_units\": \"73\""));
+        assert!(body.contains("\"debit_base_units\": \"1\""));
+        assert!(body.contains("\"remaining_base_units\": \"72\""));
+    }
+
+    #[test]
+    fn postgres_wallet_draft_preview_sql_rejects_invalid_amount_before_docker() {
+        let output = run([
+            "request-postgres",
+            "--target",
+            "/api/v1/wallet/transfers/draft-preview?from_address=xriqdev1alice00000000000&to_address=xriqdev1carol00000000000&amount_base_units=abc&fee_base_units=2&nonce=1&expires_at_height=100",
+        ])
+        .unwrap();
+
+        assert!(output.contains("status_code=400"));
+        assert!(output.contains("reason=Bad Request"));
+        assert!(output.contains("\"code\": \"bad_request\""));
+        assert!(output.contains("invalid amount_base_units: abc"));
     }
 
     #[test]
@@ -4589,6 +5041,12 @@ transaction_0_fee_base_units=2
         assert!(
             maybe_postgres_read_model_http_response(None, "GET", "/api/v1/wallet/status").is_none()
         );
+        assert!(maybe_postgres_read_model_http_response(
+            None,
+            "GET",
+            "/api/v1/wallet/transfers/draft-preview?from_address=xriqdev1alice00000000000&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=1&expires_at_height=100"
+        )
+        .is_none());
         assert!(maybe_postgres_read_model_http_response(
             None,
             "GET",
