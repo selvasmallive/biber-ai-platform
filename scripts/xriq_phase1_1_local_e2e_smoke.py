@@ -817,6 +817,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_transactions = None
     postgres_api_transaction_detail = None
     postgres_server_transaction_detail = None
+    postgres_api_wallet_transaction_status = None
+    postgres_server_wallet_transaction_status = None
     postgres_api_accounts = None
     postgres_server_accounts = None
     postgres_api_wallet_accounts = None
@@ -1014,6 +1016,20 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             require_equal(payload, "read_only", True, context)
             validate_postgres_transaction_fields(payload, context)
 
+        def validate_postgres_wallet_transaction_status(
+            payload: dict[str, Any], context: str
+        ) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(payload, "tx_hash", confirmed_tx_hash, context)
+            require_equal(payload, "status", "confirmed", context)
+            require_equal(payload, "block_height", int(expected_counts["latest_height"]), context)
+            require_hash(payload.get("block_hash"), f"{context} block hash")
+            require_equal(payload, "transaction_index", 0, context)
+            for field in ("from_address", "to_address", "amount_base_units", "fee_base_units", "nonce"):
+                if field in payload:
+                    raise SmokeError(f"{context}: wallet transaction status must not expose {field}")
+
         def validate_postgres_accounts(payload: dict[str, Any], context: str) -> None:
             require_equal(payload, "source", "postgres-read-model", context)
             require_equal(payload, "read_only", True, context)
@@ -1189,6 +1205,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_api_transaction_detail,
         )
         completed.append("postgres-backed api transaction detail")
+
+        postgres_wallet_transaction_status_output = run_command(
+            "xriq-api postgres wallet transaction status",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                f"/api/v1/wallet/transactions/{confirmed_tx_hash}/status",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_wallet_transaction_status = parse_api_request_output(
+            postgres_wallet_transaction_status_output,
+            "xriq-api postgres wallet transaction status",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres wallet transaction status: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_wallet_transaction_status}"
+            )
+        validate_postgres_wallet_transaction_status(
+            postgres_api_wallet_transaction_status,
+            "xriq-api postgres wallet transaction status",
+        )
+        write_json(
+            indexer_dir / "postgres-api-wallet-transaction-status.json",
+            postgres_api_wallet_transaction_status,
+        )
+        completed.append("postgres-backed api wallet transaction status")
 
         postgres_accounts_output = run_command(
             "xriq-api postgres accounts",
@@ -1412,6 +1461,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_transaction_detail = http_json(
                 server_base_url, f"/api/v1/transactions/{confirmed_tx_hash}"
             )
+            postgres_server_wallet_transaction_status = http_json(
+                server_base_url, f"/api/v1/wallet/transactions/{confirmed_tx_hash}/status"
+            )
             postgres_server_accounts = http_json(server_base_url, "/api/v1/accounts?limit=5")
             postgres_server_wallet_accounts = http_json(
                 server_base_url, "/api/v1/wallet/accounts?limit=5"
@@ -1505,6 +1557,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_transaction_detail,
             "xriq-api serve-readonly postgres transaction detail",
         )
+        validate_postgres_wallet_transaction_status(
+            postgres_server_wallet_transaction_status,
+            "xriq-api serve-readonly postgres wallet transaction status",
+        )
         validate_postgres_accounts(
             postgres_server_accounts,
             "xriq-api serve-readonly postgres accounts",
@@ -1544,6 +1600,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             indexer_dir / "postgres-server-transaction-detail.json",
             postgres_server_transaction_detail,
         )
+        write_json(
+            indexer_dir / "postgres-server-wallet-transaction-status.json",
+            postgres_server_wallet_transaction_status,
+        )
         write_json(indexer_dir / "postgres-server-accounts.json", postgres_server_accounts)
         write_json(
             indexer_dir / "postgres-server-wallet-accounts.json",
@@ -1570,6 +1630,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         completed.append("postgres-backed server blocks")
         completed.append("postgres-backed server transactions")
         completed.append("postgres-backed server transaction detail")
+        completed.append("postgres-backed server wallet transaction status")
         completed.append("postgres-backed server accounts")
         completed.append("postgres-backed server wallet accounts")
         completed.append("postgres-backed server account detail")
@@ -1969,6 +2030,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_transaction_detail": (
                 str(indexer_dir / "postgres-server-transaction-detail.json")
                 if postgres_server_transaction_detail
+                else None
+            ),
+            "postgres_api_wallet_transaction_status": (
+                str(indexer_dir / "postgres-api-wallet-transaction-status.json")
+                if postgres_api_wallet_transaction_status
+                else None
+            ),
+            "postgres_server_wallet_transaction_status": (
+                str(indexer_dir / "postgres-server-wallet-transaction-status.json")
+                if postgres_server_wallet_transaction_status
                 else None
             ),
             "postgres_api_accounts": (

@@ -394,6 +394,7 @@ validated against the local Docker Postgres service:
    installed `psql`.
 6. Keep `/api/v1/explorer/overview`, `/api/v1/blocks?limit=...`,
    `/api/v1/transactions?limit=...`, `/api/v1/transactions/{tx_hash}`, and
+   `/api/v1/wallet/transactions/{tx_hash}/status`, and
    `/api/v1/accounts?limit=...` plus `/api/v1/accounts/{address}`,
    `/api/v1/accounts/{address}/transactions?limit=...`, and
    `/api/v1/wallet/accounts?limit=...` plus
@@ -436,10 +437,10 @@ cargo test -p xriq-indexer
 
 The first explicit Postgres-backed API read paths are local-only and use the
 Compose `postgres` container. They return status/count JSON plus the opt-in
-explorer overview, block-list, transaction-list, and transaction-detail shapes
-plus the account-list, wallet account-list, account-detail, wallet balance,
-account-history, and wallet account-history shapes from the read model without
-changing the default file-backed API request/server path:
+explorer overview, block-list, transaction-list, transaction-detail, wallet
+transaction-status, account-list, wallet account-list, account-detail, wallet
+balance, account-history, and wallet account-history shapes from the read
+model without changing the default file-backed API request/server path:
 
 ```bash
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
@@ -447,6 +448,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/explorer/overview
 cargo run -p xriq-api -- request-postgres --target /api/v1/blocks?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions/<tx_hash>
+cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/transactions/<tx_hash>/status
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>

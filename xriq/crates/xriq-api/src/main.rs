@@ -22,6 +22,8 @@ const POSTGRES_EXPLORER_OVERVIEW_ROUTE: &str = "/api/v1/explorer/overview";
 const POSTGRES_BLOCKS_ROUTE: &str = "/api/v1/blocks";
 const POSTGRES_TRANSACTIONS_ROUTE: &str = "/api/v1/transactions";
 const POSTGRES_TRANSACTION_DETAIL_PREFIX: &str = "/api/v1/transactions/";
+const POSTGRES_WALLET_TRANSACTION_PREFIX: &str = "/api/v1/wallet/transactions/";
+const POSTGRES_WALLET_TRANSACTION_STATUS_SUFFIX: &str = "/status";
 const POSTGRES_ACCOUNTS_ROUTE: &str = "/api/v1/accounts";
 const POSTGRES_WALLET_ACCOUNTS_ROUTE: &str = "/api/v1/wallet/accounts";
 const POSTGRES_ACCOUNT_DETAIL_PREFIX: &str = "/api/v1/accounts/";
@@ -249,6 +251,12 @@ fn postgres_wallet_account_balance_address_from_path(path: &str) -> Option<&str>
     (!address.is_empty() && !address.contains('/')).then_some(address)
 }
 
+fn postgres_wallet_transaction_status_hash_from_path(path: &str) -> Option<&str> {
+    let tx_path = path.strip_prefix(POSTGRES_WALLET_TRANSACTION_PREFIX)?;
+    let tx_hash = tx_path.strip_suffix(POSTGRES_WALLET_TRANSACTION_STATUS_SUFFIX)?;
+    (!tx_hash.is_empty() && !tx_hash.contains('/')).then_some(tx_hash)
+}
+
 fn maybe_postgres_read_model_http_response(
     config: Option<&PostgresReadModelConfig<'_>>,
     method: &str,
@@ -258,6 +266,8 @@ fn maybe_postgres_read_model_http_response(
     let is_transaction_detail = path
         .strip_prefix(POSTGRES_TRANSACTION_DETAIL_PREFIX)
         .is_some_and(|tx_hash| !tx_hash.is_empty());
+    let is_wallet_transaction_status =
+        postgres_wallet_transaction_status_hash_from_path(path).is_some();
     let is_account_detail = path
         .strip_prefix(POSTGRES_ACCOUNT_DETAIL_PREFIX)
         .is_some_and(|address| !address.is_empty() && !address.contains('/'));
@@ -279,6 +289,7 @@ fn maybe_postgres_read_model_http_response(
             None,
         ) => return None,
         (_, None) if is_transaction_detail => return None,
+        (_, None) if is_wallet_transaction_status => return None,
         (_, None) if is_account_history => return None,
         (_, None) if is_wallet_account_balance => return None,
         (_, None) if is_wallet_account_history => return None,
@@ -295,6 +306,9 @@ fn maybe_postgres_read_model_http_response(
         _ => {}
     };
     if let (true, Some(config)) = (is_transaction_detail, config) {
+        return Some(postgres_read_model_http_response(config, method, target));
+    }
+    if let (true, Some(config)) = (is_wallet_transaction_status, config) {
         return Some(postgres_read_model_http_response(config, method, target));
     }
     if let (true, Some(config)) = (is_account_history, config) {
@@ -329,6 +343,7 @@ fn postgres_read_model_http_response(
     let transaction_detail_tx_hash = path
         .strip_prefix(POSTGRES_TRANSACTION_DETAIL_PREFIX)
         .filter(|tx_hash| !tx_hash.is_empty());
+    let wallet_transaction_status_hash = postgres_wallet_transaction_status_hash_from_path(path);
     let account_detail_address = path
         .strip_prefix(POSTGRES_ACCOUNT_DETAIL_PREFIX)
         .filter(|address| !address.is_empty() && !address.contains('/'));
@@ -343,6 +358,17 @@ fn postgres_read_model_http_response(
                 sql,
                 "postgres transaction detail",
                 render_postgres_transaction_detail_json,
+            ),
+            Err(message) => {
+                return Ok(local_api_error_response(400, "bad_request", &message));
+            }
+        }
+    } else if let Some(tx_hash) = wallet_transaction_status_hash {
+        match postgres_transaction_detail_sql(tx_hash) {
+            Ok(sql) => (
+                sql,
+                "postgres wallet transaction status",
+                render_postgres_wallet_transaction_status_json,
             ),
             Err(message) => {
                 return Ok(local_api_error_response(400, "bad_request", &message));
@@ -440,8 +466,10 @@ fn postgres_read_model_http_response(
 
     let output = docker_psql_query(config.docker_container, config.database, &sql, label)?;
     let values = parse_key_value_lines(&output, label)?;
-    if label == "postgres transaction detail"
-        && values.get("found").map(String::as_str) != Some("true")
+    if matches!(
+        label,
+        "postgres transaction detail" | "postgres wallet transaction status"
+    ) && values.get("found").map(String::as_str) != Some("true")
     {
         return Ok(local_api_error_response(
             404,
@@ -1327,6 +1355,72 @@ fn render_postgres_transaction_detail_json(
     Ok(output)
 }
 
+fn render_postgres_wallet_transaction_status_json(
+    _config: &PostgresReadModelConfig<'_>,
+    values: &BTreeMap<String, String>,
+) -> Result<String, String> {
+    let prefix = "transaction_0_";
+    let tx_hash = required_string_for(
+        values,
+        &format!("{prefix}tx_hash"),
+        "postgres wallet transaction status",
+    )?;
+    let block_height = required_u64_for(
+        values,
+        &format!("{prefix}block_height"),
+        "postgres wallet transaction status",
+    )?;
+    let block_hash = required_string_for(
+        values,
+        &format!("{prefix}block_hash"),
+        "postgres wallet transaction status",
+    )?;
+    let transaction_index = required_u64_for(
+        values,
+        &format!("{prefix}transaction_index"),
+        "postgres wallet transaction status",
+    )?;
+    let status = required_string_for(
+        values,
+        &format!("{prefix}status"),
+        "postgres wallet transaction status",
+    )?;
+
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(&mut output, "  \"environment\": \"private-devnet\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"network\": {},",
+        json_string(POSTGRES_PRIVATE_DEVNET_NETWORK)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"source\": \"postgres-read-model\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(POSTGRES_READ_MODEL_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"read_only\": true,").expect("write to String");
+    writeln!(&mut output, "  \"tx_hash\": {},", json_string(tx_hash)).expect("write to String");
+    writeln!(&mut output, "  \"status\": {},", json_string(status)).expect("write to String");
+    writeln!(&mut output, "  \"block_height\": {},", block_height).expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"block_hash\": {},",
+        json_string(block_hash)
+    )
+    .expect("write to String");
+    write!(
+        &mut output,
+        "  \"transaction_index\": {}\n}}",
+        transaction_index
+    )
+    .expect("write to String");
+    Ok(output)
+}
+
 fn render_postgres_transaction_json_inline(
     values: &BTreeMap<String, String>,
     index: u64,
@@ -1782,7 +1876,7 @@ fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5",
+        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5",
         "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
@@ -1792,6 +1886,7 @@ fn help_text() -> String {
         "  xriq-api request-postgres --target /api/v1/blocks?limit=5",
         "  xriq-api request-postgres --target /api/v1/transactions?limit=5",
         "  xriq-api request-postgres --target /api/v1/transactions/<tx_hash>",
+        "  xriq-api request-postgres --target /api/v1/wallet/transactions/<tx_hash>/status",
         "  xriq-api request-postgres --target /api/v1/accounts?limit=5",
         "  xriq-api request-postgres --target /api/v1/accounts/<address>",
         "  xriq-api request-postgres --target /api/v1/accounts/<address>/transactions?limit=5",
@@ -2312,6 +2407,48 @@ transaction_0_nonce=0
     }
 
     #[test]
+    fn postgres_wallet_transaction_status_json_renders_product_shape() {
+        let config = PostgresRequestConfig::parse(&[
+            "--target",
+            "/api/v1/wallet/transactions/2222222222222222222222222222222222222222222222222222222222222222/status",
+        ])
+        .unwrap();
+        let values = parse_key_value_lines(
+            "\
+found=true
+transaction_0_tx_hash=2222222222222222222222222222222222222222222222222222222222222222
+transaction_0_block_height=1
+transaction_0_block_hash=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+transaction_0_transaction_index=0
+transaction_0_status=confirmed
+transaction_0_from_address=xriqdev1alice00000000000
+transaction_0_to_address=xriqdev1bobbb00000000000
+transaction_0_amount_base_units=25
+transaction_0_fee_base_units=2
+transaction_0_nonce=0
+",
+            "test postgres wallet transaction status",
+        )
+        .unwrap();
+
+        let body =
+            render_postgres_wallet_transaction_status_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"source\": \"postgres-read-model\""));
+        assert!(body.contains("\"read_only\": true"));
+        assert!(body.contains(
+            "\"tx_hash\": \"2222222222222222222222222222222222222222222222222222222222222222\""
+        ));
+        assert!(body.contains("\"status\": \"confirmed\""));
+        assert!(body.contains("\"block_height\": 1"));
+        assert!(body.contains("\"transaction_index\": 0"));
+        assert!(!body.contains("from_address"));
+        assert!(!body.contains("amount_base_units"));
+        assert!(!body.contains("fee_base_units"));
+        assert!(!body.contains("\"nonce\""));
+    }
+
+    #[test]
     fn postgres_accounts_json_renders_product_list_shape() {
         let config =
             PostgresRequestConfig::parse(&["--target", "/api/v1/accounts?limit=5"]).unwrap();
@@ -2614,6 +2751,20 @@ transaction_0_fee_base_units=2
     }
 
     #[test]
+    fn postgres_wallet_transaction_status_sql_rejects_invalid_hash_before_docker() {
+        let response = run([
+            "request-postgres",
+            "--target",
+            "/api/v1/wallet/transactions/not-a-valid-hash/status",
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=400"));
+        assert!(response.contains("\"code\": \"bad_request\""));
+        assert!(response.contains("invalid tx_hash"));
+    }
+
+    #[test]
     fn serve_config_defaults_to_localhost_private_devnet_port() {
         let config = ServeConfig::parse(&[
             "--chain-file",
@@ -2702,6 +2853,12 @@ transaction_0_fee_base_units=2
             None,
             "GET",
             "/api/v1/transactions/2222222222222222222222222222222222222222222222222222222222222222"
+        )
+        .is_none());
+        assert!(maybe_postgres_read_model_http_response(
+            None,
+            "GET",
+            "/api/v1/wallet/transactions/2222222222222222222222222222222222222222222222222222222222222222/status"
         )
         .is_none());
         assert!(

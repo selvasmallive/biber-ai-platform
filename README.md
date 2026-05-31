@@ -352,6 +352,7 @@ The same live smoke verifies the first explicit Postgres-backed API read paths,
 including `/api/v1/admin/postgres/read-model-status` and the opt-in
 Postgres-backed `/api/v1/explorer/overview`, `/api/v1/blocks?limit=5`, and
 `/api/v1/transactions?limit=5` plus `/api/v1/transactions/{tx_hash}` and
+`/api/v1/wallet/transactions/{tx_hash}/status` plus
 `/api/v1/accounts?limit=5` plus `/api/v1/accounts/{address}` and
 `/api/v1/accounts/{address}/transactions?limit=5` plus
 `/api/v1/wallet/accounts?limit=5` plus
@@ -365,6 +366,8 @@ Postgres read-model row mapping. It writes
 `indexer/postgres-server-transactions.json`,
 `indexer/postgres-api-transaction-detail.json`,
 `indexer/postgres-server-transaction-detail.json`,
+`indexer/postgres-api-wallet-transaction-status.json`,
+`indexer/postgres-server-wallet-transaction-status.json`,
 `indexer/postgres-api-accounts.json`, `indexer/postgres-server-accounts.json`,
 `indexer/postgres-api-wallet-accounts.json`,
 `indexer/postgres-server-wallet-accounts.json`,
@@ -387,6 +390,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/explorer/overview
 cargo run -p xriq-api -- request-postgres --target /api/v1/blocks?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions/<tx_hash>
+cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/transactions/<tx_hash>/status
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>
@@ -396,9 +400,10 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts/<addr
 ```
 
 To expose that read-model status, explorer overview, block list, transaction
-list, transaction detail, account list, wallet account list, account detail,
-wallet balance, account history, and wallet account history through the local
-read-only HTTP server, pass both explicit Postgres flags.
+list, transaction detail, wallet transaction status, account list, wallet
+account list, account detail, wallet balance, account history, and wallet
+account history through the local read-only HTTP server, pass both explicit
+Postgres flags.
 Without these flags, `serve-readonly` stays file-backed and the Postgres status
 route remains disabled.
 
