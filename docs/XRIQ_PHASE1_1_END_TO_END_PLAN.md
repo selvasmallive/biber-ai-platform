@@ -65,7 +65,7 @@ Rust
  |-- Blockchain node        ~70% for private-devnet; RC1 baseline exists
  |-- Consensus engine       ~60% for private-devnet; single-authority baseline
  |-- Wallet backend         ~51%; CLI flows plus product read/preview/pending-status routes exist
- |-- APIs                   ~75%; local HTTP wrappers plus wallet/admin/node/pending-file mempool/pending-status/ISO preview read routes and explicit Postgres read-model status, node status, indexer status, explorer overview, blocks, transaction list, transaction detail, wallet transaction status, account list, wallet account list, account detail, wallet balance, account history, wallet account history, audit-events, snapshot-list, and snapshot-detail CLI/server paths exist
+ |-- APIs                   ~76%; local HTTP wrappers plus wallet/admin/node/pending-file mempool/pending-status/ISO preview read routes and explicit Postgres read-model status, node status, indexer status, explorer overview, blocks, transaction list, mempool, transaction detail, wallet transaction status, account list, wallet account list, account detail, wallet balance, account history, wallet account history, audit-events, snapshot-list, and snapshot-detail CLI/server paths exist
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
@@ -75,7 +75,7 @@ React + TypeScript
  `-- Admin portal           ~31%; read-only node/status, pending mempool, pending wallet status, optional Postgres read-model/node/indexer status, snapshot catalog, and audit events panels exist
 
 SQL/PostgreSQL
- |-- Explorer indexing      ~53%; schema, indexer, SQL plan, verify path, Docker live smoke, Postgres-backed API/server read-model/node/indexer status reads, and first Postgres-backed product overview/blocks/transaction list/detail/wallet-status/account/wallet-account/wallet-balance/history/wallet-history/audit-events/snapshot-list/snapshot-detail reads exist
+ |-- Explorer indexing      ~55%; schema, indexer, SQL plan, verify path, Docker live smoke, Postgres-backed API/server read-model/node/indexer status reads, and first Postgres-backed product overview/blocks/transaction list/mempool/detail/wallet-status/account/wallet-account/wallet-balance/history/wallet-history/audit-events/snapshot-list/snapshot-detail reads exist
  |-- Analytics              ~5%; read-model totals exist, deeper analytics deferred
  `-- Audit data             ~28%; schema, indexed block audit events, file-backed and opt-in Postgres read APIs, and UI panel exist
 
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the local Phase 1.1 Postgres-backed snapshot-detail checkpoint,
-Phase 1.1 status is about `85%`: the contract document, PostgreSQL read-model schema, JSON
+After the local Phase 1.1 Postgres-backed mempool checkpoint,
+Phase 1.1 status is about `86%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -100,7 +100,8 @@ Postgres read-model status command for
 `xriq-api serve-readonly` support for the same local Postgres read-model status
 route plus `/api/v1/admin/node/status` and `/api/v1/admin/indexer/status`, the first opt-in Postgres-backed product data routes for
 `/api/v1/explorer/overview`, `/api/v1/blocks?limit=...`,
-`/api/v1/transactions?limit=...`, `/api/v1/transactions/{tx_hash}`, and
+`/api/v1/transactions?limit=...`, `/api/v1/mempool?limit=...`,
+`/api/v1/transactions/{tx_hash}`, and
 `/api/v1/wallet/transactions/{tx_hash}/status`,
 `/api/v1/accounts?limit=...`, `/api/v1/accounts/{address}`,
 `/api/v1/accounts/{address}/transactions?limit=...`, and
@@ -165,7 +166,8 @@ routes across the explorer, wallet, mempool, snapshot, audit, admin, and ISO
 preview surfaces without opening a socket or using cloud/GPU resources. Passing
 `--postgres-docker-live` starts/uses the local Compose Postgres service, resets
 a dedicated `xriq_phase1_1_smoke` database schema, applies the schema plus
-generated write plan through container-local `psql`, verifies indexed counts,
+generated write plan through container-local `psql`, imports the local durable
+pending TSV row into `xriq_mempool_entries`, verifies indexed counts,
 calls `xriq-api request-postgres`, and writes
 `indexer/postgres-docker-live.json` plus
 `indexer/postgres-api-read-model-status.json` and
@@ -174,6 +176,7 @@ calls `xriq-api request-postgres`, and writes
 `indexer/postgres-api-explorer-overview.json` plus
 `indexer/postgres-api-blocks.json` plus
 `indexer/postgres-api-transactions.json` plus
+`indexer/postgres-api-mempool.json` plus
 `indexer/postgres-api-transaction-detail.json` plus
 `indexer/postgres-api-wallet-transaction-status.json` plus
 `indexer/postgres-api-accounts.json` plus
@@ -190,6 +193,7 @@ temporary local `serve-readonly` server with explicit Postgres flags, verifies
 `/api/v1/admin/indexer/status`,
 `/api/v1/explorer/overview`, and
 `/api/v1/blocks?limit=5`, `/api/v1/transactions?limit=5`, and
+`/api/v1/mempool?limit=5`, and
 `/api/v1/transactions/{tx_hash}`,
 `/api/v1/wallet/transactions/{tx_hash}/status`,
 `/api/v1/accounts?limit=5`, and
@@ -206,6 +210,7 @@ HTTP, and writes `indexer/postgres-server-read-model-status.json` plus
 `indexer/postgres-server-explorer-overview.json` plus
 `indexer/postgres-server-blocks.json` plus
 `indexer/postgres-server-transactions.json` plus
+`indexer/postgres-server-mempool.json` plus
 `indexer/postgres-server-transaction-detail.json` plus
 `indexer/postgres-server-wallet-transaction-status.json` plus
 `indexer/postgres-server-accounts.json` plus

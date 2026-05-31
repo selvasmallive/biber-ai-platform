@@ -387,6 +387,93 @@ def sql_literal(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
+def require_pending_address(value: str, context: str) -> str:
+    if not re.fullmatch(r"xriqdev1[a-z0-9]{16}", value):
+        raise SmokeError(f"{context}: expected local devnet address, got {value!r}")
+    return value
+
+
+def require_decimal(value: str, context: str) -> str:
+    if not re.fullmatch(r"[0-9]+", value):
+        raise SmokeError(f"{context}: expected base-unit integer, got {value!r}")
+    return value
+
+
+def pending_mempool_sql_from_tsv(pending_file: Path) -> str:
+    lines = [
+        line.strip()
+        for line in pending_file.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    if not lines:
+        return "DELETE FROM xriq_mempool_entries;\n"
+
+    rows: list[str] = []
+    for index, line in enumerate(lines, start=1):
+        fields = line.split("\t")
+        if len(fields) != 11:
+            raise SmokeError(
+                f"postgres pending mempool import line {index}: expected 11 TSV fields, "
+                f"got {len(fields)}"
+            )
+        if fields[0] != "xriq-pending-transaction-v1":
+            raise SmokeError(
+                f"postgres pending mempool import line {index}: unsupported record version"
+            )
+        tx_hash = require_hash(fields[1], f"postgres pending mempool import line {index} tx_hash")
+        require_decimal(fields[2], f"postgres pending mempool import line {index} version")
+        if fields[3] != "xriq-devnet":
+            raise SmokeError(
+                f"postgres pending mempool import line {index}: expected chain xriq-devnet, "
+                f"got {fields[3]!r}"
+            )
+        from_address = require_pending_address(
+            fields[4], f"postgres pending mempool import line {index} from_address"
+        )
+        to_address = require_pending_address(
+            fields[5], f"postgres pending mempool import line {index} to_address"
+        )
+        amount = require_decimal(
+            fields[6], f"postgres pending mempool import line {index} amount_base_units"
+        )
+        fee = require_decimal(
+            fields[7], f"postgres pending mempool import line {index} fee_base_units"
+        )
+        nonce = require_decimal(fields[8], f"postgres pending mempool import line {index} nonce")
+        seen_at = f"1970-01-01T00:00:{min(index, 59):02d}Z"
+        rows.append(
+            "("
+            f"{sql_literal(tx_hash)}, "
+            f"{sql_literal(from_address)}, "
+            f"{sql_literal(to_address)}, "
+            f"{amount}, "
+            f"{fee}, "
+            f"{nonce}, "
+            f"{sql_literal('pending')}, "
+            f"{sql_literal(seen_at)}::timestamptz, "
+            f"{sql_literal(seen_at)}::timestamptz"
+            ")"
+        )
+
+    return (
+        "DELETE FROM xriq_mempool_entries;\n"
+        "INSERT INTO xriq_mempool_entries (\n"
+        "    tx_hash, from_address, to_address, amount_base_units, fee_base_units,\n"
+        "    nonce, status, first_seen_at, last_seen_at\n"
+        ")\nVALUES\n"
+        + ",\n".join(rows)
+        + "\nON CONFLICT (tx_hash) DO UPDATE SET\n"
+        "    from_address = EXCLUDED.from_address,\n"
+        "    to_address = EXCLUDED.to_address,\n"
+        "    amount_base_units = EXCLUDED.amount_base_units,\n"
+        "    fee_base_units = EXCLUDED.fee_base_units,\n"
+        "    nonce = EXCLUDED.nonce,\n"
+        "    status = EXCLUDED.status,\n"
+        "    first_seen_at = EXCLUDED.first_seen_at,\n"
+        "    last_seen_at = EXCLUDED.last_seen_at;\n"
+    )
+
+
 def wait_for_docker_postgres(root: Path, container: str, timeout_seconds: int = 90) -> str:
     deadline = time.monotonic() + timeout_seconds
     last_status = "unknown"
@@ -447,6 +534,7 @@ def run_postgres_docker_live(
     xriq_dir: Path,
     indexer_sql: str,
     indexer_dir: Path,
+    pending_file: Path,
     *,
     container: str,
     database: str,
@@ -488,6 +576,13 @@ def run_postgres_docker_live(
     )
     docker_psql(root, container, database, schema_sql, "apply postgres schema")
     docker_psql(root, container, database, indexer_sql, "apply postgres indexer write plan")
+    docker_psql(
+        root,
+        container,
+        database,
+        pending_mempool_sql_from_tsv(pending_file),
+        "apply postgres pending mempool rows",
+    )
     verify_output = docker_psql(
         root,
         container,
@@ -503,6 +598,7 @@ def run_postgres_docker_live(
         "accounts": "3",
         "account_balances": "3",
         "account_transactions": "2",
+        "mempool_entries": "1",
         "audit_events": "1",
         "indexer_runs": "1",
         "latest_height": "1",
@@ -535,6 +631,7 @@ def postgres_verification_sql() -> str:
         "SELECT 'accounts=' || count(*) FROM xriq_accounts;\n"
         "SELECT 'account_balances=' || count(*) FROM xriq_account_balances;\n"
         "SELECT 'account_transactions=' || count(*) FROM xriq_account_transactions;\n"
+        "SELECT 'mempool_entries=' || count(*) FROM xriq_mempool_entries;\n"
         "SELECT 'audit_events=' || count(*) FROM xriq_audit_events;\n"
         "SELECT 'indexer_runs=' || count(*) FROM xriq_indexer_runs;\n"
         "SELECT 'latest_height=' || COALESCE(MAX(height)::text, 'none') FROM xriq_blocks;\n"
@@ -820,6 +917,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_blocks = None
     postgres_api_transactions = None
     postgres_server_transactions = None
+    postgres_api_mempool = None
+    postgres_server_mempool = None
     postgres_api_transaction_detail = None
     postgres_server_transaction_detail = None
     postgres_api_wallet_transaction_status = None
@@ -849,6 +948,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             xriq_dir,
             indexer_sql,
             indexer_dir,
+            pending_file,
             container=args.postgres_docker_container,
             database=args.postgres_docker_database,
         )
@@ -921,7 +1021,12 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             require_hash(payload.get("latest_block_hash"), f"{context} latest block hash")
             require_hash(payload.get("state_root"), f"{context} state root")
             require_equal(payload, "stored_blocks", int(expected_counts["blocks"]), context)
-            require_equal(payload, "pending_transactions", 0, context)
+            require_equal(
+                payload,
+                "pending_transactions",
+                int(expected_counts["mempool_entries"]),
+                context,
+            )
             require_equal(payload, "wallet_submit_status", "disabled", context)
             require_equal(payload, "block_production_status", "disabled", context)
 
@@ -1038,7 +1143,12 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             require_hash(chain.get("latest_block_hash"), f"{context} latest block hash")
             require_hash(chain.get("state_root"), f"{context} state root")
             require_equal(chain, "stored_blocks", int(expected_counts["blocks"]), context)
-            require_equal(chain, "pending_transactions", 0, context)
+            require_equal(
+                chain,
+                "pending_transactions",
+                int(expected_counts["mempool_entries"]),
+                context,
+            )
             require_equal(indexer, "service", "xriq-indexer", context)
             require_equal(indexer, "status", "completed", context)
             require_equal(
@@ -1132,6 +1242,44 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             if len(transactions) != 1 or not isinstance(transactions[0], dict):
                 raise SmokeError(f"{context}: expected exactly one transaction object")
             validate_postgres_transaction_fields(transactions[0], context)
+
+        def validate_postgres_mempool(payload: dict[str, Any], context: str) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(
+                payload,
+                "warning",
+                "private-devnet-read-only-mempool-status-submit-disabled",
+                context,
+            )
+            require_equal(
+                payload,
+                "read_model_warning",
+                "local-private-devnet-postgres-read-only-preview-no-mutation",
+                context,
+            )
+            require_equal(payload, "current_height", int(expected_counts["latest_height"]), context)
+            require_equal(payload, "pending_count", int(expected_counts["mempool_entries"]), context)
+            require_equal(payload, "limit", 5, context)
+            require_equal(payload, "next_cursor", None, context)
+            require_equal(payload, "inspect_status", "enabled", context)
+            require_equal(payload, "submit_status", "disabled", context)
+            require_equal(payload, "produce_block_status", "disabled", context)
+            entries = require_list(payload.get("entries"), context)
+            if len(entries) != 1 or not isinstance(entries[0], dict):
+                raise SmokeError(f"{context}: expected exactly one pending mempool entry")
+            entry = entries[0]
+            require_equal(entry, "tx_hash", pending_tx_hash, context)
+            require_equal(entry, "from_address", ALICE, context)
+            require_equal(entry, "to_address", CAROL, context)
+            require_equal(entry, "amount_base_units", "5", context)
+            require_equal(entry, "fee_base_units", "2", context)
+            require_equal(entry, "nonce", 1, context)
+            require_equal(entry, "status", "pending", context)
+            for field in ("first_seen_at_utc", "last_seen_at_utc"):
+                timestamp = entry.get(field)
+                if not isinstance(timestamp, str) or not timestamp.endswith("Z"):
+                    raise SmokeError(f"{context}: expected UTC {field}, got {timestamp!r}")
 
         def validate_postgres_transaction_detail(
             payload: dict[str, Any], context: str
@@ -1377,6 +1525,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_api_transactions,
         )
         completed.append("postgres-backed api transactions")
+
+        postgres_mempool_output = run_command(
+            "xriq-api postgres mempool",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                "/api/v1/mempool?limit=5",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_mempool = parse_api_request_output(
+            postgres_mempool_output,
+            "xriq-api postgres mempool",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres mempool: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_mempool}"
+            )
+        validate_postgres_mempool(
+            postgres_api_mempool,
+            "xriq-api postgres mempool",
+        )
+        write_json(
+            indexer_dir / "postgres-api-mempool.json",
+            postgres_api_mempool,
+        )
+        completed.append("postgres-backed api mempool")
 
         postgres_transaction_detail_output = run_command(
             "xriq-api postgres transaction detail",
@@ -1768,6 +1949,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_transactions = http_json(
                 server_base_url, "/api/v1/transactions?limit=5"
             )
+            postgres_server_mempool = http_json(server_base_url, "/api/v1/mempool?limit=5")
             postgres_server_transaction_detail = http_json(
                 server_base_url, f"/api/v1/transactions/{confirmed_tx_hash}"
             )
@@ -1878,6 +2060,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_transactions,
             "xriq-api serve-readonly postgres transactions",
         )
+        validate_postgres_mempool(
+            postgres_server_mempool,
+            "xriq-api serve-readonly postgres mempool",
+        )
         validate_postgres_transaction_detail(
             postgres_server_transaction_detail,
             "xriq-api serve-readonly postgres transaction detail",
@@ -1941,6 +2127,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             indexer_dir / "postgres-server-transactions.json",
             postgres_server_transactions,
         )
+        write_json(indexer_dir / "postgres-server-mempool.json", postgres_server_mempool)
         write_json(
             indexer_dir / "postgres-server-transaction-detail.json",
             postgres_server_transaction_detail,
@@ -1988,6 +2175,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         completed.append("postgres-backed server explorer overview")
         completed.append("postgres-backed server blocks")
         completed.append("postgres-backed server transactions")
+        completed.append("postgres-backed server mempool")
         completed.append("postgres-backed server transaction detail")
         completed.append("postgres-backed server wallet transaction status")
         completed.append("postgres-backed server accounts")
@@ -2402,6 +2590,14 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_transactions": (
                 str(indexer_dir / "postgres-server-transactions.json")
                 if postgres_server_transactions
+                else None
+            ),
+            "postgres_api_mempool": (
+                str(indexer_dir / "postgres-api-mempool.json") if postgres_api_mempool else None
+            ),
+            "postgres_server_mempool": (
+                str(indexer_dir / "postgres-server-mempool.json")
+                if postgres_server_mempool
                 else None
             ),
             "postgres_api_transaction_detail": (

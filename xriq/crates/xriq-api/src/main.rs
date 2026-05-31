@@ -11,7 +11,7 @@ use std::{
 
 use xriq_api::{
     pending_mempool_entries_from_tsv, product_api_http_response, ApiHttpResponse, XriqApiService,
-    SNAPSHOT_READONLY_WARNING,
+    MEMPOOL_READONLY_WARNING, SNAPSHOT_READONLY_WARNING,
 };
 use xriq_core::{Address, XriqAmount};
 use xriq_indexer::index_private_devnet_store;
@@ -25,6 +25,7 @@ const POSTGRES_AUDIT_EVENTS_ROUTE: &str = "/api/v1/admin/audit-events";
 const POSTGRES_EXPLORER_OVERVIEW_ROUTE: &str = "/api/v1/explorer/overview";
 const POSTGRES_BLOCKS_ROUTE: &str = "/api/v1/blocks";
 const POSTGRES_TRANSACTIONS_ROUTE: &str = "/api/v1/transactions";
+const POSTGRES_MEMPOOL_ROUTE: &str = "/api/v1/mempool";
 const POSTGRES_TRANSACTION_DETAIL_PREFIX: &str = "/api/v1/transactions/";
 const POSTGRES_WALLET_TRANSACTION_PREFIX: &str = "/api/v1/wallet/transactions/";
 const POSTGRES_WALLET_TRANSACTION_STATUS_SUFFIX: &str = "/status";
@@ -299,6 +300,7 @@ fn maybe_postgres_read_model_http_response(
             | POSTGRES_AUDIT_EVENTS_ROUTE
             | POSTGRES_BLOCKS_ROUTE
             | POSTGRES_TRANSACTIONS_ROUTE
+            | POSTGRES_MEMPOOL_ROUTE
             | POSTGRES_ACCOUNTS_ROUTE
             | POSTGRES_WALLET_ACCOUNTS_ROUTE
             | POSTGRES_SNAPSHOTS_ROUTE,
@@ -319,6 +321,7 @@ fn maybe_postgres_read_model_http_response(
             | POSTGRES_EXPLORER_OVERVIEW_ROUTE
             | POSTGRES_BLOCKS_ROUTE
             | POSTGRES_TRANSACTIONS_ROUTE
+            | POSTGRES_MEMPOOL_ROUTE
             | POSTGRES_ACCOUNTS_ROUTE
             | POSTGRES_WALLET_ACCOUNTS_ROUTE
             | POSTGRES_SNAPSHOTS_ROUTE,
@@ -496,6 +499,10 @@ fn postgres_read_model_http_response(
                 ),
                 Err(message) => return Ok(local_api_error_response(400, "bad_request", &message)),
             },
+            POSTGRES_MEMPOOL_ROUTE => match postgres_mempool_sql(target) {
+                Ok(sql) => (sql, "postgres mempool", render_postgres_mempool_json),
+                Err(message) => return Ok(local_api_error_response(400, "bad_request", &message)),
+            },
             POSTGRES_ACCOUNTS_ROUTE => match postgres_accounts_sql(target) {
                 Ok(sql) => (sql, "postgres accounts", render_postgres_accounts_json),
                 Err(message) => return Ok(local_api_error_response(400, "bad_request", &message)),
@@ -642,6 +649,7 @@ SELECT 'transactions=' || count(*) FROM xriq_transactions;\n\
 SELECT 'accounts=' || count(*) FROM xriq_accounts;\n\
 SELECT 'account_balances=' || count(*) FROM xriq_account_balances;\n\
 SELECT 'account_transactions=' || count(*) FROM xriq_account_transactions;\n\
+SELECT 'mempool_entries=' || count(*) FROM xriq_mempool_entries;\n\
 SELECT 'audit_events=' || count(*) FROM xriq_audit_events;\n\
 SELECT 'indexer_runs=' || count(*) FROM xriq_indexer_runs;\n\
 SELECT 'latest_height=' || COALESCE(MAX(height)::text, 'none') FROM xriq_blocks;\n\
@@ -912,6 +920,74 @@ FROM (
     SELECT 108 + row_index * 20, 'transaction_' || row_index || '_fee_base_units', fee_base_units FROM ranked
     UNION ALL
     SELECT 109 + row_index * 20, 'transaction_' || row_index || '_nonce', nonce::text FROM ranked
+) AS rows
+ORDER BY sort_order;
+"#
+    ))
+}
+
+fn postgres_mempool_sql(target: &str) -> Result<String, String> {
+    let (_, query) = split_http_target(target);
+    let limit = limit_from_query(query, 25)?;
+    Ok(format!(
+        r#"
+WITH ranked AS (
+    SELECT
+        row_number() OVER (ORDER BY last_seen_at DESC, tx_hash ASC) - 1 AS row_index,
+        tx_hash,
+        from_address,
+        to_address,
+        amount_base_units::text AS amount_base_units,
+        fee_base_units::text AS fee_base_units,
+        nonce,
+        status,
+        COALESCE(to_char(first_seen_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), 'none') AS first_seen_at_utc,
+        COALESCE(to_char(last_seen_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), 'none') AS last_seen_at_utc
+    FROM xriq_mempool_entries
+    ORDER BY last_seen_at DESC, tx_hash ASC
+    LIMIT {limit}
+),
+counts AS (
+    SELECT
+        (SELECT count(*) FROM xriq_mempool_entries) AS total_pending_count,
+        COALESCE((SELECT max(height)::text FROM xriq_blocks), '0') AS current_height
+)
+SELECT key || '=' || value
+FROM (
+    SELECT 0 AS sort_order, 'limit' AS key, '{limit}' AS value
+    UNION ALL
+    SELECT 1, 'current_height', (SELECT current_height FROM counts)
+    UNION ALL
+    SELECT 2, 'entry_count', count(*)::text FROM ranked
+    UNION ALL
+    SELECT 3, 'pending_count', (SELECT total_pending_count::text FROM counts)
+    UNION ALL
+    SELECT
+        4,
+        'next_cursor',
+        CASE
+            WHEN (SELECT total_pending_count FROM counts) > (SELECT count(*) FROM ranked)
+            THEN COALESCE((SELECT tx_hash FROM ranked ORDER BY row_index DESC LIMIT 1), 'none')
+            ELSE 'none'
+        END
+    UNION ALL
+    SELECT 100 + row_index * 20, 'mempool_entry_' || row_index || '_tx_hash', tx_hash FROM ranked
+    UNION ALL
+    SELECT 101 + row_index * 20, 'mempool_entry_' || row_index || '_from_address', from_address FROM ranked
+    UNION ALL
+    SELECT 102 + row_index * 20, 'mempool_entry_' || row_index || '_to_address', to_address FROM ranked
+    UNION ALL
+    SELECT 103 + row_index * 20, 'mempool_entry_' || row_index || '_amount_base_units', amount_base_units FROM ranked
+    UNION ALL
+    SELECT 104 + row_index * 20, 'mempool_entry_' || row_index || '_fee_base_units', fee_base_units FROM ranked
+    UNION ALL
+    SELECT 105 + row_index * 20, 'mempool_entry_' || row_index || '_nonce', nonce::text FROM ranked
+    UNION ALL
+    SELECT 106 + row_index * 20, 'mempool_entry_' || row_index || '_status', status FROM ranked
+    UNION ALL
+    SELECT 107 + row_index * 20, 'mempool_entry_' || row_index || '_first_seen_at_utc', first_seen_at_utc FROM ranked
+    UNION ALL
+    SELECT 108 + row_index * 20, 'mempool_entry_' || row_index || '_last_seen_at_utc', last_seen_at_utc FROM ranked
 ) AS rows
 ORDER BY sort_order;
 "#
@@ -1286,6 +1362,7 @@ fn render_postgres_read_model_status_json(
     let accounts = required_u64(values, "accounts")?;
     let account_balances = required_u64(values, "account_balances")?;
     let account_transactions = required_u64(values, "account_transactions")?;
+    let mempool_entries = required_u64(values, "mempool_entries")?;
     let audit_events = required_u64(values, "audit_events")?;
     let indexer_runs = required_u64(values, "indexer_runs")?;
     let latest_height = optional_u64_json(values, "latest_height")?;
@@ -1316,6 +1393,7 @@ fn render_postgres_read_model_status_json(
             "    \"accounts\": {},\n",
             "    \"account_balances\": {},\n",
             "    \"account_transactions\": {},\n",
+            "    \"mempool_entries\": {},\n",
             "    \"audit_events\": {},\n",
             "    \"indexer_runs\": {}\n",
             "  }}\n",
@@ -1333,6 +1411,7 @@ fn render_postgres_read_model_status_json(
         accounts,
         account_balances,
         account_transactions,
+        mempool_entries,
         audit_events,
         indexer_runs
     ))
@@ -1733,6 +1812,62 @@ fn render_postgres_transactions_json(
     Ok(output)
 }
 
+fn render_postgres_mempool_json(
+    _config: &PostgresReadModelConfig<'_>,
+    values: &BTreeMap<String, String>,
+) -> Result<String, String> {
+    let limit = required_u64_for(values, "limit", "postgres mempool")?;
+    let current_height = required_u64_for(values, "current_height", "postgres mempool")?;
+    let entry_count = required_u64_for(values, "entry_count", "postgres mempool")?;
+    let pending_count = required_u64_for(values, "pending_count", "postgres mempool")?;
+    let next_cursor = optional_string_json(values, "next_cursor")?;
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(&mut output, "  \"environment\": \"private-devnet\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"network\": {},",
+        json_string(POSTGRES_PRIVATE_DEVNET_NETWORK)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"source\": \"postgres-read-model\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(MEMPOOL_READONLY_WARNING)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"read_model_warning\": {},",
+        json_string(POSTGRES_READ_MODEL_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"read_only\": true,").expect("write to String");
+    writeln!(&mut output, "  \"current_height\": {},", current_height).expect("write to String");
+    writeln!(&mut output, "  \"pending_count\": {},", pending_count).expect("write to String");
+    writeln!(&mut output, "  \"limit\": {},", limit).expect("write to String");
+    writeln!(&mut output, "  \"next_cursor\": {},", next_cursor).expect("write to String");
+    writeln!(&mut output, "  \"inspect_status\": \"enabled\",").expect("write to String");
+    writeln!(&mut output, "  \"submit_status\": \"disabled\",").expect("write to String");
+    writeln!(&mut output, "  \"produce_block_status\": \"disabled\",").expect("write to String");
+    output.push_str("  \"entries\": [");
+    for index in 0..entry_count {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_postgres_mempool_entry_json_inline(
+            values, index, 4,
+        )?);
+    }
+    if entry_count > 0 {
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    Ok(output)
+}
+
 fn render_postgres_transaction_detail_json(
     _config: &PostgresReadModelConfig<'_>,
     values: &BTreeMap<String, String>,
@@ -1974,6 +2109,47 @@ fn render_postgres_transaction_json_inline(
         json_string(amount_base_units),
         json_string(fee_base_units),
         nonce
+    ))
+}
+
+fn render_postgres_mempool_entry_json_inline(
+    values: &BTreeMap<String, String>,
+    index: u64,
+    indent: usize,
+) -> Result<String, String> {
+    let prefix = format!("mempool_entry_{index}_");
+    let tx_hash = required_string_for(values, &format!("{prefix}tx_hash"), "postgres mempool")?;
+    let from_address =
+        required_string_for(values, &format!("{prefix}from_address"), "postgres mempool")?;
+    let to_address =
+        required_string_for(values, &format!("{prefix}to_address"), "postgres mempool")?;
+    let amount_base_units = required_string_for(
+        values,
+        &format!("{prefix}amount_base_units"),
+        "postgres mempool",
+    )?;
+    let fee_base_units = required_string_for(
+        values,
+        &format!("{prefix}fee_base_units"),
+        "postgres mempool",
+    )?;
+    let nonce = required_u64_for(values, &format!("{prefix}nonce"), "postgres mempool")?;
+    let status = required_string_for(values, &format!("{prefix}status"), "postgres mempool")?;
+    let first_seen_at_utc = optional_string_json(values, &format!("{prefix}first_seen_at_utc"))?;
+    let last_seen_at_utc = optional_string_json(values, &format!("{prefix}last_seen_at_utc"))?;
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    Ok(format!(
+        "{spaces}{{\n{nested}\"tx_hash\": {},\n{nested}\"from_address\": {},\n{nested}\"to_address\": {},\n{nested}\"amount_base_units\": {},\n{nested}\"fee_base_units\": {},\n{nested}\"nonce\": {},\n{nested}\"status\": {},\n{nested}\"first_seen_at_utc\": {},\n{nested}\"last_seen_at_utc\": {}\n{spaces}}}",
+        json_string(tx_hash),
+        json_string(from_address),
+        json_string(to_address),
+        json_string(amount_base_units),
+        json_string(fee_base_units),
+        nonce,
+        json_string(status),
+        first_seen_at_utc,
+        last_seen_at_utc
     ))
 }
 
@@ -2576,7 +2752,7 @@ fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/node/status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5|/api/v1/snapshots?limit=5|/api/v1/snapshots/<snapshot_name>",
+        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/node/status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/mempool?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5|/api/v1/snapshots?limit=5|/api/v1/snapshots/<snapshot_name>",
         "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
@@ -2588,6 +2764,7 @@ fn help_text() -> String {
         "  xriq-api request-postgres --target /api/v1/explorer/overview",
         "  xriq-api request-postgres --target /api/v1/blocks?limit=5",
         "  xriq-api request-postgres --target /api/v1/transactions?limit=5",
+        "  xriq-api request-postgres --target /api/v1/mempool?limit=5",
         "  xriq-api request-postgres --target /api/v1/transactions/<tx_hash>",
         "  xriq-api request-postgres --target /api/v1/wallet/transactions/<tx_hash>/status",
         "  xriq-api request-postgres --target /api/v1/accounts?limit=5",
@@ -2962,6 +3139,7 @@ transactions=1
 accounts=3
 account_balances=3
 account_transactions=2
+mempool_entries=1
 audit_events=1
 indexer_runs=1
 latest_height=1
@@ -2980,6 +3158,7 @@ indexer_status=completed
         assert!(body.contains("\"latest_height\": 1"));
         assert!(body.contains("\"blocks\": 1"));
         assert!(body.contains("\"account_transactions\": 2"));
+        assert!(body.contains("\"mempool_entries\": 1"));
         assert!(body.contains("\"indexer_status\": \"completed\""));
     }
 
@@ -3202,6 +3381,57 @@ transaction_0_nonce=0
         assert!(body.contains("\"amount_base_units\": \"25\""));
         assert!(body.contains("\"fee_base_units\": \"2\""));
         assert!(body.contains("\"nonce\": 0"));
+    }
+
+    #[test]
+    fn postgres_mempool_json_renders_product_list_shape() {
+        let config =
+            PostgresRequestConfig::parse(&["--target", "/api/v1/mempool?limit=5"]).unwrap();
+        let values = parse_key_value_lines(
+            "\
+limit=5
+current_height=1
+entry_count=1
+pending_count=1
+next_cursor=none
+mempool_entry_0_tx_hash=3333333333333333333333333333333333333333333333333333333333333333
+mempool_entry_0_from_address=xriqdev1alice00000000000
+mempool_entry_0_to_address=xriqdev1carol00000000000
+mempool_entry_0_amount_base_units=5
+mempool_entry_0_fee_base_units=2
+mempool_entry_0_nonce=1
+mempool_entry_0_status=pending
+mempool_entry_0_first_seen_at_utc=1970-01-01T00:00:01Z
+mempool_entry_0_last_seen_at_utc=1970-01-01T00:00:01Z
+",
+            "test postgres mempool",
+        )
+        .unwrap();
+
+        let body = render_postgres_mempool_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"source\": \"postgres-read-model\""));
+        assert!(body.contains("\"read_only\": true"));
+        assert!(body.contains(MEMPOOL_READONLY_WARNING));
+        assert!(body.contains(POSTGRES_READ_MODEL_WARNING));
+        assert!(body.contains("\"current_height\": 1"));
+        assert!(body.contains("\"pending_count\": 1"));
+        assert!(body.contains("\"limit\": 5"));
+        assert!(body.contains("\"next_cursor\": null"));
+        assert!(body.contains("\"inspect_status\": \"enabled\""));
+        assert!(body.contains("\"submit_status\": \"disabled\""));
+        assert!(body.contains("\"produce_block_status\": \"disabled\""));
+        assert!(body.contains("\"entries\": ["));
+        assert!(body.contains(
+            "\"tx_hash\": \"3333333333333333333333333333333333333333333333333333333333333333\""
+        ));
+        assert!(body.contains("\"to_address\": \"xriqdev1carol00000000000\""));
+        assert!(body.contains("\"amount_base_units\": \"5\""));
+        assert!(body.contains("\"fee_base_units\": \"2\""));
+        assert!(body.contains("\"nonce\": 1"));
+        assert!(body.contains("\"status\": \"pending\""));
+        assert!(body.contains("\"first_seen_at_utc\": \"1970-01-01T00:00:01Z\""));
+        assert!(body.contains("\"last_seen_at_utc\": \"1970-01-01T00:00:01Z\""));
     }
 
     #[test]
@@ -3555,6 +3785,20 @@ transaction_0_fee_base_units=2
     }
 
     #[test]
+    fn postgres_mempool_sql_rejects_invalid_limit_before_docker() {
+        let response = run([
+            "request-postgres",
+            "--target",
+            "/api/v1/mempool?limit=not-a-number",
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=400"));
+        assert!(response.contains("\"code\": \"bad_request\""));
+        assert!(response.contains("invalid limit"));
+    }
+
+    #[test]
     fn postgres_audit_events_sql_rejects_invalid_limit_before_docker() {
         let response = run([
             "request-postgres",
@@ -3832,6 +4076,10 @@ transaction_0_fee_base_units=2
             "/api/v1/transactions?limit=5"
         )
         .is_none());
+        assert!(
+            maybe_postgres_read_model_http_response(None, "GET", "/api/v1/mempool?limit=5")
+                .is_none()
+        );
         assert!(maybe_postgres_read_model_http_response(
             None,
             "GET",

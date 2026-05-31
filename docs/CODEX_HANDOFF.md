@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `85%` overall. Current Rust
+- Phase 1.1 estimated completion: about `86%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -156,6 +156,7 @@ unless the user changes the project scope again.
   Postgres-backed product data routes for
   `/api/v1/explorer/overview`, `/api/v1/blocks?limit=...`,
   `/api/v1/transactions?limit=...`, and
+  `/api/v1/mempool?limit=...`, and
   `/api/v1/transactions/{tx_hash}`,
   `/api/v1/wallet/transactions/{tx_hash}/status`,
   `/api/v1/accounts?limit=...`, and
@@ -206,7 +207,7 @@ unless the user changes the project scope again.
   panels, including wallet account history and wallet draft-preview failure
   cases. Its explicit Docker live mode now also verifies the Admin UI Postgres
   status row mapping and the first Postgres-backed product
-  node-status/indexer-status/overview/block/transaction-list/transaction-detail/wallet-transaction-status/account-list/wallet-account-list/account-detail/wallet-balance/account-history/wallet-account-history
+  node-status/indexer-status/overview/block/transaction-list/mempool/transaction-detail/wallet-transaction-status/account-list/wallet-account-list/account-detail/wallet-balance/account-history/wallet-account-history
   and audit-events/snapshot-list/snapshot-detail routes against the live local
   read model.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
@@ -227,7 +228,42 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
-- Latest native XRIQ Phase 1.1 Postgres-backed snapshot detail checkpoint:
+- Latest native XRIQ Phase 1.1 Postgres-backed mempool checkpoint: extended
+  `xriq-api request-postgres` and explicitly Postgres-enabled
+  `xriq-api serve-readonly` to return `/api/v1/mempool?limit=...` from the
+  local Docker Postgres read model. The route is still opt-in and local-only:
+  default `xriq-api request` / `serve-readonly` behavior keeps using the
+  file-backed pending TSV when explicit Postgres flags are absent. The live
+  Docker smoke imports the generated durable `pending.tsv` row into
+  `xriq_mempool_entries` after applying the schema and indexer write-plan, so
+  the Postgres read-model status now includes `mempool_entries: 1`, and
+  Postgres node status / explorer overview now report
+  `pending_transactions: 1`. The mempool response preserves product mempool
+  fields (`current_height`, `pending_count`, `limit`, `next_cursor`,
+  `inspect_status`, disabled `submit_status`, disabled
+  `produce_block_status`, and `entries[]`) and adds local-only `source:
+  postgres-read-model`, `read_model_warning`, and `read_only: true` while
+  keeping the product mempool no-mutation warning. Invalid `limit` values are
+  rejected with `400 bad_request` before Docker is invoked. Verification passed
+  `cargo fmt --check`, bundled-Python `py_compile`,
+  `cargo test -p xriq-api --bin xriq-api -j 1`,
+  `cargo test -p xriq-api --lib -j 1`,
+  `cargo clippy -p xriq-api -- -D warnings`, and Docker live
+  `scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live`,
+  producing artifact directory
+  `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T131859Z` with
+  `indexer/postgres-api-mempool.json`,
+  `indexer/postgres-server-mempool.json`, and
+  `indexer/postgres-docker-live.json` showing `mempool_entries: 1`. Phase 1.1
+  status is now about `86%` overall.
+- Recommended next narrow step: add opt-in Postgres-backed pending wallet
+  transaction-status parity from `xriq_mempool_entries`, so
+  `/api/v1/wallet/transactions/{pending_hash}/status` can return the same
+  pending/null-block response in Postgres mode that the default file-backed
+  product route already returns. Keep confirmed status behavior unchanged and
+  continue to avoid any mutating submit/block-production behavior in
+  `xriq-api`.
+- Previous native XRIQ Phase 1.1 Postgres-backed snapshot detail checkpoint:
   extended `xriq-api request-postgres` and explicitly Postgres-enabled
   `xriq-api serve-readonly` to return
   `/api/v1/snapshots/current-indexed-chain` from the local Docker Postgres read
@@ -258,15 +294,8 @@ active target because the GPU was terminated to save cost.
   `indexer/postgres-api-snapshot-detail.json` and
   `indexer/postgres-server-snapshot-detail.json` showing `source:
   postgres-read-model`, `read_only: true`, the snapshot-catalog warning, and
-  the expected read-only snapshot detail row. Phase 1.1 status is now about
+  the expected read-only snapshot detail row. Phase 1.1 status was about
   `85%` overall.
-- Recommended next narrow step: decide and implement the local-only pending
-  mempool import/read strategy for Postgres, then add opt-in Postgres-backed
-  parity for `/api/v1/mempool?limit=...`. The current Postgres node status and
-  overview correctly report `pending_transactions: 0` because the indexer
-  write-plan indexes the confirmed chain only and does not yet populate
-  `xriq_mempool_entries`; the default file-backed route still reports the
-  durable pending file count of `1`.
 - Previous native XRIQ Phase 1.1 Postgres-backed snapshot-list checkpoint:
   extended the indexer Postgres write-plan to populate `xriq_snapshots` with
   the current `current-indexed-chain` row, then extended
