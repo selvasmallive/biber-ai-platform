@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `69%` overall. Current Rust
+- Phase 1.1 estimated completion: about `70%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -151,8 +151,10 @@ unless the user changes the project scope again.
   boundary, CLI smoke path, and local read-only socket wrapper now exist in
   `xriq/crates/xriq-api`, and `xriq-api request-postgres` plus explicitly
   configured `xriq-api serve-readonly` can read the local Docker Postgres read
-  model for `/api/v1/admin/postgres/read-model-status` without changing the
-  default file-backed API path. The first ISO
+  model for `/api/v1/admin/postgres/read-model-status` and, when explicitly
+  configured, the first Postgres-backed product data route for
+  `/api/v1/explorer/overview` without changing the default file-backed API
+  path. The first ISO
   20022 compatibility adapter exists in `xriq/crates/xriq-iso20022`, but it is
   a private-devnet preview mapping layer only, not certification or payment
   network connectivity. `xriq-api` now exposes that adapter through GET-only
@@ -209,6 +211,32 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 Postgres-backed explorer overview checkpoint:
+  extended `xriq-api request-postgres` and explicitly Postgres-enabled
+  `xriq-api serve-readonly` to return `/api/v1/explorer/overview` from the
+  local Docker Postgres read model. The response preserves the normal product
+  overview shape (`environment`, `network`, `chain`, `indexer`, `totals`) and
+  adds local-only `source: postgres-read-model`, `read_only: true`, and the
+  existing no-mutation warning. Without explicit Postgres flags,
+  `/api/v1/explorer/overview` still uses the default file-backed indexed
+  snapshot path. The live smoke now writes
+  `indexer/postgres-api-explorer-overview.json` and
+  `indexer/postgres-server-explorer-overview.json`, both showing height `1`, 1
+  stored block, 1 confirmed transaction, 3 indexed accounts, 0 Postgres
+  mempool entries, and indexer status `completed`. Verification passed
+  `cargo fmt`, bundled-Python `py_compile`,
+  `cargo test -p xriq-api`, default
+  `scripts/xriq_phase1_1_local_e2e_smoke.py`, and Docker live
+  `scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live`, producing
+  artifact directory
+  `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T023647Z` with no skipped
+  checks. A stale local `xriq-api.exe` process was stopped because it held the
+  Windows test binary during linking. Phase 1.1 status is now about `70%`
+  overall.
+- Recommended next narrow step: add the next read-only Postgres-backed product
+  route after overview, preferably `/api/v1/blocks?limit=...` or
+  `/api/v1/transactions?limit=...`, preserving default file-backed behavior
+  and keeping all Postgres use opt-in.
 - Latest native XRIQ Phase 1.1 Postgres-enabled Admin UI smoke checkpoint:
   added `npm.cmd run check:postgres-ui`, a local UI logic smoke that uses Vite
   SSR to import the same `postgresReadModelRows` mapping used by the Admin
@@ -231,9 +259,6 @@ active target because the GPU was terminated to save cost.
   xriq_phase1_1_smoke`, `Height: 1`, `Blocks: 1`, `Transactions: 1`,
   `Accounts: 3`, `Account History: 2`, and `Audit Events: 1`. Phase 1.1
   status is now about `69%` overall.
-- Recommended next narrow step: add the first opt-in Postgres-backed product
-  data route beyond status, preferably `/api/v1/explorer/overview`, while
-  preserving the default file-backed API behavior.
 - Latest native XRIQ Phase 1.1 Admin UI Postgres status checkpoint:
   extended the React + TypeScript Admin Status panel with a read-only
   `Postgres Read Model` block. The UI calls

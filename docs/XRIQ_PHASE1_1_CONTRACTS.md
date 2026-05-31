@@ -145,13 +145,13 @@ Required behavior:
 - mutating admin endpoints are disabled by default in production-like configs
 - every mutating endpoint writes an audit event
 - snapshot import must refuse unsafe overwrite by default
-- Postgres read-model status is local/private-devnet read-only and must not
-  print database passwords, mutate schema, or replace the default file-backed
-  API path unless explicitly configured
-- `xriq-api serve-readonly` exposes the Postgres read-model status route only
-  when both `--postgres-docker-container` and `--postgres-database` are passed;
-  without those flags the route remains disabled and ordinary file-backed API
-  routes keep working
+- Postgres read-model routes are local/private-devnet read-only and must not
+  print database passwords, mutate schema, or replace default file-backed API
+  paths unless explicitly configured
+- `xriq-api serve-readonly` exposes Postgres read-model routes only when both
+  `--postgres-docker-container` and `--postgres-database` are passed; without
+  those flags the Postgres status route remains disabled and ordinary
+  file-backed API routes, including `/api/v1/explorer/overview`, keep working
 
 ### ISO 20022 Mapping APIs
 
@@ -376,9 +376,9 @@ xriq/fixtures/phase1_1/
 
 ## Next Implementation Step
 
-Continue Milestone B by validating the deterministic indexer scaffold against a
-real local PostgreSQL instance when Docker Desktop or another local Postgres
-service is intentionally available:
+Continue Milestone B/C by gradually moving read-only product routes onto the
+opt-in PostgreSQL read model after the deterministic indexer scaffold has been
+validated against the local Docker Postgres service:
 
 1. Keep `xriq-indexer` as the pure, deterministic read-model layer.
 2. Keep using the local replay command to validate file-backed chain replay and
@@ -388,7 +388,9 @@ service is intentionally available:
 4. Use `apply-postgres --dry-run true` as the default safety check.
 5. Use `apply-postgres --dry-run false` only with a local database URL and
    installed `psql`.
-6. If host `psql` is unavailable but Docker Desktop is running, use
+6. Keep `/api/v1/explorer/overview` as the first Postgres-backed product data
+   route and add subsequent read-only list/detail routes one at a time.
+7. If host `psql` is unavailable but Docker Desktop is running, use
    `python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live` to
    apply and verify the generated SQL inside the local Compose Postgres
    container against the dedicated `xriq_phase1_1_smoke` database.
@@ -421,12 +423,14 @@ Run the focused Rust indexer scaffold tests from `xriq/`:
 cargo test -p xriq-indexer
 ```
 
-The first explicit Postgres-backed API read path is local-only and uses the
-Compose `postgres` container. It returns status/count JSON for the read model
-without changing the default file-backed API request/server path:
+The first explicit Postgres-backed API read paths are local-only and use the
+Compose `postgres` container. They return status/count JSON and the opt-in
+explorer overview shape from the read model without changing the default
+file-backed API request/server path:
 
 ```bash
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
+cargo run -p xriq-api -- request-postgres --target /api/v1/explorer/overview
 ```
 
 The same route can be exposed by the local read-only HTTP server only when the

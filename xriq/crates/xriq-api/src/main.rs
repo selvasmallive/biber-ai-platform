@@ -18,8 +18,13 @@ use xriq_storage::FileChainStore;
 
 const DEFAULT_BIND: &str = "127.0.0.1:8090";
 const POSTGRES_READ_MODEL_STATUS_ROUTE: &str = "/api/v1/admin/postgres/read-model-status";
+const POSTGRES_EXPLORER_OVERVIEW_ROUTE: &str = "/api/v1/explorer/overview";
+const POSTGRES_PRIVATE_DEVNET_NETWORK: &str = "xriq-devnet";
 const POSTGRES_READ_MODEL_WARNING: &str =
     "local-private-devnet-postgres-read-only-preview-no-mutation";
+
+type PostgresReadModelRenderer =
+    for<'a> fn(&PostgresReadModelConfig<'a>, &BTreeMap<String, String>) -> Result<String, String>;
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
@@ -222,15 +227,17 @@ fn maybe_postgres_read_model_http_response(
     target: &str,
 ) -> Option<Result<ApiHttpResponse, String>> {
     let path = target.split('?').next().unwrap_or(target);
-    if path != POSTGRES_READ_MODEL_STATUS_ROUTE {
-        return None;
-    }
-
-    let Some(config) = config else {
-        return Some(Ok(postgres_read_model_disabled_response()));
+    match (path, config) {
+        (POSTGRES_READ_MODEL_STATUS_ROUTE, None) => {
+            return Some(Ok(postgres_read_model_disabled_response()));
+        }
+        (POSTGRES_EXPLORER_OVERVIEW_ROUTE, None) => return None,
+        (POSTGRES_READ_MODEL_STATUS_ROUTE | POSTGRES_EXPLORER_OVERVIEW_ROUTE, Some(config)) => {
+            return Some(postgres_read_model_http_response(config, method, target));
+        }
+        _ => {}
     };
-
-    Some(postgres_read_model_http_response(config, method, target))
+    None
 }
 
 fn postgres_read_model_http_response(
@@ -247,22 +254,29 @@ fn postgres_read_model_http_response(
     }
 
     let path = target.split('?').next().unwrap_or(target);
-    if path != POSTGRES_READ_MODEL_STATUS_ROUTE {
-        return Ok(local_api_error_response(
-            404,
-            "not_found",
-            "XRIQ Postgres read-model endpoint not found",
-        ));
-    }
+    let (sql, label, renderer): (&str, &str, PostgresReadModelRenderer) = match path {
+        POSTGRES_READ_MODEL_STATUS_ROUTE => (
+            postgres_read_model_status_sql(),
+            "postgres read-model status",
+            render_postgres_read_model_status_json,
+        ),
+        POSTGRES_EXPLORER_OVERVIEW_ROUTE => (
+            postgres_explorer_overview_sql(),
+            "postgres explorer overview",
+            render_postgres_explorer_overview_json,
+        ),
+        _ => {
+            return Ok(local_api_error_response(
+                404,
+                "not_found",
+                "XRIQ Postgres read-model endpoint not found",
+            ));
+        }
+    };
 
-    let output = docker_psql_query(
-        config.docker_container,
-        config.database,
-        postgres_read_model_status_sql(),
-        "postgres read-model status",
-    )?;
-    let values = parse_key_value_lines(&output, "postgres read-model status")?;
-    let body = render_postgres_read_model_status_json(config, &values)?;
+    let output = docker_psql_query(config.docker_container, config.database, sql, label)?;
+    let values = parse_key_value_lines(&output, label)?;
+    let body = renderer(config, &values)?;
     Ok(ApiHttpResponse {
         status_code: 200,
         reason: "OK",
@@ -356,6 +370,23 @@ SELECT 'latest_block_hash=' || COALESCE((SELECT block_hash FROM xriq_blocks ORDE
 SELECT 'indexer_status=' || COALESCE((SELECT status FROM xriq_indexer_runs ORDER BY completed_at DESC NULLS LAST, started_at DESC LIMIT 1), 'unknown');\n"
 }
 
+fn postgres_explorer_overview_sql() -> &'static str {
+    "\
+SELECT 'current_height=' || COALESCE(MAX(height)::text, '0') FROM xriq_blocks;\n\
+SELECT 'latest_block_hash=' || COALESCE((SELECT block_hash FROM xriq_blocks ORDER BY height DESC LIMIT 1), 'none');\n\
+SELECT 'state_root=' || COALESCE((SELECT state_root FROM xriq_blocks ORDER BY height DESC LIMIT 1), 'none');\n\
+SELECT 'stored_blocks=' || count(*) FROM xriq_blocks;\n\
+SELECT 'pending_transactions=' || count(*) FROM xriq_mempool_entries;\n\
+SELECT 'transactions=' || count(*) FROM xriq_transactions;\n\
+SELECT 'accounts=' || count(*) FROM xriq_account_balances;\n\
+SELECT 'indexer_run_id=' || COALESCE((SELECT run_id FROM xriq_indexer_runs ORDER BY completed_at DESC NULLS LAST, started_at DESC LIMIT 1), 'none');\n\
+SELECT 'indexer_status=' || COALESCE((SELECT status FROM xriq_indexer_runs ORDER BY completed_at DESC NULLS LAST, started_at DESC LIMIT 1), 'unknown');\n\
+SELECT 'indexer_from_height=' || COALESCE((SELECT from_height::text FROM xriq_indexer_runs ORDER BY completed_at DESC NULLS LAST, started_at DESC LIMIT 1), 'none');\n\
+SELECT 'indexer_to_height=' || COALESCE((SELECT to_height::text FROM xriq_indexer_runs ORDER BY completed_at DESC NULLS LAST, started_at DESC LIMIT 1), 'none');\n\
+SELECT 'indexer_blocks_indexed=' || COALESCE((SELECT blocks_indexed::text FROM xriq_indexer_runs ORDER BY completed_at DESC NULLS LAST, started_at DESC LIMIT 1), '0');\n\
+SELECT 'indexer_transactions_indexed=' || COALESCE((SELECT transactions_indexed::text FROM xriq_indexer_runs ORDER BY completed_at DESC NULLS LAST, started_at DESC LIMIT 1), '0');\n"
+}
+
 fn parse_key_value_lines(output: &str, context: &str) -> Result<BTreeMap<String, String>, String> {
     let mut values = BTreeMap::new();
     for line in output.lines() {
@@ -432,21 +463,129 @@ fn render_postgres_read_model_status_json(
     ))
 }
 
+fn render_postgres_explorer_overview_json(
+    _config: &PostgresReadModelConfig<'_>,
+    values: &BTreeMap<String, String>,
+) -> Result<String, String> {
+    let current_height = required_u64_for(values, "current_height", "postgres explorer overview")?;
+    let latest_block_hash = optional_string_json(values, "latest_block_hash")?;
+    let state_root = optional_string_json(values, "state_root")?;
+    let stored_blocks = required_u64_for(values, "stored_blocks", "postgres explorer overview")?;
+    let pending_transactions =
+        required_u64_for(values, "pending_transactions", "postgres explorer overview")?;
+    let transactions = required_u64_for(values, "transactions", "postgres explorer overview")?;
+    let accounts = required_u64_for(values, "accounts", "postgres explorer overview")?;
+    let indexer_run_id = optional_string_json(values, "indexer_run_id")?;
+    let indexer_status = values
+        .get("indexer_status")
+        .map(String::as_str)
+        .unwrap_or("unknown");
+    let indexer_from_height =
+        optional_u64_json_for(values, "indexer_from_height", "postgres explorer overview")?;
+    let indexer_to_height =
+        optional_u64_json_for(values, "indexer_to_height", "postgres explorer overview")?;
+    let indexer_blocks_indexed = required_u64_for(
+        values,
+        "indexer_blocks_indexed",
+        "postgres explorer overview",
+    )?;
+    let indexer_transactions_indexed = required_u64_for(
+        values,
+        "indexer_transactions_indexed",
+        "postgres explorer overview",
+    )?;
+
+    Ok(format!(
+        concat!(
+            "{{\n",
+            "  \"environment\": \"private-devnet\",\n",
+            "  \"network\": {},\n",
+            "  \"source\": \"postgres-read-model\",\n",
+            "  \"warning\": {},\n",
+            "  \"read_only\": true,\n",
+            "  \"chain\": {{\n",
+            "    \"current_height\": {},\n",
+            "    \"latest_block_hash\": {},\n",
+            "    \"state_root\": {},\n",
+            "    \"stored_blocks\": {},\n",
+            "    \"pending_transactions\": {}\n",
+            "  }},\n",
+            "  \"indexer\": {{\n",
+            "    \"environment\": \"private-devnet\",\n",
+            "    \"service\": \"xriq-indexer\",\n",
+            "    \"status\": {},\n",
+            "    \"latest_indexed_height\": {},\n",
+            "    \"latest_indexed_block_hash\": {},\n",
+            "    \"lag_blocks\": 0,\n",
+            "    \"last_run\": {{\n",
+            "      \"run_id\": {},\n",
+            "      \"status\": {},\n",
+            "      \"from_height\": {},\n",
+            "      \"to_height\": {},\n",
+            "      \"blocks_indexed\": {},\n",
+            "      \"transactions_indexed\": {}\n",
+            "    }}\n",
+            "  }},\n",
+            "  \"totals\": {{\n",
+            "    \"blocks\": {},\n",
+            "    \"transactions\": {},\n",
+            "    \"accounts\": {}\n",
+            "  }}\n",
+            "}}"
+        ),
+        json_string(POSTGRES_PRIVATE_DEVNET_NETWORK),
+        json_string(POSTGRES_READ_MODEL_WARNING),
+        current_height,
+        latest_block_hash,
+        state_root,
+        stored_blocks,
+        pending_transactions,
+        json_string(indexer_status),
+        current_height,
+        latest_block_hash,
+        indexer_run_id,
+        json_string(indexer_status),
+        indexer_from_height,
+        indexer_to_height,
+        indexer_blocks_indexed,
+        indexer_transactions_indexed,
+        stored_blocks,
+        transactions,
+        accounts
+    ))
+}
+
 fn required_u64(values: &BTreeMap<String, String>, key: &str) -> Result<u64, String> {
+    required_u64_for(values, key, "postgres read-model status")
+}
+
+fn required_u64_for(
+    values: &BTreeMap<String, String>,
+    key: &str,
+    context: &str,
+) -> Result<u64, String> {
     values
         .get(key)
-        .ok_or_else(|| format!("postgres read-model status: missing {key}"))?
+        .ok_or_else(|| format!("{context}: missing {key}"))?
         .parse::<u64>()
-        .map_err(|_| format!("postgres read-model status: invalid integer for {key}"))
+        .map_err(|_| format!("{context}: invalid integer for {key}"))
 }
 
 fn optional_u64_json(values: &BTreeMap<String, String>, key: &str) -> Result<String, String> {
+    optional_u64_json_for(values, key, "postgres read-model status")
+}
+
+fn optional_u64_json_for(
+    values: &BTreeMap<String, String>,
+    key: &str,
+    context: &str,
+) -> Result<String, String> {
     match values.get(key).map(String::as_str) {
         Some("none") | None => Ok("null".to_string()),
         Some(value) => value
             .parse::<u64>()
             .map(|number| number.to_string())
-            .map_err(|_| format!("postgres read-model status: invalid integer for {key}")),
+            .map_err(|_| format!("{context}: invalid integer for {key}")),
     }
 }
 
@@ -461,12 +600,13 @@ fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status",
+        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/explorer/overview",
         "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
         "  xriq-api request --chain-file target/xriq-devnet.bin --alice-balance 100 --target /api/v1/health",
         "  xriq-api request-postgres --target /api/v1/admin/postgres/read-model-status",
+        "  xriq-api request-postgres --target /api/v1/explorer/overview",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100 --postgres-docker-container xriq-postgres --postgres-database xriq_phase1_1_smoke",
     ]
@@ -824,6 +964,42 @@ indexer_status=completed
     }
 
     #[test]
+    fn postgres_overview_json_renders_product_shape_from_read_model_counts() {
+        let config =
+            PostgresRequestConfig::parse(&["--target", POSTGRES_EXPLORER_OVERVIEW_ROUTE]).unwrap();
+        let values = parse_key_value_lines(
+            "\
+current_height=1
+latest_block_hash=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+state_root=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+stored_blocks=1
+pending_transactions=0
+transactions=1
+accounts=3
+indexer_run_id=private-devnet-replay-1-0123456789abcdef
+indexer_status=completed
+indexer_from_height=1
+indexer_to_height=1
+indexer_blocks_indexed=1
+indexer_transactions_indexed=1
+",
+            "test postgres overview",
+        )
+        .unwrap();
+
+        let body = render_postgres_explorer_overview_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"source\": \"postgres-read-model\""));
+        assert!(body.contains(POSTGRES_READ_MODEL_WARNING));
+        assert!(body.contains("\"network\": \"xriq-devnet\""));
+        assert!(body.contains("\"current_height\": 1"));
+        assert!(body.contains("\"pending_transactions\": 0"));
+        assert!(body.contains("\"status\": \"completed\""));
+        assert!(body.contains("\"transactions_indexed\": 1"));
+        assert!(body.contains("\"accounts\": 3"));
+    }
+
+    #[test]
     fn serve_config_defaults_to_localhost_private_devnet_port() {
         let config = ServeConfig::parse(&[
             "--chain-file",
@@ -892,6 +1068,12 @@ indexer_status=completed
         assert!(response.body.contains("endpoint is disabled"));
 
         assert!(maybe_postgres_read_model_http_response(None, "GET", "/api/v1/health").is_none());
+        assert!(maybe_postgres_read_model_http_response(
+            None,
+            "GET",
+            POSTGRES_EXPLORER_OVERVIEW_ROUTE
+        )
+        .is_none());
     }
 
     #[test]

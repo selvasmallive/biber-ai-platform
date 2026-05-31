@@ -100,8 +100,12 @@ directory:
 python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
 ```
 
-That live smoke also verifies the first explicit Postgres-backed API read paths
-and the Admin UI's Postgres read-model row mapping, writing
+That live smoke also verifies the first explicit Postgres-backed API read paths,
+including `/api/v1/admin/postgres/read-model-status` and the opt-in
+Postgres-backed `/api/v1/explorer/overview`, plus the Admin UI's Postgres
+read-model row mapping. It writes
+`indexer/postgres-api-explorer-overview.json`,
+`indexer/postgres-server-explorer-overview.json`, and
 `indexer/postgres-admin-ui-read-model-status.json` under the smoke output
 directory.
 The default `xriq-api request` and `serve-readonly` flows still use file-backed
@@ -110,11 +114,13 @@ read model through container-local `psql`:
 
 ```bash
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
+cargo run -p xriq-api -- request-postgres --target /api/v1/explorer/overview
 ```
 
-To expose the same Postgres read-model status through the local read-only HTTP
-server, pass both explicit Postgres flags. Without these flags, the Postgres
-route remains disabled and the normal file-backed routes keep working.
+To expose the same Postgres read-model status and explorer overview through the
+local read-only HTTP server, pass both explicit Postgres flags. Without these
+flags, the Postgres status route remains disabled and the normal file-backed
+routes keep working.
 
 ```bash
 cargo run -p xriq-api -- serve-readonly --chain-file target/xriq-indexer-replay-smoke.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --bind 127.0.0.1:8090 --postgres-docker-container xriq-postgres --postgres-database xriq_phase1_1_smoke
