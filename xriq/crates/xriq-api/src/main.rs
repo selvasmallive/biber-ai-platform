@@ -18,6 +18,7 @@ use xriq_storage::FileChainStore;
 
 const DEFAULT_BIND: &str = "127.0.0.1:8090";
 const POSTGRES_READ_MODEL_STATUS_ROUTE: &str = "/api/v1/admin/postgres/read-model-status";
+const POSTGRES_NODE_STATUS_ROUTE: &str = "/api/v1/admin/node/status";
 const POSTGRES_INDEXER_STATUS_ROUTE: &str = "/api/v1/admin/indexer/status";
 const POSTGRES_AUDIT_EVENTS_ROUTE: &str = "/api/v1/admin/audit-events";
 const POSTGRES_EXPLORER_OVERVIEW_ROUTE: &str = "/api/v1/explorer/overview";
@@ -284,6 +285,7 @@ fn maybe_postgres_read_model_http_response(
         }
         (
             POSTGRES_EXPLORER_OVERVIEW_ROUTE
+            | POSTGRES_NODE_STATUS_ROUTE
             | POSTGRES_INDEXER_STATUS_ROUTE
             | POSTGRES_AUDIT_EVENTS_ROUTE
             | POSTGRES_BLOCKS_ROUTE
@@ -300,6 +302,7 @@ fn maybe_postgres_read_model_http_response(
         (_, None) if is_account_detail => return None,
         (
             POSTGRES_READ_MODEL_STATUS_ROUTE
+            | POSTGRES_NODE_STATUS_ROUTE
             | POSTGRES_INDEXER_STATUS_ROUTE
             | POSTGRES_AUDIT_EVENTS_ROUTE
             | POSTGRES_EXPLORER_OVERVIEW_ROUTE
@@ -430,6 +433,11 @@ fn postgres_read_model_http_response(
                 postgres_read_model_status_sql().to_string(),
                 "postgres read-model status",
                 render_postgres_read_model_status_json,
+            ),
+            POSTGRES_NODE_STATUS_ROUTE => (
+                postgres_node_status_sql().to_string(),
+                "postgres node status",
+                render_postgres_node_status_json,
             ),
             POSTGRES_INDEXER_STATUS_ROUTE => (
                 postgres_indexer_status_sql().to_string(),
@@ -599,6 +607,30 @@ SELECT 'indexer_runs=' || count(*) FROM xriq_indexer_runs;\n\
 SELECT 'latest_height=' || COALESCE(MAX(height)::text, 'none') FROM xriq_blocks;\n\
 SELECT 'latest_block_hash=' || COALESCE((SELECT block_hash FROM xriq_blocks ORDER BY height DESC LIMIT 1), 'none');\n\
 SELECT 'indexer_status=' || COALESCE((SELECT status FROM xriq_indexer_runs ORDER BY completed_at DESC NULLS LAST, started_at DESC LIMIT 1), 'unknown');\n"
+}
+
+fn postgres_node_status_sql() -> &'static str {
+    r#"
+WITH latest_block AS (
+    SELECT height, block_hash, state_root
+    FROM xriq_blocks
+    ORDER BY height DESC
+    LIMIT 1
+)
+SELECT key || '=' || value
+FROM (
+    SELECT 0 AS sort_order, 'current_height' AS key, COALESCE((SELECT height::text FROM latest_block), '0') AS value
+    UNION ALL
+    SELECT 1, 'latest_block_hash', COALESCE((SELECT block_hash FROM latest_block), 'none')
+    UNION ALL
+    SELECT 2, 'state_root', COALESCE((SELECT state_root FROM latest_block), 'none')
+    UNION ALL
+    SELECT 3, 'stored_blocks', count(*)::text FROM xriq_blocks
+    UNION ALL
+    SELECT 4, 'pending_transactions', count(*)::text FROM xriq_mempool_entries
+) AS rows
+ORDER BY sort_order;
+"#
 }
 
 fn postgres_indexer_status_sql() -> &'static str {
@@ -1139,6 +1171,47 @@ fn render_postgres_read_model_status_json(
         account_transactions,
         audit_events,
         indexer_runs
+    ))
+}
+
+fn render_postgres_node_status_json(
+    _config: &PostgresReadModelConfig<'_>,
+    values: &BTreeMap<String, String>,
+) -> Result<String, String> {
+    let current_height = required_u64_for(values, "current_height", "postgres node status")?;
+    let latest_block_hash = optional_string_json(values, "latest_block_hash")?;
+    let state_root = optional_string_json(values, "state_root")?;
+    let stored_blocks = required_u64_for(values, "stored_blocks", "postgres node status")?;
+    let pending_transactions =
+        required_u64_for(values, "pending_transactions", "postgres node status")?;
+
+    Ok(format!(
+        concat!(
+            "{{\n",
+            "  \"environment\": \"private-devnet\",\n",
+            "  \"service\": \"xriq-api\",\n",
+            "  \"status\": \"healthy\",\n",
+            "  \"mode\": \"serve-readonly\",\n",
+            "  \"source\": \"postgres-read-model\",\n",
+            "  \"warning\": {},\n",
+            "  \"read_only\": true,\n",
+            "  \"network\": {},\n",
+            "  \"current_height\": {},\n",
+            "  \"latest_block_hash\": {},\n",
+            "  \"state_root\": {},\n",
+            "  \"stored_blocks\": {},\n",
+            "  \"pending_transactions\": {},\n",
+            "  \"wallet_submit_status\": \"disabled\",\n",
+            "  \"block_production_status\": \"disabled\"\n",
+            "}}"
+        ),
+        json_string(POSTGRES_READ_MODEL_WARNING),
+        json_string(POSTGRES_PRIVATE_DEVNET_NETWORK),
+        current_height,
+        latest_block_hash,
+        state_root,
+        stored_blocks,
+        pending_transactions
     ))
 }
 
@@ -2133,12 +2206,13 @@ fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5",
+        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/node/status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5",
         "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
         "  xriq-api request --chain-file target/xriq-devnet.bin --alice-balance 100 --target /api/v1/health",
         "  xriq-api request-postgres --target /api/v1/admin/postgres/read-model-status",
+        "  xriq-api request-postgres --target /api/v1/admin/node/status",
         "  xriq-api request-postgres --target /api/v1/admin/indexer/status",
         "  xriq-api request-postgres --target /api/v1/admin/audit-events?limit=5",
         "  xriq-api request-postgres --target /api/v1/explorer/overview",
@@ -2521,6 +2595,44 @@ indexer_status=completed
         assert!(body.contains("\"blocks\": 1"));
         assert!(body.contains("\"account_transactions\": 2"));
         assert!(body.contains("\"indexer_status\": \"completed\""));
+    }
+
+    #[test]
+    fn postgres_node_status_json_renders_product_shape() {
+        let config =
+            PostgresRequestConfig::parse(&["--target", POSTGRES_NODE_STATUS_ROUTE]).unwrap();
+        let values = parse_key_value_lines(
+            "\
+current_height=1
+latest_block_hash=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+state_root=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+stored_blocks=1
+pending_transactions=0
+",
+            "test postgres node status",
+        )
+        .unwrap();
+
+        let body = render_postgres_node_status_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"source\": \"postgres-read-model\""));
+        assert!(body.contains("\"read_only\": true"));
+        assert!(body.contains(POSTGRES_READ_MODEL_WARNING));
+        assert!(body.contains("\"service\": \"xriq-api\""));
+        assert!(body.contains("\"status\": \"healthy\""));
+        assert!(body.contains("\"mode\": \"serve-readonly\""));
+        assert!(body.contains("\"network\": \"xriq-devnet\""));
+        assert!(body.contains("\"current_height\": 1"));
+        assert!(body.contains(
+            "\"latest_block_hash\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\""
+        ));
+        assert!(body.contains(
+            "\"state_root\": \"abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789\""
+        ));
+        assert!(body.contains("\"stored_blocks\": 1"));
+        assert!(body.contains("\"pending_transactions\": 0"));
+        assert!(body.contains("\"wallet_submit_status\": \"disabled\""));
+        assert!(body.contains("\"block_production_status\": \"disabled\""));
     }
 
     #[test]
@@ -3192,6 +3304,10 @@ transaction_0_fee_base_units=2
             POSTGRES_EXPLORER_OVERVIEW_ROUTE
         )
         .is_none());
+        assert!(
+            maybe_postgres_read_model_http_response(None, "GET", POSTGRES_NODE_STATUS_ROUTE)
+                .is_none()
+        );
         assert!(maybe_postgres_read_model_http_response(
             None,
             "GET",

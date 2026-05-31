@@ -65,17 +65,17 @@ Rust
  |-- Blockchain node        ~70% for private-devnet; RC1 baseline exists
  |-- Consensus engine       ~60% for private-devnet; single-authority baseline
  |-- Wallet backend         ~51%; CLI flows plus product read/preview/pending-status routes exist
- |-- APIs                   ~72%; local HTTP wrappers plus wallet/admin/node/pending-file mempool/pending-status/ISO preview read routes and explicit Postgres read-model status, indexer status, explorer overview, blocks, transaction list, transaction detail, wallet transaction status, account list, wallet account list, account detail, wallet balance, account history, wallet account history, and audit-events CLI/server paths exist
+ |-- APIs                   ~73%; local HTTP wrappers plus wallet/admin/node/pending-file mempool/pending-status/ISO preview read routes and explicit Postgres read-model status, node status, indexer status, explorer overview, blocks, transaction list, transaction detail, wallet transaction status, account list, wallet account list, account detail, wallet balance, account history, wallet account history, and audit-events CLI/server paths exist
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
  |-- Wallet UI              ~24%; preview shell plus read-only confirmed/pending activity, API status, and API history detail
  |-- Explorer               ~27%; shell plus detail, pending transaction, snapshot, ISO preview, and optional Postgres status panels read product API
  |-- Exchange UI            0%; deferred high legal/compliance-risk surface
- `-- Admin portal           ~29%; read-only node/status, pending mempool, pending wallet status, optional Postgres read-model/indexer status, snapshot catalog, and audit events panels exist
+ `-- Admin portal           ~30%; read-only node/status, pending mempool, pending wallet status, optional Postgres read-model/node/indexer status, snapshot catalog, and audit events panels exist
 
 SQL/PostgreSQL
- |-- Explorer indexing      ~49%; schema, indexer, SQL plan, verify path, Docker live smoke, Postgres-backed API/server status/indexer read, and first Postgres-backed product overview/blocks/transaction list/detail/wallet-status/account/wallet-account/wallet-balance/history/wallet-history/audit-events reads exist
+ |-- Explorer indexing      ~50%; schema, indexer, SQL plan, verify path, Docker live smoke, Postgres-backed API/server read-model/node/indexer status reads, and first Postgres-backed product overview/blocks/transaction list/detail/wallet-status/account/wallet-account/wallet-balance/history/wallet-history/audit-events reads exist
  |-- Analytics              ~5%; read-model totals exist, deeper analytics deferred
  `-- Audit data             ~28%; schema, indexed block audit events, file-backed and opt-in Postgres read APIs, and UI panel exist
 
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the local Phase 1.1 Postgres-backed indexer-status checkpoint,
-Phase 1.1 status is about `82%`: the contract document, PostgreSQL read-model schema, JSON
+After the local Phase 1.1 Postgres-backed node-status checkpoint,
+Phase 1.1 status is about `83%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -98,7 +98,7 @@ smoke application through container-local `psql`, explicit `xriq-api`
 Postgres read-model status command for
 `/api/v1/admin/postgres/read-model-status`, explicitly configured
 `xriq-api serve-readonly` support for the same local Postgres read-model status
-route and `/api/v1/admin/indexer/status`, the first opt-in Postgres-backed product data routes for
+route plus `/api/v1/admin/node/status` and `/api/v1/admin/indexer/status`, the first opt-in Postgres-backed product data routes for
 `/api/v1/explorer/overview`, `/api/v1/blocks?limit=...`,
 `/api/v1/transactions?limit=...`, `/api/v1/transactions/{tx_hash}`, and
 `/api/v1/wallet/transactions/{tx_hash}/status`,
@@ -167,6 +167,7 @@ generated write plan through container-local `psql`, verifies indexed counts,
 calls `xriq-api request-postgres`, and writes
 `indexer/postgres-docker-live.json` plus
 `indexer/postgres-api-read-model-status.json` and
+`indexer/postgres-api-node-status.json` plus
 `indexer/postgres-api-indexer-status.json` plus
 `indexer/postgres-api-explorer-overview.json` plus
 `indexer/postgres-api-blocks.json` plus
@@ -181,7 +182,8 @@ calls `xriq-api request-postgres`, and writes
 `indexer/postgres-api-wallet-account-history.json` plus
 `indexer/postgres-api-audit-events.json`. The same live mode now starts a
 temporary local `serve-readonly` server with explicit Postgres flags, verifies
-`/api/v1/admin/postgres/read-model-status`, `/api/v1/admin/indexer/status`,
+`/api/v1/admin/postgres/read-model-status`, `/api/v1/admin/node/status`,
+`/api/v1/admin/indexer/status`,
 `/api/v1/explorer/overview`, and
 `/api/v1/blocks?limit=5`, `/api/v1/transactions?limit=5`, and
 `/api/v1/transactions/{tx_hash}`,
@@ -193,6 +195,7 @@ temporary local `serve-readonly` server with explicit Postgres flags, verifies
 `/api/v1/wallet/accounts/{address}/history?limit=5` plus
 `/api/v1/admin/audit-events?limit=5` over
 HTTP, and writes `indexer/postgres-server-read-model-status.json` plus
+`indexer/postgres-server-node-status.json` plus
 `indexer/postgres-server-indexer-status.json` plus
 `indexer/postgres-server-explorer-overview.json` plus
 `indexer/postgres-server-blocks.json` plus
@@ -270,6 +273,7 @@ cargo run -p xriq-indexer -- apply-postgres --chain-file target/xriq-indexer-rep
 cargo run -p xriq-indexer -- verify-postgres --dry-run true
 python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
+cargo run -p xriq-api -- request-postgres --target /api/v1/admin/node/status
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/indexer/status
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/audit-events?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/explorer/overview

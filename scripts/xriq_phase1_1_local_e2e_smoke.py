@@ -809,6 +809,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
 
     postgres_docker_live = None
     postgres_server_status = None
+    postgres_api_node_status = None
+    postgres_server_node_status = None
     postgres_api_indexer_status = None
     postgres_server_indexer_status = None
     postgres_api_overview = None
@@ -901,6 +903,55 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         write_json(indexer_dir / "postgres-api-read-model-status.json", postgres_api_status)
         completed.append("postgres-backed api read-model status")
+
+        def validate_postgres_node_status(payload: dict[str, Any], context: str) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(payload, "environment", "private-devnet", context)
+            require_equal(payload, "service", "xriq-api", context)
+            require_equal(payload, "status", "healthy", context)
+            require_equal(payload, "mode", "serve-readonly", context)
+            require_equal(payload, "network", "xriq-devnet", context)
+            require_equal(payload, "current_height", int(expected_counts["latest_height"]), context)
+            require_hash(payload.get("latest_block_hash"), f"{context} latest block hash")
+            require_hash(payload.get("state_root"), f"{context} state root")
+            require_equal(payload, "stored_blocks", int(expected_counts["blocks"]), context)
+            require_equal(payload, "pending_transactions", 0, context)
+            require_equal(payload, "wallet_submit_status", "disabled", context)
+            require_equal(payload, "block_production_status", "disabled", context)
+
+        postgres_node_status_output = run_command(
+            "xriq-api postgres node status",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                "/api/v1/admin/node/status",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_node_status = parse_api_request_output(
+            postgres_node_status_output,
+            "xriq-api postgres node status",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres node status: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_node_status}"
+            )
+        validate_postgres_node_status(
+            postgres_api_node_status,
+            "xriq-api postgres node status",
+        )
+        write_json(
+            indexer_dir / "postgres-api-node-status.json",
+            postgres_api_node_status,
+        )
+        completed.append("postgres-backed api node status")
 
         def validate_postgres_indexer_status(payload: dict[str, Any], context: str) -> None:
             require_equal(payload, "source", "postgres-read-model", context)
@@ -1572,6 +1623,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_status = http_json(
                 server_base_url, "/api/v1/admin/postgres/read-model-status"
             )
+            postgres_server_node_status = http_json(
+                server_base_url, "/api/v1/admin/node/status"
+            )
             postgres_server_indexer_status = http_json(
                 server_base_url, "/api/v1/admin/indexer/status"
             )
@@ -1670,6 +1724,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_overview,
             "xriq-api serve-readonly postgres explorer overview",
         )
+        validate_postgres_node_status(
+            postgres_server_node_status,
+            "xriq-api serve-readonly postgres node status",
+        )
         validate_postgres_indexer_status(
             postgres_server_indexer_status,
             "xriq-api serve-readonly postgres indexer status",
@@ -1722,6 +1780,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             indexer_dir / "postgres-server-read-model-status.json", postgres_server_status
         )
         write_json(
+            indexer_dir / "postgres-server-node-status.json",
+            postgres_server_node_status,
+        )
+        write_json(
             indexer_dir / "postgres-server-indexer-status.json",
             postgres_server_indexer_status,
         )
@@ -1767,6 +1829,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_audit_events,
         )
         completed.append("postgres-backed server read-model status")
+        completed.append("postgres-backed server node status")
         completed.append("postgres-backed server indexer status")
         completed.append("postgres-backed server explorer overview")
         completed.append("postgres-backed server blocks")
@@ -2135,6 +2198,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_read_model_status": (
                 str(indexer_dir / "postgres-server-read-model-status.json")
                 if postgres_server_status
+                else None
+            ),
+            "postgres_api_node_status": (
+                str(indexer_dir / "postgres-api-node-status.json")
+                if postgres_api_node_status
+                else None
+            ),
+            "postgres_server_node_status": (
+                str(indexer_dir / "postgres-server-node-status.json")
+                if postgres_server_node_status
                 else None
             ),
             "postgres_api_indexer_status": (
