@@ -75,12 +75,12 @@ React + TypeScript
  `-- Admin portal           ~32%; read-only node/status, pending mempool, pending wallet status, optional Postgres read-model/node/indexer/wallet status, snapshot catalog, and audit events panels exist
 
 SQL/PostgreSQL
- |-- Explorer indexing      ~63%; schema, indexer, SQL plan, verify path, Docker live smoke, Postgres-backed API/server read-model/node/indexer status reads, and first Postgres-backed product overview/block-list/block-detail/transaction list/mempool/wallet-status/wallet-draft-preview/detail/confirmed-and-pending-wallet-status/ISO-status/account/wallet-account/wallet-balance/history/wallet-history/audit-events/snapshot-list/snapshot-detail reads exist
+ |-- Explorer indexing      ~64%; schema, indexer, SQL plan, verify path, Docker live smoke, Postgres-backed API/server read-model/node/indexer status reads, and first Postgres-backed product overview/block-list/block-detail/transaction list/mempool/wallet-status/wallet-draft-preview/detail/confirmed-and-pending-wallet-status/ISO-status/ISO-initiation/account/wallet-account/wallet-balance/history/wallet-history/audit-events/snapshot-list/snapshot-detail reads exist
  |-- Analytics              ~5%; read-model totals exist, deeper analytics deferred
  `-- Audit data             ~28%; schema, indexed block audit events, file-backed and opt-in Postgres read APIs, and UI panel exist
 
 ISO 20022
- `-- Compatibility adapter  ~28%; preview crate, product API read routes, UI panel, and first opt-in Postgres status route exist
+ `-- Compatibility adapter  ~31%; preview crate, product API read routes, UI panel, and first opt-in Postgres status/initiation routes exist
 ```
 
 Initial post-RC1 Phase 1.1 baseline status was about `15%`. Most of that value
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the local Phase 1.1 Postgres-backed ISO 20022 transaction-status checkpoint,
-Phase 1.1 status is about `91%`: the contract document, PostgreSQL read-model schema, JSON
+After the local Phase 1.1 Postgres-backed ISO 20022 payment-initiation checkpoint,
+Phase 1.1 status is about `92%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -104,6 +104,7 @@ route plus `/api/v1/admin/node/status` and `/api/v1/admin/indexer/status`, the f
 `/api/v1/transactions?limit=...`, `/api/v1/mempool?limit=...`,
 `/api/v1/wallet/status`, `/api/v1/wallet/transfers/draft-preview?...`,
 `/api/v1/iso20022/transactions/{tx_hash}/status`,
+`/api/v1/iso20022/payment-initiation/preview?tx_hash=...`,
 `/api/v1/transactions/{tx_hash}`, and
 `/api/v1/wallet/transactions/{tx_hash}/status` for confirmed and pending hashes,
 `/api/v1/accounts?limit=...`, `/api/v1/accounts/{address}`,
@@ -186,6 +187,7 @@ calls `xriq-api request-postgres`, and writes
 `indexer/postgres-api-transaction-detail.json` plus
 `indexer/postgres-api-wallet-transaction-status.json` plus
 `indexer/postgres-api-iso-transaction-status.json` plus
+`indexer/postgres-api-iso-payment-initiation.json` plus
 `indexer/postgres-api-wallet-pending-transaction-status.json` plus
 `indexer/postgres-api-accounts.json` plus
 `indexer/postgres-api-wallet-accounts.json` plus
@@ -208,6 +210,7 @@ temporary local `serve-readonly` server with explicit Postgres flags, verifies
 `/api/v1/transactions/{tx_hash}`,
 `/api/v1/wallet/transactions/{tx_hash}/status`,
 `/api/v1/iso20022/transactions/{tx_hash}/status`,
+`/api/v1/iso20022/payment-initiation/preview?tx_hash=...`,
 `/api/v1/accounts?limit=5`, and
 `/api/v1/wallet/accounts?limit=5`, and `/api/v1/accounts/{address}` plus
 `/api/v1/wallet/accounts/{address}/balance` plus
@@ -229,6 +232,7 @@ HTTP, and writes `indexer/postgres-server-read-model-status.json` plus
 `indexer/postgres-server-transaction-detail.json` plus
 `indexer/postgres-server-wallet-transaction-status.json` plus
 `indexer/postgres-server-iso-transaction-status.json` plus
+`indexer/postgres-server-iso-payment-initiation.json` plus
 `indexer/postgres-server-wallet-pending-transaction-status.json` plus
 `indexer/postgres-server-accounts.json` plus
 `indexer/postgres-server-wallet-accounts.json` plus
@@ -314,6 +318,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/mempool?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/status
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions/<tx_hash>
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/transactions/<tx_hash>/status
+cargo run -p xriq-api -- request-postgres --target '/api/v1/iso20022/payment-initiation/preview?tx_hash=<tx_hash>'
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>
@@ -352,6 +357,8 @@ The Docker live-smoke path uses the same service but isolates itself to
   `/api/v1/transactions?limit=...`, `/api/v1/mempool?limit=...`,
   `/api/v1/wallet/status`, plus `/api/v1/transactions/{tx_hash}`,
   `/api/v1/wallet/transactions/{tx_hash}/status`,
+  `/api/v1/iso20022/transactions/{tx_hash}/status`,
+  `/api/v1/iso20022/payment-initiation/preview?tx_hash=...`,
   `/api/v1/accounts?limit=...`, `/api/v1/accounts/{address}`,
   `/api/v1/accounts/{address}/transactions?limit=...`, and
   `/api/v1/wallet/accounts?limit=...`,
