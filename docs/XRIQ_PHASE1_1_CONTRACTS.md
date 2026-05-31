@@ -148,6 +148,10 @@ Required behavior:
 - Postgres read-model status is local/private-devnet read-only and must not
   print database passwords, mutate schema, or replace the default file-backed
   API path unless explicitly configured
+- `xriq-api serve-readonly` exposes the Postgres read-model status route only
+  when both `--postgres-docker-container` and `--postgres-database` are passed;
+  without those flags the route remains disabled and ordinary file-backed API
+  routes keep working
 
 ### ISO 20022 Mapping APIs
 
@@ -423,6 +427,13 @@ without changing the default file-backed API request/server path:
 
 ```bash
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
+```
+
+The same route can be exposed by the local read-only HTTP server only when the
+Postgres source is explicitly configured:
+
+```bash
+cargo run -p xriq-api -- serve-readonly --chain-file target/xriq-indexer-replay-smoke.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --postgres-docker-container xriq-postgres --postgres-database xriq_phase1_1_smoke
 ```
 
 Run the local replay command from `xriq/` against an existing private-devnet

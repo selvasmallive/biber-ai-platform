@@ -346,11 +346,19 @@ writes a live-count artifact under the smoke output directory.
 python scripts\xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
 ```
 
-The same live smoke verifies the first explicit Postgres-backed API read path:
+The same live smoke verifies the first explicit Postgres-backed API read paths:
 
 ```powershell
 cd xriq
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
+```
+
+To expose that read-model status through the local read-only HTTP server, pass
+both explicit Postgres flags. Without these flags, `serve-readonly` stays
+file-backed and the Postgres status route remains disabled.
+
+```powershell
+cargo run -p xriq-api -- serve-readonly --chain-file target\xriq-indexer-replay-smoke.bin --pending-file target\xriq-devnet-pending.tsv --alice-balance 100 --bind 127.0.0.1:8090 --postgres-docker-container xriq-postgres --postgres-database xriq_phase1_1_smoke
 ```
 
 To start the optional local XRIQ PostgreSQL read model and verify counts after

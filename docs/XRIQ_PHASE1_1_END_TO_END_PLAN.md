@@ -65,7 +65,7 @@ Rust
  |-- Blockchain node        ~70% for private-devnet; RC1 baseline exists
  |-- Consensus engine       ~60% for private-devnet; single-authority baseline
  |-- Wallet backend         ~51%; CLI flows plus product read/preview/pending-status routes exist
- |-- APIs                   ~57%; local HTTP wrappers plus wallet/admin/node/pending-file mempool/pending-status/ISO preview read routes and explicit Postgres read-model status CLI exist
+ |-- APIs                   ~58%; local HTTP wrappers plus wallet/admin/node/pending-file mempool/pending-status/ISO preview read routes and explicit Postgres read-model status CLI/server paths exist
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
@@ -75,7 +75,7 @@ React + TypeScript
  `-- Admin portal           ~25%; read-only node/status, pending mempool, pending wallet status, snapshot catalog, and audit events panels exist
 
 SQL/PostgreSQL
- |-- Explorer indexing      ~31%; schema, indexer, SQL plan, verify path, Docker live smoke, and first Postgres-backed API status read exist
+ |-- Explorer indexing      ~33%; schema, indexer, SQL plan, verify path, Docker live smoke, and first Postgres-backed API/server status read exist
  |-- Analytics              ~5%; read-model totals exist, deeper analytics deferred
  `-- Audit data             ~20%; schema, indexed block audit events, read API, and UI panel exist
 
@@ -88,17 +88,19 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first local Phase 1.1 Postgres-backed API read path checkpoint, Phase
-1.1 status is about `66%`: the contract document, PostgreSQL read-model schema, JSON
+After the first local Phase 1.1 Postgres-backed read-only server checkpoint,
+Phase 1.1 status is about `67%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
 service, `verify-postgres` verification command, opt-in Docker-backed live
 smoke application through container-local `psql`, explicit `xriq-api`
 Postgres read-model status command for
-`/api/v1/admin/postgres/read-model-status`, `xriq-api` read-only product
-response boundary with `/api/v1/...` route/render behavior, a local
-`serve-readonly` socket wrapper, a `request` CLI smoke path, and
+`/api/v1/admin/postgres/read-model-status`, explicitly configured
+`xriq-api serve-readonly` support for the same local Postgres read-model status
+route, `xriq-api` read-only product response boundary with `/api/v1/...`
+route/render behavior, a local `serve-readonly` socket wrapper, a `request` CLI
+smoke path, and
 `xriq-iso20022` preview mapping crate exist. The local Phase 1.1 smoke now also
 builds `xriq-indexer`, validates indexer replay JSON, writes the SQL write-plan
 artifact, validates apply/verify PostgreSQL dry-runs without requiring a
@@ -154,7 +156,10 @@ a dedicated `xriq_phase1_1_smoke` database schema, applies the schema plus
 generated write plan through container-local `psql`, verifies indexed counts,
 calls `xriq-api request-postgres`, and writes
 `indexer/postgres-docker-live.json` plus
-`indexer/postgres-api-read-model-status.json`.
+`indexer/postgres-api-read-model-status.json`. The same live mode now starts a
+temporary local `serve-readonly` server with explicit Postgres flags, verifies
+`/api/v1/admin/postgres/read-model-status` over HTTP, and writes
+`indexer/postgres-server-read-model-status.json`.
 
 ## Phase 1.1 Build Order
 

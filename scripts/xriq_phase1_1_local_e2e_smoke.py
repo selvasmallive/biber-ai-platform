@@ -5,12 +5,15 @@ import argparse
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 
 ALICE = "xriqdev1alice00000000000"
@@ -208,6 +211,119 @@ def assert_api_status(
 
 def npm_command() -> str:
     return "npm.cmd" if sys.platform.startswith("win") else "npm"
+
+
+def free_local_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(("127.0.0.1", 0))
+        return int(listener.getsockname()[1])
+
+
+def http_json(base_url: str, target: str, *, expected_status: int = 200) -> dict[str, Any]:
+    request = Request(base_url + target, method="GET")
+    try:
+        with urlopen(request, timeout=10) as response:
+            status = response.status
+            text = response.read().decode("utf-8")
+    except HTTPError as exc:
+        status = exc.code
+        text = exc.read().decode("utf-8")
+    except URLError as exc:
+        raise SmokeError(f"GET {target} failed: {exc}") from exc
+
+    if status != expected_status:
+        raise SmokeError(f"GET {target}: expected HTTP {expected_status}, got {status}: {text}")
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise SmokeError(f"GET {target}: invalid JSON response: {exc}: {text}") from exc
+    if not isinstance(payload, dict):
+        raise SmokeError(f"GET {target}: expected JSON object response")
+    return payload
+
+
+def start_api_readonly_server(
+    api_binary: Path,
+    xriq_dir: Path,
+    artifact_dir: Path,
+    *,
+    chain_file: Path,
+    pending_file: Path,
+    bind: str,
+    postgres_container: str,
+    postgres_database: str,
+) -> subprocess.Popen[str]:
+    stderr_log = artifact_dir / "api-postgres-read-model-server.stderr.log"
+    stderr_handle = stderr_log.open("w", encoding="utf-8")
+    try:
+        process = subprocess.Popen(
+            [
+                str(api_binary),
+                "serve-readonly",
+                "--chain-file",
+                str(chain_file),
+                "--pending-file",
+                str(pending_file),
+                "--alice-balance",
+                "100",
+                "--bind",
+                bind,
+                "--postgres-docker-container",
+                postgres_container,
+                "--postgres-database",
+                postgres_database,
+            ],
+            cwd=xriq_dir,
+            stdout=subprocess.DEVNULL,
+            stderr=stderr_handle,
+            text=True,
+        )
+    except Exception:
+        stderr_handle.close()
+        raise
+    process.stderr_log_path = stderr_log  # type: ignore[attr-defined]
+    process.stderr_handle = stderr_handle  # type: ignore[attr-defined]
+    return process
+
+
+def stop_process(process: subprocess.Popen[str] | None) -> None:
+    if process is None:
+        return
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+    stderr_handle = getattr(process, "stderr_handle", None)
+    if stderr_handle is not None:
+        stderr_handle.close()
+
+
+def wait_for_api_readonly_server(base_url: str, process: subprocess.Popen[str]) -> None:
+    deadline = time.monotonic() + 20
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            stop_process(process)
+            stderr_log = getattr(process, "stderr_log_path", None)
+            stderr = (
+                stderr_log.read_text(encoding="utf-8")
+                if isinstance(stderr_log, Path) and stderr_log.exists()
+                else ""
+            )
+            raise SmokeError(
+                f"xriq-api serve-readonly exited early with {process.returncode}: {stderr}"
+            )
+        try:
+            health = http_json(base_url, "/api/v1/health")
+            require_equal(health, "ok", True, "serve-readonly health")
+            return
+        except Exception as exc:  # noqa: BLE001 - retry during startup.
+            last_error = exc
+            time.sleep(0.2)
+    raise SmokeError(f"xriq-api serve-readonly did not become healthy: {last_error}")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -691,6 +807,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     completed.append("indexer replay and postgres dry-run")
 
     postgres_docker_live = None
+    postgres_server_status = None
     if args.postgres_docker_live:
         postgres_docker_live = run_postgres_docker_live(
             root,
@@ -756,6 +873,63 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         write_json(indexer_dir / "postgres-api-read-model-status.json", postgres_api_status)
         completed.append("postgres-backed api read-model status")
+
+        server_port = free_local_port()
+        server_bind = f"127.0.0.1:{server_port}"
+        server_base_url = f"http://{server_bind}"
+        server_process: subprocess.Popen[str] | None = None
+        try:
+            server_process = start_api_readonly_server(
+                api_binary,
+                xriq_dir,
+                artifact_dir,
+                chain_file=chain_file,
+                pending_file=pending_file,
+                bind=server_bind,
+                postgres_container=args.postgres_docker_container,
+                postgres_database=args.postgres_docker_database,
+            )
+            wait_for_api_readonly_server(server_base_url, server_process)
+            postgres_server_status = http_json(
+                server_base_url, "/api/v1/admin/postgres/read-model-status"
+            )
+        finally:
+            stop_process(server_process)
+        require_equal(
+            postgres_server_status,
+            "source",
+            "postgres-read-model",
+            "xriq-api serve-readonly postgres read-model status",
+        )
+        require_equal(
+            postgres_server_status,
+            "read_only",
+            True,
+            "xriq-api serve-readonly postgres read-model status",
+        )
+        server_counts = postgres_server_status.get("counts")
+        if not isinstance(server_counts, dict):
+            raise SmokeError(
+                "xriq-api serve-readonly postgres read-model status: expected counts object"
+            )
+        for key, expected in expected_counts.items():
+            if key == "latest_height":
+                continue
+            if server_counts.get(key) != int(expected):
+                raise SmokeError(
+                    "xriq-api serve-readonly postgres read-model status: expected "
+                    f"{key}={expected!r}, got {server_counts.get(key)!r}"
+                )
+        require_equal(
+            postgres_server_status,
+            "latest_height",
+            int(expected_counts["latest_height"]),
+            "xriq-api serve-readonly postgres read-model status",
+        )
+        write_json(
+            indexer_dir / "postgres-server-read-model-status.json", postgres_server_status
+        )
+        completed.append("postgres-backed server read-model status")
     else:
         skipped.append("postgres docker live smoke")
 
@@ -1105,6 +1279,11 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_api_read_model_status": (
                 str(indexer_dir / "postgres-api-read-model-status.json")
                 if postgres_docker_live
+                else None
+            ),
+            "postgres_server_read_model_status": (
+                str(indexer_dir / "postgres-server-read-model-status.json")
+                if postgres_server_status
                 else None
             ),
         },

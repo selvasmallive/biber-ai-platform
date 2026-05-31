@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `66%` overall. Current Rust
+- Phase 1.1 estimated completion: about `67%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -149,10 +149,10 @@ unless the user changes the project scope again.
   SQL write-plan generation, apply-postgres dry-run, and verify-postgres
   dry-run before API route checks by default. The first Rust product API service, route/render
   boundary, CLI smoke path, and local read-only socket wrapper now exist in
-  `xriq/crates/xriq-api`, and `xriq-api request-postgres` can explicitly read
-  the local Docker Postgres read model for
-  `/api/v1/admin/postgres/read-model-status` without changing the default
-  file-backed API path. The first ISO
+  `xriq/crates/xriq-api`, and `xriq-api request-postgres` plus explicitly
+  configured `xriq-api serve-readonly` can read the local Docker Postgres read
+  model for `/api/v1/admin/postgres/read-model-status` without changing the
+  default file-backed API path. The first ISO
   20022 compatibility adapter exists in `xriq/crates/xriq-iso20022`, but it is
   a private-devnet preview mapping layer only, not certification or payment
   network connectivity. `xriq-api` now exposes that adapter through GET-only
@@ -207,6 +207,28 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 Postgres-backed read-only server checkpoint:
+  extended `xriq-api serve-readonly` with explicit
+  `--postgres-docker-container <container> --postgres-database <database>`
+  flags. When both flags are present, the local read-only HTTP server exposes
+  `/api/v1/admin/postgres/read-model-status` from the Docker Postgres read
+  model and returns the same contract-style JSON as `request-postgres`. When
+  the flags are absent, the endpoint remains disabled with `404 not_found` and
+  all normal file-backed `serve-readonly` routes continue unchanged. The
+  Phase 1.1 live smoke now starts a temporary local `serve-readonly` server
+  with those flags, calls the Postgres status endpoint over HTTP, validates the
+  same table counts and latest height, and writes
+  `indexer/postgres-server-read-model-status.json`. Verification passed
+  `cargo fmt --check`, `cargo test -p xriq-api`, `cargo clippy -p xriq-api -- -D warnings`,
+  bundled-Python `py_compile`, and
+  `scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live`, producing
+  artifact directory
+  `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T020202Z` with no skipped
+  checks. Phase 1.1 status is now about `67%` overall.
+- Recommended next narrow step: wire the React Admin Status panel to optionally
+  read `/api/v1/admin/postgres/read-model-status` when the local API server is
+  launched with explicit Postgres flags, while keeping the UI read-only and
+  tolerant of `404 not_found` when the route is disabled.
 - Latest native XRIQ Phase 1.1 Postgres-backed API read path checkpoint:
   added `xriq-api request-postgres`, an explicit local-only Docker Postgres
   read-model request command for

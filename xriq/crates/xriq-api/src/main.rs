@@ -59,7 +59,8 @@ fn run_request(args: &[&str]) -> Result<String, String> {
 
 fn run_request_postgres(args: &[&str]) -> Result<String, String> {
     let config = PostgresRequestConfig::parse(args)?;
-    let response = postgres_read_model_http_response(&config)?;
+    let response =
+        postgres_read_model_http_response(&config.read_model, config.method, config.target)?;
 
     Ok(cli_response(response))
 }
@@ -67,6 +68,10 @@ fn run_request_postgres(args: &[&str]) -> Result<String, String> {
 fn run_serve_readonly(args: &[&str]) -> Result<String, String> {
     let config = ServeConfig::parse(args)?;
     let service = build_service(config.chain_file, config.pending_file, config.alice_balance)?;
+    let runtime = LocalApiRuntime {
+        service,
+        postgres_read_model: config.postgres_read_model,
+    };
     let listener = TcpListener::bind(config.bind)
         .map_err(|error| format!("could not bind xriq-api to {}: {error}", config.bind))?;
     eprintln!(
@@ -80,7 +85,7 @@ fn run_serve_readonly(args: &[&str]) -> Result<String, String> {
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                if let Err(error) = handle_connection(&service, stream) {
+                if let Err(error) = handle_connection(&runtime, stream) {
                     eprintln!("xriq-api connection error: {error}");
                 }
             }
@@ -122,7 +127,12 @@ fn build_service(
     Ok(service)
 }
 
-fn handle_connection(service: &XriqApiService, mut stream: TcpStream) -> Result<(), String> {
+struct LocalApiRuntime<'a> {
+    service: XriqApiService,
+    postgres_read_model: Option<PostgresReadModelConfig<'a>>,
+}
+
+fn handle_connection(runtime: &LocalApiRuntime<'_>, mut stream: TcpStream) -> Result<(), String> {
     let mut buffer = [0_u8; 8192];
     let bytes_read = stream
         .read(&mut buffer)
@@ -138,7 +148,7 @@ fn handle_connection(service: &XriqApiService, mut stream: TcpStream) -> Result<
         .next()
         .ok_or_else(|| "request was empty".to_string())?;
     let response = match parse_http_request_line(first_line) {
-        Ok((method, target)) => product_api_http_response(service, method, target),
+        Ok((method, target)) => local_api_http_response(runtime, method, target),
         Err(message) => bad_request_response(&message),
     };
 
@@ -148,6 +158,24 @@ fn handle_connection(service: &XriqApiService, mut stream: TcpStream) -> Result<
     stream
         .flush()
         .map_err(|error| format!("could not flush response: {error}"))
+}
+
+fn local_api_http_response(
+    runtime: &LocalApiRuntime<'_>,
+    method: &str,
+    target: &str,
+) -> ApiHttpResponse {
+    if let Some(response) = maybe_postgres_read_model_http_response(
+        runtime.postgres_read_model.as_ref(),
+        method,
+        target,
+    ) {
+        return response.unwrap_or_else(|error| {
+            local_api_error_response(503, "postgres_read_model_unavailable", &error)
+        });
+    }
+
+    product_api_http_response(&runtime.service, method, target)
 }
 
 fn parse_http_request_line(line: &str) -> Result<(&str, &str), String> {
@@ -188,10 +216,29 @@ fn cli_response(response: ApiHttpResponse) -> String {
     )
 }
 
+fn maybe_postgres_read_model_http_response(
+    config: Option<&PostgresReadModelConfig<'_>>,
+    method: &str,
+    target: &str,
+) -> Option<Result<ApiHttpResponse, String>> {
+    let path = target.split('?').next().unwrap_or(target);
+    if path != POSTGRES_READ_MODEL_STATUS_ROUTE {
+        return None;
+    }
+
+    let Some(config) = config else {
+        return Some(Ok(postgres_read_model_disabled_response()));
+    };
+
+    Some(postgres_read_model_http_response(config, method, target))
+}
+
 fn postgres_read_model_http_response(
-    config: &PostgresRequestConfig<'_>,
+    config: &PostgresReadModelConfig<'_>,
+    method: &str,
+    target: &str,
 ) -> Result<ApiHttpResponse, String> {
-    if config.method != "GET" {
+    if method != "GET" {
         return Ok(local_api_error_response(
             405,
             "method_not_allowed",
@@ -199,7 +246,7 @@ fn postgres_read_model_http_response(
         ));
     }
 
-    let path = config.target.split('?').next().unwrap_or(config.target);
+    let path = target.split('?').next().unwrap_or(target);
     if path != POSTGRES_READ_MODEL_STATUS_ROUTE {
         return Ok(local_api_error_response(
             404,
@@ -223,11 +270,20 @@ fn postgres_read_model_http_response(
     })
 }
 
+fn postgres_read_model_disabled_response() -> ApiHttpResponse {
+    local_api_error_response(
+        404,
+        "not_found",
+        "XRIQ Postgres read-model endpoint is disabled; restart serve-readonly with --postgres-docker-container and --postgres-database to enable it",
+    )
+}
+
 fn local_api_error_response(status_code: u16, code: &str, message: &str) -> ApiHttpResponse {
     let reason = match status_code {
         400 => "Bad Request",
         404 => "Not Found",
         405 => "Method Not Allowed",
+        503 => "Service Unavailable",
         _ => "Error",
     };
     ApiHttpResponse {
@@ -316,7 +372,7 @@ fn parse_key_value_lines(output: &str, context: &str) -> Result<BTreeMap<String,
 }
 
 fn render_postgres_read_model_status_json(
-    config: &PostgresRequestConfig<'_>,
+    config: &PostgresReadModelConfig<'_>,
     values: &BTreeMap<String, String>,
 ) -> Result<String, String> {
     let blocks = required_u64(values, "blocks")?;
@@ -406,12 +462,13 @@ fn help_text() -> String {
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
         "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status",
-        "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090]",
+        "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
         "  xriq-api request --chain-file target/xriq-devnet.bin --alice-balance 100 --target /api/v1/health",
         "  xriq-api request-postgres --target /api/v1/admin/postgres/read-model-status",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100",
+        "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100 --postgres-docker-container xriq-postgres --postgres-database xriq_phase1_1_smoke",
     ]
     .join("\n")
 }
@@ -450,8 +507,7 @@ impl<'a> RequestConfig<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PostgresRequestConfig<'a> {
-    docker_container: &'a str,
-    database: &'a str,
+    read_model: PostgresReadModelConfig<'a>,
     method: &'a str,
     target: &'a str,
 }
@@ -466,13 +522,27 @@ impl<'a> PostgresRequestConfig<'a> {
         let database = flags
             .optional("--database")
             .unwrap_or("xriq_phase1_1_smoke");
+        Ok(Self {
+            read_model: PostgresReadModelConfig::new(docker_container, database)?,
+            method: flags.optional("--method").unwrap_or("GET"),
+            target: flags.required("--target")?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PostgresReadModelConfig<'a> {
+    docker_container: &'a str,
+    database: &'a str,
+}
+
+impl<'a> PostgresReadModelConfig<'a> {
+    fn new(docker_container: &'a str, database: &'a str) -> Result<Self, String> {
         validate_docker_name(docker_container, "docker container")?;
         validate_postgres_identifier(database, "postgres database")?;
         Ok(Self {
             docker_container,
             database,
-            method: flags.optional("--method").unwrap_or("GET"),
-            target: flags.required("--target")?,
         })
     }
 }
@@ -483,6 +553,7 @@ struct ServeConfig<'a> {
     pending_file: Option<&'a str>,
     alice_balance: Option<XriqAmount>,
     bind: &'a str,
+    postgres_read_model: Option<PostgresReadModelConfig<'a>>,
 }
 
 impl<'a> ServeConfig<'a> {
@@ -493,7 +564,30 @@ impl<'a> ServeConfig<'a> {
             "--pending-file",
             "--alice-balance",
             "--bind",
+            "--postgres-docker-container",
+            "--postgres-database",
         ])?;
+        let postgres_read_model = match (
+            flags.optional("--postgres-docker-container"),
+            flags.optional("--postgres-database"),
+        ) {
+            (None, None) => None,
+            (Some(docker_container), Some(database)) => {
+                Some(PostgresReadModelConfig::new(docker_container, database)?)
+            }
+            (Some(_), None) => {
+                return Err(
+                    "missing required flag when enabling Postgres read model: --postgres-database"
+                        .to_string(),
+                );
+            }
+            (None, Some(_)) => {
+                return Err(
+                    "missing required flag when enabling Postgres read model: --postgres-docker-container"
+                        .to_string(),
+                );
+            }
+        };
         Ok(Self {
             chain_file: flags.required("--chain-file")?,
             pending_file: flags.optional("--pending-file"),
@@ -502,6 +596,7 @@ impl<'a> ServeConfig<'a> {
                 .map(parse_amount)
                 .transpose()?,
             bind: flags.optional("--bind").unwrap_or(DEFAULT_BIND),
+            postgres_read_model,
         })
     }
 }
@@ -654,8 +749,8 @@ mod tests {
         let config =
             PostgresRequestConfig::parse(&["--target", POSTGRES_READ_MODEL_STATUS_ROUTE]).unwrap();
 
-        assert_eq!(config.docker_container, "xriq-postgres");
-        assert_eq!(config.database, "xriq_phase1_1_smoke");
+        assert_eq!(config.read_model.docker_container, "xriq-postgres");
+        assert_eq!(config.read_model.database, "xriq_phase1_1_smoke");
         assert_eq!(config.method, "GET");
         assert_eq!(config.target, POSTGRES_READ_MODEL_STATUS_ROUTE);
 
@@ -717,7 +812,7 @@ indexer_status=completed
         )
         .unwrap();
 
-        let body = render_postgres_read_model_status_json(&config, &values).unwrap();
+        let body = render_postgres_read_model_status_json(&config.read_model, &values).unwrap();
 
         assert!(body.contains("\"source\": \"postgres-read-model\""));
         assert!(body.contains(POSTGRES_READ_MODEL_WARNING));
@@ -742,6 +837,61 @@ indexer_status=completed
         assert_eq!(config.pending_file, Some("target/xriq-pending.tsv"));
         assert_eq!(config.alice_balance, None);
         assert_eq!(config.bind, DEFAULT_BIND);
+        assert_eq!(config.postgres_read_model, None);
+    }
+
+    #[test]
+    fn serve_config_enables_postgres_read_model_only_with_explicit_pair() {
+        let config = ServeConfig::parse(&[
+            "--chain-file",
+            "target/xriq.bin",
+            "--postgres-docker-container",
+            "xriq-postgres",
+            "--postgres-database",
+            "xriq_phase1_1_smoke",
+        ])
+        .unwrap();
+
+        assert_eq!(
+            config.postgres_read_model,
+            Some(PostgresReadModelConfig {
+                docker_container: "xriq-postgres",
+                database: "xriq_phase1_1_smoke",
+            })
+        );
+
+        let missing_database = ServeConfig::parse(&[
+            "--chain-file",
+            "target/xriq.bin",
+            "--postgres-docker-container",
+            "xriq-postgres",
+        ])
+        .unwrap_err();
+        assert!(missing_database.contains("--postgres-database"));
+
+        let missing_container = ServeConfig::parse(&[
+            "--chain-file",
+            "target/xriq.bin",
+            "--postgres-database",
+            "xriq_phase1_1_smoke",
+        ])
+        .unwrap_err();
+        assert!(missing_container.contains("--postgres-docker-container"));
+    }
+
+    #[test]
+    fn postgres_route_stays_disabled_without_server_postgres_config() {
+        let response =
+            maybe_postgres_read_model_http_response(None, "GET", POSTGRES_READ_MODEL_STATUS_ROUTE)
+                .unwrap()
+                .unwrap();
+
+        assert_eq!(response.status_code, 404);
+        assert_eq!(response.reason, "Not Found");
+        assert!(response.body.contains("\"code\": \"not_found\""));
+        assert!(response.body.contains("endpoint is disabled"));
+
+        assert!(maybe_postgres_read_model_http_response(None, "GET", "/api/v1/health").is_none());
     }
 
     #[test]
