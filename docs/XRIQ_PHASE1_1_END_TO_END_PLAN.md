@@ -89,7 +89,7 @@ actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
 After the first local Phase 1.1 optional Postgres live-smoke checkpoint, Phase
-1.1 status is about `64%`: the contract document, PostgreSQL read-model schema, JSON
+1.1 status is about `65%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -136,10 +136,12 @@ read-only Admin Status panel that summarizes network tip state, indexer
 current/last-run status, node health/read-only mode, wallet draft/submit/send
 capability flags, read-only durable pending-file mempool status, the first
 pending wallet transaction status with null block/index fields, a read-only
-snapshot catalog, and indexed audit events from the product API. Actual
-repeated live database smoke execution on this workstation, real wallet submission APIs, mutating
+snapshot catalog, and indexed audit events from the product API. The optional
+Docker-backed live database smoke has passed once on this workstation against a
+dedicated `xriq_phase1_1_smoke` database. Real wallet submission APIs, mutating
 admin controls, block-production controls, real snapshot export/import
-controls, and deeper ISO adapter integration are still pending. The local
+controls, deeper ISO adapter integration, and repeated live database smoke in
+CI or a longer-running dev loop are still pending. The local
 `scripts/xriq_phase1_1_local_e2e_smoke.py` command now checks the current
 contract fixtures, React UI guardrails, indexer replay/SQL/apply/verify
 dry-runs, 26 product API success routes, and three wallet draft-preview failure

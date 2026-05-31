@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `64%` overall. Current Rust
+- Phase 1.1 estimated completion: about `65%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -218,9 +218,14 @@ active target because the GPU was terminated to save cost.
   `indexer/postgres-docker-live.json` under the smoke artifact directory. The
   smoke summary now also records all indexer artifact paths. This does not
   require host `psql`, GCP, Vast/GPU resources, credentials, public/DEX
-  behavior, or production data. Verification on this workstation used the
-  default dry-run smoke path only because Docker Desktop/the Docker daemon was
-  not running. Phase 1.1 status is now about `64%` overall.
+  behavior, or production data. After Docker Desktop was started, live
+  verification passed with
+  `scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live`, producing
+  artifact directory
+  `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T015003Z`, confirming
+  `xriq-postgres` healthy and indexed counts of 1 block, 1 transaction, 3
+  accounts, 3 balances, 2 account-history rows, 1 audit event, 1 indexer run,
+  and latest height 1. Phase 1.1 status is now about `65%` overall.
 - Latest native XRIQ Phase 1.1 indexer dry-run smoke checkpoint: extended
   `scripts/xriq_phase1_1_local_e2e_smoke.py` so the one-command local Phase
   1.1 smoke now builds `xriq-indexer`, replays the generated chain through the
