@@ -388,8 +388,9 @@ validated against the local Docker Postgres service:
 4. Use `apply-postgres --dry-run true` as the default safety check.
 5. Use `apply-postgres --dry-run false` only with a local database URL and
    installed `psql`.
-6. Keep `/api/v1/explorer/overview` as the first Postgres-backed product data
-   route and add subsequent read-only list/detail routes one at a time.
+6. Keep `/api/v1/explorer/overview` and `/api/v1/blocks?limit=...` as the
+   first Postgres-backed product data routes and add subsequent read-only
+   list/detail routes one at a time.
 7. If host `psql` is unavailable but Docker Desktop is running, use
    `python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live` to
    apply and verify the generated SQL inside the local Compose Postgres
@@ -424,16 +425,17 @@ cargo test -p xriq-indexer
 ```
 
 The first explicit Postgres-backed API read paths are local-only and use the
-Compose `postgres` container. They return status/count JSON and the opt-in
-explorer overview shape from the read model without changing the default
-file-backed API request/server path:
+Compose `postgres` container. They return status/count JSON plus the opt-in
+explorer overview and block-list shapes from the read model without changing
+the default file-backed API request/server path:
 
 ```bash
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
 cargo run -p xriq-api -- request-postgres --target /api/v1/explorer/overview
+cargo run -p xriq-api -- request-postgres --target /api/v1/blocks?limit=5
 ```
 
-The same route can be exposed by the local read-only HTTP server only when the
+The same routes can be exposed by the local read-only HTTP server only when the
 Postgres source is explicitly configured:
 
 ```bash

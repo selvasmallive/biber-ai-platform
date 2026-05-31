@@ -19,6 +19,7 @@ use xriq_storage::FileChainStore;
 const DEFAULT_BIND: &str = "127.0.0.1:8090";
 const POSTGRES_READ_MODEL_STATUS_ROUTE: &str = "/api/v1/admin/postgres/read-model-status";
 const POSTGRES_EXPLORER_OVERVIEW_ROUTE: &str = "/api/v1/explorer/overview";
+const POSTGRES_BLOCKS_ROUTE: &str = "/api/v1/blocks";
 const POSTGRES_PRIVATE_DEVNET_NETWORK: &str = "xriq-devnet";
 const POSTGRES_READ_MODEL_WARNING: &str =
     "local-private-devnet-postgres-read-only-preview-no-mutation";
@@ -231,10 +232,13 @@ fn maybe_postgres_read_model_http_response(
         (POSTGRES_READ_MODEL_STATUS_ROUTE, None) => {
             return Some(Ok(postgres_read_model_disabled_response()));
         }
-        (POSTGRES_EXPLORER_OVERVIEW_ROUTE, None) => return None,
-        (POSTGRES_READ_MODEL_STATUS_ROUTE | POSTGRES_EXPLORER_OVERVIEW_ROUTE, Some(config)) => {
-            return Some(postgres_read_model_http_response(config, method, target));
-        }
+        (POSTGRES_EXPLORER_OVERVIEW_ROUTE | POSTGRES_BLOCKS_ROUTE, None) => return None,
+        (
+            POSTGRES_READ_MODEL_STATUS_ROUTE
+            | POSTGRES_EXPLORER_OVERVIEW_ROUTE
+            | POSTGRES_BLOCKS_ROUTE,
+            Some(config),
+        ) => return Some(postgres_read_model_http_response(config, method, target)),
         _ => {}
     };
     None
@@ -254,17 +258,21 @@ fn postgres_read_model_http_response(
     }
 
     let path = target.split('?').next().unwrap_or(target);
-    let (sql, label, renderer): (&str, &str, PostgresReadModelRenderer) = match path {
+    let (sql, label, renderer): (String, &str, PostgresReadModelRenderer) = match path {
         POSTGRES_READ_MODEL_STATUS_ROUTE => (
-            postgres_read_model_status_sql(),
+            postgres_read_model_status_sql().to_string(),
             "postgres read-model status",
             render_postgres_read_model_status_json,
         ),
         POSTGRES_EXPLORER_OVERVIEW_ROUTE => (
-            postgres_explorer_overview_sql(),
+            postgres_explorer_overview_sql().to_string(),
             "postgres explorer overview",
             render_postgres_explorer_overview_json,
         ),
+        POSTGRES_BLOCKS_ROUTE => match postgres_blocks_sql(target) {
+            Ok(sql) => (sql, "postgres blocks", render_postgres_blocks_json),
+            Err(message) => return Ok(local_api_error_response(400, "bad_request", &message)),
+        },
         _ => {
             return Ok(local_api_error_response(
                 404,
@@ -274,7 +282,7 @@ fn postgres_read_model_http_response(
         }
     };
 
-    let output = docker_psql_query(config.docker_container, config.database, sql, label)?;
+    let output = docker_psql_query(config.docker_container, config.database, &sql, label)?;
     let values = parse_key_value_lines(&output, label)?;
     let body = renderer(config, &values)?;
     Ok(ApiHttpResponse {
@@ -385,6 +393,62 @@ SELECT 'indexer_from_height=' || COALESCE((SELECT from_height::text FROM xriq_in
 SELECT 'indexer_to_height=' || COALESCE((SELECT to_height::text FROM xriq_indexer_runs ORDER BY completed_at DESC NULLS LAST, started_at DESC LIMIT 1), 'none');\n\
 SELECT 'indexer_blocks_indexed=' || COALESCE((SELECT blocks_indexed::text FROM xriq_indexer_runs ORDER BY completed_at DESC NULLS LAST, started_at DESC LIMIT 1), '0');\n\
 SELECT 'indexer_transactions_indexed=' || COALESCE((SELECT transactions_indexed::text FROM xriq_indexer_runs ORDER BY completed_at DESC NULLS LAST, started_at DESC LIMIT 1), '0');\n"
+}
+
+fn postgres_blocks_sql(target: &str) -> Result<String, String> {
+    let (_, query) = split_http_target(target);
+    let limit = limit_from_query(query, 25)?;
+    Ok(format!(
+        r#"
+WITH ranked AS (
+    SELECT
+        row_number() OVER (ORDER BY height DESC) - 1 AS row_index,
+        height,
+        block_hash,
+        previous_block_hash,
+        state_root,
+        transactions_root,
+        transaction_count,
+        COALESCE(to_char(timestamp_utc AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), '1970-01-01T00:00:00Z') AS timestamp_utc
+    FROM xriq_blocks
+    ORDER BY height DESC
+    LIMIT {limit}
+),
+counts AS (
+    SELECT count(*) AS total_blocks FROM xriq_blocks
+)
+SELECT key || '=' || value
+FROM (
+    SELECT 0 AS sort_order, 'limit' AS key, '{limit}' AS value
+    UNION ALL
+    SELECT 1, 'block_count', count(*)::text FROM ranked
+    UNION ALL
+    SELECT
+        2,
+        'next_cursor',
+        CASE
+            WHEN (SELECT total_blocks FROM counts) > (SELECT count(*) FROM ranked)
+            THEN COALESCE((SELECT height::text FROM ranked ORDER BY row_index DESC LIMIT 1), 'none')
+            ELSE 'none'
+        END
+    UNION ALL
+    SELECT 100 + row_index * 20, 'block_' || row_index || '_height', height::text FROM ranked
+    UNION ALL
+    SELECT 101 + row_index * 20, 'block_' || row_index || '_block_hash', block_hash FROM ranked
+    UNION ALL
+    SELECT 102 + row_index * 20, 'block_' || row_index || '_previous_block_hash', previous_block_hash FROM ranked
+    UNION ALL
+    SELECT 103 + row_index * 20, 'block_' || row_index || '_state_root', state_root FROM ranked
+    UNION ALL
+    SELECT 104 + row_index * 20, 'block_' || row_index || '_transactions_root', transactions_root FROM ranked
+    UNION ALL
+    SELECT 105 + row_index * 20, 'block_' || row_index || '_transaction_count', transaction_count::text FROM ranked
+    UNION ALL
+    SELECT 106 + row_index * 20, 'block_' || row_index || '_timestamp_utc', timestamp_utc FROM ranked
+) AS rows
+ORDER BY sort_order;
+"#
+    ))
 }
 
 fn parse_key_value_lines(output: &str, context: &str) -> Result<BTreeMap<String, String>, String> {
@@ -555,6 +619,89 @@ fn render_postgres_explorer_overview_json(
     ))
 }
 
+fn render_postgres_blocks_json(
+    _config: &PostgresReadModelConfig<'_>,
+    values: &BTreeMap<String, String>,
+) -> Result<String, String> {
+    let limit = required_u64_for(values, "limit", "postgres blocks")?;
+    let block_count = required_u64_for(values, "block_count", "postgres blocks")?;
+    let next_cursor = optional_string_json(values, "next_cursor")?;
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(&mut output, "  \"environment\": \"private-devnet\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"network\": {},",
+        json_string(POSTGRES_PRIVATE_DEVNET_NETWORK)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"source\": \"postgres-read-model\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(POSTGRES_READ_MODEL_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"read_only\": true,").expect("write to String");
+    writeln!(&mut output, "  \"limit\": {},", limit).expect("write to String");
+    writeln!(&mut output, "  \"next_cursor\": {},", next_cursor).expect("write to String");
+    output.push_str("  \"blocks\": [");
+    for index in 0..block_count {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_postgres_block_json_inline(values, index, 4)?);
+    }
+    if block_count > 0 {
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    Ok(output)
+}
+
+fn render_postgres_block_json_inline(
+    values: &BTreeMap<String, String>,
+    index: u64,
+    indent: usize,
+) -> Result<String, String> {
+    let prefix = format!("block_{index}_");
+    let height = required_u64_for(values, &format!("{prefix}height"), "postgres blocks")?;
+    let block_hash =
+        required_string_for(values, &format!("{prefix}block_hash"), "postgres blocks")?;
+    let previous_block_hash = required_string_for(
+        values,
+        &format!("{prefix}previous_block_hash"),
+        "postgres blocks",
+    )?;
+    let state_root =
+        required_string_for(values, &format!("{prefix}state_root"), "postgres blocks")?;
+    let transactions_root = required_string_for(
+        values,
+        &format!("{prefix}transactions_root"),
+        "postgres blocks",
+    )?;
+    let transaction_count = required_u64_for(
+        values,
+        &format!("{prefix}transaction_count"),
+        "postgres blocks",
+    )?;
+    let timestamp_utc =
+        required_string_for(values, &format!("{prefix}timestamp_utc"), "postgres blocks")?;
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    Ok(format!(
+        "{spaces}{{\n{nested}\"height\": {},\n{nested}\"block_hash\": {},\n{nested}\"previous_block_hash\": {},\n{nested}\"state_root\": {},\n{nested}\"transactions_root\": {},\n{nested}\"transaction_count\": {},\n{nested}\"timestamp_utc\": {}\n{spaces}}}",
+        height,
+        json_string(block_hash),
+        json_string(previous_block_hash),
+        json_string(state_root),
+        json_string(transactions_root),
+        transaction_count,
+        json_string(timestamp_utc)
+    ))
+}
+
 fn required_u64(values: &BTreeMap<String, String>, key: &str) -> Result<u64, String> {
     required_u64_for(values, key, "postgres read-model status")
 }
@@ -569,6 +716,17 @@ fn required_u64_for(
         .ok_or_else(|| format!("{context}: missing {key}"))?
         .parse::<u64>()
         .map_err(|_| format!("{context}: invalid integer for {key}"))
+}
+
+fn required_string_for<'a>(
+    values: &'a BTreeMap<String, String>,
+    key: &str,
+    context: &str,
+) -> Result<&'a str, String> {
+    values
+        .get(key)
+        .map(String::as_str)
+        .ok_or_else(|| format!("{context}: missing {key}"))
 }
 
 fn optional_u64_json(values: &BTreeMap<String, String>, key: &str) -> Result<String, String> {
@@ -596,17 +754,44 @@ fn optional_string_json(values: &BTreeMap<String, String>, key: &str) -> Result<
     }
 }
 
+fn split_http_target(target: &str) -> (&str, Option<&str>) {
+    target
+        .split_once('?')
+        .map_or((target, None), |(path, query)| (path, Some(query)))
+}
+
+fn limit_from_query(query: Option<&str>, default_limit: u64) -> Result<u64, String> {
+    let Some(value) = query_param(query, "limit") else {
+        return Ok(default_limit);
+    };
+    value
+        .parse::<u64>()
+        .map_err(|_| format!("invalid limit: {value}"))
+}
+
+fn query_param<'a>(query: Option<&'a str>, key: &str) -> Option<&'a str> {
+    query?.split('&').find_map(|pair| {
+        let (candidate, value) = pair.split_once('=')?;
+        if candidate == key {
+            Some(value)
+        } else {
+            None
+        }
+    })
+}
+
 fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/explorer/overview",
+        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/explorer/overview|/api/v1/blocks?limit=5",
         "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
         "  xriq-api request --chain-file target/xriq-devnet.bin --alice-balance 100 --target /api/v1/health",
         "  xriq-api request-postgres --target /api/v1/admin/postgres/read-model-status",
         "  xriq-api request-postgres --target /api/v1/explorer/overview",
+        "  xriq-api request-postgres --target /api/v1/blocks?limit=5",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100 --postgres-docker-container xriq-postgres --postgres-database xriq_phase1_1_smoke",
     ]
@@ -1000,6 +1185,51 @@ indexer_transactions_indexed=1
     }
 
     #[test]
+    fn postgres_blocks_json_renders_product_list_shape() {
+        let config = PostgresRequestConfig::parse(&["--target", "/api/v1/blocks?limit=5"]).unwrap();
+        let values = parse_key_value_lines(
+            "\
+limit=5
+block_count=1
+next_cursor=none
+block_0_height=1
+block_0_block_hash=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+block_0_previous_block_hash=0000000000000000000000000000000000000000000000000000000000000000
+block_0_state_root=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+block_0_transactions_root=1111111111111111111111111111111111111111111111111111111111111111
+block_0_transaction_count=1
+block_0_timestamp_utc=1970-01-01T00:00:01Z
+",
+            "test postgres blocks",
+        )
+        .unwrap();
+
+        let body = render_postgres_blocks_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"source\": \"postgres-read-model\""));
+        assert!(body.contains("\"limit\": 5"));
+        assert!(body.contains("\"next_cursor\": null"));
+        assert!(body.contains("\"blocks\": ["));
+        assert!(body.contains("\"height\": 1"));
+        assert!(body.contains("\"transaction_count\": 1"));
+        assert!(body.contains("\"timestamp_utc\": \"1970-01-01T00:00:01Z\""));
+    }
+
+    #[test]
+    fn postgres_blocks_sql_rejects_invalid_limit_before_docker() {
+        let response = run([
+            "request-postgres",
+            "--target",
+            "/api/v1/blocks?limit=not-a-number",
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=400"));
+        assert!(response.contains("\"code\": \"bad_request\""));
+        assert!(response.contains("invalid limit"));
+    }
+
+    #[test]
     fn serve_config_defaults_to_localhost_private_devnet_port() {
         let config = ServeConfig::parse(&[
             "--chain-file",
@@ -1074,6 +1304,10 @@ indexer_transactions_indexed=1
             POSTGRES_EXPLORER_OVERVIEW_ROUTE
         )
         .is_none());
+        assert!(
+            maybe_postgres_read_model_http_response(None, "GET", "/api/v1/blocks?limit=5")
+                .is_none()
+        );
     }
 
     #[test]

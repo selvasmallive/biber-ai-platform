@@ -350,10 +350,11 @@ python scripts\xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
 
 The same live smoke verifies the first explicit Postgres-backed API read paths,
 including `/api/v1/admin/postgres/read-model-status` and the opt-in
-Postgres-backed `/api/v1/explorer/overview`, plus the Admin UI's Postgres
-read-model row mapping. It writes
+Postgres-backed `/api/v1/explorer/overview` and `/api/v1/blocks?limit=5`, plus
+the Admin UI's Postgres read-model row mapping. It writes
 `indexer/postgres-api-explorer-overview.json`,
-`indexer/postgres-server-explorer-overview.json`, and
+`indexer/postgres-server-explorer-overview.json`,
+`indexer/postgres-api-blocks.json`, `indexer/postgres-server-blocks.json`, and
 `indexer/postgres-admin-ui-read-model-status.json` under the smoke output
 directory:
 
@@ -361,11 +362,12 @@ directory:
 cd xriq
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
 cargo run -p xriq-api -- request-postgres --target /api/v1/explorer/overview
+cargo run -p xriq-api -- request-postgres --target /api/v1/blocks?limit=5
 ```
 
-To expose that read-model status and explorer overview through the local
-read-only HTTP server, pass both explicit Postgres flags. Without these flags,
-`serve-readonly` stays file-backed and the Postgres status route remains
+To expose that read-model status, explorer overview, and block list through the
+local read-only HTTP server, pass both explicit Postgres flags. Without these
+flags, `serve-readonly` stays file-backed and the Postgres status route remains
 disabled.
 
 ```powershell
