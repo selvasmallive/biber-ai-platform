@@ -109,7 +109,8 @@ Postgres-backed `/api/v1/explorer/overview`, `/api/v1/blocks?limit=5`, and
 `/api/v1/accounts/{address}/transactions?limit=5` plus
 `/api/v1/wallet/accounts?limit=5` plus
 `/api/v1/wallet/accounts/{address}/balance` plus
-`/api/v1/wallet/accounts/{address}/history?limit=5`, plus the Admin UI's
+`/api/v1/wallet/accounts/{address}/history?limit=5` plus
+`/api/v1/admin/audit-events?limit=5`, plus the Admin UI's
 Postgres read-model row mapping. It writes
 `indexer/postgres-api-explorer-overview.json`,
 `indexer/postgres-server-explorer-overview.json`,
@@ -131,6 +132,8 @@ Postgres read-model row mapping. It writes
 `indexer/postgres-server-account-history.json`,
 `indexer/postgres-api-wallet-account-history.json`,
 `indexer/postgres-server-wallet-account-history.json`,
+`indexer/postgres-api-audit-events.json`,
+`indexer/postgres-server-audit-events.json`,
 and
 `indexer/postgres-admin-ui-read-model-status.json` under the smoke output
 directory.
@@ -140,6 +143,7 @@ read model through container-local `psql`:
 
 ```bash
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
+cargo run -p xriq-api -- request-postgres --target /api/v1/admin/audit-events?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/explorer/overview
 cargo run -p xriq-api -- request-postgres --target /api/v1/blocks?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions?limit=5
@@ -156,7 +160,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts/<addr
 To expose the same Postgres read-model status, explorer overview, block list,
 transaction list, transaction detail, wallet transaction status, account list,
 account detail, and account history plus wallet account list, wallet balance,
-and wallet account history through the local read-only HTTP server, pass both
+wallet account history, and audit events through the local read-only HTTP server, pass both
 explicit Postgres flags.
 Without these flags, the Postgres status route remains disabled and the normal
 file-backed routes keep working.

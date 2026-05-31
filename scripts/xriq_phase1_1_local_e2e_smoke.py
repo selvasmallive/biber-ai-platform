@@ -831,6 +831,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_account_history = None
     postgres_api_wallet_account_history = None
     postgres_server_wallet_account_history = None
+    postgres_api_audit_events = None
+    postgres_server_audit_events = None
     postgres_ui_status = None
     if args.postgres_docker_live:
         postgres_docker_live = run_postgres_docker_live(
@@ -1112,6 +1114,24 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             require_equal(transaction, "transaction_index", 0, context)
             require_equal(transaction, "amount_base_units", "25", context)
             require_equal(transaction, "fee_base_units", "2", context)
+
+        def validate_postgres_audit_events(payload: dict[str, Any], context: str) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(payload, "limit", 5, context)
+            require_equal(payload, "next_cursor", None, context)
+            events = require_list(payload.get("audit_events"), context)
+            if len(events) != 1 or not isinstance(events[0], dict):
+                raise SmokeError(f"{context}: expected exactly one audit event")
+            event = events[0]
+            event_id = event.get("event_id")
+            if not isinstance(event_id, str) or not event_id.startswith("index-block:1:"):
+                raise SmokeError(f"{context}: expected index-block audit id, got {event_id!r}")
+            require_equal(event, "actor", "xriq-indexer", context)
+            require_equal(event, "action", "index_block", context)
+            require_equal(event, "resource_type", "block", context)
+            require_hash(event.get("resource_id"), f"{context} resource id")
+            require_equal(event, "environment", "private-devnet", context)
 
         postgres_blocks_output = run_command(
             "xriq-api postgres blocks",
@@ -1434,6 +1454,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         completed.append("postgres-backed api wallet account history")
 
+        postgres_audit_events_output = run_command(
+            "xriq-api postgres audit events",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                "/api/v1/admin/audit-events?limit=5",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_audit_events = parse_api_request_output(
+            postgres_audit_events_output,
+            "xriq-api postgres audit events",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres audit events: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_audit_events}"
+            )
+        validate_postgres_audit_events(
+            postgres_api_audit_events,
+            "xriq-api postgres audit events",
+        )
+        write_json(
+            indexer_dir / "postgres-api-audit-events.json",
+            postgres_api_audit_events,
+        )
+        completed.append("postgres-backed api audit events")
+
         server_port = free_local_port()
         server_bind = f"127.0.0.1:{server_port}"
         server_base_url = f"http://{server_bind}"
@@ -1477,6 +1530,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             )
             postgres_server_wallet_account_history = http_json(
                 server_base_url, f"/api/v1/wallet/accounts/{ALICE}/history?limit=5"
+            )
+            postgres_server_audit_events = http_json(
+                server_base_url, "/api/v1/admin/audit-events?limit=5"
             )
             postgres_ui_artifact = indexer_dir / "postgres-admin-ui-read-model-status.json"
             run_command(
@@ -1585,6 +1641,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_wallet_account_history,
             "xriq-api serve-readonly postgres wallet account history",
         )
+        validate_postgres_audit_events(
+            postgres_server_audit_events,
+            "xriq-api serve-readonly postgres audit events",
+        )
         write_json(
             indexer_dir / "postgres-server-read-model-status.json", postgres_server_status
         )
@@ -1625,6 +1685,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             indexer_dir / "postgres-server-wallet-account-history.json",
             postgres_server_wallet_account_history,
         )
+        write_json(
+            indexer_dir / "postgres-server-audit-events.json",
+            postgres_server_audit_events,
+        )
         completed.append("postgres-backed server read-model status")
         completed.append("postgres-backed server explorer overview")
         completed.append("postgres-backed server blocks")
@@ -1637,6 +1701,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         completed.append("postgres-backed server wallet balance")
         completed.append("postgres-backed server account history")
         completed.append("postgres-backed server wallet account history")
+        completed.append("postgres-backed server audit events")
         completed.append("postgres-backed admin UI read-model status")
     else:
         skipped.append("postgres docker live smoke")
@@ -2100,6 +2165,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_wallet_account_history": (
                 str(indexer_dir / "postgres-server-wallet-account-history.json")
                 if postgres_server_wallet_account_history
+                else None
+            ),
+            "postgres_api_audit_events": (
+                str(indexer_dir / "postgres-api-audit-events.json")
+                if postgres_api_audit_events
+                else None
+            ),
+            "postgres_server_audit_events": (
+                str(indexer_dir / "postgres-server-audit-events.json")
+                if postgres_server_audit_events
                 else None
             ),
             "postgres_admin_ui_read_model_status": (

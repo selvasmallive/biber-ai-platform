@@ -65,7 +65,7 @@ Rust
  |-- Blockchain node        ~70% for private-devnet; RC1 baseline exists
  |-- Consensus engine       ~60% for private-devnet; single-authority baseline
  |-- Wallet backend         ~51%; CLI flows plus product read/preview/pending-status routes exist
- |-- APIs                   ~70%; local HTTP wrappers plus wallet/admin/node/pending-file mempool/pending-status/ISO preview read routes and explicit Postgres read-model status, explorer overview, blocks, transaction list, transaction detail, wallet transaction status, account list, wallet account list, account detail, wallet balance, account history, and wallet account history CLI/server paths exist
+ |-- APIs                   ~71%; local HTTP wrappers plus wallet/admin/node/pending-file mempool/pending-status/ISO preview read routes and explicit Postgres read-model status, explorer overview, blocks, transaction list, transaction detail, wallet transaction status, account list, wallet account list, account detail, wallet balance, account history, wallet account history, and audit-events CLI/server paths exist
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
@@ -75,9 +75,9 @@ React + TypeScript
  `-- Admin portal           ~28%; read-only node/status, pending mempool, pending wallet status, optional Postgres read-model status, snapshot catalog, and audit events panels exist
 
 SQL/PostgreSQL
- |-- Explorer indexing      ~47%; schema, indexer, SQL plan, verify path, Docker live smoke, Postgres-backed API/server status read, and first Postgres-backed product overview/blocks/transaction list/detail/wallet-status/account/wallet-account/wallet-balance/history/wallet-history reads exist
+ |-- Explorer indexing      ~48%; schema, indexer, SQL plan, verify path, Docker live smoke, Postgres-backed API/server status read, and first Postgres-backed product overview/blocks/transaction list/detail/wallet-status/account/wallet-account/wallet-balance/history/wallet-history/audit-events reads exist
  |-- Analytics              ~5%; read-model totals exist, deeper analytics deferred
- `-- Audit data             ~20%; schema, indexed block audit events, read API, and UI panel exist
+ `-- Audit data             ~28%; schema, indexed block audit events, file-backed and opt-in Postgres read APIs, and UI panel exist
 
 ISO 20022
  `-- Compatibility adapter  ~27%; preview crate, product API read routes, and UI panel exist
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first local Phase 1.1 Postgres-backed wallet transaction-status checkpoint,
-Phase 1.1 status is about `80%`: the contract document, PostgreSQL read-model schema, JSON
+After the local Phase 1.1 Postgres-backed audit-events checkpoint,
+Phase 1.1 status is about `81%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -106,7 +106,8 @@ route, the first opt-in Postgres-backed product data routes for
 `/api/v1/accounts/{address}/transactions?limit=...`, and
 `/api/v1/wallet/accounts?limit=...`,
 `/api/v1/wallet/accounts/{address}/balance`,
-`/api/v1/wallet/accounts/{address}/history?limit=...`, the `xriq-api` read-only product response boundary
+`/api/v1/wallet/accounts/{address}/history?limit=...`, and
+`/api/v1/admin/audit-events?limit=...`, the `xriq-api` read-only product response boundary
 with `/api/v1/...` route/render behavior, a local `serve-readonly` socket wrapper, a `request` CLI
 smoke path, and
 `xriq-iso20022` preview mapping crate exist. The local Phase 1.1 smoke now also
@@ -176,7 +177,8 @@ calls `xriq-api request-postgres`, and writes
 `indexer/postgres-api-account-detail.json` plus
 `indexer/postgres-api-wallet-balance.json` plus
 `indexer/postgres-api-account-history.json` plus
-`indexer/postgres-api-wallet-account-history.json`. The same live mode now starts a
+`indexer/postgres-api-wallet-account-history.json` plus
+`indexer/postgres-api-audit-events.json`. The same live mode now starts a
 temporary local `serve-readonly` server with explicit Postgres flags, verifies
 `/api/v1/admin/postgres/read-model-status`, `/api/v1/explorer/overview`, and
 `/api/v1/blocks?limit=5`, `/api/v1/transactions?limit=5`, and
@@ -186,7 +188,8 @@ temporary local `serve-readonly` server with explicit Postgres flags, verifies
 `/api/v1/wallet/accounts?limit=5`, and `/api/v1/accounts/{address}` plus
 `/api/v1/wallet/accounts/{address}/balance` plus
 `/api/v1/accounts/{address}/transactions?limit=5` plus
-`/api/v1/wallet/accounts/{address}/history?limit=5` over
+`/api/v1/wallet/accounts/{address}/history?limit=5` plus
+`/api/v1/admin/audit-events?limit=5` over
 HTTP, and writes `indexer/postgres-server-read-model-status.json` plus
 `indexer/postgres-server-explorer-overview.json` plus
 `indexer/postgres-server-blocks.json` plus
@@ -198,7 +201,8 @@ HTTP, and writes `indexer/postgres-server-read-model-status.json` plus
 `indexer/postgres-server-account-detail.json` plus
 `indexer/postgres-server-wallet-balance.json` plus
 `indexer/postgres-server-account-history.json` plus
-`indexer/postgres-server-wallet-account-history.json`. It also runs
+`indexer/postgres-server-wallet-account-history.json` plus
+`indexer/postgres-server-audit-events.json`. It also runs
 `npm.cmd run check:postgres-ui` against that temporary server to validate the
 Admin UI's Postgres read-model rows for the live `available` state and writes
 `indexer/postgres-admin-ui-read-model-status.json`.
@@ -263,6 +267,7 @@ cargo run -p xriq-indexer -- apply-postgres --chain-file target/xriq-indexer-rep
 cargo run -p xriq-indexer -- verify-postgres --dry-run true
 python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
+cargo run -p xriq-api -- request-postgres --target /api/v1/admin/audit-events?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/explorer/overview
 cargo run -p xriq-api -- request-postgres --target /api/v1/blocks?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions?limit=5
