@@ -392,7 +392,7 @@ fn postgres_read_model_http_response(
             }
         }
     } else if let Some(tx_hash) = wallet_transaction_status_hash {
-        match postgres_transaction_detail_sql(tx_hash) {
+        match postgres_wallet_transaction_status_sql(tx_hash) {
             Ok(sql) => (
                 sql,
                 "postgres wallet transaction status",
@@ -1040,6 +1040,64 @@ FROM (
     SELECT 108, 'transaction_0_fee_base_units', fee_base_units FROM selected
     UNION ALL
     SELECT 109, 'transaction_0_nonce', nonce::text FROM selected
+) AS rows
+ORDER BY sort_order;
+"#
+    ))
+}
+
+fn postgres_wallet_transaction_status_sql(tx_hash: &str) -> Result<String, String> {
+    validate_transaction_hash(tx_hash, "tx_hash")?;
+    Ok(format!(
+        r#"
+WITH confirmed AS (
+    SELECT
+        tx_hash,
+        status,
+        block_height::text AS block_height,
+        block_hash,
+        transaction_index::text AS transaction_index,
+        0 AS sort_order
+    FROM xriq_transactions
+    WHERE tx_hash = '{tx_hash}'
+      AND block_height IS NOT NULL
+      AND block_hash IS NOT NULL
+      AND transaction_index IS NOT NULL
+    LIMIT 1
+),
+pending AS (
+    SELECT
+        tx_hash,
+        status,
+        'none' AS block_height,
+        'none' AS block_hash,
+        'none' AS transaction_index,
+        1 AS sort_order
+    FROM xriq_mempool_entries
+    WHERE tx_hash = '{tx_hash}'
+      AND NOT EXISTS (SELECT 1 FROM confirmed)
+    LIMIT 1
+),
+selected AS (
+    SELECT * FROM confirmed
+    UNION ALL
+    SELECT * FROM pending
+    ORDER BY sort_order
+    LIMIT 1
+)
+SELECT key || '=' || value
+FROM (
+    SELECT 0 AS sort_order, 'found' AS key, CASE WHEN EXISTS(SELECT 1 FROM selected) THEN 'true' ELSE 'false' END AS value
+    UNION ALL
+    SELECT 100, 'transaction_0_tx_hash', tx_hash FROM selected
+    UNION ALL
+    SELECT 101, 'transaction_0_block_height', block_height FROM selected
+    UNION ALL
+    SELECT 102, 'transaction_0_block_hash', block_hash FROM selected
+    UNION ALL
+    SELECT 103, 'transaction_0_transaction_index', transaction_index FROM selected
+    UNION ALL
+    SELECT 104, 'transaction_0_status', status FROM selected
 ) AS rows
 ORDER BY sort_order;
 "#
@@ -1994,17 +2052,13 @@ fn render_postgres_wallet_transaction_status_json(
         &format!("{prefix}tx_hash"),
         "postgres wallet transaction status",
     )?;
-    let block_height = required_u64_for(
+    let block_height = optional_u64_json_for(
         values,
         &format!("{prefix}block_height"),
         "postgres wallet transaction status",
     )?;
-    let block_hash = required_string_for(
-        values,
-        &format!("{prefix}block_hash"),
-        "postgres wallet transaction status",
-    )?;
-    let transaction_index = required_u64_for(
+    let block_hash = optional_string_json(values, &format!("{prefix}block_hash"))?;
+    let transaction_index = optional_u64_json_for(
         values,
         &format!("{prefix}transaction_index"),
         "postgres wallet transaction status",
@@ -2035,12 +2089,7 @@ fn render_postgres_wallet_transaction_status_json(
     writeln!(&mut output, "  \"tx_hash\": {},", json_string(tx_hash)).expect("write to String");
     writeln!(&mut output, "  \"status\": {},", json_string(status)).expect("write to String");
     writeln!(&mut output, "  \"block_height\": {},", block_height).expect("write to String");
-    writeln!(
-        &mut output,
-        "  \"block_hash\": {},",
-        json_string(block_hash)
-    )
-    .expect("write to String");
+    writeln!(&mut output, "  \"block_hash\": {},", block_hash).expect("write to String");
     write!(
         &mut output,
         "  \"transaction_index\": {}\n}}",
@@ -3509,6 +3558,44 @@ transaction_0_nonce=0
         assert!(body.contains("\"status\": \"confirmed\""));
         assert!(body.contains("\"block_height\": 1"));
         assert!(body.contains("\"transaction_index\": 0"));
+        assert!(!body.contains("from_address"));
+        assert!(!body.contains("amount_base_units"));
+        assert!(!body.contains("fee_base_units"));
+        assert!(!body.contains("\"nonce\""));
+    }
+
+    #[test]
+    fn postgres_wallet_transaction_status_json_renders_pending_shape() {
+        let config = PostgresRequestConfig::parse(&[
+            "--target",
+            "/api/v1/wallet/transactions/3333333333333333333333333333333333333333333333333333333333333333/status",
+        ])
+        .unwrap();
+        let values = parse_key_value_lines(
+            "\
+found=true
+transaction_0_tx_hash=3333333333333333333333333333333333333333333333333333333333333333
+transaction_0_block_height=none
+transaction_0_block_hash=none
+transaction_0_transaction_index=none
+transaction_0_status=pending
+",
+            "test postgres pending wallet transaction status",
+        )
+        .unwrap();
+
+        let body =
+            render_postgres_wallet_transaction_status_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"source\": \"postgres-read-model\""));
+        assert!(body.contains("\"read_only\": true"));
+        assert!(body.contains(
+            "\"tx_hash\": \"3333333333333333333333333333333333333333333333333333333333333333\""
+        ));
+        assert!(body.contains("\"status\": \"pending\""));
+        assert!(body.contains("\"block_height\": null"));
+        assert!(body.contains("\"block_hash\": null"));
+        assert!(body.contains("\"transaction_index\": null"));
         assert!(!body.contains("from_address"));
         assert!(!body.contains("amount_base_units"));
         assert!(!body.contains("fee_base_units"));

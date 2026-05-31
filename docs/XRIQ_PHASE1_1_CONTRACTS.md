@@ -403,10 +403,12 @@ validated against the local Docker Postgres service:
    `/api/v1/wallet/accounts?limit=...` plus
    `/api/v1/wallet/accounts/{address}/balance` and
    `/api/v1/wallet/accounts/{address}/history?limit=...` as the first
-   Postgres-backed product data routes. Add subsequent read-only routes one at
-   a time. The next narrow route should be pending wallet
-   transaction-status from `xriq_mempool_entries`, matching the default
-   file-backed pending/null-block status shape without enabling mutation.
+   Postgres-backed product data routes. The wallet transaction-status route now
+   covers confirmed rows and pending `xriq_mempool_entries` rows in Postgres
+   mode without enabling mutation. Add subsequent read-only routes one at a
+   time; the next narrow route should be block detail
+   `/api/v1/blocks/{height-or-hash}` from `xriq_blocks` plus confirmed
+   `xriq_transactions`.
 7. If host `psql` is unavailable but Docker Desktop is running, use
    `python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live` to
    apply and verify the generated SQL inside the local Compose Postgres
@@ -442,8 +444,8 @@ cargo test -p xriq-indexer
 
 The first explicit Postgres-backed API read paths are local-only and use the
 Compose `postgres` container. They return status/count JSON plus the opt-in
-explorer overview, block-list, transaction-list, transaction-detail, wallet
-transaction-status, mempool, account-list, wallet account-list, account-detail, wallet
+explorer overview, block-list, transaction-list, transaction-detail,
+confirmed/pending wallet transaction-status, mempool, account-list, wallet account-list, account-detail, wallet
 balance, account-history, wallet account-history, audit-events, snapshot-list,
 snapshot-detail, indexer-status, and node-status shapes from the read model
 without changing the default

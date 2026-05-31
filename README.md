@@ -355,7 +355,7 @@ Postgres-backed `/api/v1/admin/node/status`, `/api/v1/admin/indexer/status`,
 `/api/v1/explorer/overview`, `/api/v1/blocks?limit=5`,
 `/api/v1/transactions?limit=5`, and `/api/v1/mempool?limit=5` plus
 `/api/v1/transactions/{tx_hash}` and
-`/api/v1/wallet/transactions/{tx_hash}/status` plus
+`/api/v1/wallet/transactions/{tx_hash}/status` for confirmed and pending hashes, plus
 `/api/v1/accounts?limit=5` plus `/api/v1/accounts/{address}` and
 `/api/v1/accounts/{address}/transactions?limit=5` plus
 `/api/v1/wallet/accounts?limit=5` plus
@@ -376,6 +376,8 @@ Postgres read-model row mapping. It writes
 `indexer/postgres-server-transaction-detail.json`,
 `indexer/postgres-api-wallet-transaction-status.json`,
 `indexer/postgres-server-wallet-transaction-status.json`,
+`indexer/postgres-api-wallet-pending-transaction-status.json`,
+`indexer/postgres-server-wallet-pending-transaction-status.json`,
 `indexer/postgres-api-accounts.json`, `indexer/postgres-server-accounts.json`,
 `indexer/postgres-api-wallet-accounts.json`,
 `indexer/postgres-server-wallet-accounts.json`,

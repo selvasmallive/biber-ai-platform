@@ -65,7 +65,7 @@ Rust
  |-- Blockchain node        ~70% for private-devnet; RC1 baseline exists
  |-- Consensus engine       ~60% for private-devnet; single-authority baseline
  |-- Wallet backend         ~51%; CLI flows plus product read/preview/pending-status routes exist
- |-- APIs                   ~76%; local HTTP wrappers plus wallet/admin/node/pending-file mempool/pending-status/ISO preview read routes and explicit Postgres read-model status, node status, indexer status, explorer overview, blocks, transaction list, mempool, transaction detail, wallet transaction status, account list, wallet account list, account detail, wallet balance, account history, wallet account history, audit-events, snapshot-list, and snapshot-detail CLI/server paths exist
+ |-- APIs                   ~77%; local HTTP wrappers plus wallet/admin/node/pending-file mempool/pending-status/ISO preview read routes and explicit Postgres read-model status, node status, indexer status, explorer overview, blocks, transaction list, mempool, transaction detail, confirmed/pending wallet transaction status, account list, wallet account list, account detail, wallet balance, account history, wallet account history, audit-events, snapshot-list, and snapshot-detail CLI/server paths exist
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
@@ -75,7 +75,7 @@ React + TypeScript
  `-- Admin portal           ~31%; read-only node/status, pending mempool, pending wallet status, optional Postgres read-model/node/indexer status, snapshot catalog, and audit events panels exist
 
 SQL/PostgreSQL
- |-- Explorer indexing      ~55%; schema, indexer, SQL plan, verify path, Docker live smoke, Postgres-backed API/server read-model/node/indexer status reads, and first Postgres-backed product overview/blocks/transaction list/mempool/detail/wallet-status/account/wallet-account/wallet-balance/history/wallet-history/audit-events/snapshot-list/snapshot-detail reads exist
+ |-- Explorer indexing      ~56%; schema, indexer, SQL plan, verify path, Docker live smoke, Postgres-backed API/server read-model/node/indexer status reads, and first Postgres-backed product overview/blocks/transaction list/mempool/detail/confirmed-and-pending-wallet-status/account/wallet-account/wallet-balance/history/wallet-history/audit-events/snapshot-list/snapshot-detail reads exist
  |-- Analytics              ~5%; read-model totals exist, deeper analytics deferred
  `-- Audit data             ~28%; schema, indexed block audit events, file-backed and opt-in Postgres read APIs, and UI panel exist
 
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the local Phase 1.1 Postgres-backed mempool checkpoint,
-Phase 1.1 status is about `86%`: the contract document, PostgreSQL read-model schema, JSON
+After the local Phase 1.1 Postgres-backed pending wallet transaction-status checkpoint,
+Phase 1.1 status is about `87%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -102,7 +102,7 @@ route plus `/api/v1/admin/node/status` and `/api/v1/admin/indexer/status`, the f
 `/api/v1/explorer/overview`, `/api/v1/blocks?limit=...`,
 `/api/v1/transactions?limit=...`, `/api/v1/mempool?limit=...`,
 `/api/v1/transactions/{tx_hash}`, and
-`/api/v1/wallet/transactions/{tx_hash}/status`,
+`/api/v1/wallet/transactions/{tx_hash}/status` for confirmed and pending hashes,
 `/api/v1/accounts?limit=...`, `/api/v1/accounts/{address}`,
 `/api/v1/accounts/{address}/transactions?limit=...`, and
 `/api/v1/wallet/accounts?limit=...`,
@@ -179,6 +179,7 @@ calls `xriq-api request-postgres`, and writes
 `indexer/postgres-api-mempool.json` plus
 `indexer/postgres-api-transaction-detail.json` plus
 `indexer/postgres-api-wallet-transaction-status.json` plus
+`indexer/postgres-api-wallet-pending-transaction-status.json` plus
 `indexer/postgres-api-accounts.json` plus
 `indexer/postgres-api-wallet-accounts.json` plus
 `indexer/postgres-api-account-detail.json` plus
@@ -213,6 +214,7 @@ HTTP, and writes `indexer/postgres-server-read-model-status.json` plus
 `indexer/postgres-server-mempool.json` plus
 `indexer/postgres-server-transaction-detail.json` plus
 `indexer/postgres-server-wallet-transaction-status.json` plus
+`indexer/postgres-server-wallet-pending-transaction-status.json` plus
 `indexer/postgres-server-accounts.json` plus
 `indexer/postgres-server-wallet-accounts.json` plus
 `indexer/postgres-server-account-detail.json` plus

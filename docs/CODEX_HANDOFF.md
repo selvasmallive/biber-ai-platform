@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `86%` overall. Current Rust
+- Phase 1.1 estimated completion: about `87%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -158,7 +158,8 @@ unless the user changes the project scope again.
   `/api/v1/transactions?limit=...`, and
   `/api/v1/mempool?limit=...`, and
   `/api/v1/transactions/{tx_hash}`,
-  `/api/v1/wallet/transactions/{tx_hash}/status`,
+  `/api/v1/wallet/transactions/{tx_hash}/status` including confirmed and
+  pending hashes,
   `/api/v1/accounts?limit=...`, and
   `/api/v1/accounts/{address}`, and
   `/api/v1/accounts/{address}/transactions?limit=...`, and
@@ -228,7 +229,33 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
-- Latest native XRIQ Phase 1.1 Postgres-backed mempool checkpoint: extended
+- Latest native XRIQ Phase 1.1 Postgres-backed pending wallet
+  transaction-status checkpoint: split the Postgres wallet transaction-status
+  query from confirmed transaction detail so
+  `/api/v1/wallet/transactions/{tx_hash}/status` checks confirmed
+  `xriq_transactions` first, then falls back to `xriq_mempool_entries` for
+  pending hashes. Confirmed responses remain unchanged; pending Postgres
+  responses now match the default file-backed product shape with
+  `status: "pending"`, `block_height: null`, `block_hash: null`, and
+  `transaction_index: null`, without exposing from/to/amount/fee/nonce fields
+  and without enabling submit or block production. Valid missing hashes still
+  return `404 not_found`; malformed hashes still return `400 bad_request`
+  before Docker is invoked. The live Docker smoke now writes
+  `indexer/postgres-api-wallet-pending-transaction-status.json` and
+  `indexer/postgres-server-wallet-pending-transaction-status.json`.
+  Verification passed `cargo fmt --check`, bundled-Python `py_compile`,
+  `cargo test -p xriq-api --bin xriq-api -j 1`,
+  `cargo test -p xriq-api --lib -j 1`,
+  `cargo clippy -p xriq-api -- -D warnings`, and Docker live
+  `scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live`,
+  producing artifact directory
+  `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T192954Z`. Phase 1.1
+  status is now about `87%` overall.
+- Recommended next narrow step: add opt-in Postgres-backed block detail parity
+  for `/api/v1/blocks/{height-or-hash}` using `xriq_blocks` plus confirmed
+  `xriq_transactions`, while preserving default file-backed behavior and
+  keeping this read-only/local-only.
+- Previous native XRIQ Phase 1.1 Postgres-backed mempool checkpoint: extended
   `xriq-api request-postgres` and explicitly Postgres-enabled
   `xriq-api serve-readonly` to return `/api/v1/mempool?limit=...` from the
   local Docker Postgres read model. The route is still opt-in and local-only:
@@ -255,14 +282,7 @@ active target because the GPU was terminated to save cost.
   `indexer/postgres-api-mempool.json`,
   `indexer/postgres-server-mempool.json`, and
   `indexer/postgres-docker-live.json` showing `mempool_entries: 1`. Phase 1.1
-  status is now about `86%` overall.
-- Recommended next narrow step: add opt-in Postgres-backed pending wallet
-  transaction-status parity from `xriq_mempool_entries`, so
-  `/api/v1/wallet/transactions/{pending_hash}/status` can return the same
-  pending/null-block response in Postgres mode that the default file-backed
-  product route already returns. Keep confirmed status behavior unchanged and
-  continue to avoid any mutating submit/block-production behavior in
-  `xriq-api`.
+  status was about `86%` overall.
 - Previous native XRIQ Phase 1.1 Postgres-backed snapshot detail checkpoint:
   extended `xriq-api request-postgres` and explicitly Postgres-enabled
   `xriq-api serve-readonly` to return
