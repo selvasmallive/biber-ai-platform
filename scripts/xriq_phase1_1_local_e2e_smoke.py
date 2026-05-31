@@ -840,6 +840,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_audit_events = None
     postgres_api_snapshots = None
     postgres_server_snapshots = None
+    postgres_api_snapshot_detail = None
+    postgres_server_snapshot_detail = None
     postgres_ui_status = None
     if args.postgres_docker_live:
         postgres_docker_live = run_postgres_docker_live(
@@ -1253,27 +1255,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             require_hash(event.get("resource_id"), f"{context} resource id")
             require_equal(event, "environment", "private-devnet", context)
 
-        def validate_postgres_snapshots(payload: dict[str, Any], context: str) -> None:
-            require_equal(payload, "source", "postgres-read-model", context)
-            require_equal(payload, "read_only", True, context)
-            require_equal(payload, "limit", 5, context)
-            require_equal(payload, "next_cursor", None, context)
-            require_equal(
-                payload,
-                "warning",
-                "private-devnet-read-only-snapshot-catalog-export-import-disabled",
-                context,
-            )
-            require_equal(
-                payload,
-                "read_model_warning",
-                "local-private-devnet-postgres-read-only-preview-no-mutation",
-                context,
-            )
-            snapshots = require_list(payload.get("snapshots"), context)
-            if len(snapshots) != 1 or not isinstance(snapshots[0], dict):
-                raise SmokeError(f"{context}: expected exactly one snapshot")
-            snapshot = snapshots[0]
+        def validate_postgres_snapshot_fields(
+            snapshot: dict[str, Any], context: str
+        ) -> None:
             require_equal(snapshot, "snapshot_name", "current-indexed-chain", context)
             require_equal(
                 snapshot,
@@ -1304,6 +1288,35 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             )
             require_equal(snapshot, "export_status", "disabled", context)
             require_equal(snapshot, "import_status", "disabled", context)
+
+        def validate_postgres_snapshot_metadata(payload: dict[str, Any], context: str) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(
+                payload,
+                "warning",
+                "private-devnet-read-only-snapshot-catalog-export-import-disabled",
+                context,
+            )
+            require_equal(
+                payload,
+                "read_model_warning",
+                "local-private-devnet-postgres-read-only-preview-no-mutation",
+                context,
+            )
+
+        def validate_postgres_snapshots(payload: dict[str, Any], context: str) -> None:
+            validate_postgres_snapshot_metadata(payload, context)
+            require_equal(payload, "limit", 5, context)
+            require_equal(payload, "next_cursor", None, context)
+            snapshots = require_list(payload.get("snapshots"), context)
+            if len(snapshots) != 1 or not isinstance(snapshots[0], dict):
+                raise SmokeError(f"{context}: expected exactly one snapshot")
+            validate_postgres_snapshot_fields(snapshots[0], context)
+
+        def validate_postgres_snapshot_detail(payload: dict[str, Any], context: str) -> None:
+            validate_postgres_snapshot_metadata(payload, context)
+            validate_postgres_snapshot_fields(payload, context)
 
         postgres_blocks_output = run_command(
             "xriq-api postgres blocks",
@@ -1692,6 +1705,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         completed.append("postgres-backed api snapshots")
 
+        postgres_snapshot_detail_output = run_command(
+            "xriq-api postgres snapshot detail",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                "/api/v1/snapshots/current-indexed-chain",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_snapshot_detail = parse_api_request_output(
+            postgres_snapshot_detail_output,
+            "xriq-api postgres snapshot detail",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres snapshot detail: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_snapshot_detail}"
+            )
+        validate_postgres_snapshot_detail(
+            postgres_api_snapshot_detail,
+            "xriq-api postgres snapshot detail",
+        )
+        write_json(
+            indexer_dir / "postgres-api-snapshot-detail.json",
+            postgres_api_snapshot_detail,
+        )
+        completed.append("postgres-backed api snapshot detail")
+
         server_port = free_local_port()
         server_bind = f"127.0.0.1:{server_port}"
         server_base_url = f"http://{server_bind}"
@@ -1746,6 +1792,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 server_base_url, "/api/v1/admin/audit-events?limit=5"
             )
             postgres_server_snapshots = http_json(server_base_url, "/api/v1/snapshots?limit=5")
+            postgres_server_snapshot_detail = http_json(
+                server_base_url, "/api/v1/snapshots/current-indexed-chain"
+            )
             postgres_ui_artifact = indexer_dir / "postgres-admin-ui-read-model-status.json"
             run_command(
                 "xriq admin postgres UI status smoke",
@@ -1869,6 +1918,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_snapshots,
             "xriq-api serve-readonly postgres snapshots",
         )
+        validate_postgres_snapshot_detail(
+            postgres_server_snapshot_detail,
+            "xriq-api serve-readonly postgres snapshot detail",
+        )
         write_json(
             indexer_dir / "postgres-server-read-model-status.json", postgres_server_status
         )
@@ -1925,6 +1978,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             indexer_dir / "postgres-server-snapshots.json",
             postgres_server_snapshots,
         )
+        write_json(
+            indexer_dir / "postgres-server-snapshot-detail.json",
+            postgres_server_snapshot_detail,
+        )
         completed.append("postgres-backed server read-model status")
         completed.append("postgres-backed server node status")
         completed.append("postgres-backed server indexer status")
@@ -1941,6 +1998,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         completed.append("postgres-backed server wallet account history")
         completed.append("postgres-backed server audit events")
         completed.append("postgres-backed server snapshots")
+        completed.append("postgres-backed server snapshot detail")
         completed.append("postgres-backed admin UI read-model status")
     else:
         skipped.append("postgres docker live smoke")
@@ -2444,6 +2502,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_snapshots": (
                 str(indexer_dir / "postgres-server-snapshots.json")
                 if postgres_server_snapshots
+                else None
+            ),
+            "postgres_api_snapshot_detail": (
+                str(indexer_dir / "postgres-api-snapshot-detail.json")
+                if postgres_api_snapshot_detail
+                else None
+            ),
+            "postgres_server_snapshot_detail": (
+                str(indexer_dir / "postgres-server-snapshot-detail.json")
+                if postgres_server_snapshot_detail
                 else None
             ),
             "postgres_admin_ui_read_model_status": (

@@ -156,7 +156,7 @@ Required behavior:
   `/api/v1/transactions/{tx_hash}`, `/api/v1/accounts?limit=...`, and
   `/api/v1/accounts/{address}`, and
   `/api/v1/accounts/{address}/transactions?limit=...`, and
-  `/api/v1/snapshots`, keep working
+  `/api/v1/snapshots`, and `/api/v1/snapshots/{snapshot_name}`, keep working
 
 ### ISO 20022 Mapping APIs
 
@@ -441,7 +441,8 @@ Compose `postgres` container. They return status/count JSON plus the opt-in
 explorer overview, block-list, transaction-list, transaction-detail, wallet
 transaction-status, account-list, wallet account-list, account-detail, wallet
 balance, account-history, wallet account-history, audit-events, snapshot-list,
-indexer-status, and node-status shapes from the read model without changing the default
+snapshot-detail, indexer-status, and node-status shapes from the read model
+without changing the default
 file-backed API request/server path:
 
 ```bash
@@ -461,6 +462,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts/<addr
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>/transactions?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts/<address>/history?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/snapshots?limit=5
+cargo run -p xriq-api -- request-postgres --target /api/v1/snapshots/current-indexed-chain
 ```
 
 The same routes can be exposed by the local read-only HTTP server only when the

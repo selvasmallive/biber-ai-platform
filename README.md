@@ -359,7 +359,8 @@ Postgres-backed `/api/v1/admin/node/status`, `/api/v1/admin/indexer/status`,
 `/api/v1/wallet/accounts?limit=5` plus
 `/api/v1/wallet/accounts/{address}/balance` plus
 `/api/v1/wallet/accounts/{address}/history?limit=5` plus
-`/api/v1/admin/audit-events?limit=5` plus `/api/v1/snapshots?limit=5`,
+`/api/v1/admin/audit-events?limit=5` plus `/api/v1/snapshots?limit=5`
+and `/api/v1/snapshots/current-indexed-chain`,
 plus the Admin UI's
 Postgres read-model row mapping. It writes
 `indexer/postgres-api-explorer-overview.json`,
@@ -390,6 +391,8 @@ Postgres read-model row mapping. It writes
 `indexer/postgres-server-audit-events.json`,
 `indexer/postgres-api-snapshots.json`,
 `indexer/postgres-server-snapshots.json`,
+`indexer/postgres-api-snapshot-detail.json`,
+`indexer/postgres-server-snapshot-detail.json`,
 and
 `indexer/postgres-admin-ui-read-model-status.json` under the smoke output
 directory:
@@ -412,13 +415,15 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts/<addr
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>/transactions?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts/<address>/history?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/snapshots?limit=5
+cargo run -p xriq-api -- request-postgres --target /api/v1/snapshots/current-indexed-chain
 ```
 
 To expose that read-model status, explorer overview, block list, transaction
 list, transaction detail, wallet transaction status, account list, wallet
 account list, account detail, wallet balance, account history, and wallet
-account history, audit events, snapshot list, node status, and indexer status
-through the local read-only HTTP server, pass both explicit Postgres flags.
+account history, audit events, snapshot list/detail, node status, and indexer
+status through the local read-only HTTP server, pass both explicit Postgres
+flags.
 Without these flags, `serve-readonly` stays file-backed and the Postgres status
 route remains disabled.
 
