@@ -65,7 +65,7 @@ Rust
  |-- Blockchain node        ~70% for private-devnet; RC1 baseline exists
  |-- Consensus engine       ~60% for private-devnet; single-authority baseline
  |-- Wallet backend         ~51%; CLI flows plus product read/preview/pending-status routes exist
- |-- APIs                   ~67%; local HTTP wrappers plus wallet/admin/node/pending-file mempool/pending-status/ISO preview read routes and explicit Postgres read-model status, explorer overview, blocks, transaction list, transaction detail, account list, account detail, account history, and wallet account history CLI/server paths exist
+ |-- APIs                   ~68%; local HTTP wrappers plus wallet/admin/node/pending-file mempool/pending-status/ISO preview read routes and explicit Postgres read-model status, explorer overview, blocks, transaction list, transaction detail, account list, wallet account list, account detail, account history, and wallet account history CLI/server paths exist
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
@@ -75,7 +75,7 @@ React + TypeScript
  `-- Admin portal           ~28%; read-only node/status, pending mempool, pending wallet status, optional Postgres read-model status, snapshot catalog, and audit events panels exist
 
 SQL/PostgreSQL
- |-- Explorer indexing      ~44%; schema, indexer, SQL plan, verify path, Docker live smoke, Postgres-backed API/server status read, and first Postgres-backed product overview/blocks/transaction list/detail/account/history/wallet-history reads exist
+ |-- Explorer indexing      ~45%; schema, indexer, SQL plan, verify path, Docker live smoke, Postgres-backed API/server status read, and first Postgres-backed product overview/blocks/transaction list/detail/account/wallet-account/history/wallet-history reads exist
  |-- Analytics              ~5%; read-model totals exist, deeper analytics deferred
  `-- Audit data             ~20%; schema, indexed block audit events, read API, and UI panel exist
 
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first local Phase 1.1 Postgres-backed wallet account-history checkpoint,
-Phase 1.1 status is about `77%`: the contract document, PostgreSQL read-model schema, JSON
+After the first local Phase 1.1 Postgres-backed wallet account-list checkpoint,
+Phase 1.1 status is about `78%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -103,6 +103,7 @@ route, the first opt-in Postgres-backed product data routes for
 `/api/v1/transactions?limit=...`, `/api/v1/transactions/{tx_hash}`, and
 `/api/v1/accounts?limit=...`, `/api/v1/accounts/{address}`,
 `/api/v1/accounts/{address}/transactions?limit=...`, and
+`/api/v1/wallet/accounts?limit=...`,
 `/api/v1/wallet/accounts/{address}/history?limit=...`, the `xriq-api` read-only product response boundary
 with `/api/v1/...` route/render behavior, a local `serve-readonly` socket wrapper, a `request` CLI
 smoke path, and
@@ -168,6 +169,7 @@ calls `xriq-api request-postgres`, and writes
 `indexer/postgres-api-transactions.json` plus
 `indexer/postgres-api-transaction-detail.json` plus
 `indexer/postgres-api-accounts.json` plus
+`indexer/postgres-api-wallet-accounts.json` plus
 `indexer/postgres-api-account-detail.json` plus
 `indexer/postgres-api-account-history.json` plus
 `indexer/postgres-api-wallet-account-history.json`. The same live mode now starts a
@@ -175,7 +177,7 @@ temporary local `serve-readonly` server with explicit Postgres flags, verifies
 `/api/v1/admin/postgres/read-model-status`, `/api/v1/explorer/overview`, and
 `/api/v1/blocks?limit=5`, `/api/v1/transactions?limit=5`, and
 `/api/v1/transactions/{tx_hash}`, `/api/v1/accounts?limit=5`, and
-`/api/v1/accounts/{address}` plus
+`/api/v1/wallet/accounts?limit=5`, and `/api/v1/accounts/{address}` plus
 `/api/v1/accounts/{address}/transactions?limit=5` plus
 `/api/v1/wallet/accounts/{address}/history?limit=5` over
 HTTP, and writes `indexer/postgres-server-read-model-status.json` plus
@@ -184,6 +186,7 @@ HTTP, and writes `indexer/postgres-server-read-model-status.json` plus
 `indexer/postgres-server-transactions.json` plus
 `indexer/postgres-server-transaction-detail.json` plus
 `indexer/postgres-server-accounts.json` plus
+`indexer/postgres-server-wallet-accounts.json` plus
 `indexer/postgres-server-account-detail.json` plus
 `indexer/postgres-server-account-history.json` plus
 `indexer/postgres-server-wallet-account-history.json`. It also runs
@@ -256,6 +259,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/blocks?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions/<tx_hash>
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts?limit=5
+cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>/transactions?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts/<address>/history?limit=5
@@ -288,6 +292,7 @@ The Docker live-smoke path uses the same service but isolates itself to
   `/api/v1/transactions?limit=...`, plus `/api/v1/transactions/{tx_hash}`,
   `/api/v1/accounts?limit=...`, `/api/v1/accounts/{address}`,
   `/api/v1/accounts/{address}/transactions?limit=...`, and
+  `/api/v1/wallet/accounts?limit=...`,
   `/api/v1/wallet/accounts/{address}/history?limit=...`, a
   `request` CLI smoke path, and a local `serve-readonly` socket wrapper. The pending-file path does not enable
   product API submit or block production. Focused verification is:

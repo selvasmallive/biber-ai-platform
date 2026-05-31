@@ -819,6 +819,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_transaction_detail = None
     postgres_api_accounts = None
     postgres_server_accounts = None
+    postgres_api_wallet_accounts = None
+    postgres_server_wallet_accounts = None
     postgres_api_account_detail = None
     postgres_server_account_detail = None
     postgres_api_account_history = None
@@ -1203,6 +1205,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         write_json(indexer_dir / "postgres-api-accounts.json", postgres_api_accounts)
         completed.append("postgres-backed api accounts")
 
+        postgres_wallet_accounts_output = run_command(
+            "xriq-api postgres wallet accounts",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                "/api/v1/wallet/accounts?limit=5",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_wallet_accounts = parse_api_request_output(
+            postgres_wallet_accounts_output,
+            "xriq-api postgres wallet accounts",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres wallet accounts: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_wallet_accounts}"
+            )
+        validate_postgres_accounts(
+            postgres_api_wallet_accounts,
+            "xriq-api postgres wallet accounts",
+        )
+        write_json(
+            indexer_dir / "postgres-api-wallet-accounts.json",
+            postgres_api_wallet_accounts,
+        )
+        completed.append("postgres-backed api wallet accounts")
+
         postgres_account_detail_output = run_command(
             "xriq-api postgres account detail",
             [
@@ -1330,6 +1365,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 server_base_url, f"/api/v1/transactions/{confirmed_tx_hash}"
             )
             postgres_server_accounts = http_json(server_base_url, "/api/v1/accounts?limit=5")
+            postgres_server_wallet_accounts = http_json(
+                server_base_url, "/api/v1/wallet/accounts?limit=5"
+            )
             postgres_server_account_detail = http_json(server_base_url, f"/api/v1/accounts/{ALICE}")
             postgres_server_account_history = http_json(
                 server_base_url, f"/api/v1/accounts/{ALICE}/transactions?limit=5"
@@ -1420,6 +1458,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_accounts,
             "xriq-api serve-readonly postgres accounts",
         )
+        validate_postgres_accounts(
+            postgres_server_wallet_accounts,
+            "xriq-api serve-readonly postgres wallet accounts",
+        )
         validate_postgres_account_detail(
             postgres_server_account_detail,
             "xriq-api serve-readonly postgres account detail",
@@ -1449,6 +1491,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         write_json(indexer_dir / "postgres-server-accounts.json", postgres_server_accounts)
         write_json(
+            indexer_dir / "postgres-server-wallet-accounts.json",
+            postgres_server_wallet_accounts,
+        )
+        write_json(
             indexer_dir / "postgres-server-account-detail.json",
             postgres_server_account_detail,
         )
@@ -1466,6 +1512,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         completed.append("postgres-backed server transactions")
         completed.append("postgres-backed server transaction detail")
         completed.append("postgres-backed server accounts")
+        completed.append("postgres-backed server wallet accounts")
         completed.append("postgres-backed server account detail")
         completed.append("postgres-backed server account history")
         completed.append("postgres-backed server wallet account history")
@@ -1872,6 +1919,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_accounts": (
                 str(indexer_dir / "postgres-server-accounts.json")
                 if postgres_server_accounts
+                else None
+            ),
+            "postgres_api_wallet_accounts": (
+                str(indexer_dir / "postgres-api-wallet-accounts.json")
+                if postgres_api_wallet_accounts
+                else None
+            ),
+            "postgres_server_wallet_accounts": (
+                str(indexer_dir / "postgres-server-wallet-accounts.json")
+                if postgres_server_wallet_accounts
                 else None
             ),
             "postgres_api_account_detail": (

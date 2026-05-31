@@ -354,6 +354,7 @@ Postgres-backed `/api/v1/explorer/overview`, `/api/v1/blocks?limit=5`, and
 `/api/v1/transactions?limit=5` plus `/api/v1/transactions/{tx_hash}` and
 `/api/v1/accounts?limit=5` plus `/api/v1/accounts/{address}` and
 `/api/v1/accounts/{address}/transactions?limit=5` plus
+`/api/v1/wallet/accounts?limit=5` plus
 `/api/v1/wallet/accounts/{address}/history?limit=5`, plus the Admin UI's
 Postgres read-model row mapping. It writes
 `indexer/postgres-api-explorer-overview.json`,
@@ -364,6 +365,8 @@ Postgres read-model row mapping. It writes
 `indexer/postgres-api-transaction-detail.json`,
 `indexer/postgres-server-transaction-detail.json`,
 `indexer/postgres-api-accounts.json`, `indexer/postgres-server-accounts.json`,
+`indexer/postgres-api-wallet-accounts.json`,
+`indexer/postgres-server-wallet-accounts.json`,
 `indexer/postgres-api-account-detail.json`,
 `indexer/postgres-server-account-detail.json`,
 `indexer/postgres-api-account-history.json`,
@@ -382,14 +385,15 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/blocks?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions/<tx_hash>
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts?limit=5
+cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>/transactions?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts/<address>/history?limit=5
 ```
 
 To expose that read-model status, explorer overview, block list, transaction
-list, transaction detail, account list, account detail, account history, and
-wallet account history through the local read-only HTTP server, pass both
+list, transaction detail, account list, wallet account list, account detail,
+account history, and wallet account history through the local read-only HTTP server, pass both
 explicit Postgres flags.
 Without these flags, `serve-readonly` stays file-backed and the Postgres status
 route remains disabled.

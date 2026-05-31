@@ -23,6 +23,7 @@ const POSTGRES_BLOCKS_ROUTE: &str = "/api/v1/blocks";
 const POSTGRES_TRANSACTIONS_ROUTE: &str = "/api/v1/transactions";
 const POSTGRES_TRANSACTION_DETAIL_PREFIX: &str = "/api/v1/transactions/";
 const POSTGRES_ACCOUNTS_ROUTE: &str = "/api/v1/accounts";
+const POSTGRES_WALLET_ACCOUNTS_ROUTE: &str = "/api/v1/wallet/accounts";
 const POSTGRES_ACCOUNT_DETAIL_PREFIX: &str = "/api/v1/accounts/";
 const POSTGRES_ACCOUNT_HISTORY_SUFFIX: &str = "/transactions";
 const POSTGRES_WALLET_ACCOUNT_PREFIX: &str = "/api/v1/wallet/accounts/";
@@ -264,7 +265,8 @@ fn maybe_postgres_read_model_http_response(
             POSTGRES_EXPLORER_OVERVIEW_ROUTE
             | POSTGRES_BLOCKS_ROUTE
             | POSTGRES_TRANSACTIONS_ROUTE
-            | POSTGRES_ACCOUNTS_ROUTE,
+            | POSTGRES_ACCOUNTS_ROUTE
+            | POSTGRES_WALLET_ACCOUNTS_ROUTE,
             None,
         ) => return None,
         (_, None) if is_transaction_detail => return None,
@@ -276,7 +278,8 @@ fn maybe_postgres_read_model_http_response(
             | POSTGRES_EXPLORER_OVERVIEW_ROUTE
             | POSTGRES_BLOCKS_ROUTE
             | POSTGRES_TRANSACTIONS_ROUTE
-            | POSTGRES_ACCOUNTS_ROUTE,
+            | POSTGRES_ACCOUNTS_ROUTE
+            | POSTGRES_WALLET_ACCOUNTS_ROUTE,
             Some(config),
         ) => return Some(postgres_read_model_http_response(config, method, target)),
         _ => {}
@@ -390,6 +393,14 @@ fn postgres_read_model_http_response(
             },
             POSTGRES_ACCOUNTS_ROUTE => match postgres_accounts_sql(target) {
                 Ok(sql) => (sql, "postgres accounts", render_postgres_accounts_json),
+                Err(message) => return Ok(local_api_error_response(400, "bad_request", &message)),
+            },
+            POSTGRES_WALLET_ACCOUNTS_ROUTE => match postgres_accounts_sql(target) {
+                Ok(sql) => (
+                    sql,
+                    "postgres wallet accounts",
+                    render_postgres_accounts_json,
+                ),
                 Err(message) => return Ok(local_api_error_response(400, "bad_request", &message)),
             },
             _ => {
@@ -1698,7 +1709,7 @@ fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts/<address>/history?limit=5",
+        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/history?limit=5",
         "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
@@ -1711,6 +1722,7 @@ fn help_text() -> String {
         "  xriq-api request-postgres --target /api/v1/accounts?limit=5",
         "  xriq-api request-postgres --target /api/v1/accounts/<address>",
         "  xriq-api request-postgres --target /api/v1/accounts/<address>/transactions?limit=5",
+        "  xriq-api request-postgres --target /api/v1/wallet/accounts?limit=5",
         "  xriq-api request-postgres --target /api/v1/wallet/accounts/<address>/history?limit=5",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100 --postgres-docker-container xriq-postgres --postgres-database xriq_phase1_1_smoke",
@@ -2384,6 +2396,20 @@ transaction_0_fee_base_units=2
     }
 
     #[test]
+    fn postgres_wallet_accounts_sql_rejects_invalid_limit_before_docker() {
+        let response = run([
+            "request-postgres",
+            "--target",
+            "/api/v1/wallet/accounts?limit=not-a-number",
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=400"));
+        assert!(response.contains("\"code\": \"bad_request\""));
+        assert!(response.contains("invalid limit"));
+    }
+
+    #[test]
     fn postgres_account_detail_sql_rejects_invalid_address_before_docker() {
         let response = run(["request-postgres", "--target", "/api/v1/accounts/not-valid"]).unwrap();
 
@@ -2557,6 +2583,12 @@ transaction_0_fee_base_units=2
             maybe_postgres_read_model_http_response(None, "GET", "/api/v1/accounts?limit=5")
                 .is_none()
         );
+        assert!(maybe_postgres_read_model_http_response(
+            None,
+            "GET",
+            "/api/v1/wallet/accounts?limit=5"
+        )
+        .is_none());
         assert!(maybe_postgres_read_model_http_response(
             None,
             "GET",
