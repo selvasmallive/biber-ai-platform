@@ -135,17 +135,19 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `63%` overall. Current Rust
+- Phase 1.1 estimated completion: about `64%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
   read-model schema, JSON fixtures, and a local validation script. Milestone B
   now has the first deterministic Rust read-model indexer scaffold and local
   replay command plus idempotent SQL write-plan export and a dry-run local
-  PostgreSQL apply path, optional local Postgres service, and dry-run/live
-  verification command. The local Phase 1.1 smoke now exercises indexer replay,
+  PostgreSQL apply path, optional local Postgres service, dry-run/live
+  verification command, and an opt-in Docker-backed smoke path that can apply
+  the generated SQL inside the local Compose Postgres container without host
+  `psql`. The local Phase 1.1 smoke now exercises indexer replay,
   SQL write-plan generation, apply-postgres dry-run, and verify-postgres
-  dry-run before API route checks. The first Rust product API service, route/render
+  dry-run before API route checks by default. The first Rust product API service, route/render
   boundary, CLI smoke path, and local read-only socket wrapper now exist in
   `xriq/crates/xriq-api`. The first ISO
   20022 compatibility adapter exists in `xriq/crates/xriq-iso20022`, but it is
@@ -202,6 +204,23 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 optional Postgres live-smoke checkpoint:
+  extended `scripts/xriq_phase1_1_local_e2e_smoke.py` with an explicit
+  `--postgres-docker-live` mode. The default smoke remains CPU-only,
+  socketless, cloudless, and dry-run-only. When explicitly enabled, the smoke
+  starts/uses the local root Compose `postgres` service, waits for the
+  `xriq-postgres` health check, creates or reuses a dedicated
+  `xriq_phase1_1_smoke` database, resets only that database's `public` schema,
+  applies `xriq/db/schema.sql`, applies the generated indexer SQL write plan
+  through container-local `psql`, verifies table counts for blocks,
+  transactions, accounts, balances, account transaction history, audit events,
+  indexer runs, and latest height, and writes
+  `indexer/postgres-docker-live.json` under the smoke artifact directory. The
+  smoke summary now also records all indexer artifact paths. This does not
+  require host `psql`, GCP, Vast/GPU resources, credentials, public/DEX
+  behavior, or production data. Verification on this workstation used the
+  default dry-run smoke path only because Docker Desktop/the Docker daemon was
+  not running. Phase 1.1 status is now about `64%` overall.
 - Latest native XRIQ Phase 1.1 indexer dry-run smoke checkpoint: extended
   `scripts/xriq_phase1_1_local_e2e_smoke.py` so the one-command local Phase
   1.1 smoke now builds `xriq-indexer`, replays the generated chain through the

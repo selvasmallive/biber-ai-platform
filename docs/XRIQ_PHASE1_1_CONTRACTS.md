@@ -369,7 +369,8 @@ xriq/fixtures/phase1_1/
 ## Next Implementation Step
 
 Continue Milestone B by validating the deterministic indexer scaffold against a
-real local PostgreSQL instance:
+real local PostgreSQL instance when Docker Desktop or another local Postgres
+service is intentionally available:
 
 1. Keep `xriq-indexer` as the pure, deterministic read-model layer.
 2. Keep using the local replay command to validate file-backed chain replay and
@@ -379,6 +380,10 @@ real local PostgreSQL instance:
 4. Use `apply-postgres --dry-run true` as the default safety check.
 5. Use `apply-postgres --dry-run false` only with a local database URL and
    installed `psql`.
+6. If host `psql` is unavailable but Docker Desktop is running, use
+   `python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live` to
+   apply and verify the generated SQL inside the local Compose Postgres
+   container against the dedicated `xriq_phase1_1_smoke` database.
 
 ## Concrete Artifacts
 
@@ -425,6 +430,13 @@ To validate the local apply path without requiring a running database or `psql`:
 
 ```bash
 cargo run -p xriq-indexer -- apply-postgres --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --schema-file db/schema.sql --dry-run true
+```
+
+To opt into Docker-backed local live SQL validation without requiring host
+`psql`:
+
+```bash
+python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
 ```
 
 The indexer scaffold currently builds a PostgreSQL-facing in-memory read model

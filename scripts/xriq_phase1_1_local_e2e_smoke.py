@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -48,6 +49,7 @@ def run_command(
     *,
     cwd: Path,
     capture: bool = True,
+    stdin_text: str | None = None,
 ) -> str:
     print(f"==> {name}", flush=True)
     print("$ " + " ".join(command), flush=True)
@@ -55,6 +57,7 @@ def run_command(
         command,
         cwd=cwd,
         capture_output=capture,
+        input=stdin_text,
         text=True,
         check=False,
     )
@@ -230,7 +233,195 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Skip the Phase 1.1 contract/schema/fixture check.",
     )
+    parser.add_argument(
+        "--postgres-docker-live",
+        action="store_true",
+        help=(
+            "Start/use the local Compose postgres service and validate the "
+            "generated SQL against a dedicated smoke database. Defaults off."
+        ),
+    )
+    parser.add_argument(
+        "--postgres-docker-container",
+        default="xriq-postgres",
+        help="Postgres container name to use with --postgres-docker-live.",
+    )
+    parser.add_argument(
+        "--postgres-docker-database",
+        default="xriq_phase1_1_smoke",
+        help=(
+            "Dedicated database name to reset and use with "
+            "--postgres-docker-live."
+        ),
+    )
     return parser.parse_args(argv)
+
+
+def validate_postgres_identifier(value: str, context: str) -> str:
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,62}", value):
+        raise SmokeError(
+            f"{context}: expected PostgreSQL identifier with letters, digits, "
+            f"and underscores only, got {value!r}"
+        )
+    return value
+
+
+def sql_literal(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def wait_for_docker_postgres(root: Path, container: str, timeout_seconds: int = 90) -> str:
+    deadline = time.monotonic() + timeout_seconds
+    last_status = "unknown"
+    while time.monotonic() < deadline:
+        completed = subprocess.run(
+            [
+                "docker",
+                "inspect",
+                "--format={{.State.Health.Status}}",
+                container,
+            ],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if completed.returncode == 0:
+            last_status = completed.stdout.strip()
+            if last_status == "healthy":
+                return last_status
+        else:
+            last_status = completed.stderr.strip() or completed.stdout.strip()
+        time.sleep(2)
+    raise SmokeError(
+        f"postgres docker container {container!r} did not become healthy "
+        f"within {timeout_seconds}s; last status: {last_status}"
+    )
+
+
+def docker_psql(
+    root: Path,
+    container: str,
+    database: str,
+    sql: str,
+    label: str,
+    *,
+    psql_args: list[str] | None = None,
+) -> str:
+    command = [
+        "docker",
+        "exec",
+        "-i",
+        container,
+        "psql",
+        "-U",
+        "xriq",
+        "-d",
+        database,
+        "-v",
+        "ON_ERROR_STOP=1",
+    ]
+    command.extend(psql_args or [])
+    return run_command(label, command, cwd=root, stdin_text=sql)
+
+
+def run_postgres_docker_live(
+    root: Path,
+    xriq_dir: Path,
+    indexer_sql: str,
+    indexer_dir: Path,
+    *,
+    container: str,
+    database: str,
+) -> dict[str, Any]:
+    validate_postgres_identifier(database, "postgres docker database")
+    schema_sql = (xriq_dir / "db" / "schema.sql").read_text(encoding="utf-8")
+
+    run_command(
+        "start local XRIQ Postgres",
+        ["docker", "compose", "up", "-d", "postgres"],
+        cwd=root,
+    )
+    health = wait_for_docker_postgres(root, container)
+    database_exists = docker_psql(
+        root,
+        container,
+        "postgres",
+        f"SELECT 1 FROM pg_database WHERE datname = {sql_literal(database)};\n",
+        "check postgres smoke database",
+        psql_args=["-t", "-A"],
+    ).strip()
+    if database_exists != "1":
+        run_command(
+            "create postgres smoke database",
+            ["docker", "exec", container, "createdb", "-U", "xriq", database],
+            cwd=root,
+        )
+
+    docker_psql(
+        root,
+        container,
+        database,
+        (
+            "DROP SCHEMA IF EXISTS public CASCADE;\n"
+            "CREATE SCHEMA public;\n"
+            "GRANT ALL ON SCHEMA public TO xriq;\n"
+        ),
+        "reset postgres smoke schema",
+    )
+    docker_psql(root, container, database, schema_sql, "apply postgres schema")
+    docker_psql(root, container, database, indexer_sql, "apply postgres indexer write plan")
+    verify_output = docker_psql(
+        root,
+        container,
+        database,
+        postgres_verification_sql(),
+        "verify postgres indexed counts",
+        psql_args=["-t", "-A"],
+    )
+    counts = parse_key_value_output(verify_output, "postgres docker live verify")
+    expected_counts = {
+        "blocks": "1",
+        "transactions": "1",
+        "accounts": "3",
+        "account_balances": "3",
+        "account_transactions": "2",
+        "audit_events": "1",
+        "indexer_runs": "1",
+        "latest_height": "1",
+    }
+    for key, expected in expected_counts.items():
+        if counts.get(key) != expected:
+            raise SmokeError(
+                f"postgres docker live verify: expected {key}={expected!r}, "
+                f"got {counts.get(key)!r}"
+            )
+
+    summary = {
+        "mode": "docker-live",
+        "container": container,
+        "database": database,
+        "health": health,
+        "counts": counts,
+        "warning": (
+            "local-private-devnet-smoke-database-schema-reset-no-public-or-prod-data"
+        ),
+    }
+    write_json(indexer_dir / "postgres-docker-live.json", summary)
+    return summary
+
+
+def postgres_verification_sql() -> str:
+    return (
+        "SELECT 'blocks=' || count(*) FROM xriq_blocks;\n"
+        "SELECT 'transactions=' || count(*) FROM xriq_transactions;\n"
+        "SELECT 'accounts=' || count(*) FROM xriq_accounts;\n"
+        "SELECT 'account_balances=' || count(*) FROM xriq_account_balances;\n"
+        "SELECT 'account_transactions=' || count(*) FROM xriq_account_transactions;\n"
+        "SELECT 'audit_events=' || count(*) FROM xriq_audit_events;\n"
+        "SELECT 'indexer_runs=' || count(*) FROM xriq_indexer_runs;\n"
+        "SELECT 'latest_height=' || COALESCE(MAX(height)::text, 'none') FROM xriq_blocks;\n"
+    )
 
 
 def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
@@ -498,6 +689,20 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         verify_output + "\n", encoding="utf-8"
     )
     completed.append("indexer replay and postgres dry-run")
+
+    postgres_docker_live = None
+    if args.postgres_docker_live:
+        postgres_docker_live = run_postgres_docker_live(
+            root,
+            xriq_dir,
+            indexer_sql,
+            indexer_dir,
+            container=args.postgres_docker_container,
+            database=args.postgres_docker_database,
+        )
+        completed.append("postgres docker live smoke")
+    else:
+        skipped.append("postgres docker live smoke")
 
     def check(target: str, name: str, validate: Callable[[dict[str, Any]], None]) -> dict[str, Any]:
         routes_checked.append(target)
@@ -832,6 +1037,18 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "artifact_dir": str(artifact_dir),
         "chain_file": str(chain_file),
         "pending_file": str(pending_file),
+        "indexer_artifacts": {
+            "replay_json": str(indexer_dir / "replay.json"),
+            "write_plan_sql": str(indexer_dir / "write-plan.sql"),
+            "apply_postgres_dry_run": str(indexer_dir / "apply-postgres-dry-run.txt"),
+            "verify_postgres_dry_run": str(indexer_dir / "verify-postgres-dry-run.txt"),
+            "postgres_docker_live": (
+                str(indexer_dir / "postgres-docker-live.json")
+                if postgres_docker_live
+                else None
+            ),
+        },
+        "postgres_docker_live": postgres_docker_live,
         "confirmed_tx_hash": confirmed_tx_hash,
         "pending_tx_hash": pending_tx_hash,
         "routes_checked": routes_checked,

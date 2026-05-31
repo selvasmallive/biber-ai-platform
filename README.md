@@ -336,6 +336,16 @@ To validate the local PostgreSQL apply path without touching a database:
 cargo run -p xriq-indexer -- apply-postgres --chain-file target/xriq-indexer-replay-smoke.bin --alice-balance 100 --schema-file db/schema.sql --dry-run true
 ```
 
+The Phase 1.1 local smoke can also validate the generated SQL inside the
+optional Compose Postgres container without host `psql`. This is explicit and
+local-only: it starts/uses `postgres`, resets only the dedicated
+`xriq_phase1_1_smoke` database schema, applies the generated write plan, and
+writes a live-count artifact under the smoke output directory.
+
+```powershell
+python scripts\xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
+```
+
 To start the optional local XRIQ PostgreSQL read model and verify counts after
 an explicit apply, use the local-only dev URL below:
 

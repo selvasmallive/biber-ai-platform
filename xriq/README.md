@@ -82,10 +82,22 @@ guardrails, builds the local Rust binaries, creates a confirmed transfer plus
 one durable pending transfer, validates indexer replay plus PostgreSQL
 apply/verify dry-runs, and verifies the product API routes used by the explorer,
 wallet, mempool, snapshot, audit, admin, and ISO preview panels, including
-wallet draft-preview validation failures:
+wallet draft-preview validation failures. By default, PostgreSQL remains
+dry-run-only:
 
 ```bash
 python scripts/xriq_phase1_1_local_e2e_smoke.py
+```
+
+When Docker Desktop is running and live local SQL validation is intentionally
+wanted, the same smoke can start/use the root Compose `postgres` service,
+reset only a dedicated `xriq_phase1_1_smoke` database schema, apply the schema
+and generated write plan through container-local `psql`, verify indexed counts,
+and write `indexer/postgres-docker-live.json` under the smoke artifact
+directory:
+
+```bash
+python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
 ```
 
 To expose the same product API routes over localhost for a browser/client
