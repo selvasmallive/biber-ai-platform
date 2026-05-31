@@ -346,6 +346,13 @@ writes a live-count artifact under the smoke output directory.
 python scripts\xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
 ```
 
+The same live smoke verifies the first explicit Postgres-backed API read path:
+
+```powershell
+cd xriq
+cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
+```
+
 To start the optional local XRIQ PostgreSQL read model and verify counts after
 an explicit apply, use the local-only dev URL below:
 

@@ -100,6 +100,15 @@ directory:
 python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
 ```
 
+That live smoke also verifies the first explicit Postgres-backed API read path.
+The default `xriq-api request` and `serve-readonly` flows still use file-backed
+chain replay; this command is local-only and reads the Compose Postgres read
+model through container-local `psql`:
+
+```bash
+cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
+```
+
 To expose the same product API routes over localhost for a browser/client
 smoke, run. The optional `--pending-file` is read-only in `xriq-api`: it lets
 the Admin panel inspect durable private-devnet pending entries while wallet

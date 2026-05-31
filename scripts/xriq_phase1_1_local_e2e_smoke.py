@@ -701,6 +701,61 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             database=args.postgres_docker_database,
         )
         completed.append("postgres docker live smoke")
+        postgres_api_output = run_command(
+            "xriq-api postgres read-model status",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                "/api/v1/admin/postgres/read-model-status",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_status = parse_api_request_output(
+            postgres_api_output,
+            "xriq-api postgres read-model status",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres read-model status: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_status}"
+            )
+        require_equal(
+            postgres_api_status,
+            "source",
+            "postgres-read-model",
+            "xriq-api postgres read-model status",
+        )
+        require_equal(
+            postgres_api_status,
+            "read_only",
+            True,
+            "xriq-api postgres read-model status",
+        )
+        counts = postgres_api_status.get("counts")
+        if not isinstance(counts, dict):
+            raise SmokeError("xriq-api postgres read-model status: expected counts object")
+        expected_counts = postgres_docker_live["counts"]
+        for key, expected in expected_counts.items():
+            if key == "latest_height":
+                continue
+            if counts.get(key) != int(expected):
+                raise SmokeError(
+                    "xriq-api postgres read-model status: expected "
+                    f"{key}={expected!r}, got {counts.get(key)!r}"
+                )
+        require_equal(
+            postgres_api_status,
+            "latest_height",
+            int(expected_counts["latest_height"]),
+            "xriq-api postgres read-model status",
+        )
+        write_json(indexer_dir / "postgres-api-read-model-status.json", postgres_api_status)
+        completed.append("postgres-backed api read-model status")
     else:
         skipped.append("postgres docker live smoke")
 
@@ -1044,6 +1099,11 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "verify_postgres_dry_run": str(indexer_dir / "verify-postgres-dry-run.txt"),
             "postgres_docker_live": (
                 str(indexer_dir / "postgres-docker-live.json")
+                if postgres_docker_live
+                else None
+            ),
+            "postgres_api_read_model_status": (
+                str(indexer_dir / "postgres-api-read-model-status.json")
                 if postgres_docker_live
                 else None
             ),

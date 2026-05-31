@@ -126,6 +126,7 @@ Required behavior:
 ```text
 GET  /api/v1/admin/node/status
 GET  /api/v1/admin/indexer/status
+GET  /api/v1/admin/postgres/read-model-status
 POST /api/v1/admin/indexer/replay
 GET  /api/v1/admin/audit-events
 POST /api/v1/admin/snapshots/export
@@ -144,6 +145,9 @@ Required behavior:
 - mutating admin endpoints are disabled by default in production-like configs
 - every mutating endpoint writes an audit event
 - snapshot import must refuse unsafe overwrite by default
+- Postgres read-model status is local/private-devnet read-only and must not
+  print database passwords, mutate schema, or replace the default file-backed
+  API path unless explicitly configured
 
 ### ISO 20022 Mapping APIs
 
@@ -411,6 +415,14 @@ Run the focused Rust indexer scaffold tests from `xriq/`:
 
 ```bash
 cargo test -p xriq-indexer
+```
+
+The first explicit Postgres-backed API read path is local-only and uses the
+Compose `postgres` container. It returns status/count JSON for the read model
+without changing the default file-backed API request/server path:
+
+```bash
+cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
 ```
 
 Run the local replay command from `xriq/` against an existing private-devnet
