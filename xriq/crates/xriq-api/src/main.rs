@@ -11,6 +11,7 @@ use std::{
 
 use xriq_api::{
     pending_mempool_entries_from_tsv, product_api_http_response, ApiHttpResponse, XriqApiService,
+    SNAPSHOT_READONLY_WARNING,
 };
 use xriq_core::{Address, XriqAmount};
 use xriq_indexer::index_private_devnet_store;
@@ -29,6 +30,7 @@ const POSTGRES_WALLET_TRANSACTION_PREFIX: &str = "/api/v1/wallet/transactions/";
 const POSTGRES_WALLET_TRANSACTION_STATUS_SUFFIX: &str = "/status";
 const POSTGRES_ACCOUNTS_ROUTE: &str = "/api/v1/accounts";
 const POSTGRES_WALLET_ACCOUNTS_ROUTE: &str = "/api/v1/wallet/accounts";
+const POSTGRES_SNAPSHOTS_ROUTE: &str = "/api/v1/snapshots";
 const POSTGRES_ACCOUNT_DETAIL_PREFIX: &str = "/api/v1/accounts/";
 const POSTGRES_ACCOUNT_HISTORY_SUFFIX: &str = "/transactions";
 const POSTGRES_WALLET_ACCOUNT_PREFIX: &str = "/api/v1/wallet/accounts/";
@@ -291,7 +293,8 @@ fn maybe_postgres_read_model_http_response(
             | POSTGRES_BLOCKS_ROUTE
             | POSTGRES_TRANSACTIONS_ROUTE
             | POSTGRES_ACCOUNTS_ROUTE
-            | POSTGRES_WALLET_ACCOUNTS_ROUTE,
+            | POSTGRES_WALLET_ACCOUNTS_ROUTE
+            | POSTGRES_SNAPSHOTS_ROUTE,
             None,
         ) => return None,
         (_, None) if is_transaction_detail => return None,
@@ -309,7 +312,8 @@ fn maybe_postgres_read_model_http_response(
             | POSTGRES_BLOCKS_ROUTE
             | POSTGRES_TRANSACTIONS_ROUTE
             | POSTGRES_ACCOUNTS_ROUTE
-            | POSTGRES_WALLET_ACCOUNTS_ROUTE,
+            | POSTGRES_WALLET_ACCOUNTS_ROUTE
+            | POSTGRES_SNAPSHOTS_ROUTE,
             Some(config),
         ) => return Some(postgres_read_model_http_response(config, method, target)),
         _ => {}
@@ -479,6 +483,10 @@ fn postgres_read_model_http_response(
                     "postgres wallet accounts",
                     render_postgres_accounts_json,
                 ),
+                Err(message) => return Ok(local_api_error_response(400, "bad_request", &message)),
+            },
+            POSTGRES_SNAPSHOTS_ROUTE => match postgres_snapshots_sql(target) {
+                Ok(sql) => (sql, "postgres snapshots", render_postgres_snapshots_json),
                 Err(message) => return Ok(local_api_error_response(400, "bad_request", &message)),
             },
             _ => {
@@ -1092,6 +1100,76 @@ FROM (
     SELECT 105 + row_index * 20, 'transaction_' || row_index || '_amount_base_units', amount_base_units FROM ranked
     UNION ALL
     SELECT 106 + row_index * 20, 'transaction_' || row_index || '_fee_base_units', fee_base_units FROM ranked
+) AS rows
+ORDER BY sort_order;
+"#
+    ))
+}
+
+fn postgres_snapshots_sql(target: &str) -> Result<String, String> {
+    let (_, query) = split_http_target(target);
+    let limit = limit_from_query(query, 25)?;
+    Ok(format!(
+        r#"
+WITH counts AS (
+    SELECT
+        (SELECT count(*) FROM xriq_blocks) AS block_count,
+        (SELECT count(*) FROM xriq_transactions) AS transaction_count,
+        (SELECT count(*) FROM xriq_audit_events) AS audit_event_count
+),
+ranked AS (
+    SELECT
+        row_number() OVER (ORDER BY snapshot.current_height DESC, snapshot.snapshot_name ASC) - 1 AS row_index,
+        snapshot.snapshot_name,
+        snapshot.snapshot_dir,
+        snapshot.current_height,
+        snapshot.latest_block_hash,
+        snapshot.state_root,
+        counts.block_count,
+        counts.transaction_count,
+        counts.audit_event_count
+    FROM xriq_snapshots snapshot
+    CROSS JOIN counts
+    ORDER BY snapshot.current_height DESC, snapshot.snapshot_name ASC
+    LIMIT {limit}
+),
+totals AS (
+    SELECT count(*) AS total_snapshots FROM xriq_snapshots
+)
+SELECT key || '=' || value
+FROM (
+    SELECT 0 AS sort_order, 'limit' AS key, '{limit}' AS value
+    UNION ALL
+    SELECT 1, 'snapshot_count', count(*)::text FROM ranked
+    UNION ALL
+    SELECT
+        2,
+        'next_cursor',
+        CASE
+            WHEN (SELECT total_snapshots FROM totals) > (SELECT count(*) FROM ranked)
+            THEN COALESCE((SELECT snapshot_name FROM ranked ORDER BY row_index DESC LIMIT 1), 'none')
+            ELSE 'none'
+        END
+    UNION ALL
+    SELECT 100 + row_index * 20, 'snapshot_' || row_index || '_snapshot_name', snapshot_name FROM ranked
+    UNION ALL
+    SELECT 101 + row_index * 20, 'snapshot_' || row_index || '_snapshot_dir', snapshot_dir FROM ranked
+    UNION ALL
+    SELECT 102 + row_index * 20, 'snapshot_' || row_index || '_current_height', current_height::text FROM ranked
+    UNION ALL
+    SELECT 103 + row_index * 20, 'snapshot_' || row_index || '_latest_block_hash', latest_block_hash FROM ranked
+    UNION ALL
+    SELECT 104 + row_index * 20, 'snapshot_' || row_index || '_state_root', state_root FROM ranked
+    UNION ALL
+    SELECT 105 + row_index * 20, 'snapshot_' || row_index || '_block_count', block_count::text FROM ranked
+    UNION ALL
+    SELECT 106 + row_index * 20, 'snapshot_' || row_index || '_transaction_count', transaction_count::text FROM ranked
+    UNION ALL
+    SELECT 107 + row_index * 20, 'snapshot_' || row_index || '_audit_event_count', audit_event_count::text FROM ranked
+    UNION ALL
+    SELECT 108 + row_index * 20, 'snapshot_' || row_index || '_export_status', 'disabled' FROM ranked
+    UNION ALL
+    SELECT 109 + row_index * 20, 'snapshot_' || row_index || '_import_status', 'disabled' FROM ranked
 ) AS rows
 ORDER BY sort_order;
 "#
@@ -1854,6 +1932,123 @@ fn render_postgres_accounts_json(
     Ok(output)
 }
 
+fn render_postgres_snapshots_json(
+    _config: &PostgresReadModelConfig<'_>,
+    values: &BTreeMap<String, String>,
+) -> Result<String, String> {
+    let limit = required_u64_for(values, "limit", "postgres snapshots")?;
+    let snapshot_count = required_u64_for(values, "snapshot_count", "postgres snapshots")?;
+    let next_cursor = optional_string_json(values, "next_cursor")?;
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(&mut output, "  \"environment\": \"private-devnet\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"network\": {},",
+        json_string(POSTGRES_PRIVATE_DEVNET_NETWORK)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"source\": \"postgres-read-model\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(SNAPSHOT_READONLY_WARNING)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"read_model_warning\": {},",
+        json_string(POSTGRES_READ_MODEL_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"read_only\": true,").expect("write to String");
+    writeln!(&mut output, "  \"limit\": {},", limit).expect("write to String");
+    writeln!(&mut output, "  \"next_cursor\": {},", next_cursor).expect("write to String");
+    output.push_str("  \"snapshots\": [");
+    for index in 0..snapshot_count {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_postgres_snapshot_json_inline(values, index, 4)?);
+    }
+    if snapshot_count > 0 {
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    Ok(output)
+}
+
+fn render_postgres_snapshot_json_inline(
+    values: &BTreeMap<String, String>,
+    index: u64,
+    indent: usize,
+) -> Result<String, String> {
+    let prefix = format!("snapshot_{index}_");
+    let snapshot_name = required_string_for(
+        values,
+        &format!("{prefix}snapshot_name"),
+        "postgres snapshots",
+    )?;
+    let snapshot_dir = required_string_for(
+        values,
+        &format!("{prefix}snapshot_dir"),
+        "postgres snapshots",
+    )?;
+    let current_height = required_u64_for(
+        values,
+        &format!("{prefix}current_height"),
+        "postgres snapshots",
+    )?;
+    let latest_block_hash = required_string_for(
+        values,
+        &format!("{prefix}latest_block_hash"),
+        "postgres snapshots",
+    )?;
+    let state_root =
+        required_string_for(values, &format!("{prefix}state_root"), "postgres snapshots")?;
+    let block_count = required_u64_for(
+        values,
+        &format!("{prefix}block_count"),
+        "postgres snapshots",
+    )?;
+    let transaction_count = required_u64_for(
+        values,
+        &format!("{prefix}transaction_count"),
+        "postgres snapshots",
+    )?;
+    let audit_event_count = required_u64_for(
+        values,
+        &format!("{prefix}audit_event_count"),
+        "postgres snapshots",
+    )?;
+    let export_status = required_string_for(
+        values,
+        &format!("{prefix}export_status"),
+        "postgres snapshots",
+    )?;
+    let import_status = required_string_for(
+        values,
+        &format!("{prefix}import_status"),
+        "postgres snapshots",
+    )?;
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    Ok(format!(
+        "{spaces}{{\n{nested}\"snapshot_name\": {},\n{nested}\"snapshot_dir\": {},\n{nested}\"current_height\": {},\n{nested}\"latest_block_hash\": {},\n{nested}\"state_root\": {},\n{nested}\"block_count\": {},\n{nested}\"transaction_count\": {},\n{nested}\"audit_event_count\": {},\n{nested}\"export_status\": {},\n{nested}\"import_status\": {}\n{spaces}}}",
+        json_string(snapshot_name),
+        json_string(snapshot_dir),
+        current_height,
+        json_string(latest_block_hash),
+        json_string(state_root),
+        block_count,
+        transaction_count,
+        audit_event_count,
+        json_string(export_status),
+        json_string(import_status)
+    ))
+}
+
 fn render_postgres_account_detail_json(
     _config: &PostgresReadModelConfig<'_>,
     values: &BTreeMap<String, String>,
@@ -2206,7 +2401,7 @@ fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/node/status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5",
+        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/node/status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5|/api/v1/snapshots?limit=5",
         "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
@@ -2226,6 +2421,7 @@ fn help_text() -> String {
         "  xriq-api request-postgres --target /api/v1/wallet/accounts?limit=5",
         "  xriq-api request-postgres --target /api/v1/wallet/accounts/<address>/balance",
         "  xriq-api request-postgres --target /api/v1/wallet/accounts/<address>/history?limit=5",
+        "  xriq-api request-postgres --target /api/v1/snapshots?limit=5",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100 --postgres-docker-container xriq-postgres --postgres-database xriq_phase1_1_smoke",
     ]
@@ -2941,6 +3137,49 @@ account_1_last_seen_height=1
     }
 
     #[test]
+    fn postgres_snapshots_json_renders_product_list_shape() {
+        let config =
+            PostgresRequestConfig::parse(&["--target", "/api/v1/snapshots?limit=5"]).unwrap();
+        let values = parse_key_value_lines(
+            "\
+limit=5
+snapshot_count=1
+next_cursor=none
+snapshot_0_snapshot_name=current-indexed-chain
+snapshot_0_snapshot_dir=read-model://current-indexed-chain
+snapshot_0_current_height=1
+snapshot_0_latest_block_hash=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+snapshot_0_state_root=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+snapshot_0_block_count=1
+snapshot_0_transaction_count=1
+snapshot_0_audit_event_count=1
+snapshot_0_export_status=disabled
+snapshot_0_import_status=disabled
+",
+            "test postgres snapshots",
+        )
+        .unwrap();
+
+        let body = render_postgres_snapshots_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"source\": \"postgres-read-model\""));
+        assert!(body.contains("\"read_only\": true"));
+        assert!(body.contains(SNAPSHOT_READONLY_WARNING));
+        assert!(body.contains(POSTGRES_READ_MODEL_WARNING));
+        assert!(body.contains("\"limit\": 5"));
+        assert!(body.contains("\"next_cursor\": null"));
+        assert!(body.contains("\"snapshots\": ["));
+        assert!(body.contains("\"snapshot_name\": \"current-indexed-chain\""));
+        assert!(body.contains("\"snapshot_dir\": \"read-model://current-indexed-chain\""));
+        assert!(body.contains("\"current_height\": 1"));
+        assert!(body.contains("\"block_count\": 1"));
+        assert!(body.contains("\"transaction_count\": 1"));
+        assert!(body.contains("\"audit_event_count\": 1"));
+        assert!(body.contains("\"export_status\": \"disabled\""));
+        assert!(body.contains("\"import_status\": \"disabled\""));
+    }
+
+    #[test]
     fn postgres_account_detail_json_renders_product_shape() {
         let config = PostgresRequestConfig::parse(&[
             "--target",
@@ -3114,6 +3353,20 @@ transaction_0_fee_base_units=2
             "request-postgres",
             "--target",
             "/api/v1/wallet/accounts?limit=not-a-number",
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=400"));
+        assert!(response.contains("\"code\": \"bad_request\""));
+        assert!(response.contains("invalid limit"));
+    }
+
+    #[test]
+    fn postgres_snapshots_sql_rejects_invalid_limit_before_docker() {
+        let response = run([
+            "request-postgres",
+            "--target",
+            "/api/v1/snapshots?limit=not-a-number",
         ])
         .unwrap();
 
@@ -3344,6 +3597,10 @@ transaction_0_fee_base_units=2
         .is_none());
         assert!(
             maybe_postgres_read_model_http_response(None, "GET", "/api/v1/accounts?limit=5")
+                .is_none()
+        );
+        assert!(
+            maybe_postgres_read_model_http_response(None, "GET", "/api/v1/snapshots?limit=5")
                 .is_none()
         );
         assert!(maybe_postgres_read_model_http_response(

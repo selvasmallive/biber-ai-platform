@@ -738,6 +738,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     )
     for marker in [
         "INSERT INTO xriq_indexer_runs",
+        "INSERT INTO xriq_snapshots",
         "INSERT INTO xriq_blocks",
         "INSERT INTO xriq_transactions",
         "ON CONFLICT",
@@ -837,6 +838,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_wallet_account_history = None
     postgres_api_audit_events = None
     postgres_server_audit_events = None
+    postgres_api_snapshots = None
+    postgres_server_snapshots = None
     postgres_ui_status = None
     if args.postgres_docker_live:
         postgres_docker_live = run_postgres_docker_live(
@@ -1250,6 +1253,58 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             require_hash(event.get("resource_id"), f"{context} resource id")
             require_equal(event, "environment", "private-devnet", context)
 
+        def validate_postgres_snapshots(payload: dict[str, Any], context: str) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(payload, "limit", 5, context)
+            require_equal(payload, "next_cursor", None, context)
+            require_equal(
+                payload,
+                "warning",
+                "private-devnet-read-only-snapshot-catalog-export-import-disabled",
+                context,
+            )
+            require_equal(
+                payload,
+                "read_model_warning",
+                "local-private-devnet-postgres-read-only-preview-no-mutation",
+                context,
+            )
+            snapshots = require_list(payload.get("snapshots"), context)
+            if len(snapshots) != 1 or not isinstance(snapshots[0], dict):
+                raise SmokeError(f"{context}: expected exactly one snapshot")
+            snapshot = snapshots[0]
+            require_equal(snapshot, "snapshot_name", "current-indexed-chain", context)
+            require_equal(
+                snapshot,
+                "snapshot_dir",
+                "read-model://current-indexed-chain",
+                context,
+            )
+            require_equal(
+                snapshot,
+                "current_height",
+                int(expected_counts["latest_height"]),
+                context,
+            )
+            require_hash(snapshot.get("latest_block_hash"), f"{context} latest block hash")
+            require_hash(snapshot.get("state_root"), f"{context} state root")
+            require_equal(snapshot, "block_count", int(expected_counts["blocks"]), context)
+            require_equal(
+                snapshot,
+                "transaction_count",
+                int(expected_counts["transactions"]),
+                context,
+            )
+            require_equal(
+                snapshot,
+                "audit_event_count",
+                int(expected_counts["audit_events"]),
+                context,
+            )
+            require_equal(snapshot, "export_status", "disabled", context)
+            require_equal(snapshot, "import_status", "disabled", context)
+
         postgres_blocks_output = run_command(
             "xriq-api postgres blocks",
             [
@@ -1604,6 +1659,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         completed.append("postgres-backed api audit events")
 
+        postgres_snapshots_output = run_command(
+            "xriq-api postgres snapshots",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                "/api/v1/snapshots?limit=5",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_snapshots = parse_api_request_output(
+            postgres_snapshots_output,
+            "xriq-api postgres snapshots",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres snapshots: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_snapshots}"
+            )
+        validate_postgres_snapshots(
+            postgres_api_snapshots,
+            "xriq-api postgres snapshots",
+        )
+        write_json(
+            indexer_dir / "postgres-api-snapshots.json",
+            postgres_api_snapshots,
+        )
+        completed.append("postgres-backed api snapshots")
+
         server_port = free_local_port()
         server_bind = f"127.0.0.1:{server_port}"
         server_base_url = f"http://{server_bind}"
@@ -1657,6 +1745,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_audit_events = http_json(
                 server_base_url, "/api/v1/admin/audit-events?limit=5"
             )
+            postgres_server_snapshots = http_json(server_base_url, "/api/v1/snapshots?limit=5")
             postgres_ui_artifact = indexer_dir / "postgres-admin-ui-read-model-status.json"
             run_command(
                 "xriq admin postgres UI status smoke",
@@ -1776,6 +1865,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_audit_events,
             "xriq-api serve-readonly postgres audit events",
         )
+        validate_postgres_snapshots(
+            postgres_server_snapshots,
+            "xriq-api serve-readonly postgres snapshots",
+        )
         write_json(
             indexer_dir / "postgres-server-read-model-status.json", postgres_server_status
         )
@@ -1828,6 +1921,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             indexer_dir / "postgres-server-audit-events.json",
             postgres_server_audit_events,
         )
+        write_json(
+            indexer_dir / "postgres-server-snapshots.json",
+            postgres_server_snapshots,
+        )
         completed.append("postgres-backed server read-model status")
         completed.append("postgres-backed server node status")
         completed.append("postgres-backed server indexer status")
@@ -1843,6 +1940,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         completed.append("postgres-backed server account history")
         completed.append("postgres-backed server wallet account history")
         completed.append("postgres-backed server audit events")
+        completed.append("postgres-backed server snapshots")
         completed.append("postgres-backed admin UI read-model status")
     else:
         skipped.append("postgres docker live smoke")
@@ -2336,6 +2434,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_audit_events": (
                 str(indexer_dir / "postgres-server-audit-events.json")
                 if postgres_server_audit_events
+                else None
+            ),
+            "postgres_api_snapshots": (
+                str(indexer_dir / "postgres-api-snapshots.json")
+                if postgres_api_snapshots
+                else None
+            ),
+            "postgres_server_snapshots": (
+                str(indexer_dir / "postgres-server-snapshots.json")
+                if postgres_server_snapshots
                 else None
             ),
             "postgres_admin_ui_read_model_status": (

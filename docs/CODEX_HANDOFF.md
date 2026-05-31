@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `83%` overall. Current Rust
+- Phase 1.1 estimated completion: about `84%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -164,7 +164,8 @@ unless the user changes the project scope again.
   `/api/v1/wallet/accounts?limit=...`, and
   `/api/v1/wallet/accounts/{address}/balance`, and
   `/api/v1/wallet/accounts/{address}/history?limit=...`, and
-  `/api/v1/admin/audit-events?limit=...` without changing the default
+  `/api/v1/admin/audit-events?limit=...`, and
+  `/api/v1/snapshots?limit=...` without changing the default
   file-backed API path. The first ISO
   20022 compatibility adapter exists in `xriq/crates/xriq-iso20022`, but it is
   a private-devnet preview mapping layer only, not certification or payment
@@ -205,7 +206,7 @@ unless the user changes the project scope again.
   cases. Its explicit Docker live mode now also verifies the Admin UI Postgres
   status row mapping and the first Postgres-backed product
   node-status/indexer-status/overview/block/transaction-list/transaction-detail/wallet-transaction-status/account-list/wallet-account-list/account-detail/wallet-balance/account-history/wallet-account-history
-  and audit-events routes against the live local read model.
+  and audit-events/snapshot routes against the live local read model.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -224,7 +225,48 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
-- Latest native XRIQ Phase 1.1 Postgres-backed node status checkpoint:
+- Latest native XRIQ Phase 1.1 Postgres-backed snapshots checkpoint:
+  extended the indexer Postgres write-plan to populate `xriq_snapshots` with
+  the current `current-indexed-chain` row, then extended
+  `xriq-api request-postgres` and explicitly Postgres-enabled
+  `xriq-api serve-readonly` to return `/api/v1/snapshots?limit=...` from the
+  local Docker Postgres read model. The response keeps the product snapshot
+  catalog fields (`environment`, `network`, `warning`, and `snapshots[]` with
+  `snapshot_name`, `snapshot_dir`, `current_height`, `latest_block_hash`,
+  `state_root`, counts, and disabled export/import status) and adds local-only
+  `source: postgres-read-model`, `read_model_warning`, `read_only: true`,
+  `limit`, and `next_cursor`. Without explicit Postgres flags,
+  `/api/v1/snapshots` still uses the default file-backed indexed snapshot path,
+  and `/api/v1/snapshots/current-indexed-chain` remains file-backed for now.
+  Invalid `limit` values are rejected with `400 bad_request` before Docker is
+  invoked. The live smoke now writes `indexer/postgres-api-snapshots.json` and
+  `indexer/postgres-server-snapshots.json` in addition to the existing
+  read-model/node/indexer/audit artifacts. Expected smoke snapshot catalog has
+  one `current-indexed-chain` row with `snapshot_dir:
+  read-model://current-indexed-chain`, height `1`, valid tip hash/state root,
+  block count `1`, transaction count `1`, audit-event count `1`, and disabled
+  export/import status. Verification passed `cargo fmt`, bundled-Python
+  `py_compile`, `cargo test -p xriq-indexer --lib -j 1`,
+  `cargo test -p xriq-indexer --bin xriq-indexer -j 1`,
+  `cargo test -p xriq-api --lib -j 1`,
+  `cargo test -p xriq-api --bin xriq-api -j 1`,
+  `cargo clippy -p xriq-indexer -- -D warnings`,
+  `cargo clippy -p xriq-api -- -D warnings`, and Docker live
+  `scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live`,
+  producing artifact directory
+  `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T120109Z` with
+  `indexer/postgres-api-snapshots.json` and
+  `indexer/postgres-server-snapshots.json` showing `source:
+  postgres-read-model`, `read_only: true`, the snapshot-catalog warning, and
+  the expected read-only snapshot row. Note: the first plain
+  `cargo test -p xriq-indexer` attempt hit a Windows `LNK1104` generated
+  test-exe file-lock; rerunning with narrower package targets passed. Phase
+  1.1 status is now about `84%` overall.
+- Recommended next narrow step: add opt-in Postgres-backed parity for
+  `/api/v1/snapshots/current-indexed-chain` using the populated
+  `xriq_snapshots` row. Preserve default file-backed behavior and keep all
+  Postgres use opt-in.
+- Previous native XRIQ Phase 1.1 Postgres-backed node status checkpoint:
   extended `xriq-api request-postgres` and explicitly Postgres-enabled
   `xriq-api serve-readonly` to return `/api/v1/admin/node/status` from the
   local Docker Postgres read model. The response preserves the product node
@@ -254,10 +296,6 @@ active target because the GPU was terminated to save cost.
   `indexer/postgres-server-node-status.json` showing `source:
   postgres-read-model`, `read_only: true`, and the expected read-only node
   status. Phase 1.1 status is now about `83%` overall.
-- Recommended next narrow step: populate `xriq_snapshots` from the indexer
-  write-plan for the current indexed chain, then add opt-in Postgres-backed
-  parity for `/api/v1/snapshots`. Preserve default file-backed behavior and
-  keep all Postgres use opt-in.
 - Previous native XRIQ Phase 1.1 Postgres-backed indexer status checkpoint:
   extended `xriq-api request-postgres` and explicitly Postgres-enabled
   `xriq-api serve-readonly` to return `/api/v1/admin/indexer/status` from the

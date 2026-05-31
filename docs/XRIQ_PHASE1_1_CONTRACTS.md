@@ -155,7 +155,8 @@ Required behavior:
   `/api/v1/blocks?limit=...`, `/api/v1/transactions?limit=...`, and
   `/api/v1/transactions/{tx_hash}`, `/api/v1/accounts?limit=...`, and
   `/api/v1/accounts/{address}`, and
-  `/api/v1/accounts/{address}/transactions?limit=...`, keep working
+  `/api/v1/accounts/{address}/transactions?limit=...`, and
+  `/api/v1/snapshots`, keep working
 
 ### ISO 20022 Mapping APIs
 
@@ -439,8 +440,8 @@ The first explicit Postgres-backed API read paths are local-only and use the
 Compose `postgres` container. They return status/count JSON plus the opt-in
 explorer overview, block-list, transaction-list, transaction-detail, wallet
 transaction-status, account-list, wallet account-list, account-detail, wallet
-balance, account-history, wallet account-history, audit-events, and indexer-status
-and node-status shapes from the read model without changing the default
+balance, account-history, wallet account-history, audit-events, snapshot-list,
+indexer-status, and node-status shapes from the read model without changing the default
 file-backed API request/server path:
 
 ```bash
@@ -459,6 +460,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts/<address>/balance
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>/transactions?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts/<address>/history?limit=5
+cargo run -p xriq-api -- request-postgres --target /api/v1/snapshots?limit=5
 ```
 
 The same routes can be exposed by the local read-only HTTP server only when the
@@ -496,7 +498,8 @@ python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
 
 The indexer scaffold currently builds a PostgreSQL-facing in-memory read model
 for blocks, confirmed transactions, accounts, balances, account transaction
-history, and audit events. It detects conflicting replay at the same block
+history, audit events, and the current indexed-chain snapshot catalog row.
+It detects conflicting replay at the same block
 height, validates canonical private-devnet block replay for the command path,
 keeps repeat replay idempotent, and renders `INSERT ... ON CONFLICT`
 statements in foreign-key-safe order for the Phase 1.1 schema.

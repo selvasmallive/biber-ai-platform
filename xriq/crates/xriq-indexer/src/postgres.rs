@@ -47,6 +47,7 @@ pub fn postgres_write_plan(
     );
     let mut statements = Vec::new();
     push_indexer_run_statement(snapshot, &run_id, &mut statements);
+    push_snapshot_statement(snapshot, &mut statements);
     push_account_statements(&snapshot.read_model, &mut statements);
     push_block_statements(&snapshot.read_model, &mut statements);
     push_transaction_statements(&snapshot.read_model, &mut statements)?;
@@ -78,6 +79,27 @@ fn push_indexer_run_statement(
         to_height = sql_optional_u64(snapshot.summary.to_height),
         blocks = snapshot.summary.blocks_indexed,
         transactions = snapshot.summary.transactions_indexed,
+    ));
+}
+
+fn push_snapshot_statement(snapshot: &IndexedChainSnapshot, statements: &mut Vec<String>) {
+    statements.push(format!(
+        "INSERT INTO xriq_snapshots \
+         (snapshot_name, snapshot_dir, chain_id, current_height, latest_block_hash, state_root, pending_transactions, created_at)\n\
+         VALUES ('current-indexed-chain', 'read-model://current-indexed-chain', {chain_id}, {current_height}, {latest_block_hash}, {state_root}, 0, now())\n\
+         ON CONFLICT (snapshot_name) DO UPDATE SET\n\
+         snapshot_dir = EXCLUDED.snapshot_dir,\n\
+         chain_id = EXCLUDED.chain_id,\n\
+         current_height = EXCLUDED.current_height,\n\
+         latest_block_hash = EXCLUDED.latest_block_hash,\n\
+         state_root = EXCLUDED.state_root,\n\
+         pending_transactions = EXCLUDED.pending_transactions,\n\
+         created_at = EXCLUDED.created_at,\n\
+         indexed_at = now();",
+        chain_id = sql_text(&snapshot.chain_id),
+        current_height = snapshot.current_height,
+        latest_block_hash = sql_text(&snapshot.latest_block_hash),
+        state_root = sql_text(&snapshot.state_root),
     ));
 }
 
@@ -353,18 +375,23 @@ mod tests {
         assert!(sql.contains("BEGIN;"));
         assert!(sql.ends_with("COMMIT;"));
         assert!(sql.contains("INSERT INTO xriq_indexer_runs"));
+        assert!(sql.contains("INSERT INTO xriq_snapshots"));
+        assert!(sql.contains("current-indexed-chain"));
+        assert!(sql.contains("read-model://current-indexed-chain"));
         assert!(sql.contains("INSERT INTO xriq_blocks"));
         assert!(sql.contains("INSERT INTO xriq_transactions"));
         assert!(sql.contains("INSERT INTO xriq_account_balances"));
         assert!(sql.contains("ON CONFLICT (tx_hash) DO UPDATE SET"));
         assert!(sql.contains("private-devnet-replay-1-"));
-        assert_eq!(plan.statements.len(), 12);
+        assert_eq!(plan.statements.len(), 13);
 
+        let snapshots_index = sql.find("INSERT INTO xriq_snapshots").unwrap();
         let accounts_index = sql.find("INSERT INTO xriq_accounts").unwrap();
         let blocks_index = sql.find("INSERT INTO xriq_blocks").unwrap();
         let transactions_index = sql.find("INSERT INTO xriq_transactions").unwrap();
         let balances_index = sql.find("INSERT INTO xriq_account_balances").unwrap();
         let account_transactions_index = sql.find("INSERT INTO xriq_account_transactions").unwrap();
+        assert!(snapshots_index < accounts_index);
         assert!(accounts_index < balances_index);
         assert!(blocks_index < transactions_index);
         assert!(transactions_index < account_transactions_index);
