@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `87%` overall. Current Rust
+- Phase 1.1 estimated completion: about `88%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -155,6 +155,7 @@ unless the user changes the project scope again.
   `/api/v1/admin/node/status` and `/api/v1/admin/indexer/status`, and, when explicitly configured,
   Postgres-backed product data routes for
   `/api/v1/explorer/overview`, `/api/v1/blocks?limit=...`,
+  `/api/v1/blocks/{height-or-hash}`,
   `/api/v1/transactions?limit=...`, and
   `/api/v1/mempool?limit=...`, and
   `/api/v1/transactions/{tx_hash}`,
@@ -208,7 +209,7 @@ unless the user changes the project scope again.
   panels, including wallet account history and wallet draft-preview failure
   cases. Its explicit Docker live mode now also verifies the Admin UI Postgres
   status row mapping and the first Postgres-backed product
-  node-status/indexer-status/overview/block/transaction-list/mempool/transaction-detail/wallet-transaction-status/account-list/wallet-account-list/account-detail/wallet-balance/account-history/wallet-account-history
+  node-status/indexer-status/overview/block-list/block-detail/transaction-list/mempool/transaction-detail/wallet-transaction-status/account-list/wallet-account-list/account-detail/wallet-balance/account-history/wallet-account-history
   and audit-events/snapshot-list/snapshot-detail routes against the live local
   read model.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
@@ -229,6 +230,31 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 Postgres-backed block detail checkpoint:
+  extended `xriq-api request-postgres` and explicitly Postgres-enabled
+  `xriq-api serve-readonly` to return `/api/v1/blocks/{height-or-hash}` from
+  the local Docker Postgres read model using `xriq_blocks` plus confirmed
+  `xriq_transactions`. The response preserves the product block detail fields
+  (`height`, block hashes/roots, `transaction_count`, `timestamp_utc`, and
+  `transactions[]`) and adds local-only `source: postgres-read-model`,
+  `warning`, and `read_only: true`. Without explicit Postgres flags,
+  `/api/v1/blocks/{height-or-hash}` still uses the default file-backed chain
+  path. Invalid block identifiers return `400 bad_request` before Docker is
+  invoked; valid missing blocks return `404 not_found`. The live Docker smoke
+  now writes `indexer/postgres-api-block-detail.json` and
+  `indexer/postgres-server-block-detail.json`. Verification passed
+  `cargo fmt --check`, bundled-Python `py_compile`,
+  `cargo test -p xriq-api --bin xriq-api -j 1`,
+  `cargo test -p xriq-api --lib -j 1`,
+  `cargo clippy -p xriq-api -- -D warnings`, and Docker live
+  `scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live`,
+  producing artifact directory
+  `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T200313Z`. Phase 1.1
+  status is now about `88%` overall.
+- Recommended next narrow step: add opt-in Postgres-backed wallet status parity
+  for `/api/v1/wallet/status`, using Postgres account/mempool counts while
+  preserving the default file-backed wallet-status route and keeping the
+  Postgres route read-only/local-only.
 - Latest native XRIQ Phase 1.1 Postgres-backed pending wallet
   transaction-status checkpoint: split the Postgres wallet transaction-status
   query from confirmed transaction detail so
@@ -251,10 +277,6 @@ active target because the GPU was terminated to save cost.
   producing artifact directory
   `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T192954Z`. Phase 1.1
   status is now about `87%` overall.
-- Recommended next narrow step: add opt-in Postgres-backed block detail parity
-  for `/api/v1/blocks/{height-or-hash}` using `xriq_blocks` plus confirmed
-  `xriq_transactions`, while preserving default file-backed behavior and
-  keeping this read-only/local-only.
 - Previous native XRIQ Phase 1.1 Postgres-backed mempool checkpoint: extended
   `xriq-api request-postgres` and explicitly Postgres-enabled
   `xriq-api serve-readonly` to return `/api/v1/mempool?limit=...` from the

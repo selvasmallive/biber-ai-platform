@@ -105,7 +105,7 @@ That live smoke also verifies the first explicit Postgres-backed API read paths,
 including `/api/v1/admin/postgres/read-model-status` and the opt-in
 Postgres-backed `/api/v1/admin/node/status`, `/api/v1/admin/indexer/status`,
 `/api/v1/explorer/overview`, `/api/v1/blocks?limit=5`,
-`/api/v1/transactions?limit=5`, and `/api/v1/mempool?limit=5` plus
+`/api/v1/blocks/1`, `/api/v1/transactions?limit=5`, and `/api/v1/mempool?limit=5` plus
 `/api/v1/transactions/{tx_hash}` and
 `/api/v1/wallet/transactions/{tx_hash}/status` for confirmed and pending hashes, plus
 `/api/v1/accounts?limit=5` plus `/api/v1/accounts/{address}` and
@@ -120,6 +120,8 @@ Postgres read-model row mapping. It writes
 `indexer/postgres-api-explorer-overview.json`,
 `indexer/postgres-server-explorer-overview.json`,
 `indexer/postgres-api-blocks.json`, `indexer/postgres-server-blocks.json`,
+`indexer/postgres-api-block-detail.json`,
+`indexer/postgres-server-block-detail.json`,
 `indexer/postgres-api-transactions.json`,
 `indexer/postgres-server-transactions.json`,
 `indexer/postgres-api-mempool.json`,
@@ -165,6 +167,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/admin/indexer/status
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/audit-events?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/explorer/overview
 cargo run -p xriq-api -- request-postgres --target /api/v1/blocks?limit=5
+cargo run -p xriq-api -- request-postgres --target /api/v1/blocks/1
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/mempool?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions/<tx_hash>
@@ -179,7 +182,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/snapshots?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/snapshots/current-indexed-chain
 ```
 
-To expose the same Postgres read-model status, explorer overview, block list,
+To expose the same Postgres read-model status, explorer overview, block list/detail,
 transaction list, mempool, transaction detail, wallet transaction status, account list,
 account detail, and account history plus wallet account list, wallet balance,
 wallet account history, audit events, snapshot list/detail, node status, and

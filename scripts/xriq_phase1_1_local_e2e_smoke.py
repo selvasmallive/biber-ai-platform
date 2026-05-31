@@ -915,6 +915,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_overview = None
     postgres_api_blocks = None
     postgres_server_blocks = None
+    postgres_api_block_detail = None
+    postgres_server_block_detail = None
     postgres_api_transactions = None
     postgres_server_transactions = None
     postgres_api_mempool = None
@@ -1215,6 +1217,23 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             timestamp = block.get("timestamp_utc")
             if not isinstance(timestamp, str) or not timestamp.endswith("Z"):
                 raise SmokeError(f"{context}: expected UTC timestamp, got {timestamp!r}")
+
+        def validate_postgres_block_detail(payload: dict[str, Any], context: str) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(payload, "height", int(expected_counts["latest_height"]), context)
+            require_hash(payload.get("block_hash"), f"{context} block hash")
+            require_hash(payload.get("previous_block_hash"), f"{context} previous block hash")
+            require_hash(payload.get("state_root"), f"{context} state root")
+            require_hash(payload.get("transactions_root"), f"{context} transactions root")
+            require_equal(payload, "transaction_count", 1, context)
+            timestamp = payload.get("timestamp_utc")
+            if not isinstance(timestamp, str) or not timestamp.endswith("Z"):
+                raise SmokeError(f"{context}: expected UTC timestamp, got {timestamp!r}")
+            transactions = require_list(payload.get("transactions"), context)
+            if len(transactions) != 1 or not isinstance(transactions[0], dict):
+                raise SmokeError(f"{context}: expected exactly one transaction object")
+            validate_postgres_transaction_fields(transactions[0], context)
 
         def validate_postgres_transaction_fields(
             transaction: dict[str, Any], context: str
@@ -1520,6 +1539,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         validate_postgres_blocks(postgres_api_blocks, "xriq-api postgres blocks")
         write_json(indexer_dir / "postgres-api-blocks.json", postgres_api_blocks)
         completed.append("postgres-backed api blocks")
+
+        postgres_block_detail_output = run_command(
+            "xriq-api postgres block detail",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                "/api/v1/blocks/1",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_block_detail = parse_api_request_output(
+            postgres_block_detail_output,
+            "xriq-api postgres block detail",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres block detail: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_block_detail}"
+            )
+        validate_postgres_block_detail(
+            postgres_api_block_detail,
+            "xriq-api postgres block detail",
+        )
+        write_json(
+            indexer_dir / "postgres-api-block-detail.json",
+            postgres_api_block_detail,
+        )
+        completed.append("postgres-backed api block detail")
 
         postgres_transactions_output = run_command(
             "xriq-api postgres transactions",
@@ -2011,6 +2063,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             )
             postgres_server_overview = http_json(server_base_url, "/api/v1/explorer/overview")
             postgres_server_blocks = http_json(server_base_url, "/api/v1/blocks?limit=5")
+            postgres_server_block_detail = http_json(server_base_url, "/api/v1/blocks/1")
             postgres_server_transactions = http_json(
                 server_base_url, "/api/v1/transactions?limit=5"
             )
@@ -2124,6 +2177,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_blocks,
             "xriq-api serve-readonly postgres blocks",
         )
+        validate_postgres_block_detail(
+            postgres_server_block_detail,
+            "xriq-api serve-readonly postgres block detail",
+        )
         validate_postgres_transactions(
             postgres_server_transactions,
             "xriq-api serve-readonly postgres transactions",
@@ -2196,6 +2253,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         write_json(indexer_dir / "postgres-server-blocks.json", postgres_server_blocks)
         write_json(
+            indexer_dir / "postgres-server-block-detail.json",
+            postgres_server_block_detail,
+        )
+        write_json(
             indexer_dir / "postgres-server-transactions.json",
             postgres_server_transactions,
         )
@@ -2250,6 +2311,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         completed.append("postgres-backed server indexer status")
         completed.append("postgres-backed server explorer overview")
         completed.append("postgres-backed server blocks")
+        completed.append("postgres-backed server block detail")
         completed.append("postgres-backed server transactions")
         completed.append("postgres-backed server mempool")
         completed.append("postgres-backed server transaction detail")
@@ -2657,6 +2719,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_blocks": (
                 str(indexer_dir / "postgres-server-blocks.json")
                 if postgres_server_blocks
+                else None
+            ),
+            "postgres_api_block_detail": (
+                str(indexer_dir / "postgres-api-block-detail.json")
+                if postgres_api_block_detail
+                else None
+            ),
+            "postgres_server_block_detail": (
+                str(indexer_dir / "postgres-server-block-detail.json")
+                if postgres_server_block_detail
                 else None
             ),
             "postgres_api_transactions": (
