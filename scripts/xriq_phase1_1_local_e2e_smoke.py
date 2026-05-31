@@ -118,6 +118,18 @@ def parse_api_request_output(output: str, context: str) -> tuple[int, str, dict[
     return status_code, reason, body
 
 
+def parse_key_value_output(output: str, context: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for line in output.splitlines():
+        if not line.strip():
+            continue
+        if "=" not in line:
+            raise SmokeError(f"{context}: expected key=value line, got {line!r}")
+        key, value = line.split("=", 1)
+        values[key] = value
+    return values
+
+
 def assert_api_ok(
     api_binary: Path,
     xriq_dir: Path,
@@ -252,7 +264,19 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
 
     run_command(
         "build xriq smoke binaries",
-        ["cargo", "build", "-q", "-p", "xriq-node", "-p", "xriq-wallet", "-p", "xriq-api"],
+        [
+            "cargo",
+            "build",
+            "-q",
+            "-p",
+            "xriq-node",
+            "-p",
+            "xriq-wallet",
+            "-p",
+            "xriq-api",
+            "-p",
+            "xriq-indexer",
+        ],
         cwd=xriq_dir,
     )
     completed.append("build xriq smoke binaries")
@@ -260,7 +284,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     node_binary = executable_path(xriq_dir, "xriq-node")
     wallet_binary = executable_path(xriq_dir, "xriq-wallet")
     api_binary = executable_path(xriq_dir, "xriq-api")
-    for binary in [node_binary, wallet_binary, api_binary]:
+    indexer_binary = executable_path(xriq_dir, "xriq-indexer")
+    for binary in [node_binary, wallet_binary, api_binary, indexer_binary]:
         if not binary.exists():
             raise SmokeError(f"missing binary after build: {binary}")
 
@@ -357,6 +382,122 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_equal(pending_submit, "status", "pending", "pending transfer")
     write_json(artifact_dir / "pending-submit.json", pending_submit)
     completed.append("pending transfer")
+
+    indexer_dir = artifact_dir / "indexer"
+    indexer_replay = run_json(
+        "xriq-indexer replay json",
+        [
+            str(indexer_binary),
+            "replay",
+            "--chain-file",
+            str(chain_file),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ],
+        cwd=xriq_dir,
+    )
+    require_equal(indexer_replay, "format_version", "xriq-indexer-replay-json-v1", "indexer replay")
+    require_equal(indexer_replay, "command", "replay", "indexer replay")
+    require_equal(indexer_replay, "environment", "private-devnet", "indexer replay")
+    require_equal(indexer_replay, "current_height", 1, "indexer replay")
+    summary = indexer_replay.get("summary")
+    if not isinstance(summary, dict):
+        raise SmokeError("indexer replay: expected summary object")
+    require_equal(summary, "blocks_indexed", 1, "indexer replay summary")
+    require_equal(summary, "transactions_indexed", 1, "indexer replay summary")
+    require_equal(summary, "audit_events_indexed", 1, "indexer replay summary")
+    read_model_counts = indexer_replay.get("read_model_counts")
+    if not isinstance(read_model_counts, dict):
+        raise SmokeError("indexer replay: expected read_model_counts object")
+    require_equal(read_model_counts, "accounts", 3, "indexer replay read_model_counts")
+    write_json(indexer_dir / "replay.json", indexer_replay)
+
+    indexer_sql = run_command(
+        "xriq-indexer replay sql",
+        [
+            str(indexer_binary),
+            "replay",
+            "--chain-file",
+            str(chain_file),
+            "--alice-balance",
+            "100",
+            "--format",
+            "sql",
+        ],
+        cwd=xriq_dir,
+    )
+    for marker in [
+        "INSERT INTO xriq_indexer_runs",
+        "INSERT INTO xriq_blocks",
+        "INSERT INTO xriq_transactions",
+        "ON CONFLICT",
+        "COMMIT;",
+    ]:
+        if marker not in indexer_sql:
+            raise SmokeError(f"indexer SQL write plan: missing {marker!r}")
+    (indexer_dir / "write-plan.sql").write_text(indexer_sql + "\n", encoding="utf-8")
+
+    apply_output = run_command(
+        "xriq-indexer apply-postgres dry-run",
+        [
+            str(indexer_binary),
+            "apply-postgres",
+            "--chain-file",
+            str(chain_file),
+            "--alice-balance",
+            "100",
+            "--schema-file",
+            "db/schema.sql",
+            "--dry-run",
+            "true",
+        ],
+        cwd=xriq_dir,
+    )
+    apply_summary = parse_key_value_output(apply_output, "indexer apply-postgres")
+    expected_apply = {
+        "environment": "private-devnet",
+        "mode": "dry-run",
+        "database_url_configured": "false",
+        "current_height": "1",
+        "blocks_indexed": "1",
+        "transactions_indexed": "1",
+        "schema_applied": "false",
+        "write_plan_applied": "false",
+    }
+    for key, expected in expected_apply.items():
+        if apply_summary.get(key) != expected:
+            raise SmokeError(
+                f"indexer apply-postgres: expected {key}={expected!r}, got {apply_summary.get(key)!r}"
+            )
+    (indexer_dir / "apply-postgres-dry-run.txt").write_text(
+        apply_output + "\n", encoding="utf-8"
+    )
+
+    verify_output = run_command(
+        "xriq-indexer verify-postgres dry-run",
+        [str(indexer_binary), "verify-postgres", "--dry-run", "true"],
+        cwd=xriq_dir,
+    )
+    verify_summary = parse_key_value_output(verify_output, "indexer verify-postgres")
+    expected_verify = {
+        "environment": "private-devnet",
+        "mode": "dry-run",
+        "database_url_configured": "false",
+        "verification_query_available": "true",
+        "verification_query_executed": "false",
+        "verification_result": "not-run",
+    }
+    for key, expected in expected_verify.items():
+        if verify_summary.get(key) != expected:
+            raise SmokeError(
+                f"indexer verify-postgres: expected {key}={expected!r}, got {verify_summary.get(key)!r}"
+            )
+    (indexer_dir / "verify-postgres-dry-run.txt").write_text(
+        verify_output + "\n", encoding="utf-8"
+    )
+    completed.append("indexer replay and postgres dry-run")
 
     def check(target: str, name: str, validate: Callable[[dict[str, Any]], None]) -> dict[str, Any]:
         routes_checked.append(target)

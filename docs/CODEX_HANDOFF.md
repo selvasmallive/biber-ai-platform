@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `62%` overall. Current Rust
+- Phase 1.1 estimated completion: about `63%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -143,7 +143,9 @@ unless the user changes the project scope again.
   now has the first deterministic Rust read-model indexer scaffold and local
   replay command plus idempotent SQL write-plan export and a dry-run local
   PostgreSQL apply path, optional local Postgres service, and dry-run/live
-  verification command. The first Rust product API service, route/render
+  verification command. The local Phase 1.1 smoke now exercises indexer replay,
+  SQL write-plan generation, apply-postgres dry-run, and verify-postgres
+  dry-run before API route checks. The first Rust product API service, route/render
   boundary, CLI smoke path, and local read-only socket wrapper now exist in
   `xriq/crates/xriq-api`. The first ISO
   20022 compatibility adapter exists in `xriq/crates/xriq-iso20022`, but it is
@@ -177,10 +179,11 @@ unless the user changes the project scope again.
   node-status, pending-file mempool-status, pending wallet transaction-status,
   snapshot-catalog, and audit-event routes. A local CPU-only Phase 1.1
   end-to-end smoke script now creates a confirmed transfer plus one durable
-  pending transfer, checks contract/UI guardrails, and verifies the product API
-  routes that feed the explorer, wallet, mempool, snapshot, audit, admin, and
-  ISO preview panels, including wallet account history and wallet draft-preview
-  failure cases.
+  pending transfer, checks contract/UI guardrails, verifies indexer replay and
+  PostgreSQL dry-run artifacts, and verifies the product API routes that feed
+  the explorer, wallet, mempool, snapshot, audit, admin, and ISO preview
+  panels, including wallet account history and wallet draft-preview failure
+  cases.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -199,6 +202,18 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 indexer dry-run smoke checkpoint: extended
+  `scripts/xriq_phase1_1_local_e2e_smoke.py` so the one-command local Phase
+  1.1 smoke now builds `xriq-indexer`, replays the generated chain through the
+  indexer, writes `indexer/replay.json`, writes the idempotent
+  `indexer/write-plan.sql`, validates `apply-postgres --dry-run true`, and
+  validates `verify-postgres --dry-run true` before running the existing
+  product API route checks. This is CPU-only and does not require Docker,
+  `psql`, a live PostgreSQL service, GCP, Vast/GPU resources, or credentials.
+  Verification passed the bundled-Python
+  `scripts/xriq_phase1_1_local_e2e_smoke.py`, including 26 product API routes,
+  3 wallet draft-preview failure routes, and the new indexer replay/PostgreSQL
+  dry-run artifact checks. Phase 1.1 status is now about `63%` overall.
 - Latest native XRIQ Phase 1.1 wallet API-history UI checkpoint: extended the
   preview-only wallet shell with a read-only Wallet API History panel backed by
   `/api/v1/wallet/accounts/{address}/history?limit=5` for the selected local

@@ -79,9 +79,10 @@ cargo run -p xriq-api -- request --chain-file target/xriq-indexer-replay-smoke.b
 From the repo root, the current Phase 1.1 local product surface can be checked
 with one CPU-only end-to-end smoke. It runs the contract and UI static
 guardrails, builds the local Rust binaries, creates a confirmed transfer plus
-one durable pending transfer, and verifies the product API routes used by the
-explorer, wallet, mempool, snapshot, audit, admin, and ISO preview panels,
-including wallet draft-preview validation failures:
+one durable pending transfer, validates indexer replay plus PostgreSQL
+apply/verify dry-runs, and verifies the product API routes used by the explorer,
+wallet, mempool, snapshot, audit, admin, and ISO preview panels, including
+wallet draft-preview validation failures:
 
 ```bash
 python scripts/xriq_phase1_1_local_e2e_smoke.py
