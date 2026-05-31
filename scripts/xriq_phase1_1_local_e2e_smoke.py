@@ -812,6 +812,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_overview = None
     postgres_api_blocks = None
     postgres_server_blocks = None
+    postgres_api_transactions = None
+    postgres_server_transactions = None
     postgres_ui_status = None
     if args.postgres_docker_live:
         postgres_docker_live = run_postgres_docker_live(
@@ -961,6 +963,31 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             if not isinstance(timestamp, str) or not timestamp.endswith("Z"):
                 raise SmokeError(f"{context}: expected UTC timestamp, got {timestamp!r}")
 
+        def validate_postgres_transactions(payload: dict[str, Any], context: str) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(payload, "limit", 5, context)
+            require_equal(payload, "next_cursor", None, context)
+            transactions = require_list(payload.get("transactions"), context)
+            if len(transactions) != 1 or not isinstance(transactions[0], dict):
+                raise SmokeError(f"{context}: expected exactly one transaction object")
+            transaction = transactions[0]
+            require_equal(transaction, "tx_hash", confirmed_tx_hash, context)
+            require_equal(
+                transaction,
+                "block_height",
+                int(expected_counts["latest_height"]),
+                context,
+            )
+            require_hash(transaction.get("block_hash"), f"{context} block hash")
+            require_equal(transaction, "transaction_index", 0, context)
+            require_equal(transaction, "status", "confirmed", context)
+            require_equal(transaction, "from_address", ALICE, context)
+            require_equal(transaction, "to_address", BOB, context)
+            require_equal(transaction, "amount_base_units", "25", context)
+            require_equal(transaction, "fee_base_units", "2", context)
+            require_equal(transaction, "nonce", 0, context)
+
         postgres_blocks_output = run_command(
             "xriq-api postgres blocks",
             [
@@ -988,6 +1015,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         write_json(indexer_dir / "postgres-api-blocks.json", postgres_api_blocks)
         completed.append("postgres-backed api blocks")
 
+        postgres_transactions_output = run_command(
+            "xriq-api postgres transactions",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                "/api/v1/transactions?limit=5",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_transactions = parse_api_request_output(
+            postgres_transactions_output,
+            "xriq-api postgres transactions",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres transactions: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_transactions}"
+            )
+        validate_postgres_transactions(
+            postgres_api_transactions,
+            "xriq-api postgres transactions",
+        )
+        write_json(
+            indexer_dir / "postgres-api-transactions.json",
+            postgres_api_transactions,
+        )
+        completed.append("postgres-backed api transactions")
+
         server_port = free_local_port()
         server_bind = f"127.0.0.1:{server_port}"
         server_base_url = f"http://{server_bind}"
@@ -1009,6 +1069,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             )
             postgres_server_overview = http_json(server_base_url, "/api/v1/explorer/overview")
             postgres_server_blocks = http_json(server_base_url, "/api/v1/blocks?limit=5")
+            postgres_server_transactions = http_json(
+                server_base_url, "/api/v1/transactions?limit=5"
+            )
             postgres_ui_artifact = indexer_dir / "postgres-admin-ui-read-model-status.json"
             run_command(
                 "xriq admin postgres UI status smoke",
@@ -1080,6 +1143,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_blocks,
             "xriq-api serve-readonly postgres blocks",
         )
+        validate_postgres_transactions(
+            postgres_server_transactions,
+            "xriq-api serve-readonly postgres transactions",
+        )
         write_json(
             indexer_dir / "postgres-server-read-model-status.json", postgres_server_status
         )
@@ -1087,9 +1154,14 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             indexer_dir / "postgres-server-explorer-overview.json", postgres_server_overview
         )
         write_json(indexer_dir / "postgres-server-blocks.json", postgres_server_blocks)
+        write_json(
+            indexer_dir / "postgres-server-transactions.json",
+            postgres_server_transactions,
+        )
         completed.append("postgres-backed server read-model status")
         completed.append("postgres-backed server explorer overview")
         completed.append("postgres-backed server blocks")
+        completed.append("postgres-backed server transactions")
         completed.append("postgres-backed admin UI read-model status")
     else:
         skipped.append("postgres docker live smoke")
@@ -1463,6 +1535,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_blocks": (
                 str(indexer_dir / "postgres-server-blocks.json")
                 if postgres_server_blocks
+                else None
+            ),
+            "postgres_api_transactions": (
+                str(indexer_dir / "postgres-api-transactions.json")
+                if postgres_api_transactions
+                else None
+            ),
+            "postgres_server_transactions": (
+                str(indexer_dir / "postgres-server-transactions.json")
+                if postgres_server_transactions
                 else None
             ),
             "postgres_admin_ui_read_model_status": (
