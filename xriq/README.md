@@ -150,7 +150,9 @@ panels, includes a preview-only wallet transfer draft surface wired to the
 product wallet draft-preview API, includes a read-only ISO 20022 preview panel
 wired to the product ISO routes, and shows a read-only admin status panel for
 node, network, indexer, wallet capability, mempool status, snapshot catalog, and
-audit-event state. The wallet panel also shows read-only confirmed and pending
+audit-event state. It also shows an optional read-only Postgres read-model
+status block that reports `disabled` when `serve-readonly` was not launched
+with explicit Postgres flags. The wallet panel also shows read-only confirmed and pending
 activity detail plus product API transaction-status detail for the selected
 local account, and a product API account-history table for confirmed wallet
 history. It does not sign, submit, persist, or manage private keys.

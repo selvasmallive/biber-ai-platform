@@ -70,9 +70,9 @@ Rust
 
 React + TypeScript
  |-- Wallet UI              ~24%; preview shell plus read-only confirmed/pending activity, API status, and API history detail
- |-- Explorer               ~25%; shell plus detail, pending transaction, snapshot, and ISO preview panels read product API
+ |-- Explorer               ~26%; shell plus detail, pending transaction, snapshot, ISO preview, and optional Postgres status panels read product API
  |-- Exchange UI            0%; deferred high legal/compliance-risk surface
- `-- Admin portal           ~25%; read-only node/status, pending mempool, pending wallet status, snapshot catalog, and audit events panels exist
+ `-- Admin portal           ~27%; read-only node/status, pending mempool, pending wallet status, optional Postgres read-model status, snapshot catalog, and audit events panels exist
 
 SQL/PostgreSQL
  |-- Explorer indexing      ~33%; schema, indexer, SQL plan, verify path, Docker live smoke, and first Postgres-backed API/server status read exist
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first local Phase 1.1 Postgres-backed read-only server checkpoint,
-Phase 1.1 status is about `67%`: the contract document, PostgreSQL read-model schema, JSON
+After the first local Phase 1.1 Admin UI Postgres status checkpoint,
+Phase 1.1 status is about `68%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -140,7 +140,8 @@ read-only Admin Status panel that summarizes network tip state, indexer
 current/last-run status, node health/read-only mode, wallet draft/submit/send
 capability flags, read-only durable pending-file mempool status, the first
 pending wallet transaction status with null block/index fields, a read-only
-snapshot catalog, and indexed audit events from the product API. The optional
+optional Postgres read-model status block that tolerates disabled `404`
+responses, snapshot catalog, and indexed audit events from the product API. The optional
 Docker-backed live database smoke has passed once on this workstation against a
 dedicated `xriq_phase1_1_smoke` database. Real wallet submission APIs, mutating
 admin controls, block-production controls, real snapshot export/import

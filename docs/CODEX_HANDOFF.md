@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `67%` overall. Current Rust
+- Phase 1.1 estimated completion: about `68%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -182,7 +182,8 @@ unless the user changes the project scope again.
   includes a read-only Admin
   Status panel backed by product API network, indexer, wallet-status,
   node-status, pending-file mempool-status, pending wallet transaction-status,
-  snapshot-catalog, and audit-event routes. A local CPU-only Phase 1.1
+  optional Postgres read-model status, snapshot-catalog, and audit-event
+  routes. A local CPU-only Phase 1.1
   end-to-end smoke script now creates a confirmed transfer plus one durable
   pending transfer, checks contract/UI guardrails, verifies indexer replay and
   PostgreSQL dry-run artifacts, and verifies the product API routes that feed
@@ -207,6 +208,27 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 Admin UI Postgres status checkpoint:
+  extended the React + TypeScript Admin Status panel with a read-only
+  `Postgres Read Model` block. The UI calls
+  `/api/v1/admin/postgres/read-model-status` separately from the main snapshot
+  load so normal explorer/admin loading is not blocked when Postgres is not
+  configured. A `404 not_found` response is treated as `disabled`; a configured
+  server response shows source, route, database, indexer status, latest height,
+  counts, read-only flag, and any error state without signing, submission,
+  schema mutation, or credential display. Verification passed `npm.cmd run
+  check`, `npx.cmd tsc -b`, `npm.cmd run build` outside the sandbox after the
+  sandboxed Vite build hit a Windows access-denied issue, and a Browser DOM
+  smoke against the normal file-backed API confirming `Admin Status`,
+  `Postgres Read Model`, and `disabled` were visible. Screenshot capture timed
+  out in the in-app browser, so the visual check used DOM state. The default
+  local Phase 1.1 smoke also passed, producing artifact directory
+  `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T021412Z` with only the
+  optional Postgres Docker live smoke skipped. Phase 1.1 status is now about
+  `68%` overall.
+- Recommended next narrow step: add a controlled Postgres-enabled UI smoke path
+  that runs `serve-readonly` with explicit Postgres flags and confirms the same
+  Admin panel shows `available` counts from the live local Docker read model.
 - Latest native XRIQ Phase 1.1 Postgres-backed read-only server checkpoint:
   extended `xriq-api serve-readonly` with explicit
   `--postgres-docker-container <container> --postgres-database <database>`
@@ -225,10 +247,6 @@ active target because the GPU was terminated to save cost.
   artifact directory
   `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T020202Z` with no skipped
   checks. Phase 1.1 status is now about `67%` overall.
-- Recommended next narrow step: wire the React Admin Status panel to optionally
-  read `/api/v1/admin/postgres/read-model-status` when the local API server is
-  launched with explicit Postgres flags, while keeping the UI read-only and
-  tolerant of `404 not_found` when the route is disabled.
 - Latest native XRIQ Phase 1.1 Postgres-backed API read path checkpoint:
   added `xriq-api request-postgres`, an explicit local-only Docker Postgres
   read-model request command for

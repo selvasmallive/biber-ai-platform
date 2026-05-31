@@ -160,6 +160,30 @@ export interface NodeStatusResponse {
   block_production_status: string;
 }
 
+export interface PostgresReadModelStatusResponse {
+  environment: "private-devnet";
+  service: string;
+  source: "postgres-read-model";
+  warning: string;
+  route: string;
+  container: string;
+  database: string;
+  status: string;
+  read_only: boolean;
+  indexer_status: string;
+  latest_height: number | null;
+  latest_block_hash: string | null;
+  counts: {
+    blocks: number;
+    transactions: number;
+    accounts: number;
+    account_balances: number;
+    account_transactions: number;
+    audit_events: number;
+    indexer_runs: number;
+  };
+}
+
 export interface ExplorerSnapshot {
   loadedAt: string;
   health: HealthResponse;
@@ -526,6 +550,15 @@ export async function loadSnapshotDetail(
   return fetchJson<SnapshotSummary>(
     normalizeBaseUrl(baseUrl),
     `/api/v1/snapshots/${encodeURIComponent(snapshotName)}`,
+  );
+}
+
+export async function loadPostgresReadModelStatus(
+  baseUrl: string,
+): Promise<PostgresReadModelStatusResponse> {
+  return fetchJson<PostgresReadModelStatusResponse>(
+    normalizeBaseUrl(baseUrl),
+    "/api/v1/admin/postgres/read-model-status",
   );
 }
 

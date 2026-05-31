@@ -303,8 +303,9 @@ shows basic block, transaction, and account detail panels, includes a
 preview-only wallet transfer draft surface wired to the product wallet
 draft-preview API, includes a read-only ISO 20022 preview panel wired to the
 product ISO routes, and shows a read-only admin status panel for node, network,
-indexer, wallet capability, mempool status, snapshot catalog, and audit-event
-state. The wallet panel does not sign, submit, persist, or manage private keys.
+indexer, wallet capability, mempool status, optional Postgres read-model
+status, snapshot catalog, and audit-event state. The wallet panel does not
+sign, submit, persist, or manage private keys.
 
 ```powershell
 cd xriq

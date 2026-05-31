@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import {
   ExplorerSnapshot,
+  PostgresReadModelStatusResponse,
   WalletTransactionStatusResponse,
+  loadPostgresReadModelStatus,
   loadWalletTransactionStatus,
 } from "./api";
 
@@ -16,6 +18,13 @@ type WalletTxStatusState =
   | { status: "loading"; data: WalletTransactionStatusResponse | null; error: null }
   | { status: "ready"; data: WalletTransactionStatusResponse; error: null }
   | { status: "error"; data: WalletTransactionStatusResponse | null; error: string };
+
+type PostgresStatusState =
+  | { status: "idle"; data: null; error: null }
+  | { status: "loading"; data: PostgresReadModelStatusResponse | null; error: null }
+  | { status: "ready"; data: PostgresReadModelStatusResponse; error: null }
+  | { status: "disabled"; data: null; error: null }
+  | { status: "error"; data: PostgresReadModelStatusResponse | null; error: string };
 
 export function AdminStatusPanel({
   apiBaseUrl,
@@ -32,8 +41,14 @@ export function AdminStatusPanel({
     data: null,
     error: null,
   });
+  const [postgresStatus, setPostgresStatus] = useState<PostgresStatusState>({
+    status: "idle",
+    data: null,
+    error: null,
+  });
   const snapshotCatalog = snapshot?.snapshots.snapshots[0];
   const latestAuditEvent = snapshot?.auditEvents.audit_events[0];
+  const postgres = postgresStatus.data;
   const pendingWalletStatus = firstPending
     ? walletTxStatus.data?.status ?? walletTxStatus.status
     : "-";
@@ -80,6 +95,46 @@ export function AdminStatusPanel({
     };
   }, [apiBaseUrl, firstPending?.tx_hash]);
 
+  useEffect(() => {
+    if (!snapshot) {
+      setPostgresStatus({ status: "idle", data: null, error: null });
+      return;
+    }
+
+    let cancelled = false;
+    setPostgresStatus((current) => ({
+      status: "loading",
+      data: current.data,
+      error: null,
+    }));
+    void loadPostgresReadModelStatus(apiBaseUrl)
+      .then((data) => {
+        if (!cancelled) {
+          setPostgresStatus({ status: "ready", data, error: null });
+        }
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        const message =
+          error instanceof Error ? error.message : "Postgres read model failed";
+        if (message.includes("HTTP 404")) {
+          setPostgresStatus({ status: "disabled", data: null, error: null });
+          return;
+        }
+        setPostgresStatus((current) => ({
+          status: "error",
+          data: current.data,
+          error: message,
+        }));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, snapshot?.loadedAt]);
+
   return (
     <section className="panel detailPanel widePanel adminPanel">
       <div className="panelTitle">
@@ -118,6 +173,24 @@ export function AdminStatusPanel({
             ["Run", indexer?.last_run.run_id ?? "-"],
             ["Blocks", indexer?.last_run.blocks_indexed ?? "-"],
             ["Transactions", indexer?.last_run.transactions_indexed ?? "-"],
+          ]}
+        />
+        <StatusBlock
+          title="Postgres Read Model"
+          rows={[
+            ["Status", postgres?.status ?? postgresStatus.status],
+            ["Source", postgres?.source ?? "-"],
+            ["Route", postgres?.route ?? "/api/v1/admin/postgres/read-model-status"],
+            ["Database", postgres?.database ?? "-"],
+            ["Indexer", postgres?.indexer_status ?? "-"],
+            ["Height", nullableNumber(postgres?.latest_height)],
+            ["Blocks", postgres?.counts.blocks ?? "-"],
+            ["Transactions", postgres?.counts.transactions ?? "-"],
+            ["Accounts", postgres?.counts.accounts ?? "-"],
+            ["Account History", postgres?.counts.account_transactions ?? "-"],
+            ["Audit Events", postgres?.counts.audit_events ?? "-"],
+            ["Read Only", postgres?.read_only ? "true" : "-"],
+            ["Error", postgresStatus.error ?? "-"],
           ]}
         />
         <StatusBlock
