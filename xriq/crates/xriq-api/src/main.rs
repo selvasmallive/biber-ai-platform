@@ -12,7 +12,7 @@ use std::{
 use xriq_api::{
     pending_mempool_entries_from_tsv, product_api_http_response, ApiHttpResponse, XriqApiService,
 };
-use xriq_core::XriqAmount;
+use xriq_core::{Address, XriqAmount};
 use xriq_indexer::index_private_devnet_store;
 use xriq_storage::FileChainStore;
 
@@ -23,6 +23,7 @@ const POSTGRES_BLOCKS_ROUTE: &str = "/api/v1/blocks";
 const POSTGRES_TRANSACTIONS_ROUTE: &str = "/api/v1/transactions";
 const POSTGRES_TRANSACTION_DETAIL_PREFIX: &str = "/api/v1/transactions/";
 const POSTGRES_ACCOUNTS_ROUTE: &str = "/api/v1/accounts";
+const POSTGRES_ACCOUNT_DETAIL_PREFIX: &str = "/api/v1/accounts/";
 const POSTGRES_PRIVATE_DEVNET_NETWORK: &str = "xriq-devnet";
 const POSTGRES_READ_MODEL_WARNING: &str =
     "local-private-devnet-postgres-read-only-preview-no-mutation";
@@ -234,6 +235,9 @@ fn maybe_postgres_read_model_http_response(
     let is_transaction_detail = path
         .strip_prefix(POSTGRES_TRANSACTION_DETAIL_PREFIX)
         .is_some_and(|tx_hash| !tx_hash.is_empty());
+    let is_account_detail = path
+        .strip_prefix(POSTGRES_ACCOUNT_DETAIL_PREFIX)
+        .is_some_and(|address| !address.is_empty() && !address.contains('/'));
     match (path, config) {
         (POSTGRES_READ_MODEL_STATUS_ROUTE, None) => {
             return Some(Ok(postgres_read_model_disabled_response()));
@@ -246,6 +250,7 @@ fn maybe_postgres_read_model_http_response(
             None,
         ) => return None,
         (_, None) if is_transaction_detail => return None,
+        (_, None) if is_account_detail => return None,
         (
             POSTGRES_READ_MODEL_STATUS_ROUTE
             | POSTGRES_EXPLORER_OVERVIEW_ROUTE
@@ -257,6 +262,9 @@ fn maybe_postgres_read_model_http_response(
         _ => {}
     };
     if let (true, Some(config)) = (is_transaction_detail, config) {
+        return Some(postgres_read_model_http_response(config, method, target));
+    }
+    if let (true, Some(config)) = (is_account_detail, config) {
         return Some(postgres_read_model_http_response(config, method, target));
     }
     None
@@ -279,6 +287,9 @@ fn postgres_read_model_http_response(
     let transaction_detail_tx_hash = path
         .strip_prefix(POSTGRES_TRANSACTION_DETAIL_PREFIX)
         .filter(|tx_hash| !tx_hash.is_empty());
+    let account_detail_address = path
+        .strip_prefix(POSTGRES_ACCOUNT_DETAIL_PREFIX)
+        .filter(|address| !address.is_empty() && !address.contains('/'));
     let (sql, label, renderer): (String, &str, PostgresReadModelRenderer) = if let Some(tx_hash) =
         transaction_detail_tx_hash
     {
@@ -287,6 +298,17 @@ fn postgres_read_model_http_response(
                 sql,
                 "postgres transaction detail",
                 render_postgres_transaction_detail_json,
+            ),
+            Err(message) => {
+                return Ok(local_api_error_response(400, "bad_request", &message));
+            }
+        }
+    } else if let Some(address) = account_detail_address {
+        match postgres_account_detail_sql(address) {
+            Ok(sql) => (
+                sql,
+                "postgres account detail",
+                render_postgres_account_detail_json,
             ),
             Err(message) => {
                 return Ok(local_api_error_response(400, "bad_request", &message));
@@ -339,6 +361,14 @@ fn postgres_read_model_http_response(
             404,
             "not_found",
             "XRIQ transaction not found in Postgres read model",
+        ));
+    }
+    if label == "postgres account detail" && values.get("found").map(String::as_str) != Some("true")
+    {
+        return Ok(local_api_error_response(
+            404,
+            "not_found",
+            "XRIQ account not found in Postgres read model",
         ));
     }
     let body = renderer(config, &values)?;
@@ -684,6 +714,48 @@ FROM (
     SELECT 105 + row_index * 20, 'account_' || row_index || '_first_seen_height', COALESCE(first_seen_height::text, 'none') FROM ranked
     UNION ALL
     SELECT 106 + row_index * 20, 'account_' || row_index || '_last_seen_height', COALESCE(last_seen_height::text, 'none') FROM ranked
+) AS rows
+ORDER BY sort_order;
+"#
+    ))
+}
+
+fn postgres_account_detail_sql(address: &str) -> Result<String, String> {
+    validate_xriq_address(address, "address")?;
+    Ok(format!(
+        r#"
+WITH selected AS (
+    SELECT
+        balance.address,
+        balance.balance_base_units::text AS balance_base_units,
+        balance.nonce,
+        balance.height,
+        balance.state_root,
+        account.first_seen_height,
+        account.last_seen_height
+    FROM xriq_account_balances balance
+    LEFT JOIN xriq_accounts account
+        ON account.address = balance.address
+    WHERE balance.address = '{address}'
+    LIMIT 1
+)
+SELECT key || '=' || value
+FROM (
+    SELECT 0 AS sort_order, 'found' AS key, CASE WHEN EXISTS(SELECT 1 FROM selected) THEN 'true' ELSE 'false' END AS value
+    UNION ALL
+    SELECT 100, 'account_0_address', address FROM selected
+    UNION ALL
+    SELECT 101, 'account_0_balance_base_units', balance_base_units FROM selected
+    UNION ALL
+    SELECT 102, 'account_0_nonce', nonce::text FROM selected
+    UNION ALL
+    SELECT 103, 'account_0_height', height::text FROM selected
+    UNION ALL
+    SELECT 104, 'account_0_state_root', state_root FROM selected
+    UNION ALL
+    SELECT 105, 'account_0_first_seen_height', COALESCE(first_seen_height::text, 'none') FROM selected
+    UNION ALL
+    SELECT 106, 'account_0_last_seen_height', COALESCE(last_seen_height::text, 'none') FROM selected
 ) AS rows
 ORDER BY sort_order;
 "#
@@ -1201,44 +1273,127 @@ fn render_postgres_accounts_json(
     Ok(output)
 }
 
+fn render_postgres_account_detail_json(
+    _config: &PostgresReadModelConfig<'_>,
+    values: &BTreeMap<String, String>,
+) -> Result<String, String> {
+    let account = render_postgres_account_fields(values, 0, "postgres account detail")?;
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(&mut output, "  \"environment\": \"private-devnet\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"network\": {},",
+        json_string(POSTGRES_PRIVATE_DEVNET_NETWORK)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"source\": \"postgres-read-model\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(POSTGRES_READ_MODEL_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"read_only\": true,").expect("write to String");
+    write_postgres_account_fields(&mut output, &account, 2, false);
+    output.push_str("\n}");
+    Ok(output)
+}
+
 fn render_postgres_account_json_inline(
     values: &BTreeMap<String, String>,
     index: u64,
     indent: usize,
 ) -> Result<String, String> {
-    let prefix = format!("account_{index}_");
-    let address = required_string_for(values, &format!("{prefix}address"), "postgres accounts")?;
-    let balance_base_units = required_string_for(
-        values,
-        &format!("{prefix}balance_base_units"),
-        "postgres accounts",
-    )?;
-    let nonce = required_u64_for(values, &format!("{prefix}nonce"), "postgres accounts")?;
-    let height = required_u64_for(values, &format!("{prefix}height"), "postgres accounts")?;
-    let state_root =
-        required_string_for(values, &format!("{prefix}state_root"), "postgres accounts")?;
-    let first_seen_height = optional_u64_json_for(
-        values,
-        &format!("{prefix}first_seen_height"),
-        "postgres accounts",
-    )?;
-    let last_seen_height = optional_u64_json_for(
-        values,
-        &format!("{prefix}last_seen_height"),
-        "postgres accounts",
-    )?;
+    let account = render_postgres_account_fields(values, index, "postgres accounts")?;
     let spaces = " ".repeat(indent);
-    let nested = " ".repeat(indent + 2);
-    Ok(format!(
-        "{spaces}{{\n{nested}\"address\": {},\n{nested}\"balance_base_units\": {},\n{nested}\"nonce\": {},\n{nested}\"height\": {},\n{nested}\"state_root\": {},\n{nested}\"first_seen_height\": {},\n{nested}\"last_seen_height\": {}\n{spaces}}}",
-        json_string(address),
-        json_string(balance_base_units),
-        nonce,
-        height,
-        json_string(state_root),
-        first_seen_height,
-        last_seen_height
-    ))
+    let mut output = format!("{spaces}{{\n");
+    write_postgres_account_fields(&mut output, &account, indent + 2, false);
+    output.push('\n');
+    output.push_str(&spaces);
+    output.push('}');
+    Ok(output)
+}
+
+struct PostgresAccountFields<'a> {
+    address: &'a str,
+    balance_base_units: &'a str,
+    nonce: u64,
+    height: u64,
+    state_root: &'a str,
+    first_seen_height: String,
+    last_seen_height: String,
+}
+
+fn render_postgres_account_fields<'a>(
+    values: &'a BTreeMap<String, String>,
+    index: u64,
+    context: &str,
+) -> Result<PostgresAccountFields<'a>, String> {
+    let prefix = format!("account_{index}_");
+    Ok(PostgresAccountFields {
+        address: required_string_for(values, &format!("{prefix}address"), context)?,
+        balance_base_units: required_string_for(
+            values,
+            &format!("{prefix}balance_base_units"),
+            context,
+        )?,
+        nonce: required_u64_for(values, &format!("{prefix}nonce"), context)?,
+        height: required_u64_for(values, &format!("{prefix}height"), context)?,
+        state_root: required_string_for(values, &format!("{prefix}state_root"), context)?,
+        first_seen_height: optional_u64_json_for(
+            values,
+            &format!("{prefix}first_seen_height"),
+            context,
+        )?,
+        last_seen_height: optional_u64_json_for(
+            values,
+            &format!("{prefix}last_seen_height"),
+            context,
+        )?,
+    })
+}
+
+fn write_postgres_account_fields(
+    output: &mut String,
+    account: &PostgresAccountFields<'_>,
+    indent: usize,
+    trailing_comma: bool,
+) {
+    let spaces = " ".repeat(indent);
+    writeln!(
+        output,
+        "{spaces}\"address\": {},",
+        json_string(account.address)
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{spaces}\"balance_base_units\": {},",
+        json_string(account.balance_base_units)
+    )
+    .expect("write to String");
+    writeln!(output, "{spaces}\"nonce\": {},", account.nonce).expect("write to String");
+    writeln!(output, "{spaces}\"height\": {},", account.height).expect("write to String");
+    writeln!(
+        output,
+        "{spaces}\"state_root\": {},",
+        json_string(account.state_root)
+    )
+    .expect("write to String");
+    writeln!(
+        output,
+        "{spaces}\"first_seen_height\": {},",
+        account.first_seen_height
+    )
+    .expect("write to String");
+    write!(
+        output,
+        "{spaces}\"last_seen_height\": {}{}",
+        account.last_seen_height,
+        if trailing_comma { "," } else { "" }
+    )
+    .expect("write to String");
 }
 
 fn required_u64(values: &BTreeMap<String, String>, key: &str) -> Result<u64, String> {
@@ -1323,7 +1478,7 @@ fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/accounts?limit=5",
+        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/accounts?limit=5|/api/v1/accounts/<address>",
         "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
@@ -1334,6 +1489,7 @@ fn help_text() -> String {
         "  xriq-api request-postgres --target /api/v1/transactions?limit=5",
         "  xriq-api request-postgres --target /api/v1/transactions/<tx_hash>",
         "  xriq-api request-postgres --target /api/v1/accounts?limit=5",
+        "  xriq-api request-postgres --target /api/v1/accounts/<address>",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100 --postgres-docker-container xriq-postgres --postgres-database xriq_phase1_1_smoke",
     ]
@@ -1516,6 +1672,12 @@ fn validate_transaction_hash(value: &str, context: &str) -> Result<(), String> {
     Err(format!(
         "invalid {context}: expected 64-character hex string, got {value:?}"
     ))
+}
+
+fn validate_xriq_address(value: &str, context: &str) -> Result<(), String> {
+    Address::parse(value)
+        .map(|_| ())
+        .map_err(|error| format!("invalid {context}: {error:?}, got {value:?}"))
 }
 
 fn json_string(value: &str) -> String {
@@ -1883,6 +2045,40 @@ account_1_last_seen_height=1
     }
 
     #[test]
+    fn postgres_account_detail_json_renders_product_shape() {
+        let config = PostgresRequestConfig::parse(&[
+            "--target",
+            "/api/v1/accounts/xriqdev1alice00000000000",
+        ])
+        .unwrap();
+        let values = parse_key_value_lines(
+            "\
+found=true
+account_0_address=xriqdev1alice00000000000
+account_0_balance_base_units=73
+account_0_nonce=1
+account_0_height=1
+account_0_state_root=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+account_0_first_seen_height=0
+account_0_last_seen_height=1
+",
+            "test postgres account detail",
+        )
+        .unwrap();
+
+        let body = render_postgres_account_detail_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"source\": \"postgres-read-model\""));
+        assert!(body.contains("\"read_only\": true"));
+        assert!(body.contains("\"address\": \"xriqdev1alice00000000000\""));
+        assert!(body.contains("\"balance_base_units\": \"73\""));
+        assert!(body.contains("\"nonce\": 1"));
+        assert!(body.contains("\"height\": 1"));
+        assert!(body.contains("\"first_seen_height\": 0"));
+        assert!(body.contains("\"last_seen_height\": 1"));
+    }
+
+    #[test]
     fn postgres_blocks_sql_rejects_invalid_limit_before_docker() {
         let response = run([
             "request-postgres",
@@ -1922,6 +2118,15 @@ account_1_last_seen_height=1
         assert!(response.contains("status_code=400"));
         assert!(response.contains("\"code\": \"bad_request\""));
         assert!(response.contains("invalid limit"));
+    }
+
+    #[test]
+    fn postgres_account_detail_sql_rejects_invalid_address_before_docker() {
+        let response = run(["request-postgres", "--target", "/api/v1/accounts/not-valid"]).unwrap();
+
+        assert!(response.contains("status_code=400"));
+        assert!(response.contains("\"code\": \"bad_request\""));
+        assert!(response.contains("invalid address"));
     }
 
     #[test]
@@ -2033,6 +2238,12 @@ account_1_last_seen_height=1
             maybe_postgres_read_model_http_response(None, "GET", "/api/v1/accounts?limit=5")
                 .is_none()
         );
+        assert!(maybe_postgres_read_model_http_response(
+            None,
+            "GET",
+            "/api/v1/accounts/xriqdev1alice00000000000"
+        )
+        .is_none());
     }
 
     #[test]

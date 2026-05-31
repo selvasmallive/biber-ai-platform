@@ -819,6 +819,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_transaction_detail = None
     postgres_api_accounts = None
     postgres_server_accounts = None
+    postgres_api_account_detail = None
+    postgres_server_account_detail = None
     postgres_ui_status = None
     if args.postgres_docker_live:
         postgres_docker_live = run_postgres_docker_live(
@@ -1037,6 +1039,23 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                         f"{context}: expected integer or null first/last seen heights for {address}"
                     )
 
+        def validate_postgres_account_detail(
+            payload: dict[str, Any], context: str
+        ) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(payload, "address", ALICE, context)
+            require_equal(payload, "balance_base_units", "73", context)
+            require_equal(payload, "nonce", 1, context)
+            require_equal(payload, "height", int(expected_counts["latest_height"]), context)
+            require_hash(payload.get("state_root"), f"{context} state root")
+            first_seen = payload.get("first_seen_height")
+            last_seen = payload.get("last_seen_height")
+            if not isinstance(first_seen, int) or not isinstance(last_seen, int):
+                raise SmokeError(
+                    f"{context}: expected integer first/last seen heights for {ALICE}"
+                )
+
         postgres_blocks_output = run_command(
             "xriq-api postgres blocks",
             [
@@ -1160,6 +1179,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         write_json(indexer_dir / "postgres-api-accounts.json", postgres_api_accounts)
         completed.append("postgres-backed api accounts")
 
+        postgres_account_detail_output = run_command(
+            "xriq-api postgres account detail",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                f"/api/v1/accounts/{ALICE}",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_account_detail = parse_api_request_output(
+            postgres_account_detail_output,
+            "xriq-api postgres account detail",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres account detail: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_account_detail}"
+            )
+        validate_postgres_account_detail(
+            postgres_api_account_detail,
+            "xriq-api postgres account detail",
+        )
+        write_json(
+            indexer_dir / "postgres-api-account-detail.json",
+            postgres_api_account_detail,
+        )
+        completed.append("postgres-backed api account detail")
+
         server_port = free_local_port()
         server_bind = f"127.0.0.1:{server_port}"
         server_base_url = f"http://{server_bind}"
@@ -1188,6 +1240,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 server_base_url, f"/api/v1/transactions/{confirmed_tx_hash}"
             )
             postgres_server_accounts = http_json(server_base_url, "/api/v1/accounts?limit=5")
+            postgres_server_account_detail = http_json(server_base_url, f"/api/v1/accounts/{ALICE}")
             postgres_ui_artifact = indexer_dir / "postgres-admin-ui-read-model-status.json"
             run_command(
                 "xriq admin postgres UI status smoke",
@@ -1271,6 +1324,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_accounts,
             "xriq-api serve-readonly postgres accounts",
         )
+        validate_postgres_account_detail(
+            postgres_server_account_detail,
+            "xriq-api serve-readonly postgres account detail",
+        )
         write_json(
             indexer_dir / "postgres-server-read-model-status.json", postgres_server_status
         )
@@ -1287,12 +1344,17 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_transaction_detail,
         )
         write_json(indexer_dir / "postgres-server-accounts.json", postgres_server_accounts)
+        write_json(
+            indexer_dir / "postgres-server-account-detail.json",
+            postgres_server_account_detail,
+        )
         completed.append("postgres-backed server read-model status")
         completed.append("postgres-backed server explorer overview")
         completed.append("postgres-backed server blocks")
         completed.append("postgres-backed server transactions")
         completed.append("postgres-backed server transaction detail")
         completed.append("postgres-backed server accounts")
+        completed.append("postgres-backed server account detail")
         completed.append("postgres-backed admin UI read-model status")
     else:
         skipped.append("postgres docker live smoke")
@@ -1696,6 +1758,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_accounts": (
                 str(indexer_dir / "postgres-server-accounts.json")
                 if postgres_server_accounts
+                else None
+            ),
+            "postgres_api_account_detail": (
+                str(indexer_dir / "postgres-api-account-detail.json")
+                if postgres_api_account_detail
+                else None
+            ),
+            "postgres_server_account_detail": (
+                str(indexer_dir / "postgres-server-account-detail.json")
+                if postgres_server_account_detail
                 else None
             ),
             "postgres_admin_ui_read_model_status": (

@@ -153,8 +153,8 @@ Required behavior:
   those flags the Postgres status route remains disabled and ordinary
   file-backed API routes, including `/api/v1/explorer/overview`,
   `/api/v1/blocks?limit=...`, `/api/v1/transactions?limit=...`, and
-  `/api/v1/transactions/{tx_hash}`, and `/api/v1/accounts?limit=...`, keep
-  working
+  `/api/v1/transactions/{tx_hash}`, `/api/v1/accounts?limit=...`, and
+  `/api/v1/accounts/{address}`, keep working
 
 ### ISO 20022 Mapping APIs
 
@@ -393,9 +393,9 @@ validated against the local Docker Postgres service:
    installed `psql`.
 6. Keep `/api/v1/explorer/overview`, `/api/v1/blocks?limit=...`,
    `/api/v1/transactions?limit=...`, `/api/v1/transactions/{tx_hash}`, and
-   `/api/v1/accounts?limit=...` as the first Postgres-backed product data
-   routes and add subsequent read-only account detail/history routes one at a
-   time.
+   `/api/v1/accounts?limit=...` plus `/api/v1/accounts/{address}` as the first
+   Postgres-backed product data routes and add subsequent read-only account
+   history routes one at a time.
 7. If host `psql` is unavailable but Docker Desktop is running, use
    `python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live` to
    apply and verify the generated SQL inside the local Compose Postgres
@@ -432,8 +432,8 @@ cargo test -p xriq-indexer
 The first explicit Postgres-backed API read paths are local-only and use the
 Compose `postgres` container. They return status/count JSON plus the opt-in
 explorer overview, block-list, transaction-list, and transaction-detail shapes
-plus the account-list shape from the read model without changing the default
-file-backed API request/server path:
+plus the account-list and account-detail shapes from the read model without
+changing the default file-backed API request/server path:
 
 ```bash
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
@@ -442,6 +442,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/blocks?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions/<tx_hash>
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts?limit=5
+cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>
 ```
 
 The same routes can be exposed by the local read-only HTTP server only when the

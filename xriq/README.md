@@ -104,8 +104,8 @@ That live smoke also verifies the first explicit Postgres-backed API read paths,
 including `/api/v1/admin/postgres/read-model-status` and the opt-in
 Postgres-backed `/api/v1/explorer/overview`, `/api/v1/blocks?limit=5`, and
 `/api/v1/transactions?limit=5` plus `/api/v1/transactions/{tx_hash}` and
-`/api/v1/accounts?limit=5`, plus the Admin UI's Postgres read-model row
-mapping. It writes
+`/api/v1/accounts?limit=5` plus `/api/v1/accounts/{address}`, plus the Admin
+UI's Postgres read-model row mapping. It writes
 `indexer/postgres-api-explorer-overview.json`,
 `indexer/postgres-server-explorer-overview.json`,
 `indexer/postgres-api-blocks.json`, `indexer/postgres-server-blocks.json`,
@@ -114,6 +114,8 @@ mapping. It writes
 `indexer/postgres-api-transaction-detail.json`,
 `indexer/postgres-server-transaction-detail.json`,
 `indexer/postgres-api-accounts.json`, `indexer/postgres-server-accounts.json`,
+`indexer/postgres-api-account-detail.json`,
+`indexer/postgres-server-account-detail.json`,
 and
 `indexer/postgres-admin-ui-read-model-status.json` under the smoke output
 directory.
@@ -128,13 +130,14 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/blocks?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions/<tx_hash>
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts?limit=5
+cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>
 ```
 
 To expose the same Postgres read-model status, explorer overview, block list,
-transaction list, transaction detail, and account list through the local
-read-only HTTP server, pass both explicit Postgres flags. Without these flags,
-the Postgres status route remains disabled and the normal file-backed routes
-keep working.
+transaction list, transaction detail, account list, and account detail through
+the local read-only HTTP server, pass both explicit Postgres flags. Without
+these flags, the Postgres status route remains disabled and the normal
+file-backed routes keep working.
 
 ```bash
 cargo run -p xriq-api -- serve-readonly --chain-file target/xriq-indexer-replay-smoke.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --bind 127.0.0.1:8090 --postgres-docker-container xriq-postgres --postgres-database xriq_phase1_1_smoke
