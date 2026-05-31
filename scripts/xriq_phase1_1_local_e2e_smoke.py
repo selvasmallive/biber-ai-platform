@@ -821,6 +821,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_accounts = None
     postgres_api_account_detail = None
     postgres_server_account_detail = None
+    postgres_api_account_history = None
+    postgres_server_account_history = None
     postgres_ui_status = None
     if args.postgres_docker_live:
         postgres_docker_live = run_postgres_docker_live(
@@ -1056,6 +1058,26 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                     f"{context}: expected integer first/last seen heights for {ALICE}"
                 )
 
+        def validate_postgres_account_history(
+            payload: dict[str, Any], context: str
+        ) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(payload, "address", ALICE, context)
+            require_equal(payload, "limit", 5, context)
+            require_equal(payload, "next_cursor", None, context)
+            transactions = require_list(payload.get("transactions"), context)
+            if len(transactions) != 1 or not isinstance(transactions[0], dict):
+                raise SmokeError(f"{context}: expected exactly one account transaction")
+            transaction = transactions[0]
+            require_equal(transaction, "address", ALICE, context)
+            require_equal(transaction, "tx_hash", confirmed_tx_hash, context)
+            require_equal(transaction, "direction", "sent", context)
+            require_equal(transaction, "block_height", int(expected_counts["latest_height"]), context)
+            require_equal(transaction, "transaction_index", 0, context)
+            require_equal(transaction, "amount_base_units", "25", context)
+            require_equal(transaction, "fee_base_units", "2", context)
+
         postgres_blocks_output = run_command(
             "xriq-api postgres blocks",
             [
@@ -1212,6 +1234,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         completed.append("postgres-backed api account detail")
 
+        postgres_account_history_output = run_command(
+            "xriq-api postgres account history",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                f"/api/v1/accounts/{ALICE}/transactions?limit=5",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_account_history = parse_api_request_output(
+            postgres_account_history_output,
+            "xriq-api postgres account history",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres account history: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_account_history}"
+            )
+        validate_postgres_account_history(
+            postgres_api_account_history,
+            "xriq-api postgres account history",
+        )
+        write_json(
+            indexer_dir / "postgres-api-account-history.json",
+            postgres_api_account_history,
+        )
+        completed.append("postgres-backed api account history")
+
         server_port = free_local_port()
         server_bind = f"127.0.0.1:{server_port}"
         server_base_url = f"http://{server_bind}"
@@ -1241,6 +1296,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             )
             postgres_server_accounts = http_json(server_base_url, "/api/v1/accounts?limit=5")
             postgres_server_account_detail = http_json(server_base_url, f"/api/v1/accounts/{ALICE}")
+            postgres_server_account_history = http_json(
+                server_base_url, f"/api/v1/accounts/{ALICE}/transactions?limit=5"
+            )
             postgres_ui_artifact = indexer_dir / "postgres-admin-ui-read-model-status.json"
             run_command(
                 "xriq admin postgres UI status smoke",
@@ -1328,6 +1386,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_account_detail,
             "xriq-api serve-readonly postgres account detail",
         )
+        validate_postgres_account_history(
+            postgres_server_account_history,
+            "xriq-api serve-readonly postgres account history",
+        )
         write_json(
             indexer_dir / "postgres-server-read-model-status.json", postgres_server_status
         )
@@ -1348,6 +1410,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             indexer_dir / "postgres-server-account-detail.json",
             postgres_server_account_detail,
         )
+        write_json(
+            indexer_dir / "postgres-server-account-history.json",
+            postgres_server_account_history,
+        )
         completed.append("postgres-backed server read-model status")
         completed.append("postgres-backed server explorer overview")
         completed.append("postgres-backed server blocks")
@@ -1355,6 +1421,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         completed.append("postgres-backed server transaction detail")
         completed.append("postgres-backed server accounts")
         completed.append("postgres-backed server account detail")
+        completed.append("postgres-backed server account history")
         completed.append("postgres-backed admin UI read-model status")
     else:
         skipped.append("postgres docker live smoke")
@@ -1768,6 +1835,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_account_detail": (
                 str(indexer_dir / "postgres-server-account-detail.json")
                 if postgres_server_account_detail
+                else None
+            ),
+            "postgres_api_account_history": (
+                str(indexer_dir / "postgres-api-account-history.json")
+                if postgres_api_account_history
+                else None
+            ),
+            "postgres_server_account_history": (
+                str(indexer_dir / "postgres-server-account-history.json")
+                if postgres_server_account_history
                 else None
             ),
             "postgres_admin_ui_read_model_status": (

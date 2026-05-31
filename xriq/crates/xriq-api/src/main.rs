@@ -24,6 +24,7 @@ const POSTGRES_TRANSACTIONS_ROUTE: &str = "/api/v1/transactions";
 const POSTGRES_TRANSACTION_DETAIL_PREFIX: &str = "/api/v1/transactions/";
 const POSTGRES_ACCOUNTS_ROUTE: &str = "/api/v1/accounts";
 const POSTGRES_ACCOUNT_DETAIL_PREFIX: &str = "/api/v1/accounts/";
+const POSTGRES_ACCOUNT_HISTORY_SUFFIX: &str = "/transactions";
 const POSTGRES_PRIVATE_DEVNET_NETWORK: &str = "xriq-devnet";
 const POSTGRES_READ_MODEL_WARNING: &str =
     "local-private-devnet-postgres-read-only-preview-no-mutation";
@@ -226,6 +227,12 @@ fn cli_response(response: ApiHttpResponse) -> String {
     )
 }
 
+fn postgres_account_history_address_from_path(path: &str) -> Option<&str> {
+    let account_path = path.strip_prefix(POSTGRES_ACCOUNT_DETAIL_PREFIX)?;
+    let address = account_path.strip_suffix(POSTGRES_ACCOUNT_HISTORY_SUFFIX)?;
+    (!address.is_empty() && !address.contains('/')).then_some(address)
+}
+
 fn maybe_postgres_read_model_http_response(
     config: Option<&PostgresReadModelConfig<'_>>,
     method: &str,
@@ -238,6 +245,7 @@ fn maybe_postgres_read_model_http_response(
     let is_account_detail = path
         .strip_prefix(POSTGRES_ACCOUNT_DETAIL_PREFIX)
         .is_some_and(|address| !address.is_empty() && !address.contains('/'));
+    let is_account_history = postgres_account_history_address_from_path(path).is_some();
     match (path, config) {
         (POSTGRES_READ_MODEL_STATUS_ROUTE, None) => {
             return Some(Ok(postgres_read_model_disabled_response()));
@@ -250,6 +258,7 @@ fn maybe_postgres_read_model_http_response(
             None,
         ) => return None,
         (_, None) if is_transaction_detail => return None,
+        (_, None) if is_account_history => return None,
         (_, None) if is_account_detail => return None,
         (
             POSTGRES_READ_MODEL_STATUS_ROUTE
@@ -262,6 +271,9 @@ fn maybe_postgres_read_model_http_response(
         _ => {}
     };
     if let (true, Some(config)) = (is_transaction_detail, config) {
+        return Some(postgres_read_model_http_response(config, method, target));
+    }
+    if let (true, Some(config)) = (is_account_history, config) {
         return Some(postgres_read_model_http_response(config, method, target));
     }
     if let (true, Some(config)) = (is_account_detail, config) {
@@ -290,6 +302,7 @@ fn postgres_read_model_http_response(
     let account_detail_address = path
         .strip_prefix(POSTGRES_ACCOUNT_DETAIL_PREFIX)
         .filter(|address| !address.is_empty() && !address.contains('/'));
+    let account_history_address = postgres_account_history_address_from_path(path);
     let (sql, label, renderer): (String, &str, PostgresReadModelRenderer) = if let Some(tx_hash) =
         transaction_detail_tx_hash
     {
@@ -298,6 +311,17 @@ fn postgres_read_model_http_response(
                 sql,
                 "postgres transaction detail",
                 render_postgres_transaction_detail_json,
+            ),
+            Err(message) => {
+                return Ok(local_api_error_response(400, "bad_request", &message));
+            }
+        }
+    } else if let Some(address) = account_history_address {
+        match postgres_account_history_sql(address, target) {
+            Ok(sql) => (
+                sql,
+                "postgres account history",
+                render_postgres_account_history_json,
             ),
             Err(message) => {
                 return Ok(local_api_error_response(400, "bad_request", &message));
@@ -756,6 +780,74 @@ FROM (
     SELECT 105, 'account_0_first_seen_height', COALESCE(first_seen_height::text, 'none') FROM selected
     UNION ALL
     SELECT 106, 'account_0_last_seen_height', COALESCE(last_seen_height::text, 'none') FROM selected
+) AS rows
+ORDER BY sort_order;
+"#
+    ))
+}
+
+fn postgres_account_history_sql(address: &str, target: &str) -> Result<String, String> {
+    validate_xriq_address(address, "address")?;
+    let (_, query) = split_http_target(target);
+    let limit = limit_from_query(query, 25)?;
+    Ok(format!(
+        r#"
+WITH ranked AS (
+    SELECT
+        row_number() OVER (
+            ORDER BY block_height DESC, transaction_index DESC, tx_hash ASC, direction ASC
+        ) - 1 AS row_index,
+        address,
+        tx_hash,
+        direction,
+        block_height,
+        transaction_index,
+        amount_base_units::text AS amount_base_units,
+        fee_base_units::text AS fee_base_units
+    FROM xriq_account_transactions
+    WHERE address = '{address}'
+      AND block_height IS NOT NULL
+      AND transaction_index IS NOT NULL
+    ORDER BY block_height DESC, transaction_index DESC, tx_hash ASC, direction ASC
+    LIMIT {limit}
+),
+counts AS (
+    SELECT count(*) AS total_transactions
+    FROM xriq_account_transactions
+    WHERE address = '{address}'
+      AND block_height IS NOT NULL
+      AND transaction_index IS NOT NULL
+)
+SELECT key || '=' || value
+FROM (
+    SELECT 0 AS sort_order, 'address' AS key, '{address}' AS value
+    UNION ALL
+    SELECT 1, 'limit', '{limit}'
+    UNION ALL
+    SELECT 2, 'transaction_count', count(*)::text FROM ranked
+    UNION ALL
+    SELECT
+        3,
+        'next_cursor',
+        CASE
+            WHEN (SELECT total_transactions FROM counts) > (SELECT count(*) FROM ranked)
+            THEN COALESCE((SELECT block_height::text || ':' || transaction_index::text || ':' || tx_hash FROM ranked ORDER BY row_index DESC LIMIT 1), 'none')
+            ELSE 'none'
+        END
+    UNION ALL
+    SELECT 100 + row_index * 20, 'transaction_' || row_index || '_address', address FROM ranked
+    UNION ALL
+    SELECT 101 + row_index * 20, 'transaction_' || row_index || '_tx_hash', tx_hash FROM ranked
+    UNION ALL
+    SELECT 102 + row_index * 20, 'transaction_' || row_index || '_direction', direction FROM ranked
+    UNION ALL
+    SELECT 103 + row_index * 20, 'transaction_' || row_index || '_block_height', block_height::text FROM ranked
+    UNION ALL
+    SELECT 104 + row_index * 20, 'transaction_' || row_index || '_transaction_index', transaction_index::text FROM ranked
+    UNION ALL
+    SELECT 105 + row_index * 20, 'transaction_' || row_index || '_amount_base_units', amount_base_units FROM ranked
+    UNION ALL
+    SELECT 106 + row_index * 20, 'transaction_' || row_index || '_fee_base_units', fee_base_units FROM ranked
 ) AS rows
 ORDER BY sort_order;
 "#
@@ -1300,6 +1392,108 @@ fn render_postgres_account_detail_json(
     Ok(output)
 }
 
+fn render_postgres_account_history_json(
+    _config: &PostgresReadModelConfig<'_>,
+    values: &BTreeMap<String, String>,
+) -> Result<String, String> {
+    let address = required_string_for(values, "address", "postgres account history")?;
+    let limit = required_u64_for(values, "limit", "postgres account history")?;
+    let transaction_count =
+        required_u64_for(values, "transaction_count", "postgres account history")?;
+    let next_cursor = optional_string_json(values, "next_cursor")?;
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(&mut output, "  \"environment\": \"private-devnet\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"network\": {},",
+        json_string(POSTGRES_PRIVATE_DEVNET_NETWORK)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"source\": \"postgres-read-model\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"warning\": {},",
+        json_string(POSTGRES_READ_MODEL_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"read_only\": true,").expect("write to String");
+    writeln!(&mut output, "  \"address\": {},", json_string(address)).expect("write to String");
+    writeln!(&mut output, "  \"limit\": {},", limit).expect("write to String");
+    writeln!(&mut output, "  \"next_cursor\": {},", next_cursor).expect("write to String");
+    output.push_str("  \"transactions\": [");
+    for index in 0..transaction_count {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_postgres_account_transaction_json_inline(
+            values, index, 4,
+        )?);
+    }
+    if transaction_count > 0 {
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    Ok(output)
+}
+
+fn render_postgres_account_transaction_json_inline(
+    values: &BTreeMap<String, String>,
+    index: u64,
+    indent: usize,
+) -> Result<String, String> {
+    let transaction =
+        render_postgres_account_transaction_fields(values, index, "postgres account history")?;
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    Ok(format!(
+        "{spaces}{{\n{nested}\"address\": {},\n{nested}\"tx_hash\": {},\n{nested}\"direction\": {},\n{nested}\"block_height\": {},\n{nested}\"transaction_index\": {},\n{nested}\"amount_base_units\": {},\n{nested}\"fee_base_units\": {}\n{spaces}}}",
+        json_string(transaction.address),
+        json_string(transaction.tx_hash),
+        json_string(transaction.direction),
+        transaction.block_height,
+        transaction.transaction_index,
+        json_string(transaction.amount_base_units),
+        json_string(transaction.fee_base_units)
+    ))
+}
+
+struct PostgresAccountTransactionFields<'a> {
+    address: &'a str,
+    tx_hash: &'a str,
+    direction: &'a str,
+    block_height: u64,
+    transaction_index: u64,
+    amount_base_units: &'a str,
+    fee_base_units: &'a str,
+}
+
+fn render_postgres_account_transaction_fields<'a>(
+    values: &'a BTreeMap<String, String>,
+    index: u64,
+    context: &str,
+) -> Result<PostgresAccountTransactionFields<'a>, String> {
+    let prefix = format!("transaction_{index}_");
+    Ok(PostgresAccountTransactionFields {
+        address: required_string_for(values, &format!("{prefix}address"), context)?,
+        tx_hash: required_string_for(values, &format!("{prefix}tx_hash"), context)?,
+        direction: required_string_for(values, &format!("{prefix}direction"), context)?,
+        block_height: required_u64_for(values, &format!("{prefix}block_height"), context)?,
+        transaction_index: required_u64_for(
+            values,
+            &format!("{prefix}transaction_index"),
+            context,
+        )?,
+        amount_base_units: required_string_for(
+            values,
+            &format!("{prefix}amount_base_units"),
+            context,
+        )?,
+        fee_base_units: required_string_for(values, &format!("{prefix}fee_base_units"), context)?,
+    })
+}
+
 fn render_postgres_account_json_inline(
     values: &BTreeMap<String, String>,
     index: u64,
@@ -1478,7 +1672,7 @@ fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/accounts?limit=5|/api/v1/accounts/<address>",
+        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5",
         "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
@@ -1490,6 +1684,7 @@ fn help_text() -> String {
         "  xriq-api request-postgres --target /api/v1/transactions/<tx_hash>",
         "  xriq-api request-postgres --target /api/v1/accounts?limit=5",
         "  xriq-api request-postgres --target /api/v1/accounts/<address>",
+        "  xriq-api request-postgres --target /api/v1/accounts/<address>/transactions?limit=5",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100 --postgres-docker-container xriq-postgres --postgres-database xriq_phase1_1_smoke",
     ]
@@ -2079,6 +2274,47 @@ account_0_last_seen_height=1
     }
 
     #[test]
+    fn postgres_account_history_json_renders_product_shape() {
+        let config = PostgresRequestConfig::parse(&[
+            "--target",
+            "/api/v1/accounts/xriqdev1alice00000000000/transactions?limit=5",
+        ])
+        .unwrap();
+        let values = parse_key_value_lines(
+            "\
+address=xriqdev1alice00000000000
+limit=5
+transaction_count=1
+next_cursor=none
+transaction_0_address=xriqdev1alice00000000000
+transaction_0_tx_hash=2222222222222222222222222222222222222222222222222222222222222222
+transaction_0_direction=sent
+transaction_0_block_height=1
+transaction_0_transaction_index=0
+transaction_0_amount_base_units=25
+transaction_0_fee_base_units=2
+",
+            "test postgres account history",
+        )
+        .unwrap();
+
+        let body = render_postgres_account_history_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"source\": \"postgres-read-model\""));
+        assert!(body.contains("\"read_only\": true"));
+        assert!(body.contains("\"address\": \"xriqdev1alice00000000000\""));
+        assert!(body.contains("\"limit\": 5"));
+        assert!(body.contains("\"next_cursor\": null"));
+        assert!(body.contains("\"transactions\": ["));
+        assert!(body.contains(
+            "\"tx_hash\": \"2222222222222222222222222222222222222222222222222222222222222222\""
+        ));
+        assert!(body.contains("\"direction\": \"sent\""));
+        assert!(body.contains("\"amount_base_units\": \"25\""));
+        assert!(body.contains("\"fee_base_units\": \"2\""));
+    }
+
+    #[test]
     fn postgres_blocks_sql_rejects_invalid_limit_before_docker() {
         let response = run([
             "request-postgres",
@@ -2123,6 +2359,34 @@ account_0_last_seen_height=1
     #[test]
     fn postgres_account_detail_sql_rejects_invalid_address_before_docker() {
         let response = run(["request-postgres", "--target", "/api/v1/accounts/not-valid"]).unwrap();
+
+        assert!(response.contains("status_code=400"));
+        assert!(response.contains("\"code\": \"bad_request\""));
+        assert!(response.contains("invalid address"));
+    }
+
+    #[test]
+    fn postgres_account_history_sql_rejects_invalid_limit_before_docker() {
+        let response = run([
+            "request-postgres",
+            "--target",
+            "/api/v1/accounts/xriqdev1alice00000000000/transactions?limit=not-a-number",
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=400"));
+        assert!(response.contains("\"code\": \"bad_request\""));
+        assert!(response.contains("invalid limit"));
+    }
+
+    #[test]
+    fn postgres_account_history_sql_rejects_invalid_address_before_docker() {
+        let response = run([
+            "request-postgres",
+            "--target",
+            "/api/v1/accounts/not-valid/transactions?limit=5",
+        ])
+        .unwrap();
 
         assert!(response.contains("status_code=400"));
         assert!(response.contains("\"code\": \"bad_request\""));
@@ -2242,6 +2506,12 @@ account_0_last_seen_height=1
             None,
             "GET",
             "/api/v1/accounts/xriqdev1alice00000000000"
+        )
+        .is_none());
+        assert!(maybe_postgres_read_model_http_response(
+            None,
+            "GET",
+            "/api/v1/accounts/xriqdev1alice00000000000/transactions?limit=5"
         )
         .is_none());
     }
