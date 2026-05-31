@@ -156,6 +156,7 @@ Required behavior:
   `/api/v1/transactions?limit=...`, and
   `/api/v1/mempool?limit=...`, and `/api/v1/wallet/status`, and
   `/api/v1/wallet/transfers/draft-preview?...`, and
+  `/api/v1/iso20022/transactions/{tx_hash}/status`, and
   `/api/v1/transactions/{tx_hash}`, `/api/v1/accounts?limit=...`, and
   `/api/v1/accounts/{address}`, and
   `/api/v1/accounts/{address}/transactions?limit=...`, and
@@ -403,6 +404,7 @@ validated against the local Docker Postgres service:
    `/api/v1/wallet/transfers/draft-preview?...`,
    `/api/v1/transactions/{tx_hash}`, and
    `/api/v1/wallet/transactions/{tx_hash}/status`, and
+   `/api/v1/iso20022/transactions/{tx_hash}/status`, and
    `/api/v1/accounts?limit=...` plus `/api/v1/accounts/{address}`,
    `/api/v1/accounts/{address}/transactions?limit=...`, and
    `/api/v1/wallet/accounts?limit=...` plus
@@ -412,10 +414,13 @@ validated against the local Docker Postgres service:
    covers confirmed rows and pending `xriq_mempool_entries` rows in Postgres
    mode without enabling mutation. The wallet draft-preview route now validates
    from Postgres account-balance/nonce/current-height data while remaining
-   read-only/no-signing/no-submit. Add subsequent read-only routes one at a
-   time; the next narrow route should be ISO 20022 transaction-status preview
-   `/api/v1/iso20022/transactions/{tx_hash}/status` from Postgres transaction
-   status fields, still `not_certified: true`, read-only, and preview-only.
+   read-only/no-signing/no-submit. The ISO 20022 transaction-status route now
+   maps confirmed and pending read-model transaction status into
+   `not_certified: true` preview JSON without certification or payment-network
+   claims. Add subsequent read-only routes one at a time; the next narrow route
+   should be ISO 20022 payment-initiation preview
+   `/api/v1/iso20022/payment-initiation/preview?tx_hash=...` from Postgres
+   confirmed transaction fields, still read-only and preview-only.
 7. If host `psql` is unavailable but Docker Desktop is running, use
    `python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live` to
    apply and verify the generated SQL inside the local Compose Postgres
@@ -451,7 +456,7 @@ cargo test -p xriq-indexer
 
 The first explicit Postgres-backed API read paths are local-only and use the
 Compose `postgres` container. They return status/count JSON plus the opt-in
-explorer overview, block-list, block-detail, transaction-list, mempool, wallet-status, wallet draft-preview, transaction-detail,
+explorer overview, block-list, block-detail, transaction-list, mempool, wallet-status, wallet draft-preview, transaction-detail, ISO 20022 transaction-status,
 confirmed/pending wallet transaction-status, mempool, account-list, wallet account-list, account-detail, wallet
 balance, account-history, wallet account-history, audit-events, snapshot-list,
 snapshot-detail, indexer-status, and node-status shapes from the read model
@@ -472,6 +477,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/status
 cargo run -p xriq-api -- request-postgres --target '/api/v1/wallet/transfers/draft-preview?from_address=xriqdev1alice00000000000&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=1&expires_at_height=100'
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions/<tx_hash>
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/transactions/<tx_hash>/status
+cargo run -p xriq-api -- request-postgres --target /api/v1/iso20022/transactions/<tx_hash>/status
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>

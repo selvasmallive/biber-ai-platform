@@ -110,6 +110,7 @@ Postgres-backed `/api/v1/admin/node/status`, `/api/v1/admin/indexer/status`,
 `/api/v1/wallet/transfers/draft-preview?...` plus
 `/api/v1/transactions/{tx_hash}` and
 `/api/v1/wallet/transactions/{tx_hash}/status` for confirmed and pending hashes, plus
+`/api/v1/iso20022/transactions/{tx_hash}/status` plus
 `/api/v1/accounts?limit=5` plus `/api/v1/accounts/{address}` and
 `/api/v1/accounts/{address}/transactions?limit=5` plus
 `/api/v1/wallet/accounts?limit=5` plus
@@ -136,6 +137,8 @@ Postgres read-model row mapping. It writes
 `indexer/postgres-server-transaction-detail.json`,
 `indexer/postgres-api-wallet-transaction-status.json`,
 `indexer/postgres-server-wallet-transaction-status.json`,
+`indexer/postgres-api-iso-transaction-status.json`,
+`indexer/postgres-server-iso-transaction-status.json`,
 `indexer/postgres-api-wallet-pending-transaction-status.json`,
 `indexer/postgres-server-wallet-pending-transaction-status.json`,
 `indexer/postgres-api-accounts.json`, `indexer/postgres-server-accounts.json`,
@@ -180,6 +183,7 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/status
 cargo run -p xriq-api -- request-postgres --target '/api/v1/wallet/transfers/draft-preview?from_address=xriqdev1alice00000000000&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=1&expires_at_height=100'
 cargo run -p xriq-api -- request-postgres --target /api/v1/transactions/<tx_hash>
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/transactions/<tx_hash>/status
+cargo run -p xriq-api -- request-postgres --target /api/v1/iso20022/transactions/<tx_hash>/status
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/accounts/<address>
@@ -191,7 +195,8 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/snapshots/current-ind
 ```
 
 To expose the same Postgres read-model status, explorer overview, block list/detail,
-transaction list, mempool, wallet status, wallet draft-preview, transaction detail, wallet transaction status, account list,
+transaction list, mempool, wallet status, wallet draft-preview, transaction detail, wallet transaction status,
+ISO 20022 transaction status, account list,
 account detail, and account history plus wallet account list, wallet balance,
 wallet account history, audit events, snapshot list/detail, node status, and
 indexer status through the local read-only HTTP server, pass both explicit

@@ -15,6 +15,7 @@ use xriq_api::{
 };
 use xriq_core::{Address, XriqAmount, PRIVATE_DEVNET_MIN_FEE_BASE_UNITS};
 use xriq_indexer::index_private_devnet_store;
+use xriq_iso20022::{payment_status_preview, XriqIsoTransaction};
 use xriq_storage::FileChainStore;
 
 const DEFAULT_BIND: &str = "127.0.0.1:8090";
@@ -32,6 +33,7 @@ const POSTGRES_WALLET_DRAFT_PREVIEW_ROUTE: &str = "/api/v1/wallet/transfers/draf
 const POSTGRES_TRANSACTION_DETAIL_PREFIX: &str = "/api/v1/transactions/";
 const POSTGRES_WALLET_TRANSACTION_PREFIX: &str = "/api/v1/wallet/transactions/";
 const POSTGRES_WALLET_TRANSACTION_STATUS_SUFFIX: &str = "/status";
+const POSTGRES_ISO20022_TRANSACTION_PREFIX: &str = "/api/v1/iso20022/transactions/";
 const POSTGRES_ACCOUNTS_ROUTE: &str = "/api/v1/accounts";
 const POSTGRES_WALLET_ACCOUNTS_ROUTE: &str = "/api/v1/wallet/accounts";
 const POSTGRES_SNAPSHOTS_ROUTE: &str = "/api/v1/snapshots";
@@ -267,6 +269,12 @@ fn postgres_wallet_transaction_status_hash_from_path(path: &str) -> Option<&str>
     (!tx_hash.is_empty() && !tx_hash.contains('/')).then_some(tx_hash)
 }
 
+fn postgres_iso20022_transaction_status_hash_from_path(path: &str) -> Option<&str> {
+    let tx_path = path.strip_prefix(POSTGRES_ISO20022_TRANSACTION_PREFIX)?;
+    let tx_hash = tx_path.strip_suffix(POSTGRES_WALLET_TRANSACTION_STATUS_SUFFIX)?;
+    (!tx_hash.is_empty() && !tx_hash.contains('/')).then_some(tx_hash)
+}
+
 fn postgres_snapshot_name_from_path(path: &str) -> Option<&str> {
     let snapshot_name = path.strip_prefix(POSTGRES_SNAPSHOT_DETAIL_PREFIX)?;
     (!snapshot_name.is_empty() && !snapshot_name.contains('/')).then_some(snapshot_name)
@@ -288,6 +296,8 @@ fn maybe_postgres_read_model_http_response(
         .is_some_and(|tx_hash| !tx_hash.is_empty());
     let is_wallet_transaction_status =
         postgres_wallet_transaction_status_hash_from_path(path).is_some();
+    let is_iso20022_transaction_status =
+        postgres_iso20022_transaction_status_hash_from_path(path).is_some();
     let is_account_detail = path
         .strip_prefix(POSTGRES_ACCOUNT_DETAIL_PREFIX)
         .is_some_and(|address| !address.is_empty() && !address.contains('/'));
@@ -319,6 +329,7 @@ fn maybe_postgres_read_model_http_response(
         ) => return None,
         (_, None) if is_transaction_detail => return None,
         (_, None) if is_wallet_transaction_status => return None,
+        (_, None) if is_iso20022_transaction_status => return None,
         (_, None) if is_account_history => return None,
         (_, None) if is_wallet_account_balance => return None,
         (_, None) if is_wallet_account_history => return None,
@@ -347,6 +358,9 @@ fn maybe_postgres_read_model_http_response(
         return Some(postgres_read_model_http_response(config, method, target));
     }
     if let (true, Some(config)) = (is_wallet_transaction_status, config) {
+        return Some(postgres_read_model_http_response(config, method, target));
+    }
+    if let (true, Some(config)) = (is_iso20022_transaction_status, config) {
         return Some(postgres_read_model_http_response(config, method, target));
     }
     if let (true, Some(config)) = (is_account_history, config) {
@@ -388,6 +402,8 @@ fn postgres_read_model_http_response(
         .strip_prefix(POSTGRES_TRANSACTION_DETAIL_PREFIX)
         .filter(|tx_hash| !tx_hash.is_empty());
     let wallet_transaction_status_hash = postgres_wallet_transaction_status_hash_from_path(path);
+    let iso20022_transaction_status_hash =
+        postgres_iso20022_transaction_status_hash_from_path(path);
     let account_detail_address = path
         .strip_prefix(POSTGRES_ACCOUNT_DETAIL_PREFIX)
         .filter(|address| !address.is_empty() && !address.contains('/'));
@@ -415,6 +431,17 @@ fn postgres_read_model_http_response(
                 sql,
                 "postgres wallet transaction status",
                 render_postgres_wallet_transaction_status_json,
+            ),
+            Err(message) => {
+                return Ok(local_api_error_response(400, "bad_request", &message));
+            }
+        }
+    } else if let Some(tx_hash) = iso20022_transaction_status_hash {
+        match postgres_iso20022_transaction_status_sql(tx_hash) {
+            Ok(sql) => (
+                sql,
+                "postgres iso20022 transaction status",
+                render_postgres_iso20022_transaction_status_json,
             ),
             Err(message) => {
                 return Ok(local_api_error_response(400, "bad_request", &message));
@@ -579,7 +606,9 @@ fn postgres_read_model_http_response(
     let values = parse_key_value_lines(&output, label)?;
     if matches!(
         label,
-        "postgres transaction detail" | "postgres wallet transaction status"
+        "postgres transaction detail"
+            | "postgres wallet transaction status"
+            | "postgres iso20022 transaction status"
     ) && values.get("found").map(String::as_str) != Some("true")
     {
         return Ok(local_api_error_response(
@@ -1321,6 +1350,73 @@ FROM (
     SELECT 103, 'transaction_0_transaction_index', transaction_index FROM selected
     UNION ALL
     SELECT 104, 'transaction_0_status', status FROM selected
+) AS rows
+ORDER BY sort_order;
+"#
+    ))
+}
+
+fn postgres_iso20022_transaction_status_sql(tx_hash: &str) -> Result<String, String> {
+    validate_transaction_hash(tx_hash, "tx_hash")?;
+    Ok(format!(
+        r#"
+WITH confirmed AS (
+    SELECT
+        tx_hash,
+        COALESCE(block_height::text, 'none') AS confirmed_block_height,
+        status,
+        from_address,
+        to_address,
+        amount_base_units::text AS amount_base_units,
+        fee_base_units::text AS fee_base_units,
+        nonce::text AS nonce,
+        0 AS sort_order
+    FROM xriq_transactions
+    WHERE tx_hash = '{tx_hash}'
+    LIMIT 1
+),
+pending AS (
+    SELECT
+        tx_hash,
+        'none' AS confirmed_block_height,
+        status,
+        from_address,
+        to_address,
+        amount_base_units::text AS amount_base_units,
+        fee_base_units::text AS fee_base_units,
+        nonce::text AS nonce,
+        1 AS sort_order
+    FROM xriq_mempool_entries
+    WHERE tx_hash = '{tx_hash}'
+      AND NOT EXISTS (SELECT 1 FROM confirmed)
+    LIMIT 1
+),
+selected AS (
+    SELECT * FROM confirmed
+    UNION ALL
+    SELECT * FROM pending
+    ORDER BY sort_order
+    LIMIT 1
+)
+SELECT key || '=' || value
+FROM (
+    SELECT 0 AS sort_order, 'found' AS key, CASE WHEN EXISTS(SELECT 1 FROM selected) THEN 'true' ELSE 'false' END AS value
+    UNION ALL
+    SELECT 100, 'transaction_0_tx_hash', tx_hash FROM selected
+    UNION ALL
+    SELECT 101, 'transaction_0_confirmed_block_height', confirmed_block_height FROM selected
+    UNION ALL
+    SELECT 102, 'transaction_0_status', status FROM selected
+    UNION ALL
+    SELECT 103, 'transaction_0_from_address', from_address FROM selected
+    UNION ALL
+    SELECT 104, 'transaction_0_to_address', to_address FROM selected
+    UNION ALL
+    SELECT 105, 'transaction_0_amount_base_units', amount_base_units FROM selected
+    UNION ALL
+    SELECT 106, 'transaction_0_fee_base_units', fee_base_units FROM selected
+    UNION ALL
+    SELECT 107, 'transaction_0_nonce', nonce FROM selected
 ) AS rows
 ORDER BY sort_order;
 "#
@@ -2619,6 +2715,121 @@ fn render_postgres_wallet_transaction_status_json(
     Ok(output)
 }
 
+fn render_postgres_iso20022_transaction_status_json(
+    _config: &PostgresReadModelConfig<'_>,
+    values: &BTreeMap<String, String>,
+) -> Result<String, String> {
+    let context = "postgres iso20022 transaction status";
+    let prefix = "transaction_0_";
+    let tx_hash = required_string_for(values, &format!("{prefix}tx_hash"), context)?;
+    let confirmed_block_height =
+        optional_u64_from_values(values, &format!("{prefix}confirmed_block_height"), context)?;
+    let status = required_string_for(values, &format!("{prefix}status"), context)?;
+    let from_address = required_string_for(values, &format!("{prefix}from_address"), context)?;
+    let to_address = required_string_for(values, &format!("{prefix}to_address"), context)?;
+    let amount_base_units =
+        required_string_for(values, &format!("{prefix}amount_base_units"), context)?;
+    let fee_base_units = required_string_for(values, &format!("{prefix}fee_base_units"), context)?;
+    let nonce = required_u64_for(values, &format!("{prefix}nonce"), context)?;
+    let transaction = XriqIsoTransaction {
+        tx_hash: tx_hash.to_string(),
+        confirmed_block_height,
+        status: status.to_string(),
+        from_address: from_address.to_string(),
+        to_address: to_address.to_string(),
+        amount_base_units: amount_base_units.to_string(),
+        fee_base_units: fee_base_units.to_string(),
+        nonce,
+    };
+    let preview = payment_status_preview(&transaction);
+
+    let mut output = String::new();
+    writeln!(&mut output, "{{").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"environment\": {},",
+        json_string(preview.environment)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"source\": \"postgres-read-model\",").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"read_model_warning\": {},",
+        json_string(POSTGRES_READ_MODEL_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"read_only\": true,").expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"not_certified\": {},",
+        preview.not_certified
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"mapping_version\": {},",
+        json_string(preview.mapping_version)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"message_type\": {},",
+        json_string(preview.message_type)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"message_id\": {},",
+        json_string(&preview.message_id)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"source_tx_hash\": {},",
+        json_string(&preview.source_tx_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "  \"xriq_status\": {},",
+        json_string(&preview.xriq_status)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  \"iso20022_aligned\": {{").expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"original_end_to_end_id\": {},",
+        json_string(&preview.iso20022_aligned.original_end_to_end_id)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"transaction_status\": {},",
+        json_string(preview.iso20022_aligned.transaction_status)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"status_reason\": {},",
+        json_string(preview.iso20022_aligned.status_reason)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut output,
+        "    \"confirmed_block_height\": {}",
+        json_optional_u64_value(preview.iso20022_aligned.confirmed_block_height)
+    )
+    .expect("write to String");
+    writeln!(&mut output, "  }},").expect("write to String");
+    write!(
+        &mut output,
+        "  \"unsupported_fields\": {}\n}}",
+        json_borrowed_string_array(&preview.unsupported_fields)
+    )
+    .expect("write to String");
+    Ok(output)
+}
+
 fn render_postgres_transaction_json_inline(
     values: &BTreeMap<String, String>,
     index: u64,
@@ -3379,7 +3590,7 @@ fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/node/status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/blocks/<height-or-hash>|/api/v1/transactions?limit=5|/api/v1/mempool?limit=5|/api/v1/wallet/status|/api/v1/wallet/transfers/draft-preview?...|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5|/api/v1/snapshots?limit=5|/api/v1/snapshots/<snapshot_name>",
+        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/node/status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/blocks/<height-or-hash>|/api/v1/transactions?limit=5|/api/v1/mempool?limit=5|/api/v1/wallet/status|/api/v1/wallet/transfers/draft-preview?...|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/iso20022/transactions/<tx_hash>/status|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5|/api/v1/snapshots?limit=5|/api/v1/snapshots/<snapshot_name>",
         "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
@@ -3397,6 +3608,7 @@ fn help_text() -> String {
         "  xriq-api request-postgres --target /api/v1/wallet/transfers/draft-preview?from_address=xriqdev1alice00000000000&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=1&expires_at_height=100",
         "  xriq-api request-postgres --target /api/v1/transactions/<tx_hash>",
         "  xriq-api request-postgres --target /api/v1/wallet/transactions/<tx_hash>/status",
+        "  xriq-api request-postgres --target /api/v1/iso20022/transactions/<tx_hash>/status",
         "  xriq-api request-postgres --target /api/v1/accounts?limit=5",
         "  xriq-api request-postgres --target /api/v1/accounts/<address>",
         "  xriq-api request-postgres --target /api/v1/accounts/<address>/transactions?limit=5",
@@ -3709,6 +3921,18 @@ fn json_optional_u128_string(value: Option<u128>) -> String {
 }
 
 fn json_string_array(values: &[String]) -> String {
+    let mut output = String::from("[");
+    for (index, value) in values.iter().enumerate() {
+        if index > 0 {
+            output.push_str(", ");
+        }
+        output.push_str(&json_string(value));
+    }
+    output.push(']');
+    output
+}
+
+fn json_borrowed_string_array(values: &[&str]) -> String {
     let mut output = String::from("[");
     for (index, value) in values.iter().enumerate() {
         if index > 0 {
@@ -4464,6 +4688,90 @@ transaction_0_status=pending
     }
 
     #[test]
+    fn postgres_iso20022_transaction_status_json_renders_confirmed_preview_shape() {
+        let config = PostgresRequestConfig::parse(&[
+            "--target",
+            "/api/v1/iso20022/transactions/2222222222222222222222222222222222222222222222222222222222222222/status",
+        ])
+        .unwrap();
+        let values = parse_key_value_lines(
+            "\
+found=true
+transaction_0_tx_hash=2222222222222222222222222222222222222222222222222222222222222222
+transaction_0_confirmed_block_height=1
+transaction_0_status=confirmed
+transaction_0_from_address=xriqdev1alice00000000000
+transaction_0_to_address=xriqdev1bobbb00000000000
+transaction_0_amount_base_units=25
+transaction_0_fee_base_units=2
+transaction_0_nonce=0
+",
+            "test postgres iso20022 transaction status",
+        )
+        .unwrap();
+
+        let body =
+            render_postgres_iso20022_transaction_status_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"environment\": \"private-devnet\""));
+        assert!(body.contains("\"source\": \"postgres-read-model\""));
+        assert!(body.contains("\"read_model_warning\""));
+        assert!(body.contains("\"read_only\": true"));
+        assert!(body.contains("\"not_certified\": true"));
+        assert!(body.contains("\"mapping_version\": \"xriq-iso20022-preview-v1\""));
+        assert!(body.contains("\"message_type\": \"payment_status_preview\""));
+        assert!(body.contains("\"message_id\": \"iso-status-22222222\""));
+        assert!(body.contains(
+            "\"source_tx_hash\": \"2222222222222222222222222222222222222222222222222222222222222222\""
+        ));
+        assert!(body.contains("\"xriq_status\": \"confirmed\""));
+        assert!(body.contains(
+            "\"original_end_to_end_id\": \"2222222222222222222222222222222222222222222222222222222222222222\""
+        ));
+        assert!(body.contains("\"transaction_status\": \"ACSC\""));
+        assert!(
+            body.contains("\"status_reason\": \"accepted_settlement_completed_on_private_devnet\"")
+        );
+        assert!(body.contains("\"confirmed_block_height\": 1"));
+        assert!(body.contains("\"interbank_settlement_date\""));
+        assert!(body.contains("\"clearing_system_reference\""));
+    }
+
+    #[test]
+    fn postgres_iso20022_transaction_status_json_renders_pending_preview_shape() {
+        let config = PostgresRequestConfig::parse(&[
+            "--target",
+            "/api/v1/iso20022/transactions/3333333333333333333333333333333333333333333333333333333333333333/status",
+        ])
+        .unwrap();
+        let values = parse_key_value_lines(
+            "\
+found=true
+transaction_0_tx_hash=3333333333333333333333333333333333333333333333333333333333333333
+transaction_0_confirmed_block_height=none
+transaction_0_status=pending
+transaction_0_from_address=xriqdev1alice00000000000
+transaction_0_to_address=xriqdev1carol00000000000
+transaction_0_amount_base_units=5
+transaction_0_fee_base_units=2
+transaction_0_nonce=1
+",
+            "test postgres iso20022 pending transaction status",
+        )
+        .unwrap();
+
+        let body =
+            render_postgres_iso20022_transaction_status_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"source\": \"postgres-read-model\""));
+        assert!(body.contains("\"read_only\": true"));
+        assert!(body.contains("\"xriq_status\": \"pending\""));
+        assert!(body.contains("\"transaction_status\": \"PDNG\""));
+        assert!(body.contains("\"status_reason\": \"pending_private_devnet_confirmation\""));
+        assert!(body.contains("\"confirmed_block_height\": null"));
+    }
+
+    #[test]
     fn postgres_accounts_json_renders_product_list_shape() {
         let config =
             PostgresRequestConfig::parse(&["--target", "/api/v1/accounts?limit=5"]).unwrap();
@@ -4933,6 +5241,20 @@ transaction_0_fee_base_units=2
     }
 
     #[test]
+    fn postgres_iso20022_transaction_status_sql_rejects_invalid_hash_before_docker() {
+        let response = run([
+            "request-postgres",
+            "--target",
+            "/api/v1/iso20022/transactions/not-a-valid-hash/status",
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=400"));
+        assert!(response.contains("\"code\": \"bad_request\""));
+        assert!(response.contains("invalid tx_hash"));
+    }
+
+    #[test]
     fn serve_config_defaults_to_localhost_private_devnet_port() {
         let config = ServeConfig::parse(&[
             "--chain-file",
@@ -5057,6 +5379,12 @@ transaction_0_fee_base_units=2
             None,
             "GET",
             "/api/v1/wallet/transactions/2222222222222222222222222222222222222222222222222222222222222222/status"
+        )
+        .is_none());
+        assert!(maybe_postgres_read_model_http_response(
+            None,
+            "GET",
+            "/api/v1/iso20022/transactions/2222222222222222222222222222222222222222222222222222222222222222/status"
         )
         .is_none());
         assert!(

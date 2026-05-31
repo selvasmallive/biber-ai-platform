@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `90%` overall. Current Rust
+- Phase 1.1 estimated completion: about `91%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -160,6 +160,7 @@ unless the user changes the project scope again.
   `/api/v1/mempool?limit=...`, and
   `/api/v1/wallet/status`,
   `/api/v1/wallet/transfers/draft-preview?...`, and
+  `/api/v1/iso20022/transactions/{tx_hash}/status`, and
   `/api/v1/mempool?limit=...`, and
   `/api/v1/transactions/{tx_hash}`,
   `/api/v1/wallet/transactions/{tx_hash}/status` including confirmed and
@@ -212,7 +213,7 @@ unless the user changes the project scope again.
   panels, including wallet account history and wallet draft-preview failure
   cases. Its explicit Docker live mode now also verifies the Admin UI Postgres
   status row mapping and the first Postgres-backed product
-  node-status/indexer-status/overview/block-list/block-detail/transaction-list/mempool/wallet-status/wallet-draft-preview/transaction-detail/wallet-transaction-status/account-list/wallet-account-list/account-detail/wallet-balance/account-history/wallet-account-history
+  node-status/indexer-status/overview/block-list/block-detail/transaction-list/mempool/wallet-status/wallet-draft-preview/transaction-detail/wallet-transaction-status/iso20022-transaction-status/account-list/wallet-account-list/account-detail/wallet-balance/account-history/wallet-account-history
   and audit-events/snapshot-list/snapshot-detail routes against the live local
   read model.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
@@ -233,6 +234,38 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 transaction-status
+  checkpoint: extended `xriq-api request-postgres` and explicitly
+  Postgres-enabled `xriq-api serve-readonly` to return
+  `/api/v1/iso20022/transactions/{tx_hash}/status` from the local Docker
+  Postgres read model using confirmed `xriq_transactions` and pending
+  `xriq_mempool_entries`. The response preserves the product ISO 20022 payment
+  status preview shape (`environment`, `not_certified`, `mapping_version`,
+  `message_type`, `message_id`, `source_tx_hash`, `xriq_status`,
+  `iso20022_aligned`, and `unsupported_fields`) and adds local-only
+  `source: postgres-read-model`, `read_model_warning`, and `read_only: true`.
+  The route remains GET-only/read-only, preview-only, and not certified; it
+  does not claim bank, SWIFT, ISO certification, settlement, or payment-network
+  connectivity. Without explicit Postgres flags,
+  `/api/v1/iso20022/transactions/{tx_hash}/status` still uses the default
+  file-backed route. Invalid hashes return `400 bad_request` before Docker is
+  invoked, and missing hashes return `404 not_found`. The live Docker smoke now
+  writes `indexer/postgres-api-iso-transaction-status.json` and
+  `indexer/postgres-server-iso-transaction-status.json`. Verification passed
+  `cargo fmt --check`, bundled-Python `py_compile`,
+  `cargo test --target-dir target-codex-iso-status -p xriq-api --bin xriq-api -j 1`,
+  `cargo test --target-dir target-codex-iso-status -p xriq-api --lib -j 1`,
+  `cargo clippy --target-dir target-codex-iso-status -p xriq-api -- -D warnings`,
+  and Docker live
+  `scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live`,
+  producing artifact directory
+  `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T215557Z`. Phase 1.1
+  status is now about `91%` overall.
+- Recommended next narrow step: add opt-in Postgres-backed ISO 20022
+  payment-initiation preview for
+  `/api/v1/iso20022/payment-initiation/preview?tx_hash=...`, using read-model
+  confirmed transaction fields while keeping the route GET-only/read-only,
+  `not_certified: true`, and preview-only.
 - Latest native XRIQ Phase 1.1 Postgres-backed wallet draft-preview
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return
@@ -257,11 +290,7 @@ active target because the GPU was terminated to save cost.
   `scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live`,
   producing artifact directory
   `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T205708Z`. Phase 1.1
-  status is now about `90%` overall.
-- Recommended next narrow step: add opt-in Postgres-backed ISO 20022
-  transaction-status preview for `/api/v1/iso20022/transactions/{tx_hash}/status`,
-  using read-model transaction status fields while keeping the route
-  GET-only/read-only, `not_certified: true`, and preview-only.
+  status was about `90%` overall.
 - Latest native XRIQ Phase 1.1 Postgres-backed wallet status checkpoint:
   extended `xriq-api request-postgres` and explicitly Postgres-enabled
   `xriq-api serve-readonly` to return `/api/v1/wallet/status` from the local

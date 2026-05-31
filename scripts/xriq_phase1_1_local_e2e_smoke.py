@@ -929,6 +929,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_transaction_detail = None
     postgres_api_wallet_transaction_status = None
     postgres_server_wallet_transaction_status = None
+    postgres_api_iso_transaction_status = None
+    postgres_server_iso_transaction_status = None
     postgres_api_wallet_pending_transaction_status = None
     postgres_server_wallet_pending_transaction_status = None
     postgres_api_accounts = None
@@ -1411,6 +1413,48 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 if field in payload:
                     raise SmokeError(f"{context}: wallet transaction status must not expose {field}")
 
+        def validate_postgres_iso_transaction_status(
+            payload: dict[str, Any], context: str
+        ) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(payload, "environment", "private-devnet", context)
+            require_equal(payload, "not_certified", True, context)
+            require_equal(payload, "mapping_version", "xriq-iso20022-preview-v1", context)
+            require_equal(payload, "message_type", "payment_status_preview", context)
+            message_id = payload.get("message_id")
+            if not isinstance(message_id, str) or not message_id.startswith("iso-status-"):
+                raise SmokeError(f"{context}: expected iso status message_id, got {message_id!r}")
+            require_equal(payload, "source_tx_hash", confirmed_tx_hash, context)
+            require_equal(payload, "xriq_status", "confirmed", context)
+            require_equal(
+                payload,
+                "read_model_warning",
+                "local-private-devnet-postgres-read-only-preview-no-mutation",
+                context,
+            )
+            aligned = payload.get("iso20022_aligned")
+            if not isinstance(aligned, dict):
+                raise SmokeError(f"{context}: expected iso20022_aligned object")
+            require_equal(aligned, "original_end_to_end_id", confirmed_tx_hash, context)
+            require_equal(aligned, "transaction_status", "ACSC", context)
+            require_equal(
+                aligned,
+                "status_reason",
+                "accepted_settlement_completed_on_private_devnet",
+                context,
+            )
+            require_equal(
+                aligned,
+                "confirmed_block_height",
+                int(expected_counts["latest_height"]),
+                context,
+            )
+            unsupported = require_list(payload.get("unsupported_fields"), context)
+            for field in ("interbank_settlement_date", "clearing_system_reference"):
+                if field not in unsupported:
+                    raise SmokeError(f"{context}: missing unsupported field {field!r}")
+
         def validate_postgres_pending_wallet_transaction_status(
             payload: dict[str, Any], context: str
         ) -> None:
@@ -1858,6 +1902,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         completed.append("postgres-backed api wallet transaction status")
 
+        postgres_iso_transaction_status_output = run_command(
+            "xriq-api postgres iso20022 transaction status",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                f"/api/v1/iso20022/transactions/{confirmed_tx_hash}/status",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_iso_transaction_status = parse_api_request_output(
+            postgres_iso_transaction_status_output,
+            "xriq-api postgres iso20022 transaction status",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres iso20022 transaction status: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_iso_transaction_status}"
+            )
+        validate_postgres_iso_transaction_status(
+            postgres_api_iso_transaction_status,
+            "xriq-api postgres iso20022 transaction status",
+        )
+        write_json(
+            indexer_dir / "postgres-api-iso-transaction-status.json",
+            postgres_api_iso_transaction_status,
+        )
+        completed.append("postgres-backed api iso20022 transaction status")
+
         postgres_wallet_pending_transaction_status_output = run_command(
             "xriq-api postgres pending wallet transaction status",
             [
@@ -2231,6 +2308,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_wallet_transaction_status = http_json(
                 server_base_url, f"/api/v1/wallet/transactions/{confirmed_tx_hash}/status"
             )
+            postgres_server_iso_transaction_status = http_json(
+                server_base_url, f"/api/v1/iso20022/transactions/{confirmed_tx_hash}/status"
+            )
             postgres_server_wallet_pending_transaction_status = http_json(
                 server_base_url, f"/api/v1/wallet/transactions/{pending_tx_hash}/status"
             )
@@ -2362,6 +2442,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_wallet_transaction_status,
             "xriq-api serve-readonly postgres wallet transaction status",
         )
+        validate_postgres_iso_transaction_status(
+            postgres_server_iso_transaction_status,
+            "xriq-api serve-readonly postgres iso20022 transaction status",
+        )
         validate_postgres_pending_wallet_transaction_status(
             postgres_server_wallet_pending_transaction_status,
             "xriq-api serve-readonly postgres pending wallet transaction status",
@@ -2443,6 +2527,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_wallet_transaction_status,
         )
         write_json(
+            indexer_dir / "postgres-server-iso-transaction-status.json",
+            postgres_server_iso_transaction_status,
+        )
+        write_json(
             indexer_dir / "postgres-server-wallet-pending-transaction-status.json",
             postgres_server_wallet_pending_transaction_status,
         )
@@ -2491,6 +2579,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         completed.append("postgres-backed server wallet draft preview")
         completed.append("postgres-backed server transaction detail")
         completed.append("postgres-backed server wallet transaction status")
+        completed.append("postgres-backed server iso20022 transaction status")
         completed.append("postgres-backed server pending wallet transaction status")
         completed.append("postgres-backed server accounts")
         completed.append("postgres-backed server wallet accounts")
@@ -2962,6 +3051,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_wallet_transaction_status": (
                 str(indexer_dir / "postgres-server-wallet-transaction-status.json")
                 if postgres_server_wallet_transaction_status
+                else None
+            ),
+            "postgres_api_iso_transaction_status": (
+                str(indexer_dir / "postgres-api-iso-transaction-status.json")
+                if postgres_api_iso_transaction_status
+                else None
+            ),
+            "postgres_server_iso_transaction_status": (
+                str(indexer_dir / "postgres-server-iso-transaction-status.json")
+                if postgres_server_iso_transaction_status
                 else None
             ),
             "postgres_api_wallet_pending_transaction_status": (
