@@ -25,6 +25,8 @@ const POSTGRES_TRANSACTION_DETAIL_PREFIX: &str = "/api/v1/transactions/";
 const POSTGRES_ACCOUNTS_ROUTE: &str = "/api/v1/accounts";
 const POSTGRES_ACCOUNT_DETAIL_PREFIX: &str = "/api/v1/accounts/";
 const POSTGRES_ACCOUNT_HISTORY_SUFFIX: &str = "/transactions";
+const POSTGRES_WALLET_ACCOUNT_PREFIX: &str = "/api/v1/wallet/accounts/";
+const POSTGRES_WALLET_ACCOUNT_HISTORY_SUFFIX: &str = "/history";
 const POSTGRES_PRIVATE_DEVNET_NETWORK: &str = "xriq-devnet";
 const POSTGRES_READ_MODEL_WARNING: &str =
     "local-private-devnet-postgres-read-only-preview-no-mutation";
@@ -233,6 +235,12 @@ fn postgres_account_history_address_from_path(path: &str) -> Option<&str> {
     (!address.is_empty() && !address.contains('/')).then_some(address)
 }
 
+fn postgres_wallet_account_history_address_from_path(path: &str) -> Option<&str> {
+    let account_path = path.strip_prefix(POSTGRES_WALLET_ACCOUNT_PREFIX)?;
+    let address = account_path.strip_suffix(POSTGRES_WALLET_ACCOUNT_HISTORY_SUFFIX)?;
+    (!address.is_empty() && !address.contains('/')).then_some(address)
+}
+
 fn maybe_postgres_read_model_http_response(
     config: Option<&PostgresReadModelConfig<'_>>,
     method: &str,
@@ -246,6 +254,8 @@ fn maybe_postgres_read_model_http_response(
         .strip_prefix(POSTGRES_ACCOUNT_DETAIL_PREFIX)
         .is_some_and(|address| !address.is_empty() && !address.contains('/'));
     let is_account_history = postgres_account_history_address_from_path(path).is_some();
+    let is_wallet_account_history =
+        postgres_wallet_account_history_address_from_path(path).is_some();
     match (path, config) {
         (POSTGRES_READ_MODEL_STATUS_ROUTE, None) => {
             return Some(Ok(postgres_read_model_disabled_response()));
@@ -259,6 +269,7 @@ fn maybe_postgres_read_model_http_response(
         ) => return None,
         (_, None) if is_transaction_detail => return None,
         (_, None) if is_account_history => return None,
+        (_, None) if is_wallet_account_history => return None,
         (_, None) if is_account_detail => return None,
         (
             POSTGRES_READ_MODEL_STATUS_ROUTE
@@ -274,6 +285,9 @@ fn maybe_postgres_read_model_http_response(
         return Some(postgres_read_model_http_response(config, method, target));
     }
     if let (true, Some(config)) = (is_account_history, config) {
+        return Some(postgres_read_model_http_response(config, method, target));
+    }
+    if let (true, Some(config)) = (is_wallet_account_history, config) {
         return Some(postgres_read_model_http_response(config, method, target));
     }
     if let (true, Some(config)) = (is_account_detail, config) {
@@ -303,6 +317,7 @@ fn postgres_read_model_http_response(
         .strip_prefix(POSTGRES_ACCOUNT_DETAIL_PREFIX)
         .filter(|address| !address.is_empty() && !address.contains('/'));
     let account_history_address = postgres_account_history_address_from_path(path);
+    let wallet_account_history_address = postgres_wallet_account_history_address_from_path(path);
     let (sql, label, renderer): (String, &str, PostgresReadModelRenderer) = if let Some(tx_hash) =
         transaction_detail_tx_hash
     {
@@ -311,6 +326,17 @@ fn postgres_read_model_http_response(
                 sql,
                 "postgres transaction detail",
                 render_postgres_transaction_detail_json,
+            ),
+            Err(message) => {
+                return Ok(local_api_error_response(400, "bad_request", &message));
+            }
+        }
+    } else if let Some(address) = wallet_account_history_address {
+        match postgres_account_history_sql(address, target) {
+            Ok(sql) => (
+                sql,
+                "postgres wallet account history",
+                render_postgres_account_history_json,
             ),
             Err(message) => {
                 return Ok(local_api_error_response(400, "bad_request", &message));
@@ -1672,7 +1698,7 @@ fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5",
+        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts/<address>/history?limit=5",
         "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
@@ -1685,6 +1711,7 @@ fn help_text() -> String {
         "  xriq-api request-postgres --target /api/v1/accounts?limit=5",
         "  xriq-api request-postgres --target /api/v1/accounts/<address>",
         "  xriq-api request-postgres --target /api/v1/accounts/<address>/transactions?limit=5",
+        "  xriq-api request-postgres --target /api/v1/wallet/accounts/<address>/history?limit=5",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100",
         "  xriq-api serve-readonly --chain-file target/xriq-devnet.bin --alice-balance 100 --postgres-docker-container xriq-postgres --postgres-database xriq_phase1_1_smoke",
     ]
@@ -2394,6 +2421,34 @@ transaction_0_fee_base_units=2
     }
 
     #[test]
+    fn postgres_wallet_account_history_sql_rejects_invalid_limit_before_docker() {
+        let response = run([
+            "request-postgres",
+            "--target",
+            "/api/v1/wallet/accounts/xriqdev1alice00000000000/history?limit=not-a-number",
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=400"));
+        assert!(response.contains("\"code\": \"bad_request\""));
+        assert!(response.contains("invalid limit"));
+    }
+
+    #[test]
+    fn postgres_wallet_account_history_sql_rejects_invalid_address_before_docker() {
+        let response = run([
+            "request-postgres",
+            "--target",
+            "/api/v1/wallet/accounts/not-valid/history?limit=5",
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=400"));
+        assert!(response.contains("\"code\": \"bad_request\""));
+        assert!(response.contains("invalid address"));
+    }
+
+    #[test]
     fn postgres_transaction_detail_sql_rejects_invalid_hash_before_docker() {
         let response = run([
             "request-postgres",
@@ -2512,6 +2567,12 @@ transaction_0_fee_base_units=2
             None,
             "GET",
             "/api/v1/accounts/xriqdev1alice00000000000/transactions?limit=5"
+        )
+        .is_none());
+        assert!(maybe_postgres_read_model_http_response(
+            None,
+            "GET",
+            "/api/v1/wallet/accounts/xriqdev1alice00000000000/history?limit=5"
         )
         .is_none());
     }

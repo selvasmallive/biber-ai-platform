@@ -823,6 +823,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     postgres_server_account_detail = None
     postgres_api_account_history = None
     postgres_server_account_history = None
+    postgres_api_wallet_account_history = None
+    postgres_server_wallet_account_history = None
     postgres_ui_status = None
     if args.postgres_docker_live:
         postgres_docker_live = run_postgres_docker_live(
@@ -1267,6 +1269,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         completed.append("postgres-backed api account history")
 
+        postgres_wallet_account_history_output = run_command(
+            "xriq-api postgres wallet account history",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                f"/api/v1/wallet/accounts/{ALICE}/history?limit=5",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_wallet_account_history = parse_api_request_output(
+            postgres_wallet_account_history_output,
+            "xriq-api postgres wallet account history",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres wallet account history: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_wallet_account_history}"
+            )
+        validate_postgres_account_history(
+            postgres_api_wallet_account_history,
+            "xriq-api postgres wallet account history",
+        )
+        write_json(
+            indexer_dir / "postgres-api-wallet-account-history.json",
+            postgres_api_wallet_account_history,
+        )
+        completed.append("postgres-backed api wallet account history")
+
         server_port = free_local_port()
         server_bind = f"127.0.0.1:{server_port}"
         server_base_url = f"http://{server_bind}"
@@ -1298,6 +1333,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_account_detail = http_json(server_base_url, f"/api/v1/accounts/{ALICE}")
             postgres_server_account_history = http_json(
                 server_base_url, f"/api/v1/accounts/{ALICE}/transactions?limit=5"
+            )
+            postgres_server_wallet_account_history = http_json(
+                server_base_url, f"/api/v1/wallet/accounts/{ALICE}/history?limit=5"
             )
             postgres_ui_artifact = indexer_dir / "postgres-admin-ui-read-model-status.json"
             run_command(
@@ -1390,6 +1428,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_account_history,
             "xriq-api serve-readonly postgres account history",
         )
+        validate_postgres_account_history(
+            postgres_server_wallet_account_history,
+            "xriq-api serve-readonly postgres wallet account history",
+        )
         write_json(
             indexer_dir / "postgres-server-read-model-status.json", postgres_server_status
         )
@@ -1414,6 +1456,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             indexer_dir / "postgres-server-account-history.json",
             postgres_server_account_history,
         )
+        write_json(
+            indexer_dir / "postgres-server-wallet-account-history.json",
+            postgres_server_wallet_account_history,
+        )
         completed.append("postgres-backed server read-model status")
         completed.append("postgres-backed server explorer overview")
         completed.append("postgres-backed server blocks")
@@ -1422,6 +1468,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         completed.append("postgres-backed server accounts")
         completed.append("postgres-backed server account detail")
         completed.append("postgres-backed server account history")
+        completed.append("postgres-backed server wallet account history")
         completed.append("postgres-backed admin UI read-model status")
     else:
         skipped.append("postgres docker live smoke")
@@ -1845,6 +1892,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_account_history": (
                 str(indexer_dir / "postgres-server-account-history.json")
                 if postgres_server_account_history
+                else None
+            ),
+            "postgres_api_wallet_account_history": (
+                str(indexer_dir / "postgres-api-wallet-account-history.json")
+                if postgres_api_wallet_account_history
+                else None
+            ),
+            "postgres_server_wallet_account_history": (
+                str(indexer_dir / "postgres-server-wallet-account-history.json")
+                if postgres_server_wallet_account_history
                 else None
             ),
             "postgres_admin_ui_read_model_status": (
