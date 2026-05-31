@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `60%` overall. Current Rust
+- Phase 1.1 estimated completion: about `61%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -164,6 +164,9 @@ unless the user changes the project scope again.
   the product read model with pending rows from the durable mempool snapshot,
   and shows selected status, direction, counterparty, amount, fee, nonce,
   pending-block, and transaction-index detail without enabling submit/send.
+  Selected wallet activity now also fetches the product wallet transaction-status
+  API and shows API status, block height/hash, transaction index, and preview
+  warning in the same read-only wallet panel.
   The same app now includes a read-only ISO
   20022 Preview panel backed by product API payment-initiation,
   transaction-status, and account-statement preview routes. The same app now
@@ -193,6 +196,21 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 wallet API-status UI checkpoint: extended the
+  read-only Wallet Activity panel in `xriq/apps/explorer-ui/src/wallet.tsx` so
+  the selected confirmed or pending activity row calls the existing
+  `/api/v1/wallet/transactions/{hash}/status` product route and displays
+  API-backed status, block height, block hash, transaction index, and preview
+  warning. This remains an inspection-only wallet UX refinement: no
+  submit/send/signing/private-key/persistence behavior, no public/DEX behavior,
+  no GCP/Vast/GPU resources, and no credential changes were added.
+  Verification passed `npm.cmd run check`, `npm.cmd run build` after rerunning
+  outside the sandbox because Vite could not read a parent directory inside the
+  sandbox, the CPU-only `scripts/xriq_phase1_1_local_e2e_smoke.py`, and a
+  browser smoke at `http://127.0.0.1:5173` showing the API-backed pending
+  status, confirmed plus pending activity, disabled submit/send controls, and
+  no console errors. Temporary local servers were stopped and logs were removed.
+  Phase 1.1 status is now about `61%` overall.
 - Latest native XRIQ Phase 1.1 wallet activity UI checkpoint: extended
   `xriq/apps/explorer-ui/src/wallet.tsx` so the existing preview-only
   `WalletShell` also renders a read-only Wallet Activity panel for the selected

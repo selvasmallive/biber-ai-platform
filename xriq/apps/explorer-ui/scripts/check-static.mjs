@@ -109,6 +109,11 @@ for (const requiredText of [
   "No wallet activity",
   "Pending Block",
   "walletActivityRows",
+  "Wallet API Transaction Status",
+  "api-backed status",
+  "Loading wallet activity status",
+  "API Block Height",
+  "loadWalletTransactionStatus",
 ]) {
   if (!walletSource.includes(requiredText)) {
     throw new Error(`missing wallet preview marker: ${requiredText}`);

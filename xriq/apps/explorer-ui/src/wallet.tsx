@@ -7,9 +7,11 @@ import {
   WalletBalanceResponse,
   WalletDraftPreviewResponse,
   WalletStatusResponse,
+  WalletTransactionStatusResponse,
   loadWalletBalance,
   loadWalletDraftPreview,
   loadWalletStatus,
+  loadWalletTransactionStatus,
 } from "./api";
 
 const DEFAULT_RECIPIENT = "xriqdev1bobbb00000000000";
@@ -101,6 +103,13 @@ export function WalletShell({
     data: null,
     error: null,
   });
+  const [activityStatus, setActivityStatus] = useState<
+    ApiState<WalletTransactionStatusResponse>
+  >({
+    status: "idle",
+    data: null,
+    error: null,
+  });
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -128,6 +137,7 @@ export function WalletShell({
     walletActivity.find((activity) => activity.id === selectedActivityId) ??
     walletActivity[0] ??
     null;
+  const selectedActivityTxHash = selectedActivity?.txHash ?? "";
 
   useEffect(() => {
     if (!snapshot) {
@@ -194,6 +204,42 @@ export function WalletShell({
       cancelled = true;
     };
   }, [apiBaseUrl, fromAddress]);
+
+  useEffect(() => {
+    if (!selectedActivityTxHash) {
+      setActivityStatus({ status: "idle", data: null, error: null });
+      return;
+    }
+
+    let cancelled = false;
+    setActivityStatus((current) => ({
+      status: "loading",
+      data: current.data,
+      error: null,
+    }));
+    void loadWalletTransactionStatus(apiBaseUrl, selectedActivityTxHash)
+      .then((data) => {
+        if (!cancelled) {
+          setActivityStatus({ status: "ready", data, error: null });
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setActivityStatus((current) => ({
+            status: "error",
+            data: current.data,
+            error:
+              error instanceof Error
+                ? error.message
+                : "Wallet activity status failed",
+          }));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, selectedActivityTxHash]);
 
   const validation = useMemo(
     () =>
@@ -413,6 +459,7 @@ export function WalletShell({
 
           <WalletActivity
             activeActivity={selectedActivity}
+            activityStatus={activityStatus}
             rows={walletActivity}
             onActivitySelect={setSelectedActivityId}
           />
@@ -428,13 +475,18 @@ export function WalletShell({
 
 function WalletActivity({
   activeActivity,
+  activityStatus,
   rows,
   onActivitySelect,
 }: {
   activeActivity: WalletActivityRow | null;
+  activityStatus: ApiState<WalletTransactionStatusResponse>;
   rows: WalletActivityRow[];
   onActivitySelect: (activityId: string) => void;
 }) {
+  const activeApiStatus =
+    activityStatus.data?.tx_hash === activeActivity?.txHash ? activityStatus.data : null;
+
   return (
     <div className="walletActivity" aria-label="Wallet Activity">
       <div className="subHeading">
@@ -503,6 +555,42 @@ function WalletActivity({
         ) : (
           <p className="mutedText">No wallet activity selected</p>
         )}
+      </div>
+
+      <div
+        className="walletActivityDetail walletApiStatusDetail"
+        aria-label="Wallet API Transaction Status"
+      >
+        <div className="subHeading">
+          <h3>Wallet API Transaction Status</h3>
+          <span>api-backed status</span>
+        </div>
+        {activeApiStatus ? (
+          <dl className="detailList">
+            <WalletDetail label="API Status" value={activeApiStatus.status} />
+            <WalletDetail
+              label="API Block Height"
+              value={formatOptionalHeight(activeApiStatus.block_height)}
+            />
+            <WalletDetail
+              label="API Block Hash"
+              value={activeApiStatus.block_hash ?? "pending"}
+              compact
+            />
+            <WalletDetail
+              label="API Transaction Index"
+              value={formatOptionalHeight(activeApiStatus.transaction_index)}
+            />
+            <WalletDetail label="API Warning" value={activeApiStatus.warning} compact />
+          </dl>
+        ) : (
+          <p className="mutedText">
+            {activeActivity ? "Loading wallet activity status" : "No API status selected"}
+          </p>
+        )}
+        {activityStatus.status === "error" ? (
+          <p className="errorText">{activityStatus.error}</p>
+        ) : null}
       </div>
     </div>
   );
@@ -679,4 +767,8 @@ function shortAddress(value: string) {
 
 function shortHash(value: string) {
   return value.length > 18 ? `${value.slice(0, 10)}...${value.slice(-6)}` : value;
+}
+
+function formatOptionalHeight(value: number | null) {
+  return value === null ? "pending" : value.toString();
 }

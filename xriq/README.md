@@ -121,8 +121,8 @@ product wallet draft-preview API, includes a read-only ISO 20022 preview panel
 wired to the product ISO routes, and shows a read-only admin status panel for
 node, network, indexer, wallet capability, mempool status, snapshot catalog, and
 audit-event state. The wallet panel also shows read-only confirmed and pending
-activity detail for the selected local account. It does not sign, submit,
-persist, or manage private keys.
+activity detail plus product API transaction-status detail for the selected
+local account. It does not sign, submit, persist, or manage private keys.
 
 ```powershell
 cargo run -p xriq-api -- serve-readonly --chain-file target\xriq-indexer-replay-smoke.bin --pending-file target\xriq-devnet-pending.tsv --alice-balance 100 --bind 127.0.0.1:8090
