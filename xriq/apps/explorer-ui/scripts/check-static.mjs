@@ -114,6 +114,10 @@ for (const requiredText of [
   "Loading wallet activity status",
   "API Block Height",
   "loadWalletTransactionStatus",
+  "Wallet API History",
+  "api-backed confirmed history",
+  "No API wallet history",
+  "loadWalletHistory",
 ]) {
   if (!walletSource.includes(requiredText)) {
     throw new Error(`missing wallet preview marker: ${requiredText}`);

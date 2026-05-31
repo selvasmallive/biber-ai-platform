@@ -69,7 +69,7 @@ Rust
  `-- Smart contracts        0%; defer VM until core/app flow is stable
 
 React + TypeScript
- |-- Wallet UI              ~21%; preview shell plus read-only confirmed/pending activity and API status detail
+ |-- Wallet UI              ~24%; preview shell plus read-only confirmed/pending activity, API status, and API history detail
  |-- Explorer               ~25%; shell plus detail, pending transaction, snapshot, and ISO preview panels read product API
  |-- Exchange UI            0%; deferred high legal/compliance-risk surface
  `-- Admin portal           ~25%; read-only node/status, pending mempool, pending wallet status, snapshot catalog, and audit events panels exist
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first local Phase 1.1 wallet API-status checkpoint, Phase 1.1
-status is about `61%`: the contract document, PostgreSQL read-model schema, JSON
+After the first local Phase 1.1 wallet API-history checkpoint, Phase 1.1
+status is about `62%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -119,6 +119,8 @@ direction, counterparty, amount, fee, nonce, pending-block, and transaction-inde
 detail. The selected wallet activity row now calls the product wallet
 transaction-status API and renders API-backed status, block height/hash,
 transaction index, and preview warning without enabling submit/send behavior.
+The wallet shell now also calls the product wallet account-history route for
+the selected local account and renders a read-only Wallet API History table.
 The same React app now includes a
 read-only ISO 20022 Preview panel that calls the product ISO preview routes
 for the selected transaction/account and renders payment initiation, payment
@@ -133,7 +135,7 @@ repeated live database smoke coverage, real wallet submission APIs, mutating
 admin controls, block-production controls, real snapshot export/import
 controls, and deeper ISO adapter integration are still pending. The local
 `scripts/xriq_phase1_1_local_e2e_smoke.py` command now checks the current
-contract fixtures, React UI guardrails, 25 product API success routes, and
+contract fixtures, React UI guardrails, 26 product API success routes, and
 three wallet draft-preview failure routes across the explorer, wallet, mempool,
 snapshot, audit, admin, and ISO preview surfaces without opening a socket or
 using cloud/GPU resources.

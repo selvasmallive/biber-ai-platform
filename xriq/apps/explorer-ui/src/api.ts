@@ -499,6 +499,16 @@ export async function loadWalletBalance(
   );
 }
 
+export async function loadWalletHistory(
+  baseUrl: string,
+  address: string,
+): Promise<AccountHistoryResponse> {
+  return fetchJson<AccountHistoryResponse>(
+    normalizeBaseUrl(baseUrl),
+    `/api/v1/wallet/accounts/${encodeURIComponent(address)}/history?limit=5`,
+  );
+}
+
 export async function loadWalletTransactionStatus(
   baseUrl: string,
   txHash: string,

@@ -626,6 +626,11 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     check("/api/v1/wallet/accounts?limit=5", "wallet-accounts", validate_wallet_accounts)
     check(f"/api/v1/wallet/accounts/{ALICE}/balance", "wallet-balance", validate_wallet_balance)
     check(
+        f"/api/v1/wallet/accounts/{ALICE}/history?limit=5",
+        "wallet-history",
+        validate_account_history,
+    )
+    check(
         f"/api/v1/wallet/transactions/{confirmed_tx_hash}/status",
         "wallet-confirmed-tx-status",
         validate_confirmed_wallet_tx,

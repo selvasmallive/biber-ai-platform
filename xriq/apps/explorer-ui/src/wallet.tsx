@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AccountSummary,
+  AccountHistoryResponse,
   ExplorerSnapshot,
   MempoolEntry,
   TransactionSummary,
@@ -10,6 +11,7 @@ import {
   WalletTransactionStatusResponse,
   loadWalletBalance,
   loadWalletDraftPreview,
+  loadWalletHistory,
   loadWalletStatus,
   loadWalletTransactionStatus,
 } from "./api";
@@ -94,6 +96,11 @@ export function WalletShell({
     error: null,
   });
   const [walletBalance, setWalletBalance] = useState<ApiState<WalletBalanceResponse>>({
+    status: "idle",
+    data: null,
+    error: null,
+  });
+  const [walletHistory, setWalletHistory] = useState<ApiState<AccountHistoryResponse>>({
     status: "idle",
     data: null,
     error: null,
@@ -196,6 +203,39 @@ export function WalletShell({
             status: "error",
             data: current.data,
             error: error instanceof Error ? error.message : "Wallet balance failed",
+          }));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBaseUrl, fromAddress]);
+
+  useEffect(() => {
+    if (!fromAddress) {
+      setWalletHistory({ status: "idle", data: null, error: null });
+      return;
+    }
+
+    let cancelled = false;
+    setWalletHistory((current) => ({
+      status: "loading",
+      data: current.data?.address === fromAddress ? current.data : null,
+      error: null,
+    }));
+    void loadWalletHistory(apiBaseUrl, fromAddress)
+      .then((data) => {
+        if (!cancelled) {
+          setWalletHistory({ status: "ready", data, error: null });
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setWalletHistory((current) => ({
+            status: "error",
+            data: current.data,
+            error: error instanceof Error ? error.message : "Wallet history failed",
           }));
         }
       });
@@ -463,6 +503,7 @@ export function WalletShell({
             rows={walletActivity}
             onActivitySelect={setSelectedActivityId}
           />
+          <WalletHistory history={walletHistory} />
         </div>
 
         <pre className="previewBox" aria-label="Wallet transfer draft preview">
@@ -470,6 +511,60 @@ export function WalletShell({
         </pre>
       </div>
     </section>
+  );
+}
+
+function WalletHistory({
+  history,
+}: {
+  history: ApiState<AccountHistoryResponse>;
+}) {
+  const rows = history.data?.transactions ?? [];
+
+  return (
+    <div className="walletActivity walletApiHistory" aria-label="Wallet API History">
+      <div className="subHeading">
+        <h3>Wallet API History</h3>
+        <span>api-backed confirmed history</span>
+      </div>
+      <div className="miniTable">
+        <table>
+          <thead>
+            <tr>
+              <th>Hash</th>
+              <th>Direction</th>
+              <th>Amount</th>
+              <th>Fee</th>
+              <th>Block</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length > 0 ? (
+              rows.map((row) => (
+                <tr key={`${row.tx_hash}:${row.direction}`}>
+                  <td className="mono truncate">{shortHash(row.tx_hash)}</td>
+                  <td>{row.direction}</td>
+                  <td>{row.amount_base_units}</td>
+                  <td>{row.fee_base_units}</td>
+                  <td>{row.block_height}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={5}>
+                  {history.status === "loading"
+                    ? "Loading wallet API history"
+                    : "No API wallet history"}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {history.status === "error" ? (
+        <p className="errorText">{history.error}</p>
+      ) : null}
+    </div>
   );
 }
 

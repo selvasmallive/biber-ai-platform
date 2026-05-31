@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-05-30
+Last updated: 2026-05-31
 
 ## Current Goal
 
@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `61%` overall. Current Rust
+- Phase 1.1 estimated completion: about `62%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -166,7 +166,9 @@ unless the user changes the project scope again.
   pending-block, and transaction-index detail without enabling submit/send.
   Selected wallet activity now also fetches the product wallet transaction-status
   API and shows API status, block height/hash, transaction index, and preview
-  warning in the same read-only wallet panel.
+  warning in the same read-only wallet panel. The same wallet shell now calls
+  the product wallet account-history API and renders a read-only Wallet API
+  History table for the selected local account.
   The same app now includes a read-only ISO
   20022 Preview panel backed by product API payment-initiation,
   transaction-status, and account-statement preview routes. The same app now
@@ -177,7 +179,8 @@ unless the user changes the project scope again.
   end-to-end smoke script now creates a confirmed transfer plus one durable
   pending transfer, checks contract/UI guardrails, and verifies the product API
   routes that feed the explorer, wallet, mempool, snapshot, audit, admin, and
-  ISO preview panels, including wallet draft-preview failure cases.
+  ISO preview panels, including wallet account history and wallet draft-preview
+  failure cases.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -191,11 +194,27 @@ unless the user changes the project scope again.
 
 ## Immediate Resume State
 
-As of the latest 2026-05-30 checkpoint, the active work mode is local
+As of the latest 2026-05-31 checkpoint, the active work mode is local
 workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 wallet API-history UI checkpoint: extended the
+  preview-only wallet shell with a read-only Wallet API History panel backed by
+  `/api/v1/wallet/accounts/{address}/history?limit=5` for the selected local
+  account. The panel shows confirmed wallet history rows from the product
+  wallet API alongside the existing activity/status panels, and the local
+  end-to-end smoke now explicitly verifies the wallet history product route.
+  This remains inspection-only: no submit/send/signing/private-key/persistence
+  behavior, no public/DEX behavior, no GCP/Vast/GPU resources, and no
+  credential changes were added. Verification passed `npm.cmd run check`,
+  `npm.cmd run build` after rerunning outside the sandbox because Vite could
+  not read a parent directory inside the sandbox, the CPU-only
+  `scripts/xriq_phase1_1_local_e2e_smoke.py` with 26 product routes checked,
+  and a browser smoke at `http://127.0.0.1:5173` showing API-backed wallet
+  history, confirmed plus pending activity/status, disabled submit/send
+  controls, and no console errors. Temporary local servers were stopped and
+  logs were removed. Phase 1.1 status is now about `62%` overall.
 - Latest native XRIQ Phase 1.1 wallet API-status UI checkpoint: extended the
   read-only Wallet Activity panel in `xriq/apps/explorer-ui/src/wallet.tsx` so
   the selected confirmed or pending activity row calls the existing
@@ -233,10 +252,10 @@ active target because the GPU was terminated to save cost.
   contract/schema/fixture checker, runs the React explorer UI static guardrail,
   builds `xriq-node`, `xriq-wallet`, and `xriq-api`, creates a deterministic
   confirmed private-devnet transfer plus one durable pending wallet transfer,
-  and verifies 25 product API routes covering health, network, explorer,
+  and verifies 26 product API routes covering health, network, explorer,
   blocks, transactions, accounts, mempool, wallet status/balance/transaction
-  status/draft preview, admin node/indexer/audit events, snapshot catalog/detail,
-  and ISO 20022 preview responses. Latest extension added three wallet
+  status/history/draft preview, admin node/indexer/audit events, snapshot
+  catalog/detail, and ISO 20022 preview responses. Latest extension added three wallet
   draft-preview failure checks: combined domain-validation errors, over-balance
   debit validation, and malformed amount bad-request handling. The React UI
   static guardrail now also requires visible local wallet validation messages
