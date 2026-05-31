@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `81%` overall. Current Rust
+- Phase 1.1 estimated completion: about `82%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -151,8 +151,9 @@ unless the user changes the project scope again.
   boundary, CLI smoke path, and local read-only socket wrapper now exist in
   `xriq/crates/xriq-api`, and `xriq-api request-postgres` plus explicitly
   configured `xriq-api serve-readonly` can read the local Docker Postgres read
-  model for `/api/v1/admin/postgres/read-model-status` and, when explicitly
-  configured, Postgres-backed product data routes for
+  model for `/api/v1/admin/postgres/read-model-status` and
+  `/api/v1/admin/indexer/status`, and, when explicitly configured,
+  Postgres-backed product data routes for
   `/api/v1/explorer/overview`, `/api/v1/blocks?limit=...`,
   `/api/v1/transactions?limit=...`, and
   `/api/v1/transactions/{tx_hash}`,
@@ -203,7 +204,7 @@ unless the user changes the project scope again.
   panels, including wallet account history and wallet draft-preview failure
   cases. Its explicit Docker live mode now also verifies the Admin UI Postgres
   status row mapping and the first Postgres-backed product
-  overview/block/transaction-list/transaction-detail/wallet-transaction-status/account-list/wallet-account-list/account-detail/wallet-balance/account-history/wallet-account-history
+  indexer-status/overview/block/transaction-list/transaction-detail/wallet-transaction-status/account-list/wallet-account-list/account-detail/wallet-balance/account-history/wallet-account-history
   and audit-events routes against the live local read model.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
@@ -223,7 +224,39 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
-- Latest native XRIQ Phase 1.1 Postgres-backed audit events checkpoint:
+- Latest native XRIQ Phase 1.1 Postgres-backed indexer status checkpoint:
+  extended `xriq-api request-postgres` and explicitly Postgres-enabled
+  `xriq-api serve-readonly` to return `/api/v1/admin/indexer/status` from the
+  local Docker Postgres read model. The response preserves the product indexer
+  status shape (`environment`, `service`, `status`, `latest_indexed_height`,
+  `latest_indexed_block_hash`, `lag_blocks`, and `last_run`) and adds
+  local-only `source: postgres-read-model`, `read_only: true`, and the existing
+  no-mutation warning. Without explicit Postgres flags,
+  `/api/v1/admin/indexer/status` still uses the default file-backed indexed
+  snapshot path. The live smoke now writes
+  `indexer/postgres-api-indexer-status.json` and
+  `indexer/postgres-server-indexer-status.json` in addition to the existing
+  read-model/audit artifacts. Expected smoke indexer status is `current` with
+  service `xriq-indexer`, latest indexed height `1`, latest block hash set,
+  lag `0`, and a completed `private-devnet-replay-*` last run with one block
+  and one transaction indexed. During verification, the first Docker smoke
+  attempt exposed a real SQL CTE scoping bug; it was fixed by rendering the
+  status SQL as one ordered key/value query. Verification then passed
+  `cargo fmt`, bundled-Python `py_compile`, `cargo test -p xriq-api`,
+  `cargo clippy -p xriq-api -- -D warnings`, and Docker live
+  `scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live`, producing
+  artifact directory
+  `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T111827Z` with
+  `indexer/postgres-api-indexer-status.json` and
+  `indexer/postgres-server-indexer-status.json` showing `source:
+  postgres-read-model`, `read_only: true`, and the expected current/completed
+  indexer status. Phase 1.1 status is now about `82%` overall.
+- Recommended next narrow step: add the next read-only Postgres-backed product
+  route, preferably `/api/v1/admin/node/status`, because the block read model
+  already contains latest height/hash/state-root data and the remaining local
+  private-devnet node status fields can stay explicit constants. Preserve
+  default file-backed behavior and keep all Postgres use opt-in.
+- Previous native XRIQ Phase 1.1 Postgres-backed audit events checkpoint:
   extended `xriq-api request-postgres` and explicitly Postgres-enabled
   `xriq-api serve-readonly` to return `/api/v1/admin/audit-events?limit=...`
   from the local Docker Postgres read model. The response preserves the product
@@ -248,11 +281,6 @@ active target because the GPU was terminated to save cost.
   `indexer/postgres-server-audit-events.json` showing `source:
   postgres-read-model`, `read_only: true`, and the expected indexed block audit
   event. Phase 1.1 status is now about `81%` overall.
-- Recommended next narrow step: add the next read-only Postgres-backed product
-  route, preferably `/api/v1/admin/indexer/status`, because
-  `xriq_indexer_runs` already contains the fields needed for an opt-in
-  server/CLI parity check. Preserve default file-backed behavior and keep all
-  Postgres use opt-in.
 - Previous native XRIQ Phase 1.1 Postgres-backed wallet transaction-status checkpoint:
   extended `xriq-api request-postgres` and explicitly Postgres-enabled
   `xriq-api serve-readonly` to return confirmed

@@ -18,6 +18,7 @@ use xriq_storage::FileChainStore;
 
 const DEFAULT_BIND: &str = "127.0.0.1:8090";
 const POSTGRES_READ_MODEL_STATUS_ROUTE: &str = "/api/v1/admin/postgres/read-model-status";
+const POSTGRES_INDEXER_STATUS_ROUTE: &str = "/api/v1/admin/indexer/status";
 const POSTGRES_AUDIT_EVENTS_ROUTE: &str = "/api/v1/admin/audit-events";
 const POSTGRES_EXPLORER_OVERVIEW_ROUTE: &str = "/api/v1/explorer/overview";
 const POSTGRES_BLOCKS_ROUTE: &str = "/api/v1/blocks";
@@ -283,6 +284,7 @@ fn maybe_postgres_read_model_http_response(
         }
         (
             POSTGRES_EXPLORER_OVERVIEW_ROUTE
+            | POSTGRES_INDEXER_STATUS_ROUTE
             | POSTGRES_AUDIT_EVENTS_ROUTE
             | POSTGRES_BLOCKS_ROUTE
             | POSTGRES_TRANSACTIONS_ROUTE
@@ -298,6 +300,7 @@ fn maybe_postgres_read_model_http_response(
         (_, None) if is_account_detail => return None,
         (
             POSTGRES_READ_MODEL_STATUS_ROUTE
+            | POSTGRES_INDEXER_STATUS_ROUTE
             | POSTGRES_AUDIT_EVENTS_ROUTE
             | POSTGRES_EXPLORER_OVERVIEW_ROUTE
             | POSTGRES_BLOCKS_ROUTE
@@ -427,6 +430,11 @@ fn postgres_read_model_http_response(
                 postgres_read_model_status_sql().to_string(),
                 "postgres read-model status",
                 render_postgres_read_model_status_json,
+            ),
+            POSTGRES_INDEXER_STATUS_ROUTE => (
+                postgres_indexer_status_sql().to_string(),
+                "postgres indexer status",
+                render_postgres_indexer_status_json,
             ),
             POSTGRES_EXPLORER_OVERVIEW_ROUTE => (
                 postgres_explorer_overview_sql().to_string(),
@@ -591,6 +599,53 @@ SELECT 'indexer_runs=' || count(*) FROM xriq_indexer_runs;\n\
 SELECT 'latest_height=' || COALESCE(MAX(height)::text, 'none') FROM xriq_blocks;\n\
 SELECT 'latest_block_hash=' || COALESCE((SELECT block_hash FROM xriq_blocks ORDER BY height DESC LIMIT 1), 'none');\n\
 SELECT 'indexer_status=' || COALESCE((SELECT status FROM xriq_indexer_runs ORDER BY completed_at DESC NULLS LAST, started_at DESC LIMIT 1), 'unknown');\n"
+}
+
+fn postgres_indexer_status_sql() -> &'static str {
+    r#"
+WITH latest_run AS (
+    SELECT run_id, status, from_height, to_height, blocks_indexed, transactions_indexed
+    FROM xriq_indexer_runs
+    ORDER BY completed_at DESC NULLS LAST, started_at DESC
+    LIMIT 1
+),
+latest_block AS (
+    SELECT height, block_hash
+    FROM xriq_blocks
+    ORDER BY height DESC
+    LIMIT 1
+)
+SELECT key || '=' || value
+FROM (
+    SELECT
+        0 AS sort_order,
+        'status' AS key,
+        CASE
+            WHEN COALESCE((SELECT status FROM latest_run), 'unknown') = 'completed'
+            THEN 'current'
+            ELSE COALESCE((SELECT status FROM latest_run), 'unknown')
+        END AS value
+    UNION ALL
+    SELECT 1, 'latest_indexed_height', COALESCE((SELECT height::text FROM latest_block), '0')
+    UNION ALL
+    SELECT 2, 'latest_indexed_block_hash', COALESCE((SELECT block_hash FROM latest_block), 'none')
+    UNION ALL
+    SELECT 3, 'lag_blocks', '0'
+    UNION ALL
+    SELECT 4, 'last_run_id', COALESCE((SELECT run_id FROM latest_run), 'none')
+    UNION ALL
+    SELECT 5, 'last_run_status', COALESCE((SELECT status FROM latest_run), 'unknown')
+    UNION ALL
+    SELECT 6, 'last_run_from_height', COALESCE((SELECT from_height::text FROM latest_run), 'none')
+    UNION ALL
+    SELECT 7, 'last_run_to_height', COALESCE((SELECT to_height::text FROM latest_run), 'none')
+    UNION ALL
+    SELECT 8, 'last_run_blocks_indexed', COALESCE((SELECT blocks_indexed::text FROM latest_run), '0')
+    UNION ALL
+    SELECT 9, 'last_run_transactions_indexed', COALESCE((SELECT transactions_indexed::text FROM latest_run), '0')
+) AS rows
+ORDER BY sort_order;
+"#
 }
 
 fn postgres_explorer_overview_sql() -> &'static str {
@@ -1084,6 +1139,66 @@ fn render_postgres_read_model_status_json(
         account_transactions,
         audit_events,
         indexer_runs
+    ))
+}
+
+fn render_postgres_indexer_status_json(
+    _config: &PostgresReadModelConfig<'_>,
+    values: &BTreeMap<String, String>,
+) -> Result<String, String> {
+    let status = required_string_for(values, "status", "postgres indexer status")?;
+    let latest_indexed_height =
+        required_u64_for(values, "latest_indexed_height", "postgres indexer status")?;
+    let latest_indexed_block_hash = optional_string_json(values, "latest_indexed_block_hash")?;
+    let lag_blocks = required_u64_for(values, "lag_blocks", "postgres indexer status")?;
+    let last_run_id = optional_string_json(values, "last_run_id")?;
+    let last_run_status =
+        required_string_for(values, "last_run_status", "postgres indexer status")?;
+    let last_run_from_height =
+        optional_u64_json_for(values, "last_run_from_height", "postgres indexer status")?;
+    let last_run_to_height =
+        optional_u64_json_for(values, "last_run_to_height", "postgres indexer status")?;
+    let last_run_blocks_indexed =
+        required_u64_for(values, "last_run_blocks_indexed", "postgres indexer status")?;
+    let last_run_transactions_indexed = required_u64_for(
+        values,
+        "last_run_transactions_indexed",
+        "postgres indexer status",
+    )?;
+
+    Ok(format!(
+        concat!(
+            "{{\n",
+            "  \"environment\": \"private-devnet\",\n",
+            "  \"service\": \"xriq-indexer\",\n",
+            "  \"source\": \"postgres-read-model\",\n",
+            "  \"warning\": {},\n",
+            "  \"read_only\": true,\n",
+            "  \"status\": {},\n",
+            "  \"latest_indexed_height\": {},\n",
+            "  \"latest_indexed_block_hash\": {},\n",
+            "  \"lag_blocks\": {},\n",
+            "  \"last_run\": {{\n",
+            "    \"run_id\": {},\n",
+            "    \"status\": {},\n",
+            "    \"from_height\": {},\n",
+            "    \"to_height\": {},\n",
+            "    \"blocks_indexed\": {},\n",
+            "    \"transactions_indexed\": {}\n",
+            "  }}\n",
+            "}}"
+        ),
+        json_string(POSTGRES_READ_MODEL_WARNING),
+        json_string(status),
+        latest_indexed_height,
+        latest_indexed_block_hash,
+        lag_blocks,
+        last_run_id,
+        json_string(last_run_status),
+        last_run_from_height,
+        last_run_to_height,
+        last_run_blocks_indexed,
+        last_run_transactions_indexed
     ))
 }
 
@@ -2018,12 +2133,13 @@ fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
-        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5",
+        "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/transactions?limit=5|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5",
         "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
         "  xriq-api request --chain-file target/xriq-devnet.bin --alice-balance 100 --target /api/v1/health",
         "  xriq-api request-postgres --target /api/v1/admin/postgres/read-model-status",
+        "  xriq-api request-postgres --target /api/v1/admin/indexer/status",
         "  xriq-api request-postgres --target /api/v1/admin/audit-events?limit=5",
         "  xriq-api request-postgres --target /api/v1/explorer/overview",
         "  xriq-api request-postgres --target /api/v1/blocks?limit=5",
@@ -2405,6 +2521,46 @@ indexer_status=completed
         assert!(body.contains("\"blocks\": 1"));
         assert!(body.contains("\"account_transactions\": 2"));
         assert!(body.contains("\"indexer_status\": \"completed\""));
+    }
+
+    #[test]
+    fn postgres_indexer_status_json_renders_product_shape() {
+        let config =
+            PostgresRequestConfig::parse(&["--target", POSTGRES_INDEXER_STATUS_ROUTE]).unwrap();
+        let values = parse_key_value_lines(
+            "\
+status=current
+latest_indexed_height=1
+latest_indexed_block_hash=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+lag_blocks=0
+last_run_id=private-devnet-replay-1-0123456789abcdef
+last_run_status=completed
+last_run_from_height=1
+last_run_to_height=1
+last_run_blocks_indexed=1
+last_run_transactions_indexed=1
+",
+            "test postgres indexer status",
+        )
+        .unwrap();
+
+        let body = render_postgres_indexer_status_json(&config.read_model, &values).unwrap();
+
+        assert!(body.contains("\"source\": \"postgres-read-model\""));
+        assert!(body.contains("\"read_only\": true"));
+        assert!(body.contains(POSTGRES_READ_MODEL_WARNING));
+        assert!(body.contains("\"service\": \"xriq-indexer\""));
+        assert!(body.contains("\"status\": \"current\""));
+        assert!(body.contains("\"latest_indexed_height\": 1"));
+        assert!(body.contains(
+            "\"latest_indexed_block_hash\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\""
+        ));
+        assert!(body.contains("\"lag_blocks\": 0"));
+        assert!(body.contains("\"run_id\": \"private-devnet-replay-1-0123456789abcdef\""));
+        assert!(body.contains("\"from_height\": 1"));
+        assert!(body.contains("\"to_height\": 1"));
+        assert!(body.contains("\"blocks_indexed\": 1"));
+        assert!(body.contains("\"transactions_indexed\": 1"));
     }
 
     #[test]
@@ -3034,6 +3190,12 @@ transaction_0_fee_base_units=2
             None,
             "GET",
             POSTGRES_EXPLORER_OVERVIEW_ROUTE
+        )
+        .is_none());
+        assert!(maybe_postgres_read_model_http_response(
+            None,
+            "GET",
+            POSTGRES_INDEXER_STATUS_ROUTE
         )
         .is_none());
         assert!(maybe_postgres_read_model_http_response(

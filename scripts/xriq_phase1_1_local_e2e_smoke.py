@@ -809,6 +809,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
 
     postgres_docker_live = None
     postgres_server_status = None
+    postgres_api_indexer_status = None
+    postgres_server_indexer_status = None
     postgres_api_overview = None
     postgres_server_overview = None
     postgres_api_blocks = None
@@ -899,6 +901,70 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         write_json(indexer_dir / "postgres-api-read-model-status.json", postgres_api_status)
         completed.append("postgres-backed api read-model status")
+
+        def validate_postgres_indexer_status(payload: dict[str, Any], context: str) -> None:
+            require_equal(payload, "source", "postgres-read-model", context)
+            require_equal(payload, "read_only", True, context)
+            require_equal(payload, "environment", "private-devnet", context)
+            require_equal(payload, "service", "xriq-indexer", context)
+            require_equal(payload, "status", "current", context)
+            require_equal(
+                payload,
+                "latest_indexed_height",
+                int(expected_counts["latest_height"]),
+                context,
+            )
+            require_hash(payload.get("latest_indexed_block_hash"), f"{context} latest block hash")
+            require_equal(payload, "lag_blocks", 0, context)
+            last_run = payload.get("last_run")
+            if not isinstance(last_run, dict):
+                raise SmokeError(f"{context}: expected last_run object")
+            run_id = last_run.get("run_id")
+            if not isinstance(run_id, str) or not run_id.startswith("private-devnet-replay-"):
+                raise SmokeError(f"{context}: expected replay run id, got {run_id!r}")
+            require_equal(last_run, "status", "completed", context)
+            require_equal(last_run, "from_height", int(expected_counts["latest_height"]), context)
+            require_equal(last_run, "to_height", int(expected_counts["latest_height"]), context)
+            require_equal(last_run, "blocks_indexed", int(expected_counts["blocks"]), context)
+            require_equal(
+                last_run,
+                "transactions_indexed",
+                int(expected_counts["transactions"]),
+                context,
+            )
+
+        postgres_indexer_status_output = run_command(
+            "xriq-api postgres indexer status",
+            [
+                str(api_binary),
+                "request-postgres",
+                "--docker-container",
+                args.postgres_docker_container,
+                "--database",
+                args.postgres_docker_database,
+                "--target",
+                "/api/v1/admin/indexer/status",
+            ],
+            cwd=xriq_dir,
+        )
+        status_code, reason, postgres_api_indexer_status = parse_api_request_output(
+            postgres_indexer_status_output,
+            "xriq-api postgres indexer status",
+        )
+        if status_code != 200:
+            raise SmokeError(
+                "xriq-api postgres indexer status: expected HTTP 200, "
+                f"got {status_code} {reason}: {postgres_api_indexer_status}"
+            )
+        validate_postgres_indexer_status(
+            postgres_api_indexer_status,
+            "xriq-api postgres indexer status",
+        )
+        write_json(
+            indexer_dir / "postgres-api-indexer-status.json",
+            postgres_api_indexer_status,
+        )
+        completed.append("postgres-backed api indexer status")
 
         def validate_postgres_overview(payload: dict[str, Any], context: str) -> None:
             require_equal(payload, "source", "postgres-read-model", context)
@@ -1506,6 +1572,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_status = http_json(
                 server_base_url, "/api/v1/admin/postgres/read-model-status"
             )
+            postgres_server_indexer_status = http_json(
+                server_base_url, "/api/v1/admin/indexer/status"
+            )
             postgres_server_overview = http_json(server_base_url, "/api/v1/explorer/overview")
             postgres_server_blocks = http_json(server_base_url, "/api/v1/blocks?limit=5")
             postgres_server_transactions = http_json(
@@ -1601,6 +1670,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_overview,
             "xriq-api serve-readonly postgres explorer overview",
         )
+        validate_postgres_indexer_status(
+            postgres_server_indexer_status,
+            "xriq-api serve-readonly postgres indexer status",
+        )
         validate_postgres_blocks(
             postgres_server_blocks,
             "xriq-api serve-readonly postgres blocks",
@@ -1649,6 +1722,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             indexer_dir / "postgres-server-read-model-status.json", postgres_server_status
         )
         write_json(
+            indexer_dir / "postgres-server-indexer-status.json",
+            postgres_server_indexer_status,
+        )
+        write_json(
             indexer_dir / "postgres-server-explorer-overview.json", postgres_server_overview
         )
         write_json(indexer_dir / "postgres-server-blocks.json", postgres_server_blocks)
@@ -1690,6 +1767,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_audit_events,
         )
         completed.append("postgres-backed server read-model status")
+        completed.append("postgres-backed server indexer status")
         completed.append("postgres-backed server explorer overview")
         completed.append("postgres-backed server blocks")
         completed.append("postgres-backed server transactions")
@@ -2057,6 +2135,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_read_model_status": (
                 str(indexer_dir / "postgres-server-read-model-status.json")
                 if postgres_server_status
+                else None
+            ),
+            "postgres_api_indexer_status": (
+                str(indexer_dir / "postgres-api-indexer-status.json")
+                if postgres_api_indexer_status
+                else None
+            ),
+            "postgres_server_indexer_status": (
+                str(indexer_dir / "postgres-server-indexer-status.json")
+                if postgres_server_indexer_status
                 else None
             ),
             "postgres_api_explorer_overview": (

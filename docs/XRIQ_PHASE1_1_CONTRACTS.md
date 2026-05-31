@@ -439,11 +439,13 @@ The first explicit Postgres-backed API read paths are local-only and use the
 Compose `postgres` container. They return status/count JSON plus the opt-in
 explorer overview, block-list, transaction-list, transaction-detail, wallet
 transaction-status, account-list, wallet account-list, account-detail, wallet
-balance, account-history, wallet account-history, and audit-events shapes from the read
-model without changing the default file-backed API request/server path:
+balance, account-history, wallet account-history, audit-events, and indexer-status
+shapes from the read model without changing the default file-backed API
+request/server path:
 
 ```bash
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
+cargo run -p xriq-api -- request-postgres --target /api/v1/admin/indexer/status
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/audit-events?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/explorer/overview
 cargo run -p xriq-api -- request-postgres --target /api/v1/blocks?limit=5

@@ -350,7 +350,8 @@ python scripts\xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
 
 The same live smoke verifies the first explicit Postgres-backed API read paths,
 including `/api/v1/admin/postgres/read-model-status` and the opt-in
-Postgres-backed `/api/v1/explorer/overview`, `/api/v1/blocks?limit=5`, and
+Postgres-backed `/api/v1/admin/indexer/status`,
+`/api/v1/explorer/overview`, `/api/v1/blocks?limit=5`, and
 `/api/v1/transactions?limit=5` plus `/api/v1/transactions/{tx_hash}` and
 `/api/v1/wallet/transactions/{tx_hash}/status` plus
 `/api/v1/accounts?limit=5` plus `/api/v1/accounts/{address}` and
@@ -380,6 +381,8 @@ Postgres read-model row mapping. It writes
 `indexer/postgres-server-account-history.json`,
 `indexer/postgres-api-wallet-account-history.json`,
 `indexer/postgres-server-wallet-account-history.json`,
+`indexer/postgres-api-indexer-status.json`,
+`indexer/postgres-server-indexer-status.json`,
 `indexer/postgres-api-audit-events.json`,
 `indexer/postgres-server-audit-events.json`,
 and
@@ -389,6 +392,7 @@ directory:
 ```powershell
 cd xriq
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/postgres/read-model-status
+cargo run -p xriq-api -- request-postgres --target /api/v1/admin/indexer/status
 cargo run -p xriq-api -- request-postgres --target /api/v1/admin/audit-events?limit=5
 cargo run -p xriq-api -- request-postgres --target /api/v1/explorer/overview
 cargo run -p xriq-api -- request-postgres --target /api/v1/blocks?limit=5
@@ -406,8 +410,8 @@ cargo run -p xriq-api -- request-postgres --target /api/v1/wallet/accounts/<addr
 To expose that read-model status, explorer overview, block list, transaction
 list, transaction detail, wallet transaction status, account list, wallet
 account list, account detail, wallet balance, account history, and wallet
-account history, and audit events through the local read-only HTTP server, pass both explicit
-Postgres flags.
+account history, audit events, and indexer status through the local read-only
+HTTP server, pass both explicit Postgres flags.
 Without these flags, `serve-readonly` stays file-backed and the Postgres status
 route remains disabled.
 
