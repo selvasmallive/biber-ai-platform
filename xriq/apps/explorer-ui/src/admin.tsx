@@ -19,12 +19,14 @@ type WalletTxStatusState =
   | { status: "ready"; data: WalletTransactionStatusResponse; error: null }
   | { status: "error"; data: WalletTransactionStatusResponse | null; error: string };
 
-type PostgresStatusState =
+export type PostgresStatusState =
   | { status: "idle"; data: null; error: null }
   | { status: "loading"; data: PostgresReadModelStatusResponse | null; error: null }
   | { status: "ready"; data: PostgresReadModelStatusResponse; error: null }
   | { status: "disabled"; data: null; error: null }
   | { status: "error"; data: PostgresReadModelStatusResponse | null; error: string };
+
+export type AdminStatusRow = [string, string | number];
 
 export function AdminStatusPanel({
   apiBaseUrl,
@@ -48,7 +50,6 @@ export function AdminStatusPanel({
   });
   const snapshotCatalog = snapshot?.snapshots.snapshots[0];
   const latestAuditEvent = snapshot?.auditEvents.audit_events[0];
-  const postgres = postgresStatus.data;
   const pendingWalletStatus = firstPending
     ? walletTxStatus.data?.status ?? walletTxStatus.status
     : "-";
@@ -177,21 +178,7 @@ export function AdminStatusPanel({
         />
         <StatusBlock
           title="Postgres Read Model"
-          rows={[
-            ["Status", postgres?.status ?? postgresStatus.status],
-            ["Source", postgres?.source ?? "-"],
-            ["Route", postgres?.route ?? "/api/v1/admin/postgres/read-model-status"],
-            ["Database", postgres?.database ?? "-"],
-            ["Indexer", postgres?.indexer_status ?? "-"],
-            ["Height", nullableNumber(postgres?.latest_height)],
-            ["Blocks", postgres?.counts.blocks ?? "-"],
-            ["Transactions", postgres?.counts.transactions ?? "-"],
-            ["Accounts", postgres?.counts.accounts ?? "-"],
-            ["Account History", postgres?.counts.account_transactions ?? "-"],
-            ["Audit Events", postgres?.counts.audit_events ?? "-"],
-            ["Read Only", postgres?.read_only ? "true" : "-"],
-            ["Error", postgresStatus.error ?? "-"],
-          ]}
+          rows={postgresReadModelRows(postgresStatus)}
         />
         <StatusBlock
           title="Wallet"
@@ -258,12 +245,33 @@ function nullableNumber(value: number | null | undefined) {
   return value ?? "-";
 }
 
+export function postgresReadModelRows(
+  postgresStatus: PostgresStatusState,
+): AdminStatusRow[] {
+  const postgres = postgresStatus.data;
+  return [
+    ["Status", postgres?.status ?? postgresStatus.status],
+    ["Source", postgres?.source ?? "-"],
+    ["Route", postgres?.route ?? "/api/v1/admin/postgres/read-model-status"],
+    ["Database", postgres?.database ?? "-"],
+    ["Indexer", postgres?.indexer_status ?? "-"],
+    ["Height", nullableNumber(postgres?.latest_height)],
+    ["Blocks", postgres?.counts.blocks ?? "-"],
+    ["Transactions", postgres?.counts.transactions ?? "-"],
+    ["Accounts", postgres?.counts.accounts ?? "-"],
+    ["Account History", postgres?.counts.account_transactions ?? "-"],
+    ["Audit Events", postgres?.counts.audit_events ?? "-"],
+    ["Read Only", postgres?.read_only ? "true" : "-"],
+    ["Error", postgresStatus.error ?? "-"],
+  ];
+}
+
 function StatusBlock({
   title,
   rows,
 }: {
   title: string;
-  rows: Array<[string, string | number]>;
+  rows: AdminStatusRow[];
 }) {
   return (
     <div className="adminBlock">

@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `68%` overall. Current Rust
+- Phase 1.1 estimated completion: about `69%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -189,7 +189,8 @@ unless the user changes the project scope again.
   PostgreSQL dry-run artifacts, and verifies the product API routes that feed
   the explorer, wallet, mempool, snapshot, audit, admin, and ISO preview
   panels, including wallet account history and wallet draft-preview failure
-  cases.
+  cases. Its explicit Docker live mode now also verifies the Admin UI Postgres
+  status row mapping against the live local read model.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -208,6 +209,31 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 Postgres-enabled Admin UI smoke checkpoint:
+  added `npm.cmd run check:postgres-ui`, a local UI logic smoke that uses Vite
+  SSR to import the same `postgresReadModelRows` mapping used by the Admin
+  Status panel. The script calls `/api/v1/admin/postgres/read-model-status`,
+  supports expected `disabled` and `available` states, validates row values,
+  and can write a JSON artifact without adding Playwright/jsdom/vitest
+  dependencies. `scripts/xriq_phase1_1_local_e2e_smoke.py
+  --postgres-docker-live` now runs this UI smoke while a temporary
+  Postgres-enabled `serve-readonly` API is up, expecting database
+  `xriq_phase1_1_smoke`, 1 block, 1 transaction, 3 accounts, 2 account-history
+  rows, and 1 audit event. Verification passed `npm.cmd run check`,
+  `npx.cmd tsc -b`, `npm.cmd run build` outside the sandbox after the known
+  Windows Vite access-denied sandbox issue, bundled-Python `py_compile`, standalone disabled
+  `npm.cmd run check:postgres-ui -- --base-url http://127.0.0.1:8090 --expect disabled`,
+  and Docker live `scripts/xriq_phase1_1_local_e2e_smoke.py
+  --postgres-docker-live`, producing artifact directory
+  `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T022858Z` with
+  `indexer/postgres-admin-ui-read-model-status.json` showing `Status:
+  available`, `Source: postgres-read-model`, `Database:
+  xriq_phase1_1_smoke`, `Height: 1`, `Blocks: 1`, `Transactions: 1`,
+  `Accounts: 3`, `Account History: 2`, and `Audit Events: 1`. Phase 1.1
+  status is now about `69%` overall.
+- Recommended next narrow step: add the first opt-in Postgres-backed product
+  data route beyond status, preferably `/api/v1/explorer/overview`, while
+  preserving the default file-backed API behavior.
 - Latest native XRIQ Phase 1.1 Admin UI Postgres status checkpoint:
   extended the React + TypeScript Admin Status panel with a read-only
   `Postgres Read Model` block. The UI calls
@@ -226,9 +252,6 @@ active target because the GPU was terminated to save cost.
   `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T021412Z` with only the
   optional Postgres Docker live smoke skipped. Phase 1.1 status is now about
   `68%` overall.
-- Recommended next narrow step: add a controlled Postgres-enabled UI smoke path
-  that runs `serve-readonly` with explicit Postgres flags and confirms the same
-  Admin panel shows `available` counts from the live local Docker read model.
 - Latest native XRIQ Phase 1.1 Postgres-backed read-only server checkpoint:
   extended `xriq-api serve-readonly` with explicit
   `--postgres-docker-container <container> --postgres-database <database>`

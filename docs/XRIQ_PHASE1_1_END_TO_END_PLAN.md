@@ -70,9 +70,9 @@ Rust
 
 React + TypeScript
  |-- Wallet UI              ~24%; preview shell plus read-only confirmed/pending activity, API status, and API history detail
- |-- Explorer               ~26%; shell plus detail, pending transaction, snapshot, ISO preview, and optional Postgres status panels read product API
+ |-- Explorer               ~27%; shell plus detail, pending transaction, snapshot, ISO preview, and optional Postgres status panels read product API
  |-- Exchange UI            0%; deferred high legal/compliance-risk surface
- `-- Admin portal           ~27%; read-only node/status, pending mempool, pending wallet status, optional Postgres read-model status, snapshot catalog, and audit events panels exist
+ `-- Admin portal           ~28%; read-only node/status, pending mempool, pending wallet status, optional Postgres read-model status, snapshot catalog, and audit events panels exist
 
 SQL/PostgreSQL
  |-- Explorer indexing      ~33%; schema, indexer, SQL plan, verify path, Docker live smoke, and first Postgres-backed API/server status read exist
@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the first local Phase 1.1 Admin UI Postgres status checkpoint,
-Phase 1.1 status is about `68%`: the contract document, PostgreSQL read-model schema, JSON
+After the first local Phase 1.1 Postgres-enabled Admin UI smoke checkpoint,
+Phase 1.1 status is about `69%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -160,7 +160,10 @@ calls `xriq-api request-postgres`, and writes
 `indexer/postgres-api-read-model-status.json`. The same live mode now starts a
 temporary local `serve-readonly` server with explicit Postgres flags, verifies
 `/api/v1/admin/postgres/read-model-status` over HTTP, and writes
-`indexer/postgres-server-read-model-status.json`.
+`indexer/postgres-server-read-model-status.json`. It also runs
+`npm.cmd run check:postgres-ui` against that temporary server to validate the
+Admin UI's Postgres read-model rows for the live `available` state and writes
+`indexer/postgres-admin-ui-read-model-status.json`.
 
 ## Phase 1.1 Build Order
 

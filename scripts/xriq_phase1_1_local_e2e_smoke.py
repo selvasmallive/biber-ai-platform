@@ -808,6 +808,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
 
     postgres_docker_live = None
     postgres_server_status = None
+    postgres_ui_status = None
     if args.postgres_docker_live:
         postgres_docker_live = run_postgres_docker_live(
             root,
@@ -893,6 +894,36 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             postgres_server_status = http_json(
                 server_base_url, "/api/v1/admin/postgres/read-model-status"
             )
+            postgres_ui_artifact = indexer_dir / "postgres-admin-ui-read-model-status.json"
+            run_command(
+                "xriq admin postgres UI status smoke",
+                [
+                    npm_command(),
+                    "run",
+                    "check:postgres-ui",
+                    "--",
+                    "--base-url",
+                    server_base_url,
+                    "--expect",
+                    "available",
+                    "--expected-database",
+                    args.postgres_docker_database,
+                    "--expected-blocks",
+                    expected_counts["blocks"],
+                    "--expected-transactions",
+                    expected_counts["transactions"],
+                    "--expected-accounts",
+                    expected_counts["accounts"],
+                    "--expected-account-history",
+                    expected_counts["account_transactions"],
+                    "--expected-audit-events",
+                    expected_counts["audit_events"],
+                    "--artifact",
+                    str(postgres_ui_artifact),
+                ],
+                cwd=ui_dir,
+            )
+            postgres_ui_status = json.loads(postgres_ui_artifact.read_text(encoding="utf-8"))
         finally:
             stop_process(server_process)
         require_equal(
@@ -930,6 +961,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             indexer_dir / "postgres-server-read-model-status.json", postgres_server_status
         )
         completed.append("postgres-backed server read-model status")
+        completed.append("postgres-backed admin UI read-model status")
     else:
         skipped.append("postgres docker live smoke")
 
@@ -1284,6 +1316,11 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "postgres_server_read_model_status": (
                 str(indexer_dir / "postgres-server-read-model-status.json")
                 if postgres_server_status
+                else None
+            ),
+            "postgres_admin_ui_read_model_status": (
+                str(indexer_dir / "postgres-admin-ui-read-model-status.json")
+                if postgres_ui_status
                 else None
             ),
         },

@@ -314,6 +314,7 @@ cargo run -p xriq-api -- serve-readonly --chain-file target\xriq-indexer-replay-
 cd apps\explorer-ui
 npm.cmd install
 npm.cmd run check
+npm.cmd run check:postgres-ui -- --base-url http://127.0.0.1:8090 --expect disabled
 npm.cmd run build
 npm.cmd run dev -- --port 5173
 ```
@@ -347,7 +348,10 @@ writes a live-count artifact under the smoke output directory.
 python scripts\xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
 ```
 
-The same live smoke verifies the first explicit Postgres-backed API read paths:
+The same live smoke verifies the first explicit Postgres-backed API read paths
+and the Admin UI's Postgres read-model row mapping, writing
+`indexer/postgres-admin-ui-read-model-status.json` under the smoke output
+directory:
 
 ```powershell
 cd xriq

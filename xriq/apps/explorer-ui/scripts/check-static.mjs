@@ -6,6 +6,7 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const requiredFiles = [
   "index.html",
   "package.json",
+  "scripts/check-postgres-ui-state.mjs",
   "tsconfig.json",
   "vite.config.ts",
   "public/xriq-topology.svg",
@@ -91,6 +92,10 @@ const auditSource = readFileSync(join(root, "src/audit.tsx"), "utf8");
 const isoSource = readFileSync(join(root, "src/iso.tsx"), "utf8");
 const mempoolSource = readFileSync(join(root, "src/mempool.tsx"), "utf8");
 const snapshotsSource = readFileSync(join(root, "src/snapshots.tsx"), "utf8");
+const postgresUiSmokeSource = readFileSync(
+  join(root, "scripts/check-postgres-ui-state.mjs"),
+  "utf8",
+);
 for (const requiredText of [
   "Wallet Preview",
   "xriq-wallet-transfer-preview-v1",
@@ -227,6 +232,8 @@ for (const requiredText of [
   "Postgres Read Model",
   "loadPostgresReadModelStatus",
   "PostgresReadModelStatusResponse",
+  "postgresReadModelRows",
+  "PostgresStatusState",
   "account_transactions",
   "HTTP 404",
   "transaction_index",
@@ -245,6 +252,18 @@ for (const requiredText of [
 ]) {
   if (!adminSource.includes(requiredText)) {
     throw new Error(`missing admin status marker: ${requiredText}`);
+  }
+}
+
+for (const requiredText of [
+  "/api/v1/admin/postgres/read-model-status",
+  "postgresReadModelRows",
+  "--expected-blocks",
+  "--expected-account-history",
+  "xriq-admin-postgres-ui-state",
+]) {
+  if (!postgresUiSmokeSource.includes(requiredText)) {
+    throw new Error(`missing postgres UI smoke marker: ${requiredText}`);
   }
 }
 

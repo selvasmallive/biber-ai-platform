@@ -100,7 +100,10 @@ directory:
 python scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
 ```
 
-That live smoke also verifies the first explicit Postgres-backed API read paths.
+That live smoke also verifies the first explicit Postgres-backed API read paths
+and the Admin UI's Postgres read-model row mapping, writing
+`indexer/postgres-admin-ui-read-model-status.json` under the smoke output
+directory.
 The default `xriq-api request` and `serve-readonly` flows still use file-backed
 chain replay. The command below is local-only and reads the Compose Postgres
 read model through container-local `psql`:
@@ -162,8 +165,16 @@ cargo run -p xriq-api -- serve-readonly --chain-file target\xriq-indexer-replay-
 cd apps\explorer-ui
 npm.cmd install
 npm.cmd run check
+npm.cmd run check:postgres-ui -- --base-url http://127.0.0.1:8090 --expect disabled
 npm.cmd run build
 npm.cmd run dev -- --port 5173
+```
+
+When the local API was launched with explicit Postgres flags, the same UI logic
+smoke can validate the Admin panel's live read-model rows:
+
+```powershell
+npm.cmd run check:postgres-ui -- --base-url http://127.0.0.1:8090 --expect available --expected-database xriq_phase1_1_smoke --expected-blocks 1 --expected-transactions 1 --expected-accounts 3 --expected-account-history 2 --expected-audit-events 1
 ```
 
 After producing a local private-devnet chain file, replay it through the
