@@ -1,0 +1,181 @@
+{
+  "environment": "private-devnet",
+  "network": "xriq-devnet",
+  "endpoint": "POST /api/v1/wallet/transfers/submit",
+  "contract": "wallet-submit-to-pending-v1",
+  "status": "contract-only",
+  "implementation_status": "not_enabled",
+  "default_outcome": "refused",
+  "accepted_outcome": "pending-transaction-after-explicit-local-flag",
+  "mutation": "none-until-explicit-local-enable",
+  "warning": "local-private-devnet-only",
+  "default_refusal": {
+    "fixture": "wallet-transfer-submit-disabled.json",
+    "code": "wallet_submit_disabled",
+    "mutation": "none",
+    "status": "disabled"
+  },
+  "required_enablement": {
+    "mode": "local-private-devnet",
+    "explicit_flag": "--enable-local-wallet-submit",
+    "audit_event_required": true,
+    "test_identity_only": true
+  },
+  "request_schema": {
+    "required_fields": [
+      "local_request_id",
+      "pending_file",
+      "chain_file",
+      "draft_id",
+      "from_address",
+      "to_address",
+      "amount_base_units",
+      "fee_base_units",
+      "nonce",
+      "expires_at_height"
+    ],
+    "optional_fields": [
+      "expected_tx_hash",
+      "dry_run"
+    ],
+    "forbidden_fields": [
+      "private_key",
+      "seed_phrase",
+      "mnemonic",
+      "signature",
+      "signed_transaction"
+    ],
+    "guards": [
+      "local_request_id is required for audit correlation",
+      "pending_file must be a local private-devnet pending file",
+      "chain_file must be a local private-devnet chain file",
+      "draft_id must identify the local draft or local request being submitted",
+      "sender must be a configured local test identity",
+      "amount and fee must be integer base-unit strings",
+      "fee must satisfy the private-devnet minimum fee",
+      "nonce must match the sender nonce from the local chain state",
+      "expires_at_height must be greater than current local height",
+      "dry_run must not mutate pending or chain state"
+    ]
+  },
+  "accepted_response_schema": {
+    "required_fields": [
+      "environment",
+      "network",
+      "endpoint",
+      "code",
+      "status",
+      "mutation",
+      "warning",
+      "transaction",
+      "pending_state",
+      "chain_state",
+      "audit_event_recorded",
+      "audit_event"
+    ],
+    "status": "pending",
+    "mutation": "pending_state_only",
+    "transaction_fields": [
+      "tx_hash",
+      "status",
+      "from_address",
+      "to_address",
+      "amount_base_units",
+      "fee_base_units",
+      "nonce",
+      "expires_at_height",
+      "block_height",
+      "transaction_index"
+    ],
+    "pending_state_fields": [
+      "before_count",
+      "after_count",
+      "added_tx_hash",
+      "pending_file"
+    ],
+    "chain_state_fields": [
+      "current_height",
+      "latest_block_hash",
+      "chain_file",
+      "chain_unchanged"
+    ]
+  },
+  "example_accepted_response": {
+    "environment": "private-devnet",
+    "network": "xriq-devnet",
+    "endpoint": "POST /api/v1/wallet/transfers/submit",
+    "code": "wallet_submit_accepted_local_only",
+    "status": "pending",
+    "mutation": "pending_state_only",
+    "warning": "local-private-devnet-only",
+    "transaction": {
+      "tx_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "pending",
+      "from_address": "xriqdev1alice00000000000",
+      "to_address": "xriqdev1carol00000000000",
+      "amount_base_units": "5",
+      "fee_base_units": "2",
+      "nonce": 1,
+      "expires_at_height": 100,
+      "block_height": null,
+      "transaction_index": null
+    },
+    "pending_state": {
+      "before_count": 0,
+      "after_count": 1,
+      "added_tx_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "pending_file": "target/xriq-devnet-pending.tsv"
+    },
+    "chain_state": {
+      "current_height": 1,
+      "latest_block_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "chain_file": "target/xriq-devnet.bin",
+      "chain_unchanged": true
+    },
+    "audit_event_recorded": true,
+    "audit_event": {
+      "event_id": "wallet-transfer-submit:local_request_id",
+      "actor": "local-private-devnet-operator",
+      "action": "wallet_transfer_submit_attempt",
+      "resource_type": "wallet_transfer",
+      "resource_id": "draft_id_or_local_request_id",
+      "environment": "private-devnet",
+      "metadata": {
+        "endpoint": "POST /api/v1/wallet/transfers/submit",
+        "outcome": "accepted",
+        "status": "pending",
+        "explicit_flag": "--enable-local-wallet-submit",
+        "local_request_id": "local_request_id",
+        "draft_id": "draft_id",
+        "from_address": "xriqdev1alice00000000000",
+        "to_address": "xriqdev1carol00000000000",
+        "amount_base_units": "5",
+        "fee_base_units": "2",
+        "nonce": 1,
+        "expires_at_height": 100,
+        "pending_before_count": 0,
+        "pending_after_count": 1,
+        "added_tx_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "chain_current_height": 1,
+        "metadata_policy": "request fields and local pending-state transition summary only; no signing material or custody material"
+      }
+    }
+  },
+  "state_transition_guards": [
+    "default path remains refused and non-mutating",
+    "accepted path requires explicit local flag",
+    "accepted path requires local private-devnet mode",
+    "accepted path requires configured local test sender",
+    "accepted path must not accept signing material or custody material",
+    "accepted path must validate balance, nonce, fee, expiry, and addresses before mutation",
+    "accepted path must append exactly one pending transaction to the local pending file",
+    "accepted path must not change chain state",
+    "accepted path must write an audit event before reporting success",
+    "accepted path must be covered by local smoke before UI mutation controls are enabled"
+  ],
+  "ui_guards": [
+    "Wallet UI submit and send controls remain disabled until accepted submit smoke passes",
+    "Admin UI may show audit visibility but must not expose wallet mutation controls",
+    "No signing, custody, public, or production controls are exposed"
+  ]
+}

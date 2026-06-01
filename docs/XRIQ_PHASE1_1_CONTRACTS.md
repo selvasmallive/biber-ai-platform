@@ -171,6 +171,7 @@ xriq/fixtures/phase1_2/wallet-transfer-submit-disabled.json
 xriq/fixtures/phase1_2/wallet-transfer-send-disabled.json
 xriq/fixtures/phase1_2/wallet-transfer-submit-audit-expectation.json
 xriq/fixtures/phase1_2/wallet-transfer-send-audit-expectation.json
+xriq/fixtures/phase1_2/wallet-transfer-submit-to-pending-contract.json
 xriq/fixtures/phase1_2/block-production-disabled.json
 xriq/fixtures/phase1_2/block-production-audit-expectation.json
 ```
@@ -210,6 +211,22 @@ accepted mutation. The disabled API response now records deterministic
 API-local refusal audit objects for submit/send attempts, and admin audit
 visibility exposes those local refusal records separately from persistent
 chain/indexer audit storage.
+
+The future wallet-submit accepted path is defined by this fixture:
+
+```text
+xriq/fixtures/phase1_2/wallet-transfer-submit-to-pending-contract.json
+```
+
+That contract keeps the default outcome refused, references
+`wallet-transfer-submit-disabled.json`, requires `--enable-local-wallet-submit`,
+requires local-private-devnet mode, requires a configured local test sender,
+forbids signing and custody material in requests, requires audit events, and
+defines the future accepted response shape for one pending transaction row,
+pending-file count transition, unchanged chain-state summary, and accepted
+audit event metadata. It remains contract-only and not enabled; `xriq-api` must
+not accept wallet submit or expose UI mutation controls until a later explicit
+implementation checkpoint adds Rust tests and local smoke.
 
 Future block-production attempts must use the same local actor,
 `block_production_attempt` action, `block_production` resource type,

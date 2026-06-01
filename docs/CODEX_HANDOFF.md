@@ -235,7 +235,7 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `44%` overall after the initial
+- Phase 1.2 estimated completion: about `45%` overall after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
   submit/send, React/client disabled-action guard coverage, and audit-event
@@ -245,9 +245,10 @@ unless the user changes the project scope again.
   audit visibility for block-production attempts, plus Admin UI/client disabled
   guard coverage for block production, plus the first pending-to-confirmed loop
   contract and Rust/API-side local block-production path behind explicit
-  local/private-devnet enablement. It is not a public launch phase. Its current
-  target is hardening that first local accepted path through typed client
-  contracts and docs before any broad wallet-submit, snapshot-mutation, DEX,
+  local/private-devnet enablement, plus the first contract-only wallet submit
+  to pending-state accepted response design. It is not a public launch phase.
+  Its current target is defining and hardening local-only action contracts
+  before any broad wallet-submit implementation, snapshot-mutation, DEX,
   custody, public network behavior, or UI mutation controls are implemented.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
@@ -313,10 +314,32 @@ to save cost.
   POST function, does not add an enabled `Produce Block` control, and does not
   change the Admin UI default disabled guard behavior. Verification passed
   `npm.cmd run check` and escalated `npm.cmd run build` after the sandboxed
-  build hit a Windows Vite/esbuild config access denial. Next narrow step:
-  begin the next local-only action contract, likely wallet submit/send accepted
-  preflight design, or add focused docs around when UI mutation controls may be
-  enabled.
+  build hit a Windows Vite/esbuild config access denial. Superseded by the
+  wallet-submit accepted contract checkpoint below.
+- Latest native XRIQ Phase 1.2 wallet-submit accepted contract checkpoint:
+  added
+  `xriq/fixtures/phase1_2/wallet-transfer-submit-to-pending-contract.json` as
+  the contract-only future shape for `POST /api/v1/wallet/transfers/submit`
+  moving a validated local draft into the pending file. The fixture is
+  explicitly `status: "contract-only"` and `implementation_status:
+  "not_enabled"`, keeps the default path refused through
+  `wallet-transfer-submit-disabled.json`, requires
+  `--enable-local-wallet-submit`, local/private-devnet mode, audit events, and
+  test identity scope, and forbids private keys, seed phrases, mnemonics,
+  signatures, and signed transactions. The accepted response is documented as
+  `code: "wallet_submit_accepted_local_only"`, `status: "pending"`, and
+  `mutation: "pending_state_only"`, with a pending transaction row,
+  pending-state transition, unchanged chain-state summary, and API-local
+  accepted audit metadata. `scripts/xriq_phase1_1_contract_check.py` now
+  validates this fixture and reports
+  `phase1_2_wallet_submit_contract_fixtures: 1`. This checkpoint does not
+  implement wallet submit in Rust, does not mutate pending state through the
+  product API, does not add signing/custody, and does not enable UI submit/send
+  controls. Verification passed bundled-Python `py_compile` and
+  `scripts/xriq_phase1_1_contract_check.py`. Next narrow step: either add a
+  matching client accepted-response type/validator for this wallet-submit
+  contract or begin the wallet-send accepted contract, still disabled by
+  default.
 - Latest native XRIQ Phase 1.2 Admin UI block-production guard checkpoint:
   the React Admin Status panel now includes `Admin Action Guards` with a
   disabled `Produce Block` control and an explicit `Check Guard` action. The

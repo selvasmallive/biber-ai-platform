@@ -217,9 +217,19 @@ audit-scope and mutation constants, and
 those accepted-response markers, but no UI POST function or enabled mutation
 control is exposed.
 
-Recommended next implementation: start the next local-only action contract,
-likely accepted wallet submit/send preflight design, while keeping UI mutation
-controls disabled.
+Current wallet-submit accepted contract checkpoint:
+`xriq/fixtures/phase1_2/wallet-transfer-submit-to-pending-contract.json`
+defines the future local-only accepted response shape for
+`POST /api/v1/wallet/transfers/submit`, but remains `contract-only` and
+`not_enabled`. It requires `--enable-local-wallet-submit`, local/private-devnet
+mode, audit events, a configured local test sender, pending-file mutation only,
+unchanged chain state, no signing material, no custody material, and no UI
+mutation control. `scripts/xriq_phase1_1_contract_check.py` validates this
+fixture.
+
+Recommended next implementation: add a matching client/API type checkpoint for
+the wallet-submit accepted response or define the wallet-send accepted
+contract, while keeping UI mutation controls disabled.
 
 ## Validation
 

@@ -434,8 +434,8 @@ def main(argv: list[str] | None = None) -> int:
                 "block_production_disabled_by_default",
             ],
             "next": (
-                "keep wallet mutation controls disabled while adding the next "
-                "local-only action contract or client response checkpoint"
+                "keep wallet mutation controls disabled while adding the "
+                "wallet-submit accepted client contract or wallet-send contract"
             ),
         }
         (artifact_dir / "summary.json").write_text(

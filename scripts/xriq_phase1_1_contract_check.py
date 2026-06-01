@@ -225,6 +225,20 @@ REQUIRED_PHASE1_2_LOOP_CONTRACT_FIXTURES: dict[str, dict[str, str]] = {
     },
 }
 
+REQUIRED_PHASE1_2_WALLET_SUBMIT_CONTRACT_FIXTURES: dict[str, dict[str, str]] = {
+    "wallet-transfer-submit-to-pending-contract.json": {
+        "endpoint": "POST /api/v1/wallet/transfers/submit",
+        "contract": "wallet-submit-to-pending-v1",
+        "explicit_flag": "--enable-local-wallet-submit",
+        "default_refusal_fixture": "wallet-transfer-submit-disabled.json",
+        "default_refusal_code": "wallet_submit_disabled",
+        "accepted_code": "wallet_submit_accepted_local_only",
+        "accepted_mutation": "pending_state_only",
+        "action": "wallet_transfer_submit_attempt",
+        "resource_type": "wallet_transfer",
+    },
+}
+
 HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 SENSITIVE_FIELD_PATTERN = re.compile(r"(private[_-]?key|seed[_-]?phrase|mnemonic)", re.IGNORECASE)
 
@@ -808,12 +822,243 @@ def verify_phase1_2_loop_contract_fixtures() -> dict[str, int]:
     }
 
 
+def verify_phase1_2_wallet_submit_contract_fixture(
+    name: str, expected: dict[str, str]
+) -> None:
+    path = PHASE1_2_FIXTURE_DIR / name
+    payload = load_json(path)
+
+    required_fields = [
+        "environment",
+        "network",
+        "endpoint",
+        "contract",
+        "status",
+        "implementation_status",
+        "default_outcome",
+        "accepted_outcome",
+        "mutation",
+        "warning",
+        "default_refusal",
+        "required_enablement",
+        "request_schema",
+        "accepted_response_schema",
+        "example_accepted_response",
+        "state_transition_guards",
+        "ui_guards",
+    ]
+    missing = [field for field in required_fields if field not in payload]
+    if missing:
+        raise ContractError(f"{name} missing fields: {missing}")
+
+    verify_common_payload(name, payload)
+
+    if payload.get("network") != "xriq-devnet":
+        raise ContractError(f"{name} must declare network xriq-devnet")
+    if payload.get("endpoint") != expected["endpoint"]:
+        raise ContractError(f"{name} has wrong endpoint: {payload.get('endpoint')!r}")
+    if payload.get("contract") != expected["contract"]:
+        raise ContractError(f"{name} has wrong contract id")
+    if payload.get("status") != "contract-only":
+        raise ContractError(f"{name} must remain contract-only")
+    if payload.get("implementation_status") != "not_enabled":
+        raise ContractError(f"{name} must remain not_enabled")
+    if payload.get("default_outcome") != "refused":
+        raise ContractError(f"{name} default outcome must be refused")
+    if payload.get("mutation") != "none-until-explicit-local-enable":
+        raise ContractError(f"{name} must remain non-mutating until explicit local enable")
+
+    default_refusal = payload.get("default_refusal")
+    if not isinstance(default_refusal, dict):
+        raise ContractError(f"{name} default_refusal must be an object")
+    if default_refusal.get("fixture") != expected["default_refusal_fixture"]:
+        raise ContractError(f"{name} must reference the disabled wallet-submit fixture")
+    if default_refusal.get("code") != expected["default_refusal_code"]:
+        raise ContractError(f"{name} default refusal code is wrong")
+    if default_refusal.get("mutation") != "none":
+        raise ContractError(f"{name} default refusal must be non-mutating")
+
+    enablement = payload.get("required_enablement")
+    if not isinstance(enablement, dict):
+        raise ContractError(f"{name} required_enablement must be an object")
+    if enablement.get("mode") != "local-private-devnet":
+        raise ContractError(f"{name} must require local-private-devnet mode")
+    if enablement.get("explicit_flag") != expected["explicit_flag"]:
+        raise ContractError(f"{name} has wrong explicit local flag")
+    if enablement.get("audit_event_required") is not True:
+        raise ContractError(f"{name} must require audit events")
+    if enablement.get("test_identity_only") is not True:
+        raise ContractError(f"{name} must remain test-identity-only")
+
+    request_schema = payload.get("request_schema")
+    if not isinstance(request_schema, dict):
+        raise ContractError(f"{name} request_schema must be an object")
+    required_request_fields = set(
+        str(field) for field in request_schema.get("required_fields", [])
+    )
+    for field in (
+        "local_request_id",
+        "pending_file",
+        "chain_file",
+        "draft_id",
+        "from_address",
+        "to_address",
+        "amount_base_units",
+        "fee_base_units",
+        "nonce",
+        "expires_at_height",
+    ):
+        if field not in required_request_fields:
+            raise ContractError(f"{name} request_schema missing {field}")
+    forbidden_request_fields = set(
+        str(field) for field in request_schema.get("forbidden_fields", [])
+    )
+    for field in (
+        "private_key",
+        "seed_phrase",
+        "mnemonic",
+        "signature",
+        "signed_transaction",
+    ):
+        if field not in forbidden_request_fields:
+            raise ContractError(f"{name} request_schema must forbid {field}")
+
+    accepted_schema = payload.get("accepted_response_schema")
+    if not isinstance(accepted_schema, dict):
+        raise ContractError(f"{name} accepted_response_schema must be an object")
+    if accepted_schema.get("status") != "pending":
+        raise ContractError(f"{name} accepted status must be pending")
+    if accepted_schema.get("mutation") != expected["accepted_mutation"]:
+        raise ContractError(f"{name} accepted mutation is wrong")
+    required_response_fields = set(
+        str(field) for field in accepted_schema.get("required_fields", [])
+    )
+    for field in (
+        "transaction",
+        "pending_state",
+        "chain_state",
+        "audit_event",
+    ):
+        if field not in required_response_fields:
+            raise ContractError(f"{name} accepted_response_schema missing {field}")
+
+    example = payload.get("example_accepted_response")
+    if not isinstance(example, dict):
+        raise ContractError(f"{name} example_accepted_response must be an object")
+    if example.get("code") != expected["accepted_code"]:
+        raise ContractError(f"{name} example accepted code is wrong")
+    if example.get("status") != "pending":
+        raise ContractError(f"{name} example status must be pending")
+    if example.get("mutation") != expected["accepted_mutation"]:
+        raise ContractError(f"{name} example mutation is wrong")
+    if example.get("audit_event_recorded") is not True:
+        raise ContractError(f"{name} example must record an audit event")
+
+    transaction = example.get("transaction")
+    if not isinstance(transaction, dict):
+        raise ContractError(f"{name} example transaction must be an object")
+    tx_hash = transaction.get("tx_hash")
+    if not isinstance(tx_hash, str) or not HASH_PATTERN.fullmatch(tx_hash):
+        raise ContractError(f"{name} example transaction tx_hash is invalid")
+    if transaction.get("status") != "pending":
+        raise ContractError(f"{name} example transaction status must be pending")
+    if transaction.get("block_height") is not None:
+        raise ContractError(f"{name} example pending transaction must not have block_height")
+    if transaction.get("transaction_index") is not None:
+        raise ContractError(f"{name} example pending transaction must not have transaction_index")
+
+    pending_state = example.get("pending_state")
+    if not isinstance(pending_state, dict):
+        raise ContractError(f"{name} example pending_state must be an object")
+    if pending_state.get("added_tx_hash") != tx_hash:
+        raise ContractError(f"{name} pending_state added_tx_hash must match transaction")
+    if pending_state.get("after_count") != pending_state.get("before_count") + 1:
+        raise ContractError(f"{name} pending_state must add exactly one transaction")
+
+    chain_state = example.get("chain_state")
+    if not isinstance(chain_state, dict):
+        raise ContractError(f"{name} example chain_state must be an object")
+    if chain_state.get("chain_unchanged") is not True:
+        raise ContractError(f"{name} accepted submit must not change chain state")
+
+    audit_event = example.get("audit_event")
+    if not isinstance(audit_event, dict):
+        raise ContractError(f"{name} example audit_event must be an object")
+    if audit_event.get("action") != expected["action"]:
+        raise ContractError(f"{name} example audit action is wrong")
+    if audit_event.get("resource_type") != expected["resource_type"]:
+        raise ContractError(f"{name} example audit resource type is wrong")
+    metadata = audit_event.get("metadata")
+    if not isinstance(metadata, dict):
+        raise ContractError(f"{name} example audit metadata must be an object")
+    for field in (
+        "endpoint",
+        "outcome",
+        "status",
+        "explicit_flag",
+        "local_request_id",
+        "draft_id",
+        "from_address",
+        "to_address",
+        "amount_base_units",
+        "fee_base_units",
+        "nonce",
+        "expires_at_height",
+        "pending_before_count",
+        "pending_after_count",
+        "added_tx_hash",
+        "chain_current_height",
+        "metadata_policy",
+    ):
+        if field not in metadata:
+            raise ContractError(f"{name} example audit metadata missing {field}")
+    if metadata.get("explicit_flag") != expected["explicit_flag"]:
+        raise ContractError(f"{name} example audit metadata explicit flag is wrong")
+    if metadata.get("outcome") != "accepted":
+        raise ContractError(f"{name} example audit metadata outcome must be accepted")
+    if metadata.get("status") != "pending":
+        raise ContractError(f"{name} example audit metadata status must be pending")
+    if metadata.get("added_tx_hash") != tx_hash:
+        raise ContractError(f"{name} example audit metadata added_tx_hash is wrong")
+
+    guards = payload.get("state_transition_guards")
+    if not isinstance(guards, list) or not guards:
+        raise ContractError(f"{name} state_transition_guards must be a non-empty list")
+    guard_text = "\n".join(str(guard) for guard in guards)
+    for required_guard in (
+        "default path remains refused and non-mutating",
+        "accepted path requires explicit local flag",
+        "accepted path requires configured local test sender",
+        "accepted path must not accept signing material or custody material",
+        "accepted path must append exactly one pending transaction to the local pending file",
+        "accepted path must not change chain state",
+        "accepted path must write an audit event before reporting success",
+    ):
+        if required_guard not in guard_text:
+            raise ContractError(f"{name} missing guard {required_guard!r}")
+
+
+def verify_phase1_2_wallet_submit_contract_fixtures() -> dict[str, int]:
+    if not PHASE1_2_FIXTURE_DIR.exists():
+        raise ContractError(f"Phase 1.2 fixture dir missing: {PHASE1_2_FIXTURE_DIR}")
+
+    for name, expected in REQUIRED_PHASE1_2_WALLET_SUBMIT_CONTRACT_FIXTURES.items():
+        verify_phase1_2_wallet_submit_contract_fixture(name, expected)
+
+    return {
+        "phase1_2_wallet_submit_contract_fixtures": len(
+            REQUIRED_PHASE1_2_WALLET_SUBMIT_CONTRACT_FIXTURES
+        )
+    }
+
+
 def main() -> int:
     schema_result = verify_schema()
     fixture_result = verify_fixtures()
     phase1_2_result = verify_phase1_2_preflight_fixtures()
     phase1_2_audit_result = verify_phase1_2_audit_expectation_fixtures()
     phase1_2_loop_result = verify_phase1_2_loop_contract_fixtures()
+    phase1_2_wallet_submit_result = verify_phase1_2_wallet_submit_contract_fixtures()
     report = {
         "ok": "xriq-phase1-1-contract-check",
         "schema": str(SCHEMA_PATH),
@@ -824,6 +1069,7 @@ def main() -> int:
         **phase1_2_result,
         **phase1_2_audit_result,
         **phase1_2_loop_result,
+        **phase1_2_wallet_submit_result,
     }
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0
