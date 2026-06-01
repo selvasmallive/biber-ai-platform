@@ -210,9 +210,16 @@ both the one-shot `xriq-api request` accepted path and a temporary
 files. The server smoke verifies the refreshed server state reports height `2`
 and mempool count `0` after block production.
 
-Recommended next implementation: add a tiny client/API type checkpoint for the
-accepted response or start the next local-only action contract, while keeping UI
-mutation controls disabled.
+Current client contract checkpoint: `xriq/apps/explorer-ui/src/api.ts` now
+defines the accepted local block-production response type, accepted-code,
+audit-scope and mutation constants, and
+`validateLocalBlockProductionAcceptedContract()`. The static UI guard requires
+those accepted-response markers, but no UI POST function or enabled mutation
+control is exposed.
+
+Recommended next implementation: start the next local-only action contract,
+likely accepted wallet submit/send preflight design, while keeping UI mutation
+controls disabled.
 
 ## Validation
 

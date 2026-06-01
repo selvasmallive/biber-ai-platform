@@ -242,7 +242,10 @@ the first accepted local path when `--enable-local-block-production true` is
 supplied with valid local request fields. The accepted path must remain
 local/private only and must not be exposed in UI mutation controls until a later
 explicit UI milestone. Local smoke covers both one-shot request mode and a
-temporary `serve-readonly` HTTP POST path on copied local state.
+temporary `serve-readonly` HTTP POST path on copied local state. The
+React/TypeScript API layer now has a typed accepted-response contract and
+validator for this local `201` response, but no UI function or enabled control
+posts the accepted mutation path.
 
 The admin audit response exposes these local refusal records separately from
 indexed audit rows:

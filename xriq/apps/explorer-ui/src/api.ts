@@ -276,6 +276,11 @@ export type WalletMutationAction = "submit" | "send";
 
 export const BLOCK_PRODUCTION_REFUSAL_ENDPOINT = "POST /api/v1/blocks/produce";
 const BLOCK_PRODUCTION_REFUSAL_PATH = "/api/v1/blocks/produce";
+export const LOCAL_BLOCK_PRODUCTION_ACCEPTED_CODE =
+  "block_production_accepted_local_only";
+export const LOCAL_BLOCK_PRODUCTION_ACCEPTED_AUDIT_SCOPE = "api-local-accepted";
+export const LOCAL_BLOCK_PRODUCTION_ACCEPTED_MUTATION =
+  "chain_and_pending_state_local_only";
 
 export interface LocalMutationRefusalResponse {
   environment: "private-devnet";
@@ -298,6 +303,71 @@ export interface LocalMutationRefusalResponse {
 }
 
 export type WalletMutationRefusalResponse = LocalMutationRefusalResponse;
+
+export interface LocalBlockProductionConfirmedTransaction {
+  tx_hash: string;
+  status: "confirmed";
+  block_height: number;
+  block_hash: string;
+  transaction_index: number;
+}
+
+export interface LocalBlockProductionAcceptedResponse {
+  environment: "private-devnet";
+  network: "xriq-devnet";
+  endpoint: typeof BLOCK_PRODUCTION_REFUSAL_ENDPOINT;
+  code: typeof LOCAL_BLOCK_PRODUCTION_ACCEPTED_CODE;
+  status: "confirmed";
+  mutation: typeof LOCAL_BLOCK_PRODUCTION_ACCEPTED_MUTATION;
+  warning: "local-private-devnet-only";
+  block: BlockSummary;
+  confirmed_transactions: LocalBlockProductionConfirmedTransaction[];
+  pending_state: {
+    before_count: number;
+    after_count: number;
+    removed_tx_hashes: string[];
+    pending_file: string;
+  };
+  chain_state: {
+    previous_height: number;
+    current_height: number;
+    chain_file: string;
+  };
+  audit_scope: typeof LOCAL_BLOCK_PRODUCTION_ACCEPTED_AUDIT_SCOPE;
+  audit_event_recorded: boolean;
+  audit_event: {
+    event_id: string;
+    actor: "local-private-devnet-operator";
+    action: "block_production_attempt";
+    resource_type: "block_production";
+    resource_id: string;
+    environment: "private-devnet";
+    metadata: {
+      endpoint: typeof BLOCK_PRODUCTION_REFUSAL_ENDPOINT;
+      outcome: "accepted";
+      status: "confirmed";
+      explicit_flag: "--enable-local-block-production";
+      local_request_id: string;
+      producer: string;
+      max_transactions: number;
+      timestamp_ms: number;
+      pending_before_count: number;
+      pending_after_count: number;
+      confirmed_transaction_count: number;
+      chain_previous_height: number;
+      chain_current_height: number;
+      metadata_policy: string;
+    };
+  };
+}
+
+export interface LocalBlockProductionAcceptedExpectations {
+  localRequestId?: string;
+  pendingFile?: string;
+  chainFile?: string;
+  producer?: string;
+  maxTransactions?: number;
+}
 
 export interface MempoolEntry {
   tx_hash: string;
@@ -654,6 +724,147 @@ export async function loadBlockProductionRefusal(
       acceptedStatuses: [403],
     },
   );
+}
+
+export function validateLocalBlockProductionAcceptedContract(
+  data: LocalBlockProductionAcceptedResponse,
+  expectations: LocalBlockProductionAcceptedExpectations = {},
+): string[] {
+  const errors: string[] = [];
+  const expectedLocalRequestId = expectations.localRequestId;
+  const expectedProducer =
+    expectations.producer ?? "xriqdev1author00000000000";
+  const expectedMaxTransactions = expectations.maxTransactions ?? 4;
+
+  if (data.environment !== "private-devnet") {
+    errors.push("environment must be private-devnet");
+  }
+  if (data.network !== "xriq-devnet") {
+    errors.push("network must be xriq-devnet");
+  }
+  if (data.endpoint !== BLOCK_PRODUCTION_REFUSAL_ENDPOINT) {
+    errors.push("block production accepted endpoint marker is missing");
+  }
+  if (data.code !== LOCAL_BLOCK_PRODUCTION_ACCEPTED_CODE) {
+    errors.push(`code must be ${LOCAL_BLOCK_PRODUCTION_ACCEPTED_CODE}`);
+  }
+  if (data.status !== "confirmed") {
+    errors.push("status must be confirmed");
+  }
+  if (data.mutation !== LOCAL_BLOCK_PRODUCTION_ACCEPTED_MUTATION) {
+    errors.push(`mutation must be ${LOCAL_BLOCK_PRODUCTION_ACCEPTED_MUTATION}`);
+  }
+  if (data.warning !== "local-private-devnet-only") {
+    errors.push("warning must be local-private-devnet-only");
+  }
+  if (data.audit_scope !== LOCAL_BLOCK_PRODUCTION_ACCEPTED_AUDIT_SCOPE) {
+    errors.push(`audit_scope must be ${LOCAL_BLOCK_PRODUCTION_ACCEPTED_AUDIT_SCOPE}`);
+  }
+  if (!data.audit_event_recorded) {
+    errors.push("audit_event_recorded must be true");
+  }
+  if (data.block.height !== data.chain_state.current_height) {
+    errors.push("block height must match chain_state current_height");
+  }
+  if (data.chain_state.current_height !== data.chain_state.previous_height + 1) {
+    errors.push("chain_state must advance exactly one block");
+  }
+  if (data.block.transaction_count !== data.confirmed_transactions.length) {
+    errors.push("block transaction_count must match confirmed_transactions length");
+  }
+  if (data.pending_state.after_count > data.pending_state.before_count) {
+    errors.push("pending after_count must not exceed before_count");
+  }
+  if (
+    data.pending_state.removed_tx_hashes.length !==
+    data.confirmed_transactions.length
+  ) {
+    errors.push("removed pending hashes must match confirmed transaction count");
+  }
+  for (const transaction of data.confirmed_transactions) {
+    if (transaction.status !== "confirmed") {
+      errors.push("confirmed transaction status must be confirmed");
+    }
+    if (transaction.block_height !== data.block.height) {
+      errors.push("confirmed transaction block_height must match block height");
+    }
+    if (transaction.block_hash !== data.block.block_hash) {
+      errors.push("confirmed transaction block_hash must match block hash");
+    }
+    if (!data.pending_state.removed_tx_hashes.includes(transaction.tx_hash)) {
+      errors.push(`confirmed transaction was not removed from pending: ${transaction.tx_hash}`);
+    }
+  }
+  if (expectations.pendingFile && data.pending_state.pending_file !== expectations.pendingFile) {
+    errors.push("pending_file does not match expected local smoke file");
+  }
+  if (expectations.chainFile && data.chain_state.chain_file !== expectations.chainFile) {
+    errors.push("chain_file does not match expected local smoke file");
+  }
+
+  const audit = data.audit_event;
+  const metadata = audit.metadata;
+  if (audit.actor !== "local-private-devnet-operator") {
+    errors.push("audit actor must be local-private-devnet-operator");
+  }
+  if (audit.action !== "block_production_attempt") {
+    errors.push("audit action must be block_production_attempt");
+  }
+  if (audit.resource_type !== "block_production") {
+    errors.push("audit resource_type must be block_production");
+  }
+  if (audit.environment !== "private-devnet") {
+    errors.push("audit environment must be private-devnet");
+  }
+  if (expectedLocalRequestId) {
+    if (audit.resource_id !== expectedLocalRequestId) {
+      errors.push("audit resource_id does not match expected local_request_id");
+    }
+    if (audit.event_id !== `block-production:${expectedLocalRequestId}`) {
+      errors.push("audit event_id does not match expected local_request_id");
+    }
+    if (metadata.local_request_id !== expectedLocalRequestId) {
+      errors.push("audit metadata local_request_id does not match expected value");
+    }
+  }
+  if (metadata.endpoint !== BLOCK_PRODUCTION_REFUSAL_ENDPOINT) {
+    errors.push("audit metadata endpoint marker is missing");
+  }
+  if (metadata.outcome !== "accepted") {
+    errors.push("audit metadata outcome must be accepted");
+  }
+  if (metadata.status !== "confirmed") {
+    errors.push("audit metadata status must be confirmed");
+  }
+  if (metadata.explicit_flag !== "--enable-local-block-production") {
+    errors.push("audit metadata explicit flag is wrong");
+  }
+  if (metadata.producer !== expectedProducer) {
+    errors.push("audit metadata producer is wrong");
+  }
+  if (metadata.max_transactions !== expectedMaxTransactions) {
+    errors.push("audit metadata max_transactions is wrong");
+  }
+  if (metadata.pending_before_count !== data.pending_state.before_count) {
+    errors.push("audit metadata pending_before_count must match pending_state");
+  }
+  if (metadata.pending_after_count !== data.pending_state.after_count) {
+    errors.push("audit metadata pending_after_count must match pending_state");
+  }
+  if (metadata.confirmed_transaction_count !== data.confirmed_transactions.length) {
+    errors.push("audit metadata confirmed_transaction_count must match response rows");
+  }
+  if (metadata.chain_previous_height !== data.chain_state.previous_height) {
+    errors.push("audit metadata chain_previous_height must match chain_state");
+  }
+  if (metadata.chain_current_height !== data.chain_state.current_height) {
+    errors.push("audit metadata chain_current_height must match chain_state");
+  }
+  if (!metadata.metadata_policy.includes("no signing material")) {
+    errors.push("audit metadata policy must forbid signing material");
+  }
+
+  return errors;
 }
 
 export async function loadIsoPaymentInitiationPreview(

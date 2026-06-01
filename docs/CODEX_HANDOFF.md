@@ -235,7 +235,7 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `43%` overall after the initial
+- Phase 1.2 estimated completion: about `44%` overall after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
   submit/send, React/client disabled-action guard coverage, and audit-event
@@ -246,9 +246,9 @@ unless the user changes the project scope again.
   guard coverage for block production, plus the first pending-to-confirmed loop
   contract and Rust/API-side local block-production path behind explicit
   local/private-devnet enablement. It is not a public launch phase. Its current
-  target is hardening that first local accepted path through serve-readonly
-  smoke/docs before any broad wallet-submit, snapshot-mutation, DEX, custody,
-  public network behavior, or UI mutation controls are implemented.
+  target is hardening that first local accepted path through typed client
+  contracts and docs before any broad wallet-submit, snapshot-mutation, DEX,
+  custody, public network behavior, or UI mutation controls are implemented.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -297,10 +297,26 @@ to save cost.
   `xriq/target/xriq-phase1-2-local-block-production-smoke-20260601T0620Z/api/block-production-accepted-local-server.json`,
   then verifies both copied pending files are cleared while the original smoke
   pending file stays unchanged. It also verifies the enabled local server
-  refreshes to height `2` and mempool count `0` after the POST. Next narrow
-  step: add a tiny client/API type checkpoint for the accepted response or
-  begin the next local-only action contract, still without enabling UI mutation
-  controls.
+  refreshes to height `2` and mempool count `0` after the POST. Superseded by
+  the client accepted-response type checkpoint below.
+- Latest native XRIQ Phase 1.2 client accepted-response type checkpoint:
+  the React/TypeScript API layer now defines
+  `LocalBlockProductionAcceptedResponse`,
+  `LocalBlockProductionConfirmedTransaction`, accepted-code/audit-scope/mutation
+  constants, and `validateLocalBlockProductionAcceptedContract()` in
+  `xriq/apps/explorer-ui/src/api.ts`. This gives future UI or smoke tooling a
+  typed contract for the already-implemented local block-production `201`
+  response, including confirmed transactions, pending-state transition,
+  chain-state transition, and API-local accepted audit metadata. The static UI
+  guard in `xriq/apps/explorer-ui/scripts/check-static.mjs` now requires those
+  accepted-response markers. This checkpoint intentionally does not add a UI
+  POST function, does not add an enabled `Produce Block` control, and does not
+  change the Admin UI default disabled guard behavior. Verification passed
+  `npm.cmd run check` and escalated `npm.cmd run build` after the sandboxed
+  build hit a Windows Vite/esbuild config access denial. Next narrow step:
+  begin the next local-only action contract, likely wallet submit/send accepted
+  preflight design, or add focused docs around when UI mutation controls may be
+  enabled.
 - Latest native XRIQ Phase 1.2 Admin UI block-production guard checkpoint:
   the React Admin Status panel now includes `Admin Action Guards` with a
   disabled `Produce Block` control and an explicit `Check Guard` action. The
@@ -539,11 +555,12 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: add a tiny client/API type checkpoint for the
-  accepted block-production response or begin the next local-only action
-  contract. Keep accepted wallet submission, UI mutation controls, snapshot
-  import/export mutation, DEX, smart contracts, public mainnet, custody,
-  bridges, exchange listings, and production infrastructure out of scope.
+- Recommended next narrow step: begin the next local-only action contract,
+  likely accepted wallet submit/send preflight design, or add focused docs
+  around when UI mutation controls may be enabled. Keep accepted wallet
+  submission, UI mutation controls, snapshot import/export mutation, DEX, smart
+  contracts, public mainnet, custody, bridges, exchange listings, and
+  production infrastructure out of scope until explicitly approved.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return

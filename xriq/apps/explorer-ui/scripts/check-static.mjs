@@ -68,6 +68,27 @@ for (const route of [
   }
 }
 
+for (const requiredText of [
+  "LocalBlockProductionAcceptedResponse",
+  "LocalBlockProductionConfirmedTransaction",
+  "LocalBlockProductionAcceptedExpectations",
+  "validateLocalBlockProductionAcceptedContract",
+  "LOCAL_BLOCK_PRODUCTION_ACCEPTED_CODE",
+  "LOCAL_BLOCK_PRODUCTION_ACCEPTED_AUDIT_SCOPE",
+  "LOCAL_BLOCK_PRODUCTION_ACCEPTED_MUTATION",
+  "block_production_accepted_local_only",
+  "chain_and_pending_state_local_only",
+  "api-local-accepted",
+  "confirmed_transactions",
+  "pending_state",
+  "chain_state",
+  "metadata_policy",
+]) {
+  if (!apiSource.includes(requiredText)) {
+    throw new Error(`missing accepted block-production API marker: ${requiredText}`);
+  }
+}
+
 const appSource = readFileSync(join(root, "src/App.tsx"), "utf8");
 for (const requiredText of [
   "XRIQ Private Devnet",
