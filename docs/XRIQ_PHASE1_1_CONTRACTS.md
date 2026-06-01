@@ -429,6 +429,9 @@ validated against the local Docker Postgres service:
    claims. Before starting mutating wallet submit, block-production, snapshot
    import/export, DEX, or smart-contract work, use the Phase 1.1 RC readiness
    checklist and route-parity matrix in `docs/XRIQ_PHASE1_1_RC_READINESS.md`.
+   Also review the RC candidate report in
+   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md` before any Phase 1.1 RC tag
+   decision.
    The cheap guardrail is
    `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`.
 7. If host `psql` is unavailable but Docker Desktop is running, use

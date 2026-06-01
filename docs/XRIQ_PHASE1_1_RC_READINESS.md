@@ -140,7 +140,9 @@ Do not start these from a generic continuation request:
 
 ## Recommended Next Step After This Checklist
 
-Run the readiness checker against the latest Docker live smoke summary, commit
-the checklist checkpoint, and ask the user for explicit approval before any
-Phase 1.1 RC tag proposal. If any route, artifact, or guardrail is missing,
-fix that gap first instead of moving into mutating features.
+Use the Phase 1.1 RC candidate report at
+`docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md` before any tag decision. The
+proposed tag is `phase1-1-xriq-local-e2e-rc1`, but it must not be created,
+moved, or pushed without explicit user approval naming that tag. If any route,
+artifact, or guardrail is missing, fix that gap first instead of moving into
+mutating features.

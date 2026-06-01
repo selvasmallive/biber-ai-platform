@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `94%` overall. Current Rust
+- Phase 1.1 estimated completion: about `95%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -220,6 +220,10 @@ unless the user changes the project scope again.
   read model. The Phase 1.1 RC readiness checklist and route-parity matrix now
   live at `docs/XRIQ_PHASE1_1_RC_READINESS.md`, with a cheap static/latest-smoke
   guardrail at `scripts/xriq_phase1_1_rc_readiness.py --latest-summary`.
+  The Phase 1.1 RC candidate report now lives at
+  `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
+  `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
+  approval naming that tag.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -238,6 +242,15 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 RC candidate report checkpoint: added
+  `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md` as the candidate summary for the
+  current local/private end-to-end scope, latest Docker live smoke artifact,
+  readiness guardrail evidence, non-production exclusions, and the exact
+  approval phrase required before any Phase 1.1 RC tag. The proposed tag is
+  `phase1-1-xriq-local-e2e-rc1`. No tag was created, moved, or pushed by this
+  checkpoint. The next narrow decision is whether the user explicitly approves
+  creating and pushing that tag, or asks for one more local/private fix before
+  tagging. Phase 1.1 status is now about `95%` overall.
 - Latest native XRIQ Phase 1.1 RC readiness checkpoint: added
   `docs/XRIQ_PHASE1_1_RC_READINESS.md` with the local/private RC go/no-go
   checklist, route-parity matrix, deferred no-go surfaces, validation commands,
@@ -248,10 +261,10 @@ active target because the GPU was terminated to save cost.
   Docker live smoke summary via `--latest-summary`. Verification passed
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
-  `git diff --check`. Phase 1.1 status is now about `94%` overall.
-- Recommended next narrow step: create a short Phase 1.1 RC candidate report
-  from the readiness checklist and latest Docker live smoke artifact, then ask
-  the user for explicit approval before creating any Phase 1.1 RC tag.
+  `git diff --check`. Phase 1.1 status was about `94%` overall.
+- Recommended next narrow step: ask the user whether to explicitly approve the
+  Phase 1.1 RC tag `phase1-1-xriq-local-e2e-rc1` or continue with one more
+  local/private gap fix. Do not tag from a generic "continue" request.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return

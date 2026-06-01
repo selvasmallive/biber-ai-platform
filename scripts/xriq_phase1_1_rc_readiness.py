@@ -73,24 +73,38 @@ REQUIRED_COMPLETED_STEPS = [
 REQUIRED_DOC_REFERENCES = {
     "README.md": [
         "docs/XRIQ_PHASE1_1_RC_READINESS.md",
+        "docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md",
         "scripts/xriq_phase1_1_rc_readiness.py --latest-summary",
     ],
     "xriq/README.md": [
         "../docs/XRIQ_PHASE1_1_RC_READINESS.md",
+        "../docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md",
         "scripts/xriq_phase1_1_rc_readiness.py --latest-summary",
     ],
     "docs/CODEX_HANDOFF.md": [
         "docs/XRIQ_PHASE1_1_RC_READINESS.md",
+        "docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md",
         "scripts/xriq_phase1_1_rc_readiness.py --latest-summary",
-        "Phase 1.1 estimated completion: about `94%`",
+        "Phase 1.1 estimated completion: about `95%`",
+        "phase1-1-xriq-local-e2e-rc1",
     ],
     "docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md": [
         "docs/XRIQ_PHASE1_1_RC_READINESS.md",
+        "docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md",
         "route-parity matrix",
     ],
     "docs/XRIQ_PHASE1_1_CONTRACTS.md": [
         "docs/XRIQ_PHASE1_1_RC_READINESS.md",
+        "docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md",
         "route-parity matrix",
+    ],
+    "docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md": [
+        "phase1-1-xriq-local-e2e-rc1",
+        "I explicitly approve creating and pushing the Phase 1.1 RC tag phase1-1-xriq-local-e2e-rc1.",
+        "Do not tag from a generic continue request.",
+        "xriq-phase1-1-local-e2e-smoke-20260531T223438Z",
+        "not_certified: true",
+        "No RC tag has been created by this report.",
     ],
 }
 

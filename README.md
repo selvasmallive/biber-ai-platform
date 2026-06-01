@@ -359,6 +359,12 @@ python scripts\xriq_phase1_1_rc_readiness.py --latest-summary
 
 Portable command form: `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`.
 
+The Phase 1.1 RC candidate report is in
+`docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`. It proposes
+`phase1-1-xriq-local-e2e-rc1`, but that tag must not be created unless the
+user explicitly says:
+`I explicitly approve creating and pushing the Phase 1.1 RC tag phase1-1-xriq-local-e2e-rc1.`
+
 The same live smoke verifies the first explicit Postgres-backed API read paths,
 including `/api/v1/admin/postgres/read-model-status` and the opt-in
 Postgres-backed `/api/v1/admin/node/status`, `/api/v1/admin/indexer/status`,
