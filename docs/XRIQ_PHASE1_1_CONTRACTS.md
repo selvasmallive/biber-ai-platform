@@ -221,6 +221,22 @@ same stable `403` disabled/refused shape for `POST /api/v1/blocks/produce` and
 admin audit visibility includes the deterministic
 `block-production:local_request_id` local refusal record.
 
+The future pending-to-confirmed loop is defined first as a contract-only
+fixture, not as enabled behavior:
+
+```text
+xriq/fixtures/phase1_2/pending-to-confirmed-loop-contract.json
+```
+
+That contract keeps the default outcome refused, references
+`block-production-disabled.json`, requires `--enable-local-block-production`,
+requires local-private-devnet mode, requires a test identity producer, forbids
+signing material in requests, requires audit events, and defines the future
+accepted response shape for a confirmed block, confirmed transaction rows,
+pending-file cleanup, chain-file height transition, and audit event metadata.
+The accepted path must remain local/private only and must not be exposed in UI
+mutation controls until Rust tests and local smoke prove the transition.
+
 The admin audit response exposes these local refusal records separately from
 indexed audit rows:
 

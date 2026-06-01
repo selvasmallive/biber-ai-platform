@@ -434,8 +434,8 @@ def main(argv: list[str] | None = None) -> int:
                 "block_production_disabled_by_default",
             ],
             "next": (
-                "add UI/client disabled block-production guard coverage "
-                "before any successful local block production path"
+                "implement the local pending-to-confirmed loop behind explicit "
+                "local-private-devnet gates after the contract fixture is stable"
             ),
         }
         (artifact_dir / "summary.json").write_text(

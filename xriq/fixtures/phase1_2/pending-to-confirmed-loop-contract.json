@@ -1,0 +1,179 @@
+{
+  "environment": "private-devnet",
+  "network": "xriq-devnet",
+  "endpoint": "POST /api/v1/blocks/produce",
+  "contract": "pending-to-confirmed-loop-v1",
+  "status": "contract-only",
+  "implementation_status": "not_enabled",
+  "default_outcome": "refused",
+  "accepted_outcome": "confirmed-block-after-explicit-local-flag",
+  "mutation": "none-until-explicit-local-enable",
+  "warning": "local-private-devnet-only",
+  "default_refusal": {
+    "fixture": "block-production-disabled.json",
+    "code": "block_production_disabled",
+    "mutation": "none",
+    "status": "disabled"
+  },
+  "required_enablement": {
+    "mode": "local-private-devnet",
+    "explicit_flag": "--enable-local-block-production",
+    "audit_event_required": true,
+    "test_identity_only": true
+  },
+  "request_schema": {
+    "required_fields": [
+      "local_request_id",
+      "pending_file",
+      "chain_file",
+      "producer",
+      "max_transactions",
+      "timestamp_ms"
+    ],
+    "optional_fields": [
+      "expected_pending_tx_hashes",
+      "dry_run"
+    ],
+    "forbidden_fields": [
+      "private_key",
+      "seed_phrase",
+      "mnemonic",
+      "signature",
+      "signed_transaction"
+    ],
+    "guards": [
+      "local_request_id is required for audit correlation",
+      "pending_file must be a local private-devnet pending file",
+      "chain_file must be a local private-devnet chain file",
+      "producer must be a configured local test identity",
+      "max_transactions must be a positive bounded integer",
+      "timestamp_ms must be deterministic or explicitly provided for tests",
+      "dry_run must not mutate chain or pending state"
+    ]
+  },
+  "accepted_response_schema": {
+    "required_fields": [
+      "environment",
+      "network",
+      "endpoint",
+      "status",
+      "mutation",
+      "warning",
+      "block",
+      "confirmed_transactions",
+      "pending_state",
+      "chain_state",
+      "audit_event_recorded",
+      "audit_event"
+    ],
+    "status": "confirmed",
+    "mutation": "chain_and_pending_state_local_only",
+    "block_fields": [
+      "height",
+      "block_hash",
+      "previous_block_hash",
+      "state_root",
+      "transactions_root",
+      "transaction_count",
+      "timestamp_utc"
+    ],
+    "confirmed_transaction_fields": [
+      "tx_hash",
+      "status",
+      "block_height",
+      "block_hash",
+      "transaction_index"
+    ],
+    "pending_state_fields": [
+      "before_count",
+      "after_count",
+      "removed_tx_hashes",
+      "pending_file"
+    ],
+    "chain_state_fields": [
+      "previous_height",
+      "current_height",
+      "chain_file"
+    ]
+  },
+  "example_accepted_response": {
+    "environment": "private-devnet",
+    "network": "xriq-devnet",
+    "endpoint": "POST /api/v1/blocks/produce",
+    "status": "confirmed",
+    "mutation": "chain_and_pending_state_local_only",
+    "warning": "local-private-devnet-only",
+    "block": {
+      "height": 2,
+      "block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "previous_block_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "state_root": "3333333333333333333333333333333333333333333333333333333333333333",
+      "transactions_root": "4444444444444444444444444444444444444444444444444444444444444444",
+      "transaction_count": 1,
+      "timestamp_utc": "1970-01-01T00:00:02Z"
+    },
+    "confirmed_transactions": [
+      {
+        "tx_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "confirmed",
+        "block_height": 2,
+        "block_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+        "transaction_index": 0
+      }
+    ],
+    "pending_state": {
+      "before_count": 1,
+      "after_count": 0,
+      "removed_tx_hashes": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "pending_file": "target/xriq-devnet-pending.tsv"
+    },
+    "chain_state": {
+      "previous_height": 1,
+      "current_height": 2,
+      "chain_file": "target/xriq-devnet.bin"
+    },
+    "audit_event_recorded": true,
+    "audit_event": {
+      "event_id": "block-production:local_request_id",
+      "actor": "local-private-devnet-operator",
+      "action": "block_production_attempt",
+      "resource_type": "block_production",
+      "resource_id": "local_request_id",
+      "environment": "private-devnet",
+      "metadata": {
+        "endpoint": "POST /api/v1/blocks/produce",
+        "outcome": "accepted",
+        "status": "confirmed",
+        "explicit_flag": "--enable-local-block-production",
+        "local_request_id": "local_request_id",
+        "producer": "xriqdev1alice00000000000",
+        "max_transactions": 25,
+        "timestamp_ms": 2000,
+        "pending_before_count": 1,
+        "pending_after_count": 0,
+        "confirmed_transaction_count": 1,
+        "chain_previous_height": 1,
+        "chain_current_height": 2,
+        "metadata_policy": "request fields and local state transition summary only; no signing material"
+      }
+    }
+  },
+  "state_transition_guards": [
+    "default path remains refused and non-mutating",
+    "accepted path requires explicit local flag",
+    "accepted path requires local private-devnet mode",
+    "accepted path requires test identity producer",
+    "accepted path must remove only confirmed transactions from pending state",
+    "accepted path must append exactly one block to the local chain file",
+    "accepted path must return confirmed transaction hashes only after mutation succeeds",
+    "accepted path must write an audit event before reporting success",
+    "accepted path must be covered by local smoke before UI mutation controls are enabled"
+  ],
+  "ui_guards": [
+    "Admin UI remains disabled until accepted path smoke passes",
+    "Wallet UI remains read-only until pending submission and block production are both audited",
+    "No public or production controls are exposed"
+  ]
+}

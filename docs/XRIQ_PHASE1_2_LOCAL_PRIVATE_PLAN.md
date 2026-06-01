@@ -189,11 +189,21 @@ contract, shows `block_production_disabled`,
 production action disabled. The admin audit section also surfaces the local
 block-production refusal audit record.
 
-Recommended next implementation: start the first local pending-to-confirmed
-loop contract/implementation path behind explicit local-private-devnet gates.
-Begin with request/response shape, test-identity-only validation, audit
-expectations, and refusal/disabled coverage before accepting any successful
-pending or chain mutation.
+Current pending-to-confirmed loop contract checkpoint:
+`xriq/fixtures/phase1_2/pending-to-confirmed-loop-contract.json` defines the
+first contract-only shape for the future local action that turns pending
+transactions into a confirmed private-devnet block. It is explicitly
+`not_enabled`, keeps the default outcome refused through
+`block-production-disabled.json`, requires `--enable-local-block-production`,
+requires audit events, requires a local test identity producer, forbids signing
+material in requests, defines the accepted response shape, and documents the
+chain/pending state-transition guards. `scripts/xriq_phase1_1_contract_check.py`
+validates this fixture. It still does not enable successful mutation.
+
+Recommended next implementation: wire the first API-side local
+pending-to-confirmed implementation behind explicit local-private-devnet gates.
+Start with a disabled/default path plus a focused local-only success path in
+Rust tests before exposing any UI mutation controls.
 
 ## Validation
 

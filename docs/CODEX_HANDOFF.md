@@ -233,7 +233,7 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `36%` overall after the initial
+- Phase 1.2 estimated completion: about `38%` overall after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
   submit/send, React/client disabled-action guard coverage, and audit-event
@@ -241,11 +241,12 @@ unless the user changes the project scope again.
   visibility for future submit/send attempts, and disabled block-production
   preflight/audit fixtures plus the API-level disabled/refused response and
   audit visibility for block-production attempts, plus Admin UI/client disabled
-  guard coverage for block production. It is not a public launch phase. Its
-  current target is the first local pending-to-confirmed contract and
-  implementation path behind explicit local/private-devnet gates before any
-  broad wallet-submit, block-production, snapshot-mutation, DEX, custody, or
-  public network behavior is implemented.
+  guard coverage for block production, plus the first contract-only
+  pending-to-confirmed loop fixture. It is not a public launch phase. Its
+  current target is the first Rust/API-side local pending-to-confirmed
+  implementation behind explicit local/private-devnet gates before any broad
+  wallet-submit, block-production, snapshot-mutation, DEX, custody, or public
+  network behavior is implemented.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -265,6 +266,27 @@ after the completed private-devnet RC1 and Phase 1.1 local/e2e RC1 tags. The
 previous Vast deployment is not an active target because the GPU was terminated
 to save cost.
 
+- Latest native XRIQ Phase 1.2 pending-to-confirmed loop contract checkpoint:
+  `xriq/fixtures/phase1_2/pending-to-confirmed-loop-contract.json` now defines
+  the first contract-only shape for the future local path that produces a
+  private-devnet block from pending transactions and returns confirmed block,
+  confirmed transaction, pending-state, chain-state, and audit metadata. The
+  fixture is explicitly `implementation_status: "not_enabled"`, keeps the
+  default outcome refused through `block-production-disabled.json`, requires
+  `--enable-local-block-production`, requires local/private-devnet mode,
+  requires a test identity producer, requires audit events, forbids signing
+  material in the request, and keeps UI mutation controls disabled until Rust
+  tests and local smoke prove the transition. This checkpoint still does not
+  enable successful wallet submit/send, produce blocks through the product API,
+  confirm pending transactions through the product API, change chain state,
+  change pending state, sign, custody, DEX/smart contracts, or public network
+  behavior. Verification passed bundled-Python `py_compile`,
+  `scripts/xriq_phase1_1_contract_check.py`, and existing Phase 1.2 refusal
+  smoke with artifact
+  `xriq/target/xriq-phase1-2-refusal-smoke-20260601T053737Z/summary.json`.
+  Next narrow step: wire the first Rust/API-side local-only pending-to-confirmed
+  implementation behind explicit enablement, starting with focused tests and no
+  UI mutation controls.
 - Latest native XRIQ Phase 1.2 Admin UI block-production guard checkpoint:
   the React Admin Status panel now includes `Admin Action Guards` with a
   disabled `Produce Block` control and an explicit `Check Guard` action. The
