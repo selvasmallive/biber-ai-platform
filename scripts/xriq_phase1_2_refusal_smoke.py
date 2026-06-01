@@ -187,7 +187,10 @@ def main(argv: list[str] | None = None) -> int:
                 "test_identity_only",
                 "no_signing_or_custody_fields",
             ],
-            "next": "add API-level refusal behavior before any successful local mutation path",
+            "next": (
+                "add UI/client refusal coverage before any successful "
+                "local mutation path"
+            ),
         }
         (artifact_dir / "summary.json").write_text(
             json.dumps(summary, indent=2, sort_keys=True) + "\n",

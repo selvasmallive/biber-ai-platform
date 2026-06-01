@@ -210,6 +210,48 @@ def assert_api_status(
     return payload
 
 
+def assert_api_method_status(
+    api_binary: Path,
+    xriq_dir: Path,
+    chain_file: Path,
+    pending_file: Path,
+    method: str,
+    target: str,
+    expected_status: int,
+    artifact_path: Path,
+    validate: Callable[[dict[str, Any]], None],
+) -> dict[str, Any]:
+    output = run_command(
+        f"xriq-api {method} {target}",
+        [
+            str(api_binary),
+            "request",
+            "--chain-file",
+            str(chain_file),
+            "--pending-file",
+            str(pending_file),
+            "--alice-balance",
+            "100",
+            "--method",
+            method,
+            "--target",
+            target,
+        ],
+        cwd=xriq_dir,
+    )
+    status_code, reason, payload = parse_api_request_output(output, f"{method} {target}")
+    if status_code != expected_status:
+        raise SmokeError(
+            f"{method} {target}: expected HTTP {expected_status}, got "
+            f"{status_code} {reason}: {payload}"
+        )
+    if "environment" in payload:
+        require_equal(payload, "environment", "private-devnet", f"{method} {target}")
+    validate(payload)
+    write_json(artifact_path, payload)
+    return payload
+
+
 def npm_command() -> str:
     return "npm.cmd" if sys.platform.startswith("win") else "npm"
 
@@ -2800,6 +2842,26 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             validate,
         )
 
+    def check_method_status(
+        method: str,
+        target: str,
+        name: str,
+        expected_status: int,
+        validate: Callable[[dict[str, Any]], None],
+    ) -> dict[str, Any]:
+        failure_routes_checked.append(f"{method} {target}")
+        return assert_api_method_status(
+            api_binary,
+            xriq_dir,
+            chain_file,
+            pending_file,
+            method,
+            target,
+            expected_status,
+            api_artifact_dir / f"{name}.json",
+            validate,
+        )
+
     def validate_health(payload: dict[str, Any]) -> None:
         require_equal(payload, "ok", True, "health")
         require_equal(payload, "service", "xriq-api", "health")
@@ -2959,6 +3021,74 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 f"{message!r}"
             )
 
+    def validate_disabled_wallet_mutation(
+        payload: dict[str, Any],
+        context: str,
+        expected_endpoint: str,
+        expected_code: str,
+        expected_flag: str,
+        expected_guard: str,
+    ) -> None:
+        require_equal(payload, "network", "xriq-devnet", context)
+        require_equal(payload, "endpoint", expected_endpoint, context)
+        require_equal(payload, "enabled", False, context)
+        require_equal(payload, "mutation", "none", context)
+        require_equal(payload, "status", "disabled", context)
+        require_equal(payload, "code", expected_code, context)
+        require_equal(payload, "warning", "local-private-devnet-preflight-only", context)
+        enablement = payload.get("required_enablement")
+        if not isinstance(enablement, dict):
+            raise SmokeError(f"{context}: expected required_enablement object")
+        require_equal(enablement, "mode", "local-private-devnet", context)
+        require_equal(enablement, "explicit_flag", expected_flag, context)
+        require_equal(enablement, "audit_event_required", True, context)
+        require_equal(enablement, "test_identity_only", True, context)
+        request_fields = require_list(payload.get("request_fields"), context)
+        for required_field in [
+            "draft_id",
+            "from_address",
+            "to_address",
+            "amount_base_units",
+            "fee_base_units",
+            "nonce",
+            "expires_at_height",
+        ]:
+            if required_field not in request_fields:
+                raise SmokeError(f"{context}: missing request field {required_field}")
+        refusal_guards = require_list(payload.get("refusal_guards"), context)
+        guard_text = "\n".join(str(guard) for guard in refusal_guards)
+        for required_guard in [
+            "default mode refuses mutation",
+            "signing material is not accepted",
+            "custody is not supported",
+            expected_guard,
+        ]:
+            if required_guard not in guard_text:
+                raise SmokeError(f"{context}: missing refusal guard {required_guard!r}")
+        for forbidden_key in ["tx_hash", "private_key", "seed_phrase", "mnemonic"]:
+            if forbidden_key in payload:
+                raise SmokeError(f"{context}: forbidden response key {forbidden_key}")
+
+    def validate_wallet_submit_disabled(payload: dict[str, Any]) -> None:
+        validate_disabled_wallet_mutation(
+            payload,
+            "wallet submit disabled",
+            "POST /api/v1/wallet/transfers/submit",
+            "wallet_submit_disabled",
+            "--enable-local-wallet-submit",
+            "audit event is required before any future accepted mutation",
+        )
+
+    def validate_wallet_send_disabled(payload: dict[str, Any]) -> None:
+        validate_disabled_wallet_mutation(
+            payload,
+            "wallet send disabled",
+            "POST /api/v1/wallet/transfers/send",
+            "wallet_send_disabled",
+            "--enable-local-wallet-send",
+            "pending state is not changed",
+        )
+
     def validate_node_status(payload: dict[str, Any]) -> None:
         require_equal(payload, "mode", "serve-readonly", "node status")
         require_equal(payload, "pending_transactions", 1, "node status")
@@ -3075,6 +3205,20 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         400,
         validate_malformed_draft_request,
     )
+    check_method_status(
+        "POST",
+        "/api/v1/wallet/transfers/submit",
+        "wallet-submit-disabled",
+        403,
+        validate_wallet_submit_disabled,
+    )
+    check_method_status(
+        "POST",
+        "/api/v1/wallet/transfers/send",
+        "wallet-send-disabled",
+        403,
+        validate_wallet_send_disabled,
+    )
     check("/api/v1/admin/node/status", "admin-node-status", validate_node_status)
     check("/api/v1/admin/indexer/status", "admin-indexer-status", validate_indexer)
     check("/api/v1/admin/audit-events?limit=5", "admin-audit-events", validate_audit)
@@ -3097,6 +3241,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     )
     completed.append("product API route smoke")
     completed.append("wallet draft failure smoke")
+    completed.append("wallet mutation refusal smoke")
 
     summary = {
         "ok": "xriq-phase1-1-local-e2e-smoke",

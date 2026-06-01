@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-05-31
+Last updated: 2026-06-01
 
 ## Current Goal
 
@@ -20,7 +20,7 @@ up locally, so future sessions must not assume `/workspace`, vLLM, FastAPI, or
 live Vast SSH access exists unless the user provides a fresh instance.
 
 - Current focus:
-  - Active focus as of 2026-05-31: start XRIQ Phase 1.2 local/private
+  - Active focus as of 2026-06-01: continue XRIQ Phase 1.2 local/private
     post-RC hardening after the completed Phase 1.1 RC1 tag. Use
     `docs/XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md` as the scope boundary.
   - Phase 2, after Phase 1: BIBER MVP/local model API, model registry, repo
@@ -233,11 +233,13 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `10%` overall after the initial
-  local/private scope plan, disabled wallet submit/send preflight fixtures, and
-  refusal-smoke guardrail. It is not a public launch phase. Its current target
-  is API-level refusal behavior before any wallet-submit, block-production,
-  snapshot-mutation, DEX, custody, or public network behavior is implemented.
+- Phase 1.2 estimated completion: about `15%` overall after the initial
+  local/private scope plan, disabled wallet submit/send preflight fixtures,
+  refusal-smoke guardrail, and API-level disabled/refused responses for wallet
+  submit/send. It is not a public launch phase. Its current target is
+  UI/client-level disabled-action coverage before any successful wallet-submit,
+  block-production, snapshot-mutation, DEX, custody, or public network behavior
+  is implemented.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -251,12 +253,38 @@ unless the user changes the project scope again.
 
 ## Immediate Resume State
 
-As of the latest 2026-05-31 checkpoint, the active work mode is local
+As of the latest 2026-06-01 checkpoint, the active work mode is local
 workstation development for XRIQ Phase 1.2 local/private post-RC hardening
 after the completed private-devnet RC1 and Phase 1.1 local/e2e RC1 tags. The
 previous Vast deployment is not an active target because the GPU was terminated
 to save cost.
 
+- Latest native XRIQ Phase 1.2 API refusal checkpoint: `xriq-api` now returns
+  stable HTTP `403 Forbidden` disabled responses for
+  `POST /api/v1/wallet/transfers/submit` and
+  `POST /api/v1/wallet/transfers/send`. Those responses declare
+  `enabled: false`, `mutation: "none"`, `status: "disabled"`,
+  `warning: "local-private-devnet-preflight-only"`, explicit local enablement
+  flags (`--enable-local-wallet-submit` and `--enable-local-wallet-send`),
+  audit-event requirements, test-identity-only boundaries, request field names,
+  and refusal guards. They intentionally omit `tx_hash`, private-key material,
+  seed material, custody fields, and any chain/pending-state mutation.
+  `scripts/xriq_phase1_1_local_e2e_smoke.py` now checks both POST refusal
+  routes and writes `api/wallet-submit-disabled.json` and
+  `api/wallet-send-disabled.json` under the smoke artifact directory.
+  Checkpoint artifact:
+  `xriq/target/xriq-phase1-2-api-refusal-smoke-20260601T031500Z/summary.json`
+  with `wallet mutation refusal smoke` completed and both POST routes listed
+  under `failure_routes_checked`. Verification passed `cargo fmt --check`,
+  `cargo test --target-dir target/codex-phase1-2-refusal-api -p xriq-api --lib -j 1`,
+  bundled-Python `py_compile`, `python scripts/xriq_phase1_2_refusal_smoke.py`,
+  `python scripts/xriq_phase1_1_contract_check.py`,
+  `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, the local
+  Phase 1.2 API-refusal smoke command above, and `git diff --check`. This
+  checkpoint still does not enable
+  successful transaction submission, sending, pending-state mutation, block
+  production, UI actions, signing, custody, DEX, smart contracts, public
+  mainnet, bridges, exchange listings, or production infrastructure.
 - Latest native XRIQ Phase 1.2 planning checkpoint: added
   `docs/XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md` to define the post-RC local/private
   implementation ladder. The next recommended code checkpoint is a small
@@ -277,18 +305,20 @@ to save cost.
   `scripts/xriq_phase1_2_refusal_smoke.py` to independently validate the
   disabled submit/send fixtures and write a summary under
   `xriq/target/xriq-phase1-2-refusal-smoke-*`. Checkpoint artifact:
-  `xriq/target/xriq-phase1-2-refusal-smoke-20260601T024721Z/summary.json` with
+  `xriq/target/xriq-phase1-2-refusal-smoke-20260601T025951Z/summary.json` with
   `ok: xriq-phase1-2-refusal-smoke` and `fixtures_checked: 2`. The smoke checks
   disabled-by-default behavior, `mutation: "none"`, explicit local/private
   enablement flags, audit-event requirements, test-identity-only boundaries,
-  and absence of signing/custody/transaction-hash response fields. Verification
-  passed bundled-Python `py_compile`,
+  and absence of signing/custody/transaction-hash response fields. Its `next`
+  pointer now targets UI/client refusal coverage, because API-level POST
+  refusal exists. Verification passed bundled-Python `py_compile`,
   `python scripts/xriq_phase1_2_refusal_smoke.py`,
   `python scripts/xriq_phase1_1_contract_check.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
-  `git diff --check`. This checkpoint still does not enable API POST behavior,
-  transaction submission, sending, pending-state mutation, block production, UI
-  actions, or custody.
+  `git diff --check`. API-level POST refusal behavior was added in the later
+  Phase 1.2 API refusal checkpoint above, but successful transaction
+  submission, sending, pending-state mutation, block production, UI actions,
+  and custody remain disabled.
 - Latest native XRIQ Phase 1.1 RC1 tag checkpoint: after explicit user approval,
   created and pushed `phase1-1-xriq-local-e2e-rc1` at commit `6a38a51a`.
   Pre-tag validation passed
@@ -319,13 +349,12 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: add API-level refusal behavior for
-  `POST /api/v1/wallet/transfers/submit` and
-  `POST /api/v1/wallet/transfers/send`, returning stable disabled/refused
-  responses before any successful local mutation path. Keep actual wallet
-  submission, block-production controls, snapshot import/export mutation, DEX,
-  smart contracts, public mainnet, custody, bridges, exchange listings, and
-  production infrastructure out of scope until those refusal tests are stable.
+- Recommended next narrow step: add React/UI or lightweight client disabled
+  action coverage for wallet submit/send, using the new API refusal responses
+  as the contract. Keep actual wallet submission, block-production controls,
+  snapshot import/export mutation, DEX, smart contracts, public mainnet,
+  custody, bridges, exchange listings, and production infrastructure out of
+  scope until the UI/client refusal surfaces and tests are stable.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return

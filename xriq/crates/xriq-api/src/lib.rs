@@ -30,6 +30,7 @@ pub const API_SERVICE: &str = "xriq-api";
 pub const API_VERSION: &str = "phase1.1-dev";
 pub const INDEXER_SERVICE: &str = "xriq-indexer";
 pub const WALLET_PREVIEW_WARNING: &str = "private-devnet-preview-only-no-signing-no-submit";
+pub const WALLET_PREFLIGHT_WARNING: &str = "local-private-devnet-preflight-only";
 pub const MEMPOOL_READONLY_WARNING: &str =
     "private-devnet-read-only-mempool-status-submit-disabled";
 pub const SNAPSHOT_READONLY_WARNING: &str =
@@ -618,6 +619,43 @@ pub fn product_api_http_response(
     method: &str,
     target: &str,
 ) -> ApiHttpResponse {
+    let (path, query) = split_http_target(target);
+    if method == "POST" {
+        return match path {
+            "/api/v1/wallet/transfers/submit" => wallet_transfer_mutation_disabled_response(
+                &service.snapshot().chain_id,
+                "POST /api/v1/wallet/transfers/submit",
+                "wallet_submit_disabled",
+                "wallet transfer submit is disabled by default in Phase 1.2 preflight mode",
+                "--enable-local-wallet-submit",
+                &[
+                    "default mode refuses mutation",
+                    "signing material is not accepted",
+                    "custody is not supported",
+                    "audit event is required before any future accepted mutation",
+                ],
+            ),
+            "/api/v1/wallet/transfers/send" => wallet_transfer_mutation_disabled_response(
+                &service.snapshot().chain_id,
+                "POST /api/v1/wallet/transfers/send",
+                "wallet_send_disabled",
+                "wallet transfer send is disabled by default in Phase 1.2 preflight mode",
+                "--enable-local-wallet-send",
+                &[
+                    "default mode refuses mutation",
+                    "signing material is not accepted",
+                    "custody is not supported",
+                    "pending state is not changed",
+                    "chain state is not changed",
+                ],
+            ),
+            _ => api_error_response(
+                405,
+                "method_not_allowed",
+                "XRIQ product API scaffold currently supports GET only",
+            ),
+        };
+    }
     if method != "GET" {
         return api_error_response(
             405,
@@ -626,7 +664,6 @@ pub fn product_api_http_response(
         );
     }
 
-    let (path, query) = split_http_target(target);
     match path {
         "/api/v1/health" => api_json_response(200, render_health_json(&service.health())),
         "/api/v1/version" => api_json_response(200, render_version_json(&service.version())),
@@ -1574,10 +1611,76 @@ fn api_not_found_response(error: ApiError) -> ApiHttpResponse {
     }
 }
 
+fn wallet_transfer_mutation_disabled_response(
+    network: &str,
+    endpoint: &str,
+    code: &str,
+    error: &str,
+    explicit_flag: &str,
+    refusal_guards: &[&str],
+) -> ApiHttpResponse {
+    let mut body = String::new();
+    writeln!(&mut body, "{{").expect("write to String");
+    push_response_header(&mut body, API_ENVIRONMENT, network);
+    writeln!(&mut body, "  \"endpoint\": {},", json_string(endpoint)).expect("write to String");
+    writeln!(&mut body, "  \"enabled\": false,").expect("write to String");
+    writeln!(&mut body, "  \"mutation\": \"none\",").expect("write to String");
+    writeln!(&mut body, "  \"status\": \"disabled\",").expect("write to String");
+    writeln!(&mut body, "  \"code\": {},", json_string(code)).expect("write to String");
+    writeln!(&mut body, "  \"error\": {},", json_string(error)).expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"warning\": {},",
+        json_string(WALLET_PREFLIGHT_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  \"required_enablement\": {{").expect("write to String");
+    writeln!(&mut body, "    \"mode\": \"local-private-devnet\",").expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"explicit_flag\": {},",
+        json_string(explicit_flag)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    \"audit_event_required\": true,").expect("write to String");
+    writeln!(&mut body, "    \"test_identity_only\": true").expect("write to String");
+    writeln!(&mut body, "  }},").expect("write to String");
+    writeln!(&mut body, "  \"request_fields\": [").expect("write to String");
+    for (index, field) in [
+        "draft_id",
+        "from_address",
+        "to_address",
+        "amount_base_units",
+        "fee_base_units",
+        "nonce",
+        "expires_at_height",
+    ]
+    .iter()
+    .enumerate()
+    {
+        let suffix = if index == 6 { "" } else { "," };
+        writeln!(&mut body, "    {}{}", json_string(field), suffix).expect("write to String");
+    }
+    writeln!(&mut body, "  ],").expect("write to String");
+    writeln!(&mut body, "  \"refusal_guards\": [").expect("write to String");
+    for (index, guard) in refusal_guards.iter().enumerate() {
+        let suffix = if index + 1 == refusal_guards.len() {
+            ""
+        } else {
+            ","
+        };
+        writeln!(&mut body, "    {}{}", json_string(guard), suffix).expect("write to String");
+    }
+    writeln!(&mut body, "  ]").expect("write to String");
+    body.push('}');
+    api_json_response(403, body)
+}
+
 fn http_reason(status_code: u16) -> &'static str {
     match status_code {
         200 => "OK",
         400 => "Bad Request",
+        403 => "Forbidden",
         404 => "Not Found",
         405 => "Method Not Allowed",
         _ => "Internal Server Error",
@@ -3697,6 +3800,40 @@ mod tests {
         assert!(unsupported_method
             .body
             .contains("currently supports GET only"));
+
+        let disabled_submit =
+            product_api_http_response(&api, "POST", "/api/v1/wallet/transfers/submit");
+        assert_eq!(disabled_submit.status_code, 403);
+        assert!(disabled_submit
+            .body
+            .contains("\"code\": \"wallet_submit_disabled\""));
+        assert!(disabled_submit.body.contains("\"enabled\": false"));
+        assert!(disabled_submit.body.contains("\"mutation\": \"none\""));
+        assert!(disabled_submit
+            .body
+            .contains("\"explicit_flag\": \"--enable-local-wallet-submit\""));
+        assert!(disabled_submit
+            .body
+            .contains("\"audit_event_required\": true"));
+        assert!(!disabled_submit.body.contains("\"tx_hash\""));
+        assert!(!disabled_submit.body.contains("private_key"));
+        assert!(!disabled_submit.body.contains("seed_phrase"));
+
+        let disabled_send =
+            product_api_http_response(&api, "POST", "/api/v1/wallet/transfers/send");
+        assert_eq!(disabled_send.status_code, 403);
+        assert!(disabled_send
+            .body
+            .contains("\"code\": \"wallet_send_disabled\""));
+        assert!(disabled_send.body.contains("\"enabled\": false"));
+        assert!(disabled_send.body.contains("\"mutation\": \"none\""));
+        assert!(disabled_send
+            .body
+            .contains("\"explicit_flag\": \"--enable-local-wallet-send\""));
+        assert!(disabled_send.body.contains("pending state is not changed"));
+        assert!(!disabled_send.body.contains("\"tx_hash\""));
+        assert!(!disabled_send.body.contains("private_key"));
+        assert!(!disabled_send.body.contains("seed_phrase"));
 
         let bad_draft = product_api_http_response(
             &api,

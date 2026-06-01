@@ -123,9 +123,9 @@ Required behavior:
 
 ### Phase 1.2 Wallet Mutation Preflight
 
-Phase 1.2 adds preflight contracts before any product API mutation is enabled.
-These are contract fixtures only; they do not enable wallet submission in
-`xriq-api` or the React UI.
+Phase 1.2 adds preflight contracts before any successful product API mutation
+is enabled. These fixtures and API responses only enable disabled/refused
+behavior; they do not enable wallet submission in `xriq-api` or the React UI.
 
 Default product behavior for mutating wallet endpoints must be:
 
@@ -136,15 +136,21 @@ POST /api/v1/wallet/transfers/send   -> disabled/refused
 
 Required disabled response behavior:
 
+- HTTP `403 Forbidden`
 - `environment: "private-devnet"`
+- `network: "xriq-devnet"`
+- `endpoint`
 - `enabled: false`
 - `mutation: "none"`
 - `status: "disabled"`
 - stable refusal `code`
+- `warning: "local-private-devnet-preflight-only"`
 - explicit `required_enablement.mode: "local-private-devnet"`
 - explicit local-only flag name before any future mutation is accepted
 - `audit_event_required: true`
 - `test_identity_only: true`
+- request field names only, not signing material
+- refusal guards that state default mutation refusal and no custody/signing
 - no signing material, custody material, or seed material in the request or
   response
 
@@ -156,7 +162,10 @@ xriq/fixtures/phase1_2/wallet-transfer-send-disabled.json
 ```
 
 The first implementation after these fixtures should test refusal behavior
-before adding any successful submit/send path.
+before adding any successful submit/send path. The first API implementation now
+returns stable `403` refusal bodies for submit/send and is covered by
+`scripts/xriq_phase1_1_local_e2e_smoke.py`; successful submit/send remains out
+of scope.
 
 ### Admin APIs
 
@@ -511,6 +520,18 @@ The refusal smoke writes a summary under
 `xriq/target/xriq-phase1-2-refusal-smoke-*` and does not enable wallet
 submission, sending, block production, pending-state mutation, signing, or
 custody behavior.
+
+Run the local API refusal smoke from the repo root with a custom Phase 1.2
+artifact directory:
+
+```bash
+python scripts/xriq_phase1_1_local_e2e_smoke.py --artifact-dir xriq/target/xriq-phase1-2-api-refusal-smoke-<timestamp>
+```
+
+This verifies `POST /api/v1/wallet/transfers/submit` and
+`POST /api/v1/wallet/transfers/send` return disabled `403` responses and still
+does not enable wallet submission, sending, block production, pending-state
+mutation, signing, or custody behavior.
 
 Run the focused Rust indexer scaffold tests from `xriq/`:
 

@@ -115,10 +115,18 @@ Current refusal-smoke checkpoint: `scripts/xriq_phase1_2_refusal_smoke.py`
 validates those preflight fixtures independently and writes a local smoke
 summary under `xriq/target/xriq-phase1-2-refusal-smoke-*`.
 
-Recommended next implementation: add API-level refusal behavior for
+Current API refusal checkpoint: `xriq-api` returns HTTP `403 Forbidden`
+disabled responses for
 `POST /api/v1/wallet/transfers/submit` and
-`POST /api/v1/wallet/transfers/send` before any successful submit/send path.
-Do not wire successful mutation until the API refusal behavior is stable.
+`POST /api/v1/wallet/transfers/send`. The local smoke records
+`api/wallet-submit-disabled.json` and `api/wallet-send-disabled.json` and
+verifies `enabled: false`, `mutation: "none"`, explicit local enablement
+flags, audit-event requirements, test-identity-only boundaries, refusal
+guards, and no signing/custody/transaction-hash response fields.
+
+Recommended next implementation: add UI/client disabled-action coverage for
+wallet submit/send using the API refusal responses as the contract. Do not wire
+successful mutation until UI/client refusal behavior is stable.
 
 ## Validation
 
