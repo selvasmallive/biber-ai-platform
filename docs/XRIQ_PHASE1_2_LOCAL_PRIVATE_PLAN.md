@@ -227,9 +227,16 @@ unchanged chain state, no signing material, no custody material, and no UI
 mutation control. `scripts/xriq_phase1_1_contract_check.py` validates this
 fixture.
 
-Recommended next implementation: add a matching client/API type checkpoint for
-the wallet-submit accepted response or define the wallet-send accepted
-contract, while keeping UI mutation controls disabled.
+Current wallet-submit client contract checkpoint:
+`xriq/apps/explorer-ui/src/api.ts` now defines the wallet-submit accepted
+response type, accepted-code/mutation constants, and
+`validateLocalWalletSubmitAcceptedContract()`. The static UI guard requires
+those markers. No UI POST function or enabled wallet mutation control is
+exposed.
+
+Recommended next implementation: define the wallet-send accepted contract or
+start the Rust/API wallet-submit implementation behind explicit local
+enablement, while keeping default behavior and UI mutation controls disabled.
 
 ## Validation
 

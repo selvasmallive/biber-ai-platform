@@ -69,6 +69,25 @@ for (const route of [
 }
 
 for (const requiredText of [
+  "LocalWalletSubmitAcceptedResponse",
+  "LocalWalletSubmitPendingTransaction",
+  "LocalWalletSubmitAcceptedExpectations",
+  "validateLocalWalletSubmitAcceptedContract",
+  "WALLET_SUBMIT_REFUSAL_ENDPOINT",
+  "LOCAL_WALLET_SUBMIT_ACCEPTED_CODE",
+  "LOCAL_WALLET_SUBMIT_ACCEPTED_MUTATION",
+  "wallet_submit_accepted_local_only",
+  "pending_state_only",
+  "wallet_transfer_submit_attempt",
+  "added_tx_hash",
+  "chain_unchanged",
+]) {
+  if (!apiSource.includes(requiredText)) {
+    throw new Error(`missing accepted wallet-submit API marker: ${requiredText}`);
+  }
+}
+
+for (const requiredText of [
   "LocalBlockProductionAcceptedResponse",
   "LocalBlockProductionConfirmedTransaction",
   "LocalBlockProductionAcceptedExpectations",

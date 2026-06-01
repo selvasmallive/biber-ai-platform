@@ -226,7 +226,9 @@ defines the future accepted response shape for one pending transaction row,
 pending-file count transition, unchanged chain-state summary, and accepted
 audit event metadata. It remains contract-only and not enabled; `xriq-api` must
 not accept wallet submit or expose UI mutation controls until a later explicit
-implementation checkpoint adds Rust tests and local smoke.
+implementation checkpoint adds Rust tests and local smoke. The
+React/TypeScript API layer has a matching accepted-response type and validator,
+but no client POST helper or enabled UI control.
 
 Future block-production attempts must use the same local actor,
 `block_production_attempt` action, `block_production` resource type,
