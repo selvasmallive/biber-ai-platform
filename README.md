@@ -263,6 +263,9 @@ The post-Phase 1.1 RC1 local/private Phase 1.2 plan is in
 `docs/XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md`.
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
+The first Phase 1.2 wallet mutation preflight fixtures are in
+`xriq/fixtures/phase1_2/`; they are disabled/refusal contracts only and do not
+enable wallet submit/send behavior.
 The GCP resource plan for Phase 1.1 is in `docs/XRIQ_GCP_RESOURCE_PLAN.md`.
 Validate the Phase 1.1 schema and fixtures locally with
 `python scripts/xriq_phase1_1_contract_check.py`.

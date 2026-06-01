@@ -1,0 +1,32 @@
+{
+  "environment": "private-devnet",
+  "network": "xriq-devnet",
+  "endpoint": "POST /api/v1/wallet/transfers/submit",
+  "enabled": false,
+  "mutation": "none",
+  "status": "disabled",
+  "code": "wallet_submit_disabled",
+  "error": "wallet transfer submit is disabled by default in Phase 1.2 preflight mode",
+  "warning": "local-private-devnet-preflight-only",
+  "required_enablement": {
+    "mode": "local-private-devnet",
+    "explicit_flag": "--enable-local-wallet-submit",
+    "audit_event_required": true,
+    "test_identity_only": true
+  },
+  "request_fields": [
+    "draft_id",
+    "from_address",
+    "to_address",
+    "amount_base_units",
+    "fee_base_units",
+    "nonce",
+    "expires_at_height"
+  ],
+  "refusal_guards": [
+    "default mode refuses mutation",
+    "signing material is not accepted",
+    "custody is not supported",
+    "audit event is required before any future accepted mutation"
+  ]
+}

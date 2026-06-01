@@ -57,6 +57,9 @@ The post-RC end-to-end Phase 1.1 plan is documented at
 `../docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md`.
 The post-Phase 1.1 RC1 local/private Phase 1.2 plan is documented at
 `../docs/XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md`.
+The first Phase 1.2 wallet mutation preflight fixtures live in
+`fixtures/phase1_2/`; they are disabled/refusal contracts only and do not enable
+wallet submit/send behavior.
 The first Phase 1.1 indexer scaffold can be checked with:
 
 ```bash

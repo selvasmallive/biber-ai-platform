@@ -97,7 +97,7 @@ production mode.
 
 ## Recommended First Implementation
 
-The next code checkpoint should be small:
+The first code checkpoint should be small:
 
 - update Phase 1.1 contracts with a Phase 1.2 local mutation preflight section
 - add fixtures for disabled wallet submit/send responses
@@ -105,6 +105,15 @@ The next code checkpoint should be small:
 - do not yet enable transaction submission in the API or UI
 
 This gives the project a safe target before any real mutation is wired.
+
+Current checkpoint: the disabled wallet submit/send preflight fixtures now live
+under `xriq/fixtures/phase1_2/`, and
+`scripts/xriq_phase1_1_contract_check.py` validates that they remain disabled,
+non-mutating, local/private, audit-gated, and test-identity-only.
+
+Recommended next implementation: add local smoke coverage that asserts these
+preflight fixtures and refusal rules are present. Do not wire successful
+submit/send behavior until the refusal-path smoke is stable.
 
 ## Validation
 

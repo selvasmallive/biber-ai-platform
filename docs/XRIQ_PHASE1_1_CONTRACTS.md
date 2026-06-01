@@ -121,6 +121,43 @@ Required behavior:
 - `submit` creates pending state
 - `send` is allowed only for private-devnet test identities
 
+### Phase 1.2 Wallet Mutation Preflight
+
+Phase 1.2 adds preflight contracts before any product API mutation is enabled.
+These are contract fixtures only; they do not enable wallet submission in
+`xriq-api` or the React UI.
+
+Default product behavior for mutating wallet endpoints must be:
+
+```text
+POST /api/v1/wallet/transfers/submit -> disabled/refused
+POST /api/v1/wallet/transfers/send   -> disabled/refused
+```
+
+Required disabled response behavior:
+
+- `environment: "private-devnet"`
+- `enabled: false`
+- `mutation: "none"`
+- `status: "disabled"`
+- stable refusal `code`
+- explicit `required_enablement.mode: "local-private-devnet"`
+- explicit local-only flag name before any future mutation is accepted
+- `audit_event_required: true`
+- `test_identity_only: true`
+- no signing material, custody material, or seed material in the request or
+  response
+
+The Phase 1.2 preflight fixtures are:
+
+```text
+xriq/fixtures/phase1_2/wallet-transfer-submit-disabled.json
+xriq/fixtures/phase1_2/wallet-transfer-send-disabled.json
+```
+
+The first implementation after these fixtures should test refusal behavior
+before adding any successful submit/send path.
+
 ### Admin APIs
 
 ```text
@@ -446,6 +483,7 @@ The first local contract artifacts now exist:
 ```text
 xriq/db/schema.sql
 xriq/fixtures/phase1_1/
+xriq/fixtures/phase1_2/
 xriq/crates/xriq-indexer/
 scripts/xriq_phase1_1_contract_check.py
 ```
@@ -457,9 +495,11 @@ python scripts/xriq_phase1_1_contract_check.py
 ```
 
 The check validates that the PostgreSQL read-model schema contains the required
-10 tables and that the 14 Phase 1.1 JSON fixtures parse, declare
+10 tables, that the 14 Phase 1.1 JSON fixtures parse, declare
 `environment: "private-devnet"`, avoid sensitive key/seed fields, and keep
-money-like values as integer base-unit strings.
+money-like values as integer base-unit strings, and that the Phase 1.2 wallet
+mutation preflight fixtures remain disabled with `mutation: "none"`, explicit
+local enablement flags, audit requirements, and test-identity-only boundaries.
 
 Run the focused Rust indexer scaffold tests from `xriq/`:
 

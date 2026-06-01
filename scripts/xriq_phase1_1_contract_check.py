@@ -10,6 +10,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = ROOT / "xriq" / "db" / "schema.sql"
 FIXTURE_DIR = ROOT / "xriq" / "fixtures" / "phase1_1"
+PHASE1_2_FIXTURE_DIR = ROOT / "xriq" / "fixtures" / "phase1_2"
 
 REQUIRED_TABLES: dict[str, list[str]] = {
     "xriq_blocks": [
@@ -155,6 +156,19 @@ REQUIRED_FIXTURES: dict[str, list[str]] = {
     ],
 }
 
+REQUIRED_PHASE1_2_PREFLIGHT_FIXTURES: dict[str, dict[str, str]] = {
+    "wallet-transfer-submit-disabled.json": {
+        "endpoint": "POST /api/v1/wallet/transfers/submit",
+        "code": "wallet_submit_disabled",
+        "explicit_flag": "--enable-local-wallet-submit",
+    },
+    "wallet-transfer-send-disabled.json": {
+        "endpoint": "POST /api/v1/wallet/transfers/send",
+        "code": "wallet_send_disabled",
+        "explicit_flag": "--enable-local-wallet-send",
+    },
+}
+
 HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 SENSITIVE_FIELD_PATTERN = re.compile(r"(private[_-]?key|seed[_-]?phrase|mnemonic)", re.IGNORECASE)
 
@@ -217,14 +231,7 @@ def verify_schema() -> dict[str, int]:
     return {"tables": len(REQUIRED_TABLES)}
 
 
-def verify_fixture(name: str, required_fields: list[str]) -> None:
-    path = FIXTURE_DIR / name
-    payload = load_json(path)
-
-    missing = [field for field in required_fields if field not in payload]
-    if missing:
-        raise ContractError(f"{name} missing fields: {missing}")
-
+def verify_common_payload(name: str, payload: dict[str, Any]) -> None:
     environment = payload.get("environment")
     if environment != "private-devnet":
         raise ContractError(f"{name} must declare environment private-devnet")
@@ -254,6 +261,17 @@ def verify_fixture(name: str, required_fields: list[str]) -> None:
         raise ContractError(f"{name} contains sensitive-looking fields: {sensitive}")
 
 
+def verify_fixture(name: str, required_fields: list[str]) -> None:
+    path = FIXTURE_DIR / name
+    payload = load_json(path)
+
+    missing = [field for field in required_fields if field not in payload]
+    if missing:
+        raise ContractError(f"{name} missing fields: {missing}")
+
+    verify_common_payload(name, payload)
+
+
 def verify_fixtures() -> dict[str, int]:
     if not FIXTURE_DIR.exists():
         raise ContractError(f"fixture dir missing: {FIXTURE_DIR}")
@@ -264,15 +282,81 @@ def verify_fixtures() -> dict[str, int]:
     return {"fixtures": len(REQUIRED_FIXTURES)}
 
 
+def verify_phase1_2_preflight_fixture(name: str, expected: dict[str, str]) -> None:
+    path = PHASE1_2_FIXTURE_DIR / name
+    payload = load_json(path)
+
+    required_fields = [
+        "environment",
+        "network",
+        "endpoint",
+        "enabled",
+        "mutation",
+        "status",
+        "code",
+        "error",
+        "warning",
+        "required_enablement",
+        "request_fields",
+        "refusal_guards",
+    ]
+    missing = [field for field in required_fields if field not in payload]
+    if missing:
+        raise ContractError(f"{name} missing fields: {missing}")
+
+    verify_common_payload(name, payload)
+
+    if payload.get("endpoint") != expected["endpoint"]:
+        raise ContractError(f"{name} has wrong endpoint: {payload.get('endpoint')!r}")
+    if payload.get("enabled") is not False:
+        raise ContractError(f"{name} must be disabled by default")
+    if payload.get("mutation") != "none":
+        raise ContractError(f"{name} must declare mutation none")
+    if payload.get("status") != "disabled":
+        raise ContractError(f"{name} must declare status disabled")
+    if payload.get("code") != expected["code"]:
+        raise ContractError(f"{name} has wrong code: {payload.get('code')!r}")
+
+    enablement = payload.get("required_enablement")
+    if not isinstance(enablement, dict):
+        raise ContractError(f"{name} required_enablement must be an object")
+    if enablement.get("mode") != "local-private-devnet":
+        raise ContractError(f"{name} must require local-private-devnet mode")
+    if enablement.get("explicit_flag") != expected["explicit_flag"]:
+        raise ContractError(f"{name} has wrong explicit enablement flag")
+    if enablement.get("audit_event_required") is not True:
+        raise ContractError(f"{name} must require an audit event")
+    if enablement.get("test_identity_only") is not True:
+        raise ContractError(f"{name} must remain test-identity-only")
+
+    for field in ("request_fields", "refusal_guards"):
+        value = payload.get(field)
+        if not isinstance(value, list) or not value:
+            raise ContractError(f"{name} {field} must be a non-empty list")
+
+
+def verify_phase1_2_preflight_fixtures() -> dict[str, int]:
+    if not PHASE1_2_FIXTURE_DIR.exists():
+        raise ContractError(f"Phase 1.2 fixture dir missing: {PHASE1_2_FIXTURE_DIR}")
+
+    for name, expected in REQUIRED_PHASE1_2_PREFLIGHT_FIXTURES.items():
+        verify_phase1_2_preflight_fixture(name, expected)
+
+    return {"phase1_2_preflight_fixtures": len(REQUIRED_PHASE1_2_PREFLIGHT_FIXTURES)}
+
+
 def main() -> int:
     schema_result = verify_schema()
     fixture_result = verify_fixtures()
+    phase1_2_result = verify_phase1_2_preflight_fixtures()
     report = {
         "ok": "xriq-phase1-1-contract-check",
         "schema": str(SCHEMA_PATH),
         "fixture_dir": str(FIXTURE_DIR),
+        "phase1_2_fixture_dir": str(PHASE1_2_FIXTURE_DIR),
         **schema_result,
         **fixture_result,
+        **phase1_2_result,
     }
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0

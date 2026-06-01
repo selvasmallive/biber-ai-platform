@@ -233,11 +233,11 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `5%` overall after the initial
-  local/private scope plan. It is not a public launch phase. Its first target is
-  mutation preflight contracts and disabled/refusal fixtures before any
-  wallet-submit, block-production, snapshot-mutation, DEX, custody, or public
-  network behavior is implemented.
+- Phase 1.2 estimated completion: about `8%` overall after the initial
+  local/private scope plan and disabled wallet submit/send preflight fixtures.
+  It is not a public launch phase. Its current target is refusal-path smoke
+  coverage before any wallet-submit, block-production, snapshot-mutation, DEX,
+  custody, or public network behavior is implemented.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -265,6 +265,14 @@ to save cost.
   block production, snapshot mutation, DEX, smart contracts, public mainnet,
   custody, bridges, exchange listings, or production infrastructure from a
   generic continuation request.
+- Latest native XRIQ Phase 1.2 mutation preflight contract checkpoint: added
+  disabled wallet submit/send preflight fixtures under `xriq/fixtures/phase1_2/`
+  and extended `scripts/xriq_phase1_1_contract_check.py` to validate that the
+  fixtures declare `enabled: false`, `mutation: "none"`, `status: "disabled"`,
+  explicit local/private enablement flags, audit-event requirements, and
+  test-identity-only boundaries. This checkpoint does not enable actual
+  transaction submission, sending, pending-state mutation, UI actions, block
+  production, or custody behavior.
 - Latest native XRIQ Phase 1.1 RC1 tag checkpoint: after explicit user approval,
   created and pushed `phase1-1-xriq-local-e2e-rc1` at commit `6a38a51a`.
   Pre-tag validation passed
@@ -295,12 +303,11 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: add Phase 1.2 mutation preflight contracts and
-  disabled wallet submit/send fixtures, then extend the existing local contract
-  checker. Keep actual wallet submission, block-production controls, snapshot
-  import/export mutation, DEX, smart contracts, public mainnet, custody,
-  bridges, exchange listings, and production infrastructure out of scope until
-  those contracts and refusal tests are stable.
+- Recommended next narrow step: add refusal-path smoke coverage for the Phase
+  1.2 disabled wallet submit/send preflight fixtures. Keep actual wallet
+  submission, block-production controls, snapshot import/export mutation, DEX,
+  smart contracts, public mainnet, custody, bridges, exchange listings, and
+  production infrastructure out of scope until those refusal tests are stable.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return
