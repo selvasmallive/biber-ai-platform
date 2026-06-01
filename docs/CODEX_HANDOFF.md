@@ -276,7 +276,7 @@ to save cost.
 - Latest native XRIQ Phase 1.2 refusal-smoke checkpoint: added
   `scripts/xriq_phase1_2_refusal_smoke.py` to independently validate the
   disabled submit/send fixtures and write a summary under
-  `xriq/target/xriq-phase1-2-refusal-smoke-*`. Latest artifact:
+  `xriq/target/xriq-phase1-2-refusal-smoke-*`. Checkpoint artifact:
   `xriq/target/xriq-phase1-2-refusal-smoke-20260601T024721Z/summary.json` with
   `ok: xriq-phase1-2-refusal-smoke` and `fixtures_checked: 2`. The smoke checks
   disabled-by-default behavior, `mutation: "none"`, explicit local/private
