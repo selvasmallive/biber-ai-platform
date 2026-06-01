@@ -93,6 +93,7 @@ dependencies = [
  "xriq-crypto",
  "xriq-indexer",
  "xriq-iso20022",
+ "xriq-node",
  "xriq-storage",
 ]
 

@@ -123,10 +123,12 @@ Required behavior:
 
 ### Phase 1.2 Local Mutation Preflight
 
-Phase 1.2 adds preflight contracts before any successful product API mutation
-is enabled. These fixtures and API responses only enable disabled/refused
-behavior; they do not enable wallet submission, block production, pending-state
-mutation, or chain mutation in `xriq-api` or the React UI.
+Phase 1.2 adds preflight contracts before successful product API mutation is
+enabled. The default API/UI behavior remains disabled/refused. The first
+exception is a local/private-devnet block-production API path behind the
+explicit `--enable-local-block-production true` flag; it is for developer smoke
+coverage only and does not enable wallet submit/send success or UI mutation
+controls.
 
 Default product behavior for mutating local/private endpoints must be:
 
@@ -173,12 +175,11 @@ xriq/fixtures/phase1_2/block-production-disabled.json
 xriq/fixtures/phase1_2/block-production-audit-expectation.json
 ```
 
-The first implementation after these fixtures should test refusal behavior
-before adding any successful submit/send or block-production path. The first
-API implementation now returns stable `403` refusal bodies for submit/send and
-block production, and is covered by
-`scripts/xriq_phase1_1_local_e2e_smoke.py`; successful submit, send, block
-production, and pending-to-confirmed mutation remain out of scope.
+The first implementation after these fixtures tested refusal behavior before
+adding any successful path. The API now returns stable `403` refusal bodies for
+submit/send and block production by default. Block production also has a first
+local/private-devnet accepted path behind `--enable-local-block-production
+true`, but wallet submit/send success remains disabled.
 
 The first UI/client implementation consumes those refusal contracts only. The
 React wallet shell must keep submit/send controls disabled, offer only an
@@ -219,10 +220,12 @@ pending file, chain file, producer, max transaction count, and timestamp. The
 default path must not change pending or chain state. The API now returns the
 same stable `403` disabled/refused shape for `POST /api/v1/blocks/produce` and
 admin audit visibility includes the deterministic
-`block-production:local_request_id` local refusal record.
+`block-production:local_request_id` local refusal record. The accepted local
+path is separate and requires `--enable-local-block-production true`, the
+configured private-devnet producer, `max_transactions=4`, a timestamp, and a
+pending file.
 
-The future pending-to-confirmed loop is defined first as a contract-only
-fixture, not as enabled behavior:
+The pending-to-confirmed loop is defined by this fixture:
 
 ```text
 xriq/fixtures/phase1_2/pending-to-confirmed-loop-contract.json
@@ -230,12 +233,16 @@ xriq/fixtures/phase1_2/pending-to-confirmed-loop-contract.json
 
 That contract keeps the default outcome refused, references
 `block-production-disabled.json`, requires `--enable-local-block-production`,
-requires local-private-devnet mode, requires a test identity producer, forbids
-signing material in requests, requires audit events, and defines the future
-accepted response shape for a confirmed block, confirmed transaction rows,
-pending-file cleanup, chain-file height transition, and audit event metadata.
-The accepted path must remain local/private only and must not be exposed in UI
-mutation controls until Rust tests and local smoke prove the transition.
+requires local-private-devnet mode, requires the configured test authority
+producer, forbids signing material in requests, requires audit events, and
+defines the accepted response shape for a confirmed block, confirmed
+transaction rows, pending-file cleanup, chain-file height transition, and audit
+event metadata. `xriq-api request` and `xriq-api serve-readonly` now implement
+the first accepted local path when `--enable-local-block-production true` is
+supplied with valid local request fields. The accepted path must remain
+local/private only and must not be exposed in UI mutation controls until a later
+explicit UI milestone. Local smoke covers both one-shot request mode and a
+temporary `serve-readonly` HTTP POST path on copied local state.
 
 The admin audit response exposes these local refusal records separately from
 indexed audit rows:

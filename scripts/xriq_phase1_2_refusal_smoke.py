@@ -434,8 +434,8 @@ def main(argv: list[str] | None = None) -> int:
                 "block_production_disabled_by_default",
             ],
             "next": (
-                "implement the local pending-to-confirmed loop behind explicit "
-                "local-private-devnet gates after the contract fixture is stable"
+                "keep wallet mutation controls disabled while adding the next "
+                "local-only action contract or client response checkpoint"
             ),
         }
         (artifact_dir / "summary.json").write_text(

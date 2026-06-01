@@ -3,8 +3,8 @@
   "network": "xriq-devnet",
   "endpoint": "POST /api/v1/blocks/produce",
   "contract": "pending-to-confirmed-loop-v1",
-  "status": "contract-only",
-  "implementation_status": "not_enabled",
+  "status": "api-local-implemented",
+  "implementation_status": "request-and-serve-readonly-explicit-local-flag",
   "default_outcome": "refused",
   "accepted_outcome": "confirmed-block-after-explicit-local-flag",
   "mutation": "none-until-explicit-local-enable",
@@ -32,6 +32,7 @@
     ],
     "optional_fields": [
       "expected_pending_tx_hashes",
+      "consensus_round",
       "dry_run"
     ],
     "forbidden_fields": [
@@ -46,7 +47,7 @@
       "pending_file must be a local private-devnet pending file",
       "chain_file must be a local private-devnet chain file",
       "producer must be a configured local test identity",
-      "max_transactions must be a positive bounded integer",
+      "max_transactions must match the private-devnet block transaction limit",
       "timestamp_ms must be deterministic or explicitly provided for tests",
       "dry_run must not mutate chain or pending state"
     ]
@@ -148,8 +149,8 @@
         "status": "confirmed",
         "explicit_flag": "--enable-local-block-production",
         "local_request_id": "local_request_id",
-        "producer": "xriqdev1alice00000000000",
-        "max_transactions": 25,
+        "producer": "xriqdev1author00000000000",
+        "max_transactions": 4,
         "timestamp_ms": 2000,
         "pending_before_count": 1,
         "pending_after_count": 0,

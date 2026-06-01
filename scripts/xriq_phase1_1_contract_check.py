@@ -665,10 +665,13 @@ def verify_phase1_2_loop_contract_fixture(name: str, expected: dict[str, str]) -
         raise ContractError(f"{name} has wrong endpoint: {payload.get('endpoint')!r}")
     if payload.get("contract") != expected["contract"]:
         raise ContractError(f"{name} has wrong contract id")
-    if payload.get("status") != "contract-only":
-        raise ContractError(f"{name} must be contract-only")
-    if payload.get("implementation_status") != "not_enabled":
-        raise ContractError(f"{name} must remain not_enabled")
+    if payload.get("status") != "api-local-implemented":
+        raise ContractError(f"{name} must be api-local-implemented")
+    if (
+        payload.get("implementation_status")
+        != "request-and-serve-readonly-explicit-local-flag"
+    ):
+        raise ContractError(f"{name} has wrong implementation_status")
     if payload.get("default_outcome") != "refused":
         raise ContractError(f"{name} default outcome must be refused")
     if payload.get("mutation") != "none-until-explicit-local-enable":
@@ -770,6 +773,10 @@ def verify_phase1_2_loop_contract_fixture(name: str, expected: dict[str, str]) -
         raise ContractError(f"{name} example audit metadata outcome must be accepted")
     if metadata.get("status") != "confirmed":
         raise ContractError(f"{name} example audit metadata status must be confirmed")
+    if metadata.get("producer") != "xriqdev1author00000000000":
+        raise ContractError(f"{name} example audit metadata producer is wrong")
+    if metadata.get("max_transactions") != 4:
+        raise ContractError(f"{name} example audit metadata max_transactions must be 4")
 
     guards = payload.get("state_transition_guards")
     if not isinstance(guards, list) or not guards:

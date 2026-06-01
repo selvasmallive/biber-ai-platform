@@ -1,6 +1,7 @@
 # XRIQ Phase 1.2 Local Private Plan
 
-Status: post-Phase 1.1 RC1 planning scope for local/private development only.
+Status: post-Phase 1.1 RC1 local/private hardening scope; first local
+block-production API path is implemented behind explicit enablement.
 
 Phase 1.2 starts after:
 
@@ -95,16 +96,16 @@ Mutating endpoints must be disabled by default. They must require explicit
 local/private-devnet flags or config names that cannot be confused with
 production mode.
 
-## Recommended First Implementation
+## Implementation Checkpoints
 
-The first code checkpoint should be small:
+The first code checkpoint was intentionally small:
 
 - update Phase 1.1 contracts with a Phase 1.2 local mutation preflight section
 - add fixtures for disabled wallet submit/send responses
 - extend the local contract checker to validate those fixtures
 - do not yet enable transaction submission in the API or UI
 
-This gives the project a safe target before any real mutation is wired.
+This gave the project a safe target before any real mutation was wired.
 
 Current checkpoint: the disabled wallet submit/send preflight fixtures now live
 under `xriq/fixtures/phase1_2/`, and
@@ -189,21 +190,29 @@ contract, shows `block_production_disabled`,
 production action disabled. The admin audit section also surfaces the local
 block-production refusal audit record.
 
-Current pending-to-confirmed loop contract checkpoint:
+Current pending-to-confirmed loop API checkpoint:
 `xriq/fixtures/phase1_2/pending-to-confirmed-loop-contract.json` defines the
-first contract-only shape for the future local action that turns pending
-transactions into a confirmed private-devnet block. It is explicitly
-`not_enabled`, keeps the default outcome refused through
-`block-production-disabled.json`, requires `--enable-local-block-production`,
-requires audit events, requires a local test identity producer, forbids signing
-material in requests, defines the accepted response shape, and documents the
-chain/pending state-transition guards. `scripts/xriq_phase1_1_contract_check.py`
-validates this fixture. It still does not enable successful mutation.
+local action that turns pending transactions into a confirmed private-devnet
+block. `xriq-api request` and `xriq-api serve-readonly` now keep the default
+path refused, but accept `POST /api/v1/blocks/produce` when
+`--enable-local-block-production true` is explicitly supplied with
+`local_request_id`, the configured test authority producer, `max_transactions=4`,
+and `timestamp_ms`. The accepted local path appends one block, clears only the
+confirmed pending hashes, and returns block, confirmed transaction,
+pending-state, chain-state, and API-local audit metadata. It still does not
+enable wallet submit/send success, UI mutation controls, custody, signing,
+snapshot mutation, DEX/smart contracts, public network behavior, or production
+infrastructure.
 
-Recommended next implementation: wire the first API-side local
-pending-to-confirmed implementation behind explicit local-private-devnet gates.
-Start with a disabled/default path plus a focused local-only success path in
-Rust tests before exposing any UI mutation controls.
+Current smoke checkpoint: `scripts/xriq_phase1_1_local_e2e_smoke.py` now covers
+both the one-shot `xriq-api request` accepted path and a temporary
+`xriq-api serve-readonly` HTTP POST accepted path on copied local chain/pending
+files. The server smoke verifies the refreshed server state reports height `2`
+and mempool count `0` after block production.
+
+Recommended next implementation: add a tiny client/API type checkpoint for the
+accepted response or start the next local-only action contract, while keeping UI
+mutation controls disabled.
 
 ## Validation
 

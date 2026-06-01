@@ -14,15 +14,25 @@ use xriq_api::{
     ApiHttpResponse, LocalRefusalAuditEventResponse, XriqApiService, MEMPOOL_READONLY_WARNING,
     SNAPSHOT_READONLY_WARNING, WALLET_PREVIEW_WARNING,
 };
-use xriq_core::{Address, XriqAmount, PRIVATE_DEVNET_MIN_FEE_BASE_UNITS};
+use xriq_core::{
+    Address, Hash32, XriqAmount, PRIVATE_DEVNET_MAX_TRANSACTIONS_PER_BLOCK,
+    PRIVATE_DEVNET_MIN_FEE_BASE_UNITS,
+};
+use xriq_crypto::transaction_hash;
 use xriq_indexer::index_private_devnet_store;
 use xriq_iso20022::{
     account_statement_preview, payment_initiation_preview, payment_status_preview,
     XriqIsoAccountHistory, XriqIsoAccountTransaction, XriqIsoTransaction,
 };
-use xriq_storage::FileChainStore;
+use xriq_node::{private_devnet_file_produce_pending_block, ProducedPendingBlockStatus};
+use xriq_storage::{ChainStore, FileChainStore};
 
 const DEFAULT_BIND: &str = "127.0.0.1:8090";
+const BLOCK_PRODUCTION_ROUTE: &str = "/api/v1/blocks/produce";
+const ENABLE_LOCAL_BLOCK_PRODUCTION_FLAG: &str = "--enable-local-block-production";
+const LOCAL_BLOCK_PRODUCTION_ACCEPTED_CODE: &str = "block_production_accepted_local_only";
+const LOCAL_BLOCK_PRODUCTION_AUDIT_SCOPE: &str = "api-local-accepted";
+const PRIVATE_DEVNET_PRODUCER: &str = "xriqdev1author00000000000";
 const POSTGRES_READ_MODEL_STATUS_ROUTE: &str = "/api/v1/admin/postgres/read-model-status";
 const POSTGRES_NODE_STATUS_ROUTE: &str = "/api/v1/admin/node/status";
 const POSTGRES_INDEXER_STATUS_ROUTE: &str = "/api/v1/admin/indexer/status";
@@ -89,7 +99,19 @@ where
 fn run_request(args: &[&str]) -> Result<String, String> {
     let config = RequestConfig::parse(args)?;
     let service = build_service(config.chain_file, config.pending_file, config.alice_balance)?;
-    let response = product_api_http_response(&service, config.method, config.target);
+    let response = if config.enable_local_block_production {
+        maybe_local_block_production_http_response(
+            &service,
+            config.method,
+            config.target,
+            config.chain_file,
+            config.pending_file,
+            config.alice_balance,
+        )
+        .unwrap_or_else(|| product_api_http_response(&service, config.method, config.target))
+    } else {
+        product_api_http_response(&service, config.method, config.target)
+    };
 
     Ok(cli_response(response))
 }
@@ -108,7 +130,12 @@ fn run_serve_readonly(args: &[&str]) -> Result<String, String> {
     let runtime = LocalApiRuntime {
         service,
         postgres_read_model: config.postgres_read_model,
+        chain_file: config.chain_file.to_string(),
+        pending_file: config.pending_file.map(ToString::to_string),
+        alice_balance: config.alice_balance,
+        enable_local_block_production: config.enable_local_block_production,
     };
+    let mut runtime = runtime;
     let listener = TcpListener::bind(config.bind)
         .map_err(|error| format!("could not bind xriq-api to {}: {error}", config.bind))?;
     eprintln!(
@@ -122,7 +149,7 @@ fn run_serve_readonly(args: &[&str]) -> Result<String, String> {
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                if let Err(error) = handle_connection(&runtime, stream) {
+                if let Err(error) = handle_connection(&mut runtime, stream) {
                     eprintln!("xriq-api connection error: {error}");
                 }
             }
@@ -167,9 +194,16 @@ fn build_service(
 struct LocalApiRuntime<'a> {
     service: XriqApiService,
     postgres_read_model: Option<PostgresReadModelConfig<'a>>,
+    chain_file: String,
+    pending_file: Option<String>,
+    alice_balance: Option<XriqAmount>,
+    enable_local_block_production: bool,
 }
 
-fn handle_connection(runtime: &LocalApiRuntime<'_>, mut stream: TcpStream) -> Result<(), String> {
+fn handle_connection(
+    runtime: &mut LocalApiRuntime<'_>,
+    mut stream: TcpStream,
+) -> Result<(), String> {
     let mut buffer = [0_u8; 8192];
     let bytes_read = stream
         .read(&mut buffer)
@@ -198,7 +232,7 @@ fn handle_connection(runtime: &LocalApiRuntime<'_>, mut stream: TcpStream) -> Re
 }
 
 fn local_api_http_response(
-    runtime: &LocalApiRuntime<'_>,
+    runtime: &mut LocalApiRuntime<'_>,
     method: &str,
     target: &str,
 ) -> ApiHttpResponse {
@@ -212,7 +246,459 @@ fn local_api_http_response(
         });
     }
 
+    if runtime.enable_local_block_production {
+        if let Some(response) = maybe_local_block_production_http_response(
+            &runtime.service,
+            method,
+            target,
+            &runtime.chain_file,
+            runtime.pending_file.as_deref(),
+            runtime.alice_balance,
+        ) {
+            if response.status_code == 201 {
+                match build_service(
+                    &runtime.chain_file,
+                    runtime.pending_file.as_deref(),
+                    runtime.alice_balance,
+                ) {
+                    Ok(service) => runtime.service = service,
+                    Err(error) => {
+                        return local_api_error_response(503, "local_state_refresh_failed", &error);
+                    }
+                }
+            }
+            return response;
+        }
+    }
+
     product_api_http_response(&runtime.service, method, target)
+}
+
+fn maybe_local_block_production_http_response(
+    service: &XriqApiService,
+    method: &str,
+    target: &str,
+    chain_file: &str,
+    pending_file: Option<&str>,
+    alice_balance: Option<XriqAmount>,
+) -> Option<ApiHttpResponse> {
+    let (path, query) = split_http_target(target);
+    if method != "POST" || path != BLOCK_PRODUCTION_ROUTE {
+        return None;
+    }
+    Some(local_block_production_http_response(
+        service,
+        query,
+        chain_file,
+        pending_file,
+        alice_balance,
+    ))
+}
+
+fn local_block_production_http_response(
+    service: &XriqApiService,
+    query: Option<&str>,
+    chain_file: &str,
+    pending_file: Option<&str>,
+    alice_balance: Option<XriqAmount>,
+) -> ApiHttpResponse {
+    let Some(pending_file) = pending_file else {
+        return local_api_error_response(
+            400,
+            "missing_pending_file",
+            "accepted local block production requires --pending-file",
+        );
+    };
+    let local_request_id = match required_query_param_any(query, &["local_request_id"]) {
+        Ok(value) => value,
+        Err(error) => return local_api_error_response(400, "bad_request", &error),
+    };
+    if !valid_local_request_id(local_request_id) {
+        return local_api_error_response(
+            400,
+            "invalid_local_request_id",
+            "local_request_id must use letters, digits, dash, or underscore and be 1-64 characters",
+        );
+    }
+    let producer = match required_query_param_any(query, &["producer"]) {
+        Ok(value) => value,
+        Err(error) => return local_api_error_response(400, "bad_request", &error),
+    };
+    if let Err(error) = validate_xriq_address(producer, "producer") {
+        return local_api_error_response(400, "bad_request", &error);
+    }
+    if producer != PRIVATE_DEVNET_PRODUCER {
+        return local_api_error_response(
+            400,
+            "invalid_producer",
+            "producer must be the configured private-devnet test authority",
+        );
+    }
+    let max_transactions = match required_query_param_any(query, &["max_transactions"])
+        .and_then(|value| parse_u64_query(value, "max_transactions"))
+    {
+        Ok(value) => value,
+        Err(error) => return local_api_error_response(400, "bad_request", &error),
+    };
+    if max_transactions != PRIVATE_DEVNET_MAX_TRANSACTIONS_PER_BLOCK as u64 {
+        return local_api_error_response(
+            400,
+            "invalid_max_transactions",
+            "max_transactions must match the private-devnet block transaction limit",
+        );
+    }
+    let timestamp_ms = match required_query_param_any(query, &["timestamp_ms"])
+        .and_then(|value| parse_u64_query(value, "timestamp_ms"))
+    {
+        Ok(value) => value,
+        Err(error) => return local_api_error_response(400, "bad_request", &error),
+    };
+    let consensus_round = match query_param(query, "consensus_round")
+        .map(|value| parse_u64_query(value, "consensus_round"))
+        .transpose()
+    {
+        Ok(value) => value.unwrap_or(0),
+        Err(error) => return local_api_error_response(400, "bad_request", &error),
+    };
+    if query_param(query, "dry_run") == Some("true") {
+        return local_api_error_response(
+            400,
+            "dry_run_not_enabled",
+            "dry_run is contract-only in this checkpoint and does not mutate state",
+        );
+    }
+    let before_count = service.mempool(usize::MAX).pending_count;
+    if before_count == 0 {
+        return local_api_error_response(
+            400,
+            "no_pending_transactions",
+            "local block production requires at least one pending transaction",
+        );
+    }
+
+    let produced = match private_devnet_file_produce_pending_block(
+        chain_file,
+        pending_file,
+        alice_balance,
+        timestamp_ms,
+        consensus_round,
+    ) {
+        Ok(status) => status,
+        Err(error) => {
+            return local_api_error_response(
+                400,
+                error.code(),
+                &format!("local block production failed: {error}"),
+            );
+        }
+    };
+    let store = match FileChainStore::open(chain_file) {
+        Ok(store) => store,
+        Err(error) => {
+            return local_api_error_response(
+                503,
+                "chain_file_read_failed",
+                &format!("could not reopen chain file after block production: {error:?}"),
+            );
+        }
+    };
+    let Some(latest_block) = store.latest_block() else {
+        return local_api_error_response(
+            503,
+            "produced_block_missing",
+            "chain file did not contain a latest block after block production",
+        );
+    };
+    let after_count = produced.status.pending_transactions;
+    render_local_block_production_accepted_response(
+        service,
+        &produced,
+        latest_block,
+        LocalBlockProductionRenderInput {
+            local_request_id,
+            producer,
+            chain_file,
+            pending_file,
+            max_transactions,
+            timestamp_ms,
+            before_count,
+            after_count,
+        },
+    )
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LocalBlockProductionRenderInput<'a> {
+    local_request_id: &'a str,
+    producer: &'a str,
+    chain_file: &'a str,
+    pending_file: &'a str,
+    max_transactions: u64,
+    timestamp_ms: u64,
+    before_count: usize,
+    after_count: usize,
+}
+
+fn render_local_block_production_accepted_response(
+    service: &XriqApiService,
+    produced: &ProducedPendingBlockStatus,
+    latest_block: &xriq_storage::StoredBlock,
+    input: LocalBlockProductionRenderInput<'_>,
+) -> ApiHttpResponse {
+    let block = &latest_block.block;
+    let block_hash = hash_hex(latest_block.block_hash);
+    let previous_height = service.snapshot().current_height;
+    let mut body = String::new();
+    writeln!(&mut body, "{{").expect("write to String");
+    writeln!(&mut body, "  \"environment\": \"private-devnet\",").expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"network\": {},",
+        json_string(&service.snapshot().chain_id)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"endpoint\": {},",
+        json_string("POST /api/v1/blocks/produce")
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"code\": {},",
+        json_string(LOCAL_BLOCK_PRODUCTION_ACCEPTED_CODE)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  \"status\": \"confirmed\",").expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"mutation\": \"chain_and_pending_state_local_only\","
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  \"warning\": \"local-private-devnet-only\",").expect("write to String");
+    writeln!(&mut body, "  \"block\": {{").expect("write to String");
+    writeln!(&mut body, "    \"height\": {},", block.header.height).expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"block_hash\": {},",
+        json_string(&block_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"previous_block_hash\": {},",
+        json_string(&hash_hex(block.header.previous_block_hash))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"state_root\": {},",
+        json_string(&hash_hex(block.header.state_root))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"transactions_root\": {},",
+        json_string(&hash_hex(block.header.transactions_root))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"transaction_count\": {},",
+        block.transactions.len()
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"timestamp_utc\": {}",
+        json_string(&timestamp_ms_to_utc(block.header.timestamp_ms))
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  }},").expect("write to String");
+    writeln!(&mut body, "  \"confirmed_transactions\": [").expect("write to String");
+    for (index, transaction) in block.transactions.iter().enumerate() {
+        let tx_hash = hash_hex(transaction_hash(transaction));
+        writeln!(&mut body, "    {{").expect("write to String");
+        writeln!(&mut body, "      \"tx_hash\": {},", json_string(&tx_hash))
+            .expect("write to String");
+        writeln!(&mut body, "      \"status\": \"confirmed\",").expect("write to String");
+        writeln!(
+            &mut body,
+            "      \"block_height\": {},",
+            block.header.height
+        )
+        .expect("write to String");
+        writeln!(
+            &mut body,
+            "      \"block_hash\": {},",
+            json_string(&block_hash)
+        )
+        .expect("write to String");
+        writeln!(&mut body, "      \"transaction_index\": {}", index).expect("write to String");
+        let trailing = if index + 1 == block.transactions.len() {
+            ""
+        } else {
+            ","
+        };
+        writeln!(&mut body, "    }}{trailing}").expect("write to String");
+    }
+    writeln!(&mut body, "  ],").expect("write to String");
+    writeln!(&mut body, "  \"pending_state\": {{").expect("write to String");
+    writeln!(&mut body, "    \"before_count\": {},", input.before_count).expect("write to String");
+    writeln!(&mut body, "    \"after_count\": {},", input.after_count).expect("write to String");
+    writeln!(&mut body, "    \"removed_tx_hashes\": [").expect("write to String");
+    for (index, tx_hash) in produced.included_transaction_hashes.iter().enumerate() {
+        let trailing = if index + 1 == produced.included_transaction_hashes.len() {
+            ""
+        } else {
+            ","
+        };
+        writeln!(
+            &mut body,
+            "      {}{}",
+            json_string(&hash_hex(*tx_hash)),
+            trailing
+        )
+        .expect("write to String");
+    }
+    writeln!(&mut body, "    ],").expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"pending_file\": {}",
+        json_string(input.pending_file)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  }},").expect("write to String");
+    writeln!(&mut body, "  \"chain_state\": {{").expect("write to String");
+    writeln!(&mut body, "    \"previous_height\": {},", previous_height).expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"current_height\": {},",
+        produced.status.current_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"chain_file\": {}",
+        json_string(input.chain_file)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  }},").expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"audit_scope\": {},",
+        json_string(LOCAL_BLOCK_PRODUCTION_AUDIT_SCOPE)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  \"audit_event_recorded\": true,").expect("write to String");
+    writeln!(&mut body, "  \"audit_event\": {{").expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"event_id\": {},",
+        json_string(&format!("block-production:{}", input.local_request_id))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"actor\": \"local-private-devnet-operator\","
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    \"action\": \"block_production_attempt\",").expect("write to String");
+    writeln!(&mut body, "    \"resource_type\": \"block_production\",").expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"resource_id\": {},",
+        json_string(input.local_request_id)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    \"environment\": \"private-devnet\",").expect("write to String");
+    writeln!(&mut body, "    \"metadata\": {{").expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"endpoint\": {},",
+        json_string("POST /api/v1/blocks/produce")
+    )
+    .expect("write to String");
+    writeln!(&mut body, "      \"outcome\": \"accepted\",").expect("write to String");
+    writeln!(&mut body, "      \"status\": \"confirmed\",").expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"explicit_flag\": {},",
+        json_string(ENABLE_LOCAL_BLOCK_PRODUCTION_FLAG)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"local_request_id\": {},",
+        json_string(input.local_request_id)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"producer\": {},",
+        json_string(input.producer)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"max_transactions\": {},",
+        input.max_transactions
+    )
+    .expect("write to String");
+    writeln!(&mut body, "      \"timestamp_ms\": {},", input.timestamp_ms)
+        .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"pending_before_count\": {},",
+        input.before_count
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"pending_after_count\": {},",
+        input.after_count
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"confirmed_transaction_count\": {},",
+        produced.applied_transactions
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"chain_previous_height\": {},",
+        previous_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"chain_current_height\": {},",
+        produced.status.current_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"metadata_policy\": \"request fields and local state transition summary only; no signing material\""
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    }}").expect("write to String");
+    writeln!(&mut body, "  }}").expect("write to String");
+    body.push('}');
+
+    ApiHttpResponse {
+        status_code: 201,
+        reason: "Created",
+        body,
+    }
+}
+
+fn valid_local_request_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
 }
 
 fn parse_http_request_line(line: &str) -> Result<(&str, &str), String> {
@@ -4138,12 +4624,13 @@ fn parse_u64_query(value: &str, key: &str) -> Result<u64, String> {
 fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
-        "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET] --target <api-path>",
+        "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET|POST] [--enable-local-block-production true] --target <api-path>",
         "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/node/status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/blocks/<height-or-hash>|/api/v1/transactions?limit=5|/api/v1/mempool?limit=5|/api/v1/wallet/status|/api/v1/wallet/transfers/draft-preview?...|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/iso20022/transactions/<tx_hash>/status|/api/v1/iso20022/payment-initiation/preview?tx_hash=<tx_hash>|/api/v1/iso20022/accounts/<address>/statement?from=...&to=...|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5|/api/v1/snapshots?limit=5|/api/v1/snapshots/<snapshot_name>",
-        "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--postgres-docker-container <container> --postgres-database <database>]",
+        "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--enable-local-block-production true] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
         "  xriq-api request --chain-file target/xriq-devnet.bin --alice-balance 100 --target /api/v1/health",
+        "  xriq-api request --chain-file target/xriq-devnet.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --method POST --enable-local-block-production true --target /api/v1/blocks/produce?local_request_id=local-1&producer=xriqdev1author00000000000&max_transactions=4&timestamp_ms=2000",
         "  xriq-api request-postgres --target /api/v1/admin/postgres/read-model-status",
         "  xriq-api request-postgres --target /api/v1/admin/node/status",
         "  xriq-api request-postgres --target /api/v1/admin/indexer/status",
@@ -4181,6 +4668,7 @@ struct RequestConfig<'a> {
     alice_balance: Option<XriqAmount>,
     method: &'a str,
     target: &'a str,
+    enable_local_block_production: bool,
 }
 
 impl<'a> RequestConfig<'a> {
@@ -4192,6 +4680,7 @@ impl<'a> RequestConfig<'a> {
             "--alice-balance",
             "--method",
             "--target",
+            "--enable-local-block-production",
         ])?;
         Ok(Self {
             chain_file: flags.required("--chain-file")?,
@@ -4202,6 +4691,11 @@ impl<'a> RequestConfig<'a> {
                 .transpose()?,
             method: flags.optional("--method").unwrap_or("GET"),
             target: flags.required("--target")?,
+            enable_local_block_production: flags
+                .optional("--enable-local-block-production")
+                .map(|value| parse_bool_flag("--enable-local-block-production", value))
+                .transpose()?
+                .unwrap_or(false),
         })
     }
 }
@@ -4306,6 +4800,7 @@ struct ServeConfig<'a> {
     alice_balance: Option<XriqAmount>,
     bind: &'a str,
     postgres_read_model: Option<PostgresReadModelConfig<'a>>,
+    enable_local_block_production: bool,
 }
 
 impl<'a> ServeConfig<'a> {
@@ -4316,6 +4811,7 @@ impl<'a> ServeConfig<'a> {
             "--pending-file",
             "--alice-balance",
             "--bind",
+            "--enable-local-block-production",
             "--postgres-docker-container",
             "--postgres-database",
         ])?;
@@ -4349,7 +4845,20 @@ impl<'a> ServeConfig<'a> {
                 .transpose()?,
             bind: flags.optional("--bind").unwrap_or(DEFAULT_BIND),
             postgres_read_model,
+            enable_local_block_production: flags
+                .optional("--enable-local-block-production")
+                .map(|value| parse_bool_flag("--enable-local-block-production", value))
+                .transpose()?
+                .unwrap_or(false),
         })
+    }
+}
+
+fn parse_bool_flag(flag: &'static str, value: &str) -> Result<bool, String> {
+    match value {
+        "true" | "1" | "yes" => Ok(true),
+        "false" | "0" | "no" => Ok(false),
+        _ => Err(format!("{flag} must be true or false, got {value:?}")),
     }
 }
 
@@ -4495,6 +5004,40 @@ fn json_borrowed_string_array(values: &[&str]) -> String {
     output
 }
 
+fn hash_hex(hash: Hash32) -> String {
+    let mut output = String::with_capacity(64);
+    for byte in hash.as_bytes() {
+        write!(&mut output, "{byte:02x}").expect("write to String");
+    }
+    output
+}
+
+fn timestamp_ms_to_utc(timestamp_ms: u64) -> String {
+    let seconds = timestamp_ms / 1000;
+    let days = seconds / 86_400;
+    let seconds_of_day = seconds % 86_400;
+    let (year, month, day) = civil_from_days(days as i64);
+    let hour = seconds_of_day / 3_600;
+    let minute = (seconds_of_day % 3_600) / 60;
+    let second = seconds_of_day % 60;
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
+}
+
+fn civil_from_days(days_since_unix_epoch: i64) -> (i64, u32, u32) {
+    let z = days_since_unix_epoch + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let day_of_era = z - era * 146_097;
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let year = year_of_era + era * 400;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_prime = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_prime + 2) / 5 + 1;
+    let month = month_prime + if month_prime < 10 { 3 } else { -9 };
+    let year = year + if month <= 2 { 1 } else { 0 };
+    (year, month as u32, day as u32)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FlagParser<'a> {
     pairs: Vec<(&'a str, &'a str)>,
@@ -4552,6 +5095,31 @@ impl<'a> FlagParser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_store_path(label: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("xriq-api-{label}-{nanos}.bin"))
+    }
+
+    fn pending_transfer_body() -> String {
+        [
+            "warning=private-devnet-test-identity-only",
+            "version=1",
+            "chain_id=xriq-devnet",
+            "from=xriqdev1alice00000000000",
+            "to=xriqdev1bobbb00000000000",
+            "amount=25",
+            "fee=2",
+            "nonce=0",
+            "expires_at_height=100",
+            "signature_bytes=48",
+        ]
+        .join("\n")
+    }
 
     #[test]
     fn request_config_defaults_to_get_and_requires_target() {
@@ -4570,9 +5138,152 @@ mod tests {
         assert_eq!(config.alice_balance.unwrap().base_units(), 100);
         assert_eq!(config.method, "GET");
         assert_eq!(config.target, "/api/v1/health");
+        assert!(!config.enable_local_block_production);
 
         let error = RequestConfig::parse(&["--chain-file", "target/xriq.bin"]).unwrap_err();
         assert!(error.contains("missing required flag: --target"));
+
+        let enabled = RequestConfig::parse(&[
+            "--chain-file",
+            "target/xriq.bin",
+            "--target",
+            "/api/v1/blocks/produce",
+            "--enable-local-block-production",
+            "true",
+        ])
+        .unwrap();
+        assert!(enabled.enable_local_block_production);
+    }
+
+    #[test]
+    fn local_block_production_request_requires_explicit_enablement() {
+        let path = temp_store_path("disabled-block-production");
+        let pending_path = path.with_extension("pending");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let pending_detail = xriq_node::private_devnet_file_submit_pending_transfer_body(
+            &path_text,
+            &pending_text,
+            Some(XriqAmount::from_base_units(100)),
+            &pending_transfer_body(),
+        )
+        .unwrap();
+        let target = "/api/v1/blocks/produce?local_request_id=local-test-1&producer=xriqdev1author00000000000&max_transactions=4&timestamp_ms=2000";
+
+        let response = run([
+            "request",
+            "--chain-file",
+            &path_text,
+            "--pending-file",
+            &pending_text,
+            "--alice-balance",
+            "100",
+            "--method",
+            "POST",
+            "--target",
+            target,
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=403"));
+        assert!(response.contains("\"code\": \"block_production_disabled\""));
+        assert!(fs::read_to_string(&pending_path)
+            .unwrap()
+            .contains(&hash_hex(pending_detail.tx_hash)));
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn local_block_production_request_confirms_pending_with_explicit_local_flag() {
+        let path = temp_store_path("enabled-block-production");
+        let pending_path = path.with_extension("pending");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let pending_detail = xriq_node::private_devnet_file_submit_pending_transfer_body(
+            &path_text,
+            &pending_text,
+            Some(XriqAmount::from_base_units(100)),
+            &pending_transfer_body(),
+        )
+        .unwrap();
+        let tx_hash = hash_hex(pending_detail.tx_hash);
+        let target = "/api/v1/blocks/produce?local_request_id=local-test-2&producer=xriqdev1author00000000000&max_transactions=4&timestamp_ms=2000";
+
+        let response = run([
+            "request",
+            "--chain-file",
+            &path_text,
+            "--pending-file",
+            &pending_text,
+            "--alice-balance",
+            "100",
+            "--method",
+            "POST",
+            "--target",
+            target,
+            "--enable-local-block-production",
+            "true",
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=201"));
+        assert!(response.contains("\"code\": \"block_production_accepted_local_only\""));
+        assert!(response.contains("\"status\": \"confirmed\""));
+        assert!(response.contains("\"mutation\": \"chain_and_pending_state_local_only\""));
+        assert!(response.contains("\"before_count\": 1"));
+        assert!(response.contains("\"after_count\": 0"));
+        assert!(response.contains("\"previous_height\": 0"));
+        assert!(response.contains("\"current_height\": 1"));
+        assert!(response.contains("\"audit_scope\": \"api-local-accepted\""));
+        assert!(response.contains("\"event_id\": \"block-production:local-test-2\""));
+        assert!(response.contains(&tx_hash));
+        assert_eq!(fs::read_to_string(&pending_path).unwrap(), "");
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn local_block_production_request_validates_local_contract_fields() {
+        let path = temp_store_path("invalid-block-production");
+        let pending_path = path.with_extension("pending");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        xriq_node::private_devnet_file_submit_pending_transfer_body(
+            &path_text,
+            &pending_text,
+            Some(XriqAmount::from_base_units(100)),
+            &pending_transfer_body(),
+        )
+        .unwrap();
+
+        let response = run([
+            "request",
+            "--chain-file",
+            &path_text,
+            "--pending-file",
+            &pending_text,
+            "--alice-balance",
+            "100",
+            "--method",
+            "POST",
+            "--target",
+            "/api/v1/blocks/produce?local_request_id=local-test-3&producer=xriqdev1bobbb00000000000&max_transactions=4&timestamp_ms=2000",
+            "--enable-local-block-production",
+            "true",
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=400"));
+        assert!(response.contains("\"code\": \"invalid_producer\""));
+        assert!(fs::read_to_string(&pending_path)
+            .unwrap()
+            .contains("xriq-pending-transaction-v1"));
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
     }
 
     #[test]
@@ -6000,6 +6711,16 @@ transaction_0_fee_base_units=2
         assert_eq!(config.alice_balance, None);
         assert_eq!(config.bind, DEFAULT_BIND);
         assert_eq!(config.postgres_read_model, None);
+        assert!(!config.enable_local_block_production);
+
+        let enabled = ServeConfig::parse(&[
+            "--chain-file",
+            "target/xriq.bin",
+            "--enable-local-block-production",
+            "true",
+        ])
+        .unwrap();
+        assert!(enabled.enable_local_block_production);
     }
 
     #[test]

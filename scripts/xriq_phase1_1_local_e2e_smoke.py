@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -304,25 +305,25 @@ def assert_api_method_status(
     expected_status: int,
     artifact_path: Path,
     validate: Callable[[dict[str, Any]], None],
+    *,
+    extra_args: list[str] | None = None,
 ) -> dict[str, Any]:
-    output = run_command(
-        f"xriq-api {method} {target}",
-        [
-            str(api_binary),
-            "request",
-            "--chain-file",
-            str(chain_file),
-            "--pending-file",
-            str(pending_file),
-            "--alice-balance",
-            "100",
-            "--method",
-            method,
-            "--target",
-            target,
-        ],
-        cwd=xriq_dir,
-    )
+    command = [
+        str(api_binary),
+        "request",
+        "--chain-file",
+        str(chain_file),
+        "--pending-file",
+        str(pending_file),
+        "--alice-balance",
+        "100",
+        "--method",
+        method,
+    ]
+    if extra_args:
+        command.extend(extra_args)
+    command.extend(["--target", target])
+    output = run_command(f"xriq-api {method} {target}", command, cwd=xriq_dir)
     status_code, reason, payload = parse_api_request_output(output, f"{method} {target}")
     if status_code != expected_status:
         raise SmokeError(
@@ -346,8 +347,15 @@ def free_local_port() -> int:
         return int(listener.getsockname()[1])
 
 
-def http_json(base_url: str, target: str, *, expected_status: int = 200) -> dict[str, Any]:
-    request = Request(base_url + target, method="GET")
+def http_json(
+    base_url: str,
+    target: str,
+    *,
+    expected_status: int = 200,
+    method: str = "GET",
+) -> dict[str, Any]:
+    request_body = b"" if method == "POST" else None
+    request = Request(base_url + target, data=request_body, method=method)
     try:
         with urlopen(request, timeout=10) as response:
             status = response.status
@@ -356,16 +364,20 @@ def http_json(base_url: str, target: str, *, expected_status: int = 200) -> dict
         status = exc.code
         text = exc.read().decode("utf-8")
     except URLError as exc:
-        raise SmokeError(f"GET {target} failed: {exc}") from exc
+        raise SmokeError(f"{method} {target} failed: {exc}") from exc
 
     if status != expected_status:
-        raise SmokeError(f"GET {target}: expected HTTP {expected_status}, got {status}: {text}")
+        raise SmokeError(
+            f"{method} {target}: expected HTTP {expected_status}, got {status}: {text}"
+        )
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise SmokeError(f"GET {target}: invalid JSON response: {exc}: {text}") from exc
+        raise SmokeError(
+            f"{method} {target}: invalid JSON response: {exc}: {text}"
+        ) from exc
     if not isinstance(payload, dict):
-        raise SmokeError(f"GET {target}: expected JSON object response")
+        raise SmokeError(f"{method} {target}: expected JSON object response")
     return payload
 
 
@@ -377,29 +389,39 @@ def start_api_readonly_server(
     chain_file: Path,
     pending_file: Path,
     bind: str,
-    postgres_container: str,
-    postgres_database: str,
+    postgres_container: str | None = None,
+    postgres_database: str | None = None,
+    enable_local_block_production: bool = False,
+    stderr_log_name: str = "api-postgres-read-model-server.stderr.log",
 ) -> subprocess.Popen[str]:
-    stderr_log = artifact_dir / "api-postgres-read-model-server.stderr.log"
+    stderr_log = artifact_dir / stderr_log_name
     stderr_handle = stderr_log.open("w", encoding="utf-8")
-    try:
-        process = subprocess.Popen(
+    command = [
+        str(api_binary),
+        "serve-readonly",
+        "--chain-file",
+        str(chain_file),
+        "--pending-file",
+        str(pending_file),
+        "--alice-balance",
+        "100",
+        "--bind",
+        bind,
+    ]
+    if postgres_container is not None and postgres_database is not None:
+        command.extend(
             [
-                str(api_binary),
-                "serve-readonly",
-                "--chain-file",
-                str(chain_file),
-                "--pending-file",
-                str(pending_file),
-                "--alice-balance",
-                "100",
-                "--bind",
-                bind,
                 "--postgres-docker-container",
                 postgres_container,
                 "--postgres-database",
                 postgres_database,
-            ],
+            ]
+        )
+    if enable_local_block_production:
+        command.extend(["--enable-local-block-production", "true"])
+    try:
+        process = subprocess.Popen(
+            command,
             cwd=xriq_dir,
             stdout=subprocess.DEVNULL,
             stderr=stderr_handle,
@@ -3253,6 +3275,193 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             ],
         )
 
+    def validate_block_production_accepted_payload(
+        payload: dict[str, Any],
+        *,
+        context: str,
+        expected_local_request_id: str,
+        expected_chain_file: Path,
+        expected_pending_file: Path,
+    ) -> None:
+        require_equal(payload, "environment", "private-devnet", context)
+        require_equal(payload, "network", "xriq-devnet", context)
+        require_equal(payload, "endpoint", "POST /api/v1/blocks/produce", context)
+        require_equal(
+            payload,
+            "code",
+            "block_production_accepted_local_only",
+            context,
+        )
+        require_equal(payload, "status", "confirmed", context)
+        require_equal(
+            payload,
+            "mutation",
+            "chain_and_pending_state_local_only",
+            context,
+        )
+        require_equal(payload, "warning", "local-private-devnet-only", context)
+        block = payload.get("block")
+        if not isinstance(block, dict):
+            raise SmokeError(f"{context}: expected block object")
+        require_equal(block, "height", 2, f"{context} block")
+        require_hash(block.get("block_hash"), f"{context} block hash")
+        require_hash(block.get("previous_block_hash"), f"{context} previous hash")
+        require_hash(block.get("state_root"), f"{context} state root")
+        require_hash(block.get("transactions_root"), f"{context} transactions root")
+        require_equal(block, "transaction_count", 1, f"{context} block")
+        require_equal(block, "timestamp_utc", "1970-01-01T00:00:02Z", context)
+        confirmed_transactions = require_list(
+            payload.get("confirmed_transactions"),
+            f"{context} confirmed transactions",
+        )
+        if len(confirmed_transactions) != 1 or not isinstance(confirmed_transactions[0], dict):
+            raise SmokeError(f"{context}: expected one confirmed transaction")
+        confirmed = confirmed_transactions[0]
+        require_equal(confirmed, "tx_hash", pending_tx_hash, f"{context} tx")
+        require_equal(confirmed, "status", "confirmed", f"{context} tx")
+        require_equal(confirmed, "block_height", 2, f"{context} tx")
+        require_equal(confirmed, "transaction_index", 0, f"{context} tx")
+        require_hash(confirmed.get("block_hash"), f"{context} tx block hash")
+        pending_state = payload.get("pending_state")
+        if not isinstance(pending_state, dict):
+            raise SmokeError(f"{context}: expected pending_state object")
+        require_equal(pending_state, "before_count", 1, f"{context} pending")
+        require_equal(pending_state, "after_count", 0, f"{context} pending")
+        removed = require_list(
+            pending_state.get("removed_tx_hashes"),
+            f"{context} removed tx hashes",
+        )
+        if removed != [pending_tx_hash]:
+            raise SmokeError(
+                f"{context}: expected removed pending hash "
+                f"{pending_tx_hash}, got {removed!r}"
+            )
+        require_equal(
+            pending_state,
+            "pending_file",
+            str(expected_pending_file),
+            f"{context} pending",
+        )
+        chain_state = payload.get("chain_state")
+        if not isinstance(chain_state, dict):
+            raise SmokeError(f"{context}: expected chain_state object")
+        require_equal(chain_state, "previous_height", 1, f"{context} chain")
+        require_equal(chain_state, "current_height", 2, f"{context} chain")
+        require_equal(
+            chain_state,
+            "chain_file",
+            str(expected_chain_file),
+            f"{context} chain",
+        )
+        require_equal(payload, "audit_scope", "api-local-accepted", context)
+        require_equal(payload, "audit_event_recorded", True, context)
+        audit_event = payload.get("audit_event")
+        if not isinstance(audit_event, dict):
+            raise SmokeError(f"{context}: expected audit_event object")
+        require_equal(
+            audit_event,
+            "event_id",
+            f"block-production:{expected_local_request_id}",
+            f"{context} audit",
+        )
+        require_equal(
+            audit_event,
+            "actor",
+            "local-private-devnet-operator",
+            f"{context} audit",
+        )
+        require_equal(
+            audit_event,
+            "action",
+            "block_production_attempt",
+            f"{context} audit",
+        )
+        require_equal(
+            audit_event,
+            "resource_type",
+            "block_production",
+            f"{context} audit",
+        )
+        require_equal(
+            audit_event,
+            "resource_id",
+            expected_local_request_id,
+            f"{context} audit",
+        )
+        metadata = audit_event.get("metadata")
+        if not isinstance(metadata, dict):
+            raise SmokeError(f"{context}: expected audit metadata object")
+        require_equal(metadata, "outcome", "accepted", f"{context} audit metadata")
+        require_equal(metadata, "status", "confirmed", f"{context} audit metadata")
+        require_equal(
+            metadata,
+            "explicit_flag",
+            "--enable-local-block-production",
+            f"{context} audit metadata",
+        )
+        require_equal(
+            metadata,
+            "local_request_id",
+            expected_local_request_id,
+            f"{context} audit metadata",
+        )
+        require_equal(
+            metadata,
+            "producer",
+            "xriqdev1author00000000000",
+            f"{context} audit metadata",
+        )
+        require_equal(metadata, "max_transactions", 4, f"{context} audit metadata")
+        require_equal(metadata, "timestamp_ms", 2000, f"{context} audit metadata")
+        require_equal(
+            metadata,
+            "pending_before_count",
+            1,
+            f"{context} audit metadata",
+        )
+        require_equal(
+            metadata,
+            "pending_after_count",
+            0,
+            f"{context} audit metadata",
+        )
+        require_equal(
+            metadata,
+            "confirmed_transaction_count",
+            1,
+            f"{context} audit metadata",
+        )
+        require_equal(
+            metadata,
+            "chain_previous_height",
+            1,
+            f"{context} audit metadata",
+        )
+        require_equal(
+            metadata,
+            "chain_current_height",
+            2,
+            f"{context} audit metadata",
+        )
+
+    def validate_block_production_accepted(payload: dict[str, Any]) -> None:
+        validate_block_production_accepted_payload(
+            payload,
+            context="local block production",
+            expected_local_request_id="local-smoke-1",
+            expected_chain_file=local_production_chain_file,
+            expected_pending_file=local_production_pending_file,
+        )
+
+    def validate_server_block_production_accepted(payload: dict[str, Any]) -> None:
+        validate_block_production_accepted_payload(
+            payload,
+            context="serve-readonly local block production",
+            expected_local_request_id="local-smoke-server-1",
+            expected_chain_file=local_server_production_chain_file,
+            expected_pending_file=local_server_production_pending_file,
+        )
+
     def validate_node_status(payload: dict[str, Any]) -> None:
         require_equal(payload, "mode", "serve-readonly", "node status")
         require_equal(payload, "pending_transactions", 1, "node status")
@@ -3391,6 +3600,81 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         403,
         validate_block_production_disabled,
     )
+    local_production_chain_file = artifact_dir / "local-block-production-chain.bin"
+    local_production_pending_file = artifact_dir / "local-block-production-pending.tsv"
+    shutil.copyfile(chain_file, local_production_chain_file)
+    shutil.copyfile(pending_file, local_production_pending_file)
+    local_block_production_target = (
+        "/api/v1/blocks/produce?local_request_id=local-smoke-1"
+        "&producer=xriqdev1author00000000000&max_transactions=4&timestamp_ms=2000"
+    )
+    assert_api_method_status(
+        api_binary,
+        xriq_dir,
+        local_production_chain_file,
+        local_production_pending_file,
+        "POST",
+        local_block_production_target,
+        201,
+        api_artifact_dir / "block-production-accepted-local.json",
+        validate_block_production_accepted,
+        extra_args=["--enable-local-block-production", "true"],
+    )
+    if local_production_pending_file.read_text(encoding="utf-8") != "":
+        raise SmokeError("local block production: copied pending file was not cleared")
+    if pending_tx_hash not in pending_file.read_text(encoding="utf-8"):
+        raise SmokeError("local block production: original pending file was unexpectedly changed")
+    completed.append("local block production accepted smoke")
+    local_server_production_chain_file = artifact_dir / "local-block-production-server-chain.bin"
+    local_server_production_pending_file = artifact_dir / "local-block-production-server-pending.tsv"
+    shutil.copyfile(chain_file, local_server_production_chain_file)
+    shutil.copyfile(pending_file, local_server_production_pending_file)
+    local_server_block_production_target = (
+        "/api/v1/blocks/produce?local_request_id=local-smoke-server-1"
+        "&producer=xriqdev1author00000000000&max_transactions=4&timestamp_ms=2000"
+    )
+    local_server_port = free_local_port()
+    local_server_bind = f"127.0.0.1:{local_server_port}"
+    local_server_base_url = f"http://{local_server_bind}"
+    local_server_process: subprocess.Popen[str] | None = None
+    try:
+        local_server_process = start_api_readonly_server(
+            api_binary,
+            xriq_dir,
+            artifact_dir,
+            chain_file=local_server_production_chain_file,
+            pending_file=local_server_production_pending_file,
+            bind=local_server_bind,
+            enable_local_block_production=True,
+            stderr_log_name="api-local-block-production-server.stderr.log",
+        )
+        wait_for_api_readonly_server(local_server_base_url, local_server_process)
+        local_server_block_production = http_json(
+            local_server_base_url,
+            local_server_block_production_target,
+            expected_status=201,
+            method="POST",
+        )
+        validate_server_block_production_accepted(local_server_block_production)
+        write_json(
+            api_artifact_dir / "block-production-accepted-local-server.json",
+            local_server_block_production,
+        )
+        local_server_network = http_json(local_server_base_url, "/api/v1/network")
+        require_equal(local_server_network, "current_height", 2, "serve-readonly network")
+        write_json(api_artifact_dir / "block-production-server-network.json", local_server_network)
+        local_server_mempool = http_json(local_server_base_url, "/api/v1/mempool?limit=5")
+        require_equal(local_server_mempool, "pending_count", 0, "serve-readonly mempool")
+        write_json(api_artifact_dir / "block-production-server-mempool.json", local_server_mempool)
+    finally:
+        stop_process(local_server_process)
+    if local_server_production_pending_file.read_text(encoding="utf-8") != "":
+        raise SmokeError("serve-readonly local block production: copied pending file was not cleared")
+    if pending_tx_hash not in pending_file.read_text(encoding="utf-8"):
+        raise SmokeError(
+            "serve-readonly local block production: original pending file was unexpectedly changed"
+        )
+    completed.append("serve-readonly local block production accepted smoke")
     check("/api/v1/admin/node/status", "admin-node-status", validate_node_status)
     check("/api/v1/admin/indexer/status", "admin-indexer-status", validate_indexer)
     check("/api/v1/admin/audit-events?limit=5", "admin-audit-events", validate_audit)
@@ -3421,6 +3705,22 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "artifact_dir": str(artifact_dir),
         "chain_file": str(chain_file),
         "pending_file": str(pending_file),
+        "local_block_production": {
+            "chain_file": str(local_production_chain_file),
+            "pending_file": str(local_production_pending_file),
+            "accepted_response": str(api_artifact_dir / "block-production-accepted-local.json"),
+            "serve_readonly_chain_file": str(local_server_production_chain_file),
+            "serve_readonly_pending_file": str(local_server_production_pending_file),
+            "serve_readonly_accepted_response": str(
+                api_artifact_dir / "block-production-accepted-local-server.json"
+            ),
+            "serve_readonly_network": str(
+                api_artifact_dir / "block-production-server-network.json"
+            ),
+            "serve_readonly_mempool": str(
+                api_artifact_dir / "block-production-server-mempool.json"
+            ),
+        },
         "indexer_artifacts": {
             "replay_json": str(indexer_dir / "replay.json"),
             "write_plan_sql": str(indexer_dir / "write-plan.sql"),
