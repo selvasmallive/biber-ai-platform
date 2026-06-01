@@ -59,7 +59,8 @@ The post-Phase 1.1 RC1 local/private Phase 1.2 plan is documented at
 `../docs/XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md`.
 The first Phase 1.2 wallet mutation preflight fixtures live in
 `fixtures/phase1_2/`; they are disabled/refusal contracts only and do not enable
-wallet submit/send behavior.
+wallet submit/send behavior. From the repo root, validate them with
+`python scripts/xriq_phase1_2_refusal_smoke.py`.
 The first Phase 1.1 indexer scaffold can be checked with:
 
 ```bash

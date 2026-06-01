@@ -501,6 +501,17 @@ money-like values as integer base-unit strings, and that the Phase 1.2 wallet
 mutation preflight fixtures remain disabled with `mutation: "none"`, explicit
 local enablement flags, audit requirements, and test-identity-only boundaries.
 
+Run the Phase 1.2 refusal smoke from the repo root:
+
+```bash
+python scripts/xriq_phase1_2_refusal_smoke.py
+```
+
+The refusal smoke writes a summary under
+`xriq/target/xriq-phase1-2-refusal-smoke-*` and does not enable wallet
+submission, sending, block production, pending-state mutation, signing, or
+custody behavior.
+
 Run the focused Rust indexer scaffold tests from `xriq/`:
 
 ```bash

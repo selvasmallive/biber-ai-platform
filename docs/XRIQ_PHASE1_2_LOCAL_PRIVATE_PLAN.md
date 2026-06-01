@@ -111,9 +111,14 @@ under `xriq/fixtures/phase1_2/`, and
 `scripts/xriq_phase1_1_contract_check.py` validates that they remain disabled,
 non-mutating, local/private, audit-gated, and test-identity-only.
 
-Recommended next implementation: add local smoke coverage that asserts these
-preflight fixtures and refusal rules are present. Do not wire successful
-submit/send behavior until the refusal-path smoke is stable.
+Current refusal-smoke checkpoint: `scripts/xriq_phase1_2_refusal_smoke.py`
+validates those preflight fixtures independently and writes a local smoke
+summary under `xriq/target/xriq-phase1-2-refusal-smoke-*`.
+
+Recommended next implementation: add API-level refusal behavior for
+`POST /api/v1/wallet/transfers/submit` and
+`POST /api/v1/wallet/transfers/send` before any successful submit/send path.
+Do not wire successful mutation until the API refusal behavior is stable.
 
 ## Validation
 
@@ -127,6 +132,7 @@ For the first fixture/contract checkpoint, also use:
 
 ```bash
 python scripts/xriq_phase1_1_contract_check.py
+python scripts/xriq_phase1_2_refusal_smoke.py
 python scripts/xriq_phase1_1_rc_readiness.py --latest-summary
 ```
 
