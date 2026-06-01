@@ -10,8 +10,9 @@ use std::{
 };
 
 use xriq_api::{
-    pending_mempool_entries_from_tsv, product_api_http_response, ApiHttpResponse, XriqApiService,
-    MEMPOOL_READONLY_WARNING, SNAPSHOT_READONLY_WARNING, WALLET_PREVIEW_WARNING,
+    pending_mempool_entries_from_tsv, product_api_http_response, wallet_refusal_audit_events,
+    ApiHttpResponse, WalletRefusalAuditEventResponse, XriqApiService, MEMPOOL_READONLY_WARNING,
+    SNAPSHOT_READONLY_WARNING, WALLET_PREVIEW_WARNING,
 };
 use xriq_core::{Address, XriqAmount, PRIVATE_DEVNET_MIN_FEE_BASE_UNITS};
 use xriq_indexer::index_private_devnet_store;
@@ -2186,6 +2187,25 @@ fn render_postgres_audit_events_json(
     if audit_event_count > 0 {
         output.push('\n');
     }
+    output.push_str("  ],\n");
+    let local_refusal_audit_events = wallet_refusal_audit_events();
+    writeln!(
+        &mut output,
+        "  \"local_refusal_audit_count\": {},",
+        local_refusal_audit_events.len()
+    )
+    .expect("write to String");
+    output.push_str("  \"local_refusal_audit_events\": [");
+    for (index, event) in local_refusal_audit_events.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_wallet_refusal_audit_event_json_inline(event, 4));
+    }
+    if !local_refusal_audit_events.is_empty() {
+        output.push('\n');
+    }
     output.push_str("  ]\n}");
     Ok(output)
 }
@@ -2225,6 +2245,35 @@ fn render_postgres_audit_event_json_inline(
         resource_id,
         json_string(environment)
     ))
+}
+
+fn render_wallet_refusal_audit_event_json_inline(
+    event: &WalletRefusalAuditEventResponse,
+    indent: usize,
+) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    let metadata = " ".repeat(indent + 4);
+    format!(
+        "{spaces}{{\n{nested}\"event_id\": {},\n{nested}\"actor\": {},\n{nested}\"action\": {},\n{nested}\"resource_type\": {},\n{nested}\"resource_id\": {},\n{nested}\"environment\": {},\n{nested}\"audit_scope\": {},\n{nested}\"recording\": {},\n{nested}\"outcome\": {},\n{nested}\"status\": {},\n{nested}\"mutation\": {},\n{nested}\"metadata\": {{\n{metadata}\"endpoint\": {},\n{metadata}\"refusal_code\": {},\n{metadata}\"explicit_flag\": {},\n{metadata}\"local_request_id\": {},\n{metadata}\"resource_id_policy\": {},\n{metadata}\"metadata_policy\": {}\n{nested}}}\n{spaces}}}",
+        json_string(event.event_id),
+        json_string(event.actor),
+        json_string(event.action),
+        json_string(event.resource_type),
+        json_string(event.resource_id),
+        json_string(event.environment),
+        json_string(event.audit_scope),
+        json_string(event.recording),
+        json_string(event.outcome),
+        json_string(event.status),
+        json_string(event.mutation),
+        json_string(event.metadata.endpoint),
+        json_string(event.metadata.refusal_code),
+        json_string(event.metadata.explicit_flag),
+        json_string(event.metadata.local_request_id),
+        json_string(event.metadata.resource_id_policy),
+        json_string(event.metadata.metadata_policy)
+    )
 }
 
 fn render_postgres_blocks_json(
@@ -4759,6 +4808,17 @@ audit_event_0_environment=private-devnet
             "\"resource_id\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\""
         ));
         assert!(body.contains("\"environment\": \"private-devnet\""));
+        assert!(body.contains("\"local_refusal_audit_count\": 2"));
+        assert!(body.contains("\"local_refusal_audit_events\": ["));
+        assert!(body.contains("\"event_id\": \"wallet-transfer-submit:local_request_id\""));
+        assert!(body.contains("\"event_id\": \"wallet-transfer-send:local_request_id\""));
+        assert!(body.contains("\"audit_scope\": \"api-local-refusal\""));
+        assert!(body.contains("\"recording\": \"api-local-response\""));
+        assert!(body.contains("\"outcome\": \"refused\""));
+        assert!(body.contains("\"mutation\": \"none\""));
+        assert!(!body.contains("private_key"));
+        assert!(!body.contains("seed_phrase"));
+        assert!(!body.contains("mnemonic"));
     }
 
     #[test]

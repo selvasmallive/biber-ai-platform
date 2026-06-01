@@ -196,6 +196,32 @@ API-local refusal audit object for submit/send attempts, but it is still
 non-mutating and does not yet expose refused attempts through persistent
 chain/indexer audit storage.
 
+The admin audit response exposes these local refusal records separately from
+indexed audit rows:
+
+```text
+GET /api/v1/admin/audit-events?limit=25
+```
+
+Required local refusal audit visibility behavior:
+
+- keep indexed read-model rows in `audit_events`
+- add `local_refusal_audit_count`
+- add `local_refusal_audit_events[]`
+- use `audit_scope: "api-local-refusal"`
+- use `recording: "api-local-response"`
+- declare `outcome: "refused"`, `status: "disabled"`, and
+  `mutation: "none"`
+- include endpoint, refusal code, explicit local flag, local request id
+  placeholder, resource id policy, and request-fields-only metadata policy
+- do not expose signing material, custody material, seed material, or
+  transaction hashes
+
+The same local refusal audit visibility section must be rendered by the
+file-backed API and by the explicitly configured Postgres read-model API path.
+These local refusal records are visibility-only and are not persistent
+chain/indexer rows yet.
+
 ### Admin APIs
 
 ```text
@@ -565,7 +591,8 @@ This verifies `POST /api/v1/wallet/transfers/submit` and
 `POST /api/v1/wallet/transfers/send` return disabled `403` responses with
 API-local refusal audit records and still does not enable wallet submission,
 sending, block production, pending-state mutation, signing, or custody
-behavior.
+behavior. It also verifies `/api/v1/admin/audit-events?limit=5` exposes the
+same refusal records through `local_refusal_audit_events`.
 
 Run the React/static wallet guardrail from `xriq/apps/explorer-ui`:
 

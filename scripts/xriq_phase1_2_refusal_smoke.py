@@ -353,8 +353,8 @@ def main(argv: list[str] | None = None) -> int:
                 "audit_metadata_forbids_sensitive_material",
             ],
             "next": (
-                "surface refused wallet audit records through a deterministic "
-                "local audit view before any successful local mutation path"
+                "add disabled local block-production preflight and audit "
+                "fixtures before any successful local mutation path"
             ),
         }
         (artifact_dir / "summary.json").write_text(

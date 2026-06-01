@@ -150,10 +150,19 @@ local request id placeholder, and request-fields-only metadata policy. It still
 does not write chain state, pending state, signing material, custody material,
 transaction hashes, or accepted mutation results.
 
-Recommended next implementation: surface refused wallet audit records through
-the local admin/read-model audit path or another deterministic local audit
-artifact before any successful wallet submit/send path is wired. Do not wire
-accepted mutation until refused-attempt audit visibility is stable.
+Current audit visibility checkpoint: `/api/v1/admin/audit-events?limit=...`
+now keeps indexed read-model audit rows in `audit_events` and adds a separate
+`local_refusal_audit_events` array with the deterministic refused wallet
+submit/send audit records. The same local refusal section is rendered by the
+file-backed API and the explicitly configured Postgres read-model API path.
+It remains visibility-only; the records are not persisted chain/indexer rows
+and no successful submit/send, pending mutation, chain mutation, signing, or
+custody behavior is enabled.
+
+Recommended next implementation: add disabled local block-production preflight
+and audit expectation fixtures before wiring any pending-to-confirmed action
+loop. Do not wire successful wallet submit/send or block production until the
+block-production refusal and audit contracts are stable.
 
 ## Validation
 

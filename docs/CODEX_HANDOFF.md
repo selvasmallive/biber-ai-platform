@@ -233,15 +233,15 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `24%` overall after the initial
+- Phase 1.2 estimated completion: about `27%` overall after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
   submit/send, React/client disabled-action guard coverage, and audit-event
-  expectation fixtures plus API-local refusal audit records for future
-  submit/send attempts. It is not a public launch phase. Its current target is
-  local audit visibility for refused wallet attempts before any successful
-  wallet-submit, block-production, snapshot-mutation, DEX, custody, or public
-  network behavior is implemented.
+  expectation fixtures plus API-local refusal audit records and admin audit
+  visibility for future submit/send attempts. It is not a public launch phase.
+  Its current target is disabled block-production preflight and audit contracts
+  before any successful wallet-submit, block-production, snapshot-mutation,
+  DEX, custody, or public network behavior is implemented.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -261,6 +261,31 @@ after the completed private-devnet RC1 and Phase 1.1 local/e2e RC1 tags. The
 previous Vast deployment is not an active target because the GPU was terminated
 to save cost.
 
+- Latest native XRIQ Phase 1.2 admin audit visibility checkpoint:
+  `/api/v1/admin/audit-events?limit=...` now keeps indexed read-model audit
+  rows in `audit_events` and adds `local_refusal_audit_count` plus
+  `local_refusal_audit_events[]` for the deterministic refused wallet
+  submit/send audit records. The local refusal records include
+  `audit_scope: "api-local-refusal"`, `recording: "api-local-response"`,
+  refused/disabled/non-mutating status, endpoint, refusal code, explicit local
+  flag, local request id placeholder, and request-fields-only metadata policy.
+  The file-backed API, `request-postgres`, and explicitly Postgres-enabled
+  `serve-readonly` render the same section without storing these records as
+  persistent chain/indexer rows. This remains visibility-only and still does
+  not enable successful wallet submit/send, pending-state mutation, chain
+  mutation, signing, custody, transaction hashes, DEX, smart contracts, public
+  mainnet, bridges, exchange listings, or production infrastructure.
+  Checkpoint artifacts:
+  `xriq/target/xriq-phase1-2-audit-visibility-smoke-20260601T044700Z/summary.json`
+  and
+  `xriq/target/xriq-phase1-2-audit-visibility-docker-smoke-20260601T045200Z/summary.json`.
+  Verification passed `cargo test --target-dir target/codex-phase1-2-audit-visibility -p xriq-api --lib -j 1`,
+  `cargo test -p xriq-api --bin xriq-api -j 1`, bundled-Python `py_compile`,
+  `scripts/xriq_phase1_1_contract_check.py`,
+  `scripts/xriq_phase1_2_refusal_smoke.py`,
+  `scripts/xriq_phase1_1_local_e2e_smoke.py --artifact-dir xriq/target/xriq-phase1-2-audit-visibility-smoke-20260601T044700Z`,
+  and escalated Docker live
+  `scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live --artifact-dir xriq/target/xriq-phase1-2-audit-visibility-docker-smoke-20260601T045200Z`.
 - Latest native XRIQ Phase 1.2 API-local refusal audit checkpoint: disabled
   `POST /api/v1/wallet/transfers/submit` and
   `POST /api/v1/wallet/transfers/send` responses now include
@@ -411,13 +436,13 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: surface refused wallet audit records through
-  the local admin/read-model audit path or another deterministic local audit
-  artifact before wiring any successful wallet submit/send path. Keep accepted
-  wallet submission, block-production controls, snapshot import/export
-  mutation, DEX, smart contracts, public mainnet, custody, bridges, exchange
-  listings, and production infrastructure out of scope until refused-attempt
-  audit visibility is stable.
+- Recommended next narrow step: add disabled local block-production preflight
+  and audit expectation fixtures before wiring any successful
+  pending-to-confirmed action loop. Keep accepted wallet submission,
+  block-production controls, snapshot import/export mutation, DEX, smart
+  contracts, public mainnet, custody, bridges, exchange listings, and
+  production infrastructure out of scope until block-production refusal and
+  audit contracts are stable.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return

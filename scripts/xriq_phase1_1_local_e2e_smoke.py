@@ -131,6 +131,58 @@ def find_forbidden_wallet_keys(payload: Any) -> list[str]:
     return found
 
 
+def validate_local_refusal_audit_events(payload: dict[str, Any], context: str) -> None:
+    require_equal(payload, "local_refusal_audit_count", 2, context)
+    events = require_list(payload.get("local_refusal_audit_events"), context)
+    if len(events) != 2 or not all(isinstance(event, dict) for event in events):
+        raise SmokeError(f"{context}: expected two local refusal audit events")
+    by_id = {str(event.get("event_id")): event for event in events}
+    expected_events = {
+        "wallet-transfer-submit:local_request_id": {
+            "action": "wallet_transfer_submit_attempt",
+            "resource_id": "draft_id_or_local_request_id",
+            "endpoint": "POST /api/v1/wallet/transfers/submit",
+            "refusal_code": "wallet_submit_disabled",
+            "explicit_flag": "--enable-local-wallet-submit",
+        },
+        "wallet-transfer-send:local_request_id": {
+            "action": "wallet_transfer_send_attempt",
+            "resource_id": "local_request_id",
+            "endpoint": "POST /api/v1/wallet/transfers/send",
+            "refusal_code": "wallet_send_disabled",
+            "explicit_flag": "--enable-local-wallet-send",
+        },
+    }
+    for event_id, expected in expected_events.items():
+        event = by_id.get(event_id)
+        if not isinstance(event, dict):
+            raise SmokeError(f"{context}: missing local refusal audit event {event_id}")
+        require_equal(event, "actor", "local-private-devnet-operator", context)
+        require_equal(event, "action", expected["action"], context)
+        require_equal(event, "resource_type", "wallet_transfer", context)
+        require_equal(event, "resource_id", expected["resource_id"], context)
+        require_equal(event, "environment", "private-devnet", context)
+        require_equal(event, "audit_scope", "api-local-refusal", context)
+        require_equal(event, "recording", "api-local-response", context)
+        require_equal(event, "outcome", "refused", context)
+        require_equal(event, "status", "disabled", context)
+        require_equal(event, "mutation", "none", context)
+        metadata = event.get("metadata")
+        if not isinstance(metadata, dict):
+            raise SmokeError(f"{context}: expected metadata for {event_id}")
+        require_equal(metadata, "endpoint", expected["endpoint"], context)
+        require_equal(metadata, "refusal_code", expected["refusal_code"], context)
+        require_equal(metadata, "explicit_flag", expected["explicit_flag"], context)
+        require_equal(metadata, "local_request_id", "local_request_id", context)
+        require_equal(metadata, "resource_id_policy", expected["resource_id"], context)
+        metadata_policy = metadata.get("metadata_policy")
+        if not isinstance(metadata_policy, str) or "request fields only" not in metadata_policy:
+            raise SmokeError(f"{context}: expected request-fields-only local audit metadata")
+    forbidden_keys = find_forbidden_wallet_keys(events)
+    if forbidden_keys:
+        raise SmokeError(f"{context}: forbidden local audit response keys {forbidden_keys}")
+
+
 def parse_api_request_output(output: str, context: str) -> tuple[int, str, dict[str, Any]]:
     match = re.match(r"status_code=(\d+)\nreason=([^\n]*)\nbody=(.*)\Z", output, re.DOTALL)
     if not match:
@@ -1723,6 +1775,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             require_equal(event, "resource_type", "block", context)
             require_hash(event.get("resource_id"), f"{context} resource id")
             require_equal(event, "environment", "private-devnet", context)
+            validate_local_refusal_audit_events(payload, context)
 
         def validate_postgres_snapshot_fields(
             snapshot: dict[str, Any], context: str
@@ -3163,6 +3216,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         require_equal(events[0], "actor", "xriq-indexer", "audit event")
         require_equal(events[0], "action", "index_block", "audit event")
         require_equal(events[0], "resource_type", "block", "audit event")
+        validate_local_refusal_audit_events(payload, "audit events")
 
     def validate_snapshots(payload: dict[str, Any]) -> None:
         require_equal(

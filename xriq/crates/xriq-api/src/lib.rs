@@ -40,6 +40,12 @@ pub const WALLET_AUDIT_RESOURCE_TYPE: &str = "wallet_transfer";
 pub const WALLET_AUDIT_SCOPE: &str = "api-local-refusal";
 pub const WALLET_AUDIT_METADATA_POLICY: &str =
     "request fields only; no signing material or transaction hashes";
+pub const WALLET_SUBMIT_AUDIT_ACTION: &str = "wallet_transfer_submit_attempt";
+pub const WALLET_SEND_AUDIT_ACTION: &str = "wallet_transfer_send_attempt";
+pub const WALLET_SUBMIT_AUDIT_EVENT_ID: &str = "wallet-transfer-submit:local_request_id";
+pub const WALLET_SEND_AUDIT_EVENT_ID: &str = "wallet-transfer-send:local_request_id";
+pub const WALLET_SUBMIT_AUDIT_RESOURCE_ID: &str = "draft_id_or_local_request_id";
+pub const WALLET_SEND_AUDIT_RESOURCE_ID: &str = "local_request_id";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XriqApiService {
@@ -559,6 +565,7 @@ impl XriqApiService {
             limit,
             next_cursor,
             audit_events,
+            local_refusal_audit_events: wallet_refusal_audit_events(),
         }
     }
 
@@ -633,9 +640,9 @@ pub fn product_api_http_response(
                 "wallet_submit_disabled",
                 "wallet transfer submit is disabled by default in Phase 1.2 preflight mode",
                 "--enable-local-wallet-submit",
-                "wallet_transfer_submit_attempt",
-                "wallet-transfer-submit:local_request_id",
-                "draft_id_or_local_request_id",
+                WALLET_SUBMIT_AUDIT_ACTION,
+                WALLET_SUBMIT_AUDIT_EVENT_ID,
+                WALLET_SUBMIT_AUDIT_RESOURCE_ID,
                 &[
                     "default mode refuses mutation",
                     "signing material is not accepted",
@@ -649,9 +656,9 @@ pub fn product_api_http_response(
                 "wallet_send_disabled",
                 "wallet transfer send is disabled by default in Phase 1.2 preflight mode",
                 "--enable-local-wallet-send",
-                "wallet_transfer_send_attempt",
-                "wallet-transfer-send:local_request_id",
-                "local_request_id",
+                WALLET_SEND_AUDIT_ACTION,
+                WALLET_SEND_AUDIT_EVENT_ID,
+                WALLET_SEND_AUDIT_RESOURCE_ID,
                 &[
                     "default mode refuses mutation",
                     "signing material is not accepted",
@@ -1226,6 +1233,7 @@ pub struct AuditEventListResponse {
     pub limit: usize,
     pub next_cursor: Option<String>,
     pub audit_events: Vec<AuditEventResponse>,
+    pub local_refusal_audit_events: Vec<WalletRefusalAuditEventResponse>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1236,6 +1244,32 @@ pub struct AuditEventResponse {
     pub resource_type: &'static str,
     pub resource_id: Option<String>,
     pub environment: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletRefusalAuditEventResponse {
+    pub event_id: &'static str,
+    pub actor: &'static str,
+    pub action: &'static str,
+    pub resource_type: &'static str,
+    pub resource_id: &'static str,
+    pub environment: &'static str,
+    pub audit_scope: &'static str,
+    pub recording: &'static str,
+    pub outcome: &'static str,
+    pub status: &'static str,
+    pub mutation: &'static str,
+    pub metadata: WalletRefusalAuditMetadataResponse,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WalletRefusalAuditMetadataResponse {
+    pub endpoint: &'static str,
+    pub refusal_code: &'static str,
+    pub explicit_flag: &'static str,
+    pub local_request_id: &'static str,
+    pub resource_id_policy: &'static str,
+    pub metadata_policy: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1399,6 +1433,53 @@ fn audit_event_response(event: &IndexedAuditEvent) -> AuditEventResponse {
         resource_id: event.resource_id.clone(),
         environment: event.environment,
     }
+}
+
+pub fn wallet_refusal_audit_events() -> Vec<WalletRefusalAuditEventResponse> {
+    vec![
+        WalletRefusalAuditEventResponse {
+            event_id: WALLET_SUBMIT_AUDIT_EVENT_ID,
+            actor: WALLET_AUDIT_ACTOR,
+            action: WALLET_SUBMIT_AUDIT_ACTION,
+            resource_type: WALLET_AUDIT_RESOURCE_TYPE,
+            resource_id: WALLET_SUBMIT_AUDIT_RESOURCE_ID,
+            environment: API_ENVIRONMENT,
+            audit_scope: WALLET_AUDIT_SCOPE,
+            recording: "api-local-response",
+            outcome: "refused",
+            status: "disabled",
+            mutation: "none",
+            metadata: WalletRefusalAuditMetadataResponse {
+                endpoint: "POST /api/v1/wallet/transfers/submit",
+                refusal_code: "wallet_submit_disabled",
+                explicit_flag: "--enable-local-wallet-submit",
+                local_request_id: "local_request_id",
+                resource_id_policy: WALLET_SUBMIT_AUDIT_RESOURCE_ID,
+                metadata_policy: WALLET_AUDIT_METADATA_POLICY,
+            },
+        },
+        WalletRefusalAuditEventResponse {
+            event_id: WALLET_SEND_AUDIT_EVENT_ID,
+            actor: WALLET_AUDIT_ACTOR,
+            action: WALLET_SEND_AUDIT_ACTION,
+            resource_type: WALLET_AUDIT_RESOURCE_TYPE,
+            resource_id: WALLET_SEND_AUDIT_RESOURCE_ID,
+            environment: API_ENVIRONMENT,
+            audit_scope: WALLET_AUDIT_SCOPE,
+            recording: "api-local-response",
+            outcome: "refused",
+            status: "disabled",
+            mutation: "none",
+            metadata: WalletRefusalAuditMetadataResponse {
+                endpoint: "POST /api/v1/wallet/transfers/send",
+                refusal_code: "wallet_send_disabled",
+                explicit_flag: "--enable-local-wallet-send",
+                local_request_id: "local_request_id",
+                resource_id_policy: WALLET_SEND_AUDIT_RESOURCE_ID,
+                metadata_policy: WALLET_AUDIT_METADATA_POLICY,
+            },
+        },
+    ]
 }
 
 fn transactions_for_block(
@@ -2770,6 +2851,24 @@ fn render_audit_event_list_json(response: &AuditEventListResponse) -> String {
     if !response.audit_events.is_empty() {
         output.push('\n');
     }
+    output.push_str("  ],\n");
+    writeln!(
+        &mut output,
+        "  \"local_refusal_audit_count\": {},",
+        response.local_refusal_audit_events.len()
+    )
+    .expect("write to String");
+    output.push_str("  \"local_refusal_audit_events\": [");
+    for (index, event) in response.local_refusal_audit_events.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push('\n');
+        output.push_str(&render_wallet_refusal_audit_event_json_inline(event, 4));
+    }
+    if !response.local_refusal_audit_events.is_empty() {
+        output.push('\n');
+    }
     output.push_str("  ]\n}");
     output
 }
@@ -2897,6 +2996,35 @@ fn render_audit_event_json_inline(event: &AuditEventResponse, indent: usize) -> 
         json_string(event.resource_type),
         json_optional_string(event.resource_id.as_deref()),
         json_string(event.environment)
+    )
+}
+
+fn render_wallet_refusal_audit_event_json_inline(
+    event: &WalletRefusalAuditEventResponse,
+    indent: usize,
+) -> String {
+    let spaces = " ".repeat(indent);
+    let nested = " ".repeat(indent + 2);
+    let metadata = " ".repeat(indent + 4);
+    format!(
+        "{spaces}{{\n{nested}\"event_id\": {},\n{nested}\"actor\": {},\n{nested}\"action\": {},\n{nested}\"resource_type\": {},\n{nested}\"resource_id\": {},\n{nested}\"environment\": {},\n{nested}\"audit_scope\": {},\n{nested}\"recording\": {},\n{nested}\"outcome\": {},\n{nested}\"status\": {},\n{nested}\"mutation\": {},\n{nested}\"metadata\": {{\n{metadata}\"endpoint\": {},\n{metadata}\"refusal_code\": {},\n{metadata}\"explicit_flag\": {},\n{metadata}\"local_request_id\": {},\n{metadata}\"resource_id_policy\": {},\n{metadata}\"metadata_policy\": {}\n{nested}}}\n{spaces}}}",
+        json_string(event.event_id),
+        json_string(event.actor),
+        json_string(event.action),
+        json_string(event.resource_type),
+        json_string(event.resource_id),
+        json_string(event.environment),
+        json_string(event.audit_scope),
+        json_string(event.recording),
+        json_string(event.outcome),
+        json_string(event.status),
+        json_string(event.mutation),
+        json_string(event.metadata.endpoint),
+        json_string(event.metadata.refusal_code),
+        json_string(event.metadata.explicit_flag),
+        json_string(event.metadata.local_request_id),
+        json_string(event.metadata.resource_id_policy),
+        json_string(event.metadata.metadata_policy)
     )
 }
 
@@ -3602,6 +3730,31 @@ mod tests {
             audit.audit_events[0].resource_id.as_deref(),
             Some(BLOCK_HASH)
         );
+        assert_eq!(audit.local_refusal_audit_events.len(), 2);
+        assert_eq!(
+            audit.local_refusal_audit_events[0].event_id,
+            WALLET_SUBMIT_AUDIT_EVENT_ID
+        );
+        assert_eq!(
+            audit.local_refusal_audit_events[0].action,
+            WALLET_SUBMIT_AUDIT_ACTION
+        );
+        assert_eq!(
+            audit.local_refusal_audit_events[0].metadata.refusal_code,
+            "wallet_submit_disabled"
+        );
+        assert_eq!(
+            audit.local_refusal_audit_events[1].event_id,
+            WALLET_SEND_AUDIT_EVENT_ID
+        );
+        assert_eq!(
+            audit.local_refusal_audit_events[1].action,
+            WALLET_SEND_AUDIT_ACTION
+        );
+        assert_eq!(
+            audit.local_refusal_audit_events[1].metadata.refusal_code,
+            "wallet_send_disabled"
+        );
 
         let snapshots = api.snapshots();
         assert_eq!(snapshots.warning, SNAPSHOT_READONLY_WARNING);
@@ -3762,6 +3915,23 @@ mod tests {
         assert_eq!(audit.status_code, 200);
         assert!(audit.body.contains("\"audit_events\""));
         assert!(audit.body.contains("\"action\": \"index_block\""));
+        assert!(audit.body.contains("\"local_refusal_audit_count\": 2"));
+        assert!(audit.body.contains("\"local_refusal_audit_events\""));
+        assert!(audit
+            .body
+            .contains("\"event_id\": \"wallet-transfer-submit:local_request_id\""));
+        assert!(audit
+            .body
+            .contains("\"event_id\": \"wallet-transfer-send:local_request_id\""));
+        assert!(audit
+            .body
+            .contains("\"audit_scope\": \"api-local-refusal\""));
+        assert!(audit.body.contains("\"recording\": \"api-local-response\""));
+        assert!(audit.body.contains("\"outcome\": \"refused\""));
+        assert!(audit.body.contains("\"mutation\": \"none\""));
+        assert!(!audit.body.contains("private_key"));
+        assert!(!audit.body.contains("seed_phrase"));
+        assert!(!audit.body.contains("mnemonic"));
 
         let snapshots = product_api_http_response(&api, "GET", "/api/v1/snapshots");
         assert_eq!(snapshots.status_code, 200);
