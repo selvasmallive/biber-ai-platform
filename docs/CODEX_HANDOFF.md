@@ -233,15 +233,16 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `27%` overall after the initial
+- Phase 1.2 estimated completion: about `30%` overall after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
   submit/send, React/client disabled-action guard coverage, and audit-event
-  expectation fixtures plus API-local refusal audit records and admin audit
-  visibility for future submit/send attempts. It is not a public launch phase.
-  Its current target is disabled block-production preflight and audit contracts
-  before any successful wallet-submit, block-production, snapshot-mutation,
-  DEX, custody, or public network behavior is implemented.
+  expectation fixtures plus API-local refusal audit records, admin audit
+  visibility for future submit/send attempts, and disabled block-production
+  preflight/audit fixtures. It is not a public launch phase. Its current target
+  is the API-level disabled/refused block-production response before any
+  successful wallet-submit, block-production, snapshot-mutation, DEX, custody,
+  or public network behavior is implemented.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -261,6 +262,26 @@ after the completed private-devnet RC1 and Phase 1.1 local/e2e RC1 tags. The
 previous Vast deployment is not an active target because the GPU was terminated
 to save cost.
 
+- Latest native XRIQ Phase 1.2 block-production preflight checkpoint:
+  `xriq/fixtures/phase1_2/block-production-disabled.json` and
+  `xriq/fixtures/phase1_2/block-production-audit-expectation.json` now define
+  the default-off contract for `POST /api/v1/blocks/produce`. The contract uses
+  `block_production_attempt`, `block_production`, `--enable-local-block-production`,
+  local request id policy, request-fields-only audit metadata, test-identity-only
+  scope, and explicit guards that pending state and chain state are not changed
+  by the default path. `scripts/xriq_phase1_1_contract_check.py` and
+  `scripts/xriq_phase1_2_refusal_smoke.py` validate the block-production
+  fixtures alongside the existing wallet submit/send fixtures. This checkpoint
+  still does not add the API POST route, produce blocks, confirm pending
+  transactions, change chain state, change pending state, sign, custody, enable
+  DEX/smart contracts, or expose public network behavior. Verification passed
+  bundled-Python `py_compile`, `scripts/xriq_phase1_1_contract_check.py`,
+  `scripts/xriq_phase1_2_refusal_smoke.py`,
+  `scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
+  `git diff --check`. Next narrow step: add the API-level disabled/refused
+  `POST /api/v1/blocks/produce` response and show its deterministic local
+  refusal record in admin audit visibility before any successful
+  block-production loop.
 - Latest native XRIQ Phase 1.2 admin audit visibility checkpoint:
   `/api/v1/admin/audit-events?limit=...` now keeps indexed read-model audit
   rows in `audit_events` and adds `local_refusal_audit_count` plus
@@ -436,13 +457,14 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: add disabled local block-production preflight
-  and audit expectation fixtures before wiring any successful
+- Recommended next narrow step: add the API-level disabled/refused
+  `POST /api/v1/blocks/produce` response and expose its deterministic local
+  refusal record through admin audit visibility before wiring any successful
   pending-to-confirmed action loop. Keep accepted wallet submission,
-  block-production controls, snapshot import/export mutation, DEX, smart
+  block-production success, snapshot import/export mutation, DEX, smart
   contracts, public mainnet, custody, bridges, exchange listings, and
-  production infrastructure out of scope until block-production refusal and
-  audit contracts are stable.
+  production infrastructure out of scope until block-production API refusal and
+  audit visibility are stable.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return

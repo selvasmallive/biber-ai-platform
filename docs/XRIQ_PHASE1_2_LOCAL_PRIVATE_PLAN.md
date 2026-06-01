@@ -159,10 +159,21 @@ It remains visibility-only; the records are not persisted chain/indexer rows
 and no successful submit/send, pending mutation, chain mutation, signing, or
 custody behavior is enabled.
 
-Recommended next implementation: add disabled local block-production preflight
-and audit expectation fixtures before wiring any pending-to-confirmed action
-loop. Do not wire successful wallet submit/send or block production until the
-block-production refusal and audit contracts are stable.
+Current block-production preflight checkpoint:
+`xriq/fixtures/phase1_2/block-production-disabled.json` and
+`xriq/fixtures/phase1_2/block-production-audit-expectation.json` define the
+disabled-by-default contract for `POST /api/v1/blocks/produce`. They require
+`--enable-local-block-production`, API-local refusal audit visibility, a local
+operator actor, `block_production_attempt` action, `block_production` resource
+type, request-fields-only metadata, test-identity-only scope, and no pending or
+chain mutation in the default path. The contract and refusal-smoke scripts
+validate these fixtures.
+
+Recommended next implementation: add the API-level disabled/refused response
+for `POST /api/v1/blocks/produce` and include its deterministic local refusal
+audit record in the admin audit visibility response. Do not wire successful
+wallet submit/send or block production until the block-production API refusal
+and audit visibility behavior are stable.
 
 ## Validation
 

@@ -1,0 +1,77 @@
+{
+  "environment": "private-devnet",
+  "network": "xriq-devnet",
+  "endpoint": "POST /api/v1/blocks/produce",
+  "action": "block_production_attempt",
+  "actor": "local-private-devnet-operator",
+  "resource_type": "block_production",
+  "resource_id_policy": "local_request_id",
+  "status": "expectation",
+  "mutation": "none",
+  "default_outcome": "refused",
+  "accepted_outcome": "confirmed-block-after-explicit-local-flag",
+  "audit_event_required": true,
+  "test_identity_only": true,
+  "required_enablement": {
+    "mode": "local-private-devnet",
+    "explicit_flag": "--enable-local-block-production",
+    "audit_event_required": true,
+    "test_identity_only": true
+  },
+  "audit_event": {
+    "event_id_pattern": "block-production:<local_request_id>",
+    "actor": "local-private-devnet-operator",
+    "action": "block_production_attempt",
+    "resource_type": "block_production",
+    "resource_id": "local_request_id",
+    "environment": "private-devnet",
+    "metadata_required": [
+      "endpoint",
+      "outcome",
+      "status",
+      "refusal_code",
+      "explicit_flag",
+      "local_request_id",
+      "pending_file",
+      "chain_file",
+      "producer",
+      "max_transactions",
+      "timestamp_ms"
+    ],
+    "metadata_forbidden": [
+      "private_key",
+      "seed_phrase",
+      "mnemonic",
+      "signature",
+      "signed_transaction",
+      "tx_hash",
+      "transaction_hash"
+    ]
+  },
+  "outcomes": [
+    {
+      "outcome": "refused",
+      "status": "disabled",
+      "code": "block_production_disabled",
+      "mutation": "none",
+      "must_write_audit_event": true
+    },
+    {
+      "outcome": "accepted",
+      "status": "confirmed",
+      "code": "block_production_accepted_local_only",
+      "mutation": "chain_and_pending_state_local_only",
+      "requires_explicit_flag": "--enable-local-block-production",
+      "must_write_audit_event": true,
+      "scope": "local-private-devnet-test-identity-only"
+    }
+  ],
+  "guards": [
+    "default outcome is refused",
+    "accepted outcome requires explicit local flag",
+    "audit event is required for refused and accepted attempts",
+    "audit event must not contain signing material",
+    "audit event must not contain transaction hash before accepted mutation",
+    "future accepted path remains local private-devnet and test-identity-only"
+  ]
+}

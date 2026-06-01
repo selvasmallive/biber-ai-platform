@@ -162,6 +162,7 @@ REQUIRED_PHASE1_2_PREFLIGHT_FIXTURES: dict[str, dict[str, str]] = {
         "code": "wallet_submit_disabled",
         "explicit_flag": "--enable-local-wallet-submit",
         "action": "wallet_transfer_submit_attempt",
+        "resource_type": "wallet_transfer",
         "event_id": "wallet-transfer-submit:local_request_id",
         "resource_id_policy": "draft_id_or_local_request_id",
     },
@@ -170,7 +171,17 @@ REQUIRED_PHASE1_2_PREFLIGHT_FIXTURES: dict[str, dict[str, str]] = {
         "code": "wallet_send_disabled",
         "explicit_flag": "--enable-local-wallet-send",
         "action": "wallet_transfer_send_attempt",
+        "resource_type": "wallet_transfer",
         "event_id": "wallet-transfer-send:local_request_id",
+        "resource_id_policy": "local_request_id",
+    },
+    "block-production-disabled.json": {
+        "endpoint": "POST /api/v1/blocks/produce",
+        "code": "block_production_disabled",
+        "explicit_flag": "--enable-local-block-production",
+        "action": "block_production_attempt",
+        "resource_type": "block_production",
+        "event_id": "block-production:local_request_id",
         "resource_id_policy": "local_request_id",
     },
 }
@@ -181,12 +192,24 @@ REQUIRED_PHASE1_2_AUDIT_EXPECTATION_FIXTURES: dict[str, dict[str, str]] = {
         "action": "wallet_transfer_submit_attempt",
         "explicit_flag": "--enable-local-wallet-submit",
         "refusal_code": "wallet_submit_disabled",
+        "resource_type": "wallet_transfer",
+        "resource_id_policy": "draft_id_or_local_request_id",
     },
     "wallet-transfer-send-audit-expectation.json": {
         "endpoint": "POST /api/v1/wallet/transfers/send",
         "action": "wallet_transfer_send_attempt",
         "explicit_flag": "--enable-local-wallet-send",
         "refusal_code": "wallet_send_disabled",
+        "resource_type": "wallet_transfer",
+        "resource_id_policy": "local_request_id",
+    },
+    "block-production-audit-expectation.json": {
+        "endpoint": "POST /api/v1/blocks/produce",
+        "action": "block_production_attempt",
+        "explicit_flag": "--enable-local-block-production",
+        "refusal_code": "block_production_disabled",
+        "resource_type": "block_production",
+        "resource_id_policy": "local_request_id",
     },
 }
 
@@ -365,7 +388,7 @@ def verify_phase1_2_preflight_fixture(name: str, expected: dict[str, str]) -> No
         "event_id": expected["event_id"],
         "actor": "local-private-devnet-operator",
         "action": expected["action"],
-        "resource_type": "wallet_transfer",
+        "resource_type": expected["resource_type"],
         "resource_id": expected["resource_id_policy"],
         "environment": "private-devnet",
     }
@@ -452,8 +475,12 @@ def verify_phase1_2_audit_expectation_fixture(name: str, expected: dict[str, str
         raise ContractError(f"{name} has wrong action: {payload.get('action')!r}")
     if payload.get("actor") != "local-private-devnet-operator":
         raise ContractError(f"{name} must use the local private-devnet actor")
-    if payload.get("resource_type") != "wallet_transfer":
-        raise ContractError(f"{name} must use wallet_transfer resource type")
+    if payload.get("resource_type") != expected["resource_type"]:
+        raise ContractError(
+            f"{name} must use {expected['resource_type']} resource type"
+        )
+    if payload.get("resource_id_policy") != expected["resource_id_policy"]:
+        raise ContractError(f"{name} has wrong resource id policy")
     if payload.get("status") != "expectation":
         raise ContractError(f"{name} must declare expectation status")
     if payload.get("mutation") != "none":
@@ -495,13 +522,30 @@ def verify_phase1_2_audit_expectation_fixture(name: str, expected: dict[str, str
         "refusal_code",
         "explicit_flag",
         "local_request_id",
-        "from_address",
-        "to_address",
-        "amount_base_units",
-        "fee_base_units",
-        "nonce",
-        "expires_at_height",
     }
+    if expected["resource_type"] == "wallet_transfer":
+        required_metadata.update(
+            {
+                "from_address",
+                "to_address",
+                "amount_base_units",
+                "fee_base_units",
+                "nonce",
+                "expires_at_height",
+            }
+        )
+    elif expected["resource_type"] == "block_production":
+        required_metadata.update(
+            {
+                "pending_file",
+                "chain_file",
+                "producer",
+                "max_transactions",
+                "timestamp_ms",
+            }
+        )
+    else:
+        raise ContractError(f"{name} has unsupported resource type")
     metadata_required = {str(item) for item in audit_event["metadata_required"]}
     missing_metadata = sorted(required_metadata.difference(metadata_required))
     if missing_metadata:

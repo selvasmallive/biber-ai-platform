@@ -121,17 +121,19 @@ Required behavior:
 - `submit` creates pending state
 - `send` is allowed only for private-devnet test identities
 
-### Phase 1.2 Wallet Mutation Preflight
+### Phase 1.2 Local Mutation Preflight
 
 Phase 1.2 adds preflight contracts before any successful product API mutation
 is enabled. These fixtures and API responses only enable disabled/refused
-behavior; they do not enable wallet submission in `xriq-api` or the React UI.
+behavior; they do not enable wallet submission, block production, pending-state
+mutation, or chain mutation in `xriq-api` or the React UI.
 
-Default product behavior for mutating wallet endpoints must be:
+Default product behavior for mutating local/private endpoints must be:
 
 ```text
 POST /api/v1/wallet/transfers/submit -> disabled/refused
 POST /api/v1/wallet/transfers/send   -> disabled/refused
+POST /api/v1/blocks/produce          -> disabled/refused
 ```
 
 Required disabled response behavior:
@@ -154,9 +156,9 @@ Required disabled response behavior:
 - `audit_scope: "api-local-refusal"`
 - `audit_event_recorded: true`
 - deterministic `audit_event` object with local actor, wallet transfer attempt
-  action, wallet transfer resource type, refused outcome metadata, explicit
-  local flag, local request id placeholder, and request-fields-only metadata
-  policy
+  or block production attempt action, matching local resource type, refused
+  outcome metadata, explicit local flag, local request id placeholder, and
+  request-fields-only metadata policy
 - no signing material, custody material, or seed material in the request or
   response
 
@@ -167,13 +169,15 @@ xriq/fixtures/phase1_2/wallet-transfer-submit-disabled.json
 xriq/fixtures/phase1_2/wallet-transfer-send-disabled.json
 xriq/fixtures/phase1_2/wallet-transfer-submit-audit-expectation.json
 xriq/fixtures/phase1_2/wallet-transfer-send-audit-expectation.json
+xriq/fixtures/phase1_2/block-production-disabled.json
+xriq/fixtures/phase1_2/block-production-audit-expectation.json
 ```
 
 The first implementation after these fixtures should test refusal behavior
-before adding any successful submit/send path. The first API implementation now
-returns stable `403` refusal bodies for submit/send and is covered by
-`scripts/xriq_phase1_1_local_e2e_smoke.py`; successful submit/send remains out
-of scope.
+before adding any successful submit/send or block-production path. The first
+API implementation now returns stable `403` refusal bodies for submit/send and
+is covered by `scripts/xriq_phase1_1_local_e2e_smoke.py`; successful submit,
+send, block production, and pending-to-confirmed mutation remain out of scope.
 
 The first UI/client implementation consumes those refusal contracts only. The
 React wallet shell must keep submit/send controls disabled, offer only an
@@ -195,6 +199,14 @@ accepted mutation. The disabled API response now records a deterministic
 API-local refusal audit object for submit/send attempts, but it is still
 non-mutating and does not yet expose refused attempts through persistent
 chain/indexer audit storage.
+
+Future block-production attempts must use the same local actor,
+`block_production_attempt` action, `block_production` resource type,
+refused-by-default behavior, and `--enable-local-block-production` as the
+explicit local-only gate. Required block-production audit metadata is limited to
+endpoint, outcome, status, refusal code, explicit flag, local request id,
+pending file, chain file, producer, max transaction count, and timestamp. The
+default path must not change pending or chain state.
 
 The admin audit response exposes these local refusal records separately from
 indexed audit rows:

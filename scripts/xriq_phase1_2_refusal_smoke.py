@@ -20,18 +20,70 @@ EXPECTED_FIXTURES = {
         "code": "wallet_submit_disabled",
         "explicit_flag": "--enable-local-wallet-submit",
         "action": "wallet_transfer_submit_attempt",
+        "resource_type": "wallet_transfer",
         "event_id": "wallet-transfer-submit:local_request_id",
         "resource_id_policy": "draft_id_or_local_request_id",
-        "extra_guard": "audit event is required before any future accepted mutation",
+        "request_fields": [
+            "draft_id",
+            "from_address",
+            "to_address",
+            "amount_base_units",
+            "fee_base_units",
+            "nonce",
+            "expires_at_height",
+        ],
+        "refusal_guards": [
+            "default mode refuses mutation",
+            "signing material is not accepted",
+            "custody is not supported",
+            "audit event is required before any future accepted mutation",
+        ],
     },
     "wallet-transfer-send-disabled.json": {
         "endpoint": "POST /api/v1/wallet/transfers/send",
         "code": "wallet_send_disabled",
         "explicit_flag": "--enable-local-wallet-send",
         "action": "wallet_transfer_send_attempt",
+        "resource_type": "wallet_transfer",
         "event_id": "wallet-transfer-send:local_request_id",
         "resource_id_policy": "local_request_id",
-        "extra_guard": "pending state is not changed",
+        "request_fields": [
+            "draft_id",
+            "from_address",
+            "to_address",
+            "amount_base_units",
+            "fee_base_units",
+            "nonce",
+            "expires_at_height",
+        ],
+        "refusal_guards": [
+            "default mode refuses mutation",
+            "signing material is not accepted",
+            "custody is not supported",
+            "pending state is not changed",
+        ],
+    },
+    "block-production-disabled.json": {
+        "endpoint": "POST /api/v1/blocks/produce",
+        "code": "block_production_disabled",
+        "explicit_flag": "--enable-local-block-production",
+        "action": "block_production_attempt",
+        "resource_type": "block_production",
+        "event_id": "block-production:local_request_id",
+        "resource_id_policy": "local_request_id",
+        "request_fields": [
+            "pending_file",
+            "chain_file",
+            "producer",
+            "max_transactions",
+            "timestamp_ms",
+        ],
+        "refusal_guards": [
+            "default mode refuses mutation",
+            "pending state is not changed",
+            "chain state is not changed",
+            "audit event is required before any future accepted mutation",
+        ],
     },
 }
 
@@ -41,12 +93,65 @@ EXPECTED_AUDIT_EXPECTATIONS = {
         "action": "wallet_transfer_submit_attempt",
         "explicit_flag": "--enable-local-wallet-submit",
         "refusal_code": "wallet_submit_disabled",
+        "resource_type": "wallet_transfer",
+        "resource_id_policy": "draft_id_or_local_request_id",
+        "metadata_required": [
+            "endpoint",
+            "outcome",
+            "status",
+            "refusal_code",
+            "explicit_flag",
+            "local_request_id",
+            "from_address",
+            "to_address",
+            "amount_base_units",
+            "fee_base_units",
+            "nonce",
+            "expires_at_height",
+        ],
     },
     "wallet-transfer-send-audit-expectation.json": {
         "endpoint": "POST /api/v1/wallet/transfers/send",
         "action": "wallet_transfer_send_attempt",
         "explicit_flag": "--enable-local-wallet-send",
         "refusal_code": "wallet_send_disabled",
+        "resource_type": "wallet_transfer",
+        "resource_id_policy": "local_request_id",
+        "metadata_required": [
+            "endpoint",
+            "outcome",
+            "status",
+            "refusal_code",
+            "explicit_flag",
+            "local_request_id",
+            "from_address",
+            "to_address",
+            "amount_base_units",
+            "fee_base_units",
+            "nonce",
+            "expires_at_height",
+        ],
+    },
+    "block-production-audit-expectation.json": {
+        "endpoint": "POST /api/v1/blocks/produce",
+        "action": "block_production_attempt",
+        "explicit_flag": "--enable-local-block-production",
+        "refusal_code": "block_production_disabled",
+        "resource_type": "block_production",
+        "resource_id_policy": "local_request_id",
+        "metadata_required": [
+            "endpoint",
+            "outcome",
+            "status",
+            "refusal_code",
+            "explicit_flag",
+            "local_request_id",
+            "pending_file",
+            "chain_file",
+            "producer",
+            "max_transactions",
+            "timestamp_ms",
+        ],
     },
 }
 
@@ -105,7 +210,7 @@ def require_list(value: Any, context: str) -> list[Any]:
     return value
 
 
-def verify_fixture(name: str, expected: dict[str, str]) -> dict[str, str]:
+def verify_fixture(name: str, expected: dict[str, Any]) -> dict[str, str]:
     context = f"Phase 1.2 refusal fixture {name}"
     payload = load_json(FIXTURE_DIR / name)
 
@@ -141,7 +246,7 @@ def verify_fixture(name: str, expected: dict[str, str]) -> dict[str, str]:
         "event_id": expected["event_id"],
         "actor": "local-private-devnet-operator",
         "action": expected["action"],
-        "resource_type": "wallet_transfer",
+        "resource_type": expected["resource_type"],
         "resource_id": expected["resource_id_policy"],
         "environment": "private-devnet",
     }.items():
@@ -165,15 +270,7 @@ def verify_fixture(name: str, expected: dict[str, str]) -> dict[str, str]:
         raise RefusalSmokeError(f"{context}: metadata policy must be request-fields-only")
 
     request_fields = require_list(payload.get("request_fields"), context)
-    required_request_fields = {
-        "draft_id",
-        "from_address",
-        "to_address",
-        "amount_base_units",
-        "fee_base_units",
-        "nonce",
-        "expires_at_height",
-    }
+    required_request_fields = {str(item) for item in expected["request_fields"]}
     missing_request_fields = sorted(
         required_request_fields.difference(str(item) for item in request_fields)
     )
@@ -182,12 +279,7 @@ def verify_fixture(name: str, expected: dict[str, str]) -> dict[str, str]:
 
     refusal_guards = require_list(payload.get("refusal_guards"), context)
     guard_text = "\n".join(str(item) for item in refusal_guards)
-    for required_guard in [
-        "default mode refuses mutation",
-        "signing material is not accepted",
-        "custody is not supported",
-        expected["extra_guard"],
-    ]:
+    for required_guard in expected["refusal_guards"]:
         if required_guard not in guard_text:
             raise RefusalSmokeError(f"{context}: missing refusal guard {required_guard!r}")
 
@@ -205,7 +297,7 @@ def verify_fixture(name: str, expected: dict[str, str]) -> dict[str, str]:
     }
 
 
-def verify_audit_expectation(name: str, expected: dict[str, str]) -> dict[str, str]:
+def verify_audit_expectation(name: str, expected: dict[str, Any]) -> dict[str, str]:
     context = f"Phase 1.2 audit expectation fixture {name}"
     payload = load_json(FIXTURE_DIR / name)
 
@@ -214,7 +306,8 @@ def verify_audit_expectation(name: str, expected: dict[str, str]) -> dict[str, s
     require_equal(payload, "endpoint", expected["endpoint"], context)
     require_equal(payload, "action", expected["action"], context)
     require_equal(payload, "actor", "local-private-devnet-operator", context)
-    require_equal(payload, "resource_type", "wallet_transfer", context)
+    require_equal(payload, "resource_type", expected["resource_type"], context)
+    require_equal(payload, "resource_id_policy", expected["resource_id_policy"], context)
     require_equal(payload, "status", "expectation", context)
     require_equal(payload, "mutation", "none", context)
     require_equal(payload, "default_outcome", "refused", context)
@@ -236,20 +329,7 @@ def verify_audit_expectation(name: str, expected: dict[str, str]) -> dict[str, s
         require_equal(audit_event, field, payload[field], context)
     metadata_required = require_list(audit_event.get("metadata_required"), context)
     metadata_forbidden = require_list(audit_event.get("metadata_forbidden"), context)
-    for required in [
-        "endpoint",
-        "outcome",
-        "status",
-        "refusal_code",
-        "explicit_flag",
-        "local_request_id",
-        "from_address",
-        "to_address",
-        "amount_base_units",
-        "fee_base_units",
-        "nonce",
-        "expires_at_height",
-    ]:
+    for required in expected["metadata_required"]:
         if required not in metadata_required:
             raise RefusalSmokeError(f"{context}: missing metadata field {required}")
     for forbidden in [
@@ -351,10 +431,12 @@ def main(argv: list[str] | None = None) -> int:
                 "no_signing_or_custody_fields",
                 "audit_event_expectations_present",
                 "audit_metadata_forbids_sensitive_material",
+                "block_production_disabled_by_default",
             ],
             "next": (
-                "add disabled local block-production preflight and audit "
-                "fixtures before any successful local mutation path"
+                "add API-level disabled/refused block-production response "
+                "for POST /api/v1/blocks/produce before any successful "
+                "local block production path"
             ),
         }
         (artifact_dir / "summary.json").write_text(
