@@ -51,6 +51,8 @@ for (const route of [
   "/api/v1/wallet/accounts/",
   "/api/v1/wallet/transactions/",
   "/api/v1/wallet/transfers/draft-preview",
+  "/api/v1/wallet/transfers/submit",
+  "/api/v1/wallet/transfers/send",
   "/api/v1/admin/node/status",
   "/api/v1/admin/indexer/status",
   "/api/v1/admin/postgres/read-model-status",
@@ -124,6 +126,19 @@ for (const requiredText of [
   "api-backed confirmed history",
   "No API wallet history",
   "loadWalletHistory",
+  "Wallet Action Guards",
+  "disabled submit/send",
+  "Submit Draft",
+  "Send Transfer",
+  "Check Guards",
+  "WalletMutationRefusalResponse",
+  "loadWalletMutationRefusal",
+  "wallet_submit_disabled",
+  "wallet_send_disabled",
+  "--enable-local-wallet-submit",
+  "--enable-local-wallet-send",
+  "local-private-devnet-preflight-only",
+  "validateActionRefusalContract",
 ]) {
   if (!walletSource.includes(requiredText)) {
     throw new Error(`missing wallet preview marker: ${requiredText}`);

@@ -167,6 +167,14 @@ returns stable `403` refusal bodies for submit/send and is covered by
 `scripts/xriq_phase1_1_local_e2e_smoke.py`; successful submit/send remains out
 of scope.
 
+The first UI/client implementation consumes those refusal contracts only. The
+React wallet shell must keep submit/send controls disabled, offer only an
+explicit guard-check action, accept only `403` disabled responses for submit/send
+checks, and validate the returned disabled contract before showing a ready guard
+state. It must not include direct submit/send endpoint strings in the wallet UI
+component, raw wallet-local `fetch(` calls, signing material, seed material, or
+successful mutation controls.
+
 ### Admin APIs
 
 ```text
@@ -532,6 +540,18 @@ This verifies `POST /api/v1/wallet/transfers/submit` and
 `POST /api/v1/wallet/transfers/send` return disabled `403` responses and still
 does not enable wallet submission, sending, block production, pending-state
 mutation, signing, or custody behavior.
+
+Run the React/static wallet guardrail from `xriq/apps/explorer-ui`:
+
+```bash
+npm run check
+npm run build
+```
+
+The static check requires the Wallet Action Guards UI markers and the client
+refusal-response helper while continuing to reject direct submit/send endpoint
+strings, wallet-local raw fetches, and sensitive key/seed fields in the wallet
+component.
 
 Run the focused Rust indexer scaffold tests from `xriq/`:
 

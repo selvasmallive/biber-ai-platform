@@ -233,13 +233,13 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `15%` overall after the initial
+- Phase 1.2 estimated completion: about `18%` overall after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
-  submit/send. It is not a public launch phase. Its current target is
-  UI/client-level disabled-action coverage before any successful wallet-submit,
-  block-production, snapshot-mutation, DEX, custody, or public network behavior
-  is implemented.
+  submit/send, plus React/client disabled-action guard coverage. It is not a
+  public launch phase. Its current target is audit-event expectation coverage
+  before any successful wallet-submit, block-production, snapshot-mutation,
+  DEX, custody, or public network behavior is implemented.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -283,8 +283,30 @@ to save cost.
   Phase 1.2 API-refusal smoke command above, and `git diff --check`. This
   checkpoint still does not enable
   successful transaction submission, sending, pending-state mutation, block
-  production, UI actions, signing, custody, DEX, smart contracts, public
+  production, successful UI mutation actions, signing, custody, DEX, smart contracts, public
   mainnet, bridges, exchange listings, or production infrastructure.
+- Latest native XRIQ Phase 1.2 UI/client action-guard checkpoint: the React
+  wallet shell now includes a `Wallet Action Guards` section with disabled
+  `Submit Draft` and `Send Transfer` controls plus an explicit `Check Guards`
+  action. The client API layer now has `WalletMutationRefusalResponse` and
+  `loadWalletMutationRefusal`, which posts to the disabled submit/send
+  endpoints and accepts only HTTP `403` responses. The wallet UI validates the
+  returned refusal contract (`private-devnet`, `xriq-devnet`, `enabled: false`,
+  `mutation: "none"`, `status: "disabled"`, expected refusal codes, explicit
+  local flags, audit-event requirement, test-identity-only boundary, and
+  request field names) before showing the guards as ready. The static UI check
+  now requires those markers and still rejects wallet code that directly
+  contains submit/send endpoint strings, raw `fetch(` calls, or sensitive
+  key/seed fields. Verification passed `npm.cmd run check` in
+  `xriq/apps/explorer-ui` and `npm.cmd run build` outside the sandbox after the
+  sandboxed Vite build hit the known Windows access-denied config-resolution
+  issue. Browser smoke at `http://127.0.0.1:5173/` found `Wallet Action
+  Guards`, `Submit Draft`, `Send Transfer`, and `Check Guards`; `Submit Draft`
+  and `Send Transfer` were disabled while `Check Guards` remained enabled.
+  This checkpoint still does not enable successful transaction
+  submission, sending, pending-state mutation, block production, signing,
+  custody, DEX, smart contracts, public mainnet, bridges, exchange listings, or
+  production infrastructure.
 - Latest native XRIQ Phase 1.2 planning checkpoint: added
   `docs/XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md` to define the post-RC local/private
   implementation ladder. The next recommended code checkpoint is a small
@@ -349,12 +371,13 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: add React/UI or lightweight client disabled
-  action coverage for wallet submit/send, using the new API refusal responses
-  as the contract. Keep actual wallet submission, block-production controls,
-  snapshot import/export mutation, DEX, smart contracts, public mainnet,
-  custody, bridges, exchange listings, and production infrastructure out of
-  scope until the UI/client refusal surfaces and tests are stable.
+- Recommended next narrow step: add Phase 1.2 audit-event expectation fixtures
+  and checks for future wallet submit/send attempts, including local actor,
+  action, resource, refusal/accepted status, and no sensitive material. Keep
+  actual wallet submission, block-production controls, snapshot import/export
+  mutation, DEX, smart contracts, public mainnet, custody, bridges, exchange
+  listings, and production infrastructure out of scope until the audit
+  expectations are stable.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return

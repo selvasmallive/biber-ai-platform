@@ -124,9 +124,16 @@ verifies `enabled: false`, `mutation: "none"`, explicit local enablement
 flags, audit-event requirements, test-identity-only boundaries, refusal
 guards, and no signing/custody/transaction-hash response fields.
 
-Recommended next implementation: add UI/client disabled-action coverage for
-wallet submit/send using the API refusal responses as the contract. Do not wire
-successful mutation until UI/client refusal behavior is stable.
+Current UI/client action-guard checkpoint: the React wallet shell includes
+disabled `Submit Draft` and `Send Transfer` controls and an explicit
+`Check Guards` action that calls the disabled submit/send endpoints through the
+client API layer. The client accepts only HTTP `403` refusal responses and
+validates the disabled contract before marking either guard ready. This is
+still non-mutating and does not sign, send, submit, persist, or manage secrets.
+
+Recommended next implementation: add audit-event expectation fixtures and
+checks for future wallet submit/send attempts. Do not wire successful mutation
+until audit expectations are stable.
 
 ## Validation
 

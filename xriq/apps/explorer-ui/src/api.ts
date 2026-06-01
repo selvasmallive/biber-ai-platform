@@ -272,6 +272,28 @@ export interface WalletDraftPreviewResponse {
   };
 }
 
+export type WalletMutationAction = "submit" | "send";
+
+export interface WalletMutationRefusalResponse {
+  environment: "private-devnet";
+  network: string;
+  endpoint: string;
+  enabled: false;
+  mutation: "none";
+  status: "disabled";
+  code: string;
+  error: string;
+  warning: string;
+  required_enablement: {
+    mode: "local-private-devnet";
+    explicit_flag: string;
+    audit_event_required: boolean;
+    test_identity_only: boolean;
+  };
+  request_fields: string[];
+  refusal_guards: string[];
+}
+
 export interface MempoolEntry {
   tx_hash: string;
   from_address: string;
@@ -583,6 +605,20 @@ export async function loadWalletDraftPreview(
   );
 }
 
+export async function loadWalletMutationRefusal(
+  baseUrl: string,
+  action: WalletMutationAction,
+): Promise<WalletMutationRefusalResponse> {
+  const path =
+    action === "submit"
+      ? "/api/v1/wallet/transfers/submit"
+      : "/api/v1/wallet/transfers/send";
+  return fetchJson<WalletMutationRefusalResponse>(normalizeBaseUrl(baseUrl), path, {
+    method: "POST",
+    acceptedStatuses: [403],
+  });
+}
+
 export async function loadIsoPaymentInitiationPreview(
   baseUrl: string,
   txHash: string,
@@ -617,14 +653,20 @@ export async function loadIsoAccountStatementPreview(
   );
 }
 
-async function fetchJson<T>(baseUrl: string, path: string): Promise<T> {
+async function fetchJson<T>(
+  baseUrl: string,
+  path: string,
+  options?: { method?: "GET" | "POST"; acceptedStatuses?: number[] },
+): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
+    method: options?.method ?? "GET",
     headers: {
       Accept: "application/json",
     },
   });
+  const acceptedStatuses = options?.acceptedStatuses ?? [200];
 
-  if (!response.ok) {
+  if (!acceptedStatuses.includes(response.status)) {
     throw new Error(`${path} returned HTTP ${response.status}`);
   }
 

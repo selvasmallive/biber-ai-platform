@@ -7,11 +7,14 @@ import {
   TransactionSummary,
   WalletBalanceResponse,
   WalletDraftPreviewResponse,
+  WalletMutationAction,
+  WalletMutationRefusalResponse,
   WalletStatusResponse,
   WalletTransactionStatusResponse,
   loadWalletBalance,
   loadWalletDraftPreview,
   loadWalletHistory,
+  loadWalletMutationRefusal,
   loadWalletStatus,
   loadWalletTransactionStatus,
 } from "./api";
@@ -19,6 +22,30 @@ import {
 const DEFAULT_RECIPIENT = "xriqdev1bobbb00000000000";
 const MIN_PRIVATE_DEVNET_FEE = 2n;
 const PREVIEW_WARNING = "private-devnet-preview-only-no-signing-no-submit";
+const PREFLIGHT_WARNING = "local-private-devnet-preflight-only";
+
+const ACTION_GUARD_EXPECTATIONS: Record<
+  WalletMutationAction,
+  {
+    buttonLabel: string;
+    code: string;
+    flag: string;
+    label: string;
+  }
+> = {
+  submit: {
+    buttonLabel: "Submit Draft",
+    code: "wallet_submit_disabled",
+    flag: "--enable-local-wallet-submit",
+    label: "Submit",
+  },
+  send: {
+    buttonLabel: "Send Transfer",
+    code: "wallet_send_disabled",
+    flag: "--enable-local-wallet-send",
+    label: "Send",
+  },
+};
 
 interface WalletShellProps {
   apiBaseUrl: string;
@@ -68,6 +95,11 @@ type ApiState<T> =
   | { status: "ready"; data: T; error: null }
   | { status: "error"; data: T | null; error: string };
 
+type WalletActionGuardState = Record<
+  WalletMutationAction,
+  ApiState<WalletMutationRefusalResponse>
+>;
+
 export function WalletShell({
   apiBaseUrl,
   snapshot,
@@ -110,6 +142,9 @@ export function WalletShell({
     data: null,
     error: null,
   });
+  const [actionGuards, setActionGuards] = useState<WalletActionGuardState>(() =>
+    initialActionGuards(),
+  );
   const [activityStatus, setActivityStatus] = useState<
     ApiState<WalletTransactionStatusResponse>
   >({
@@ -375,6 +410,45 @@ export function WalletShell({
     }
   }
 
+  async function handleCheckActionGuard(action: WalletMutationAction) {
+    setActionGuards((current) => ({
+      ...current,
+      [action]: {
+        status: "loading",
+        data: current[action].data,
+        error: null,
+      },
+    }));
+    try {
+      const data = await loadWalletMutationRefusal(apiBaseUrl, action);
+      const contractErrors = validateActionRefusalContract(action, data);
+      if (contractErrors.length > 0) {
+        throw new Error(contractErrors.join("; "));
+      }
+      setActionGuards((current) => ({
+        ...current,
+        [action]: { status: "ready", data, error: null },
+      }));
+    } catch (error) {
+      setActionGuards((current) => ({
+        ...current,
+        [action]: {
+          status: "error",
+          data: current[action].data,
+          error: error instanceof Error ? error.message : "Wallet guard check failed",
+        },
+      }));
+    }
+  }
+
+  async function handleCheckActionGuards() {
+    await Promise.all(
+      (Object.keys(ACTION_GUARD_EXPECTATIONS) as WalletMutationAction[]).map(
+        (action) => handleCheckActionGuard(action),
+      ),
+    );
+  }
+
   return (
     <section className="panel detailPanel widePanel walletPanel">
       <div className="panelTitle">
@@ -481,6 +555,11 @@ export function WalletShell({
             <span>{apiPreview.status}</span>
           </div>
 
+          <WalletActionGuards
+            guards={actionGuards}
+            onCheck={() => void handleCheckActionGuards()}
+          />
+
           {validation.errors.length > 0 ? (
             <ul className="validationList" aria-label="Wallet preview checks">
               {validation.errors.map((error) => (
@@ -511,6 +590,74 @@ export function WalletShell({
         </pre>
       </div>
     </section>
+  );
+}
+
+function WalletActionGuards({
+  guards,
+  onCheck,
+}: {
+  guards: WalletActionGuardState;
+  onCheck: () => void;
+}) {
+  const actions = Object.keys(ACTION_GUARD_EXPECTATIONS) as WalletMutationAction[];
+  const isChecking = actions.some((action) => guards[action].status === "loading");
+
+  return (
+    <div className="walletActionGuards" aria-label="Wallet Action Guards">
+      <div className="subHeading">
+        <h3>Wallet Action Guards</h3>
+        <span>disabled submit/send</span>
+      </div>
+      <div className="walletGuardButtons">
+        {actions.map((action) => (
+          <button key={action} type="button" disabled>
+            {ACTION_GUARD_EXPECTATIONS[action].buttonLabel}
+          </button>
+        ))}
+        <button type="button" onClick={onCheck} disabled={isChecking}>
+          Check Guards
+        </button>
+      </div>
+      <div className="miniTable">
+        <table>
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>State</th>
+              <th>Code</th>
+              <th>Flag</th>
+              <th>Mutation</th>
+            </tr>
+          </thead>
+          <tbody>
+            {actions.map((action) => {
+              const expectation = ACTION_GUARD_EXPECTATIONS[action];
+              const state = guards[action];
+              const data = state.data;
+              return (
+                <tr key={action}>
+                  <td>{expectation.label}</td>
+                  <td>{data?.status ?? state.status}</td>
+                  <td className="mono truncate">{data?.code ?? expectation.code}</td>
+                  <td className="mono truncate">
+                    {data?.required_enablement.explicit_flag ?? expectation.flag}
+                  </td>
+                  <td>{data?.mutation ?? "none"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {actions.map((action) =>
+        guards[action].status === "error" ? (
+          <p className="errorText" key={action}>
+            {ACTION_GUARD_EXPECTATIONS[action].label}: {guards[action].error}
+          </p>
+        ) : null,
+      )}
+    </div>
   );
 }
 
@@ -866,4 +1013,70 @@ function shortHash(value: string) {
 
 function formatOptionalHeight(value: number | null) {
   return value === null ? "pending" : value.toString();
+}
+
+function initialActionGuards(): WalletActionGuardState {
+  return {
+    submit: { status: "idle", data: null, error: null },
+    send: { status: "idle", data: null, error: null },
+  };
+}
+
+function validateActionRefusalContract(
+  action: WalletMutationAction,
+  data: WalletMutationRefusalResponse,
+) {
+  const expected = ACTION_GUARD_EXPECTATIONS[action];
+  const errors: string[] = [];
+
+  if (data.environment !== "private-devnet") {
+    errors.push("environment must be private-devnet");
+  }
+  if (data.network !== "xriq-devnet") {
+    errors.push("network must be xriq-devnet");
+  }
+  if (!data.endpoint.toLowerCase().includes(action)) {
+    errors.push(`${expected.label} endpoint marker is missing`);
+  }
+  if (data.enabled !== false) {
+    errors.push(`${expected.label} guard must be disabled`);
+  }
+  if (data.mutation !== "none") {
+    errors.push(`${expected.label} mutation must be none`);
+  }
+  if (data.status !== "disabled") {
+    errors.push(`${expected.label} status must be disabled`);
+  }
+  if (data.code !== expected.code) {
+    errors.push(`${expected.label} code must be ${expected.code}`);
+  }
+  if (data.warning !== PREFLIGHT_WARNING) {
+    errors.push(`${expected.label} warning must be ${PREFLIGHT_WARNING}`);
+  }
+  if (data.required_enablement.mode !== "local-private-devnet") {
+    errors.push(`${expected.label} mode must be local-private-devnet`);
+  }
+  if (data.required_enablement.explicit_flag !== expected.flag) {
+    errors.push(`${expected.label} flag must be ${expected.flag}`);
+  }
+  if (!data.required_enablement.audit_event_required) {
+    errors.push(`${expected.label} audit event must be required`);
+  }
+  if (!data.required_enablement.test_identity_only) {
+    errors.push(`${expected.label} must be test-identity-only`);
+  }
+  for (const field of [
+    "from_address",
+    "to_address",
+    "amount_base_units",
+    "fee_base_units",
+    "nonce",
+    "expires_at_height",
+  ]) {
+    if (!data.request_fields.includes(field)) {
+      errors.push(`${expected.label} request field missing: ${field}`);
+    }
+  }
+
+  return errors;
 }
