@@ -225,7 +225,7 @@ REQUIRED_PHASE1_2_LOOP_CONTRACT_FIXTURES: dict[str, dict[str, str]] = {
     },
 }
 
-REQUIRED_PHASE1_2_WALLET_SUBMIT_CONTRACT_FIXTURES: dict[str, dict[str, str]] = {
+REQUIRED_PHASE1_2_WALLET_PENDING_CONTRACT_FIXTURES: dict[str, dict[str, str]] = {
     "wallet-transfer-submit-to-pending-contract.json": {
         "endpoint": "POST /api/v1/wallet/transfers/submit",
         "contract": "wallet-submit-to-pending-v1",
@@ -236,6 +236,19 @@ REQUIRED_PHASE1_2_WALLET_SUBMIT_CONTRACT_FIXTURES: dict[str, dict[str, str]] = {
         "accepted_mutation": "pending_state_only",
         "action": "wallet_transfer_submit_attempt",
         "resource_type": "wallet_transfer",
+        "requires_draft_id": "true",
+    },
+    "wallet-transfer-send-to-pending-contract.json": {
+        "endpoint": "POST /api/v1/wallet/transfers/send",
+        "contract": "wallet-send-to-pending-v1",
+        "explicit_flag": "--enable-local-wallet-send",
+        "default_refusal_fixture": "wallet-transfer-send-disabled.json",
+        "default_refusal_code": "wallet_send_disabled",
+        "accepted_code": "wallet_send_accepted_local_only",
+        "accepted_mutation": "pending_state_only",
+        "action": "wallet_transfer_send_attempt",
+        "resource_type": "wallet_transfer",
+        "requires_draft_id": "false",
     },
 }
 
@@ -822,7 +835,7 @@ def verify_phase1_2_loop_contract_fixtures() -> dict[str, int]:
     }
 
 
-def verify_phase1_2_wallet_submit_contract_fixture(
+def verify_phase1_2_wallet_pending_contract_fixture(
     name: str, expected: dict[str, str]
 ) -> None:
     path = PHASE1_2_FIXTURE_DIR / name
@@ -872,7 +885,7 @@ def verify_phase1_2_wallet_submit_contract_fixture(
     if not isinstance(default_refusal, dict):
         raise ContractError(f"{name} default_refusal must be an object")
     if default_refusal.get("fixture") != expected["default_refusal_fixture"]:
-        raise ContractError(f"{name} must reference the disabled wallet-submit fixture")
+        raise ContractError(f"{name} must reference the disabled wallet fixture")
     if default_refusal.get("code") != expected["default_refusal_code"]:
         raise ContractError(f"{name} default refusal code is wrong")
     if default_refusal.get("mutation") != "none":
@@ -896,18 +909,20 @@ def verify_phase1_2_wallet_submit_contract_fixture(
     required_request_fields = set(
         str(field) for field in request_schema.get("required_fields", [])
     )
-    for field in (
+    request_fields = [
         "local_request_id",
         "pending_file",
         "chain_file",
-        "draft_id",
         "from_address",
         "to_address",
         "amount_base_units",
         "fee_base_units",
         "nonce",
         "expires_at_height",
-    ):
+    ]
+    if expected["requires_draft_id"] == "true":
+        request_fields.append("draft_id")
+    for field in request_fields:
         if field not in required_request_fields:
             raise ContractError(f"{name} request_schema missing {field}")
     forbidden_request_fields = set(
@@ -979,7 +994,7 @@ def verify_phase1_2_wallet_submit_contract_fixture(
     if not isinstance(chain_state, dict):
         raise ContractError(f"{name} example chain_state must be an object")
     if chain_state.get("chain_unchanged") is not True:
-        raise ContractError(f"{name} accepted submit must not change chain state")
+        raise ContractError(f"{name} accepted wallet mutation must not change chain state")
 
     audit_event = example.get("audit_event")
     if not isinstance(audit_event, dict):
@@ -991,13 +1006,12 @@ def verify_phase1_2_wallet_submit_contract_fixture(
     metadata = audit_event.get("metadata")
     if not isinstance(metadata, dict):
         raise ContractError(f"{name} example audit metadata must be an object")
-    for field in (
+    metadata_fields = [
         "endpoint",
         "outcome",
         "status",
         "explicit_flag",
         "local_request_id",
-        "draft_id",
         "from_address",
         "to_address",
         "amount_base_units",
@@ -1009,7 +1023,10 @@ def verify_phase1_2_wallet_submit_contract_fixture(
         "added_tx_hash",
         "chain_current_height",
         "metadata_policy",
-    ):
+    ]
+    if expected["requires_draft_id"] == "true":
+        metadata_fields.append("draft_id")
+    for field in metadata_fields:
         if field not in metadata:
             raise ContractError(f"{name} example audit metadata missing {field}")
     if metadata.get("explicit_flag") != expected["explicit_flag"]:
@@ -1038,17 +1055,21 @@ def verify_phase1_2_wallet_submit_contract_fixture(
             raise ContractError(f"{name} missing guard {required_guard!r}")
 
 
-def verify_phase1_2_wallet_submit_contract_fixtures() -> dict[str, int]:
+def verify_phase1_2_wallet_pending_contract_fixtures() -> dict[str, int]:
     if not PHASE1_2_FIXTURE_DIR.exists():
         raise ContractError(f"Phase 1.2 fixture dir missing: {PHASE1_2_FIXTURE_DIR}")
 
-    for name, expected in REQUIRED_PHASE1_2_WALLET_SUBMIT_CONTRACT_FIXTURES.items():
-        verify_phase1_2_wallet_submit_contract_fixture(name, expected)
+    submit_fixture_count = 0
+    for name, expected in REQUIRED_PHASE1_2_WALLET_PENDING_CONTRACT_FIXTURES.items():
+        verify_phase1_2_wallet_pending_contract_fixture(name, expected)
+        if expected["requires_draft_id"] == "true":
+            submit_fixture_count += 1
 
     return {
-        "phase1_2_wallet_submit_contract_fixtures": len(
-            REQUIRED_PHASE1_2_WALLET_SUBMIT_CONTRACT_FIXTURES
-        )
+        "phase1_2_wallet_pending_contract_fixtures": len(
+            REQUIRED_PHASE1_2_WALLET_PENDING_CONTRACT_FIXTURES
+        ),
+        "phase1_2_wallet_submit_contract_fixtures": submit_fixture_count,
     }
 
 
@@ -1058,7 +1079,7 @@ def main() -> int:
     phase1_2_result = verify_phase1_2_preflight_fixtures()
     phase1_2_audit_result = verify_phase1_2_audit_expectation_fixtures()
     phase1_2_loop_result = verify_phase1_2_loop_contract_fixtures()
-    phase1_2_wallet_submit_result = verify_phase1_2_wallet_submit_contract_fixtures()
+    phase1_2_wallet_pending_result = verify_phase1_2_wallet_pending_contract_fixtures()
     report = {
         "ok": "xriq-phase1-1-contract-check",
         "schema": str(SCHEMA_PATH),
@@ -1069,7 +1090,7 @@ def main() -> int:
         **phase1_2_result,
         **phase1_2_audit_result,
         **phase1_2_loop_result,
-        **phase1_2_wallet_submit_result,
+        **phase1_2_wallet_pending_result,
     }
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0

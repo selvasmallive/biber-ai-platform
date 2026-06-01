@@ -435,7 +435,7 @@ def main(argv: list[str] | None = None) -> int:
             ],
             "next": (
                 "keep wallet mutation controls disabled while adding the "
-                "wallet-submit accepted client contract or wallet-send contract"
+                "wallet-send accepted client contract or Rust wallet-submit path"
             ),
         }
         (artifact_dir / "summary.json").write_text(

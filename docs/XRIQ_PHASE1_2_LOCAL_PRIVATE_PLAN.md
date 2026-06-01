@@ -234,8 +234,20 @@ response type, accepted-code/mutation constants, and
 those markers. No UI POST function or enabled wallet mutation control is
 exposed.
 
-Recommended next implementation: define the wallet-send accepted contract or
-start the Rust/API wallet-submit implementation behind explicit local
+Current wallet-send accepted contract checkpoint:
+`xriq/fixtures/phase1_2/wallet-transfer-send-to-pending-contract.json` defines
+the future local-only accepted response shape for
+`POST /api/v1/wallet/transfers/send`, but remains `contract-only` and
+`not_enabled`. It requires `--enable-local-wallet-send`, local/private-devnet
+mode, audit events, a configured local test sender, pending-file mutation only,
+unchanged chain state, no signing material, no custody material, and no UI
+mutation control. Unlike submit, `draft_id` is optional and the audit resource
+is `local_request_id`. `scripts/xriq_phase1_1_contract_check.py` now validates
+both wallet pending contracts and reports
+`phase1_2_wallet_pending_contract_fixtures: 2`.
+
+Recommended next implementation: add the wallet-send accepted client contract
+or start the Rust/API wallet-submit implementation behind explicit local
 enablement, while keeping default behavior and UI mutation controls disabled.
 
 ## Validation
