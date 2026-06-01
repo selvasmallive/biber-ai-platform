@@ -161,11 +161,17 @@ REQUIRED_PHASE1_2_PREFLIGHT_FIXTURES: dict[str, dict[str, str]] = {
         "endpoint": "POST /api/v1/wallet/transfers/submit",
         "code": "wallet_submit_disabled",
         "explicit_flag": "--enable-local-wallet-submit",
+        "action": "wallet_transfer_submit_attempt",
+        "event_id": "wallet-transfer-submit:local_request_id",
+        "resource_id_policy": "draft_id_or_local_request_id",
     },
     "wallet-transfer-send-disabled.json": {
         "endpoint": "POST /api/v1/wallet/transfers/send",
         "code": "wallet_send_disabled",
         "explicit_flag": "--enable-local-wallet-send",
+        "action": "wallet_transfer_send_attempt",
+        "event_id": "wallet-transfer-send:local_request_id",
+        "resource_id_policy": "local_request_id",
     },
 }
 
@@ -312,6 +318,9 @@ def verify_phase1_2_preflight_fixture(name: str, expected: dict[str, str]) -> No
         "error",
         "warning",
         "required_enablement",
+        "audit_scope",
+        "audit_event_recorded",
+        "audit_event",
         "request_fields",
         "refusal_guards",
     ]
@@ -343,6 +352,52 @@ def verify_phase1_2_preflight_fixture(name: str, expected: dict[str, str]) -> No
         raise ContractError(f"{name} must require an audit event")
     if enablement.get("test_identity_only") is not True:
         raise ContractError(f"{name} must remain test-identity-only")
+
+    if payload.get("audit_scope") != "api-local-refusal":
+        raise ContractError(f"{name} must declare API-local refusal audit scope")
+    if payload.get("audit_event_recorded") is not True:
+        raise ContractError(f"{name} must record a refusal audit event")
+
+    audit_event = payload.get("audit_event")
+    if not isinstance(audit_event, dict):
+        raise ContractError(f"{name} audit_event must be an object")
+    expected_audit_fields = {
+        "event_id": expected["event_id"],
+        "actor": "local-private-devnet-operator",
+        "action": expected["action"],
+        "resource_type": "wallet_transfer",
+        "resource_id": expected["resource_id_policy"],
+        "environment": "private-devnet",
+    }
+    for field, expected_value in expected_audit_fields.items():
+        if audit_event.get(field) != expected_value:
+            raise ContractError(
+                f"{name} audit_event.{field} must be {expected_value!r}, "
+                f"got {audit_event.get(field)!r}"
+            )
+
+    metadata = audit_event.get("metadata")
+    if not isinstance(metadata, dict):
+        raise ContractError(f"{name} audit_event.metadata must be an object")
+    expected_metadata = {
+        "endpoint": expected["endpoint"],
+        "outcome": "refused",
+        "status": "disabled",
+        "refusal_code": expected["code"],
+        "explicit_flag": expected["explicit_flag"],
+        "local_request_id": "local_request_id",
+        "resource_id_policy": expected["resource_id_policy"],
+        "mutation": "none",
+    }
+    for field, expected_value in expected_metadata.items():
+        if metadata.get(field) != expected_value:
+            raise ContractError(
+                f"{name} audit_event.metadata.{field} must be {expected_value!r}, "
+                f"got {metadata.get(field)!r}"
+            )
+    metadata_policy = metadata.get("metadata_policy")
+    if not isinstance(metadata_policy, str) or "request fields only" not in metadata_policy:
+        raise ContractError(f"{name} audit metadata policy must be request-fields-only")
 
     for field in ("request_fields", "refusal_guards"):
         value = payload.get(field)

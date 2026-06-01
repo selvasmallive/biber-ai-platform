@@ -14,6 +14,27 @@
     "audit_event_required": true,
     "test_identity_only": true
   },
+  "audit_scope": "api-local-refusal",
+  "audit_event_recorded": true,
+  "audit_event": {
+    "event_id": "wallet-transfer-submit:local_request_id",
+    "actor": "local-private-devnet-operator",
+    "action": "wallet_transfer_submit_attempt",
+    "resource_type": "wallet_transfer",
+    "resource_id": "draft_id_or_local_request_id",
+    "environment": "private-devnet",
+    "metadata": {
+      "endpoint": "POST /api/v1/wallet/transfers/submit",
+      "outcome": "refused",
+      "status": "disabled",
+      "refusal_code": "wallet_submit_disabled",
+      "explicit_flag": "--enable-local-wallet-submit",
+      "local_request_id": "local_request_id",
+      "resource_id_policy": "draft_id_or_local_request_id",
+      "mutation": "none",
+      "metadata_policy": "request fields only; no signing material or transaction hashes"
+    }
+  },
   "request_fields": [
     "draft_id",
     "from_address",

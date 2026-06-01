@@ -19,12 +19,18 @@ EXPECTED_FIXTURES = {
         "endpoint": "POST /api/v1/wallet/transfers/submit",
         "code": "wallet_submit_disabled",
         "explicit_flag": "--enable-local-wallet-submit",
+        "action": "wallet_transfer_submit_attempt",
+        "event_id": "wallet-transfer-submit:local_request_id",
+        "resource_id_policy": "draft_id_or_local_request_id",
         "extra_guard": "audit event is required before any future accepted mutation",
     },
     "wallet-transfer-send-disabled.json": {
         "endpoint": "POST /api/v1/wallet/transfers/send",
         "code": "wallet_send_disabled",
         "explicit_flag": "--enable-local-wallet-send",
+        "action": "wallet_transfer_send_attempt",
+        "event_id": "wallet-transfer-send:local_request_id",
+        "resource_id_policy": "local_request_id",
         "extra_guard": "pending state is not changed",
     },
 }
@@ -125,6 +131,38 @@ def verify_fixture(name: str, expected: dict[str, str]) -> dict[str, str]:
     require_equal(enablement, "explicit_flag", expected["explicit_flag"], context)
     require_equal(enablement, "audit_event_required", True, context)
     require_equal(enablement, "test_identity_only", True, context)
+    require_equal(payload, "audit_scope", "api-local-refusal", context)
+    require_equal(payload, "audit_event_recorded", True, context)
+
+    audit_event = payload.get("audit_event")
+    if not isinstance(audit_event, dict):
+        raise RefusalSmokeError(f"{context}: audit_event must be an object")
+    for field, expected_value in {
+        "event_id": expected["event_id"],
+        "actor": "local-private-devnet-operator",
+        "action": expected["action"],
+        "resource_type": "wallet_transfer",
+        "resource_id": expected["resource_id_policy"],
+        "environment": "private-devnet",
+    }.items():
+        require_equal(audit_event, field, expected_value, context)
+    metadata = audit_event.get("metadata")
+    if not isinstance(metadata, dict):
+        raise RefusalSmokeError(f"{context}: audit_event.metadata must be an object")
+    for field, expected_value in {
+        "endpoint": expected["endpoint"],
+        "outcome": "refused",
+        "status": "disabled",
+        "refusal_code": expected["code"],
+        "explicit_flag": expected["explicit_flag"],
+        "local_request_id": "local_request_id",
+        "resource_id_policy": expected["resource_id_policy"],
+        "mutation": "none",
+    }.items():
+        require_equal(metadata, field, expected_value, context)
+    metadata_policy = metadata.get("metadata_policy")
+    if not isinstance(metadata_policy, str) or "request fields only" not in metadata_policy:
+        raise RefusalSmokeError(f"{context}: metadata policy must be request-fields-only")
 
     request_fields = require_list(payload.get("request_fields"), context)
     required_request_fields = {
@@ -308,14 +346,15 @@ def main(argv: list[str] | None = None) -> int:
                 "mutation_none",
                 "explicit_local_private_flag_required",
                 "audit_event_required",
+                "api_local_refusal_audit_recorded",
                 "test_identity_only",
                 "no_signing_or_custody_fields",
                 "audit_event_expectations_present",
                 "audit_metadata_forbids_sensitive_material",
             ],
             "next": (
-                "add API-local audit event recording for refused attempts "
-                "before any successful local mutation path"
+                "surface refused wallet audit records through a deterministic "
+                "local audit view before any successful local mutation path"
             ),
         }
         (artifact_dir / "summary.json").write_text(

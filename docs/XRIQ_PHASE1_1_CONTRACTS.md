@@ -151,6 +151,12 @@ Required disabled response behavior:
 - `test_identity_only: true`
 - request field names only, not signing material
 - refusal guards that state default mutation refusal and no custody/signing
+- `audit_scope: "api-local-refusal"`
+- `audit_event_recorded: true`
+- deterministic `audit_event` object with local actor, wallet transfer attempt
+  action, wallet transfer resource type, refused outcome metadata, explicit
+  local flag, local request id placeholder, and request-fields-only metadata
+  policy
 - no signing material, custody material, or seed material in the request or
   response
 
@@ -185,8 +191,10 @@ explicit local flags for accepted attempts, and required audit metadata such as
 endpoint, outcome, status, refusal code, local request id, addresses, amount,
 fee, nonce, and expiry. Audit metadata must forbid private keys, seed phrases,
 mnemonics, signatures, signed transactions, and transaction hashes before
-accepted mutation. The fixtures are expectations only; they do not write audit
-events yet.
+accepted mutation. The disabled API response now records a deterministic
+API-local refusal audit object for submit/send attempts, but it is still
+non-mutating and does not yet expose refused attempts through persistent
+chain/indexer audit storage.
 
 ### Admin APIs
 
@@ -530,8 +538,9 @@ The check validates that the PostgreSQL read-model schema contains the required
 money-like values as integer base-unit strings, and that the Phase 1.2 wallet
 mutation preflight fixtures remain disabled with `mutation: "none"`, explicit
 local enablement flags, audit requirements, test-identity-only boundaries, and
-audit expectation fixtures that require local actor/action/resource metadata
-while forbidding secret/signing/transaction-hash metadata.
+API-local refusal audit records, plus audit expectation fixtures that require
+local actor/action/resource metadata while forbidding
+secret/signing/transaction-hash metadata.
 
 Run the Phase 1.2 refusal smoke from the repo root:
 
@@ -553,9 +562,10 @@ python scripts/xriq_phase1_1_local_e2e_smoke.py --artifact-dir xriq/target/xriq-
 ```
 
 This verifies `POST /api/v1/wallet/transfers/submit` and
-`POST /api/v1/wallet/transfers/send` return disabled `403` responses and still
-does not enable wallet submission, sending, block production, pending-state
-mutation, signing, or custody behavior.
+`POST /api/v1/wallet/transfers/send` return disabled `403` responses with
+API-local refusal audit records and still does not enable wallet submission,
+sending, block production, pending-state mutation, signing, or custody
+behavior.
 
 Run the React/static wallet guardrail from `xriq/apps/explorer-ui`:
 

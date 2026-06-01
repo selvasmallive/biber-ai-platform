@@ -35,6 +35,11 @@ pub const MEMPOOL_READONLY_WARNING: &str =
     "private-devnet-read-only-mempool-status-submit-disabled";
 pub const SNAPSHOT_READONLY_WARNING: &str =
     "private-devnet-read-only-snapshot-catalog-export-import-disabled";
+pub const WALLET_AUDIT_ACTOR: &str = "local-private-devnet-operator";
+pub const WALLET_AUDIT_RESOURCE_TYPE: &str = "wallet_transfer";
+pub const WALLET_AUDIT_SCOPE: &str = "api-local-refusal";
+pub const WALLET_AUDIT_METADATA_POLICY: &str =
+    "request fields only; no signing material or transaction hashes";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XriqApiService {
@@ -628,6 +633,9 @@ pub fn product_api_http_response(
                 "wallet_submit_disabled",
                 "wallet transfer submit is disabled by default in Phase 1.2 preflight mode",
                 "--enable-local-wallet-submit",
+                "wallet_transfer_submit_attempt",
+                "wallet-transfer-submit:local_request_id",
+                "draft_id_or_local_request_id",
                 &[
                     "default mode refuses mutation",
                     "signing material is not accepted",
@@ -641,6 +649,9 @@ pub fn product_api_http_response(
                 "wallet_send_disabled",
                 "wallet transfer send is disabled by default in Phase 1.2 preflight mode",
                 "--enable-local-wallet-send",
+                "wallet_transfer_send_attempt",
+                "wallet-transfer-send:local_request_id",
+                "local_request_id",
                 &[
                     "default mode refuses mutation",
                     "signing material is not accepted",
@@ -1617,6 +1628,9 @@ fn wallet_transfer_mutation_disabled_response(
     code: &str,
     error: &str,
     explicit_flag: &str,
+    action: &str,
+    event_id: &str,
+    resource_id_policy: &str,
     refusal_guards: &[&str],
 ) -> ApiHttpResponse {
     let mut body = String::new();
@@ -1644,6 +1658,71 @@ fn wallet_transfer_mutation_disabled_response(
     .expect("write to String");
     writeln!(&mut body, "    \"audit_event_required\": true,").expect("write to String");
     writeln!(&mut body, "    \"test_identity_only\": true").expect("write to String");
+    writeln!(&mut body, "  }},").expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"audit_scope\": {},",
+        json_string(WALLET_AUDIT_SCOPE)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  \"audit_event_recorded\": true,").expect("write to String");
+    writeln!(&mut body, "  \"audit_event\": {{").expect("write to String");
+    writeln!(&mut body, "    \"event_id\": {},", json_string(event_id)).expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"actor\": {},",
+        json_string(WALLET_AUDIT_ACTOR)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    \"action\": {},", json_string(action)).expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"resource_type\": {},",
+        json_string(WALLET_AUDIT_RESOURCE_TYPE)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"resource_id\": {},",
+        json_string(resource_id_policy)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"environment\": {},",
+        json_string(API_ENVIRONMENT)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    \"metadata\": {{").expect("write to String");
+    writeln!(&mut body, "      \"endpoint\": {},", json_string(endpoint)).expect("write to String");
+    writeln!(&mut body, "      \"outcome\": \"refused\",").expect("write to String");
+    writeln!(&mut body, "      \"status\": \"disabled\",").expect("write to String");
+    writeln!(&mut body, "      \"refusal_code\": {},", json_string(code)).expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"explicit_flag\": {},",
+        json_string(explicit_flag)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"local_request_id\": \"local_request_id\","
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"resource_id_policy\": {},",
+        json_string(resource_id_policy)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "      \"mutation\": \"none\",").expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"metadata_policy\": {}",
+        json_string(WALLET_AUDIT_METADATA_POLICY)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    }}").expect("write to String");
     writeln!(&mut body, "  }},").expect("write to String");
     writeln!(&mut body, "  \"request_fields\": [").expect("write to String");
     for (index, field) in [
@@ -3815,9 +3894,36 @@ mod tests {
         assert!(disabled_submit
             .body
             .contains("\"audit_event_required\": true"));
+        assert!(disabled_submit
+            .body
+            .contains("\"audit_scope\": \"api-local-refusal\""));
+        assert!(disabled_submit
+            .body
+            .contains("\"audit_event_recorded\": true"));
+        assert!(disabled_submit
+            .body
+            .contains("\"event_id\": \"wallet-transfer-submit:local_request_id\""));
+        assert!(disabled_submit
+            .body
+            .contains("\"actor\": \"local-private-devnet-operator\""));
+        assert!(disabled_submit
+            .body
+            .contains("\"action\": \"wallet_transfer_submit_attempt\""));
+        assert!(disabled_submit
+            .body
+            .contains("\"resource_type\": \"wallet_transfer\""));
+        assert!(disabled_submit
+            .body
+            .contains("\"resource_id\": \"draft_id_or_local_request_id\""));
+        assert!(disabled_submit.body.contains("\"outcome\": \"refused\""));
+        assert!(disabled_submit
+            .body
+            .contains("\"refusal_code\": \"wallet_submit_disabled\""));
         assert!(!disabled_submit.body.contains("\"tx_hash\""));
+        assert!(!disabled_submit.body.contains("transaction_hash"));
         assert!(!disabled_submit.body.contains("private_key"));
         assert!(!disabled_submit.body.contains("seed_phrase"));
+        assert!(!disabled_submit.body.contains("mnemonic"));
 
         let disabled_send =
             product_api_http_response(&api, "POST", "/api/v1/wallet/transfers/send");
@@ -3830,10 +3936,37 @@ mod tests {
         assert!(disabled_send
             .body
             .contains("\"explicit_flag\": \"--enable-local-wallet-send\""));
+        assert!(disabled_send
+            .body
+            .contains("\"audit_scope\": \"api-local-refusal\""));
+        assert!(disabled_send
+            .body
+            .contains("\"audit_event_recorded\": true"));
+        assert!(disabled_send
+            .body
+            .contains("\"event_id\": \"wallet-transfer-send:local_request_id\""));
+        assert!(disabled_send
+            .body
+            .contains("\"actor\": \"local-private-devnet-operator\""));
+        assert!(disabled_send
+            .body
+            .contains("\"action\": \"wallet_transfer_send_attempt\""));
+        assert!(disabled_send
+            .body
+            .contains("\"resource_type\": \"wallet_transfer\""));
+        assert!(disabled_send
+            .body
+            .contains("\"resource_id\": \"local_request_id\""));
+        assert!(disabled_send.body.contains("\"outcome\": \"refused\""));
+        assert!(disabled_send
+            .body
+            .contains("\"refusal_code\": \"wallet_send_disabled\""));
         assert!(disabled_send.body.contains("pending state is not changed"));
         assert!(!disabled_send.body.contains("\"tx_hash\""));
+        assert!(!disabled_send.body.contains("transaction_hash"));
         assert!(!disabled_send.body.contains("private_key"));
         assert!(!disabled_send.body.contains("seed_phrase"));
+        assert!(!disabled_send.body.contains("mnemonic"));
 
         let bad_draft = product_api_http_response(
             &api,

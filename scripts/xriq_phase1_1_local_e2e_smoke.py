@@ -20,6 +20,15 @@ ALICE = "xriqdev1alice00000000000"
 BOB = "xriqdev1bobbb00000000000"
 CAROL = "xriqdev1carol00000000000"
 FEES = "xriqdev1fees000000000000"
+FORBIDDEN_WALLET_MUTATION_KEYS = {
+    "tx_hash",
+    "transaction_hash",
+    "private_key",
+    "seed_phrase",
+    "mnemonic",
+    "signature",
+    "signed_transaction",
+}
 
 
 class SmokeError(RuntimeError):
@@ -107,6 +116,19 @@ def require_list(value: Any, context: str) -> list[Any]:
     if not isinstance(value, list):
         raise SmokeError(f"{context}: expected list, got {type(value).__name__}")
     return value
+
+
+def find_forbidden_wallet_keys(payload: Any) -> list[str]:
+    found: list[str] = []
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if key in FORBIDDEN_WALLET_MUTATION_KEYS:
+                found.append(key)
+            found.extend(find_forbidden_wallet_keys(value))
+    elif isinstance(payload, list):
+        for item in payload:
+            found.extend(find_forbidden_wallet_keys(item))
+    return found
 
 
 def parse_api_request_output(output: str, context: str) -> tuple[int, str, dict[str, Any]]:
@@ -3027,6 +3049,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         expected_endpoint: str,
         expected_code: str,
         expected_flag: str,
+        expected_action: str,
+        expected_event_id: str,
+        expected_resource_id: str,
         expected_guard: str,
     ) -> None:
         require_equal(payload, "network", "xriq-devnet", context)
@@ -3043,6 +3068,31 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         require_equal(enablement, "explicit_flag", expected_flag, context)
         require_equal(enablement, "audit_event_required", True, context)
         require_equal(enablement, "test_identity_only", True, context)
+        require_equal(payload, "audit_scope", "api-local-refusal", context)
+        require_equal(payload, "audit_event_recorded", True, context)
+        audit_event = payload.get("audit_event")
+        if not isinstance(audit_event, dict):
+            raise SmokeError(f"{context}: expected audit_event object")
+        require_equal(audit_event, "event_id", expected_event_id, context)
+        require_equal(audit_event, "actor", "local-private-devnet-operator", context)
+        require_equal(audit_event, "action", expected_action, context)
+        require_equal(audit_event, "resource_type", "wallet_transfer", context)
+        require_equal(audit_event, "resource_id", expected_resource_id, context)
+        require_equal(audit_event, "environment", "private-devnet", context)
+        metadata = audit_event.get("metadata")
+        if not isinstance(metadata, dict):
+            raise SmokeError(f"{context}: expected audit_event.metadata object")
+        require_equal(metadata, "endpoint", expected_endpoint, context)
+        require_equal(metadata, "outcome", "refused", context)
+        require_equal(metadata, "status", "disabled", context)
+        require_equal(metadata, "refusal_code", expected_code, context)
+        require_equal(metadata, "explicit_flag", expected_flag, context)
+        require_equal(metadata, "local_request_id", "local_request_id", context)
+        require_equal(metadata, "resource_id_policy", expected_resource_id, context)
+        require_equal(metadata, "mutation", "none", context)
+        metadata_policy = metadata.get("metadata_policy")
+        if not isinstance(metadata_policy, str) or "request fields only" not in metadata_policy:
+            raise SmokeError(f"{context}: expected request-fields-only audit metadata policy")
         request_fields = require_list(payload.get("request_fields"), context)
         for required_field in [
             "draft_id",
@@ -3065,9 +3115,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         ]:
             if required_guard not in guard_text:
                 raise SmokeError(f"{context}: missing refusal guard {required_guard!r}")
-        for forbidden_key in ["tx_hash", "private_key", "seed_phrase", "mnemonic"]:
-            if forbidden_key in payload:
-                raise SmokeError(f"{context}: forbidden response key {forbidden_key}")
+        forbidden_keys = find_forbidden_wallet_keys(payload)
+        if forbidden_keys:
+            raise SmokeError(f"{context}: forbidden response keys {forbidden_keys}")
 
     def validate_wallet_submit_disabled(payload: dict[str, Any]) -> None:
         validate_disabled_wallet_mutation(
@@ -3076,6 +3126,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "POST /api/v1/wallet/transfers/submit",
             "wallet_submit_disabled",
             "--enable-local-wallet-submit",
+            "wallet_transfer_submit_attempt",
+            "wallet-transfer-submit:local_request_id",
+            "draft_id_or_local_request_id",
             "audit event is required before any future accepted mutation",
         )
 
@@ -3086,6 +3139,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "POST /api/v1/wallet/transfers/send",
             "wallet_send_disabled",
             "--enable-local-wallet-send",
+            "wallet_transfer_send_attempt",
+            "wallet-transfer-send:local_request_id",
+            "local_request_id",
             "pending state is not changed",
         )
 

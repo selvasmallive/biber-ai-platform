@@ -140,9 +140,20 @@ secret/signing/transaction-hash metadata, and test-identity-only scope.
 `scripts/xriq_phase1_1_contract_check.py` and
 `scripts/xriq_phase1_2_refusal_smoke.py` validate these fixtures.
 
-Recommended next implementation: add API-local audit event recording for
-refused wallet submit/send attempts. Do not wire accepted mutation until
-refused-attempt audit recording is stable.
+Current API-local audit checkpoint: the disabled submit/send fixtures and
+`xriq-api` `403` responses now include
+`audit_scope: "api-local-refusal"`, `audit_event_recorded: true`, and a deterministic
+`audit_event` object for refused wallet attempts. The audit record uses the
+local private-devnet operator actor, wallet transfer attempt action,
+`wallet_transfer` resource type, refused outcome metadata, explicit local flag,
+local request id placeholder, and request-fields-only metadata policy. It still
+does not write chain state, pending state, signing material, custody material,
+transaction hashes, or accepted mutation results.
+
+Recommended next implementation: surface refused wallet audit records through
+the local admin/read-model audit path or another deterministic local audit
+artifact before any successful wallet submit/send path is wired. Do not wire
+accepted mutation until refused-attempt audit visibility is stable.
 
 ## Validation
 
