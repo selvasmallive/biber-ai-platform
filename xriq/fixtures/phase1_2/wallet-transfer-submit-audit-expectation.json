@@ -1,0 +1,79 @@
+{
+  "environment": "private-devnet",
+  "network": "xriq-devnet",
+  "endpoint": "POST /api/v1/wallet/transfers/submit",
+  "action": "wallet_transfer_submit_attempt",
+  "actor": "local-private-devnet-operator",
+  "resource_type": "wallet_transfer",
+  "resource_id_policy": "draft_id_or_local_request_id",
+  "status": "expectation",
+  "mutation": "none",
+  "default_outcome": "refused",
+  "accepted_outcome": "pending-only-after-explicit-local-flag",
+  "audit_event_required": true,
+  "test_identity_only": true,
+  "required_enablement": {
+    "mode": "local-private-devnet",
+    "explicit_flag": "--enable-local-wallet-submit",
+    "audit_event_required": true,
+    "test_identity_only": true
+  },
+  "audit_event": {
+    "event_id_pattern": "wallet-transfer-submit:<local_request_id>",
+    "actor": "local-private-devnet-operator",
+    "action": "wallet_transfer_submit_attempt",
+    "resource_type": "wallet_transfer",
+    "resource_id": "draft_id_or_local_request_id",
+    "environment": "private-devnet",
+    "metadata_required": [
+      "endpoint",
+      "outcome",
+      "status",
+      "refusal_code",
+      "explicit_flag",
+      "local_request_id",
+      "draft_id",
+      "from_address",
+      "to_address",
+      "amount_base_units",
+      "fee_base_units",
+      "nonce",
+      "expires_at_height"
+    ],
+    "metadata_forbidden": [
+      "private_key",
+      "seed_phrase",
+      "mnemonic",
+      "signature",
+      "signed_transaction",
+      "tx_hash",
+      "transaction_hash"
+    ]
+  },
+  "outcomes": [
+    {
+      "outcome": "refused",
+      "status": "disabled",
+      "code": "wallet_submit_disabled",
+      "mutation": "none",
+      "must_write_audit_event": true
+    },
+    {
+      "outcome": "accepted",
+      "status": "pending",
+      "code": "wallet_submit_accepted_local_only",
+      "mutation": "pending_state_only",
+      "requires_explicit_flag": "--enable-local-wallet-submit",
+      "must_write_audit_event": true,
+      "scope": "local-private-devnet-test-identity-only"
+    }
+  ],
+  "guards": [
+    "default outcome is refused",
+    "accepted outcome requires explicit local flag",
+    "audit event is required for refused and accepted attempts",
+    "audit event must not contain signing material",
+    "audit event must not contain transaction hash before accepted mutation",
+    "future accepted path remains local private-devnet and test-identity-only"
+  ]
+}

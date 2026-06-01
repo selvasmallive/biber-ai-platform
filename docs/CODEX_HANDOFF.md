@@ -233,13 +233,14 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `18%` overall after the initial
+- Phase 1.2 estimated completion: about `21%` overall after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
-  submit/send, plus React/client disabled-action guard coverage. It is not a
-  public launch phase. Its current target is audit-event expectation coverage
-  before any successful wallet-submit, block-production, snapshot-mutation,
-  DEX, custody, or public network behavior is implemented.
+  submit/send, React/client disabled-action guard coverage, and audit-event
+  expectation fixtures for future submit/send attempts. It is not a public
+  launch phase. Its current target is API-local audit recording for refused
+  wallet attempts before any successful wallet-submit, block-production,
+  snapshot-mutation, DEX, custody, or public network behavior is implemented.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -281,10 +282,10 @@ to save cost.
   `python scripts/xriq_phase1_1_contract_check.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, the local
   Phase 1.2 API-refusal smoke command above, and `git diff --check`. This
-  checkpoint still does not enable
-  successful transaction submission, sending, pending-state mutation, block
-  production, successful UI mutation actions, signing, custody, DEX, smart contracts, public
-  mainnet, bridges, exchange listings, or production infrastructure.
+  checkpoint still does not enable successful transaction submission, sending,
+  pending-state mutation, block production, successful UI mutation actions,
+  signing, custody, DEX, smart contracts, public mainnet, bridges, exchange
+  listings, or production infrastructure.
 - Latest native XRIQ Phase 1.2 UI/client action-guard checkpoint: the React
   wallet shell now includes a `Wallet Action Guards` section with disabled
   `Submit Draft` and `Send Transfer` controls plus an explicit `Check Guards`
@@ -327,13 +328,16 @@ to save cost.
   `scripts/xriq_phase1_2_refusal_smoke.py` to independently validate the
   disabled submit/send fixtures and write a summary under
   `xriq/target/xriq-phase1-2-refusal-smoke-*`. Checkpoint artifact:
-  `xriq/target/xriq-phase1-2-refusal-smoke-20260601T025951Z/summary.json` with
-  `ok: xriq-phase1-2-refusal-smoke` and `fixtures_checked: 2`. The smoke checks
-  disabled-by-default behavior, `mutation: "none"`, explicit local/private
-  enablement flags, audit-event requirements, test-identity-only boundaries,
-  and absence of signing/custody/transaction-hash response fields. Its `next`
-  pointer now targets UI/client refusal coverage, because API-level POST
-  refusal exists. Verification passed bundled-Python `py_compile`,
+  `xriq/target/xriq-phase1-2-refusal-smoke-20260601T032806Z/summary.json` with
+  `ok: xriq-phase1-2-refusal-smoke`, `fixtures_checked: 4`,
+  `disabled_fixtures_checked: 2`, and `audit_expectations_checked: 2`. The
+  smoke checks disabled-by-default behavior, `mutation: "none"`, explicit
+  local/private enablement flags, audit-event requirements,
+  test-identity-only boundaries, absence of signing/custody/transaction-hash
+  response fields, and audit metadata expectations that forbid sensitive
+  material. Its `next` pointer now targets API-local audit event recording for
+  refused attempts before any successful local mutation path. Verification
+  passed bundled-Python `py_compile`,
   `python scripts/xriq_phase1_2_refusal_smoke.py`,
   `python scripts/xriq_phase1_1_contract_check.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
@@ -341,6 +345,20 @@ to save cost.
   Phase 1.2 API refusal checkpoint above, but successful transaction
   submission, sending, pending-state mutation, block production, UI actions,
   and custody remain disabled.
+- Latest native XRIQ Phase 1.2 audit expectation checkpoint: added
+  `xriq/fixtures/phase1_2/wallet-transfer-submit-audit-expectation.json` and
+  `xriq/fixtures/phase1_2/wallet-transfer-send-audit-expectation.json`. These
+  define the required local actor (`local-private-devnet-operator`), actions
+  (`wallet_transfer_submit_attempt` and `wallet_transfer_send_attempt`),
+  resource type (`wallet_transfer`), refused-by-default behavior, accepted-only
+  local flag requirements, audit-event-required boundaries for both refused and
+  accepted attempts, test-identity-only scope, required audit metadata, and
+  forbidden metadata such as private keys, seed phrases, mnemonic material,
+  signatures, signed transactions, and transaction hashes before accepted
+  mutation. `scripts/xriq_phase1_1_contract_check.py` and
+  `scripts/xriq_phase1_2_refusal_smoke.py` now validate those fixtures. This
+  checkpoint is contract-only and does not write audit events or enable
+  submit/send mutation.
 - Latest native XRIQ Phase 1.1 RC1 tag checkpoint: after explicit user approval,
   created and pushed `phase1-1-xriq-local-e2e-rc1` at commit `6a38a51a`.
   Pre-tag validation passed
@@ -371,13 +389,12 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: add Phase 1.2 audit-event expectation fixtures
-  and checks for future wallet submit/send attempts, including local actor,
-  action, resource, refusal/accepted status, and no sensitive material. Keep
-  actual wallet submission, block-production controls, snapshot import/export
-  mutation, DEX, smart contracts, public mainnet, custody, bridges, exchange
-  listings, and production infrastructure out of scope until the audit
-  expectations are stable.
+- Recommended next narrow step: add API-local audit event recording for refused
+  wallet submit/send attempts, using the Phase 1.2 audit expectation fixtures
+  as the contract. Keep accepted wallet submission, block-production controls,
+  snapshot import/export mutation, DEX, smart contracts, public mainnet,
+  custody, bridges, exchange listings, and production infrastructure out of
+  scope until refused-attempt audit recording is stable.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return

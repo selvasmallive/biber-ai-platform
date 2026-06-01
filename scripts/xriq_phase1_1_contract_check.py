@@ -169,6 +169,21 @@ REQUIRED_PHASE1_2_PREFLIGHT_FIXTURES: dict[str, dict[str, str]] = {
     },
 }
 
+REQUIRED_PHASE1_2_AUDIT_EXPECTATION_FIXTURES: dict[str, dict[str, str]] = {
+    "wallet-transfer-submit-audit-expectation.json": {
+        "endpoint": "POST /api/v1/wallet/transfers/submit",
+        "action": "wallet_transfer_submit_attempt",
+        "explicit_flag": "--enable-local-wallet-submit",
+        "refusal_code": "wallet_submit_disabled",
+    },
+    "wallet-transfer-send-audit-expectation.json": {
+        "endpoint": "POST /api/v1/wallet/transfers/send",
+        "action": "wallet_transfer_send_attempt",
+        "explicit_flag": "--enable-local-wallet-send",
+        "refusal_code": "wallet_send_disabled",
+    },
+}
+
 HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 SENSITIVE_FIELD_PATTERN = re.compile(r"(private[_-]?key|seed[_-]?phrase|mnemonic)", re.IGNORECASE)
 
@@ -345,10 +360,170 @@ def verify_phase1_2_preflight_fixtures() -> dict[str, int]:
     return {"phase1_2_preflight_fixtures": len(REQUIRED_PHASE1_2_PREFLIGHT_FIXTURES)}
 
 
+def verify_phase1_2_audit_expectation_fixture(name: str, expected: dict[str, str]) -> None:
+    path = PHASE1_2_FIXTURE_DIR / name
+    payload = load_json(path)
+
+    required_fields = [
+        "environment",
+        "network",
+        "endpoint",
+        "action",
+        "actor",
+        "resource_type",
+        "resource_id_policy",
+        "status",
+        "mutation",
+        "default_outcome",
+        "accepted_outcome",
+        "audit_event_required",
+        "test_identity_only",
+        "required_enablement",
+        "audit_event",
+        "outcomes",
+        "guards",
+    ]
+    missing = [field for field in required_fields if field not in payload]
+    if missing:
+        raise ContractError(f"{name} missing fields: {missing}")
+
+    verify_common_payload(name, payload)
+
+    if payload.get("network") != "xriq-devnet":
+        raise ContractError(f"{name} must declare network xriq-devnet")
+    if payload.get("endpoint") != expected["endpoint"]:
+        raise ContractError(f"{name} has wrong endpoint: {payload.get('endpoint')!r}")
+    if payload.get("action") != expected["action"]:
+        raise ContractError(f"{name} has wrong action: {payload.get('action')!r}")
+    if payload.get("actor") != "local-private-devnet-operator":
+        raise ContractError(f"{name} must use the local private-devnet actor")
+    if payload.get("resource_type") != "wallet_transfer":
+        raise ContractError(f"{name} must use wallet_transfer resource type")
+    if payload.get("status") != "expectation":
+        raise ContractError(f"{name} must declare expectation status")
+    if payload.get("mutation") != "none":
+        raise ContractError(f"{name} must remain non-mutating")
+    if payload.get("default_outcome") != "refused":
+        raise ContractError(f"{name} default outcome must be refused")
+    if payload.get("audit_event_required") is not True:
+        raise ContractError(f"{name} must require audit events")
+    if payload.get("test_identity_only") is not True:
+        raise ContractError(f"{name} must remain test-identity-only")
+
+    enablement = payload.get("required_enablement")
+    if not isinstance(enablement, dict):
+        raise ContractError(f"{name} required_enablement must be an object")
+    if enablement.get("mode") != "local-private-devnet":
+        raise ContractError(f"{name} must require local-private-devnet mode")
+    if enablement.get("explicit_flag") != expected["explicit_flag"]:
+        raise ContractError(f"{name} has wrong explicit enablement flag")
+    if enablement.get("audit_event_required") is not True:
+        raise ContractError(f"{name} required_enablement must require audit event")
+    if enablement.get("test_identity_only") is not True:
+        raise ContractError(f"{name} required_enablement must remain test-identity-only")
+
+    audit_event = payload.get("audit_event")
+    if not isinstance(audit_event, dict):
+        raise ContractError(f"{name} audit_event must be an object")
+    for field in ("actor", "action", "resource_type", "environment"):
+        if audit_event.get(field) != payload.get(field):
+            raise ContractError(f"{name} audit_event.{field} must mirror top-level {field}")
+    for field in ("metadata_required", "metadata_forbidden"):
+        value = audit_event.get(field)
+        if not isinstance(value, list) or not value:
+            raise ContractError(f"{name} audit_event.{field} must be a non-empty list")
+
+    required_metadata = {
+        "endpoint",
+        "outcome",
+        "status",
+        "refusal_code",
+        "explicit_flag",
+        "local_request_id",
+        "from_address",
+        "to_address",
+        "amount_base_units",
+        "fee_base_units",
+        "nonce",
+        "expires_at_height",
+    }
+    metadata_required = {str(item) for item in audit_event["metadata_required"]}
+    missing_metadata = sorted(required_metadata.difference(metadata_required))
+    if missing_metadata:
+        raise ContractError(f"{name} missing audit metadata fields: {missing_metadata}")
+
+    metadata_forbidden = {str(item) for item in audit_event["metadata_forbidden"]}
+    for forbidden in (
+        "private_key",
+        "seed_phrase",
+        "mnemonic",
+        "signature",
+        "signed_transaction",
+        "tx_hash",
+        "transaction_hash",
+    ):
+        if forbidden not in metadata_forbidden:
+            raise ContractError(f"{name} must forbid audit metadata {forbidden}")
+
+    outcomes = payload.get("outcomes")
+    if not isinstance(outcomes, list) or len(outcomes) < 2:
+        raise ContractError(f"{name} outcomes must include refused and accepted cases")
+    by_outcome = {
+        str(outcome.get("outcome")): outcome
+        for outcome in outcomes
+        if isinstance(outcome, dict)
+    }
+    refused = by_outcome.get("refused")
+    accepted = by_outcome.get("accepted")
+    if not isinstance(refused, dict) or not isinstance(accepted, dict):
+        raise ContractError(f"{name} outcomes must include refused and accepted objects")
+    if refused.get("code") != expected["refusal_code"]:
+        raise ContractError(f"{name} refused outcome has wrong code")
+    if refused.get("mutation") != "none":
+        raise ContractError(f"{name} refused outcome must be non-mutating")
+    if refused.get("must_write_audit_event") is not True:
+        raise ContractError(f"{name} refused outcome must write audit event")
+    if accepted.get("requires_explicit_flag") != expected["explicit_flag"]:
+        raise ContractError(f"{name} accepted outcome has wrong required flag")
+    if accepted.get("must_write_audit_event") is not True:
+        raise ContractError(f"{name} accepted outcome must write audit event")
+    if accepted.get("scope") != "local-private-devnet-test-identity-only":
+        raise ContractError(f"{name} accepted outcome must remain local/test-only")
+
+    guards = payload.get("guards")
+    if not isinstance(guards, list) or not guards:
+        raise ContractError(f"{name} guards must be a non-empty list")
+    guard_text = "\n".join(str(guard) for guard in guards)
+    for required_guard in (
+        "default outcome is refused",
+        "accepted outcome requires explicit local flag",
+        "audit event is required for refused and accepted attempts",
+        "audit event must not contain signing material",
+        "audit event must not contain transaction hash before accepted mutation",
+    ):
+        if required_guard not in guard_text:
+            raise ContractError(f"{name} missing guard {required_guard!r}")
+
+
+def verify_phase1_2_audit_expectation_fixtures() -> dict[str, int]:
+    if not PHASE1_2_FIXTURE_DIR.exists():
+        raise ContractError(f"Phase 1.2 fixture dir missing: {PHASE1_2_FIXTURE_DIR}")
+
+    for name, expected in REQUIRED_PHASE1_2_AUDIT_EXPECTATION_FIXTURES.items():
+        verify_phase1_2_audit_expectation_fixture(name, expected)
+
+    return {
+        "phase1_2_audit_expectation_fixtures": len(
+            REQUIRED_PHASE1_2_AUDIT_EXPECTATION_FIXTURES
+        )
+    }
+
+
 def main() -> int:
     schema_result = verify_schema()
     fixture_result = verify_fixtures()
     phase1_2_result = verify_phase1_2_preflight_fixtures()
+    phase1_2_audit_result = verify_phase1_2_audit_expectation_fixtures()
     report = {
         "ok": "xriq-phase1-1-contract-check",
         "schema": str(SCHEMA_PATH),
@@ -357,6 +532,7 @@ def main() -> int:
         **schema_result,
         **fixture_result,
         **phase1_2_result,
+        **phase1_2_audit_result,
     }
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0

@@ -131,9 +131,18 @@ client API layer. The client accepts only HTTP `403` refusal responses and
 validates the disabled contract before marking either guard ready. This is
 still non-mutating and does not sign, send, submit, persist, or manage secrets.
 
-Recommended next implementation: add audit-event expectation fixtures and
-checks for future wallet submit/send attempts. Do not wire successful mutation
-until audit expectations are stable.
+Current audit expectation checkpoint: Phase 1.2 now has
+`wallet-transfer-submit-audit-expectation.json` and
+`wallet-transfer-send-audit-expectation.json` under `xriq/fixtures/phase1_2/`.
+They define local actor, action, resource, refused-by-default behavior,
+accepted-only local flag requirements, audit metadata requirements, forbidden
+secret/signing/transaction-hash metadata, and test-identity-only scope.
+`scripts/xriq_phase1_1_contract_check.py` and
+`scripts/xriq_phase1_2_refusal_smoke.py` validate these fixtures.
+
+Recommended next implementation: add API-local audit event recording for
+refused wallet submit/send attempts. Do not wire accepted mutation until
+refused-attempt audit recording is stable.
 
 ## Validation
 

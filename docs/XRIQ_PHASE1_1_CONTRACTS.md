@@ -159,6 +159,8 @@ The Phase 1.2 preflight fixtures are:
 ```text
 xriq/fixtures/phase1_2/wallet-transfer-submit-disabled.json
 xriq/fixtures/phase1_2/wallet-transfer-send-disabled.json
+xriq/fixtures/phase1_2/wallet-transfer-submit-audit-expectation.json
+xriq/fixtures/phase1_2/wallet-transfer-send-audit-expectation.json
 ```
 
 The first implementation after these fixtures should test refusal behavior
@@ -174,6 +176,17 @@ checks, and validate the returned disabled contract before showing a ready guard
 state. It must not include direct submit/send endpoint strings in the wallet UI
 component, raw wallet-local `fetch(` calls, signing material, seed material, or
 successful mutation controls.
+
+The audit expectation fixtures define the future audit event contract before
+any accepted mutation exists. Future submit/send attempts must use
+`local-private-devnet-operator` as the local actor, wallet-transfer attempt
+actions, `wallet_transfer` as the resource type, refused-by-default behavior,
+explicit local flags for accepted attempts, and required audit metadata such as
+endpoint, outcome, status, refusal code, local request id, addresses, amount,
+fee, nonce, and expiry. Audit metadata must forbid private keys, seed phrases,
+mnemonics, signatures, signed transactions, and transaction hashes before
+accepted mutation. The fixtures are expectations only; they do not write audit
+events yet.
 
 ### Admin APIs
 
@@ -516,7 +529,9 @@ The check validates that the PostgreSQL read-model schema contains the required
 `environment: "private-devnet"`, avoid sensitive key/seed fields, and keep
 money-like values as integer base-unit strings, and that the Phase 1.2 wallet
 mutation preflight fixtures remain disabled with `mutation: "none"`, explicit
-local enablement flags, audit requirements, and test-identity-only boundaries.
+local enablement flags, audit requirements, test-identity-only boundaries, and
+audit expectation fixtures that require local actor/action/resource metadata
+while forbidding secret/signing/transaction-hash metadata.
 
 Run the Phase 1.2 refusal smoke from the repo root:
 
@@ -527,7 +542,8 @@ python scripts/xriq_phase1_2_refusal_smoke.py
 The refusal smoke writes a summary under
 `xriq/target/xriq-phase1-2-refusal-smoke-*` and does not enable wallet
 submission, sending, block production, pending-state mutation, signing, or
-custody behavior.
+custody behavior. It validates both disabled response fixtures and the
+audit-event expectation fixtures.
 
 Run the local API refusal smoke from the repo root with a custom Phase 1.2
 artifact directory:
