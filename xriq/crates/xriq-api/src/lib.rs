@@ -35,17 +35,21 @@ pub const MEMPOOL_READONLY_WARNING: &str =
     "private-devnet-read-only-mempool-status-submit-disabled";
 pub const SNAPSHOT_READONLY_WARNING: &str =
     "private-devnet-read-only-snapshot-catalog-export-import-disabled";
-pub const WALLET_AUDIT_ACTOR: &str = "local-private-devnet-operator";
-pub const WALLET_AUDIT_RESOURCE_TYPE: &str = "wallet_transfer";
-pub const WALLET_AUDIT_SCOPE: &str = "api-local-refusal";
-pub const WALLET_AUDIT_METADATA_POLICY: &str =
+pub const LOCAL_REFUSAL_AUDIT_ACTOR: &str = "local-private-devnet-operator";
+pub const LOCAL_REFUSAL_AUDIT_SCOPE: &str = "api-local-refusal";
+pub const LOCAL_REFUSAL_AUDIT_METADATA_POLICY: &str =
     "request fields only; no signing material or transaction hashes";
+pub const WALLET_AUDIT_RESOURCE_TYPE: &str = "wallet_transfer";
 pub const WALLET_SUBMIT_AUDIT_ACTION: &str = "wallet_transfer_submit_attempt";
 pub const WALLET_SEND_AUDIT_ACTION: &str = "wallet_transfer_send_attempt";
 pub const WALLET_SUBMIT_AUDIT_EVENT_ID: &str = "wallet-transfer-submit:local_request_id";
 pub const WALLET_SEND_AUDIT_EVENT_ID: &str = "wallet-transfer-send:local_request_id";
 pub const WALLET_SUBMIT_AUDIT_RESOURCE_ID: &str = "draft_id_or_local_request_id";
 pub const WALLET_SEND_AUDIT_RESOURCE_ID: &str = "local_request_id";
+pub const BLOCK_PRODUCTION_AUDIT_RESOURCE_TYPE: &str = "block_production";
+pub const BLOCK_PRODUCTION_AUDIT_ACTION: &str = "block_production_attempt";
+pub const BLOCK_PRODUCTION_AUDIT_EVENT_ID: &str = "block-production:local_request_id";
+pub const BLOCK_PRODUCTION_AUDIT_RESOURCE_ID: &str = "local_request_id";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XriqApiService {
@@ -565,7 +569,7 @@ impl XriqApiService {
             limit,
             next_cursor,
             audit_events,
-            local_refusal_audit_events: wallet_refusal_audit_events(),
+            local_refusal_audit_events: local_refusal_audit_events(),
         }
     }
 
@@ -634,7 +638,7 @@ pub fn product_api_http_response(
     let (path, query) = split_http_target(target);
     if method == "POST" {
         return match path {
-            "/api/v1/wallet/transfers/submit" => wallet_transfer_mutation_disabled_response(
+            "/api/v1/wallet/transfers/submit" => local_mutation_disabled_response(
                 &service.snapshot().chain_id,
                 "POST /api/v1/wallet/transfers/submit",
                 "wallet_submit_disabled",
@@ -642,7 +646,17 @@ pub fn product_api_http_response(
                 "--enable-local-wallet-submit",
                 WALLET_SUBMIT_AUDIT_ACTION,
                 WALLET_SUBMIT_AUDIT_EVENT_ID,
+                WALLET_AUDIT_RESOURCE_TYPE,
                 WALLET_SUBMIT_AUDIT_RESOURCE_ID,
+                &[
+                    "draft_id",
+                    "from_address",
+                    "to_address",
+                    "amount_base_units",
+                    "fee_base_units",
+                    "nonce",
+                    "expires_at_height",
+                ],
                 &[
                     "default mode refuses mutation",
                     "signing material is not accepted",
@@ -650,7 +664,7 @@ pub fn product_api_http_response(
                     "audit event is required before any future accepted mutation",
                 ],
             ),
-            "/api/v1/wallet/transfers/send" => wallet_transfer_mutation_disabled_response(
+            "/api/v1/wallet/transfers/send" => local_mutation_disabled_response(
                 &service.snapshot().chain_id,
                 "POST /api/v1/wallet/transfers/send",
                 "wallet_send_disabled",
@@ -658,13 +672,48 @@ pub fn product_api_http_response(
                 "--enable-local-wallet-send",
                 WALLET_SEND_AUDIT_ACTION,
                 WALLET_SEND_AUDIT_EVENT_ID,
+                WALLET_AUDIT_RESOURCE_TYPE,
                 WALLET_SEND_AUDIT_RESOURCE_ID,
+                &[
+                    "draft_id",
+                    "from_address",
+                    "to_address",
+                    "amount_base_units",
+                    "fee_base_units",
+                    "nonce",
+                    "expires_at_height",
+                ],
                 &[
                     "default mode refuses mutation",
                     "signing material is not accepted",
                     "custody is not supported",
                     "pending state is not changed",
                     "chain state is not changed",
+                ],
+            ),
+            "/api/v1/blocks/produce" => local_mutation_disabled_response(
+                &service.snapshot().chain_id,
+                "POST /api/v1/blocks/produce",
+                "block_production_disabled",
+                "block production is disabled by default in Phase 1.2 preflight mode",
+                "--enable-local-block-production",
+                BLOCK_PRODUCTION_AUDIT_ACTION,
+                BLOCK_PRODUCTION_AUDIT_EVENT_ID,
+                BLOCK_PRODUCTION_AUDIT_RESOURCE_TYPE,
+                BLOCK_PRODUCTION_AUDIT_RESOURCE_ID,
+                &[
+                    "pending_file",
+                    "chain_file",
+                    "producer",
+                    "max_transactions",
+                    "timestamp_ms",
+                ],
+                &[
+                    "default mode refuses mutation",
+                    "pending state is not changed",
+                    "chain state is not changed",
+                    "audit event is required before any future accepted mutation",
+                    "test identity only",
                 ],
             ),
             _ => api_error_response(
@@ -1233,7 +1282,7 @@ pub struct AuditEventListResponse {
     pub limit: usize,
     pub next_cursor: Option<String>,
     pub audit_events: Vec<AuditEventResponse>,
-    pub local_refusal_audit_events: Vec<WalletRefusalAuditEventResponse>,
+    pub local_refusal_audit_events: Vec<LocalRefusalAuditEventResponse>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1247,7 +1296,7 @@ pub struct AuditEventResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WalletRefusalAuditEventResponse {
+pub struct LocalRefusalAuditEventResponse {
     pub event_id: &'static str,
     pub actor: &'static str,
     pub action: &'static str,
@@ -1259,11 +1308,11 @@ pub struct WalletRefusalAuditEventResponse {
     pub outcome: &'static str,
     pub status: &'static str,
     pub mutation: &'static str,
-    pub metadata: WalletRefusalAuditMetadataResponse,
+    pub metadata: LocalRefusalAuditMetadataResponse,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WalletRefusalAuditMetadataResponse {
+pub struct LocalRefusalAuditMetadataResponse {
     pub endpoint: &'static str,
     pub refusal_code: &'static str,
     pub explicit_flag: &'static str,
@@ -1435,48 +1484,69 @@ fn audit_event_response(event: &IndexedAuditEvent) -> AuditEventResponse {
     }
 }
 
-pub fn wallet_refusal_audit_events() -> Vec<WalletRefusalAuditEventResponse> {
+pub fn local_refusal_audit_events() -> Vec<LocalRefusalAuditEventResponse> {
     vec![
-        WalletRefusalAuditEventResponse {
+        LocalRefusalAuditEventResponse {
             event_id: WALLET_SUBMIT_AUDIT_EVENT_ID,
-            actor: WALLET_AUDIT_ACTOR,
+            actor: LOCAL_REFUSAL_AUDIT_ACTOR,
             action: WALLET_SUBMIT_AUDIT_ACTION,
             resource_type: WALLET_AUDIT_RESOURCE_TYPE,
             resource_id: WALLET_SUBMIT_AUDIT_RESOURCE_ID,
             environment: API_ENVIRONMENT,
-            audit_scope: WALLET_AUDIT_SCOPE,
+            audit_scope: LOCAL_REFUSAL_AUDIT_SCOPE,
             recording: "api-local-response",
             outcome: "refused",
             status: "disabled",
             mutation: "none",
-            metadata: WalletRefusalAuditMetadataResponse {
+            metadata: LocalRefusalAuditMetadataResponse {
                 endpoint: "POST /api/v1/wallet/transfers/submit",
                 refusal_code: "wallet_submit_disabled",
                 explicit_flag: "--enable-local-wallet-submit",
                 local_request_id: "local_request_id",
                 resource_id_policy: WALLET_SUBMIT_AUDIT_RESOURCE_ID,
-                metadata_policy: WALLET_AUDIT_METADATA_POLICY,
+                metadata_policy: LOCAL_REFUSAL_AUDIT_METADATA_POLICY,
             },
         },
-        WalletRefusalAuditEventResponse {
+        LocalRefusalAuditEventResponse {
             event_id: WALLET_SEND_AUDIT_EVENT_ID,
-            actor: WALLET_AUDIT_ACTOR,
+            actor: LOCAL_REFUSAL_AUDIT_ACTOR,
             action: WALLET_SEND_AUDIT_ACTION,
             resource_type: WALLET_AUDIT_RESOURCE_TYPE,
             resource_id: WALLET_SEND_AUDIT_RESOURCE_ID,
             environment: API_ENVIRONMENT,
-            audit_scope: WALLET_AUDIT_SCOPE,
+            audit_scope: LOCAL_REFUSAL_AUDIT_SCOPE,
             recording: "api-local-response",
             outcome: "refused",
             status: "disabled",
             mutation: "none",
-            metadata: WalletRefusalAuditMetadataResponse {
+            metadata: LocalRefusalAuditMetadataResponse {
                 endpoint: "POST /api/v1/wallet/transfers/send",
                 refusal_code: "wallet_send_disabled",
                 explicit_flag: "--enable-local-wallet-send",
                 local_request_id: "local_request_id",
                 resource_id_policy: WALLET_SEND_AUDIT_RESOURCE_ID,
-                metadata_policy: WALLET_AUDIT_METADATA_POLICY,
+                metadata_policy: LOCAL_REFUSAL_AUDIT_METADATA_POLICY,
+            },
+        },
+        LocalRefusalAuditEventResponse {
+            event_id: BLOCK_PRODUCTION_AUDIT_EVENT_ID,
+            actor: LOCAL_REFUSAL_AUDIT_ACTOR,
+            action: BLOCK_PRODUCTION_AUDIT_ACTION,
+            resource_type: BLOCK_PRODUCTION_AUDIT_RESOURCE_TYPE,
+            resource_id: BLOCK_PRODUCTION_AUDIT_RESOURCE_ID,
+            environment: API_ENVIRONMENT,
+            audit_scope: LOCAL_REFUSAL_AUDIT_SCOPE,
+            recording: "api-local-response",
+            outcome: "refused",
+            status: "disabled",
+            mutation: "none",
+            metadata: LocalRefusalAuditMetadataResponse {
+                endpoint: "POST /api/v1/blocks/produce",
+                refusal_code: "block_production_disabled",
+                explicit_flag: "--enable-local-block-production",
+                local_request_id: "local_request_id",
+                resource_id_policy: BLOCK_PRODUCTION_AUDIT_RESOURCE_ID,
+                metadata_policy: LOCAL_REFUSAL_AUDIT_METADATA_POLICY,
             },
         },
     ]
@@ -1703,7 +1773,7 @@ fn api_not_found_response(error: ApiError) -> ApiHttpResponse {
     }
 }
 
-fn wallet_transfer_mutation_disabled_response(
+fn local_mutation_disabled_response(
     network: &str,
     endpoint: &str,
     code: &str,
@@ -1711,7 +1781,9 @@ fn wallet_transfer_mutation_disabled_response(
     explicit_flag: &str,
     action: &str,
     event_id: &str,
+    resource_type: &str,
     resource_id_policy: &str,
+    request_fields: &[&str],
     refusal_guards: &[&str],
 ) -> ApiHttpResponse {
     let mut body = String::new();
@@ -1743,7 +1815,7 @@ fn wallet_transfer_mutation_disabled_response(
     writeln!(
         &mut body,
         "  \"audit_scope\": {},",
-        json_string(WALLET_AUDIT_SCOPE)
+        json_string(LOCAL_REFUSAL_AUDIT_SCOPE)
     )
     .expect("write to String");
     writeln!(&mut body, "  \"audit_event_recorded\": true,").expect("write to String");
@@ -1752,14 +1824,14 @@ fn wallet_transfer_mutation_disabled_response(
     writeln!(
         &mut body,
         "    \"actor\": {},",
-        json_string(WALLET_AUDIT_ACTOR)
+        json_string(LOCAL_REFUSAL_AUDIT_ACTOR)
     )
     .expect("write to String");
     writeln!(&mut body, "    \"action\": {},", json_string(action)).expect("write to String");
     writeln!(
         &mut body,
         "    \"resource_type\": {},",
-        json_string(WALLET_AUDIT_RESOURCE_TYPE)
+        json_string(resource_type)
     )
     .expect("write to String");
     writeln!(
@@ -1800,25 +1872,18 @@ fn wallet_transfer_mutation_disabled_response(
     writeln!(
         &mut body,
         "      \"metadata_policy\": {}",
-        json_string(WALLET_AUDIT_METADATA_POLICY)
+        json_string(LOCAL_REFUSAL_AUDIT_METADATA_POLICY)
     )
     .expect("write to String");
     writeln!(&mut body, "    }}").expect("write to String");
     writeln!(&mut body, "  }},").expect("write to String");
     writeln!(&mut body, "  \"request_fields\": [").expect("write to String");
-    for (index, field) in [
-        "draft_id",
-        "from_address",
-        "to_address",
-        "amount_base_units",
-        "fee_base_units",
-        "nonce",
-        "expires_at_height",
-    ]
-    .iter()
-    .enumerate()
-    {
-        let suffix = if index == 6 { "" } else { "," };
+    for (index, field) in request_fields.iter().enumerate() {
+        let suffix = if index + 1 == request_fields.len() {
+            ""
+        } else {
+            ","
+        };
         writeln!(&mut body, "    {}{}", json_string(field), suffix).expect("write to String");
     }
     writeln!(&mut body, "  ],").expect("write to String");
@@ -2864,7 +2929,7 @@ fn render_audit_event_list_json(response: &AuditEventListResponse) -> String {
             output.push(',');
         }
         output.push('\n');
-        output.push_str(&render_wallet_refusal_audit_event_json_inline(event, 4));
+        output.push_str(&render_local_refusal_audit_event_json_inline(event, 4));
     }
     if !response.local_refusal_audit_events.is_empty() {
         output.push('\n');
@@ -2999,8 +3064,8 @@ fn render_audit_event_json_inline(event: &AuditEventResponse, indent: usize) -> 
     )
 }
 
-fn render_wallet_refusal_audit_event_json_inline(
-    event: &WalletRefusalAuditEventResponse,
+fn render_local_refusal_audit_event_json_inline(
+    event: &LocalRefusalAuditEventResponse,
     indent: usize,
 ) -> String {
     let spaces = " ".repeat(indent);
@@ -3730,7 +3795,7 @@ mod tests {
             audit.audit_events[0].resource_id.as_deref(),
             Some(BLOCK_HASH)
         );
-        assert_eq!(audit.local_refusal_audit_events.len(), 2);
+        assert_eq!(audit.local_refusal_audit_events.len(), 3);
         assert_eq!(
             audit.local_refusal_audit_events[0].event_id,
             WALLET_SUBMIT_AUDIT_EVENT_ID
@@ -3754,6 +3819,22 @@ mod tests {
         assert_eq!(
             audit.local_refusal_audit_events[1].metadata.refusal_code,
             "wallet_send_disabled"
+        );
+        assert_eq!(
+            audit.local_refusal_audit_events[2].event_id,
+            BLOCK_PRODUCTION_AUDIT_EVENT_ID
+        );
+        assert_eq!(
+            audit.local_refusal_audit_events[2].action,
+            BLOCK_PRODUCTION_AUDIT_ACTION
+        );
+        assert_eq!(
+            audit.local_refusal_audit_events[2].resource_type,
+            BLOCK_PRODUCTION_AUDIT_RESOURCE_TYPE
+        );
+        assert_eq!(
+            audit.local_refusal_audit_events[2].metadata.refusal_code,
+            "block_production_disabled"
         );
 
         let snapshots = api.snapshots();
@@ -3915,7 +3996,7 @@ mod tests {
         assert_eq!(audit.status_code, 200);
         assert!(audit.body.contains("\"audit_events\""));
         assert!(audit.body.contains("\"action\": \"index_block\""));
-        assert!(audit.body.contains("\"local_refusal_audit_count\": 2"));
+        assert!(audit.body.contains("\"local_refusal_audit_count\": 3"));
         assert!(audit.body.contains("\"local_refusal_audit_events\""));
         assert!(audit
             .body
@@ -3923,6 +4004,15 @@ mod tests {
         assert!(audit
             .body
             .contains("\"event_id\": \"wallet-transfer-send:local_request_id\""));
+        assert!(audit
+            .body
+            .contains("\"event_id\": \"block-production:local_request_id\""));
+        assert!(audit
+            .body
+            .contains("\"action\": \"block_production_attempt\""));
+        assert!(audit
+            .body
+            .contains("\"resource_type\": \"block_production\""));
         assert!(audit
             .body
             .contains("\"audit_scope\": \"api-local-refusal\""));
@@ -4137,6 +4227,62 @@ mod tests {
         assert!(!disabled_send.body.contains("private_key"));
         assert!(!disabled_send.body.contains("seed_phrase"));
         assert!(!disabled_send.body.contains("mnemonic"));
+
+        let disabled_block_production =
+            product_api_http_response(&api, "POST", "/api/v1/blocks/produce");
+        assert_eq!(disabled_block_production.status_code, 403);
+        assert!(disabled_block_production
+            .body
+            .contains("\"code\": \"block_production_disabled\""));
+        assert!(disabled_block_production
+            .body
+            .contains("\"enabled\": false"));
+        assert!(disabled_block_production
+            .body
+            .contains("\"mutation\": \"none\""));
+        assert!(disabled_block_production
+            .body
+            .contains("\"explicit_flag\": \"--enable-local-block-production\""));
+        assert!(disabled_block_production
+            .body
+            .contains("\"audit_scope\": \"api-local-refusal\""));
+        assert!(disabled_block_production
+            .body
+            .contains("\"audit_event_recorded\": true"));
+        assert!(disabled_block_production
+            .body
+            .contains("\"event_id\": \"block-production:local_request_id\""));
+        assert!(disabled_block_production
+            .body
+            .contains("\"actor\": \"local-private-devnet-operator\""));
+        assert!(disabled_block_production
+            .body
+            .contains("\"action\": \"block_production_attempt\""));
+        assert!(disabled_block_production
+            .body
+            .contains("\"resource_type\": \"block_production\""));
+        assert!(disabled_block_production
+            .body
+            .contains("\"resource_id\": \"local_request_id\""));
+        assert!(disabled_block_production
+            .body
+            .contains("\"outcome\": \"refused\""));
+        assert!(disabled_block_production
+            .body
+            .contains("\"refusal_code\": \"block_production_disabled\""));
+        assert!(disabled_block_production.body.contains("\"pending_file\""));
+        assert!(disabled_block_production.body.contains("\"chain_file\""));
+        assert!(disabled_block_production
+            .body
+            .contains("pending state is not changed"));
+        assert!(disabled_block_production
+            .body
+            .contains("chain state is not changed"));
+        assert!(!disabled_block_production.body.contains("\"tx_hash\""));
+        assert!(!disabled_block_production.body.contains("transaction_hash"));
+        assert!(!disabled_block_production.body.contains("private_key"));
+        assert!(!disabled_block_production.body.contains("seed_phrase"));
+        assert!(!disabled_block_production.body.contains("mnemonic"));
 
         let bad_draft = product_api_http_response(
             &api,

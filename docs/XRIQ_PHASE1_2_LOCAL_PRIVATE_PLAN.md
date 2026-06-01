@@ -169,11 +169,20 @@ type, request-fields-only metadata, test-identity-only scope, and no pending or
 chain mutation in the default path. The contract and refusal-smoke scripts
 validate these fixtures.
 
-Recommended next implementation: add the API-level disabled/refused response
-for `POST /api/v1/blocks/produce` and include its deterministic local refusal
-audit record in the admin audit visibility response. Do not wire successful
-wallet submit/send or block production until the block-production API refusal
-and audit visibility behavior are stable.
+Current block-production API refusal checkpoint: `xriq-api` now returns HTTP
+`403 Forbidden` for `POST /api/v1/blocks/produce` using the same disabled,
+non-mutating, audit-gated response shape as the wallet submit/send refusals.
+The disabled response includes the block-production local actor/action/resource,
+`--enable-local-block-production`, request field names, refusal guards, and no
+pending or chain mutation. `/api/v1/admin/audit-events?limit=...` now exposes
+three local refusal records: wallet submit, wallet send, and block production.
+These records remain API-local response visibility only, not persistent
+chain/indexer audit rows.
+
+Recommended next implementation: add UI/client disabled block-production guard
+coverage, likely in the Admin Status surface, before any successful
+pending-to-confirmed action loop. Do not wire successful wallet submit/send or
+block production until the block-production UI/client refusal guard is stable.
 
 ## Validation
 

@@ -233,16 +233,17 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `30%` overall after the initial
+- Phase 1.2 estimated completion: about `33%` overall after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
   submit/send, React/client disabled-action guard coverage, and audit-event
   expectation fixtures plus API-local refusal audit records, admin audit
   visibility for future submit/send attempts, and disabled block-production
-  preflight/audit fixtures. It is not a public launch phase. Its current target
-  is the API-level disabled/refused block-production response before any
-  successful wallet-submit, block-production, snapshot-mutation, DEX, custody,
-  or public network behavior is implemented.
+  preflight/audit fixtures plus the API-level disabled/refused response and
+  audit visibility for block-production attempts. It is not a public launch
+  phase. Its current target is disabled UI/client guard coverage for block
+  production before any successful wallet-submit, block-production,
+  snapshot-mutation, DEX, custody, or public network behavior is implemented.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -262,6 +263,32 @@ after the completed private-devnet RC1 and Phase 1.1 local/e2e RC1 tags. The
 previous Vast deployment is not an active target because the GPU was terminated
 to save cost.
 
+- Latest native XRIQ Phase 1.2 block-production API refusal checkpoint:
+  `xriq-api` now returns stable HTTP `403 Forbidden` disabled responses for
+  `POST /api/v1/blocks/produce`. The response declares `enabled: false`,
+  `mutation: "none"`, `status: "disabled"`, `code:
+  "block_production_disabled"`, `--enable-local-block-production`,
+  `audit_scope: "api-local-refusal"`, `audit_event_recorded: true`,
+  `block_production_attempt`, `block_production`, request field names, refusal
+  guards, and test-identity-only/local-private-devnet boundaries. Admin audit
+  visibility now exposes three API-local refusal records: wallet submit, wallet
+  send, and block production. The block-production record is
+  `block-production:local_request_id` and is visible from file-backed API
+  routes plus the Postgres read-model rendering path. The local smoke writes
+  `xriq/target/xriq-phase1-2-block-refusal-smoke-20260601T051300Z/api/block-production-disabled.json`
+  and verifies `POST /api/v1/blocks/produce` under `failure_routes_checked`.
+  This checkpoint still does not produce blocks, confirm pending transactions,
+  change chain state, change pending state, sign, custody, enable wallet
+  submit/send success, DEX/smart contracts, or public network behavior.
+  Verification passed `cargo fmt`, `cargo test -p xriq-api --lib -j 1`,
+  `cargo test --target-dir target/codex-phase1-2-block-refusal -p xriq-api --bin xriq-api -j 1`,
+  bundled-Python `py_compile`, `scripts/xriq_phase1_1_contract_check.py`,
+  `scripts/xriq_phase1_2_refusal_smoke.py`,
+  `scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
+  `scripts/xriq_phase1_1_local_e2e_smoke.py --artifact-dir xriq/target/xriq-phase1-2-block-refusal-smoke-20260601T051300Z`.
+  Next narrow step: add UI/client disabled block-production guard coverage,
+  likely in the Admin Status surface, before any successful local
+  pending-to-confirmed loop.
 - Latest native XRIQ Phase 1.2 block-production preflight checkpoint:
   `xriq/fixtures/phase1_2/block-production-disabled.json` and
   `xriq/fixtures/phase1_2/block-production-audit-expectation.json` now define
@@ -278,10 +305,8 @@ to save cost.
   bundled-Python `py_compile`, `scripts/xriq_phase1_1_contract_check.py`,
   `scripts/xriq_phase1_2_refusal_smoke.py`,
   `scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
-  `git diff --check`. Next narrow step: add the API-level disabled/refused
-  `POST /api/v1/blocks/produce` response and show its deterministic local
-  refusal record in admin audit visibility before any successful
-  block-production loop.
+  `git diff --check`. This preflight-only step was followed by the API-level
+  block-production refusal checkpoint above.
 - Latest native XRIQ Phase 1.2 admin audit visibility checkpoint:
   `/api/v1/admin/audit-events?limit=...` now keeps indexed read-model audit
   rows in `audit_events` and adds `local_refusal_audit_count` plus
@@ -457,14 +482,13 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: add the API-level disabled/refused
-  `POST /api/v1/blocks/produce` response and expose its deterministic local
-  refusal record through admin audit visibility before wiring any successful
+- Recommended next narrow step: add UI/client disabled block-production guard
+  coverage, likely in the Admin Status surface, before wiring any successful
   pending-to-confirmed action loop. Keep accepted wallet submission,
   block-production success, snapshot import/export mutation, DEX, smart
   contracts, public mainnet, custody, bridges, exchange listings, and
-  production infrastructure out of scope until block-production API refusal and
-  audit visibility are stable.
+  production infrastructure out of scope until block-production UI/client
+  refusal behavior is stable.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return

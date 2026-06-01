@@ -132,14 +132,15 @@ def find_forbidden_wallet_keys(payload: Any) -> list[str]:
 
 
 def validate_local_refusal_audit_events(payload: dict[str, Any], context: str) -> None:
-    require_equal(payload, "local_refusal_audit_count", 2, context)
+    require_equal(payload, "local_refusal_audit_count", 3, context)
     events = require_list(payload.get("local_refusal_audit_events"), context)
-    if len(events) != 2 or not all(isinstance(event, dict) for event in events):
-        raise SmokeError(f"{context}: expected two local refusal audit events")
+    if len(events) != 3 or not all(isinstance(event, dict) for event in events):
+        raise SmokeError(f"{context}: expected three local refusal audit events")
     by_id = {str(event.get("event_id")): event for event in events}
     expected_events = {
         "wallet-transfer-submit:local_request_id": {
             "action": "wallet_transfer_submit_attempt",
+            "resource_type": "wallet_transfer",
             "resource_id": "draft_id_or_local_request_id",
             "endpoint": "POST /api/v1/wallet/transfers/submit",
             "refusal_code": "wallet_submit_disabled",
@@ -147,10 +148,19 @@ def validate_local_refusal_audit_events(payload: dict[str, Any], context: str) -
         },
         "wallet-transfer-send:local_request_id": {
             "action": "wallet_transfer_send_attempt",
+            "resource_type": "wallet_transfer",
             "resource_id": "local_request_id",
             "endpoint": "POST /api/v1/wallet/transfers/send",
             "refusal_code": "wallet_send_disabled",
             "explicit_flag": "--enable-local-wallet-send",
+        },
+        "block-production:local_request_id": {
+            "action": "block_production_attempt",
+            "resource_type": "block_production",
+            "resource_id": "local_request_id",
+            "endpoint": "POST /api/v1/blocks/produce",
+            "refusal_code": "block_production_disabled",
+            "explicit_flag": "--enable-local-block-production",
         },
     }
     for event_id, expected in expected_events.items():
@@ -159,7 +169,7 @@ def validate_local_refusal_audit_events(payload: dict[str, Any], context: str) -
             raise SmokeError(f"{context}: missing local refusal audit event {event_id}")
         require_equal(event, "actor", "local-private-devnet-operator", context)
         require_equal(event, "action", expected["action"], context)
-        require_equal(event, "resource_type", "wallet_transfer", context)
+        require_equal(event, "resource_type", expected["resource_type"], context)
         require_equal(event, "resource_id", expected["resource_id"], context)
         require_equal(event, "environment", "private-devnet", context)
         require_equal(event, "audit_scope", "api-local-refusal", context)
@@ -3096,7 +3106,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 f"{message!r}"
             )
 
-    def validate_disabled_wallet_mutation(
+    def validate_disabled_local_mutation(
         payload: dict[str, Any],
         context: str,
         expected_endpoint: str,
@@ -3104,8 +3114,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         expected_flag: str,
         expected_action: str,
         expected_event_id: str,
+        expected_resource_type: str,
         expected_resource_id: str,
-        expected_guard: str,
+        expected_request_fields: list[str],
+        expected_guards: list[str],
     ) -> None:
         require_equal(payload, "network", "xriq-devnet", context)
         require_equal(payload, "endpoint", expected_endpoint, context)
@@ -3129,7 +3141,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         require_equal(audit_event, "event_id", expected_event_id, context)
         require_equal(audit_event, "actor", "local-private-devnet-operator", context)
         require_equal(audit_event, "action", expected_action, context)
-        require_equal(audit_event, "resource_type", "wallet_transfer", context)
+        require_equal(audit_event, "resource_type", expected_resource_type, context)
         require_equal(audit_event, "resource_id", expected_resource_id, context)
         require_equal(audit_event, "environment", "private-devnet", context)
         metadata = audit_event.get("metadata")
@@ -3147,25 +3159,12 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         if not isinstance(metadata_policy, str) or "request fields only" not in metadata_policy:
             raise SmokeError(f"{context}: expected request-fields-only audit metadata policy")
         request_fields = require_list(payload.get("request_fields"), context)
-        for required_field in [
-            "draft_id",
-            "from_address",
-            "to_address",
-            "amount_base_units",
-            "fee_base_units",
-            "nonce",
-            "expires_at_height",
-        ]:
+        for required_field in expected_request_fields:
             if required_field not in request_fields:
                 raise SmokeError(f"{context}: missing request field {required_field}")
         refusal_guards = require_list(payload.get("refusal_guards"), context)
         guard_text = "\n".join(str(guard) for guard in refusal_guards)
-        for required_guard in [
-            "default mode refuses mutation",
-            "signing material is not accepted",
-            "custody is not supported",
-            expected_guard,
-        ]:
+        for required_guard in expected_guards:
             if required_guard not in guard_text:
                 raise SmokeError(f"{context}: missing refusal guard {required_guard!r}")
         forbidden_keys = find_forbidden_wallet_keys(payload)
@@ -3173,7 +3172,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             raise SmokeError(f"{context}: forbidden response keys {forbidden_keys}")
 
     def validate_wallet_submit_disabled(payload: dict[str, Any]) -> None:
-        validate_disabled_wallet_mutation(
+        validate_disabled_local_mutation(
             payload,
             "wallet submit disabled",
             "POST /api/v1/wallet/transfers/submit",
@@ -3181,12 +3180,27 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "--enable-local-wallet-submit",
             "wallet_transfer_submit_attempt",
             "wallet-transfer-submit:local_request_id",
+            "wallet_transfer",
             "draft_id_or_local_request_id",
-            "audit event is required before any future accepted mutation",
+            [
+                "draft_id",
+                "from_address",
+                "to_address",
+                "amount_base_units",
+                "fee_base_units",
+                "nonce",
+                "expires_at_height",
+            ],
+            [
+                "default mode refuses mutation",
+                "signing material is not accepted",
+                "custody is not supported",
+                "audit event is required before any future accepted mutation",
+            ],
         )
 
     def validate_wallet_send_disabled(payload: dict[str, Any]) -> None:
-        validate_disabled_wallet_mutation(
+        validate_disabled_local_mutation(
             payload,
             "wallet send disabled",
             "POST /api/v1/wallet/transfers/send",
@@ -3194,8 +3208,49 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "--enable-local-wallet-send",
             "wallet_transfer_send_attempt",
             "wallet-transfer-send:local_request_id",
+            "wallet_transfer",
             "local_request_id",
-            "pending state is not changed",
+            [
+                "draft_id",
+                "from_address",
+                "to_address",
+                "amount_base_units",
+                "fee_base_units",
+                "nonce",
+                "expires_at_height",
+            ],
+            [
+                "default mode refuses mutation",
+                "signing material is not accepted",
+                "custody is not supported",
+                "pending state is not changed",
+            ],
+        )
+
+    def validate_block_production_disabled(payload: dict[str, Any]) -> None:
+        validate_disabled_local_mutation(
+            payload,
+            "block production disabled",
+            "POST /api/v1/blocks/produce",
+            "block_production_disabled",
+            "--enable-local-block-production",
+            "block_production_attempt",
+            "block-production:local_request_id",
+            "block_production",
+            "local_request_id",
+            [
+                "pending_file",
+                "chain_file",
+                "producer",
+                "max_transactions",
+                "timestamp_ms",
+            ],
+            [
+                "default mode refuses mutation",
+                "pending state is not changed",
+                "chain state is not changed",
+                "audit event is required before any future accepted mutation",
+            ],
         )
 
     def validate_node_status(payload: dict[str, Any]) -> None:
@@ -3329,6 +3384,13 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         403,
         validate_wallet_send_disabled,
     )
+    check_method_status(
+        "POST",
+        "/api/v1/blocks/produce",
+        "block-production-disabled",
+        403,
+        validate_block_production_disabled,
+    )
     check("/api/v1/admin/node/status", "admin-node-status", validate_node_status)
     check("/api/v1/admin/indexer/status", "admin-indexer-status", validate_indexer)
     check("/api/v1/admin/audit-events?limit=5", "admin-audit-events", validate_audit)
@@ -3352,6 +3414,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     completed.append("product API route smoke")
     completed.append("wallet draft failure smoke")
     completed.append("wallet mutation refusal smoke")
+    completed.append("block production refusal smoke")
 
     summary = {
         "ok": "xriq-phase1-1-local-e2e-smoke",

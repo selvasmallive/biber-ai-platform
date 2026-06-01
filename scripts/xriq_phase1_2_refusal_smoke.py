@@ -434,9 +434,8 @@ def main(argv: list[str] | None = None) -> int:
                 "block_production_disabled_by_default",
             ],
             "next": (
-                "add API-level disabled/refused block-production response "
-                "for POST /api/v1/blocks/produce before any successful "
-                "local block production path"
+                "add UI/client disabled block-production guard coverage "
+                "before any successful local block production path"
             ),
         }
         (artifact_dir / "summary.json").write_text(

@@ -176,8 +176,9 @@ xriq/fixtures/phase1_2/block-production-audit-expectation.json
 The first implementation after these fixtures should test refusal behavior
 before adding any successful submit/send or block-production path. The first
 API implementation now returns stable `403` refusal bodies for submit/send and
-is covered by `scripts/xriq_phase1_1_local_e2e_smoke.py`; successful submit,
-send, block production, and pending-to-confirmed mutation remain out of scope.
+block production, and is covered by
+`scripts/xriq_phase1_1_local_e2e_smoke.py`; successful submit, send, block
+production, and pending-to-confirmed mutation remain out of scope.
 
 The first UI/client implementation consumes those refusal contracts only. The
 React wallet shell must keep submit/send controls disabled, offer only an
@@ -195,9 +196,9 @@ explicit local flags for accepted attempts, and required audit metadata such as
 endpoint, outcome, status, refusal code, local request id, addresses, amount,
 fee, nonce, and expiry. Audit metadata must forbid private keys, seed phrases,
 mnemonics, signatures, signed transactions, and transaction hashes before
-accepted mutation. The disabled API response now records a deterministic
-API-local refusal audit object for submit/send attempts, but it is still
-non-mutating and does not yet expose refused attempts through persistent
+accepted mutation. The disabled API response now records deterministic
+API-local refusal audit objects for submit/send attempts, and admin audit
+visibility exposes those local refusal records separately from persistent
 chain/indexer audit storage.
 
 Future block-production attempts must use the same local actor,
@@ -206,7 +207,10 @@ refused-by-default behavior, and `--enable-local-block-production` as the
 explicit local-only gate. Required block-production audit metadata is limited to
 endpoint, outcome, status, refusal code, explicit flag, local request id,
 pending file, chain file, producer, max transaction count, and timestamp. The
-default path must not change pending or chain state.
+default path must not change pending or chain state. The API now returns the
+same stable `403` disabled/refused shape for `POST /api/v1/blocks/produce` and
+admin audit visibility includes the deterministic
+`block-production:local_request_id` local refusal record.
 
 The admin audit response exposes these local refusal records separately from
 indexed audit rows:
@@ -220,6 +224,7 @@ Required local refusal audit visibility behavior:
 - keep indexed read-model rows in `audit_events`
 - add `local_refusal_audit_count`
 - add `local_refusal_audit_events[]`
+- include wallet submit, wallet send, and block-production refusal records
 - use `audit_scope: "api-local-refusal"`
 - use `recording: "api-local-response"`
 - declare `outcome: "refused"`, `status: "disabled"`, and

@@ -10,8 +10,8 @@ use std::{
 };
 
 use xriq_api::{
-    pending_mempool_entries_from_tsv, product_api_http_response, wallet_refusal_audit_events,
-    ApiHttpResponse, WalletRefusalAuditEventResponse, XriqApiService, MEMPOOL_READONLY_WARNING,
+    local_refusal_audit_events, pending_mempool_entries_from_tsv, product_api_http_response,
+    ApiHttpResponse, LocalRefusalAuditEventResponse, XriqApiService, MEMPOOL_READONLY_WARNING,
     SNAPSHOT_READONLY_WARNING, WALLET_PREVIEW_WARNING,
 };
 use xriq_core::{Address, XriqAmount, PRIVATE_DEVNET_MIN_FEE_BASE_UNITS};
@@ -2188,7 +2188,7 @@ fn render_postgres_audit_events_json(
         output.push('\n');
     }
     output.push_str("  ],\n");
-    let local_refusal_audit_events = wallet_refusal_audit_events();
+    let local_refusal_audit_events = local_refusal_audit_events();
     writeln!(
         &mut output,
         "  \"local_refusal_audit_count\": {},",
@@ -2201,7 +2201,7 @@ fn render_postgres_audit_events_json(
             output.push(',');
         }
         output.push('\n');
-        output.push_str(&render_wallet_refusal_audit_event_json_inline(event, 4));
+        output.push_str(&render_local_refusal_audit_event_json_inline(event, 4));
     }
     if !local_refusal_audit_events.is_empty() {
         output.push('\n');
@@ -2247,8 +2247,8 @@ fn render_postgres_audit_event_json_inline(
     ))
 }
 
-fn render_wallet_refusal_audit_event_json_inline(
-    event: &WalletRefusalAuditEventResponse,
+fn render_local_refusal_audit_event_json_inline(
+    event: &LocalRefusalAuditEventResponse,
     indent: usize,
 ) -> String {
     let spaces = " ".repeat(indent);
@@ -4808,10 +4808,13 @@ audit_event_0_environment=private-devnet
             "\"resource_id\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\""
         ));
         assert!(body.contains("\"environment\": \"private-devnet\""));
-        assert!(body.contains("\"local_refusal_audit_count\": 2"));
+        assert!(body.contains("\"local_refusal_audit_count\": 3"));
         assert!(body.contains("\"local_refusal_audit_events\": ["));
         assert!(body.contains("\"event_id\": \"wallet-transfer-submit:local_request_id\""));
         assert!(body.contains("\"event_id\": \"wallet-transfer-send:local_request_id\""));
+        assert!(body.contains("\"event_id\": \"block-production:local_request_id\""));
+        assert!(body.contains("\"action\": \"block_production_attempt\""));
+        assert!(body.contains("\"resource_type\": \"block_production\""));
         assert!(body.contains("\"audit_scope\": \"api-local-refusal\""));
         assert!(body.contains("\"recording\": \"api-local-response\""));
         assert!(body.contains("\"outcome\": \"refused\""));
