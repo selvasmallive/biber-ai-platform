@@ -179,10 +179,21 @@ three local refusal records: wallet submit, wallet send, and block production.
 These records remain API-local response visibility only, not persistent
 chain/indexer audit rows.
 
-Recommended next implementation: add UI/client disabled block-production guard
-coverage, likely in the Admin Status surface, before any successful
-pending-to-confirmed action loop. Do not wire successful wallet submit/send or
-block production until the block-production UI/client refusal guard is stable.
+Current UI/client block-production guard checkpoint: the React Admin Status
+surface now includes an `Admin Action Guards` section with a disabled `Produce
+Block` control and an explicit `Check Guard` action. The client calls the
+disabled `POST /api/v1/blocks/produce` endpoint only through the API layer,
+accepts only HTTP `403` refusal responses, validates the disabled/non-mutating
+contract, shows `block_production_disabled`,
+`--enable-local-block-production`, and `mutation: "none"`, and keeps the block
+production action disabled. The admin audit section also surfaces the local
+block-production refusal audit record.
+
+Recommended next implementation: start the first local pending-to-confirmed
+loop contract/implementation path behind explicit local-private-devnet gates.
+Begin with request/response shape, test-identity-only validation, audit
+expectations, and refusal/disabled coverage before accepting any successful
+pending or chain mutation.
 
 ## Validation
 

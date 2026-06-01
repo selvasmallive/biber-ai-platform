@@ -188,6 +188,15 @@ state. It must not include direct submit/send endpoint strings in the wallet UI
 component, raw wallet-local `fetch(` calls, signing material, seed material, or
 successful mutation controls.
 
+The Admin Status UI must treat block production the same way during Phase 1.2:
+show the future action as disabled, provide only an explicit guard-check action,
+call `POST /api/v1/blocks/produce` through the shared client API layer, accept
+only the `403` disabled response, validate `block_production_disabled`,
+`--enable-local-block-production`, `mutation: "none"`, local/private-devnet
+scope, request-field names, and refusal guards, and surface the matching
+API-local refusal audit record. It must not enable block production, mutate
+pending state, mutate chain state, or expose public/production behavior.
+
 The audit expectation fixtures define the future audit event contract before
 any accepted mutation exists. Future submit/send attempts must use
 `local-private-devnet-operator` as the local actor, wallet-transfer attempt

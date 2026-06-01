@@ -53,6 +53,7 @@ for (const route of [
   "/api/v1/wallet/transfers/draft-preview",
   "/api/v1/wallet/transfers/submit",
   "/api/v1/wallet/transfers/send",
+  "/api/v1/blocks/produce",
   "/api/v1/admin/node/status",
   "/api/v1/admin/indexer/status",
   "/api/v1/admin/postgres/read-model-status",
@@ -264,9 +265,29 @@ for (const requiredText of [
   "Audit Events",
   "export_status",
   "import_status",
+  "Admin Action Guards",
+  "Block Production Guard",
+  "Produce Block",
+  "Check Guard",
+  "LocalMutationRefusalResponse",
+  "loadBlockProductionRefusal",
+  "BLOCK_PRODUCTION_REFUSAL_ENDPOINT",
+  "block_production_disabled",
+  "--enable-local-block-production",
+  "local-private-devnet-preflight-only",
+  "validateBlockProductionRefusalContract",
+  "local_refusal_audit_count",
+  "local_refusal_audit_events",
+  "block_production",
 ]) {
   if (!adminSource.includes(requiredText)) {
     throw new Error(`missing admin status marker: ${requiredText}`);
+  }
+}
+
+for (const forbiddenText of ["fetch(", "/api/v1/blocks/produce"]) {
+  if (adminSource.includes(forbiddenText)) {
+    throw new Error(`forbidden admin guard behavior found: ${forbiddenText}`);
   }
 }
 

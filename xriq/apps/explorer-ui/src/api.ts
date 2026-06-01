@@ -274,7 +274,10 @@ export interface WalletDraftPreviewResponse {
 
 export type WalletMutationAction = "submit" | "send";
 
-export interface WalletMutationRefusalResponse {
+export const BLOCK_PRODUCTION_REFUSAL_ENDPOINT = "POST /api/v1/blocks/produce";
+const BLOCK_PRODUCTION_REFUSAL_PATH = "/api/v1/blocks/produce";
+
+export interface LocalMutationRefusalResponse {
   environment: "private-devnet";
   network: string;
   endpoint: string;
@@ -293,6 +296,8 @@ export interface WalletMutationRefusalResponse {
   request_fields: string[];
   refusal_guards: string[];
 }
+
+export type WalletMutationRefusalResponse = LocalMutationRefusalResponse;
 
 export interface MempoolEntry {
   tx_hash: string;
@@ -329,12 +334,31 @@ export interface AdminAuditEvent {
   environment: "private-devnet";
 }
 
+export interface LocalRefusalAuditEvent extends Omit<AdminAuditEvent, "resource_id"> {
+  resource_id: string;
+  audit_scope: string;
+  recording: string;
+  outcome: string;
+  status: string;
+  mutation: "none";
+  metadata: {
+    endpoint: string;
+    refusal_code: string;
+    explicit_flag: string;
+    local_request_id: string;
+    resource_id_policy: string;
+    metadata_policy: string;
+  };
+}
+
 export interface AdminAuditEventsResponse {
   environment: "private-devnet";
   network: string;
   limit: number;
   next_cursor: string | null;
   audit_events: AdminAuditEvent[];
+  local_refusal_audit_count: number;
+  local_refusal_audit_events: LocalRefusalAuditEvent[];
 }
 
 export interface SnapshotSummary {
@@ -617,6 +641,19 @@ export async function loadWalletMutationRefusal(
     method: "POST",
     acceptedStatuses: [403],
   });
+}
+
+export async function loadBlockProductionRefusal(
+  baseUrl: string,
+): Promise<LocalMutationRefusalResponse> {
+  return fetchJson<LocalMutationRefusalResponse>(
+    normalizeBaseUrl(baseUrl),
+    BLOCK_PRODUCTION_REFUSAL_PATH,
+    {
+      method: "POST",
+      acceptedStatuses: [403],
+    },
+  );
 }
 
 export async function loadIsoPaymentInitiationPreview(

@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import {
+  BLOCK_PRODUCTION_REFUSAL_ENDPOINT,
   ExplorerSnapshot,
+  LocalMutationRefusalResponse,
   PostgresReadModelStatusResponse,
   WalletTransactionStatusResponse,
+  loadBlockProductionRefusal,
   loadPostgresReadModelStatus,
   loadWalletTransactionStatus,
 } from "./api";
@@ -18,6 +21,12 @@ type WalletTxStatusState =
   | { status: "loading"; data: WalletTransactionStatusResponse | null; error: null }
   | { status: "ready"; data: WalletTransactionStatusResponse; error: null }
   | { status: "error"; data: WalletTransactionStatusResponse | null; error: string };
+
+type BlockProductionGuardState =
+  | { status: "idle"; data: null; error: null }
+  | { status: "loading"; data: LocalMutationRefusalResponse | null; error: null }
+  | { status: "ready"; data: LocalMutationRefusalResponse; error: null }
+  | { status: "error"; data: LocalMutationRefusalResponse | null; error: string };
 
 export type PostgresStatusState =
   | { status: "idle"; data: null; error: null }
@@ -48,8 +57,18 @@ export function AdminStatusPanel({
     data: null,
     error: null,
   });
+  const [blockProductionGuard, setBlockProductionGuard] =
+    useState<BlockProductionGuardState>({
+      status: "idle",
+      data: null,
+      error: null,
+    });
   const snapshotCatalog = snapshot?.snapshots.snapshots[0];
   const latestAuditEvent = snapshot?.auditEvents.audit_events[0];
+  const blockProductionAuditEvent =
+    snapshot?.auditEvents.local_refusal_audit_events.find(
+      (event) => event.resource_type === "block_production",
+    ) ?? null;
   const pendingWalletStatus = firstPending
     ? walletTxStatus.data?.status ?? walletTxStatus.status
     : "-";
@@ -136,6 +155,31 @@ export function AdminStatusPanel({
     };
   }, [apiBaseUrl, snapshot?.loadedAt]);
 
+  async function handleCheckBlockProductionGuard() {
+    setBlockProductionGuard((current) => ({
+      status: "loading",
+      data: current.data,
+      error: null,
+    }));
+    try {
+      const data = await loadBlockProductionRefusal(apiBaseUrl);
+      const contractErrors = validateBlockProductionRefusalContract(data);
+      if (contractErrors.length > 0) {
+        throw new Error(contractErrors.join("; "));
+      }
+      setBlockProductionGuard({ status: "ready", data, error: null });
+    } catch (error) {
+      setBlockProductionGuard((current) => ({
+        status: "error",
+        data: current.data,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Block production guard check failed",
+      }));
+    }
+  }
+
   return (
     <section className="panel detailPanel widePanel adminPanel">
       <div className="panelTitle">
@@ -209,6 +253,10 @@ export function AdminStatusPanel({
             ["Produce Block", mempool?.produce_block_status ?? "-"],
           ]}
         />
+        <AdminActionGuards
+          guard={blockProductionGuard}
+          onCheck={() => void handleCheckBlockProductionGuard()}
+        />
         <StatusBlock
           title="Snapshot Catalog"
           rows={[
@@ -226,15 +274,70 @@ export function AdminStatusPanel({
           title="Audit Events"
           rows={[
             ["Count", snapshot?.auditEvents.audit_events.length ?? "-"],
+            ["Local Refusals", snapshot?.auditEvents.local_refusal_audit_count ?? "-"],
             ["Latest", latestAuditEvent?.event_id ?? "-"],
             ["Actor", latestAuditEvent?.actor ?? "-"],
             ["Action", latestAuditEvent?.action ?? "-"],
             ["Resource", latestAuditEvent?.resource_type ?? "-"],
             ["Resource Id", latestAuditEvent?.resource_id ?? "-"],
+            ["Block Guard Audit", blockProductionAuditEvent?.event_id ?? "-"],
           ]}
         />
       </div>
     </section>
+  );
+}
+
+const BLOCK_PRODUCTION_GUARD = {
+  label: "Block Production Guard",
+  buttonLabel: "Produce Block",
+  code: "block_production_disabled",
+  endpoint: BLOCK_PRODUCTION_REFUSAL_ENDPOINT,
+  flag: "--enable-local-block-production",
+  fields: ["pending_file", "chain_file", "producer", "max_transactions", "timestamp_ms"],
+  guards: [
+    "default mode refuses mutation",
+    "pending state is not changed",
+    "chain state is not changed",
+    "audit event is required before any future accepted mutation",
+  ],
+};
+
+function AdminActionGuards({
+  guard,
+  onCheck,
+}: {
+  guard: BlockProductionGuardState;
+  onCheck: () => void;
+}) {
+  const isChecking = guard.status === "loading";
+  const data = guard.data;
+  return (
+    <div className="adminBlock adminActionGuards" aria-label="Admin Action Guards">
+      <div className="subHeading">
+        <h3>Admin Action Guards</h3>
+        <span>block production disabled</span>
+      </div>
+      <div className="adminGuardButtons">
+        <button type="button" disabled>
+          {BLOCK_PRODUCTION_GUARD.buttonLabel}
+        </button>
+        <button type="button" onClick={onCheck} disabled={isChecking}>
+          Check Guard
+        </button>
+      </div>
+      <dl className="detailList">
+        <FragmentRow label="Guard" value={BLOCK_PRODUCTION_GUARD.label} />
+        <FragmentRow label="State" value={data?.status ?? guard.status} />
+        <FragmentRow label="Code" value={data?.code ?? BLOCK_PRODUCTION_GUARD.code} />
+        <FragmentRow
+          label="Flag"
+          value={data?.required_enablement.explicit_flag ?? BLOCK_PRODUCTION_GUARD.flag}
+        />
+        <FragmentRow label="Mutation" value={data?.mutation ?? "none"} />
+      </dl>
+      {guard.status === "error" ? <p className="errorText">{guard.error}</p> : null}
+    </div>
   );
 }
 
@@ -264,6 +367,61 @@ export function postgresReadModelRows(
     ["Read Only", postgres?.read_only ? "true" : "-"],
     ["Error", postgresStatus.error ?? "-"],
   ];
+}
+
+function validateBlockProductionRefusalContract(
+  data: LocalMutationRefusalResponse,
+) {
+  const errors: string[] = [];
+
+  if (data.environment !== "private-devnet") {
+    errors.push("environment must be private-devnet");
+  }
+  if (data.network !== "xriq-devnet") {
+    errors.push("network must be xriq-devnet");
+  }
+  if (data.endpoint !== BLOCK_PRODUCTION_GUARD.endpoint) {
+    errors.push("block production endpoint marker is missing");
+  }
+  if (data.enabled !== false) {
+    errors.push("block production guard must be disabled");
+  }
+  if (data.mutation !== "none") {
+    errors.push("block production mutation must be none");
+  }
+  if (data.status !== "disabled") {
+    errors.push("block production status must be disabled");
+  }
+  if (data.code !== BLOCK_PRODUCTION_GUARD.code) {
+    errors.push(`block production code must be ${BLOCK_PRODUCTION_GUARD.code}`);
+  }
+  if (data.warning !== "local-private-devnet-preflight-only") {
+    errors.push("block production warning must be local-private-devnet-preflight-only");
+  }
+  if (data.required_enablement.mode !== "local-private-devnet") {
+    errors.push("block production mode must be local-private-devnet");
+  }
+  if (data.required_enablement.explicit_flag !== BLOCK_PRODUCTION_GUARD.flag) {
+    errors.push(`block production flag must be ${BLOCK_PRODUCTION_GUARD.flag}`);
+  }
+  if (!data.required_enablement.audit_event_required) {
+    errors.push("block production audit event must be required");
+  }
+  if (!data.required_enablement.test_identity_only) {
+    errors.push("block production must be test-identity-only");
+  }
+  for (const field of BLOCK_PRODUCTION_GUARD.fields) {
+    if (!data.request_fields.includes(field)) {
+      errors.push(`block production request field missing: ${field}`);
+    }
+  }
+  for (const guard of BLOCK_PRODUCTION_GUARD.guards) {
+    if (!data.refusal_guards.includes(guard)) {
+      errors.push(`block production refusal guard missing: ${guard}`);
+    }
+  }
+
+  return errors;
 }
 
 function StatusBlock({

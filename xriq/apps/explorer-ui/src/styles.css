@@ -218,6 +218,33 @@ h3 {
   margin-bottom: 12px;
 }
 
+.adminActionGuards {
+  background: #fffaf3;
+}
+
+.adminGuardButtons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.adminGuardButtons button {
+  min-height: 38px;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #16324f;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.adminGuardButtons button:disabled {
+  cursor: not-allowed;
+  background: #efe3d1;
+  color: #6c3f00;
+  opacity: 0.74;
+}
+
 .isoBlock h3 {
   margin-bottom: 12px;
 }
@@ -696,7 +723,8 @@ td {
   .balanceStrip,
   .walletActions,
   .walletApiStrip,
-  .walletGuardButtons {
+  .walletGuardButtons,
+  .adminGuardButtons {
     grid-template-columns: 1fr;
   }
 
