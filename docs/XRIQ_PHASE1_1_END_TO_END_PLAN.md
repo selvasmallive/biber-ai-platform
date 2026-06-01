@@ -88,8 +88,8 @@ came from the completed Rust private-devnet foundation. At that point, the
 actual end-to-end product surfaces, especially PostgreSQL indexing and React
 UI, were still at the starting line.
 
-After the local Phase 1.1 Postgres-backed ISO 20022 account-statement checkpoint,
-Phase 1.1 status is about `93%`: the contract document, PostgreSQL read-model schema, JSON
+After the local Phase 1.1 RC readiness checklist checkpoint, Phase 1.1 status
+is about `94%`: the contract document, PostgreSQL read-model schema, JSON
 fixtures, local contract validation script, deterministic Rust read-model
 indexer scaffold, local chain replay command, idempotent PostgreSQL SQL
 write-plan export, dry-run database apply path, optional local Postgres
@@ -273,7 +273,10 @@ GCP resources until the local contracts and first indexer replay tests are
 stable enough to justify deployment.
 
 Milestone A contract details are tracked in
-`docs/XRIQ_PHASE1_1_CONTRACTS.md`.
+`docs/XRIQ_PHASE1_1_CONTRACTS.md`. The Phase 1.1 RC readiness checklist and
+route-parity matrix are tracked in `docs/XRIQ_PHASE1_1_RC_READINESS.md`; use
+`python scripts/xriq_phase1_1_rc_readiness.py --latest-summary` as the cheap
+readiness guardrail after a Docker live smoke.
 
 ## Recommended Phase 1.1 Milestones
 
@@ -287,8 +290,9 @@ Milestone A contract details are tracked in
   trading/liquidity contracts until token, smart-contract/native-module,
   legal-risk, and security review gates exist.
 - Current artifacts: `docs/XRIQ_PHASE1_1_CONTRACTS.md`,
-  `xriq/db/schema.sql`, `xriq/fixtures/phase1_1/`, and
-  `scripts/xriq_phase1_1_contract_check.py`.
+  `docs/XRIQ_PHASE1_1_RC_READINESS.md`, `xriq/db/schema.sql`,
+  `xriq/fixtures/phase1_1/`, `scripts/xriq_phase1_1_contract_check.py`, and
+  `scripts/xriq_phase1_1_rc_readiness.py`.
 
 ### Milestone B: PostgreSQL Indexer
 

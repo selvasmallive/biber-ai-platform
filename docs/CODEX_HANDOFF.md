@@ -135,7 +135,7 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `93%` overall. Current Rust
+- Phase 1.1 estimated completion: about `94%` overall. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -217,7 +217,9 @@ unless the user changes the project scope again.
   status row mapping and the first Postgres-backed product
   node-status/indexer-status/overview/block-list/block-detail/transaction-list/mempool/wallet-status/wallet-draft-preview/transaction-detail/wallet-transaction-status/iso20022-transaction-status/iso20022-payment-initiation/iso20022-account-statement/account-list/wallet-account-list/account-detail/wallet-balance/account-history/wallet-account-history
   and audit-events/snapshot-list/snapshot-detail routes against the live local
-  read model.
+  read model. The Phase 1.1 RC readiness checklist and route-parity matrix now
+  live at `docs/XRIQ_PHASE1_1_RC_READINESS.md`, with a cheap static/latest-smoke
+  guardrail at `scripts/xriq_phase1_1_rc_readiness.py --latest-summary`.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -236,6 +238,20 @@ workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
 the completed private-devnet RC1 tag. The previous Vast deployment is not an
 active target because the GPU was terminated to save cost.
 
+- Latest native XRIQ Phase 1.1 RC readiness checkpoint: added
+  `docs/XRIQ_PHASE1_1_RC_READINESS.md` with the local/private RC go/no-go
+  checklist, route-parity matrix, deferred no-go surfaces, validation commands,
+  and explicit rule that no Phase 1.1 RC tag may be created, moved, or pushed
+  without user approval naming the tag. Added
+  `scripts/xriq_phase1_1_rc_readiness.py` as a cheap guardrail that checks the
+  readiness document, required docs references, and optionally the latest
+  Docker live smoke summary via `--latest-summary`. Verification passed
+  bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
+  `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
+  `git diff --check`. Phase 1.1 status is now about `94%` overall.
+- Recommended next narrow step: create a short Phase 1.1 RC candidate report
+  from the readiness checklist and latest Docker live smoke artifact, then ask
+  the user for explicit approval before creating any Phase 1.1 RC tag.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return
@@ -264,10 +280,7 @@ active target because the GPU was terminated to save cost.
   `scripts/xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live`,
   producing artifact directory
   `xriq/target/xriq-phase1-1-local-e2e-smoke-20260531T223438Z`. Phase 1.1
-  status is now about `93%` overall.
-- Recommended next narrow step: add a Phase 1.1 RC readiness checklist and
-  route-parity matrix before starting any mutating wallet submit,
-  block-production, snapshot import/export, DEX, or smart-contract work.
+  status was about `93%` overall.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 payment-initiation
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return

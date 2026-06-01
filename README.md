@@ -349,6 +349,16 @@ writes a live-count artifact under the smoke output directory.
 python scripts\xriq_phase1_1_local_e2e_smoke.py --postgres-docker-live
 ```
 
+The Phase 1.1 RC readiness checklist and route-parity matrix live in
+`docs/XRIQ_PHASE1_1_RC_READINESS.md`. After a Docker live smoke, run the cheap
+guardrail from the repo root:
+
+```powershell
+python scripts\xriq_phase1_1_rc_readiness.py --latest-summary
+```
+
+Portable command form: `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`.
+
 The same live smoke verifies the first explicit Postgres-backed API read paths,
 including `/api/v1/admin/postgres/read-model-status` and the opt-in
 Postgres-backed `/api/v1/admin/node/status`, `/api/v1/admin/indexer/status`,
