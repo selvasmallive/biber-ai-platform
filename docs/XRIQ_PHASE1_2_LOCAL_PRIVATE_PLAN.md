@@ -1,0 +1,126 @@
+# XRIQ Phase 1.2 Local Private Plan
+
+Status: post-Phase 1.1 RC1 planning scope for local/private development only.
+
+Phase 1.2 starts after:
+
+- `phase1-xriq-private-devnet-rc1`
+- `phase1-1-xriq-local-e2e-rc1`
+
+The goal is to move from read-only/local preview surfaces toward a safer
+private-devnet execution loop, without public launch, custody, DEX, bridge,
+mainnet, or production infrastructure work.
+
+## Goal
+
+Build the next local/private development layer around the tagged Phase 1.1
+baseline:
+
+- safer private-devnet wallet action contracts
+- explicit local-only mutation gates
+- auditable local admin actions
+- stronger smoke coverage for action refusal and preview behavior
+- clearer handoff from read-only UI panels to future private-devnet actions
+
+Phase 1.2 should make the prototype more useful for developer testing while
+keeping all irreversible or public-facing behavior blocked.
+
+## Non-Goals
+
+Do not include these in Phase 1.2 unless a later explicit approval and review
+document changes the scope:
+
+- public mainnet or community devnet launch
+- public token distribution, tokenomics, validator rewards, or governance
+- DEX trading, liquidity pools, bridges, wrapped assets, or exchange listings
+- custody, hosted wallets, seed phrase storage, private-key persistence, or
+  managed signing services
+- production GCP/Vast/server infrastructure, public auth, TLS, rate limits, or
+  monitoring
+- ISO 20022 certification, bank connectivity, SWIFT connectivity, fiat
+  settlement, or payment-network claims
+- smart-contract VM, XRC asset issuance, or native DEX modules
+
+Keep `docs/XRIQ_LEGAL_RISK_REDUCTION.md` as the controlling guardrail for any
+request that touches public tokens, privacy, DEX, bridges, custody, listings,
+payments, or market-facing claims.
+
+## Implementation Ladder
+
+Use this order unless the user explicitly chooses a different narrow milestone.
+
+1. Phase 1.2 contract update.
+   Define local-only request/response shapes for future wallet submit,
+   block-production, snapshot mutation, and admin action audit surfaces before
+   implementing mutation. Include disabled-by-default behavior in fixtures.
+
+2. Wallet action safety boundary.
+   Add private-devnet-only submit/send planning behind explicit local flags.
+   The first implementation should prove refusal behavior, validation errors,
+   and audit logging before accepting a transaction. Do not persist private
+   keys or seed phrases.
+
+3. Local pending-to-confirmed loop.
+   Add a controlled developer path that can take a local pending transaction,
+   produce a private-devnet block, and show the confirmed result through the
+   existing indexer/API/UI path. Keep this local-only and test-identity-only.
+
+4. Admin action audit hardening.
+   Add audit-event coverage for any local mutation or operator action. Admin UI
+   controls should remain disabled until the API refusal and audit behavior are
+   covered by tests.
+
+5. Snapshot operation hardening.
+   Design snapshot export/import as local developer operations with dry-run,
+   refusal, overwrite protection, and audit-event requirements before adding
+   any UI control.
+
+6. Phase 1.2 smoke expansion.
+   Extend the local smoke with refusal-path checks first, then add successful
+   private-devnet-only action checks only after the contract and audit behavior
+   are stable.
+
+## Required Gates Before Mutating Code
+
+Before implementing any mutating product API endpoint, update or add:
+
+- contract documentation
+- fixture examples for disabled/refused behavior
+- tests for invalid input and unauthorized/disabled mode
+- audit-event expectations
+- smoke-script coverage
+- handoff notes with exact commands and scope boundaries
+
+Mutating endpoints must be disabled by default. They must require explicit
+local/private-devnet flags or config names that cannot be confused with
+production mode.
+
+## Recommended First Implementation
+
+The next code checkpoint should be small:
+
+- update Phase 1.1 contracts with a Phase 1.2 local mutation preflight section
+- add fixtures for disabled wallet submit/send responses
+- extend the local contract checker to validate those fixtures
+- do not yet enable transaction submission in the API or UI
+
+This gives the project a safe target before any real mutation is wired.
+
+## Validation
+
+For Phase 1.2 docs-only planning checkpoints, use:
+
+```bash
+git diff --check
+```
+
+For the first fixture/contract checkpoint, also use:
+
+```bash
+python scripts/xriq_phase1_1_contract_check.py
+python scripts/xriq_phase1_1_rc_readiness.py --latest-summary
+```
+
+For Rust behavior changes, run focused package tests first, then the local smoke
+script. Use Docker live smoke only when the change touches Postgres-backed
+behavior.

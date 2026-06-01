@@ -74,18 +74,21 @@ REQUIRED_DOC_REFERENCES = {
     "README.md": [
         "docs/XRIQ_PHASE1_1_RC_READINESS.md",
         "docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md",
+        "docs/XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md",
         "scripts/xriq_phase1_1_rc_readiness.py --latest-summary",
     ],
     "xriq/README.md": [
         "../docs/XRIQ_PHASE1_1_RC_READINESS.md",
         "../docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md",
+        "../docs/XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md",
         "scripts/xriq_phase1_1_rc_readiness.py --latest-summary",
     ],
     "docs/CODEX_HANDOFF.md": [
         "docs/XRIQ_PHASE1_1_RC_READINESS.md",
         "docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md",
+        "docs/XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md",
         "scripts/xriq_phase1_1_rc_readiness.py --latest-summary",
-        "Phase 1.1 estimated completion: about `95%`",
+        "Phase 1.1 estimated completion: `100%`",
         "phase1-1-xriq-local-e2e-rc1",
     ],
     "docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md": [

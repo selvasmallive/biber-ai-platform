@@ -4,10 +4,12 @@ Last updated: 2026-05-31
 
 ## Current Goal
 
-Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Current
-next scope is Phase 1.1 planning/execution for the local/private end-to-end
-XRIQ prototype: Rust API/backend, React + TypeScript UI, PostgreSQL indexer,
-ISO 20022 compatibility adapter, and later Google Cloud deployment planning.
+Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
+1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
+API/backend, React + TypeScript UI, PostgreSQL indexer, ISO 20022 compatibility
+adapter, and readiness guardrails are tagged as
+`phase1-1-xriq-local-e2e-rc1`. Current next scope is Phase 1.2 planning and
+execution for local/private post-RC hardening only.
 Phase 1.1 local/private end-to-end RC1 is also now tagged and pushed as
 `phase1-1-xriq-local-e2e-rc1` at commit `6a38a51a`.
 Do not include BIBER MVP, model training, repo-adaptation, runtime-profile, or
@@ -18,9 +20,9 @@ up locally, so future sessions must not assume `/workspace`, vLLM, FastAPI, or
 live Vast SSH access exists unless the user provides a fresh instance.
 
 - Current focus:
-  - Active focus as of 2026-05-30: start XRIQ Phase 1.1 end-to-end local
-    product prototype planning/execution after the completed Phase 1 RC1 tag.
-    Use `docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md` as the scope boundary.
+  - Active focus as of 2026-05-31: start XRIQ Phase 1.2 local/private
+    post-RC hardening after the completed Phase 1.1 RC1 tag. Use
+    `docs/XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md` as the scope boundary.
   - Phase 2, after Phase 1: BIBER MVP/local model API, model registry, repo
     context, file-edit/test workflows, GitHub save/PR path, optional OpenAI
     mentor review, repo-adaptation eval/training loop, and Replit-replacement
@@ -31,6 +33,10 @@ live Vast SSH access exists unless the user provides a fresh instance.
     contracts, React + TypeScript wallet/explorer/admin UI, and ISO 20022
     adapter mapping without public launch or compliance claims. Use
     `docs/XRIQ_GCP_RESOURCE_PLAN.md` before provisioning Google Cloud resources.
+  - XRIQ Phase 1.2: local/private post-RC hardening only: mutation preflight
+    contracts, explicit disabled-by-default gates, refusal-path tests, audit
+    event expectations, and later private-devnet-only action loops after the
+    contracts are stable.
 - Delayed scope:
   - Public XRIQ remains part of the later project plan, but do not implement
     public token economics, DEX/liquidity, validator rewards, public governance,
@@ -137,7 +143,8 @@ unless the user changes the project scope again.
 - Phase 1.1 goal, starting after RC1: local/private XRIQ end-to-end prototype
   with Rust API/backend, PostgreSQL indexer, React + TypeScript wallet/explorer
   and admin UI, and ISO 20022 compatibility adapter.
-- Phase 1.1 estimated completion: about `95%` overall. Current Rust
+- Phase 1.1 estimated completion: `100%` for the approved local/private RC1
+  baseline tagged as `phase1-1-xriq-local-e2e-rc1`. Current Rust
   private-devnet foundation is real and tagged, but PostgreSQL indexing, React
   UI, exchange UI, and smart contracts are not
   fully implemented yet. Milestone A now has contract docs, a PostgreSQL
@@ -226,6 +233,11 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
+- Phase 1.2 estimated completion: about `5%` overall after the initial
+  local/private scope plan. It is not a public launch phase. Its first target is
+  mutation preflight contracts and disabled/refusal fixtures before any
+  wallet-submit, block-production, snapshot-mutation, DEX, custody, or public
+  network behavior is implemented.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -240,10 +252,19 @@ unless the user changes the project scope again.
 ## Immediate Resume State
 
 As of the latest 2026-05-31 checkpoint, the active work mode is local
-workstation development for XRIQ Phase 1.1 end-to-end planning/execution after
-the completed private-devnet RC1 tag. The previous Vast deployment is not an
-active target because the GPU was terminated to save cost.
+workstation development for XRIQ Phase 1.2 local/private post-RC hardening
+after the completed private-devnet RC1 and Phase 1.1 local/e2e RC1 tags. The
+previous Vast deployment is not an active target because the GPU was terminated
+to save cost.
 
+- Latest native XRIQ Phase 1.2 planning checkpoint: added
+  `docs/XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md` to define the post-RC local/private
+  implementation ladder. The next recommended code checkpoint is a small
+  mutation preflight contract update with disabled wallet submit/send fixtures
+  and contract-check coverage only; do not enable transaction submission,
+  block production, snapshot mutation, DEX, smart contracts, public mainnet,
+  custody, bridges, exchange listings, or production infrastructure from a
+  generic continuation request.
 - Latest native XRIQ Phase 1.1 RC1 tag checkpoint: after explicit user approval,
   created and pushed `phase1-1-xriq-local-e2e-rc1` at commit `6a38a51a`.
   Pre-tag validation passed
@@ -260,10 +281,9 @@ active target because the GPU was terminated to save cost.
   current local/private end-to-end scope, latest Docker live smoke artifact,
   readiness guardrail evidence, non-production exclusions, and the exact
   approval phrase required before any Phase 1.1 RC tag. The proposed tag is
-  `phase1-1-xriq-local-e2e-rc1`. No tag was created, moved, or pushed by this
-  checkpoint. The next narrow decision is whether the user explicitly approves
-  creating and pushing that tag, or asks for one more local/private fix before
-  tagging. Phase 1.1 status is now about `95%` overall.
+  `phase1-1-xriq-local-e2e-rc1`. No tag was created, moved, or pushed by that
+  report checkpoint; the tag was created later only after explicit user
+  approval. Phase 1.1 status was about `95%` overall before the tag.
 - Latest native XRIQ Phase 1.1 RC readiness checkpoint: added
   `docs/XRIQ_PHASE1_1_RC_READINESS.md` with the local/private RC go/no-go
   checklist, route-parity matrix, deferred no-go surfaces, validation commands,
@@ -275,12 +295,12 @@ active target because the GPU was terminated to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: continue only with post-RC local/private design
-  or implementation planning. Keep mutating wallet submit/send APIs,
-  block-production controls, snapshot import/export mutation, DEX, smart
-  contracts, public mainnet, custody, bridges, exchange listings, and
-  production infrastructure out of scope until the user explicitly selects a
-  post-RC milestone.
+- Recommended next narrow step: add Phase 1.2 mutation preflight contracts and
+  disabled wallet submit/send fixtures, then extend the existing local contract
+  checker. Keep actual wallet submission, block-production controls, snapshot
+  import/export mutation, DEX, smart contracts, public mainnet, custody,
+  bridges, exchange listings, and production infrastructure out of scope until
+  those contracts and refusal tests are stable.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return

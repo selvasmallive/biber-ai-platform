@@ -55,6 +55,8 @@ The current RC decision report is documented at
 `../docs/XRIQ_PHASE1_RC_REPORT.md`.
 The post-RC end-to-end Phase 1.1 plan is documented at
 `../docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md`.
+The post-Phase 1.1 RC1 local/private Phase 1.2 plan is documented at
+`../docs/XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md`.
 The first Phase 1.1 indexer scaffold can be checked with:
 
 ```bash
@@ -110,10 +112,9 @@ python scripts/xriq_phase1_1_rc_readiness.py --latest-summary
 ```
 
 The Phase 1.1 RC candidate report is in
-`../docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`. It proposes
-`phase1-1-xriq-local-e2e-rc1`, but that tag must not be created unless the
-user explicitly says:
-`I explicitly approve creating and pushing the Phase 1.1 RC tag phase1-1-xriq-local-e2e-rc1.`
+`../docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`. The approved Phase 1.1 RC1 tag
+`phase1-1-xriq-local-e2e-rc1` is pushed at commit `6a38a51a`; do not move,
+delete, or recreate it without an explicit tag-maintenance request.
 
 That live smoke also verifies the first explicit Postgres-backed API read paths,
 including `/api/v1/admin/postgres/read-model-status` and the opt-in

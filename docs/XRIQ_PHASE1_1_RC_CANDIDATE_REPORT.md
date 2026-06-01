@@ -1,6 +1,8 @@
 # XRIQ Phase 1.1 RC Candidate Report
 
 Status: candidate report only. No RC tag has been created by this report.
+Follow-up: after explicit user approval, the Phase 1.1 RC1 tag
+`phase1-1-xriq-local-e2e-rc1` was created and pushed at commit `6a38a51a`.
 
 Proposed tag, only after explicit user approval:
 `phase1-1-xriq-local-e2e-rc1`
@@ -97,8 +99,8 @@ This RC candidate does not approve or include:
 
 ## Candidate Decision
 
-The local/private Phase 1.1 candidate is ready for user review. The recommended
-next action is a human decision, not more implementation:
+The local/private Phase 1.1 candidate was ready for user review. The original
+recommended action was a human decision, not more implementation:
 
 - approve creating and pushing `phase1-1-xriq-local-e2e-rc1`, or
 - request another narrow local/private fix before tagging.

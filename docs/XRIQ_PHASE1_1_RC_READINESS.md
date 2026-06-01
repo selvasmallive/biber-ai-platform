@@ -141,8 +141,8 @@ Do not start these from a generic continuation request:
 ## Recommended Next Step After This Checklist
 
 Use the Phase 1.1 RC candidate report at
-`docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md` before any tag decision. The
-proposed tag is `phase1-1-xriq-local-e2e-rc1`, but it must not be created,
-moved, or pushed without explicit user approval naming that tag. If any route,
-artifact, or guardrail is missing, fix that gap first instead of moving into
-mutating features.
+`docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md` for the historical RC decision.
+The approved tag `phase1-1-xriq-local-e2e-rc1` is pushed at commit
+`6a38a51a`; do not move, delete, or recreate it without an explicit
+tag-maintenance request. Future work should move into Phase 1.2 local/private
+planning and keep mutating features behind the post-RC gates.
