@@ -435,7 +435,7 @@ def main(argv: list[str] | None = None) -> int:
             ],
             "next": (
                 "keep wallet mutation controls disabled while adding the "
-                "Rust wallet-submit path or fixture-driven validator smoke"
+                "wallet-submit client smoke or the Rust wallet-send path"
             ),
         }
         (artifact_dir / "summary.json").write_text(

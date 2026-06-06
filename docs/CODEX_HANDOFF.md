@@ -235,7 +235,7 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `48%` overall after the initial
+- Phase 1.2 estimated completion: about `50%` overall after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
   submit/send, React/client disabled-action guard coverage, and audit-event
@@ -245,11 +245,13 @@ unless the user changes the project scope again.
   audit visibility for block-production attempts, plus Admin UI/client disabled
   guard coverage for block production, plus the first pending-to-confirmed loop
   contract and Rust/API-side local block-production path behind explicit
-  local/private-devnet enablement, plus the first contract-only wallet submit
-  to pending-state accepted response design and matching TypeScript client
-  accepted-response validator, plus the matching contract-only wallet send to
-  pending-state accepted response design and matching TypeScript client
-  accepted-response validator. It is not a public launch phase. Its current
+  local/private-devnet enablement, plus the guarded local Rust/API
+  wallet-submit-to-pending implementation behind
+  `--enable-local-wallet-submit true` with local E2E smoke coverage, plus the
+  matching TypeScript client accepted-response validator, plus the
+  contract-only wallet send to pending-state accepted response design and
+  matching TypeScript client accepted-response validator. It is not a public
+  launch phase. Its current
   target is defining and hardening local-only action contracts before any broad
   wallet-submit/send implementation, snapshot-mutation, DEX, custody, public
   network behavior, or UI mutation controls are implemented.
@@ -266,7 +268,7 @@ unless the user changes the project scope again.
 
 ## Immediate Resume State
 
-As of the latest 2026-06-01 checkpoint, the active work mode is local
+As of the latest 2026-06-06 checkpoint, the active work mode is local
 workstation development for XRIQ Phase 1.2 local/private post-RC hardening
 after the completed private-devnet RC1 and Phase 1.1 local/e2e RC1 tags. The
 previous Vast deployment is not an active target because the GPU was terminated
@@ -322,10 +324,11 @@ to save cost.
 - Latest native XRIQ Phase 1.2 wallet-submit accepted contract checkpoint:
   added
   `xriq/fixtures/phase1_2/wallet-transfer-submit-to-pending-contract.json` as
-  the contract-only future shape for `POST /api/v1/wallet/transfers/submit`
-  moving a validated local draft into the pending file. The fixture is
-  explicitly `status: "contract-only"` and `implementation_status:
-  "not_enabled"`, keeps the default path refused through
+  the guarded local shape for `POST /api/v1/wallet/transfers/submit` moving a
+  validated local draft into the pending file. The fixture is now explicitly
+  `status: "guarded-local-api-implemented"` and `implementation_status:
+  "request-and-serve-explicit-local-flag"`, keeps the default path refused
+  through
   `wallet-transfer-submit-disabled.json`, requires
   `--enable-local-wallet-submit`, local/private-devnet mode, audit events, and
   test identity scope, and forbids private keys, seed phrases, mnemonics,
@@ -335,12 +338,12 @@ to save cost.
   pending-state transition, unchanged chain-state summary, and API-local
   accepted audit metadata. `scripts/xriq_phase1_1_contract_check.py` now
   validates this fixture and reports
-  `phase1_2_wallet_submit_contract_fixtures: 1`. This checkpoint does not
-  implement wallet submit in Rust, does not mutate pending state through the
-  product API, does not add signing/custody, and does not enable UI submit/send
-  controls. Verification passed bundled-Python `py_compile` and
+  `phase1_2_wallet_submit_contract_fixtures: 1`. This checkpoint does not add
+  signing/custody and does not enable UI submit/send controls. Verification
+  passed bundled-Python `py_compile` and
   `scripts/xriq_phase1_1_contract_check.py`. Superseded by the wallet-submit
-  client accepted-response type checkpoint below.
+  client accepted-response type checkpoint below and the wallet-submit
+  Rust/API checkpoint below.
 - Latest native XRIQ Phase 1.2 wallet-submit client accepted-response type
   checkpoint: the React/TypeScript API layer now defines
   `LocalWalletSubmitAcceptedResponse`,
@@ -349,18 +352,18 @@ to save cost.
   `LOCAL_WALLET_SUBMIT_ACCEPTED_CODE`,
   `LOCAL_WALLET_SUBMIT_ACCEPTED_MUTATION`, and
   `validateLocalWalletSubmitAcceptedContract()` in
-  `xriq/apps/explorer-ui/src/api.ts`. This mirrors the contract-only
-  `wallet-transfer-submit-to-pending-contract.json` shape for a future local
+  `xriq/apps/explorer-ui/src/api.ts`. This mirrors the guarded local
+  `wallet-transfer-submit-to-pending-contract.json` shape for a local
   pending-state-only accepted submit response, including pending transaction,
   pending-state transition, unchanged chain-state summary, and accepted audit
   metadata. The static guard in
   `xriq/apps/explorer-ui/scripts/check-static.mjs` now requires those wallet
-  submit accepted-response markers. This checkpoint does not add a UI POST
-  helper, does not enable wallet submit/send controls, and does not implement
-  Rust/API mutation. Verification passed `npm.cmd run check` and escalated
-  `npm.cmd run build` after the sandboxed build hit the known Windows
-  Vite/esbuild config access denial. Superseded by the wallet-send accepted
-  contract checkpoint below.
+  submit accepted-response markers. This client-only checkpoint did not add a
+  UI POST helper or enable wallet submit/send controls. Verification passed
+  `npm.cmd run check` and escalated `npm.cmd run build` after the sandboxed
+  build hit the known Windows Vite/esbuild config access denial. Superseded by
+  the wallet-send accepted contract checkpoint below and the wallet-submit
+  Rust/API checkpoint below.
 - Latest native XRIQ Phase 1.2 wallet-send accepted contract checkpoint:
   added
   `xriq/fixtures/phase1_2/wallet-transfer-send-to-pending-contract.json` as
@@ -400,12 +403,38 @@ to save cost.
   metadata keyed by `local_request_id` rather than `draft_id`. The static guard
   in `xriq/apps/explorer-ui/scripts/check-static.mjs` now requires those wallet
   send accepted-response markers. This checkpoint does not add a UI POST helper,
-  does not enable wallet submit/send controls, and does not implement Rust/API
-  mutation. Verification passed `npm.cmd run check` and escalated
+  does not enable wallet submit/send controls, and does not implement
+  wallet-send Rust/API mutation. Verification passed `npm.cmd run check` and escalated
   `npm.cmd run build` after the sandboxed build hit the known Windows
-  Vite/esbuild config access denial. Next narrow step: start the Rust/API
-  wallet-submit implementation behind explicit local enablement, still disabled
-  by default, or add a fixture-driven TypeScript validator smoke before Rust.
+  Vite/esbuild config access denial. Superseded by the wallet-submit Rust/API
+  checkpoint below.
+- Latest native XRIQ Phase 1.2 wallet-submit Rust/API checkpoint:
+  `xriq-api request` and `xriq-api serve-readonly` now parse
+  `--enable-local-wallet-submit true`, while the default
+  `POST /api/v1/wallet/transfers/submit` path still returns the stable HTTP
+  `403` `wallet_submit_disabled` response. With the explicit local flag, the
+  accepted path requires local/private-devnet query fields including
+  `local_request_id`, `draft_id`, `from_address`, `to_address`,
+  `amount_base_units`, `fee_base_units`, `nonce`, and `expires_at_height`; it
+  is limited to the configured private-devnet Alice test sender, rejects
+  signing/custody material by never accepting those fields, appends exactly one
+  transaction to the specified pending file, leaves the chain file unchanged,
+  and returns HTTP `201 Created` with
+  `code: "wallet_submit_accepted_local_only"`,
+  `mutation: "pending_state_only"`, pending/chain state summaries, and
+  accepted audit metadata. UI submit/send controls remain disabled; wallet send
+  remains contract-only and not implemented. Verification passed `cargo fmt`,
+  `cargo test -p xriq-api --bin xriq-api -j 1`,
+  `cargo test -p xriq-api --lib -j 1`, bundled-Python `py_compile`,
+  `scripts/xriq_phase1_1_contract_check.py`,
+  `scripts/xriq_phase1_2_refusal_smoke.py`, and
+  `scripts/xriq_phase1_1_local_e2e_smoke.py --skip-ui-check --artifact-dir xriq/target/xriq-phase1-2-wallet-submit-smoke-20260606Tphase12c`.
+  The smoke writes
+  `xriq/target/xriq-phase1-2-wallet-submit-smoke-20260606Tphase12c/api/wallet-submit-accepted-local.json`.
+  Next narrow step: add a TypeScript/client smoke for the wallet-submit
+  accepted response or start the Rust/API wallet-send path behind explicit
+  local enablement, while keeping default behavior and UI mutation controls
+  disabled.
 - Latest native XRIQ Phase 1.2 Admin UI block-production guard checkpoint:
   the React Admin Status panel now includes `Admin Action Guards` with a
   disabled `Produce Block` control and an explicit `Check Guard` action. The
@@ -644,12 +673,13 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: define the wallet-send accepted contract or
-  start Rust/API wallet-submit implementation behind explicit local enablement.
-  Keep default wallet mutation disabled, keep UI mutation controls disabled,
-  and keep snapshot import/export mutation, DEX, smart contracts, public
-  mainnet, custody, bridges, exchange listings, and production infrastructure
-  out of scope until explicitly approved.
+- Recommended next narrow step: add a TypeScript/client smoke for the guarded
+  wallet-submit accepted response or start the Rust/API wallet-send
+  implementation behind explicit local enablement. Keep default wallet
+  mutation disabled, keep UI mutation controls disabled, and keep snapshot
+  import/export mutation, DEX, smart contracts, public mainnet, custody,
+  bridges, exchange listings, and production infrastructure out of scope until
+  explicitly approved.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return

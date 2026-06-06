@@ -3275,6 +3275,111 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             ],
         )
 
+    def validate_wallet_submit_accepted(payload: dict[str, Any]) -> None:
+        context = "local wallet submit"
+        require_equal(payload, "environment", "private-devnet", context)
+        require_equal(payload, "network", "xriq-devnet", context)
+        require_equal(payload, "endpoint", "POST /api/v1/wallet/transfers/submit", context)
+        require_equal(payload, "code", "wallet_submit_accepted_local_only", context)
+        require_equal(payload, "status", "pending", context)
+        require_equal(payload, "mutation", "pending_state_only", context)
+        require_equal(payload, "warning", "local-private-devnet-only", context)
+        transaction = payload.get("transaction")
+        if not isinstance(transaction, dict):
+            raise SmokeError(f"{context}: expected transaction object")
+        tx_hash = require_hash(transaction.get("tx_hash"), f"{context} tx hash")
+        require_equal(transaction, "status", "pending", context)
+        require_equal(transaction, "from_address", ALICE, context)
+        require_equal(transaction, "to_address", CAROL, context)
+        require_equal(transaction, "amount_base_units", "5", context)
+        require_equal(transaction, "fee_base_units", "2", context)
+        require_equal(transaction, "nonce", 1, context)
+        require_equal(transaction, "expires_at_height", 100, context)
+        require_equal(transaction, "block_height", None, context)
+        require_equal(transaction, "transaction_index", None, context)
+        pending_state = payload.get("pending_state")
+        if not isinstance(pending_state, dict):
+            raise SmokeError(f"{context}: expected pending_state object")
+        require_equal(pending_state, "before_count", 0, f"{context} pending")
+        require_equal(pending_state, "after_count", 1, f"{context} pending")
+        require_equal(pending_state, "added_tx_hash", tx_hash, f"{context} pending")
+        require_equal(
+            pending_state,
+            "pending_file",
+            str(local_wallet_submit_pending_file),
+            f"{context} pending",
+        )
+        chain_state = payload.get("chain_state")
+        if not isinstance(chain_state, dict):
+            raise SmokeError(f"{context}: expected chain_state object")
+        require_equal(chain_state, "current_height", 1, f"{context} chain")
+        require_hash(chain_state.get("latest_block_hash"), f"{context} latest block")
+        require_equal(
+            chain_state,
+            "chain_file",
+            str(local_wallet_submit_chain_file),
+            f"{context} chain",
+        )
+        require_equal(chain_state, "chain_unchanged", True, f"{context} chain")
+        require_equal(payload, "audit_event_recorded", True, context)
+        audit_event = payload.get("audit_event")
+        if not isinstance(audit_event, dict):
+            raise SmokeError(f"{context}: expected audit_event object")
+        require_equal(
+            audit_event,
+            "event_id",
+            "wallet-transfer-submit:local-wallet-smoke-1",
+            f"{context} audit",
+        )
+        require_equal(
+            audit_event,
+            "actor",
+            "local-private-devnet-operator",
+            f"{context} audit",
+        )
+        require_equal(
+            audit_event,
+            "action",
+            "wallet_transfer_submit_attempt",
+            f"{context} audit",
+        )
+        require_equal(audit_event, "resource_type", "wallet_transfer", f"{context} audit")
+        require_equal(
+            audit_event,
+            "resource_id",
+            "draft_id_or_local_request_id",
+            f"{context} audit",
+        )
+        metadata = audit_event.get("metadata")
+        if not isinstance(metadata, dict):
+            raise SmokeError(f"{context}: expected audit metadata object")
+        require_equal(metadata, "outcome", "accepted", f"{context} audit metadata")
+        require_equal(metadata, "status", "pending", f"{context} audit metadata")
+        require_equal(
+            metadata,
+            "explicit_flag",
+            "--enable-local-wallet-submit",
+            f"{context} audit metadata",
+        )
+        require_equal(
+            metadata,
+            "local_request_id",
+            "local-wallet-smoke-1",
+            f"{context} audit metadata",
+        )
+        require_equal(
+            metadata,
+            "draft_id",
+            "draft-wallet-smoke-1",
+            f"{context} audit metadata",
+        )
+        require_equal(metadata, "added_tx_hash", tx_hash, f"{context} audit metadata")
+        require_equal(metadata, "pending_before_count", 0, f"{context} audit metadata")
+        require_equal(metadata, "pending_after_count", 1, f"{context} audit metadata")
+        metadata_policy = metadata.get("metadata_policy")
+        if not isinstance(metadata_policy, str) or "no signing material" not in metadata_policy:
+            raise SmokeError(f"{context}: expected audit metadata to forbid signing material")
+
     def validate_block_production_accepted_payload(
         payload: dict[str, Any],
         *,
@@ -3600,6 +3705,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         403,
         validate_block_production_disabled,
     )
+    local_wallet_submit_chain_file = artifact_dir / "local-wallet-submit-chain.bin"
+    local_wallet_submit_pending_file = artifact_dir / "local-wallet-submit-pending.tsv"
+    shutil.copyfile(chain_file, local_wallet_submit_chain_file)
+    local_wallet_submit_pending_file.write_text("", encoding="utf-8")
+    local_wallet_submit_target = (
+        f"/api/v1/wallet/transfers/submit?local_request_id=local-wallet-smoke-1"
+        f"&draft_id=draft-wallet-smoke-1&from_address={ALICE}&to_address={CAROL}"
+        "&amount_base_units=5&fee_base_units=2&nonce=1&expires_at_height=100"
+    )
+    local_wallet_submit = assert_api_method_status(
+        api_binary,
+        xriq_dir,
+        local_wallet_submit_chain_file,
+        local_wallet_submit_pending_file,
+        "POST",
+        local_wallet_submit_target,
+        201,
+        api_artifact_dir / "wallet-submit-accepted-local.json",
+        validate_wallet_submit_accepted,
+        extra_args=["--enable-local-wallet-submit", "true"],
+    )
+    local_wallet_submit_tx_hash = require_hash(
+        local_wallet_submit.get("transaction", {}).get("tx_hash"),
+        "local wallet submit accepted tx hash",
+    )
+    local_wallet_submit_pending_text = local_wallet_submit_pending_file.read_text(
+        encoding="utf-8"
+    )
+    if local_wallet_submit_tx_hash not in local_wallet_submit_pending_text:
+        raise SmokeError("local wallet submit: copied pending file did not include accepted tx")
+    if pending_tx_hash not in pending_file.read_text(encoding="utf-8"):
+        raise SmokeError("local wallet submit: original pending file was unexpectedly changed")
+    completed.append("local wallet submit accepted smoke")
     local_production_chain_file = artifact_dir / "local-block-production-chain.bin"
     local_production_pending_file = artifact_dir / "local-block-production-pending.tsv"
     shutil.copyfile(chain_file, local_production_chain_file)

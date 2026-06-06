@@ -237,6 +237,8 @@ REQUIRED_PHASE1_2_WALLET_PENDING_CONTRACT_FIXTURES: dict[str, dict[str, str]] = 
         "action": "wallet_transfer_submit_attempt",
         "resource_type": "wallet_transfer",
         "requires_draft_id": "true",
+        "status": "guarded-local-api-implemented",
+        "implementation_status": "request-and-serve-explicit-local-flag",
     },
     "wallet-transfer-send-to-pending-contract.json": {
         "endpoint": "POST /api/v1/wallet/transfers/send",
@@ -249,6 +251,8 @@ REQUIRED_PHASE1_2_WALLET_PENDING_CONTRACT_FIXTURES: dict[str, dict[str, str]] = 
         "action": "wallet_transfer_send_attempt",
         "resource_type": "wallet_transfer",
         "requires_draft_id": "false",
+        "status": "contract-only",
+        "implementation_status": "not_enabled",
     },
 }
 
@@ -872,10 +876,12 @@ def verify_phase1_2_wallet_pending_contract_fixture(
         raise ContractError(f"{name} has wrong endpoint: {payload.get('endpoint')!r}")
     if payload.get("contract") != expected["contract"]:
         raise ContractError(f"{name} has wrong contract id")
-    if payload.get("status") != "contract-only":
-        raise ContractError(f"{name} must remain contract-only")
-    if payload.get("implementation_status") != "not_enabled":
-        raise ContractError(f"{name} must remain not_enabled")
+    if payload.get("status") != expected["status"]:
+        raise ContractError(f"{name} has wrong status: {payload.get('status')!r}")
+    if payload.get("implementation_status") != expected["implementation_status"]:
+        raise ContractError(
+            f"{name} has wrong implementation_status: {payload.get('implementation_status')!r}"
+        )
     if payload.get("default_outcome") != "refused":
         raise ContractError(f"{name} default outcome must be refused")
     if payload.get("mutation") != "none-until-explicit-local-enable":

@@ -213,7 +213,7 @@ API-local refusal audit objects for submit/send attempts, and admin audit
 visibility exposes those local refusal records separately from persistent
 chain/indexer audit storage.
 
-The future wallet-submit accepted path is defined by this fixture:
+The guarded local wallet-submit accepted path is defined by this fixture:
 
 ```text
 xriq/fixtures/phase1_2/wallet-transfer-submit-to-pending-contract.json
@@ -223,13 +223,14 @@ That contract keeps the default outcome refused, references
 `wallet-transfer-submit-disabled.json`, requires `--enable-local-wallet-submit`,
 requires local-private-devnet mode, requires a configured local test sender,
 forbids signing and custody material in requests, requires audit events, and
-defines the future accepted response shape for one pending transaction row,
+defines the accepted response shape for one pending transaction row,
 pending-file count transition, unchanged chain-state summary, and accepted
-audit event metadata. It remains contract-only and not enabled; `xriq-api` must
-not accept wallet submit or expose UI mutation controls until a later explicit
-implementation checkpoint adds Rust tests and local smoke. The
-React/TypeScript API layer has a matching accepted-response type and validator,
-but no client POST helper or enabled UI control.
+audit event metadata. `xriq-api request` and `xriq-api serve-readonly` may
+accept wallet submit only when `--enable-local-wallet-submit true` is supplied
+with local/private-devnet test fields; the default product path remains refused
+and non-mutating. The React/TypeScript API layer has a matching
+accepted-response type and validator, but no client POST helper or enabled UI
+control.
 
 The future wallet-send accepted path is defined by this fixture:
 

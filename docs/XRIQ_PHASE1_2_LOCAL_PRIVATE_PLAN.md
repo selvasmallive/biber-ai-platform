@@ -219,13 +219,14 @@ control is exposed.
 
 Current wallet-submit accepted contract checkpoint:
 `xriq/fixtures/phase1_2/wallet-transfer-submit-to-pending-contract.json`
-defines the future local-only accepted response shape for
-`POST /api/v1/wallet/transfers/submit`, but remains `contract-only` and
-`not_enabled`. It requires `--enable-local-wallet-submit`, local/private-devnet
-mode, audit events, a configured local test sender, pending-file mutation only,
-unchanged chain state, no signing material, no custody material, and no UI
-mutation control. `scripts/xriq_phase1_1_contract_check.py` validates this
-fixture.
+now defines the guarded local-only accepted response shape for
+`POST /api/v1/wallet/transfers/submit` with
+`status: guarded-local-api-implemented` and
+`implementation_status: request-and-serve-explicit-local-flag`. It requires
+`--enable-local-wallet-submit`, local/private-devnet mode, audit events, a
+configured local test sender, pending-file mutation only, unchanged chain
+state, no signing material, no custody material, and no UI mutation control.
+`scripts/xriq_phase1_1_contract_check.py` validates this fixture.
 
 Current wallet-submit client contract checkpoint:
 `xriq/apps/explorer-ui/src/api.ts` now defines the wallet-submit accepted
@@ -252,10 +253,22 @@ response type, accepted-code/mutation constants, endpoint constant, and
 `validateLocalWalletSendAcceptedContract()`. The static UI guard requires those
 markers. No UI POST function or enabled wallet mutation control is exposed.
 
-Recommended next implementation: start the Rust/API wallet-submit
-implementation behind explicit local enablement, or add a fixture-driven
-TypeScript validator smoke before Rust, while keeping default behavior and UI
-mutation controls disabled.
+Current wallet-submit Rust/API checkpoint: `xriq-api request` and
+`xriq-api serve-readonly` now parse `--enable-local-wallet-submit true`. The
+default `POST /api/v1/wallet/transfers/submit` path remains HTTP `403`
+`wallet_submit_disabled`. With explicit local enablement and local
+private-devnet query fields, the accepted path appends exactly one pending
+transaction to the specified pending file, leaves the chain file unchanged, and
+returns HTTP `201 Created` with `code: wallet_submit_accepted_local_only`,
+`mutation: pending_state_only`, pending/chain state summaries, and accepted
+audit metadata. The local E2E smoke writes
+`api/wallet-submit-accepted-local.json`. UI submit/send controls remain
+disabled.
+
+Recommended next implementation: add a TypeScript/client smoke for the
+wallet-submit accepted response or start the Rust/API wallet-send path behind
+explicit local enablement, while keeping default behavior and UI mutation
+controls disabled.
 
 ## Validation
 
