@@ -296,10 +296,19 @@ guarded send fixture example and the latest local E2E
 runs this smoke after the static and wallet-submit guards. UI submit/send
 controls remain disabled.
 
-Recommended next implementation: add a small local lifecycle smoke that starts
-from guarded wallet-send accepted output, produces a local private-devnet block
-on copied state, and verifies the same transaction becomes confirmed through
-the existing API/status path. Keep default behavior and UI mutation controls
+Current wallet-send lifecycle smoke checkpoint:
+`scripts/xriq_phase1_2_wallet_send_lifecycle_smoke.py` now creates a fresh
+local/private chain, uses guarded `POST /api/v1/wallet/transfers/send` with
+`--enable-local-wallet-send true` to append one pending transaction, uses
+guarded `POST /api/v1/blocks/produce` with
+`--enable-local-block-production true` to confirm that exact transaction in a
+new block, and verifies `/api/v1/wallet/transactions/{tx_hash}/status` returns
+the same transaction as confirmed at block height `2`. It also checks the
+local pending file is empty afterward. UI submit/send controls remain disabled.
+
+Recommended next implementation: add the matching temporary `serve-readonly`
+lifecycle smoke for wallet-send -> block-production -> confirmed status, with
+explicit local flags only. Keep default behavior and UI mutation controls
 disabled.
 
 ## Validation
@@ -321,3 +330,9 @@ python scripts/xriq_phase1_1_rc_readiness.py --latest-summary
 For Rust behavior changes, run focused package tests first, then the local smoke
 script. Use Docker live smoke only when the change touches Postgres-backed
 behavior.
+
+For the current wallet-send lifecycle checkpoint, use:
+
+```bash
+python scripts/xriq_phase1_2_wallet_send_lifecycle_smoke.py
+```
