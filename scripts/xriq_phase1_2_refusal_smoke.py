@@ -435,7 +435,7 @@ def main(argv: list[str] | None = None) -> int:
             ],
             "next": (
                 "keep wallet mutation controls disabled while adding the "
-                "wallet-submit client smoke or the Rust wallet-send path"
+                "Rust wallet-send path behind explicit local enablement"
             ),
         }
         (artifact_dir / "summary.json").write_text(

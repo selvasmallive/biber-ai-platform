@@ -7,6 +7,7 @@ const requiredFiles = [
   "index.html",
   "package.json",
   "scripts/check-postgres-ui-state.mjs",
+  "scripts/check-wallet-submit-accepted-contract.mjs",
   "tsconfig.json",
   "vite.config.ts",
   "public/xriq-topology.svg",

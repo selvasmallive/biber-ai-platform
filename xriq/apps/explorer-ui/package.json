@@ -5,7 +5,8 @@
   "description": "Local private-devnet XRIQ explorer UI.",
   "type": "module",
   "scripts": {
-    "check": "node scripts/check-static.mjs",
+    "check": "node scripts/check-static.mjs && node scripts/check-wallet-submit-accepted-contract.mjs",
+    "check:wallet-submit": "node scripts/check-wallet-submit-accepted-contract.mjs",
     "check:postgres-ui": "node scripts/check-postgres-ui-state.mjs",
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",

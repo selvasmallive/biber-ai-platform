@@ -696,7 +696,10 @@ npm run build
 The static check requires the Wallet Action Guards UI markers and the client
 refusal-response helper while continuing to reject direct submit/send endpoint
 strings, wallet-local raw fetches, and sensitive key/seed fields in the wallet
-component.
+component. It also runs the wallet-submit accepted client smoke, which imports
+the real `validateLocalWalletSubmitAcceptedContract()` function and validates
+the guarded submit fixture example plus the latest local accepted artifact when
+present.
 
 Run the focused Rust indexer scaffold tests from `xriq/`:
 

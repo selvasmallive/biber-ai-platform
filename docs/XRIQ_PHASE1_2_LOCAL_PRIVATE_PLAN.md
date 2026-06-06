@@ -265,8 +265,16 @@ audit metadata. The local E2E smoke writes
 `api/wallet-submit-accepted-local.json`. UI submit/send controls remain
 disabled.
 
-Recommended next implementation: add a TypeScript/client smoke for the
-wallet-submit accepted response or start the Rust/API wallet-send path behind
+Current wallet-submit client smoke checkpoint:
+`xriq/apps/explorer-ui/scripts/check-wallet-submit-accepted-contract.mjs` now
+uses Vite SSR to load the real `src/api.ts`
+`validateLocalWalletSubmitAcceptedContract()` function and validates both the
+guarded submit fixture example and the latest local E2E
+`api/wallet-submit-accepted-local.json` artifact when present. `npm run check`
+runs this smoke after the static guard. UI submit/send controls remain
+disabled.
+
+Recommended next implementation: start the Rust/API wallet-send path behind
 explicit local enablement, while keeping default behavior and UI mutation
 controls disabled.
 
