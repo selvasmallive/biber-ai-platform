@@ -287,9 +287,20 @@ specified pending file, leaves the chain file unchanged, and returns HTTP
 audit metadata. The local E2E smoke writes
 `api/wallet-send-accepted-local.json`. UI submit/send controls remain disabled.
 
-Recommended next implementation: add a TypeScript/client smoke for the
-wallet-send accepted response, while keeping default behavior and UI mutation
-controls disabled.
+Current wallet-send client smoke checkpoint:
+`xriq/apps/explorer-ui/scripts/check-wallet-send-accepted-contract.mjs` now uses
+Vite SSR to load the real `src/api.ts`
+`validateLocalWalletSendAcceptedContract()` function and validates both the
+guarded send fixture example and the latest local E2E
+`api/wallet-send-accepted-local.json` artifact when present. `npm run check`
+runs this smoke after the static and wallet-submit guards. UI submit/send
+controls remain disabled.
+
+Recommended next implementation: add a small local lifecycle smoke that starts
+from guarded wallet-send accepted output, produces a local private-devnet block
+on copied state, and verifies the same transaction becomes confirmed through
+the existing API/status path. Keep default behavior and UI mutation controls
+disabled.
 
 ## Validation
 

@@ -1235,13 +1235,13 @@ export function validateLocalWalletSendAcceptedContract(
   if (audit.resource_type !== "wallet_transfer") {
     errors.push("audit resource_type must be wallet_transfer");
   }
+  if (audit.resource_id !== "local_request_id") {
+    errors.push("audit resource_id must use the local_request_id marker");
+  }
   if (audit.environment !== "private-devnet") {
     errors.push("audit environment must be private-devnet");
   }
   if (expectedLocalRequestId) {
-    if (audit.resource_id !== expectedLocalRequestId) {
-      errors.push("audit resource_id does not match expected local_request_id");
-    }
     if (audit.event_id !== `wallet-transfer-send:${expectedLocalRequestId}`) {
       errors.push("audit event_id does not match expected local_request_id");
     }

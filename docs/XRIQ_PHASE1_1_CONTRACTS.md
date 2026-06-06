@@ -249,8 +249,9 @@ send and the audit resource is `local_request_id`. `xriq-api request` and
 `xriq-api serve-readonly` may accept wallet send only when
 `--enable-local-wallet-send true` is supplied with local/private-devnet test
 fields; the default product path remains refused and non-mutating. The
-React/TypeScript API layer has a matching accepted-response type and validator,
-but no client POST helper or enabled UI control.
+React/TypeScript API layer has a matching accepted-response type, validator,
+and Vite SSR client smoke for the fixture/latest local artifact, but no client
+POST helper or enabled UI control.
 
 Future block-production attempts must use the same local actor,
 `block_production_attempt` action, `block_production` resource type,
