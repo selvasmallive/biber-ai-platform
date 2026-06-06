@@ -251,8 +251,8 @@ REQUIRED_PHASE1_2_WALLET_PENDING_CONTRACT_FIXTURES: dict[str, dict[str, str]] = 
         "action": "wallet_transfer_send_attempt",
         "resource_type": "wallet_transfer",
         "requires_draft_id": "false",
-        "status": "contract-only",
-        "implementation_status": "not_enabled",
+        "status": "guarded-local-api-implemented",
+        "implementation_status": "request-and-serve-explicit-local-flag",
     },
 }
 

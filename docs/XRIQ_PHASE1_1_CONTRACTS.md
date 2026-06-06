@@ -232,7 +232,7 @@ and non-mutating. The React/TypeScript API layer has a matching
 accepted-response type and validator, but no client POST helper or enabled UI
 control.
 
-The future wallet-send accepted path is defined by this fixture:
+The guarded local wallet-send accepted path is defined by this fixture:
 
 ```text
 xriq/fixtures/phase1_2/wallet-transfer-send-to-pending-contract.json
@@ -242,14 +242,15 @@ That contract keeps the default outcome refused, references
 `wallet-transfer-send-disabled.json`, requires `--enable-local-wallet-send`,
 requires local-private-devnet mode, requires a configured local test sender,
 forbids signing and custody material in requests, requires audit events, and
-defines the future accepted response shape for one pending transaction row,
+defines the accepted response shape for one pending transaction row,
 pending-file count transition, unchanged chain-state summary, and accepted
 audit event metadata. Unlike the submit contract, `draft_id` is optional for
-send and the audit resource is `local_request_id`. It remains contract-only and
-not enabled; `xriq-api` must not accept wallet send or expose UI mutation
-controls until a later explicit implementation checkpoint adds Rust tests and
-local smoke. The React/TypeScript API layer has a matching accepted-response
-type and validator, but no client POST helper or enabled UI control.
+send and the audit resource is `local_request_id`. `xriq-api request` and
+`xriq-api serve-readonly` may accept wallet send only when
+`--enable-local-wallet-send true` is supplied with local/private-devnet test
+fields; the default product path remains refused and non-mutating. The
+React/TypeScript API layer has a matching accepted-response type and validator,
+but no client POST helper or enabled UI control.
 
 Future block-production attempts must use the same local actor,
 `block_production_attempt` action, `block_production` resource type,
