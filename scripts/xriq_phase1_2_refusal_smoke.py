@@ -434,8 +434,8 @@ def main(argv: list[str] | None = None) -> int:
                 "block_production_disabled_by_default",
             ],
             "next": (
-                "keep wallet mutation controls disabled while adding the "
-                "Phase 1.2 lifecycle readiness summary"
+                "keep wallet mutation controls disabled while drafting the "
+                "Phase 1.2 UI mutation-control design/review gate"
             ),
         }
         (artifact_dir / "summary.json").write_text(

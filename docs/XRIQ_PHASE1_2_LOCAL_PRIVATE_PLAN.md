@@ -310,10 +310,22 @@ block-production flags, repeats the wallet-send -> block-production ->
 confirmed-status flow through HTTP, verifies server network height `2`, and
 then stops the process. UI submit/send controls remain disabled.
 
-Recommended next implementation: add a cheap Phase 1.2 readiness summary that
-requires the latest refusal, accepted wallet-send, and lifecycle artifacts
-before any UI mutation-control milestone is considered. Keep default behavior
-and UI mutation controls disabled.
+Current Phase 1.2 readiness summary checkpoint:
+`scripts/xriq_phase1_2_readiness_summary.py` now checks the latest refusal
+summary, the latest accepted local wallet-send artifact, and the latest
+wallet-send lifecycle summary before any UI mutation-control milestone is
+considered. The summary validates fixture/refusal guards, audit expectation
+coverage, accepted wallet-send response fields, absence of signing/custody
+field names, request-mode lifecycle evidence, temporary `serve-readonly`
+lifecycle evidence, and required artifact file paths. It reports
+`ready_for_ui_mutation_design_review: true`, while keeping
+`ui_mutation_controls_enabled: false`,
+`safe_to_enable_ui_mutation_controls: false`, and
+`approval_required_before_ui_mutation_controls: true`.
+
+Recommended next implementation: draft the Phase 1.2 UI mutation-control
+design/review gate before enabling any wallet submit/send controls. Keep
+default behavior and UI mutation controls disabled.
 
 ## Validation
 
@@ -339,4 +351,10 @@ For the current wallet-send lifecycle checkpoint, use:
 
 ```bash
 python scripts/xriq_phase1_2_wallet_send_lifecycle_smoke.py
+```
+
+For the current readiness-summary checkpoint, use:
+
+```bash
+python scripts/xriq_phase1_2_readiness_summary.py
 ```
