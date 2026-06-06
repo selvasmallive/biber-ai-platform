@@ -278,6 +278,7 @@ export const WALLET_SUBMIT_REFUSAL_ENDPOINT =
   "POST /api/v1/wallet/transfers/submit";
 export const WALLET_SEND_REFUSAL_ENDPOINT =
   "POST /api/v1/wallet/transfers/send";
+const WALLET_SEND_REFUSAL_PATH = "/api/v1/wallet/transfers/send";
 export const BLOCK_PRODUCTION_REFUSAL_ENDPOINT = "POST /api/v1/blocks/produce";
 const BLOCK_PRODUCTION_REFUSAL_PATH = "/api/v1/blocks/produce";
 export const LOCAL_WALLET_SUBMIT_ACCEPTED_CODE =
@@ -456,6 +457,16 @@ export interface LocalWalletSendAcceptedExpectations {
   chainFile?: string;
   fromAddress?: string;
   toAddress?: string;
+}
+
+export interface LocalWalletSendRequest {
+  local_request_id: string;
+  from_address: string;
+  to_address: string;
+  amount_base_units: string;
+  fee_base_units: string;
+  nonce: string;
+  expires_at_height: string;
 }
 
 export interface LocalBlockProductionConfirmedTransaction {
@@ -860,11 +871,43 @@ export async function loadWalletMutationRefusal(
   const path =
     action === "submit"
       ? "/api/v1/wallet/transfers/submit"
-      : "/api/v1/wallet/transfers/send";
+      : WALLET_SEND_REFUSAL_PATH;
   return fetchJson<WalletMutationRefusalResponse>(normalizeBaseUrl(baseUrl), path, {
     method: "POST",
     acceptedStatuses: [403],
   });
+}
+
+export async function sendLocalWalletTransfer(
+  baseUrl: string,
+  request: LocalWalletSendRequest,
+): Promise<LocalWalletSendAcceptedResponse> {
+  const params = new URLSearchParams({
+    local_request_id: request.local_request_id,
+    from_address: request.from_address,
+    to_address: request.to_address,
+    amount_base_units: request.amount_base_units,
+    fee_base_units: request.fee_base_units,
+    nonce: request.nonce,
+    expires_at_height: request.expires_at_height,
+  });
+  const data = await fetchJson<LocalWalletSendAcceptedResponse>(
+    normalizeBaseUrl(baseUrl),
+    `${WALLET_SEND_REFUSAL_PATH}?${params.toString()}`,
+    {
+      method: "POST",
+      acceptedStatuses: [201],
+    },
+  );
+  const errors = validateLocalWalletSendAcceptedContract(data, {
+    localRequestId: request.local_request_id,
+    fromAddress: request.from_address,
+    toAddress: request.to_address,
+  });
+  if (errors.length > 0) {
+    throw new Error(errors.join("; "));
+  }
+  return data;
 }
 
 export async function loadBlockProductionRefusal(

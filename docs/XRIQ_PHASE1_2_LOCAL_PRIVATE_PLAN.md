@@ -332,22 +332,32 @@ guard source, the static UI guardrails, and the shared accepted-response
 validators. It also verifies the current UI still has disabled submit/send
 buttons only, no direct wallet submit/send endpoint strings, no direct
 `fetch(`, no browser persistence markers, and no sensitive signing/custody
-field names. UI submit/send controls remain disabled.
+field names. Default UI submit/send controls remain disabled; the approved
+wallet-send UI path is feature-switched only.
 
-Current wallet-send UI implementation review-plan checkpoint:
-`docs/XRIQ_PHASE1_2_WALLET_SEND_UI_IMPLEMENTATION_PLAN.md` now defines the
-first review-only UI mutation candidate: local/private-devnet wallet send only,
-with wallet submit deferred. `scripts/xriq_phase1_2_wallet_send_ui_plan_check.py`
-validates the plan, the gate summary, the existing disabled wallet UI source,
-the static UI guardrails, and the shared wallet-send accepted-response
-validator. It also confirms implementation has not started, the wallet UI has
-no feature switch or accepted-response mutation path, and UI submit/send
-controls remain disabled.
+Current wallet-send UI implementation checkpoint:
+`docs/XRIQ_PHASE1_2_WALLET_SEND_UI_IMPLEMENTATION_PLAN.md` now records the
+approved local/private-devnet wallet-send UI implementation behind
+`VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true`, with wallet submit deferred.
+`xriq/apps/explorer-ui/src/api.ts` exposes `sendLocalWalletTransfer`, which
+uses the shared API client and validates accepted responses with
+`validateLocalWalletSendAcceptedContract`. `xriq/apps/explorer-ui/src/wallet.tsx`
+renders `Local Wallet Send`; the button is disabled by default, disabled unless
+the feature switch is on, disabled on validation failures, and disabled while a
+send is in flight. The UI renders the local request id, audit event id, pending
+transaction hash, pending file marker, chain file marker, mutation, status, and
+chain unchanged state after an accepted send.
+`xriq/apps/explorer-ui/scripts/check-wallet-send-ui-control.mjs` is now part of
+`npm run check` and validates that the wallet UI uses the shared client, has no
+direct submit/send endpoint strings, no direct `fetch(`, no browser persistence
+markers, and no sensitive signing/custody field names.
+`scripts/xriq_phase1_2_wallet_send_ui_plan_check.py` validates the gate, docs,
+source markers, and feature-switch constraint.
 
-Recommended next implementation: wait for explicit user approval naming the
-Phase 1.2 UI mutation-control gate and the exact `wallet-send` action before
-implementing any wallet-send UI mutation control. Keep default behavior and UI
-mutation controls disabled.
+Recommended next implementation: add a local UI smoke against
+`xriq-api serve-readonly` with `--enable-local-wallet-send true` and
+`VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true`, while keeping wallet submit
+deferred and block production separate.
 
 ## Validation
 
@@ -387,8 +397,9 @@ For the current UI mutation-control gate checkpoint, use:
 python scripts/xriq_phase1_2_ui_mutation_gate_check.py
 ```
 
-For the current wallet-send UI implementation review-plan checkpoint, use:
+For the current wallet-send UI implementation checkpoint, use:
 
 ```bash
 python scripts/xriq_phase1_2_wallet_send_ui_plan_check.py
+npm run check
 ```

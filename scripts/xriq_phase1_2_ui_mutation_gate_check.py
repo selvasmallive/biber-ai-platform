@@ -20,8 +20,10 @@ STATIC_CHECK = ROOT / "xriq" / "apps" / "explorer-ui" / "scripts" / "check-stati
 API_CLIENT = ROOT / "xriq" / "apps" / "explorer-ui" / "src" / "api.ts"
 
 REQUIRED_GATE_MARKERS = [
-    "Gate Status: Design Review Only",
-    "UI mutation controls remain disabled.",
+    "Gate Status: Approved For Wallet Send Only",
+    "Default UI mutation controls remain disabled.",
+    "VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true",
+    "wallet submit remains deferred",
     "ready_for_ui_mutation_design_review: true",
     "ui_mutation_controls_enabled: false",
     "safe_to_enable_ui_mutation_controls: false",
@@ -37,7 +39,7 @@ REQUIRED_GATE_MARKERS = [
 REQUIRED_PLAN_MARKERS = [
     "Current Phase 1.2 readiness summary checkpoint:",
     "Current UI mutation-control design gate checkpoint:",
-    "Recommended next implementation: wait for explicit user approval",
+    "Current wallet-send UI implementation checkpoint:",
 ]
 
 REQUIRED_WALLET_MARKERS = [
@@ -51,6 +53,15 @@ REQUIRED_WALLET_MARKERS = [
     "--enable-local-wallet-submit",
     "--enable-local-wallet-send",
     "local-private-devnet-preflight-only",
+    "LOCAL_WALLET_SEND_UI_ENABLED",
+    "VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI",
+    "Local Wallet Send",
+    "Wallet send local-only guard",
+    "Send Local",
+    "wallet submit deferred",
+    "pending_state_only",
+    "no implicit block production",
+    "sendLocalWalletTransfer",
 ]
 
 REQUIRED_STATIC_CHECK_MARKERS = [
@@ -73,10 +84,12 @@ REQUIRED_STATIC_CHECK_MARKERS = [
 REQUIRED_API_MARKERS = [
     "validateLocalWalletSubmitAcceptedContract",
     "validateLocalWalletSendAcceptedContract",
+    "sendLocalWalletTransfer",
     "LocalWalletSubmitAcceptedResponse",
     "LocalWalletSendAcceptedResponse",
     "wallet_submit_accepted_local_only",
     "wallet_send_accepted_local_only",
+    "acceptedStatuses: [201]",
 ]
 
 FORBIDDEN_WALLET_MARKERS = [
@@ -216,11 +229,17 @@ def verify_wallet_ui_source(text: str) -> dict[str, Any]:
         raise GateCheckError("wallet UI: disabled submit/send button marker is missing")
     if 'onClick={onCheck} disabled={isChecking}' not in text:
         raise GateCheckError("wallet UI: guard-check button loading disable marker is missing")
+    if (
+        'const sendDisabled = !enabled || errors.length > 0 || state.status === "loading";'
+        not in text
+    ):
+        raise GateCheckError("wallet UI: local send must be disabled unless the feature switch is on")
     return {
         "required_markers_checked": len(REQUIRED_WALLET_MARKERS),
         "forbidden_markers_checked": len(FORBIDDEN_WALLET_MARKERS),
-        "submit_send_buttons_disabled": True,
-        "guard_check_only_active_action": True,
+        "default_wallet_send_disabled": True,
+        "wallet_send_feature_switch_required": True,
+        "wallet_submit_deferred": True,
     }
 
 
@@ -251,8 +270,7 @@ def main(argv: list[str] | None = None) -> int:
             [
                 "Latest native XRIQ Phase 1.2 readiness-summary checkpoint:",
                 "Latest native XRIQ Phase 1.2 UI mutation-control gate checkpoint:",
-                "Recommended next narrow step: wait for the user to explicitly approve",
-                "local/private-devnet wallet-send UI mutation control behind the UI",
+                "Latest native XRIQ Phase 1.2 wallet-send UI implementation checkpoint:",
             ],
             "handoff",
         )
@@ -271,13 +289,13 @@ def main(argv: list[str] | None = None) -> int:
             "wallet_ui": wallet_check,
             "static_ui_guard_markers_checked": len(REQUIRED_STATIC_CHECK_MARKERS),
             "api_client_markers_checked": len(REQUIRED_API_MARKERS),
-            "ui_mutation_controls_enabled": False,
-            "safe_to_enable_ui_mutation_controls": False,
+            "default_ui_mutation_controls_enabled": False,
+            "wallet_send_ui_feature_switch_required": True,
+            "wallet_submit_deferred": True,
             "approval_required_before_ui_mutation_controls": True,
             "next": (
-                "review the wallet-send UI implementation plan and require "
-                "explicit approval before implementing any local/private wallet "
-                "submit/send UI mutation control"
+                "add a local UI smoke against xriq-api serve-readonly with the "
+                "wallet-send feature switch enabled, keeping wallet submit deferred"
             ),
         }
         write_summary(artifact_dir / "summary.json", report)

@@ -350,8 +350,30 @@ h3 {
   margin-top: 16px;
 }
 
-.walletActionGuards {
+.walletActionGuards,
+.localWalletSend {
   margin-top: 16px;
+}
+
+.walletSendGuard {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.walletSendGuard span {
+  min-height: 30px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #e7edf3;
+  color: #2c5679;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.localWalletSendResult {
+  margin-top: 12px;
 }
 
 .walletGuardButtons {

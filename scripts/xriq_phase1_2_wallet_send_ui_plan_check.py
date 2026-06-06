@@ -21,32 +21,32 @@ API_CLIENT = ROOT / "xriq" / "apps" / "explorer-ui" / "src" / "api.ts"
 STATIC_CHECK = ROOT / "xriq" / "apps" / "explorer-ui" / "scripts" / "check-static.mjs"
 
 REQUIRED_PLAN_MARKERS = [
-    "Plan Status: Review Only - Not Implemented",
+    "Plan Status: Approved And Implemented Behind Feature Switch",
     "First candidate: wallet send only.",
     "Wallet submit remains deferred.",
     "VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true",
     "validateLocalWalletSendAcceptedContract",
     "No implicit block production.",
     "I explicitly approve implementing the Phase 1.2 local/private-devnet wallet-send",
+    "Current implementation:",
 ]
 
 REQUIRED_GATE_MARKERS = [
-    "Gate Status: Design Review Only",
-    "UI mutation controls remain disabled.",
+    "Gate Status: Approved For Wallet Send Only",
+    "Default UI mutation controls remain disabled.",
+    "VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true",
     "Explicit user approval is required",
     "local/private-devnet wallet-send",
 ]
 
 REQUIRED_PHASE_PLAN_MARKERS = [
     "Current UI mutation-control design gate checkpoint:",
-    "Recommended next implementation: wait for explicit user approval",
+    "Current wallet-send UI implementation checkpoint:",
 ]
 
 REQUIRED_HANDOFF_MARKERS = [
     "Latest native XRIQ Phase 1.2 UI mutation-control gate checkpoint:",
-    "Latest native XRIQ Phase 1.2 wallet-send UI implementation review-plan",
-    "Recommended next narrow step: wait for the user to explicitly approve",
-    "local/private-devnet wallet-send UI mutation control behind the UI",
+    "Latest native XRIQ Phase 1.2 wallet-send UI implementation checkpoint:",
 ]
 
 REQUIRED_WALLET_UI_MARKERS = [
@@ -56,14 +56,27 @@ REQUIRED_WALLET_UI_MARKERS = [
     "Send Transfer",
     "Check Guards",
     "loadWalletMutationRefusal",
+    "LOCAL_WALLET_SEND_UI_ENABLED",
+    "VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI",
+    "Local Wallet Send",
+    "Wallet send local-only guard",
+    "Send Local",
+    "wallet submit deferred",
+    "pending_state_only",
+    "no implicit block production",
+    "sendLocalWalletTransfer",
+    "LocalWalletSendAcceptedResponse",
 ]
 
 REQUIRED_API_MARKERS = [
     "LocalWalletSendAcceptedResponse",
     "LocalWalletSendAcceptedExpectations",
+    "LocalWalletSendRequest",
+    "sendLocalWalletTransfer",
     "validateLocalWalletSendAcceptedContract",
     "LOCAL_WALLET_SEND_ACCEPTED_CODE",
     "LOCAL_WALLET_SEND_ACCEPTED_MUTATION",
+    "acceptedStatuses: [201]",
 ]
 
 REQUIRED_STATIC_MARKERS = [
@@ -80,9 +93,6 @@ REQUIRED_STATIC_MARKERS = [
 ]
 
 FORBIDDEN_WALLET_UI_MARKERS = [
-    "VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI",
-    "validateLocalWalletSendAcceptedContract(",
-    "LocalWalletSendAcceptedResponse",
     "fetch(",
     "/transfers/submit",
     "/transfers/send",
@@ -186,8 +196,9 @@ def find_sensitive_fields(value: Any, path: str = "") -> list[str]:
 def verify_gate_summary(path: Path) -> dict[str, Any]:
     payload = load_json_object(path, "Phase 1.2 UI mutation gate summary")
     require_equal(payload, "ok", "xriq-phase1-2-ui-mutation-control-gate-check", "gate")
-    require_equal(payload, "ui_mutation_controls_enabled", False, "gate")
-    require_equal(payload, "safe_to_enable_ui_mutation_controls", False, "gate")
+    require_equal(payload, "default_ui_mutation_controls_enabled", False, "gate")
+    require_equal(payload, "wallet_send_ui_feature_switch_required", True, "gate")
+    require_equal(payload, "wallet_submit_deferred", True, "gate")
     require_equal(payload, "approval_required_before_ui_mutation_controls", True, "gate")
     require_equal(payload, "scope", "local-private-post-rc-hardening", "gate")
     sensitive_fields = find_sensitive_fields(payload)
@@ -195,22 +206,31 @@ def verify_gate_summary(path: Path) -> dict[str, Any]:
         raise PlanCheckError(f"gate summary contains sensitive fields {sensitive_fields}")
     return {
         "path": str(path),
-        "ui_mutation_controls_enabled": False,
+        "default_ui_mutation_controls_enabled": False,
+        "wallet_send_ui_feature_switch_required": True,
+        "wallet_submit_deferred": True,
         "approval_required_before_ui_mutation_controls": True,
     }
 
 
-def verify_wallet_ui_preimplementation(text: str) -> dict[str, Any]:
+def verify_wallet_ui_implementation(text: str) -> dict[str, Any]:
     require_markers(text, REQUIRED_WALLET_UI_MARKERS, "wallet UI")
     require_absent(text, FORBIDDEN_WALLET_UI_MARKERS, "wallet UI")
     if 'type="button" disabled' not in text:
         raise PlanCheckError("wallet UI: disabled button marker is missing")
     if "onClick={onCheck}" not in text:
         raise PlanCheckError("wallet UI: guard check action is missing")
+    if (
+        'const sendDisabled = !enabled || errors.length > 0 || state.status === "loading";'
+        not in text
+    ):
+        raise PlanCheckError("wallet UI: local send button must be feature-switch gated")
     return {
         "required_markers_checked": len(REQUIRED_WALLET_UI_MARKERS),
         "forbidden_markers_checked": len(FORBIDDEN_WALLET_UI_MARKERS),
-        "preimplementation_only": True,
+        "implementation_started": True,
+        "feature_switch_required": True,
+        "wallet_submit_deferred": True,
     }
 
 
@@ -241,7 +261,7 @@ def main(argv: list[str] | None = None) -> int:
         require_markers(handoff_doc, REQUIRED_HANDOFF_MARKERS, "handoff")
         require_markers(api_client, REQUIRED_API_MARKERS, "API client")
         require_markers(static_check, REQUIRED_STATIC_MARKERS, "static UI check")
-        wallet_check = verify_wallet_ui_preimplementation(wallet_ui)
+        wallet_check = verify_wallet_ui_implementation(wallet_ui)
         gate = verify_gate_summary(gate_summary)
 
         report = {
@@ -254,14 +274,14 @@ def main(argv: list[str] | None = None) -> int:
             "wallet_ui": wallet_check,
             "wallet_send_candidate": True,
             "wallet_submit_deferred": True,
-            "implementation_started": False,
-            "explicit_approval_required": True,
+            "implementation_started": True,
+            "approval_recorded": True,
             "required_approval": (
                 "I explicitly approve implementing the Phase 1.2 "
                 "local/private-devnet wallet-send UI mutation control behind "
                 "the UI mutation-control gate."
             ),
-            "next": "wait for explicit approval before implementing wallet-send UI mutation",
+            "next": "run local UI smoke with wallet-send feature switch enabled",
         }
         write_summary(artifact_dir / "summary.json", report)
     except PlanCheckError as error:

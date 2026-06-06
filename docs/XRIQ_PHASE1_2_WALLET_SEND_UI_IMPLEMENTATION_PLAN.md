@@ -1,10 +1,11 @@
 # XRIQ Phase 1.2 Wallet-Send UI Implementation Plan
 
-Plan Status: Review Only - Not Implemented
+Plan Status: Approved And Implemented Behind Feature Switch
 
 This document defines the first allowed UI mutation candidate after the
-Phase 1.2 UI mutation-control gate. It does not approve implementation and does
-not enable wallet submit/send controls.
+Phase 1.2 UI mutation-control gate. The user explicitly approved this exact
+wallet-send implementation on 2026-06-06. It does not approve wallet submit or
+any broader mutation scope.
 
 ## First Candidate
 
@@ -22,7 +23,7 @@ candidate because the local API already has:
 
 ## Preconditions
 
-Implementation must not start until all of these are true:
+Implementation was allowed only after all of these were true:
 
 - `scripts/xriq_phase1_2_readiness_summary.py` passes.
 - `scripts/xriq_phase1_2_ui_mutation_gate_check.py` passes.
@@ -30,9 +31,28 @@ Implementation must not start until all of these are true:
 - The user gives explicit approval naming the UI mutation-control gate and
   wallet send as the exact local/private action.
 
+## Current Implementation
+
+Current implementation:
+
+- `xriq/apps/explorer-ui/src/api.ts` exposes `sendLocalWalletTransfer`.
+- `sendLocalWalletTransfer` posts only to the local wallet-send API path,
+  expects HTTP `201`, and validates the response with
+  `validateLocalWalletSendAcceptedContract`.
+- `xriq/apps/explorer-ui/src/wallet.tsx` renders `Local Wallet Send`.
+- `Local Wallet Send` is active only when
+  `VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true`.
+- The send button is disabled by default, disabled during validation failures,
+  and disabled while a local send is in flight.
+- The UI renders local request id, audit event id, pending transaction hash,
+  pending file marker, chain file marker, mutation, status, and chain unchanged
+  state after an accepted local send.
+- Wallet submit remains disabled and deferred.
+- Block production remains separate and explicit.
+
 ## Allowed Implementation Shape
 
-After explicit approval, the implementation should be narrow:
+After explicit approval, the implementation must remain narrow:
 
 - Add only a local/private-devnet wallet-send UI path.
 - Keep wallet submit disabled and deferred.
@@ -61,11 +81,12 @@ After explicit approval, the implementation should be narrow:
 
 ## Required Smoke After Implementation
 
-The first implementation must add or extend a local UI smoke that proves:
+The first implementation adds `check-wallet-send-ui-control.mjs` to prove:
 
 - default UI remains disabled without the feature switch,
 - wallet submit remains disabled even with wallet-send UI enabled,
-- wallet send can call only the local/private-devnet accepted API path,
+- wallet send can call only the local/private-devnet accepted API path through
+  the shared API client,
 - the accepted response validates through the shared client validator,
 - one pending transaction is rendered after send,
 - the audit event id and local request id are visible,
@@ -74,9 +95,9 @@ The first implementation must add or extend a local UI smoke that proves:
   fields exist in source or artifacts, and
 - block production remains a separate explicit local action.
 
-## Explicit Approval Required
+## Explicit Approval Record
 
-Use this exact approval shape before implementation starts:
+The implementation was approved with this exact approval:
 
 ```text
 I explicitly approve implementing the Phase 1.2 local/private-devnet wallet-send
@@ -85,7 +106,7 @@ UI mutation control behind the UI mutation-control gate.
 
 ## Validation
 
-Run this review-only plan check before requesting implementation approval:
+Run this implementation check after changes:
 
 ```bash
 python scripts/xriq_phase1_2_wallet_send_ui_plan_check.py

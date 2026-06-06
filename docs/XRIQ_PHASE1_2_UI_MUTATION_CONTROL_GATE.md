@@ -1,10 +1,12 @@
 # XRIQ Phase 1.2 UI Mutation-Control Gate
 
-Gate Status: Design Review Only
+Gate Status: Approved For Wallet Send Only
 
 This document is the Phase 1.2 gate that must be reviewed before any wallet
-submit/send mutation control is enabled in the React UI. It does not approve
-UI mutation controls and does not change runtime behavior.
+submit/send mutation control is enabled in the React UI. The user explicitly
+approved the local/private-devnet wallet-send UI mutation control behind this
+gate on 2026-06-06. This does not approve wallet submit or any broader
+mutation scope.
 
 ## Scope
 
@@ -14,12 +16,19 @@ contract, production infrastructure, or snapshot-mutation scope.
 
 ## Current Decision
 
-UI mutation controls remain disabled.
+Default UI mutation controls remain disabled.
 
-The current wallet UI may show disabled `Submit Draft` and `Send Transfer`
-controls only as guard indicators. The only active wallet action button may be
-`Check Guards`, which must call disabled/refusal checks and must not submit,
-send, sign, persist secrets, or mutate pending/chain state.
+In default mode, the current wallet UI may show disabled `Submit Draft` and
+`Send Transfer` controls only as guard indicators. The only active wallet
+action button in default mode may be `Check Guards`, which must call
+disabled/refusal checks and must not submit, send, sign, persist secrets, or
+mutate pending/chain state.
+
+Approved exception: wallet send may be enabled only when
+`VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true` is set and the local API is
+started with `--enable-local-wallet-send true`. The wallet-send UI path must
+use the shared API client, validate `wallet_send_accepted_local_only`, mutate
+pending state only, keep wallet submit deferred, and ensure wallet submit remains deferred.
 
 ## Required Evidence Before Implementation Review
 
@@ -57,13 +66,12 @@ later explicit approval changes them:
 
 ## Future Implementation Review Checklist
 
-When the user explicitly approves implementation after this gate, the first UI
-implementation review should be narrow:
+The approved wallet-send implementation must stay narrow:
 
 - Add a local/private-devnet-only UI path for one action first, preferably
   wallet send.
 - Keep wallet submit deferred unless wallet send passes review and smoke tests.
-- Require an explicit local UI feature flag or review-only route marker.
+- Require `VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true`.
 - Use the shared API client and accepted-response validators.
 - Show pending-state-only mutation language before and after the request.
 - Render the audit event id, local request id, pending file marker, chain file
@@ -74,9 +82,9 @@ implementation review should be narrow:
 
 ## Approval Required
 
-Explicit user approval is required before enabling any wallet submit/send UI
-mutation control. The approval must name this gate and the exact action being
-enabled.
+Explicit user approval is required before enabling any additional wallet
+submit/send UI mutation control. The approval must name this gate and the exact
+action being enabled.
 
 Acceptable approval shape:
 

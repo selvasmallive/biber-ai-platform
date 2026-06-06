@@ -3,6 +3,8 @@ import {
   AccountSummary,
   AccountHistoryResponse,
   ExplorerSnapshot,
+  LocalWalletSendAcceptedResponse,
+  LocalWalletSendRequest,
   MempoolEntry,
   TransactionSummary,
   WalletBalanceResponse,
@@ -17,12 +19,15 @@ import {
   loadWalletMutationRefusal,
   loadWalletStatus,
   loadWalletTransactionStatus,
+  sendLocalWalletTransfer,
 } from "./api";
 
 const DEFAULT_RECIPIENT = "xriqdev1bobbb00000000000";
 const MIN_PRIVATE_DEVNET_FEE = 2n;
 const PREVIEW_WARNING = "private-devnet-preview-only-no-signing-no-submit";
 const PREFLIGHT_WARNING = "local-private-devnet-preflight-only";
+const LOCAL_WALLET_SEND_UI_ENABLED =
+  import.meta.env.VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI === "true";
 
 const ACTION_GUARD_EXPECTATIONS: Record<
   WalletMutationAction,
@@ -100,6 +105,8 @@ type WalletActionGuardState = Record<
   ApiState<WalletMutationRefusalResponse>
 >;
 
+type LocalWalletSendState = ApiState<LocalWalletSendAcceptedResponse>;
+
 export function WalletShell({
   apiBaseUrl,
   snapshot,
@@ -145,6 +152,11 @@ export function WalletShell({
   const [actionGuards, setActionGuards] = useState<WalletActionGuardState>(() =>
     initialActionGuards(),
   );
+  const [localWalletSend, setLocalWalletSend] = useState<LocalWalletSendState>({
+    status: "idle",
+    data: null,
+    error: null,
+  });
   const [activityStatus, setActivityStatus] = useState<
     ApiState<WalletTransactionStatusResponse>
   >({
@@ -329,6 +341,13 @@ export function WalletShell({
       }),
     [amount, expiresAtHeight, fee, fromAccount, fromAddress, nonce, toAddress],
   );
+  const localWalletSendErrors = useMemo(() => {
+    const errors = [...validation.errors];
+    if (expiresAtHeight.trim() === "") {
+      errors.push("Expires is required for local wallet send.");
+    }
+    return errors;
+  }, [expiresAtHeight, validation.errors]);
 
   const balancePreview = apiPreview.data
     ? {
@@ -361,7 +380,7 @@ export function WalletShell({
     }),
     [amount, expiresAtHeight, fee, fromAddress, nonce, snapshot?.network.network, toAddress],
   );
-  const previewJson = apiPreview.data ?? preview;
+  const previewJson = localWalletSend.data ?? apiPreview.data ?? preview;
 
   function handleFromChange(address: string) {
     setFromAddress(address);
@@ -374,11 +393,13 @@ export function WalletShell({
       setToAddress(defaultRecipient(accounts, address));
     }
     setApiPreview({ status: "idle", data: null, error: null });
+    setLocalWalletSend({ status: "idle", data: null, error: null });
   }
 
   function handleDraftFieldChange(update: () => void) {
     update();
     setApiPreview({ status: "idle", data: null, error: null });
+    setLocalWalletSend({ status: "idle", data: null, error: null });
   }
 
   async function handleCheckPreview() {
@@ -447,6 +468,37 @@ export function WalletShell({
         (action) => handleCheckActionGuard(action),
       ),
     );
+  }
+
+  async function handleLocalWalletSend() {
+    if (!LOCAL_WALLET_SEND_UI_ENABLED || localWalletSendErrors.length > 0) {
+      return;
+    }
+
+    const request: LocalWalletSendRequest = {
+      local_request_id: nextLocalWalletSendRequestId(),
+      from_address: fromAddress,
+      to_address: toAddress.trim(),
+      amount_base_units: amount.trim(),
+      fee_base_units: fee.trim(),
+      nonce: nonce.trim(),
+      expires_at_height: expiresAtHeight.trim(),
+    };
+    setLocalWalletSend((current) => ({
+      status: "loading",
+      data: current.data,
+      error: null,
+    }));
+    try {
+      const data = await sendLocalWalletTransfer(apiBaseUrl, request);
+      setLocalWalletSend({ status: "ready", data, error: null });
+    } catch (error) {
+      setLocalWalletSend((current) => ({
+        status: "error",
+        data: current.data,
+        error: error instanceof Error ? error.message : "Local wallet send failed",
+      }));
+    }
   }
 
   return (
@@ -560,12 +612,21 @@ export function WalletShell({
             onCheck={() => void handleCheckActionGuards()}
           />
 
+          <LocalWalletSendControl
+            enabled={LOCAL_WALLET_SEND_UI_ENABLED}
+            errors={localWalletSendErrors}
+            state={localWalletSend}
+            onSend={() => void handleLocalWalletSend()}
+          />
+
           {validation.errors.length > 0 ? (
             <ul className="validationList" aria-label="Wallet preview checks">
               {validation.errors.map((error) => (
                 <li key={error}>{error}</li>
               ))}
             </ul>
+          ) : LOCAL_WALLET_SEND_UI_ENABLED ? (
+            <p className="mutedText">Local send is pending-state only. No signing material.</p>
           ) : (
             <p className="mutedText">Preview only. No signing or submission.</p>
           )}
@@ -590,6 +651,71 @@ export function WalletShell({
         </pre>
       </div>
     </section>
+  );
+}
+
+function LocalWalletSendControl({
+  enabled,
+  errors,
+  state,
+  onSend,
+}: {
+  enabled: boolean;
+  errors: string[];
+  state: LocalWalletSendState;
+  onSend: () => void;
+}) {
+  const data = state.data;
+  const metadata = data?.audit_event.metadata;
+  const sendDisabled = !enabled || errors.length > 0 || state.status === "loading";
+
+  return (
+    <div className="localWalletSend" aria-label="Local Wallet Send">
+      <div className="subHeading">
+        <h3>Local Wallet Send</h3>
+        <span>{enabled ? "feature switch on" : "feature switch off"}</span>
+      </div>
+      <div className="walletSendGuard" aria-label="Wallet send local-only guard">
+        <span>wallet-send only</span>
+        <span>wallet submit deferred</span>
+        <span>pending_state_only</span>
+        <span>no implicit block production</span>
+      </div>
+      <div className="walletActions">
+        <button type="button" onClick={onSend} disabled={sendDisabled}>
+          Send Local
+        </button>
+        <span>{state.status}</span>
+      </div>
+      {errors.length > 0 ? (
+        <ul className="validationList" aria-label="Local wallet send checks">
+          {errors.map((error) => (
+            <li key={error}>{error}</li>
+          ))}
+        </ul>
+      ) : null}
+      {state.status === "error" ? <p className="errorText">{state.error}</p> : null}
+      {data ? (
+        <dl className="detailList localWalletSendResult" aria-label="Local wallet send result">
+          <dt>Status</dt>
+          <dd>{data.status}</dd>
+          <dt>Mutation</dt>
+          <dd>{data.mutation}</dd>
+          <dt>Tx Hash</dt>
+          <dd className="mono truncate">{data.transaction.tx_hash}</dd>
+          <dt>Local Request</dt>
+          <dd className="mono truncate">{metadata?.local_request_id}</dd>
+          <dt>Audit Event</dt>
+          <dd className="mono truncate">{data.audit_event.event_id}</dd>
+          <dt>Pending File</dt>
+          <dd className="mono truncate">{data.pending_state.pending_file}</dd>
+          <dt>Chain File</dt>
+          <dd className="mono truncate">{data.chain_state.chain_file}</dd>
+          <dt>Chain</dt>
+          <dd>{data.chain_state.chain_unchanged ? "unchanged" : "changed"}</dd>
+        </dl>
+      ) : null}
+    </div>
   );
 }
 
@@ -1009,6 +1135,10 @@ function shortAddress(value: string) {
 
 function shortHash(value: string) {
   return value.length > 18 ? `${value.slice(0, 10)}...${value.slice(-6)}` : value;
+}
+
+function nextLocalWalletSendRequestId() {
+  return `wallet-send-ui-${Date.now().toString(36)}`;
 }
 
 function formatOptionalHeight(value: number | null) {
