@@ -246,9 +246,16 @@ is `local_request_id`. `scripts/xriq_phase1_1_contract_check.py` now validates
 both wallet pending contracts and reports
 `phase1_2_wallet_pending_contract_fixtures: 2`.
 
-Recommended next implementation: add the wallet-send accepted client contract
-or start the Rust/API wallet-submit implementation behind explicit local
-enablement, while keeping default behavior and UI mutation controls disabled.
+Current wallet-send client contract checkpoint:
+`xriq/apps/explorer-ui/src/api.ts` now defines the wallet-send accepted
+response type, accepted-code/mutation constants, endpoint constant, and
+`validateLocalWalletSendAcceptedContract()`. The static UI guard requires those
+markers. No UI POST function or enabled wallet mutation control is exposed.
+
+Recommended next implementation: start the Rust/API wallet-submit
+implementation behind explicit local enablement, or add a fixture-driven
+TypeScript validator smoke before Rust, while keeping default behavior and UI
+mutation controls disabled.
 
 ## Validation
 

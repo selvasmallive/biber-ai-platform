@@ -276,11 +276,16 @@ export type WalletMutationAction = "submit" | "send";
 
 export const WALLET_SUBMIT_REFUSAL_ENDPOINT =
   "POST /api/v1/wallet/transfers/submit";
+export const WALLET_SEND_REFUSAL_ENDPOINT =
+  "POST /api/v1/wallet/transfers/send";
 export const BLOCK_PRODUCTION_REFUSAL_ENDPOINT = "POST /api/v1/blocks/produce";
 const BLOCK_PRODUCTION_REFUSAL_PATH = "/api/v1/blocks/produce";
 export const LOCAL_WALLET_SUBMIT_ACCEPTED_CODE =
   "wallet_submit_accepted_local_only";
 export const LOCAL_WALLET_SUBMIT_ACCEPTED_MUTATION = "pending_state_only";
+export const LOCAL_WALLET_SEND_ACCEPTED_CODE =
+  "wallet_send_accepted_local_only";
+export const LOCAL_WALLET_SEND_ACCEPTED_MUTATION = "pending_state_only";
 export const LOCAL_BLOCK_PRODUCTION_ACCEPTED_CODE =
   "block_production_accepted_local_only";
 export const LOCAL_BLOCK_PRODUCTION_ACCEPTED_AUDIT_SCOPE = "api-local-accepted";
@@ -376,6 +381,77 @@ export interface LocalWalletSubmitAcceptedResponse {
 export interface LocalWalletSubmitAcceptedExpectations {
   localRequestId?: string;
   draftId?: string;
+  pendingFile?: string;
+  chainFile?: string;
+  fromAddress?: string;
+  toAddress?: string;
+}
+
+export interface LocalWalletSendPendingTransaction {
+  tx_hash: string;
+  status: "pending";
+  from_address: string;
+  to_address: string;
+  amount_base_units: string;
+  fee_base_units: string;
+  nonce: number;
+  expires_at_height: number;
+  block_height: null;
+  transaction_index: null;
+}
+
+export interface LocalWalletSendAcceptedResponse {
+  environment: "private-devnet";
+  network: "xriq-devnet";
+  endpoint: typeof WALLET_SEND_REFUSAL_ENDPOINT;
+  code: typeof LOCAL_WALLET_SEND_ACCEPTED_CODE;
+  status: "pending";
+  mutation: typeof LOCAL_WALLET_SEND_ACCEPTED_MUTATION;
+  warning: "local-private-devnet-only";
+  transaction: LocalWalletSendPendingTransaction;
+  pending_state: {
+    before_count: number;
+    after_count: number;
+    added_tx_hash: string;
+    pending_file: string;
+  };
+  chain_state: {
+    current_height: number;
+    latest_block_hash: string;
+    chain_file: string;
+    chain_unchanged: true;
+  };
+  audit_event_recorded: boolean;
+  audit_event: {
+    event_id: string;
+    actor: "local-private-devnet-operator";
+    action: "wallet_transfer_send_attempt";
+    resource_type: "wallet_transfer";
+    resource_id: string;
+    environment: "private-devnet";
+    metadata: {
+      endpoint: typeof WALLET_SEND_REFUSAL_ENDPOINT;
+      outcome: "accepted";
+      status: "pending";
+      explicit_flag: "--enable-local-wallet-send";
+      local_request_id: string;
+      from_address: string;
+      to_address: string;
+      amount_base_units: string;
+      fee_base_units: string;
+      nonce: number;
+      expires_at_height: number;
+      pending_before_count: number;
+      pending_after_count: number;
+      added_tx_hash: string;
+      chain_current_height: number;
+      metadata_policy: string;
+    };
+  };
+}
+
+export interface LocalWalletSendAcceptedExpectations {
+  localRequestId?: string;
   pendingFile?: string;
   chainFile?: string;
   fromAddress?: string;
@@ -1043,6 +1119,146 @@ export function validateLocalWalletSubmitAcceptedContract(
     errors.push("audit metadata status must be pending");
   }
   if (metadata.explicit_flag !== "--enable-local-wallet-submit") {
+    errors.push("audit metadata explicit flag is wrong");
+  }
+  if (metadata.from_address !== transaction.from_address) {
+    errors.push("audit metadata from_address must match transaction");
+  }
+  if (metadata.to_address !== transaction.to_address) {
+    errors.push("audit metadata to_address must match transaction");
+  }
+  if (metadata.amount_base_units !== transaction.amount_base_units) {
+    errors.push("audit metadata amount_base_units must match transaction");
+  }
+  if (metadata.fee_base_units !== transaction.fee_base_units) {
+    errors.push("audit metadata fee_base_units must match transaction");
+  }
+  if (metadata.nonce !== transaction.nonce) {
+    errors.push("audit metadata nonce must match transaction");
+  }
+  if (metadata.expires_at_height !== transaction.expires_at_height) {
+    errors.push("audit metadata expires_at_height must match transaction");
+  }
+  if (metadata.pending_before_count !== data.pending_state.before_count) {
+    errors.push("audit metadata pending_before_count must match pending_state");
+  }
+  if (metadata.pending_after_count !== data.pending_state.after_count) {
+    errors.push("audit metadata pending_after_count must match pending_state");
+  }
+  if (metadata.added_tx_hash !== transaction.tx_hash) {
+    errors.push("audit metadata added_tx_hash must match transaction");
+  }
+  if (metadata.chain_current_height !== data.chain_state.current_height) {
+    errors.push("audit metadata chain_current_height must match chain_state");
+  }
+  if (!metadata.metadata_policy.includes("no signing material")) {
+    errors.push("audit metadata policy must forbid signing material");
+  }
+  if (!metadata.metadata_policy.includes("custody material")) {
+    errors.push("audit metadata policy must forbid custody material");
+  }
+
+  return errors;
+}
+
+export function validateLocalWalletSendAcceptedContract(
+  data: LocalWalletSendAcceptedResponse,
+  expectations: LocalWalletSendAcceptedExpectations = {},
+): string[] {
+  const errors: string[] = [];
+  const expectedLocalRequestId = expectations.localRequestId;
+  const transaction = data.transaction;
+  const audit = data.audit_event;
+  const metadata = audit.metadata;
+
+  if (data.environment !== "private-devnet") {
+    errors.push("environment must be private-devnet");
+  }
+  if (data.network !== "xriq-devnet") {
+    errors.push("network must be xriq-devnet");
+  }
+  if (data.endpoint !== WALLET_SEND_REFUSAL_ENDPOINT) {
+    errors.push("wallet send accepted endpoint marker is missing");
+  }
+  if (data.code !== LOCAL_WALLET_SEND_ACCEPTED_CODE) {
+    errors.push(`code must be ${LOCAL_WALLET_SEND_ACCEPTED_CODE}`);
+  }
+  if (data.status !== "pending") {
+    errors.push("status must be pending");
+  }
+  if (data.mutation !== LOCAL_WALLET_SEND_ACCEPTED_MUTATION) {
+    errors.push(`mutation must be ${LOCAL_WALLET_SEND_ACCEPTED_MUTATION}`);
+  }
+  if (data.warning !== "local-private-devnet-only") {
+    errors.push("warning must be local-private-devnet-only");
+  }
+  if (!data.audit_event_recorded) {
+    errors.push("audit_event_recorded must be true");
+  }
+  if (transaction.status !== "pending") {
+    errors.push("transaction status must be pending");
+  }
+  if (transaction.block_height !== null) {
+    errors.push("pending transaction block_height must be null");
+  }
+  if (transaction.transaction_index !== null) {
+    errors.push("pending transaction transaction_index must be null");
+  }
+  if (transaction.tx_hash !== data.pending_state.added_tx_hash) {
+    errors.push("pending_state added_tx_hash must match transaction tx_hash");
+  }
+  if (data.pending_state.after_count !== data.pending_state.before_count + 1) {
+    errors.push("pending_state must add exactly one transaction");
+  }
+  if (data.chain_state.chain_unchanged !== true) {
+    errors.push("chain_state chain_unchanged must be true");
+  }
+  if (expectations.pendingFile && data.pending_state.pending_file !== expectations.pendingFile) {
+    errors.push("pending_file does not match expected local smoke file");
+  }
+  if (expectations.chainFile && data.chain_state.chain_file !== expectations.chainFile) {
+    errors.push("chain_file does not match expected local smoke file");
+  }
+  if (expectations.fromAddress && transaction.from_address !== expectations.fromAddress) {
+    errors.push("transaction from_address does not match expected sender");
+  }
+  if (expectations.toAddress && transaction.to_address !== expectations.toAddress) {
+    errors.push("transaction to_address does not match expected recipient");
+  }
+
+  if (audit.actor !== "local-private-devnet-operator") {
+    errors.push("audit actor must be local-private-devnet-operator");
+  }
+  if (audit.action !== "wallet_transfer_send_attempt") {
+    errors.push("audit action must be wallet_transfer_send_attempt");
+  }
+  if (audit.resource_type !== "wallet_transfer") {
+    errors.push("audit resource_type must be wallet_transfer");
+  }
+  if (audit.environment !== "private-devnet") {
+    errors.push("audit environment must be private-devnet");
+  }
+  if (expectedLocalRequestId) {
+    if (audit.resource_id !== expectedLocalRequestId) {
+      errors.push("audit resource_id does not match expected local_request_id");
+    }
+    if (audit.event_id !== `wallet-transfer-send:${expectedLocalRequestId}`) {
+      errors.push("audit event_id does not match expected local_request_id");
+    }
+    if (metadata.local_request_id !== expectedLocalRequestId) {
+      errors.push("audit metadata local_request_id does not match expected value");
+    }
+  }
+  if (metadata.endpoint !== WALLET_SEND_REFUSAL_ENDPOINT) {
+    errors.push("audit metadata endpoint marker is missing");
+  }
+  if (metadata.outcome !== "accepted") {
+    errors.push("audit metadata outcome must be accepted");
+  }
+  if (metadata.status !== "pending") {
+    errors.push("audit metadata status must be pending");
+  }
+  if (metadata.explicit_flag !== "--enable-local-wallet-send") {
     errors.push("audit metadata explicit flag is wrong");
   }
   if (metadata.from_address !== transaction.from_address) {

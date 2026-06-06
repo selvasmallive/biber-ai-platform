@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-06-01
+Last updated: 2026-06-06
 
 ## Current Goal
 
@@ -235,7 +235,7 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `47%` overall after the initial
+- Phase 1.2 estimated completion: about `48%` overall after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
   submit/send, React/client disabled-action guard coverage, and audit-event
@@ -248,10 +248,11 @@ unless the user changes the project scope again.
   local/private-devnet enablement, plus the first contract-only wallet submit
   to pending-state accepted response design and matching TypeScript client
   accepted-response validator, plus the matching contract-only wallet send to
-  pending-state accepted response design. It is not a public launch phase. Its
-  current target is defining and hardening local-only action contracts before
-  any broad wallet-submit/send implementation, snapshot-mutation, DEX, custody,
-  public network behavior, or UI mutation controls are implemented.
+  pending-state accepted response design and matching TypeScript client
+  accepted-response validator. It is not a public launch phase. Its current
+  target is defining and hardening local-only action contracts before any broad
+  wallet-submit/send implementation, snapshot-mutation, DEX, custody, public
+  network behavior, or UI mutation controls are implemented.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -383,10 +384,28 @@ to save cost.
   implement wallet send in Rust, does not mutate pending state through the
   product API, does not add signing/custody, and does not enable UI submit/send
   controls. Verification passed bundled-Python `py_compile` and
-  `scripts/xriq_phase1_1_contract_check.py`. Next narrow step: add the
-  matching TypeScript client accepted-response type/validator for wallet-send
-  or start Rust/API wallet-submit implementation behind explicit local
-  enablement, still disabled by default.
+  `scripts/xriq_phase1_1_contract_check.py`. Superseded by the wallet-send
+  client accepted-response type checkpoint below.
+- Latest native XRIQ Phase 1.2 wallet-send client accepted-response type
+  checkpoint: the React/TypeScript API layer now defines
+  `LocalWalletSendAcceptedResponse`, `LocalWalletSendPendingTransaction`,
+  `LocalWalletSendAcceptedExpectations`, `WALLET_SEND_REFUSAL_ENDPOINT`,
+  `LOCAL_WALLET_SEND_ACCEPTED_CODE`,
+  `LOCAL_WALLET_SEND_ACCEPTED_MUTATION`, and
+  `validateLocalWalletSendAcceptedContract()` in
+  `xriq/apps/explorer-ui/src/api.ts`. This mirrors the contract-only
+  `wallet-transfer-send-to-pending-contract.json` shape for a future local
+  pending-state-only accepted send response, including pending transaction,
+  pending-state transition, unchanged chain-state summary, and accepted audit
+  metadata keyed by `local_request_id` rather than `draft_id`. The static guard
+  in `xriq/apps/explorer-ui/scripts/check-static.mjs` now requires those wallet
+  send accepted-response markers. This checkpoint does not add a UI POST helper,
+  does not enable wallet submit/send controls, and does not implement Rust/API
+  mutation. Verification passed `npm.cmd run check` and escalated
+  `npm.cmd run build` after the sandboxed build hit the known Windows
+  Vite/esbuild config access denial. Next narrow step: start the Rust/API
+  wallet-submit implementation behind explicit local enablement, still disabled
+  by default, or add a fixture-driven TypeScript validator smoke before Rust.
 - Latest native XRIQ Phase 1.2 Admin UI block-production guard checkpoint:
   the React Admin Status panel now includes `Admin Action Guards` with a
   disabled `Produce Block` control and an explicit `Check Guard` action. The

@@ -247,7 +247,8 @@ audit event metadata. Unlike the submit contract, `draft_id` is optional for
 send and the audit resource is `local_request_id`. It remains contract-only and
 not enabled; `xriq-api` must not accept wallet send or expose UI mutation
 controls until a later explicit implementation checkpoint adds Rust tests and
-local smoke.
+local smoke. The React/TypeScript API layer has a matching accepted-response
+type and validator, but no client POST helper or enabled UI control.
 
 Future block-production attempts must use the same local actor,
 `block_production_attempt` action, `block_production` resource type,

@@ -88,6 +88,25 @@ for (const requiredText of [
 }
 
 for (const requiredText of [
+  "LocalWalletSendAcceptedResponse",
+  "LocalWalletSendPendingTransaction",
+  "LocalWalletSendAcceptedExpectations",
+  "validateLocalWalletSendAcceptedContract",
+  "WALLET_SEND_REFUSAL_ENDPOINT",
+  "LOCAL_WALLET_SEND_ACCEPTED_CODE",
+  "LOCAL_WALLET_SEND_ACCEPTED_MUTATION",
+  "wallet_send_accepted_local_only",
+  "pending_state_only",
+  "wallet_transfer_send_attempt",
+  "added_tx_hash",
+  "chain_unchanged",
+]) {
+  if (!apiSource.includes(requiredText)) {
+    throw new Error(`missing accepted wallet-send API marker: ${requiredText}`);
+  }
+}
+
+for (const requiredText of [
   "LocalBlockProductionAcceptedResponse",
   "LocalBlockProductionConfirmedTransaction",
   "LocalBlockProductionAcceptedExpectations",
