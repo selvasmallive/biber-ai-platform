@@ -16,12 +16,17 @@ from xriq_phase1_1_local_e2e_smoke import (
     assert_api_method_status,
     assert_api_status,
     executable_path,
+    free_local_port,
+    http_json,
     repo_root,
     require_equal,
     require_hash,
     require_list,
     run_command,
     run_json,
+    start_api_readonly_server,
+    stop_process,
+    wait_for_api_readonly_server,
     write_json,
 )
 
@@ -57,8 +62,9 @@ def validate_wallet_send_accepted(
     *,
     chain_file: Path,
     pending_file: Path,
+    expected_local_request_id: str = "local-wallet-send-lifecycle-1",
+    context: str = "wallet-send lifecycle accepted",
 ) -> str:
-    context = "wallet-send lifecycle accepted"
     require_equal(payload, "environment", "private-devnet", context)
     require_equal(payload, "network", "xriq-devnet", context)
     require_equal(payload, "endpoint", "POST /api/v1/wallet/transfers/send", context)
@@ -104,7 +110,7 @@ def validate_wallet_send_accepted(
     require_equal(
         audit_event,
         "event_id",
-        "wallet-transfer-send:local-wallet-send-lifecycle-1",
+        f"wallet-transfer-send:{expected_local_request_id}",
         f"{context} audit",
     )
     require_equal(audit_event, "actor", "local-private-devnet-operator", f"{context} audit")
@@ -118,7 +124,7 @@ def validate_wallet_send_accepted(
     require_equal(metadata, "outcome", "accepted", f"{context} metadata")
     require_equal(metadata, "status", "pending", f"{context} metadata")
     require_equal(metadata, "explicit_flag", "--enable-local-wallet-send", f"{context} metadata")
-    require_equal(metadata, "local_request_id", "local-wallet-send-lifecycle-1", context)
+    require_equal(metadata, "local_request_id", expected_local_request_id, context)
     require_equal(metadata, "added_tx_hash", tx_hash, f"{context} metadata")
     metadata_policy = metadata.get("metadata_policy")
     if not isinstance(metadata_policy, str) or "no signing material" not in metadata_policy:
@@ -134,8 +140,9 @@ def validate_block_production_accepted(
     tx_hash: str,
     chain_file: Path,
     pending_file: Path,
+    expected_local_request_id: str = "local-wallet-send-lifecycle-2",
+    context: str = "wallet-send lifecycle block production",
 ) -> None:
-    context = "wallet-send lifecycle block production"
     require_equal(payload, "environment", "private-devnet", context)
     require_equal(payload, "network", "xriq-devnet", context)
     require_equal(payload, "endpoint", "POST /api/v1/blocks/produce", context)
@@ -192,7 +199,7 @@ def validate_block_production_accepted(
     require_equal(
         audit_event,
         "event_id",
-        "block-production:local-wallet-send-lifecycle-2",
+        f"block-production:{expected_local_request_id}",
         f"{context} audit",
     )
     require_equal(audit_event, "actor", "local-private-devnet-operator", f"{context} audit")
@@ -201,7 +208,7 @@ def validate_block_production_accepted(
     require_equal(
         audit_event,
         "resource_id",
-        "local-wallet-send-lifecycle-2",
+        expected_local_request_id,
         f"{context} audit",
     )
     metadata = audit_event.get("metadata")
@@ -215,13 +222,17 @@ def validate_block_production_accepted(
         "--enable-local-block-production",
         f"{context} metadata",
     )
-    require_equal(metadata, "local_request_id", "local-wallet-send-lifecycle-2", context)
+    require_equal(metadata, "local_request_id", expected_local_request_id, context)
     require_equal(metadata, "producer", "xriqdev1author00000000000", f"{context} metadata")
     require_equal(metadata, "confirmed_transaction_count", 1, f"{context} metadata")
 
 
-def validate_wallet_confirmed_status(payload: dict[str, Any], *, tx_hash: str) -> None:
-    context = "wallet-send lifecycle confirmed status"
+def validate_wallet_confirmed_status(
+    payload: dict[str, Any],
+    *,
+    tx_hash: str,
+    context: str = "wallet-send lifecycle confirmed status",
+) -> None:
     require_equal(payload, "environment", "private-devnet", context)
     require_equal(payload, "network", "xriq-devnet", context)
     warning = payload.get("warning")
@@ -234,8 +245,11 @@ def validate_wallet_confirmed_status(payload: dict[str, Any], *, tx_hash: str) -
     require_equal(payload, "transaction_index", 0, context)
 
 
-def validate_mempool_empty(payload: dict[str, Any]) -> None:
-    context = "wallet-send lifecycle mempool"
+def validate_mempool_empty(
+    payload: dict[str, Any],
+    *,
+    context: str = "wallet-send lifecycle mempool",
+) -> None:
     require_equal(payload, "pending_count", 0, context)
     entries = require_list(payload.get("entries"), f"{context} entries")
     if entries:
@@ -380,17 +394,171 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "/api/v1/mempool?limit=5",
         200,
         api_artifact_dir / "wallet-send-lifecycle-mempool-empty.json",
-        validate_mempool_empty,
+        lambda payload: validate_mempool_empty(payload),
     )
     completed.append("wallet-send lifecycle mempool empty")
+
+    server_chain_file = artifact_dir / "wallet-send-lifecycle-server-chain.bin"
+    server_pending_file = artifact_dir / "wallet-send-lifecycle-server-pending.tsv"
+    server_preflight_pending_file = (
+        artifact_dir / "wallet-send-lifecycle-server-preflight-pending.tsv"
+    )
+    server_preflight = run_json(
+        "create serve-readonly lifecycle base chain",
+        [
+            str(node_binary),
+            "preflight-transfer",
+            "--chain-file",
+            str(server_chain_file),
+            "--pending-file",
+            str(server_preflight_pending_file),
+            "--alice-balance",
+            "100",
+            "--from",
+            ALICE,
+            "--to",
+            BOB,
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--expires-at-height",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--format",
+            "json",
+        ],
+        cwd=xriq_dir,
+    )
+    server_base_tx_hash = require_hash(
+        server_preflight.get("transaction_hash") or server_preflight.get("tx_hash"),
+        "serve-readonly lifecycle base confirmed tx hash",
+    )
+    require_equal(server_preflight, "confirmed_block_height", 1, "server base transfer")
+    require_equal(server_preflight, "final_balance_base_units", "73", "server base transfer")
+    write_json(artifact_dir / "server-base-confirmed-transfer.json", server_preflight)
+    server_pending_file.write_text("", encoding="utf-8")
+
+    server_port = free_local_port()
+    server_bind = f"127.0.0.1:{server_port}"
+    server_base_url = f"http://{server_bind}"
+    server_process = None
+    server_tx_hash = ""
+    try:
+        server_process = start_api_readonly_server(
+            api_binary,
+            xriq_dir,
+            artifact_dir,
+            chain_file=server_chain_file,
+            pending_file=server_pending_file,
+            bind=server_bind,
+            enable_local_wallet_send=True,
+            enable_local_block_production=True,
+            stderr_log_name="api-wallet-send-lifecycle-server.stderr.log",
+        )
+        wait_for_api_readonly_server(server_base_url, server_process)
+
+        server_send_target = (
+            "/api/v1/wallet/transfers/send"
+            "?local_request_id=local-wallet-send-lifecycle-server-1"
+            f"&from_address={ALICE}&to_address={CAROL}"
+            "&amount_base_units=5&fee_base_units=2&nonce=1&expires_at_height=100"
+        )
+        server_wallet_send = http_json(
+            server_base_url,
+            server_send_target,
+            expected_status=201,
+            method="POST",
+        )
+        server_tx_hash = validate_wallet_send_accepted(
+            server_wallet_send,
+            chain_file=server_chain_file,
+            pending_file=server_pending_file,
+            expected_local_request_id="local-wallet-send-lifecycle-server-1",
+            context="serve-readonly wallet-send lifecycle accepted",
+        )
+        write_json(
+            api_artifact_dir / "wallet-send-accepted-local-server.json",
+            server_wallet_send,
+        )
+        if server_tx_hash not in server_pending_file.read_text(encoding="utf-8"):
+            raise SmokeError(
+                "serve-readonly wallet-send lifecycle: pending file did not include accepted tx"
+            )
+        completed.append("serve-readonly wallet-send accepted")
+
+        server_block_target = (
+            "/api/v1/blocks/produce?local_request_id=local-wallet-send-lifecycle-server-2"
+            "&producer=xriqdev1author00000000000&max_transactions=4&timestamp_ms=2000"
+        )
+        server_block = http_json(
+            server_base_url,
+            server_block_target,
+            expected_status=201,
+            method="POST",
+        )
+        validate_block_production_accepted(
+            server_block,
+            tx_hash=server_tx_hash,
+            chain_file=server_chain_file,
+            pending_file=server_pending_file,
+            expected_local_request_id="local-wallet-send-lifecycle-server-2",
+            context="serve-readonly wallet-send lifecycle block production",
+        )
+        write_json(
+            api_artifact_dir / "wallet-send-produced-block-local-server.json",
+            server_block,
+        )
+        completed.append("serve-readonly wallet-send produced into local block")
+
+        server_confirmed_status = http_json(
+            server_base_url,
+            f"/api/v1/wallet/transactions/{server_tx_hash}/status",
+        )
+        validate_wallet_confirmed_status(
+            server_confirmed_status,
+            tx_hash=server_tx_hash,
+            context="serve-readonly wallet-send lifecycle confirmed status",
+        )
+        write_json(
+            api_artifact_dir / "wallet-send-confirmed-status-local-server.json",
+            server_confirmed_status,
+        )
+        completed.append("serve-readonly wallet-send confirmed wallet status")
+
+        server_mempool = http_json(server_base_url, "/api/v1/mempool?limit=5")
+        validate_mempool_empty(
+            server_mempool,
+            context="serve-readonly wallet-send lifecycle mempool",
+        )
+        write_json(
+            api_artifact_dir / "wallet-send-lifecycle-mempool-empty-server.json",
+            server_mempool,
+        )
+        completed.append("serve-readonly wallet-send lifecycle mempool empty")
+
+        server_network = http_json(server_base_url, "/api/v1/network")
+        require_equal(server_network, "current_height", 2, "serve-readonly lifecycle network")
+        write_json(api_artifact_dir / "wallet-send-lifecycle-network-server.json", server_network)
+        completed.append("serve-readonly wallet-send lifecycle network height")
+    finally:
+        stop_process(server_process)
+
+    if server_pending_file.read_text(encoding="utf-8") != "":
+        raise SmokeError("serve-readonly wallet-send lifecycle: pending file was not cleared")
 
     summary = {
         "ok": "xriq-phase1-2-wallet-send-lifecycle-smoke",
         "artifact_dir": str(artifact_dir),
         "chain_file": str(chain_file),
         "pending_file": str(pending_file),
+        "serve_readonly_chain_file": str(server_chain_file),
+        "serve_readonly_pending_file": str(server_pending_file),
         "base_confirmed_tx_hash": base_tx_hash,
+        "serve_readonly_base_confirmed_tx_hash": server_base_tx_hash,
         "wallet_send_tx_hash": tx_hash,
+        "serve_readonly_wallet_send_tx_hash": server_tx_hash,
         "artifacts": {
             "base_confirmed_transfer": str(artifact_dir / "base-confirmed-transfer.json"),
             "wallet_send_accepted": str(api_artifact_dir / "wallet-send-accepted-local.json"),
@@ -401,10 +569,29 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 api_artifact_dir / "wallet-send-confirmed-status-local.json"
             ),
             "mempool_empty": str(api_artifact_dir / "wallet-send-lifecycle-mempool-empty.json"),
+            "serve_readonly_base_confirmed_transfer": str(
+                artifact_dir / "server-base-confirmed-transfer.json"
+            ),
+            "serve_readonly_wallet_send_accepted": str(
+                api_artifact_dir / "wallet-send-accepted-local-server.json"
+            ),
+            "serve_readonly_wallet_send_produced_block": str(
+                api_artifact_dir / "wallet-send-produced-block-local-server.json"
+            ),
+            "serve_readonly_wallet_send_confirmed_status": str(
+                api_artifact_dir / "wallet-send-confirmed-status-local-server.json"
+            ),
+            "serve_readonly_mempool_empty": str(
+                api_artifact_dir / "wallet-send-lifecycle-mempool-empty-server.json"
+            ),
+            "serve_readonly_network": str(
+                api_artifact_dir / "wallet-send-lifecycle-network-server.json"
+            ),
         },
         "guards": [
             "wallet send requires --enable-local-wallet-send",
             "block production requires --enable-local-block-production",
+            "serve-readonly uses explicit local wallet-send and block-production flags",
             "pending state is copied local/private-devnet state",
             "wallet send appends exactly one pending transaction",
             "block production confirms the same wallet-send transaction",

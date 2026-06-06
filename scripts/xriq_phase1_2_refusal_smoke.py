@@ -435,7 +435,7 @@ def main(argv: list[str] | None = None) -> int:
             ],
             "next": (
                 "keep wallet mutation controls disabled while adding the "
-                "serve-readonly wallet-send lifecycle smoke"
+                "Phase 1.2 lifecycle readiness summary"
             ),
         }
         (artifact_dir / "summary.json").write_text(

@@ -391,6 +391,8 @@ def start_api_readonly_server(
     bind: str,
     postgres_container: str | None = None,
     postgres_database: str | None = None,
+    enable_local_wallet_submit: bool = False,
+    enable_local_wallet_send: bool = False,
     enable_local_block_production: bool = False,
     stderr_log_name: str = "api-postgres-read-model-server.stderr.log",
 ) -> subprocess.Popen[str]:
@@ -417,6 +419,10 @@ def start_api_readonly_server(
                 postgres_database,
             ]
         )
+    if enable_local_wallet_submit:
+        command.extend(["--enable-local-wallet-submit", "true"])
+    if enable_local_wallet_send:
+        command.extend(["--enable-local-wallet-send", "true"])
     if enable_local_block_production:
         command.extend(["--enable-local-block-production", "true"])
     try:

@@ -304,12 +304,16 @@ guarded `POST /api/v1/blocks/produce` with
 `--enable-local-block-production true` to confirm that exact transaction in a
 new block, and verifies `/api/v1/wallet/transactions/{tx_hash}/status` returns
 the same transaction as confirmed at block height `2`. It also checks the
-local pending file is empty afterward. UI submit/send controls remain disabled.
+local pending file is empty afterward. The same smoke now also starts a
+temporary `xriq-api serve-readonly` process with explicit local wallet-send and
+block-production flags, repeats the wallet-send -> block-production ->
+confirmed-status flow through HTTP, verifies server network height `2`, and
+then stops the process. UI submit/send controls remain disabled.
 
-Recommended next implementation: add the matching temporary `serve-readonly`
-lifecycle smoke for wallet-send -> block-production -> confirmed status, with
-explicit local flags only. Keep default behavior and UI mutation controls
-disabled.
+Recommended next implementation: add a cheap Phase 1.2 readiness summary that
+requires the latest refusal, accepted wallet-send, and lifecycle artifacts
+before any UI mutation-control milestone is considered. Keep default behavior
+and UI mutation controls disabled.
 
 ## Validation
 
