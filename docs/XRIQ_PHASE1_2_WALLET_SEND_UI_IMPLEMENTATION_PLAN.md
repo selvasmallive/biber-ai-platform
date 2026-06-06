@@ -50,6 +50,19 @@ Current implementation:
 - Wallet submit remains disabled and deferred.
 - Block production remains separate and explicit.
 
+Current live UI smoke:
+
+- `xriq/apps/explorer-ui/scripts/check-wallet-send-ui-live.mjs` imports the
+  real `sendLocalWalletTransfer` helper through Vite SSR and calls a live
+  local/private `xriq-api serve-readonly` endpoint.
+- `scripts/xriq_phase1_2_wallet_send_ui_live_smoke.py` starts the temporary API
+  with `--enable-local-wallet-send true` only, sets
+  `VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true`, and verifies exactly one
+  pending wallet-send response through the shared UI client.
+- The smoke verifies the pending file gains the accepted transaction, the chain
+  height remains unchanged, wallet submit still returns the disabled/refused
+  response, and block production still returns the disabled/refused response.
+
 ## Allowed Implementation Shape
 
 After explicit approval, the implementation must remain narrow:
@@ -110,4 +123,10 @@ Run this implementation check after changes:
 
 ```bash
 python scripts/xriq_phase1_2_wallet_send_ui_plan_check.py
+```
+
+Run this local live smoke when refreshing the server-backed UI evidence:
+
+```bash
+python scripts/xriq_phase1_2_wallet_send_ui_live_smoke.py
 ```

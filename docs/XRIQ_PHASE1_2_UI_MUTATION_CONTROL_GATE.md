@@ -78,7 +78,8 @@ The approved wallet-send implementation must stay narrow:
   marker, and resulting pending transaction hash.
 - Keep block production a separate explicit local action; wallet send must not
   silently produce blocks.
-- Add a local UI smoke artifact before any RC or tag.
+- Keep a local UI smoke artifact current before any RC or tag. The current
+  live-smoke path is `scripts/xriq_phase1_2_wallet_send_ui_live_smoke.py`.
 
 ## Approval Required
 

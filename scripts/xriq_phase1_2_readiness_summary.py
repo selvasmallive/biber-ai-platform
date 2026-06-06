@@ -413,8 +413,8 @@ def main(argv: list[str] | None = None) -> int:
                 "production infrastructure",
             ],
             "next": (
-                "run the wallet-send UI implementation checks and add a local "
-                "UI smoke with the wallet-send feature switch enabled"
+                "run the wallet-send UI implementation and live-smoke checks "
+                "before considering any additional UI mutation-control scope"
             ),
         }
         write_summary(artifact_dir / "summary.json", report)

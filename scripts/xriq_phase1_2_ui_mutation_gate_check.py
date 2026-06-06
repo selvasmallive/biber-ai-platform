@@ -294,8 +294,8 @@ def main(argv: list[str] | None = None) -> int:
             "wallet_submit_deferred": True,
             "approval_required_before_ui_mutation_controls": True,
             "next": (
-                "add a local UI smoke against xriq-api serve-readonly with the "
-                "wallet-send feature switch enabled, keeping wallet submit deferred"
+                "keep the wallet-send UI live smoke evidence current before any "
+                "additional UI mutation-control scope is considered"
             ),
         }
         write_summary(artifact_dir / "summary.json", report)

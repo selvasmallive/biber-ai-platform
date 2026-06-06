@@ -8,6 +8,7 @@
     "check": "node scripts/check-static.mjs && node scripts/check-wallet-submit-accepted-contract.mjs && node scripts/check-wallet-send-accepted-contract.mjs && node scripts/check-wallet-send-ui-control.mjs",
     "check:wallet-submit": "node scripts/check-wallet-submit-accepted-contract.mjs",
     "check:wallet-send": "node scripts/check-wallet-send-accepted-contract.mjs",
+    "check:wallet-send-ui-live": "node scripts/check-wallet-send-ui-live.mjs",
     "check:postgres-ui": "node scripts/check-postgres-ui-state.mjs",
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",

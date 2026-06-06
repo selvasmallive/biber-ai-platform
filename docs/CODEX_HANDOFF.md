@@ -235,7 +235,7 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `66%` overall after the initial
+- Phase 1.2 estimated completion: about `68%` overall after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
   submit/send, React/client disabled-action guard coverage, and audit-event
@@ -262,7 +262,9 @@ unless the user changes the project scope again.
   mutation-control gate document and checker, plus the approved local
   wallet-send UI implementation behind
   `VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true`, using the shared API client and
-  keeping wallet submit deferred. It is not a public launch phase. Its current
+  keeping wallet submit deferred, plus the first server-backed wallet-send UI
+  live smoke against a temporary local/private `serve-readonly` API with only
+  `--enable-local-wallet-send true` enabled. It is not a public launch phase. Its current
   target is defining and hardening local-only action contracts before broader
   UI mutation controls, snapshot-mutation, DEX, custody, public network
   behavior, or production infrastructure are implemented.
@@ -542,7 +544,7 @@ to save cost.
   Verification passed bundled-Python `py_compile` and bundled-Python
   `scripts/xriq_phase1_2_readiness_summary.py`.
   Latest artifact:
-  `xriq/target/xriq-phase1-2-readiness-summary-20260606T225704Z/summary.json`.
+  `xriq/target/xriq-phase1-2-readiness-summary-20260606T233217Z/summary.json`.
 - Latest native XRIQ Phase 1.2 UI mutation-control gate checkpoint:
   `docs/XRIQ_PHASE1_2_UI_MUTATION_CONTROL_GATE.md` now records the user's
   explicit 2026-06-06 approval for local/private-devnet wallet-send UI only,
@@ -558,7 +560,7 @@ to save cost.
   Verification passed bundled-Python `py_compile` and bundled-Python
   `scripts/xriq_phase1_2_ui_mutation_gate_check.py`.
   Latest artifact:
-  `xriq/target/xriq-phase1-2-ui-mutation-gate-check-20260606T225719Z/summary.json`.
+  `xriq/target/xriq-phase1-2-ui-mutation-gate-check-20260606T233155Z/summary.json`.
 - Latest native XRIQ Phase 1.2 wallet-send UI implementation checkpoint:
   `docs/XRIQ_PHASE1_2_WALLET_SEND_UI_IMPLEMENTATION_PLAN.md` now records the
   approved implementation. `xriq/apps/explorer-ui/src/api.ts` exposes
@@ -585,7 +587,33 @@ to save cost.
   and escalated `npm.cmd run build` after the sandboxed build hit the known
   Windows Vite/esbuild config access denial.
   Latest artifact:
-  `xriq/target/xriq-phase1-2-wallet-send-ui-plan-check-20260606T225719Z/summary.json`.
+  `xriq/target/xriq-phase1-2-wallet-send-ui-plan-check-20260606T233155Z/summary.json`.
+- Latest native XRIQ Phase 1.2 wallet-send UI live smoke checkpoint:
+  added `xriq/apps/explorer-ui/scripts/check-wallet-send-ui-live.mjs`, which
+  uses Vite SSR to import the real `sendLocalWalletTransfer` helper from
+  `xriq/apps/explorer-ui/src/api.ts`, requires
+  `VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true`, and calls a live
+  local/private `xriq-api serve-readonly` endpoint. Added
+  `scripts/xriq_phase1_2_wallet_send_ui_live_smoke.py`, a CPU-only local
+  orchestrator that builds `xriq-node`/`xriq-api`, creates a fresh temporary
+  private-devnet chain, starts `serve-readonly` with
+  `--enable-local-wallet-send true` only, runs
+  `npm.cmd run check:wallet-send-ui-live`, verifies exactly one accepted
+  pending wallet-send response through the shared UI client, verifies the
+  pending file contains the accepted transaction, verifies chain height remains
+  `1`, verifies wallet submit still returns the disabled/refused response
+  without `--enable-local-wallet-submit`, and verifies block production still
+  returns the disabled/refused response without
+  `--enable-local-block-production`. The smoke does not enable wallet submit,
+  does not produce a block, does not accept signing/custody material, and does
+  not touch Docker, GCP, Vast, public network, DEX, smart-contract, custody,
+  bridge, exchange-listing, or production infrastructure scope.
+  Verification passed bundled-Python `py_compile`, `npm.cmd run check`,
+  bundled-Python
+  `scripts/xriq_phase1_2_wallet_send_ui_live_smoke.py --skip-build`, and
+  bundled-Python `scripts/xriq_phase1_2_wallet_send_ui_live_smoke.py`.
+  Latest artifact:
+  `xriq/target/xriq-phase1-2-wallet-send-ui-live-smoke-20260606T232950Z/summary.json`.
 - Latest native XRIQ Phase 1.2 Admin UI block-production guard checkpoint:
   the React Admin Status panel now includes `Admin Action Guards` with a
   disabled `Produce Block` control and an explicit `Check Guard` action. The
@@ -824,11 +852,10 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: add a local UI smoke against
-  `xriq-api serve-readonly` with `--enable-local-wallet-send true` and
-  `VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true`, proving the UI can accept one
-  wallet-send response through the feature-switched control while wallet submit
-  remains deferred and block production remains separate. Keep snapshot
+- Recommended next narrow step: add a read-only wallet refresh smoke after an
+  accepted local wallet send, proving the updated pending transaction is
+  visible through existing snapshot/mempool/wallet-activity rendering without
+  enabling wallet submit or implicit block production. Keep snapshot
   import/export mutation, DEX, smart contracts, public mainnet, custody,
   bridges, exchange listings, and production infrastructure out of scope until
   explicitly approved.

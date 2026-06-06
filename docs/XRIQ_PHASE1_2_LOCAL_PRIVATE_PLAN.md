@@ -354,10 +354,24 @@ markers, and no sensitive signing/custody field names.
 `scripts/xriq_phase1_2_wallet_send_ui_plan_check.py` validates the gate, docs,
 source markers, and feature-switch constraint.
 
-Recommended next implementation: add a local UI smoke against
-`xriq-api serve-readonly` with `--enable-local-wallet-send true` and
-`VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true`, while keeping wallet submit
-deferred and block production separate.
+Current wallet-send UI live smoke checkpoint:
+`xriq/apps/explorer-ui/scripts/check-wallet-send-ui-live.mjs` now imports the
+real `sendLocalWalletTransfer` helper through Vite SSR and calls a temporary
+local/private `xriq-api serve-readonly` endpoint. The orchestrator
+`scripts/xriq_phase1_2_wallet_send_ui_live_smoke.py` creates a fresh temporary
+private-devnet chain, starts `serve-readonly` with
+`--enable-local-wallet-send true` only, sets
+`VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true`, and verifies that the
+feature-switched UI client accepts exactly one pending wallet-send response.
+The smoke verifies that the pending file gains the accepted transaction, the
+chain height remains unchanged, wallet submit remains refused without
+`--enable-local-wallet-submit`, and block production remains refused without
+`--enable-local-block-production`.
+
+Recommended next implementation: add a narrow read-only wallet refresh smoke
+after an accepted local wallet send, proving the updated pending transaction is
+visible through existing snapshot/mempool/wallet-activity rendering without
+enabling wallet submit or implicit block production.
 
 ## Validation
 
@@ -402,4 +416,10 @@ For the current wallet-send UI implementation checkpoint, use:
 ```bash
 python scripts/xriq_phase1_2_wallet_send_ui_plan_check.py
 npm run check
+```
+
+For the current wallet-send UI live smoke checkpoint, use:
+
+```bash
+python scripts/xriq_phase1_2_wallet_send_ui_live_smoke.py
 ```
