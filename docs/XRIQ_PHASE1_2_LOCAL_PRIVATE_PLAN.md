@@ -334,9 +334,20 @@ buttons only, no direct wallet submit/send endpoint strings, no direct
 `fetch(`, no browser persistence markers, and no sensitive signing/custody
 field names. UI submit/send controls remain disabled.
 
-Recommended next implementation: request explicit approval naming this gate and
-the exact local/private wallet action before implementing any wallet submit/send
-UI mutation control. Keep default behavior and UI mutation controls disabled.
+Current wallet-send UI implementation review-plan checkpoint:
+`docs/XRIQ_PHASE1_2_WALLET_SEND_UI_IMPLEMENTATION_PLAN.md` now defines the
+first review-only UI mutation candidate: local/private-devnet wallet send only,
+with wallet submit deferred. `scripts/xriq_phase1_2_wallet_send_ui_plan_check.py`
+validates the plan, the gate summary, the existing disabled wallet UI source,
+the static UI guardrails, and the shared wallet-send accepted-response
+validator. It also confirms implementation has not started, the wallet UI has
+no feature switch or accepted-response mutation path, and UI submit/send
+controls remain disabled.
+
+Recommended next implementation: wait for explicit user approval naming the
+Phase 1.2 UI mutation-control gate and the exact `wallet-send` action before
+implementing any wallet-send UI mutation control. Keep default behavior and UI
+mutation controls disabled.
 
 ## Validation
 
@@ -374,4 +385,10 @@ For the current UI mutation-control gate checkpoint, use:
 
 ```bash
 python scripts/xriq_phase1_2_ui_mutation_gate_check.py
+```
+
+For the current wallet-send UI implementation review-plan checkpoint, use:
+
+```bash
+python scripts/xriq_phase1_2_wallet_send_ui_plan_check.py
 ```

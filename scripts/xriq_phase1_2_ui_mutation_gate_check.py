@@ -37,7 +37,7 @@ REQUIRED_GATE_MARKERS = [
 REQUIRED_PLAN_MARKERS = [
     "Current Phase 1.2 readiness summary checkpoint:",
     "Current UI mutation-control design gate checkpoint:",
-    "Recommended next implementation: request explicit approval naming this gate",
+    "Recommended next implementation: wait for explicit user approval",
 ]
 
 REQUIRED_WALLET_MARKERS = [
@@ -251,8 +251,8 @@ def main(argv: list[str] | None = None) -> int:
             [
                 "Latest native XRIQ Phase 1.2 readiness-summary checkpoint:",
                 "Latest native XRIQ Phase 1.2 UI mutation-control gate checkpoint:",
-                "Recommended next narrow step: request explicit approval naming the Phase 1.2",
-                "UI mutation-control gate and the exact local/private wallet action",
+                "Recommended next narrow step: wait for the user to explicitly approve",
+                "local/private-devnet wallet-send UI mutation control behind the UI",
             ],
             "handoff",
         )
@@ -275,8 +275,9 @@ def main(argv: list[str] | None = None) -> int:
             "safe_to_enable_ui_mutation_controls": False,
             "approval_required_before_ui_mutation_controls": True,
             "next": (
-                "request explicit approval naming this gate before implementing "
-                "any local/private wallet submit/send UI mutation control"
+                "review the wallet-send UI implementation plan and require "
+                "explicit approval before implementing any local/private wallet "
+                "submit/send UI mutation control"
             ),
         }
         write_summary(artifact_dir / "summary.json", report)
