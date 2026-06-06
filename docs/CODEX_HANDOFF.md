@@ -235,7 +235,7 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `60%` overall after the initial
+- Phase 1.2 estimated completion: about `62%` overall after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
   submit/send, React/client disabled-action guard coverage, and audit-event
@@ -258,7 +258,8 @@ unless the user changes the project scope again.
   back as confirmed in both one-shot request mode and temporary
   `serve-readonly` HTTP mode, plus the first readiness-summary gate requiring
   refusal, accepted wallet-send, and lifecycle evidence before any UI
-  mutation-control milestone is considered. It is not a public launch phase.
+  mutation-control milestone is considered, plus a review-only UI
+  mutation-control gate document and checker. It is not a public launch phase.
   Its current target is defining and hardening local-only action contracts
   before any UI mutation controls, snapshot-mutation, DEX, custody, public
   network behavior, or production infrastructure are implemented.
@@ -538,7 +539,24 @@ to save cost.
   Verification passed bundled-Python `py_compile` and bundled-Python
   `scripts/xriq_phase1_2_readiness_summary.py`.
   Latest artifact:
-  `xriq/target/xriq-phase1-2-readiness-summary-20260606T213813Z/summary.json`.
+  `xriq/target/xriq-phase1-2-readiness-summary-20260606T223054Z/summary.json`.
+- Latest native XRIQ Phase 1.2 UI mutation-control gate checkpoint:
+  added `docs/XRIQ_PHASE1_2_UI_MUTATION_CONTROL_GATE.md` as the review-only
+  gate that must be followed before any React wallet submit/send mutation
+  control is enabled. Added
+  `scripts/xriq_phase1_2_ui_mutation_gate_check.py`, a CPU-only local checker
+  that validates the gate document, latest readiness summary, disabled wallet
+  action-guard UI source, static UI guardrails, and shared accepted-response
+  validators. The checker verifies current wallet submit/send buttons remain
+  disabled, `Check Guards` remains the only active guard action, wallet UI
+  source still has no direct submit/send endpoint strings or direct `fetch(`,
+  and wallet UI source still has no browser persistence or sensitive
+  signing/custody field names. This checkpoint does not enable UI submit/send
+  controls and does not add any wallet mutation request path in React.
+  Verification passed bundled-Python `py_compile` and bundled-Python
+  `scripts/xriq_phase1_2_ui_mutation_gate_check.py`.
+  Latest artifact:
+  `xriq/target/xriq-phase1-2-ui-mutation-gate-check-20260606T223116Z/summary.json`.
 - Latest native XRIQ Phase 1.2 Admin UI block-production guard checkpoint:
   the React Admin Status panel now includes `Admin Action Guards` with a
   disabled `Produce Block` control and an explicit `Check Guard` action. The
@@ -777,12 +795,13 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: draft the Phase 1.2 UI mutation-control
-  design/review gate before enabling any wallet submit/send controls. Keep
-  default wallet mutation disabled, keep UI mutation controls disabled, and
-  keep snapshot import/export mutation, DEX, smart contracts, public mainnet,
-  custody, bridges, exchange listings, and production infrastructure out of
-  scope until explicitly approved.
+- Recommended next narrow step: request explicit approval naming the Phase 1.2
+  UI mutation-control gate and the exact local/private wallet action before
+  implementing any wallet submit/send UI mutation control. Keep default wallet
+  mutation disabled, keep UI mutation controls disabled, and keep snapshot
+  import/export mutation, DEX, smart contracts, public mainnet, custody,
+  bridges, exchange listings, and production infrastructure out of scope until
+  explicitly approved.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return

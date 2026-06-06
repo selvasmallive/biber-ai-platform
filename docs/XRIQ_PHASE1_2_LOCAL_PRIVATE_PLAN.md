@@ -323,9 +323,20 @@ lifecycle evidence, and required artifact file paths. It reports
 `safe_to_enable_ui_mutation_controls: false`, and
 `approval_required_before_ui_mutation_controls: true`.
 
-Recommended next implementation: draft the Phase 1.2 UI mutation-control
-design/review gate before enabling any wallet submit/send controls. Keep
-default behavior and UI mutation controls disabled.
+Current UI mutation-control design gate checkpoint:
+`docs/XRIQ_PHASE1_2_UI_MUTATION_CONTROL_GATE.md` now defines the review-only
+gate that must be followed before any React wallet submit/send mutation control
+is enabled. `scripts/xriq_phase1_2_ui_mutation_gate_check.py` validates the
+gate document, the latest readiness summary, the existing disabled wallet UI
+guard source, the static UI guardrails, and the shared accepted-response
+validators. It also verifies the current UI still has disabled submit/send
+buttons only, no direct wallet submit/send endpoint strings, no direct
+`fetch(`, no browser persistence markers, and no sensitive signing/custody
+field names. UI submit/send controls remain disabled.
+
+Recommended next implementation: request explicit approval naming this gate and
+the exact local/private wallet action before implementing any wallet submit/send
+UI mutation control. Keep default behavior and UI mutation controls disabled.
 
 ## Validation
 
@@ -357,4 +368,10 @@ For the current readiness-summary checkpoint, use:
 
 ```bash
 python scripts/xriq_phase1_2_readiness_summary.py
+```
+
+For the current UI mutation-control gate checkpoint, use:
+
+```bash
+python scripts/xriq_phase1_2_ui_mutation_gate_check.py
 ```
