@@ -464,7 +464,10 @@ selected readiness, UI mutation-control, and block-production design summaries,
 which prevents stale RC evidence from being tagged. It must pass before any
 explicitly approved Phase 1.2 RC tag is created or pushed. Add
 `--write-summary` when a timestamped `summary.json` evidence artifact under
-`xriq/target/` is needed.
+`xriq/target/` is needed. The summary includes a `release_decision` object that
+records that a generic continue request is not approval, lists the exact
+approval phrase, and separates allowed no-approval actions from post-approval
+tag commands.
 
 ## Validation
 

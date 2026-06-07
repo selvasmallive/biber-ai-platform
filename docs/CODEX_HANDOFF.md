@@ -785,7 +785,10 @@ to save cost.
   clean-git/origin-main/tag-absent conditions. The guard now also fails if the
   candidate report does not reference the selected/latest readiness,
   UI mutation-control, and block-production design summaries, preventing stale
-  RC evidence from being tagged. It can also write a timestamped ignored
+  RC evidence from being tagged. The guard output now includes
+  `release_decision.generic_continue_is_approval: false`, the exact approval
+  phrase, allowed no-approval actions, allowed post-approval commands, and
+  prohibited tag/scope actions. It can also write a timestamped ignored
   evidence artifact under `xriq/target/` with `--write-summary`. Use
   `python scripts/xriq_phase1_2_rc_readiness.py` for a cheap local check, and
   after an exact explicit tag approval, run

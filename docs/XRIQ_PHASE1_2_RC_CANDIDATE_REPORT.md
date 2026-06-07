@@ -110,6 +110,9 @@ the selected readiness summary, UI mutation-control gate, and block-production
 UI design check, validates the required smoke evidence, checks the
 handoff/plan/gate doc references, and confirms absence of the proposed
 local/remote tag. It does not create, move, or push any tag.
+Its output includes `release_decision.generic_continue_is_approval: false`,
+the exact approval phrase, the allowed no-approval actions, the allowed
+post-approval commands, and the prohibited tag/scope actions.
 When a saved evidence file is useful, add `--write-summary`; the script writes
 a timestamped `summary.json` under `xriq/target/`.
 

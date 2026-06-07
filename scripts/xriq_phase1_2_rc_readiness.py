@@ -542,6 +542,37 @@ def verify_git(require_clean: bool, require_origin_main: bool) -> dict[str, Any]
     return result
 
 
+def release_decision() -> dict[str, Any]:
+    return {
+        "human_decision_required": True,
+        "generic_continue_is_approval": False,
+        "exact_approval_phrase_required": APPROVAL_PHRASE,
+        "proposed_tag": PROPOSED_TAG,
+        "tag_created_by_this_guard": False,
+        "allowed_without_exact_approval": [
+            "run non-mutating readiness guardrails",
+            "save ignored readiness evidence under xriq/target",
+            "ask the user for the Phase 1.2 RC decision",
+            "make one more narrow local/private hardening fix",
+        ],
+        "allowed_after_exact_approval": [
+            (
+                "python scripts/xriq_phase1_2_rc_readiness.py "
+                "--require-clean-git --require-origin-main --require-tag-absent "
+                "--write-summary"
+            ),
+            f"git tag {PROPOSED_TAG}",
+            f"git push origin {PROPOSED_TAG}",
+        ],
+        "prohibited_without_exact_approval": [
+            f"git tag {PROPOSED_TAG}",
+            f"git push origin {PROPOSED_TAG}",
+            f"moving or recreating {PROPOSED_TAG}",
+            "broadening scope into public mainnet, DEX, custody, smart contracts, or production infrastructure",
+        ],
+    }
+
+
 def resolve_output_dir(path: Path | None) -> Path:
     output_dir = path or default_artifact_dir()
     if not output_dir.is_absolute():
@@ -600,6 +631,7 @@ def main(argv: list[str] | None = None) -> int:
             "scope": "local-private-post-rc-hardening",
             "non_mutating": True,
             "tag_created": False,
+            "release_decision": release_decision(),
             "candidate": verify_candidate_report(
                 readiness_summary,
                 ui_gate_summary,
