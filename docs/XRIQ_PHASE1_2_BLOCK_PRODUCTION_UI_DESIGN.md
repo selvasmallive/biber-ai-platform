@@ -108,6 +108,22 @@ Current Admin refresh smoke:
 python scripts/xriq_phase1_2_block_production_admin_refresh_smoke.py
 ```
 
+Current no-pending negative smoke:
+
+- requires the feature switch so the local block-production control source is
+  loaded,
+- starts the API with `--enable-local-block-production true` but no pending
+  transactions,
+- calls the shared `produceLocalBlockNoPendingRefusal` helper,
+- verifies HTTP `400` `no_pending_transactions`,
+- verifies Admin rows stay at height `1` with zero pending transactions,
+- verifies network, mempool, and pending-file state are unchanged, and
+- keeps wallet send and wallet submit disabled in this smoke.
+
+```bash
+python scripts/xriq_phase1_2_block_production_no_pending_smoke.py
+```
+
 ## Validation
 
 Run this implementation design check after edits:

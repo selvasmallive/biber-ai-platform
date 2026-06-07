@@ -424,6 +424,21 @@ while verifying wallet submit remains refused. The Admin read-only status rows
 remain disabled labels; the explicit local action remains controlled by the
 feature switch and API flag.
 
+Current block-production no-pending negative smoke checkpoint:
+`xriq/apps/explorer-ui/src/api.ts` now includes
+`produceLocalBlockNoPendingRefusal` and
+`validateLocalBlockProductionNoPendingContract` for the stable HTTP `400`
+`no_pending_transactions` response. The new
+`xriq/apps/explorer-ui/scripts/check-block-production-no-pending-live.mjs`
+uses Vite SSR to load Admin rows, call the shared no-pending refusal helper,
+reload Admin rows, and verify height, pending count, first pending hash, and
+wallet transaction status stay unchanged. The orchestrator
+`scripts/xriq_phase1_2_block_production_no_pending_smoke.py` runs this against
+a fresh temporary `serve-readonly` API with
+`--enable-local-block-production true`, an empty local pending file, wallet
+submit disabled, and wallet send disabled. It also verifies the direct API
+refusal, network height, mempool count, and pending file stay unchanged.
+
 ## Validation
 
 For Phase 1.2 docs-only planning checkpoints, use:
@@ -497,4 +512,10 @@ For the current block-production Admin refresh smoke checkpoint, use:
 
 ```bash
 python scripts/xriq_phase1_2_block_production_admin_refresh_smoke.py
+```
+
+For the current block-production no-pending negative smoke checkpoint, use:
+
+```bash
+python scripts/xriq_phase1_2_block_production_no_pending_smoke.py
 ```

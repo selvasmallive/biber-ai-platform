@@ -12,6 +12,7 @@
     "check:wallet-send-refresh-live": "node scripts/check-wallet-send-refresh-live.mjs",
     "check:block-production-ui-live": "node scripts/check-block-production-ui-live.mjs",
     "check:block-production-admin-refresh-live": "node scripts/check-block-production-admin-refresh-live.mjs",
+    "check:block-production-no-pending-live": "node scripts/check-block-production-no-pending-live.mjs",
     "check:postgres-ui": "node scripts/check-postgres-ui-state.mjs",
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",

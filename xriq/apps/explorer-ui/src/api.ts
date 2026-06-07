@@ -289,6 +289,8 @@ export const LOCAL_WALLET_SEND_ACCEPTED_CODE =
 export const LOCAL_WALLET_SEND_ACCEPTED_MUTATION = "pending_state_only";
 export const LOCAL_BLOCK_PRODUCTION_ACCEPTED_CODE =
   "block_production_accepted_local_only";
+export const LOCAL_BLOCK_PRODUCTION_NO_PENDING_CODE =
+  "no_pending_transactions";
 export const LOCAL_BLOCK_PRODUCTION_ACCEPTED_AUDIT_SCOPE = "api-local-accepted";
 export const LOCAL_BLOCK_PRODUCTION_ACCEPTED_MUTATION =
   "chain_and_pending_state_local_only";
@@ -314,6 +316,13 @@ export interface LocalMutationRefusalResponse {
 }
 
 export type WalletMutationRefusalResponse = LocalMutationRefusalResponse;
+
+export interface LocalApiErrorResponse {
+  error: {
+    code: string;
+    message: string;
+  };
+}
 
 export interface LocalWalletSubmitPendingTransaction {
   tx_hash: string;
@@ -541,6 +550,8 @@ export interface LocalBlockProductionAcceptedExpectations {
   producer?: string;
   maxTransactions?: number;
 }
+
+export type LocalBlockProductionNoPendingResponse = LocalApiErrorResponse;
 
 export interface MempoolEntry {
   tx_hash: string;
@@ -961,6 +972,47 @@ export async function produceLocalBlock(
     throw new Error(errors.join("; "));
   }
   return data;
+}
+
+export async function produceLocalBlockNoPendingRefusal(
+  baseUrl: string,
+  request: LocalBlockProductionRequest,
+): Promise<LocalBlockProductionNoPendingResponse> {
+  const params = new URLSearchParams({
+    local_request_id: request.local_request_id,
+    producer: request.producer,
+    max_transactions: request.max_transactions,
+    timestamp_ms: request.timestamp_ms,
+  });
+  if (request.consensus_round?.trim()) {
+    params.set("consensus_round", request.consensus_round.trim());
+  }
+  const data = await fetchJson<LocalBlockProductionNoPendingResponse>(
+    normalizeBaseUrl(baseUrl),
+    `${BLOCK_PRODUCTION_REFUSAL_PATH}?${params.toString()}`,
+    {
+      method: "POST",
+      acceptedStatuses: [400],
+    },
+  );
+  const errors = validateLocalBlockProductionNoPendingContract(data);
+  if (errors.length > 0) {
+    throw new Error(errors.join("; "));
+  }
+  return data;
+}
+
+export function validateLocalBlockProductionNoPendingContract(
+  data: LocalBlockProductionNoPendingResponse,
+): string[] {
+  const errors: string[] = [];
+  if (data.error.code !== LOCAL_BLOCK_PRODUCTION_NO_PENDING_CODE) {
+    errors.push(`code must be ${LOCAL_BLOCK_PRODUCTION_NO_PENDING_CODE}`);
+  }
+  if (!data.error.message.includes("at least one pending transaction")) {
+    errors.push("message must explain that at least one pending transaction is required");
+  }
+  return errors;
 }
 
 export function validateLocalBlockProductionAcceptedContract(

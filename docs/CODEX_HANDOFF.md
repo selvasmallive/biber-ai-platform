@@ -236,7 +236,7 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `74%` overall after the initial
+- Phase 1.2 estimated completion: about `75%` overall after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
   submit/send, React/client disabled-action guard coverage, and audit-event
@@ -274,7 +274,10 @@ unless the user changes the project scope again.
   proving one pending transaction can be produced into exactly one local block
   through a temporary `serve-readonly` live smoke, plus a post-production Admin
   refresh smoke proving the same Admin Status row helper moves from height `1`
-  with one pending transaction to height `2` with zero pending transactions.
+  with one pending transaction to height `2` with zero pending transactions,
+  plus a no-pending negative block-production smoke proving HTTP `400`
+  `no_pending_transactions` leaves Admin rows, network height, mempool count,
+  and the pending file unchanged when there are no transactions to include.
   It is not a public launch phase. Its current
   target is defining and hardening local-only action contracts before broader
   UI mutation controls, snapshot-mutation, DEX, custody, public network
@@ -669,11 +672,12 @@ to save cost.
   disabled `Produce Block` refusal guard remains available separately. Wallet
   send remains separate and explicit; wallet submit remains deferred. The
   checker now verifies the implementation markers, docs, latest wallet-send
-  refresh evidence, latest block-production UI live evidence, no direct Admin
+  refresh evidence, latest block-production UI live evidence, latest Admin
+  refresh evidence, latest no-pending negative evidence, no direct Admin
   `fetch(`, no hard-coded block-production endpoint path in Admin UI source, no
   browser persistence markers, and no sensitive signing/custody field names.
   Latest design-check artifact:
-  `xriq/target/xriq-phase1-2-block-production-ui-design-check-20260607T111018Z/summary.json`.
+  `xriq/target/xriq-phase1-2-block-production-ui-design-check-20260607T112201Z/summary.json`.
 - Latest native XRIQ Phase 1.2 block-production UI live smoke checkpoint:
   added `xriq/apps/explorer-ui/scripts/check-block-production-ui-control.mjs`,
   `xriq/apps/explorer-ui/scripts/check-block-production-ui-live.mjs`, and
@@ -718,6 +722,29 @@ to save cost.
   `scripts/xriq_phase1_2_block_production_admin_refresh_smoke.py`.
   Latest artifact:
   `xriq/target/xriq-phase1-2-block-production-admin-refresh-smoke-20260607T110810Z/summary.json`.
+- Latest native XRIQ Phase 1.2 block-production no-pending negative smoke checkpoint:
+  `xriq/apps/explorer-ui/src/api.ts` now exposes
+  `produceLocalBlockNoPendingRefusal` and
+  `validateLocalBlockProductionNoPendingContract` for the stable HTTP `400`
+  `no_pending_transactions` response. Added
+  `xriq/apps/explorer-ui/scripts/check-block-production-no-pending-live.mjs`
+  and `scripts/xriq_phase1_2_block_production_no_pending_smoke.py`. The smoke
+  starts a temporary local/private `serve-readonly` API with
+  `--enable-local-block-production true`, an empty pending file, wallet send
+  disabled, and wallet submit disabled, sets
+  `VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true`, verifies Admin rows stay
+  at height `1` with zero pending transactions before and after the shared
+  client refusal helper, verifies the direct API refusal returns
+  `no_pending_transactions`, and verifies network height, mempool count, and
+  pending-file contents remain unchanged. Verification passed `node --check`,
+  bundled-Python `py_compile`, `npm.cmd run check`, bundled-Python
+  `scripts/xriq_phase1_2_block_production_no_pending_smoke.py --skip-build`,
+  and bundled-Python
+  `scripts/xriq_phase1_2_block_production_no_pending_smoke.py`. The sandboxed
+  `npm.cmd run build` hit the known Vite/esbuild access-denied path; rerunning
+  the same command with approved escalation passed.
+  Latest artifact:
+  `xriq/target/xriq-phase1-2-block-production-no-pending-smoke-20260607T112046Z/summary.json`.
 - Latest native XRIQ Phase 1.2 Admin UI block-production guard checkpoint:
   the React Admin Status panel now includes `Admin Action Guards` with a
   disabled `Produce Block` control and an explicit `Check Guard` action. The
@@ -956,12 +983,12 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: add a small negative-path Admin refresh smoke
-  for no-pending block production or keep the current block-production Admin
-  refresh smoke evidence current before any Phase 1.2 RC decision. Keep wallet
-  submit, snapshot import/export mutation, DEX, smart contracts, public
-  mainnet, custody, bridges, exchange listings, and production infrastructure
-  out of scope until explicitly approved.
+- Recommended next narrow step: update the Phase 1.2 readiness summary/gate to
+  require the latest block-production UI live, Admin refresh, and no-pending
+  negative smoke evidence before any Phase 1.2 RC decision. Keep wallet submit,
+  snapshot import/export mutation, DEX, smart contracts, public mainnet,
+  custody, bridges, exchange listings, and production infrastructure out of
+  scope until explicitly approved.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return

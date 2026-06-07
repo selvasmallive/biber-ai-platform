@@ -7,6 +7,7 @@ const requiredFiles = [
   "index.html",
   "package.json",
   "scripts/check-block-production-admin-refresh-live.mjs",
+  "scripts/check-block-production-no-pending-live.mjs",
   "scripts/check-block-production-ui-control.mjs",
   "scripts/check-block-production-ui-live.mjs",
   "scripts/check-postgres-ui-state.mjs",
@@ -130,6 +131,12 @@ for (const requiredText of [
   "LocalBlockProductionRequest",
   "produceLocalBlock",
   "acceptedStatuses: [201]",
+  "LocalBlockProductionNoPendingResponse",
+  "validateLocalBlockProductionNoPendingContract",
+  "LOCAL_BLOCK_PRODUCTION_NO_PENDING_CODE",
+  "produceLocalBlockNoPendingRefusal",
+  "no_pending_transactions",
+  "acceptedStatuses: [400]",
 ]) {
   if (!apiSource.includes(requiredText)) {
     throw new Error(`missing accepted block-production API marker: ${requiredText}`);

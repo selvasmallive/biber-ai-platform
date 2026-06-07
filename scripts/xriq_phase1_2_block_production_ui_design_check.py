@@ -31,10 +31,19 @@ ADMIN_REFRESH_UI_CHECK = (
     / "scripts"
     / "check-block-production-admin-refresh-live.mjs"
 )
+NO_PENDING_UI_CHECK = (
+    ROOT
+    / "xriq"
+    / "apps"
+    / "explorer-ui"
+    / "scripts"
+    / "check-block-production-no-pending-live.mjs"
+)
 LIVE_SMOKE = ROOT / "scripts" / "xriq_phase1_2_block_production_ui_live_smoke.py"
 ADMIN_REFRESH_SMOKE = (
     ROOT / "scripts" / "xriq_phase1_2_block_production_admin_refresh_smoke.py"
 )
+NO_PENDING_SMOKE = ROOT / "scripts" / "xriq_phase1_2_block_production_no_pending_smoke.py"
 
 REQUIRED_DESIGN_MARKERS = [
     "Design Status: Approved And Implemented Behind Feature Switch",
@@ -49,6 +58,7 @@ REQUIRED_DESIGN_MARKERS = [
     "Current implementation:",
     "Current live UI smoke:",
     "Current Admin refresh smoke:",
+    "Current no-pending negative smoke:",
 ]
 
 REQUIRED_GATE_MARKERS = [
@@ -64,6 +74,7 @@ REQUIRED_PHASE_PLAN_MARKERS = [
     "Current block-production UI design checkpoint:",
     "Current block-production UI live smoke checkpoint:",
     "Current block-production Admin refresh smoke checkpoint:",
+    "Current block-production no-pending negative smoke checkpoint:",
 ]
 
 REQUIRED_HANDOFF_MARKERS = [
@@ -71,6 +82,7 @@ REQUIRED_HANDOFF_MARKERS = [
     "Latest native XRIQ Phase 1.2 block-production UI design checkpoint:",
     "Latest native XRIQ Phase 1.2 block-production UI live smoke checkpoint:",
     "Latest native XRIQ Phase 1.2 block-production Admin refresh smoke checkpoint:",
+    "Latest native XRIQ Phase 1.2 block-production no-pending negative smoke checkpoint:",
 ]
 
 REQUIRED_ADMIN_DISABLED_MARKERS = [
@@ -115,6 +127,12 @@ REQUIRED_API_MARKERS = [
     "BLOCK_PRODUCTION_REFUSAL_ENDPOINT",
     "loadBlockProductionRefusal",
     "acceptedStatuses: [201]",
+    "LocalBlockProductionNoPendingResponse",
+    "validateLocalBlockProductionNoPendingContract",
+    "LOCAL_BLOCK_PRODUCTION_NO_PENDING_CODE",
+    "produceLocalBlockNoPendingRefusal",
+    "no_pending_transactions",
+    "acceptedStatuses: [400]",
 ]
 
 REQUIRED_STATIC_MARKERS = [
@@ -130,6 +148,7 @@ REQUIRED_STATIC_MARKERS = [
     "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI",
     "adminSnapshotRows",
     "check-block-production-admin-refresh-live.mjs",
+    "check-block-production-no-pending-live.mjs",
     "/api/v1/blocks/produce",
     "fetch(",
 ]
@@ -138,6 +157,7 @@ REQUIRED_PACKAGE_MARKERS = [
     "check-block-production-ui-control.mjs",
     "check:block-production-ui-live",
     "check:block-production-admin-refresh-live",
+    "check:block-production-no-pending-live",
 ]
 
 REQUIRED_LIVE_UI_CHECK_MARKERS = [
@@ -159,6 +179,16 @@ REQUIRED_ADMIN_REFRESH_UI_CHECK_MARKERS = [
     "Produce Local",
 ]
 
+REQUIRED_NO_PENDING_UI_CHECK_MARKERS = [
+    "xriq-block-production-no-pending-live",
+    "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI",
+    "adminSnapshotRows",
+    "produceLocalBlockNoPendingRefusal",
+    "validateLocalBlockProductionNoPendingContract",
+    "no_pending_transactions",
+    "acceptedStatuses: [400]",
+]
+
 REQUIRED_LIVE_SMOKE_MARKERS = [
     "xriq-phase1-2-block-production-ui-live-smoke",
     "check:block-production-ui-live",
@@ -176,6 +206,15 @@ REQUIRED_ADMIN_REFRESH_SMOKE_MARKERS = [
     "enable_local_block_production=True",
     "Admin rows refresh from pending to confirmed state",
     "wallet submit remains refused",
+]
+
+REQUIRED_NO_PENDING_SMOKE_MARKERS = [
+    "xriq-phase1-2-block-production-no-pending-smoke",
+    "check:block-production-no-pending-live",
+    "enable_local_block_production=True",
+    "Admin rows stayed unchanged after no-pending refusal",
+    "direct API no-pending refusal remains stable",
+    "wallet send remains separate and disabled in this smoke",
 ]
 
 FORBIDDEN_ADMIN_BEHAVIOR_MARKERS = [
@@ -215,6 +254,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--refresh-summary", type=Path, default=None)
     parser.add_argument("--live-summary", type=Path, default=None)
     parser.add_argument("--admin-refresh-summary", type=Path, default=None)
+    parser.add_argument("--no-pending-summary", type=Path, default=None)
     return parser.parse_args(argv)
 
 
@@ -495,6 +535,92 @@ def verify_admin_refresh_summary(path: Path) -> dict[str, Any]:
     }
 
 
+def verify_no_pending_summary(path: Path) -> dict[str, Any]:
+    payload = load_json_object(path, "block-production no-pending summary")
+    require_equal(
+        payload,
+        "ok",
+        "xriq-phase1-2-block-production-no-pending-smoke",
+        "no pending",
+    )
+    require_equal(
+        payload,
+        "feature_switch",
+        "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true",
+        "no pending",
+    )
+    require_equal(
+        payload,
+        "no_pending_refusal_code",
+        "no_pending_transactions",
+        "no pending",
+    )
+
+    flags = payload.get("serve_readonly_flags")
+    if not isinstance(flags, dict):
+        raise DesignCheckError("no pending: expected serve_readonly_flags object")
+    require_equal(flags, "enable_local_wallet_send", False, "no pending flags")
+    require_equal(flags, "enable_local_wallet_submit", False, "no pending flags")
+    require_equal(flags, "enable_local_block_production", True, "no pending flags")
+
+    completed = payload.get("completed")
+    if not isinstance(completed, list):
+        raise DesignCheckError("no pending: completed must be a list")
+    for step in [
+        "Admin rows stayed unchanged after no-pending refusal",
+        "direct API no-pending refusal remains stable",
+        "network height unchanged after no-pending refusal",
+        "mempool remains empty after no-pending refusal",
+        "pending file remains empty after no-pending refusal",
+    ]:
+        if step not in completed:
+            raise DesignCheckError(f"no pending: missing completed step {step!r}")
+
+    guards = payload.get("guards")
+    if not isinstance(guards, list):
+        raise DesignCheckError("no pending: guards must be a list")
+    for guard in [
+        "no-pending block production returns no_pending_transactions",
+        "no-pending block production does not mutate chain state",
+        "no-pending block production does not mutate pending state",
+        "Admin rows stay at height 1 with zero pending transactions",
+        "block production requires --enable-local-block-production",
+        "feature-switched UI still disables Produce Local when pending_count is zero",
+        "wallet send remains separate and disabled in this smoke",
+        "wallet submit remains deferred",
+        "no signing material or custody material is accepted",
+    ]:
+        if guard not in guards:
+            raise DesignCheckError(f"no pending: missing guard {guard!r}")
+
+    artifacts = payload.get("artifacts")
+    if not isinstance(artifacts, dict):
+        raise DesignCheckError("no pending: artifacts must be an object")
+    for key in [
+        "ui_summary",
+        "ui_rows_before",
+        "ui_refusal",
+        "ui_rows_after",
+        "api_no_pending_refusal",
+        "network",
+        "mempool_empty",
+    ]:
+        existing_path(artifacts.get(key), f"no pending artifact {key}")
+
+    sensitive_fields = find_sensitive_fields(payload)
+    if sensitive_fields:
+        raise DesignCheckError(f"no-pending summary contains sensitive fields {sensitive_fields}")
+
+    return {
+        "path": str(path),
+        "no_pending_refusal_code": payload.get("no_pending_refusal_code"),
+        "block_production_enabled": True,
+        "chain_and_pending_unchanged": True,
+        "wallet_submit_enabled": False,
+        "wallet_send_enabled": False,
+    }
+
+
 def write_summary(path: Path, report: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -514,8 +640,10 @@ def main(argv: list[str] | None = None) -> int:
         package_json = read_text(PACKAGE_JSON)
         live_ui_check = read_text(LIVE_UI_CHECK)
         admin_refresh_ui_check = read_text(ADMIN_REFRESH_UI_CHECK)
+        no_pending_ui_check = read_text(NO_PENDING_UI_CHECK)
         live_smoke = read_text(LIVE_SMOKE)
         admin_refresh_smoke = read_text(ADMIN_REFRESH_SMOKE)
+        no_pending_smoke = read_text(NO_PENDING_SMOKE)
         refresh_summary = args.refresh_summary or latest(
             "xriq-phase1-2-wallet-send-refresh-smoke-*/summary.json",
             "wallet-send refresh summary",
@@ -527,6 +655,10 @@ def main(argv: list[str] | None = None) -> int:
         admin_refresh_summary = args.admin_refresh_summary or latest(
             "xriq-phase1-2-block-production-admin-refresh-smoke-*/summary.json",
             "block-production Admin refresh summary",
+        )
+        no_pending_summary = args.no_pending_summary or latest(
+            "xriq-phase1-2-block-production-no-pending-smoke-*/summary.json",
+            "block-production no-pending summary",
         )
 
         require_markers(design_doc, REQUIRED_DESIGN_MARKERS, "block-production UI design")
@@ -544,11 +676,21 @@ def main(argv: list[str] | None = None) -> int:
             REQUIRED_ADMIN_REFRESH_UI_CHECK_MARKERS,
             "admin refresh UI check",
         )
+        require_markers(
+            no_pending_ui_check,
+            REQUIRED_NO_PENDING_UI_CHECK_MARKERS,
+            "no-pending UI check",
+        )
         require_markers(live_smoke, REQUIRED_LIVE_SMOKE_MARKERS, "live UI smoke")
         require_markers(
             admin_refresh_smoke,
             REQUIRED_ADMIN_REFRESH_SMOKE_MARKERS,
             "admin refresh smoke",
+        )
+        require_markers(
+            no_pending_smoke,
+            REQUIRED_NO_PENDING_SMOKE_MARKERS,
+            "no-pending smoke",
         )
         require_absent(
             admin_ui,
@@ -563,6 +705,7 @@ def main(argv: list[str] | None = None) -> int:
         refresh = verify_refresh_summary(refresh_summary)
         live = verify_live_summary(live_summary)
         admin_refresh = verify_admin_refresh_summary(admin_refresh_summary)
+        no_pending = verify_no_pending_summary(no_pending_summary)
 
         report = {
             "ok": "xriq-phase1-2-block-production-ui-design-check",
@@ -573,6 +716,7 @@ def main(argv: list[str] | None = None) -> int:
             "refresh_summary": refresh,
             "live_summary": live,
             "admin_refresh_summary": admin_refresh,
+            "no_pending_summary": no_pending,
             "review_only": False,
             "implementation_allowed": True,
             "approval_recorded": True,
@@ -586,7 +730,8 @@ def main(argv: list[str] | None = None) -> int:
             "admin_disabled_guard_present": True,
             "live_smoke_verified": True,
             "admin_refresh_smoke_verified": True,
-            "next": "keep block-production UI live smoke evidence current",
+            "no_pending_smoke_verified": True,
+            "next": "keep block-production UI and no-pending smoke evidence current",
         }
         write_summary(artifact_dir / "summary.json", report)
     except DesignCheckError as error:
