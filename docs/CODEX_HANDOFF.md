@@ -236,7 +236,7 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `76%` overall after the initial
+- Phase 1.2 estimated completion: about `77%` overall after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
   submit/send, React/client disabled-action guard coverage, and audit-event
@@ -280,7 +280,8 @@ unless the user changes the project scope again.
   and the pending file unchanged when there are no transactions to include,
   plus an updated readiness summary and UI mutation-control gate requiring the
   latest block-production UI live, Admin refresh, and no-pending negative
-  evidence before any Phase 1.2 RC decision.
+  evidence before any Phase 1.2 RC decision, plus a docs-only Phase 1.2 RC
+  candidate report/checklist proposing a tag name but not creating it.
   It is not a public launch phase. Its current
   target is defining and hardening local-only action contracts before broader
   UI mutation controls, snapshot-mutation, DEX, custody, public network
@@ -759,6 +760,19 @@ to save cost.
   the same command with approved escalation passed.
   Latest artifact:
   `xriq/target/xriq-phase1-2-block-production-no-pending-smoke-20260607T112046Z/summary.json`.
+- Latest native XRIQ Phase 1.2 RC candidate report checkpoint:
+  added `docs/XRIQ_PHASE1_2_RC_CANDIDATE_REPORT.md` as the docs-only candidate
+  report/checklist for the local/private hardening scope. The report proposes
+  `phase1-2-xriq-local-private-hardening-rc1`, references the latest readiness
+  summary, UI mutation gate, block-production UI design check, wallet-send
+  lifecycle/UI/refresh evidence, block-production UI live evidence, Admin
+  refresh evidence, and no-pending negative evidence, and keeps public mainnet,
+  DEX/liquidity, bridges, custody, smart contracts, wallet-submit UI mutation,
+  snapshot mutation, production infrastructure, ISO certification, and market
+  claims out of scope. No tag was created, moved, or pushed by this checkpoint.
+  Do not create, move, or push the proposed tag unless the user explicitly
+  says:
+  `I explicitly approve creating and pushing the Phase 1.2 RC tag phase1-2-xriq-local-private-hardening-rc1.`
 - Latest native XRIQ Phase 1.2 Admin UI block-production guard checkpoint:
   the React Admin Status panel now includes `Admin Action Guards` with a
   disabled `Produce Block` control and an explicit `Check Guard` action. The
@@ -997,11 +1011,12 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: prepare a docs-only Phase 1.2 RC candidate
-  report/checklist that references the latest readiness summary, UI mutation
-  gate, block-production UI live, Admin refresh, and no-pending negative smoke
-  evidence. Do not create, move, or push a Phase 1.2 tag without explicit user
-  approval naming the exact tag. Keep wallet submit, snapshot import/export
+- Recommended next narrow step: ask the user for a decision on the Phase 1.2 RC
+  candidate. If the user explicitly approves
+  `phase1-2-xriq-local-private-hardening-rc1` using the phrase in
+  `docs/XRIQ_PHASE1_2_RC_CANDIDATE_REPORT.md`, create and push only that tag.
+  If there is no explicit tag approval, do one more narrow local/private
+  hardening fix or guardrail update. Keep wallet submit, snapshot import/export
   mutation, DEX, smart contracts, public mainnet, custody, bridges, exchange
   listings, and production infrastructure out of scope until explicitly
   approved.

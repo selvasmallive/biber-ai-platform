@@ -445,6 +445,16 @@ a fresh temporary `serve-readonly` API with
 submit disabled, and wallet send disabled. It also verifies the direct API
 refusal, network height, mempool count, and pending file stay unchanged.
 
+Current Phase 1.2 RC candidate report checkpoint:
+`docs/XRIQ_PHASE1_2_RC_CANDIDATE_REPORT.md` is the docs-only RC candidate
+report for the local/private hardening scope. It proposes
+`phase1-2-xriq-local-private-hardening-rc1` as the tag name, but no tag may be
+created, moved, or pushed without explicit user approval naming that exact tag.
+The report references the latest readiness summary, UI mutation gate,
+block-production UI design check, wallet-send lifecycle/UI/refresh evidence,
+block-production UI live evidence, Admin refresh evidence, and no-pending
+negative evidence.
+
 ## Validation
 
 For Phase 1.2 docs-only planning checkpoints, use:
