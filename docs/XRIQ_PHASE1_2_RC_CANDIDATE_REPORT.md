@@ -109,6 +109,8 @@ The guard verifies this candidate report, the latest readiness summary, the
 latest UI mutation-control gate, the latest block-production UI design check,
 the required smoke evidence, the handoff/plan/gate doc references, and absence
 of the proposed local/remote tag. It does not create, move, or push any tag.
+When a saved evidence file is useful, add `--write-summary`; the script writes
+a timestamped `summary.json` under `xriq/target/`.
 
 ## Non-Production Boundaries
 
@@ -146,7 +148,7 @@ After that explicit approval, first run the non-mutating guardrail from a clean
 checkout:
 
 ```bash
-python scripts/xriq_phase1_2_rc_readiness.py --require-clean-git --require-origin-main --require-tag-absent
+python scripts/xriq_phase1_2_rc_readiness.py --require-clean-git --require-origin-main --require-tag-absent --write-summary
 ```
 
 If it passes, run only:

@@ -4,6 +4,7 @@ import argparse
 import json
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -123,7 +124,29 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help=f"Fail if local or remote tag {PROPOSED_TAG} already exists.",
     )
+    parser.add_argument(
+        "--write-summary",
+        action="store_true",
+        help="Write the readiness report to summary.json under xriq/target.",
+    )
+    parser.add_argument(
+        "--artifact-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Directory for --write-summary output. Defaults to a timestamped "
+            "xriq/target/xriq-phase1-2-rc-readiness-* directory."
+        ),
+    )
     return parser.parse_args(argv)
+
+
+def utc_timestamp() -> str:
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
+def default_artifact_dir() -> Path:
+    return SUMMARY_ROOT / f"xriq-phase1-2-rc-readiness-{utc_timestamp()}"
 
 
 def read_text(relative_path: str) -> str:
@@ -480,6 +503,22 @@ def verify_git(require_clean: bool, require_origin_main: bool) -> dict[str, Any]
     return result
 
 
+def resolve_output_dir(path: Path | None) -> Path:
+    output_dir = path or default_artifact_dir()
+    if not output_dir.is_absolute():
+        output_dir = ROOT / output_dir
+    return output_dir
+
+
+def write_summary(report: dict[str, Any], output_dir: Path) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = output_dir / "summary.json"
+    report["artifact_dir"] = str(output_dir)
+    report["summary"] = str(summary_path)
+    summary_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return summary_path
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
@@ -517,6 +556,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         report: dict[str, Any] = {
             "ok": "xriq-phase1-2-rc-readiness",
+            "created_at": datetime.now(UTC).isoformat(),
+            "script": str(Path(__file__).resolve().relative_to(ROOT)),
+            "scope": "local-private-post-rc-hardening",
+            "non_mutating": True,
+            "tag_created": False,
             "candidate": verify_candidate_report(),
             "doc_references": verify_doc_references(),
             "readiness_summary": verify_readiness_summary(readiness_summary),
@@ -529,6 +573,8 @@ def main(argv: list[str] | None = None) -> int:
         }
         if args.require_tag_absent:
             report["tag_checks"] = verify_tag_absent()
+        if args.write_summary or args.artifact_dir is not None:
+            write_summary(report, resolve_output_dir(args.artifact_dir))
     except RcReadinessError as error:
         print(json.dumps({"ok": False, "error": str(error)}, indent=2), file=sys.stderr)
         return 1

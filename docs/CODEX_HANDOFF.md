@@ -782,10 +782,11 @@ to save cost.
   checks the RC candidate report, the latest readiness summary, the latest UI
   mutation-control gate, the latest block-production UI design check, required
   smoke artifact paths, handoff/plan/gate doc references, and optional
-  clean-git/origin-main/tag-absent conditions. Use
+  clean-git/origin-main/tag-absent conditions. It can also write a timestamped
+  ignored evidence artifact under `xriq/target/` with `--write-summary`. Use
   `python scripts/xriq_phase1_2_rc_readiness.py` for a cheap local check, and
   after an exact explicit tag approval, run
-  `python scripts/xriq_phase1_2_rc_readiness.py --require-clean-git --require-origin-main --require-tag-absent`
+  `python scripts/xriq_phase1_2_rc_readiness.py --require-clean-git --require-origin-main --require-tag-absent --write-summary`
   before creating or pushing the proposed tag. The script creates no tag.
 - Latest native XRIQ Phase 1.2 Admin UI block-production guard checkpoint:
   the React Admin Status panel now includes `Admin Action Guards` with a
@@ -1030,7 +1031,7 @@ to save cost.
   user explicitly approves
   `phase1-2-xriq-local-private-hardening-rc1` using the phrase in
   `docs/XRIQ_PHASE1_2_RC_CANDIDATE_REPORT.md`, run
-  `python scripts/xriq_phase1_2_rc_readiness.py --require-clean-git --require-origin-main --require-tag-absent`,
+  `python scripts/xriq_phase1_2_rc_readiness.py --require-clean-git --require-origin-main --require-tag-absent --write-summary`,
   then create and push only that tag if the guard passes. If there is no
   explicit tag approval, do one more narrow local/private hardening fix. Keep
   wallet submit, snapshot import/export

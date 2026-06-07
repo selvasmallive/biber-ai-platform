@@ -460,7 +460,8 @@ Current Phase 1.2 RC readiness guardrail checkpoint:
 the candidate report, required evidence summaries, referenced artifact paths,
 handoff/plan/gate doc references, and optional clean-git/origin-main/tag-absent
 conditions. It must pass before any explicitly approved Phase 1.2 RC tag is
-created or pushed.
+created or pushed. Add `--write-summary` when a timestamped `summary.json`
+evidence artifact under `xriq/target/` is needed.
 
 ## Validation
 
@@ -548,4 +549,5 @@ For the current Phase 1.2 RC readiness guardrail, use:
 ```bash
 python scripts/xriq_phase1_2_rc_readiness.py
 python scripts/xriq_phase1_2_rc_readiness.py --require-tag-absent
+python scripts/xriq_phase1_2_rc_readiness.py --require-tag-absent --write-summary
 ```
