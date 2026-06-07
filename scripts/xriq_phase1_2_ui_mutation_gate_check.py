@@ -271,6 +271,7 @@ def main(argv: list[str] | None = None) -> int:
                 "Latest native XRIQ Phase 1.2 readiness-summary checkpoint:",
                 "Latest native XRIQ Phase 1.2 UI mutation-control gate checkpoint:",
                 "Latest native XRIQ Phase 1.2 wallet-send UI implementation checkpoint:",
+                "Latest native XRIQ Phase 1.2 wallet-send read-only refresh smoke checkpoint:",
             ],
             "handoff",
         )
@@ -294,7 +295,7 @@ def main(argv: list[str] | None = None) -> int:
             "wallet_submit_deferred": True,
             "approval_required_before_ui_mutation_controls": True,
             "next": (
-                "keep the wallet-send UI live smoke evidence current before any "
+                "keep the wallet-send UI live and refresh smoke evidence current before any "
                 "additional UI mutation-control scope is considered"
             ),
         }

@@ -63,6 +63,18 @@ Current live UI smoke:
   height remains unchanged, wallet submit still returns the disabled/refused
   response, and block production still returns the disabled/refused response.
 
+Current read-only refresh smoke:
+
+- `xriq/apps/explorer-ui/scripts/check-wallet-send-refresh-live.mjs` sends one
+  local/private wallet transfer through the shared client, reloads the existing
+  `loadExplorerSnapshot` read-only view, and imports the existing
+  `walletActivityRows` helper.
+- `scripts/xriq_phase1_2_wallet_send_refresh_smoke.py` proves the accepted
+  pending transaction is visible through the snapshot mempool data and through
+  wallet activity rows for both the sender and recipient.
+- The refresh smoke keeps wallet submit disabled, keeps block production
+  disabled, and does not add another mutation path.
+
 ## Allowed Implementation Shape
 
 After explicit approval, the implementation must remain narrow:
@@ -129,4 +141,11 @@ Run this local live smoke when refreshing the server-backed UI evidence:
 
 ```bash
 python scripts/xriq_phase1_2_wallet_send_ui_live_smoke.py
+```
+
+Run this read-only refresh smoke when validating pending wallet activity after
+one local send:
+
+```bash
+python scripts/xriq_phase1_2_wallet_send_refresh_smoke.py
 ```

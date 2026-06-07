@@ -413,7 +413,7 @@ def main(argv: list[str] | None = None) -> int:
                 "production infrastructure",
             ],
             "next": (
-                "run the wallet-send UI implementation and live-smoke checks "
+                "run the wallet-send UI implementation, live-smoke, and refresh-smoke checks "
                 "before considering any additional UI mutation-control scope"
             ),
         }

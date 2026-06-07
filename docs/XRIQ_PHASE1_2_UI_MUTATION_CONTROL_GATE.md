@@ -80,6 +80,9 @@ The approved wallet-send implementation must stay narrow:
   silently produce blocks.
 - Keep a local UI smoke artifact current before any RC or tag. The current
   live-smoke path is `scripts/xriq_phase1_2_wallet_send_ui_live_smoke.py`.
+- Keep read-only refresh evidence current before any additional mutation UI is
+  considered. The current refresh-smoke path is
+  `scripts/xriq_phase1_2_wallet_send_refresh_smoke.py`.
 
 ## Approval Required
 

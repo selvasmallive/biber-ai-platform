@@ -368,10 +368,24 @@ chain height remains unchanged, wallet submit remains refused without
 `--enable-local-wallet-submit`, and block production remains refused without
 `--enable-local-block-production`.
 
-Recommended next implementation: add a narrow read-only wallet refresh smoke
-after an accepted local wallet send, proving the updated pending transaction is
-visible through existing snapshot/mempool/wallet-activity rendering without
-enabling wallet submit or implicit block production.
+Current wallet-send read-only refresh smoke checkpoint:
+`xriq/apps/explorer-ui/src/wallet.tsx` now exports the existing pure
+`walletActivityRows` helper so smoke tooling can validate the same
+read-only wallet activity shaping used by the UI. The new
+`xriq/apps/explorer-ui/scripts/check-wallet-send-refresh-live.mjs` sends one
+local/private wallet transfer through `sendLocalWalletTransfer`, reloads the
+existing `loadExplorerSnapshot` read-only view, checks the pending transaction
+in `snapshot.mempool`, checks `loadWalletTransactionStatus` still reports the
+transaction as pending, and checks wallet activity rows for both sender and
+recipient. The orchestrator
+`scripts/xriq_phase1_2_wallet_send_refresh_smoke.py` runs this against a fresh
+temporary `serve-readonly` API with only `--enable-local-wallet-send true` and
+verifies wallet submit and block production remain refused.
+
+Recommended next implementation: add a review-only design note/checker for a
+separate local block-production UI control. Do not implement or enable that
+control until the user explicitly approves that exact mutation scope behind the
+UI mutation-control gate.
 
 ## Validation
 
@@ -422,4 +436,10 @@ For the current wallet-send UI live smoke checkpoint, use:
 
 ```bash
 python scripts/xriq_phase1_2_wallet_send_ui_live_smoke.py
+```
+
+For the current wallet-send read-only refresh smoke checkpoint, use:
+
+```bash
+python scripts/xriq_phase1_2_wallet_send_refresh_smoke.py
 ```

@@ -23,7 +23,11 @@ PACKAGE_JSON = ROOT / "xriq" / "apps" / "explorer-ui" / "package.json"
 LIVE_UI_CHECK = (
     ROOT / "xriq" / "apps" / "explorer-ui" / "scripts" / "check-wallet-send-ui-live.mjs"
 )
+REFRESH_UI_CHECK = (
+    ROOT / "xriq" / "apps" / "explorer-ui" / "scripts" / "check-wallet-send-refresh-live.mjs"
+)
 LIVE_SMOKE = ROOT / "scripts" / "xriq_phase1_2_wallet_send_ui_live_smoke.py"
+REFRESH_SMOKE = ROOT / "scripts" / "xriq_phase1_2_wallet_send_refresh_smoke.py"
 
 REQUIRED_PLAN_MARKERS = [
     "Plan Status: Approved And Implemented Behind Feature Switch",
@@ -35,6 +39,7 @@ REQUIRED_PLAN_MARKERS = [
     "I explicitly approve implementing the Phase 1.2 local/private-devnet wallet-send",
     "Current implementation:",
     "Current live UI smoke:",
+    "Current read-only refresh smoke:",
 ]
 
 REQUIRED_GATE_MARKERS = [
@@ -49,12 +54,14 @@ REQUIRED_PHASE_PLAN_MARKERS = [
     "Current UI mutation-control design gate checkpoint:",
     "Current wallet-send UI implementation checkpoint:",
     "Current wallet-send UI live smoke checkpoint:",
+    "Current wallet-send read-only refresh smoke checkpoint:",
 ]
 
 REQUIRED_HANDOFF_MARKERS = [
     "Latest native XRIQ Phase 1.2 UI mutation-control gate checkpoint:",
     "Latest native XRIQ Phase 1.2 wallet-send UI implementation checkpoint:",
     "Latest native XRIQ Phase 1.2 wallet-send UI live smoke checkpoint:",
+    "Latest native XRIQ Phase 1.2 wallet-send read-only refresh smoke checkpoint:",
 ]
 
 REQUIRED_WALLET_UI_MARKERS = [
@@ -74,6 +81,7 @@ REQUIRED_WALLET_UI_MARKERS = [
     "no implicit block production",
     "sendLocalWalletTransfer",
     "LocalWalletSendAcceptedResponse",
+    "export function walletActivityRows",
 ]
 
 REQUIRED_API_MARKERS = [
@@ -90,6 +98,8 @@ REQUIRED_API_MARKERS = [
 REQUIRED_PACKAGE_MARKERS = [
     "check:wallet-send-ui-live",
     "check-wallet-send-ui-live.mjs",
+    "check:wallet-send-refresh-live",
+    "check-wallet-send-refresh-live.mjs",
 ]
 
 REQUIRED_LIVE_UI_CHECK_MARKERS = [
@@ -110,6 +120,29 @@ REQUIRED_LIVE_SMOKE_MARKERS = [
     "enable_local_wallet_send=True",
     "enable_local_wallet_submit",
     "enable_local_block_production",
+    "wallet submit remains refused",
+    "block production remains refused",
+]
+
+REQUIRED_REFRESH_UI_CHECK_MARKERS = [
+    "xriq-wallet-send-refresh-live",
+    "VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI",
+    "sendLocalWalletTransfer",
+    "loadExplorerSnapshot",
+    "loadWalletTransactionStatus",
+    "walletActivityRows",
+    "snapshot_loaded",
+    "sender_activity_direction",
+    "recipient_activity_direction",
+    "wallet_submit_deferred",
+    "block_production_separate",
+]
+
+REQUIRED_REFRESH_SMOKE_MARKERS = [
+    "xriq-phase1-2-wallet-send-refresh-smoke",
+    "check:wallet-send-refresh-live",
+    "enable_local_wallet_send=True",
+    "wallet-send refresh visible in snapshot and activity rows",
     "wallet submit remains refused",
     "block production remains refused",
 ]
@@ -287,7 +320,9 @@ def main(argv: list[str] | None = None) -> int:
         static_check = read_text(STATIC_CHECK)
         package_json = read_text(PACKAGE_JSON)
         live_ui_check = read_text(LIVE_UI_CHECK)
+        refresh_ui_check = read_text(REFRESH_UI_CHECK)
         live_smoke = read_text(LIVE_SMOKE)
+        refresh_smoke = read_text(REFRESH_SMOKE)
         gate_summary = args.gate_summary or latest(
             "xriq-phase1-2-ui-mutation-gate-check-*/summary.json",
             "Phase 1.2 UI mutation gate summary",
@@ -302,6 +337,12 @@ def main(argv: list[str] | None = None) -> int:
         require_markers(package_json, REQUIRED_PACKAGE_MARKERS, "package scripts")
         require_markers(live_ui_check, REQUIRED_LIVE_UI_CHECK_MARKERS, "live UI check")
         require_markers(live_smoke, REQUIRED_LIVE_SMOKE_MARKERS, "live UI smoke")
+        require_markers(
+            refresh_ui_check,
+            REQUIRED_REFRESH_UI_CHECK_MARKERS,
+            "refresh UI check",
+        )
+        require_markers(refresh_smoke, REQUIRED_REFRESH_SMOKE_MARKERS, "refresh smoke")
         wallet_check = verify_wallet_ui_implementation(wallet_ui)
         gate = verify_gate_summary(gate_summary)
 
@@ -317,13 +358,14 @@ def main(argv: list[str] | None = None) -> int:
             "wallet_submit_deferred": True,
             "implementation_started": True,
             "live_smoke_defined": True,
+            "refresh_smoke_defined": True,
             "approval_recorded": True,
             "required_approval": (
                 "I explicitly approve implementing the Phase 1.2 "
                 "local/private-devnet wallet-send UI mutation control behind "
                 "the UI mutation-control gate."
             ),
-            "next": "run or refresh the local wallet-send UI live smoke evidence",
+            "next": "keep local wallet-send live and refresh smoke evidence current",
         }
         write_summary(artifact_dir / "summary.json", report)
     except PlanCheckError as error:

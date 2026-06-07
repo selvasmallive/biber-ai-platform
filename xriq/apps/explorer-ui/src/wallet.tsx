@@ -80,7 +80,7 @@ interface DraftValidation {
   remaining: bigint | null;
 }
 
-interface WalletActivityRow {
+export interface WalletActivityRow {
   id: string;
   txHash: string;
   source: "confirmed" | "pending";
@@ -1047,7 +1047,7 @@ function validateDraft({
   return { errors, balance, debit, remaining };
 }
 
-function walletActivityRows(
+export function walletActivityRows(
   snapshot: ExplorerSnapshot | null,
   address: string,
 ): WalletActivityRow[] {
