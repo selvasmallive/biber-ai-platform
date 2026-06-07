@@ -135,6 +135,16 @@ Keep the negative cases current:
 Negative cases should write summary artifacts and should be included in a cheap
 Phase 1.3 readiness summary before any future post-RC tag is considered.
 
+Initial checkpoint:
+
+- executable readiness/negative-matrix consolidation guard:
+  `python scripts/xriq_phase1_3_readiness_summary.py`
+- the guard reads the latest fixture contract check, CPU behavior smoke, and
+  UI-backed behavior smoke summaries, verifies the negative matrix, and reports
+  that no Phase 1.3 tag may be created from a generic continue request.
+- latest passing artifact:
+  `xriq/target/xriq-phase1-3-readiness-summary-20260607T134243Z/summary.json`
+
 ## Validation Plan
 
 The first implementation checkpoint should add the cheapest local checks before
@@ -164,6 +174,12 @@ production scope:
 
 ```bash
 python scripts/xriq_phase1_3_wallet_behavior_ui_smoke.py --skip-build
+```
+
+Consolidate Phase 1.3 behavior readiness and negative-matrix evidence with:
+
+```bash
+python scripts/xriq_phase1_3_readiness_summary.py
 ```
 
 ## Completion Criteria

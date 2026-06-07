@@ -273,6 +273,8 @@ local `xriq-node` and `xriq-api` debug binaries exist.
 Run the UI-backed Phase 1.3 shared-client behavior smoke with
 `python scripts/xriq_phase1_3_wallet_behavior_ui_smoke.py --skip-build` after
 local `xriq-node` and `xriq-api` debug binaries exist.
+Consolidate the Phase 1.3 local/private behavior readiness and negative matrix
+with `python scripts/xriq_phase1_3_readiness_summary.py`.
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The first Phase 1.2 wallet mutation preflight fixtures are in

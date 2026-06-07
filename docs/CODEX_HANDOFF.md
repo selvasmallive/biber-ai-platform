@@ -301,13 +301,15 @@ unless the user changes the project scope again.
   local/private hardening baseline for local-only action contracts before broader
   UI mutation controls, snapshot-mutation, DEX, custody, public network
   behavior, or production infrastructure are implemented.
-- Phase 1.3 estimated completion: about `60%` after the initial local/private
+- Phase 1.3 estimated completion: about `80%` after the initial local/private
   behavior plan, canonical behavior fixture/contract check, CPU-only
   request-mode wallet behavior smoke, and UI-backed shared TypeScript client
-  behavior smoke. No Phase 1.3 readiness report or tag exists yet. The next
-  narrow implementation step is a cheap Phase 1.3 readiness/negative-matrix
-  consolidation guard that references the latest fixture, CPU smoke, and UI
-  smoke evidence without adding new public/product scope.
+  behavior smoke, plus the cheap readiness/negative-matrix consolidation guard
+  in `scripts/xriq_phase1_3_readiness_summary.py`. No Phase 1.3 RC candidate
+  report or tag exists yet. The next narrow implementation step after this
+  guard is a docs-only Phase 1.3 RC candidate report/checklist, if the user
+  wants to prepare an RC decision. A generic continue request is not tag
+  approval.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -876,6 +878,24 @@ an active target because the GPU was terminated to save cost.
   `scripts/xriq_phase1_3_wallet_behavior_ui_smoke.py --skip-build`, and
   `git diff --check`. The UI smoke wrote latest artifact:
   `xriq/target/xriq-phase1-3-wallet-behavior-ui-smoke-20260607T132901Z/summary.json`.
+- Latest native XRIQ Phase 1.3 readiness/negative-matrix checkpoint: added
+  `scripts/xriq_phase1_3_readiness_summary.py` as a CPU-only, non-mutating
+  consolidation guard. It validates the Phase 1.3 fixture contract summary,
+  CPU request-mode wallet behavior smoke, UI-backed shared-client behavior
+  smoke, wallet/Admin refresh evidence, final balances/history, all five
+  negative matrix cases (`default_wallet_send_disabled`,
+  `default_block_production_disabled`, `wallet_submit_ui_deferred`,
+  `no_pending_block_production`, and `invalid_wallet_send_request`), docs
+  references, and no sensitive signing/custody field names. It reports
+  `behavioral_readiness_ok: true`,
+  `ready_for_phase1_3_candidate_report: true`, and
+  `ready_to_create_tag_now: false`; a future tag would need exact explicit
+  approval for `phase1-3-xriq-local-private-behavior-rc1`, and generic continue
+  is not approval. Verification passed bundled Python `py_compile` and bundled
+  Python
+  `scripts/xriq_phase1_3_readiness_summary.py --cpu-smoke-summary xriq/target/xriq-phase1-3-wallet-behavior-smoke-20260607T131636Z/summary.json`.
+  Latest artifact:
+  `xriq/target/xriq-phase1-3-readiness-summary-20260607T134243Z/summary.json`.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI
@@ -1135,12 +1155,11 @@ an active target because the GPU was terminated to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: add a cheap Phase 1.3 readiness/negative-matrix
-  consolidation guard that reads the latest fixture, CPU behavior smoke, and
-  UI-backed behavior smoke summaries, confirms disabled/default and invalid
-  request evidence is present, and reports that no Phase 1.3 tag should be
-  created without a later explicit approval naming the exact tag. Do not create,
-  move, delete, recreate, or repush
+- Recommended next narrow step: if the user wants to prepare Phase 1.3 for an
+  RC decision, add a docs-only Phase 1.3 RC candidate report/checklist that
+  references the latest `scripts/xriq_phase1_3_readiness_summary.py` evidence.
+  Do not create, move, delete, recreate, or repush the future
+  `phase1-3-xriq-local-private-behavior-rc1` tag, or
   `phase1-2-xriq-local-private-hardening-rc1` unless the user explicitly asks
   for that exact tag maintenance operation. Keep wallet submit UI, snapshot
   import/export mutation, DEX, smart contracts, public mainnet, custody,
