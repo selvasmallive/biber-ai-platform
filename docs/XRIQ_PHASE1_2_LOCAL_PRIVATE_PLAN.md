@@ -468,7 +468,10 @@ explicitly approved Phase 1.2 RC tag is created or pushed. Add
 records that a generic continue request is not approval, lists the exact
 approval phrase, and separates allowed no-approval actions from post-approval
 tag commands. The guard also emits `release_decision_check` and fails if those
-decision boundaries drift.
+decision boundaries drift. When the guard passes, its
+`release_decision.recommended_next_step` is to ask the user for the Phase 1.2
+RC decision; repeated generic continue requests should not create more
+RC-readiness guardrail churn unless new evidence or a concrete risk appears.
 
 ## Validation
 

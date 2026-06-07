@@ -789,7 +789,10 @@ to save cost.
   `release_decision.generic_continue_is_approval: false`, the exact approval
   phrase, allowed no-approval actions, allowed post-approval commands, and
   prohibited tag/scope actions, plus `release_decision_check` so the guard
-  fails if those decision boundaries drift. It can also write a timestamped
+  fails if those decision boundaries drift. The guard now also reports
+  `release_decision.recommended_next_step: "ask the user for the Phase 1.2 RC decision"`
+  and says generic continue should not produce more RC guardrail churn unless
+  new evidence or a concrete risk appears. It can also write a timestamped
   ignored evidence artifact under `xriq/target/` with `--write-summary`. Use
   `python scripts/xriq_phase1_2_rc_readiness.py` for a cheap local check, and
   after an exact explicit tag approval, run
@@ -1040,8 +1043,9 @@ to save cost.
   `docs/XRIQ_PHASE1_2_RC_CANDIDATE_REPORT.md`, run
   `python scripts/xriq_phase1_2_rc_readiness.py --require-clean-git --require-origin-main --require-tag-absent --write-summary`,
   then create and push only that tag if the guard passes. If there is no
-  explicit tag approval, do one more narrow local/private hardening fix. Keep
-  wallet submit, snapshot import/export
+  explicit tag approval and the guard still passes, ask the user for the human
+  RC decision instead of adding more RC-readiness guardrail churn, unless new
+  evidence or a concrete risk appears. Keep wallet submit, snapshot import/export
   mutation, DEX, smart contracts, public mainnet, custody, bridges, exchange
   listings, and production infrastructure out of scope until explicitly
   approved.

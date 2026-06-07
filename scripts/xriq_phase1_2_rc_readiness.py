@@ -546,6 +546,8 @@ def release_decision() -> dict[str, Any]:
     return {
         "human_decision_required": True,
         "generic_continue_is_approval": False,
+        "recommended_next_step": "ask the user for the Phase 1.2 RC decision",
+        "generic_continue_next_step": "do not tag; do not add more RC guardrail churn unless new evidence or a concrete risk appears",
         "exact_approval_phrase_required": APPROVAL_PHRASE,
         "proposed_tag": PROPOSED_TAG,
         "tag_created_by_this_guard": False,
@@ -592,6 +594,13 @@ def verify_release_decision(decision: dict[str, Any]) -> dict[str, Any]:
         raise RcReadinessError("release decision must require a human decision")
     if decision.get("generic_continue_is_approval") is not False:
         raise RcReadinessError("release decision must reject generic continue as approval")
+    if decision.get("recommended_next_step") != "ask the user for the Phase 1.2 RC decision":
+        raise RcReadinessError("release decision next step drifted")
+    generic_continue_next_step = decision.get("generic_continue_next_step")
+    if not isinstance(generic_continue_next_step, str) or "do not tag" not in generic_continue_next_step:
+        raise RcReadinessError("release decision must keep generic continue non-tagging")
+    if "guardrail churn" not in generic_continue_next_step:
+        raise RcReadinessError("release decision must discourage repeated guardrail churn")
     if decision.get("exact_approval_phrase_required") != APPROVAL_PHRASE:
         raise RcReadinessError("release decision approval phrase drifted")
     if decision.get("proposed_tag") != PROPOSED_TAG:
@@ -623,6 +632,7 @@ def verify_release_decision(decision: dict[str, Any]) -> dict[str, Any]:
     return {
         "human_decision_required": True,
         "generic_continue_is_approval": False,
+        "recommended_next_step": "ask the user for the Phase 1.2 RC decision",
         "post_approval_commands_checked": len(expected_after_approval),
         "prohibited_actions_checked": len(expected_prohibited),
     }

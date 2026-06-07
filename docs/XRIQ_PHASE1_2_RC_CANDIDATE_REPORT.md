@@ -114,6 +114,10 @@ Its output includes `release_decision.generic_continue_is_approval: false`,
 the exact approval phrase, the allowed no-approval actions, the allowed
 post-approval commands, and the prohibited tag/scope actions. It also includes
 `release_decision_check` so the guard fails if those decision boundaries drift.
+When the guard passes, `release_decision.recommended_next_step` is to ask the
+user for the Phase 1.2 RC decision; repeated generic continue requests should
+not create more RC guardrail churn unless new evidence or a concrete risk
+appears.
 When a saved evidence file is useful, add `--write-summary`; the script writes
 a timestamped `summary.json` under `xriq/target/`.
 
@@ -163,6 +167,7 @@ git tag phase1-2-xriq-local-private-hardening-rc1
 git push origin phase1-2-xriq-local-private-hardening-rc1
 ```
 
-If there is no explicit tag approval, keep Phase 1.2 local/private and choose
-only one next narrow task: another local hardening fix, an RC-readiness
-guardrail update, or a separately approved post-Phase 1.2 scope item.
+If there is no explicit tag approval and the RC readiness guard still passes,
+keep Phase 1.2 local/private and ask for the human RC decision. Do not keep
+adding RC-readiness guardrails from generic continue requests unless new
+evidence or a concrete risk appears.
