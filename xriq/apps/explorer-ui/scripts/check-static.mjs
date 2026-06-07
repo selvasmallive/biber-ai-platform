@@ -6,6 +6,8 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const requiredFiles = [
   "index.html",
   "package.json",
+  "scripts/check-block-production-ui-control.mjs",
+  "scripts/check-block-production-ui-live.mjs",
   "scripts/check-postgres-ui-state.mjs",
   "scripts/check-wallet-send-accepted-contract.mjs",
   "scripts/check-wallet-submit-accepted-contract.mjs",
@@ -124,6 +126,9 @@ for (const requiredText of [
   "pending_state",
   "chain_state",
   "metadata_policy",
+  "LocalBlockProductionRequest",
+  "produceLocalBlock",
+  "acceptedStatuses: [201]",
 ]) {
   if (!apiSource.includes(requiredText)) {
     throw new Error(`missing accepted block-production API marker: ${requiredText}`);
@@ -341,6 +346,18 @@ for (const requiredText of [
   "local_refusal_audit_count",
   "local_refusal_audit_events",
   "block_production",
+  "LOCAL_BLOCK_PRODUCTION_UI_ENABLED",
+  "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI",
+  "Local Block Production",
+  "block-production local-only guard",
+  "Produce Local",
+  "chain_and_pending_state_local_only",
+  "wallet send remains separate",
+  "wallet submit deferred",
+  "explicit local action",
+  "produceLocalBlock",
+  "validateLocalBlockProductionAcceptedContract",
+  'const produceDisabled = !enabled || pendingCount <= 0 || state.status === "loading";',
 ]) {
   if (!adminSource.includes(requiredText)) {
     throw new Error(`missing admin status marker: ${requiredText}`);

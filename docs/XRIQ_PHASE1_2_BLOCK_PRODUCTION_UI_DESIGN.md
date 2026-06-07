@@ -1,10 +1,11 @@
 # XRIQ Phase 1.2 Block-Production UI Design
 
-Design Status: Review Only - Not Approved For Implementation
+Design Status: Approved And Implemented Behind Feature Switch
 
 This document defines a possible future local/private-devnet UI mutation
-control for producing one block from pending transactions. It does not approve
-implementation and does not enable any UI block-production action.
+control for producing one block from pending transactions. The user explicitly
+approved implementation of this narrow control behind the UI mutation-control
+gate on 2026-06-07.
 
 ## Candidate Scope
 
@@ -13,18 +14,19 @@ Candidate: local block production only.
 This candidate would be separate from wallet send. Wallet send must never
 silently produce a block after creating a pending transaction.
 
-The current UI may continue to show the disabled `Produce Block` guard and the
-active `Check Guard` action. The disabled guard proves the default route still
-refuses mutation. It is not an enabled block-production control.
+The UI continues to show the disabled `Produce Block` guard and the active
+`Check Guard` action. The disabled guard proves the default route still refuses
+mutation. The approved implementation adds a separate `Local Block Production`
+control that remains inert unless explicitly feature-switched on.
 
 ## Preconditions Before Implementation
 
-Implementation is not allowed unless all of these are true:
+Implementation was allowed only because all of these were true:
 
 - `scripts/xriq_phase1_2_block_production_ui_design_check.py` passes.
 - `scripts/xriq_phase1_2_ui_mutation_gate_check.py` passes.
 - `scripts/xriq_phase1_2_wallet_send_refresh_smoke.py` passes.
-- The user gives explicit approval naming this gate and the exact local block
+- The user gave explicit approval naming this gate and the exact local block
   production UI mutation control.
 
 Required approval phrase:
@@ -34,9 +36,15 @@ I explicitly approve implementing the Phase 1.2 local/private-devnet
 block-production UI mutation control behind the UI mutation-control gate.
 ```
 
-## Allowed Future Implementation Shape
+Approval received:
 
-If explicit approval is later given, the implementation must remain narrow:
+```text
+I explicitly approve implementing the Phase 1.2 local/private-devnet block-production UI mutation control behind the UI mutation-control gate.
+```
+
+## Current Implementation
+
+Current implementation:
 
 - Add only a local/private-devnet block-production UI path.
 - Require a clearly named UI feature switch:
@@ -55,7 +63,6 @@ If explicit approval is later given, the implementation must remain narrow:
 
 ## Non-Negotiable Limits
 
-- No block-production UI implementation in this review-only checkpoint.
 - No default-enabled `Produce Block` action.
 - No direct `fetch(` calls from Admin UI source.
 - No hard-coded `/api/v1/blocks/produce` path in Admin UI source.
@@ -65,10 +72,9 @@ If explicit approval is later given, the implementation must remain narrow:
   production behavior.
 - No snapshot import/export mutation.
 
-## Required Future Smoke
+## Current Live Smoke
 
-If implementation is later approved, the first implementation must include a
-local live smoke that proves:
+Current live UI smoke:
 
 - the feature switch is required,
 - the explicit API flag is required,
@@ -81,9 +87,15 @@ local live smoke that proves:
 - wallet submit remains deferred, and
 - no signing or custody fields exist in source or artifacts.
 
+The live smoke is:
+
+```bash
+python scripts/xriq_phase1_2_block_production_ui_live_smoke.py
+```
+
 ## Validation
 
-Run this review-only design check after edits:
+Run this implementation design check after edits:
 
 ```bash
 python scripts/xriq_phase1_2_block_production_ui_design_check.py

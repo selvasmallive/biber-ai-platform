@@ -43,9 +43,10 @@ REQUIRED_PLAN_MARKERS = [
 ]
 
 REQUIRED_GATE_MARKERS = [
-    "Gate Status: Approved For Wallet Send Only",
+    "Gate Status: Approved For Wallet Send And Block Production",
     "Default UI mutation controls remain disabled.",
     "VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true",
+    "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true",
     "Explicit user approval is required",
     "local/private-devnet wallet-send",
 ]

@@ -469,6 +469,14 @@ export interface LocalWalletSendRequest {
   expires_at_height: string;
 }
 
+export interface LocalBlockProductionRequest {
+  local_request_id: string;
+  producer: string;
+  max_transactions: string;
+  timestamp_ms: string;
+  consensus_round?: string;
+}
+
 export interface LocalBlockProductionConfirmedTransaction {
   tx_hash: string;
   status: "confirmed";
@@ -921,6 +929,38 @@ export async function loadBlockProductionRefusal(
       acceptedStatuses: [403],
     },
   );
+}
+
+export async function produceLocalBlock(
+  baseUrl: string,
+  request: LocalBlockProductionRequest,
+): Promise<LocalBlockProductionAcceptedResponse> {
+  const params = new URLSearchParams({
+    local_request_id: request.local_request_id,
+    producer: request.producer,
+    max_transactions: request.max_transactions,
+    timestamp_ms: request.timestamp_ms,
+  });
+  if (request.consensus_round?.trim()) {
+    params.set("consensus_round", request.consensus_round.trim());
+  }
+  const data = await fetchJson<LocalBlockProductionAcceptedResponse>(
+    normalizeBaseUrl(baseUrl),
+    `${BLOCK_PRODUCTION_REFUSAL_PATH}?${params.toString()}`,
+    {
+      method: "POST",
+      acceptedStatuses: [201],
+    },
+  );
+  const errors = validateLocalBlockProductionAcceptedContract(data, {
+    localRequestId: request.local_request_id,
+    producer: request.producer,
+    maxTransactions: Number.parseInt(request.max_transactions, 10),
+  });
+  if (errors.length > 0) {
+    throw new Error(errors.join("; "));
+  }
+  return data;
 }
 
 export function validateLocalBlockProductionAcceptedContract(

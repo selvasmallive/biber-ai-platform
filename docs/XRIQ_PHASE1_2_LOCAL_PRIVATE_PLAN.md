@@ -324,16 +324,18 @@ lifecycle evidence, and required artifact file paths. It reports
 `approval_required_before_ui_mutation_controls: true`.
 
 Current UI mutation-control design gate checkpoint:
-`docs/XRIQ_PHASE1_2_UI_MUTATION_CONTROL_GATE.md` now defines the review-only
-gate that must be followed before any React wallet submit/send mutation control
-is enabled. `scripts/xriq_phase1_2_ui_mutation_gate_check.py` validates the
-gate document, the latest readiness summary, the existing disabled wallet UI
-guard source, the static UI guardrails, and the shared accepted-response
-validators. It also verifies the current UI still has disabled submit/send
-buttons only, no direct wallet submit/send endpoint strings, no direct
-`fetch(`, no browser persistence markers, and no sensitive signing/custody
-field names. Default UI submit/send controls remain disabled; the approved
-wallet-send UI path is feature-switched only.
+`docs/XRIQ_PHASE1_2_UI_MUTATION_CONTROL_GATE.md` now defines the approved
+local/private gate for wallet send and block production. It still excludes
+wallet submit, snapshot mutation, DEX, smart-contract, public-network, and
+production behavior. `scripts/xriq_phase1_2_ui_mutation_gate_check.py`
+validates the gate document, the latest readiness summary, the existing wallet
+and Admin UI guard source, the static UI guardrails, and the shared
+accepted-response validators. It also verifies no direct wallet submit/send or
+block-production endpoint strings are used from UI components, no direct
+`fetch(` appears in the mutation UI sources, no browser persistence markers are
+present, and no sensitive signing/custody field names are present. Default UI
+mutation controls remain disabled; the approved wallet-send and block-production
+UI paths are feature-switched only.
 
 Current wallet-send UI implementation checkpoint:
 `docs/XRIQ_PHASE1_2_WALLET_SEND_UI_IMPLEMENTATION_PLAN.md` now records the
@@ -383,21 +385,28 @@ temporary `serve-readonly` API with only `--enable-local-wallet-send true` and
 verifies wallet submit and block production remain refused.
 
 Current block-production UI design checkpoint:
-`docs/XRIQ_PHASE1_2_BLOCK_PRODUCTION_UI_DESIGN.md` now defines the possible
-future local/private-devnet block-production UI mutation control as
-review-only and not approved for implementation. The design requires a separate
-feature switch, `VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true`, an API
-started with `--enable-local-block-production true`, shared API-client usage,
-`validateLocalBlockProductionAcceptedContract`, explicit audit rendering, and
-separation from wallet send. The checker
-`scripts/xriq_phase1_2_block_production_ui_design_check.py` verifies the design
-doc, current disabled Admin `Produce Block` guard, latest wallet-send refresh
-smoke evidence, and absence of enabled block-production UI implementation.
+`docs/XRIQ_PHASE1_2_BLOCK_PRODUCTION_UI_DESIGN.md` now records the approved
+local/private-devnet block-production UI implementation behind
+`VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true`. The implementation requires
+the API to be started with `--enable-local-block-production true`, uses the
+shared API helper `produceLocalBlock`, validates accepted responses with
+`validateLocalBlockProductionAcceptedContract`, renders local request/audit
+metadata plus produced block and pending/chain transition details, keeps wallet
+send separate, and keeps wallet submit deferred.
 
-Recommended next implementation: wait for explicit user approval before
-implementing any block-production UI mutation control. The required approval
-phrase is documented in
-`docs/XRIQ_PHASE1_2_BLOCK_PRODUCTION_UI_DESIGN.md`.
+Current block-production UI live smoke checkpoint:
+`xriq/apps/explorer-ui/scripts/check-block-production-ui-live.mjs` imports the
+real `sendLocalWalletTransfer`, `produceLocalBlock`,
+`loadExplorerSnapshot`, and `loadWalletTransactionStatus` helpers through Vite
+SSR and calls a temporary local/private `xriq-api serve-readonly` endpoint. The
+orchestrator `scripts/xriq_phase1_2_block_production_ui_live_smoke.py` creates
+a fresh temporary private-devnet chain, starts `serve-readonly` with
+`--enable-local-wallet-send true` and `--enable-local-block-production true`,
+sets `VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true`, sends one pending
+wallet transaction, produces exactly one local block, verifies the pending file
+is cleared, verifies network height advances from `1` to `2`, verifies the
+wallet transaction becomes confirmed, and verifies wallet submit remains
+refused without `--enable-local-wallet-submit`.
 
 ## Validation
 
@@ -460,4 +469,10 @@ For the current block-production UI design checkpoint, use:
 
 ```bash
 python scripts/xriq_phase1_2_block_production_ui_design_check.py
+```
+
+For the current block-production UI live smoke checkpoint, use:
+
+```bash
+python scripts/xriq_phase1_2_block_production_ui_live_smoke.py
 ```

@@ -16,13 +16,15 @@ GATE_DOC = ROOT / "docs" / "XRIQ_PHASE1_2_UI_MUTATION_CONTROL_GATE.md"
 PLAN_DOC = ROOT / "docs" / "XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md"
 HANDOFF_DOC = ROOT / "docs" / "CODEX_HANDOFF.md"
 WALLET_UI = ROOT / "xriq" / "apps" / "explorer-ui" / "src" / "wallet.tsx"
+ADMIN_UI = ROOT / "xriq" / "apps" / "explorer-ui" / "src" / "admin.tsx"
 STATIC_CHECK = ROOT / "xriq" / "apps" / "explorer-ui" / "scripts" / "check-static.mjs"
 API_CLIENT = ROOT / "xriq" / "apps" / "explorer-ui" / "src" / "api.ts"
 
 REQUIRED_GATE_MARKERS = [
-    "Gate Status: Approved For Wallet Send Only",
+    "Gate Status: Approved For Wallet Send And Block Production",
     "Default UI mutation controls remain disabled.",
     "VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true",
+    "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true",
     "wallet submit remains deferred",
     "ready_for_ui_mutation_design_review: true",
     "ui_mutation_controls_enabled: false",
@@ -32,9 +34,8 @@ REQUIRED_GATE_MARKERS = [
     "No direct `fetch(` calls from wallet UI source.",
     "No hard-coded wallet submit/send endpoint strings in wallet UI source.",
     "No default-enabled submit/send controls.",
-    "Explicit user approval is required",
     "local/private-devnet wallet-send",
-    "block-production UI mutation control",
+    "local/private-devnet block-production",
 ]
 
 REQUIRED_PLAN_MARKERS = [
@@ -42,6 +43,7 @@ REQUIRED_PLAN_MARKERS = [
     "Current UI mutation-control design gate checkpoint:",
     "Current wallet-send UI implementation checkpoint:",
     "Current block-production UI design checkpoint:",
+    "Current block-production UI live smoke checkpoint:",
 ]
 
 REQUIRED_WALLET_MARKERS = [
@@ -86,12 +88,44 @@ REQUIRED_STATIC_CHECK_MARKERS = [
 REQUIRED_API_MARKERS = [
     "validateLocalWalletSubmitAcceptedContract",
     "validateLocalWalletSendAcceptedContract",
+    "validateLocalBlockProductionAcceptedContract",
     "sendLocalWalletTransfer",
+    "produceLocalBlock",
     "LocalWalletSubmitAcceptedResponse",
     "LocalWalletSendAcceptedResponse",
+    "LocalBlockProductionAcceptedResponse",
     "wallet_submit_accepted_local_only",
     "wallet_send_accepted_local_only",
+    "block_production_accepted_local_only",
     "acceptedStatuses: [201]",
+]
+
+REQUIRED_ADMIN_MARKERS = [
+    "Admin Action Guards",
+    "Block Production Guard",
+    "LOCAL_BLOCK_PRODUCTION_UI_ENABLED",
+    "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI",
+    "Local Block Production",
+    "block-production local-only guard",
+    "Produce Local",
+    "chain_and_pending_state_local_only",
+    "wallet send remains separate",
+    "wallet submit deferred",
+    "produceLocalBlock",
+    "validateLocalBlockProductionAcceptedContract",
+]
+
+FORBIDDEN_ADMIN_MARKERS = [
+    "fetch(",
+    "/api/v1/blocks/produce",
+    "private_key",
+    "seed_phrase",
+    "mnemonic",
+    "signed_transaction",
+    "localStorage",
+    "sessionStorage",
+    "indexedDB",
+    "document.cookie",
 ]
 
 FORBIDDEN_WALLET_MARKERS = [
@@ -245,6 +279,23 @@ def verify_wallet_ui_source(text: str) -> dict[str, Any]:
     }
 
 
+def verify_admin_ui_source(text: str) -> dict[str, Any]:
+    require_markers(text, REQUIRED_ADMIN_MARKERS, "admin UI")
+    require_absent(text, FORBIDDEN_ADMIN_MARKERS, "admin UI")
+    if (
+        'const produceDisabled = !enabled || pendingCount <= 0 || state.status === "loading";'
+        not in text
+    ):
+        raise GateCheckError("admin UI: block production must be feature-switch gated")
+    return {
+        "required_markers_checked": len(REQUIRED_ADMIN_MARKERS),
+        "forbidden_markers_checked": len(FORBIDDEN_ADMIN_MARKERS),
+        "default_block_production_disabled": True,
+        "block_production_feature_switch_required": True,
+        "wallet_submit_deferred": True,
+    }
+
+
 def write_summary(path: Path, report: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -258,6 +309,7 @@ def main(argv: list[str] | None = None) -> int:
         plan_doc = read_text(PLAN_DOC)
         handoff_doc = read_text(HANDOFF_DOC)
         wallet_source = read_text(WALLET_UI)
+        admin_source = read_text(ADMIN_UI)
         static_check = read_text(STATIC_CHECK)
         api_client = read_text(API_CLIENT)
         readiness_path = args.readiness_summary or latest(
@@ -275,10 +327,12 @@ def main(argv: list[str] | None = None) -> int:
                 "Latest native XRIQ Phase 1.2 wallet-send UI implementation checkpoint:",
                 "Latest native XRIQ Phase 1.2 wallet-send read-only refresh smoke checkpoint:",
                 "Latest native XRIQ Phase 1.2 block-production UI design checkpoint:",
+                "Latest native XRIQ Phase 1.2 block-production UI live smoke checkpoint:",
             ],
             "handoff",
         )
         wallet_check = verify_wallet_ui_source(wallet_source)
+        admin_check = verify_admin_ui_source(admin_source)
         require_markers(static_check, REQUIRED_STATIC_CHECK_MARKERS, "static UI guard")
         require_markers(api_client, REQUIRED_API_MARKERS, "API client")
         readiness = verify_readiness_summary(readiness_path)
@@ -291,10 +345,13 @@ def main(argv: list[str] | None = None) -> int:
             "gate_doc": str(GATE_DOC),
             "readiness_summary": readiness,
             "wallet_ui": wallet_check,
+            "admin_ui": admin_check,
             "static_ui_guard_markers_checked": len(REQUIRED_STATIC_CHECK_MARKERS),
             "api_client_markers_checked": len(REQUIRED_API_MARKERS),
             "default_ui_mutation_controls_enabled": False,
             "wallet_send_ui_feature_switch_required": True,
+            "block_production_ui_feature_switch_required": True,
+            "block_production_ui_default_enabled": False,
             "wallet_submit_deferred": True,
             "approval_required_before_ui_mutation_controls": True,
             "next": (

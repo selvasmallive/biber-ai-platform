@@ -19,35 +19,44 @@ HANDOFF_DOC = ROOT / "docs" / "CODEX_HANDOFF.md"
 ADMIN_UI = ROOT / "xriq" / "apps" / "explorer-ui" / "src" / "admin.tsx"
 API_CLIENT = ROOT / "xriq" / "apps" / "explorer-ui" / "src" / "api.ts"
 STATIC_CHECK = ROOT / "xriq" / "apps" / "explorer-ui" / "scripts" / "check-static.mjs"
+PACKAGE_JSON = ROOT / "xriq" / "apps" / "explorer-ui" / "package.json"
+LIVE_UI_CHECK = (
+    ROOT / "xriq" / "apps" / "explorer-ui" / "scripts" / "check-block-production-ui-live.mjs"
+)
+LIVE_SMOKE = ROOT / "scripts" / "xriq_phase1_2_block_production_ui_live_smoke.py"
 
 REQUIRED_DESIGN_MARKERS = [
-    "Design Status: Review Only - Not Approved For Implementation",
+    "Design Status: Approved And Implemented Behind Feature Switch",
     "Candidate: local block production only.",
     "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true",
     "--enable-local-block-production true",
     "validateLocalBlockProductionAcceptedContract",
     "Never run block production automatically after wallet send.",
-    "No block-production UI implementation in this review-only checkpoint.",
     "No default-enabled `Produce Block` action.",
     "I explicitly approve implementing the Phase 1.2 local/private-devnet",
     "block-production UI mutation control behind the UI mutation-control gate.",
+    "Current implementation:",
+    "Current live UI smoke:",
 ]
 
 REQUIRED_GATE_MARKERS = [
-    "Gate Status: Approved For Wallet Send Only",
+    "Gate Status: Approved For Wallet Send And Block Production",
     "Default UI mutation controls remain disabled.",
-    "Explicit user approval is required",
-    "block-production UI mutation control",
+    "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true",
+    "local/private-devnet block-production",
+    "wallet submit remains deferred",
 ]
 
 REQUIRED_PHASE_PLAN_MARKERS = [
     "Current wallet-send read-only refresh smoke checkpoint:",
     "Current block-production UI design checkpoint:",
+    "Current block-production UI live smoke checkpoint:",
 ]
 
 REQUIRED_HANDOFF_MARKERS = [
     "Latest native XRIQ Phase 1.2 wallet-send read-only refresh smoke checkpoint:",
     "Latest native XRIQ Phase 1.2 block-production UI design checkpoint:",
+    "Latest native XRIQ Phase 1.2 block-production UI live smoke checkpoint:",
 ]
 
 REQUIRED_ADMIN_DISABLED_MARKERS = [
@@ -63,15 +72,33 @@ REQUIRED_ADMIN_DISABLED_MARKERS = [
     'button type="button" disabled',
 ]
 
+REQUIRED_ADMIN_IMPLEMENTATION_MARKERS = [
+    "LOCAL_BLOCK_PRODUCTION_UI_ENABLED",
+    "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI",
+    "Local Block Production",
+    "block-production local-only guard",
+    "Produce Local",
+    "chain_and_pending_state_local_only",
+    "wallet send remains separate",
+    "wallet submit deferred",
+    "explicit local action",
+    "produceLocalBlock",
+    "validateLocalBlockProductionAcceptedContract",
+    'const produceDisabled = !enabled || pendingCount <= 0 || state.status === "loading";',
+]
+
 REQUIRED_API_MARKERS = [
     "LocalBlockProductionAcceptedResponse",
     "LocalBlockProductionConfirmedTransaction",
     "LocalBlockProductionAcceptedExpectations",
+    "LocalBlockProductionRequest",
     "validateLocalBlockProductionAcceptedContract",
+    "produceLocalBlock",
     "LOCAL_BLOCK_PRODUCTION_ACCEPTED_CODE",
     "LOCAL_BLOCK_PRODUCTION_ACCEPTED_MUTATION",
     "BLOCK_PRODUCTION_REFUSAL_ENDPOINT",
     "loadBlockProductionRefusal",
+    "acceptedStatuses: [201]",
 ]
 
 REQUIRED_STATIC_MARKERS = [
@@ -81,16 +108,42 @@ REQUIRED_STATIC_MARKERS = [
     "Check Guard",
     "loadBlockProductionRefusal",
     "validateBlockProductionRefusalContract",
+    "Local Block Production",
+    "Produce Local",
+    "produceLocalBlock",
+    "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI",
     "/api/v1/blocks/produce",
     "fetch(",
 ]
 
-FORBIDDEN_ADMIN_IMPLEMENTATION_MARKERS = [
-    "produceLocalBlock",
-    "handleProduceBlock",
+REQUIRED_PACKAGE_MARKERS = [
+    "check-block-production-ui-control.mjs",
+    "check:block-production-ui-live",
+]
+
+REQUIRED_LIVE_UI_CHECK_MARKERS = [
+    "xriq-block-production-ui-live",
     "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI",
+    "produceLocalBlock",
     "validateLocalBlockProductionAcceptedContract",
-    "acceptedStatuses: [201]",
+    "block_production_explicit",
+    "wallet_submit_deferred",
+    "wallet_send_separate",
+]
+
+REQUIRED_LIVE_SMOKE_MARKERS = [
+    "xriq-phase1-2-block-production-ui-live-smoke",
+    "check:block-production-ui-live",
+    "enable_local_wallet_send=True",
+    "enable_local_block_production=True",
+    "enable_local_wallet_submit",
+    "block-production UI live produced one local block",
+    "wallet submit remains refused",
+]
+
+FORBIDDEN_ADMIN_BEHAVIOR_MARKERS = [
+    "fetch(",
+    "/api/v1/blocks/produce",
     "localStorage",
     "sessionStorage",
     "indexedDB",
@@ -98,7 +151,6 @@ FORBIDDEN_ADMIN_IMPLEMENTATION_MARKERS = [
 ]
 
 FORBIDDEN_API_IMPLEMENTATION_MARKERS = [
-    "produceLocalBlock",
     "sendLocalBlockProduction",
     "produceBlockLocal",
 ]
@@ -124,6 +176,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Directory for design-check artifacts. Defaults under xriq/target/.",
     )
     parser.add_argument("--refresh-summary", type=Path, default=None)
+    parser.add_argument("--live-summary", type=Path, default=None)
     return parser.parse_args(argv)
 
 
@@ -254,6 +307,81 @@ def verify_refresh_summary(path: Path) -> dict[str, Any]:
     }
 
 
+def verify_live_summary(path: Path) -> dict[str, Any]:
+    payload = load_json_object(path, "block-production UI live summary")
+    require_equal(payload, "ok", "xriq-phase1-2-block-production-ui-live-smoke", "live")
+    require_equal(
+        payload,
+        "feature_switch",
+        "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true",
+        "live",
+    )
+
+    flags = payload.get("serve_readonly_flags")
+    if not isinstance(flags, dict):
+        raise DesignCheckError("live: expected serve_readonly_flags object")
+    require_equal(flags, "enable_local_wallet_send", True, "live flags")
+    require_equal(flags, "enable_local_wallet_submit", False, "live flags")
+    require_equal(flags, "enable_local_block_production", True, "live flags")
+
+    completed = payload.get("completed")
+    if not isinstance(completed, list):
+        raise DesignCheckError("live: completed must be a list")
+    for step in [
+        "block-production UI live produced one local block",
+        "pending file cleared after confirmed block production",
+        "wallet submit remains refused",
+        "network height advanced exactly one block",
+        "mempool empty after local block production",
+    ]:
+        if step not in completed:
+            raise DesignCheckError(f"live: missing completed step {step!r}")
+
+    guards = payload.get("guards")
+    if not isinstance(guards, list):
+        raise DesignCheckError("live: guards must be a list")
+    for guard in [
+        "block-production UI requires VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true",
+        "block-production UI uses the shared API client helper",
+        "block production requires --enable-local-block-production",
+        "wallet send remains separate and explicit",
+        "wallet submit remains disabled without --enable-local-wallet-submit",
+        "accepted block-production mutation is chain_and_pending_state_local_only",
+        "pending file removes confirmed transaction hashes",
+        "chain height advances exactly one block",
+        "no signing material or custody material is accepted",
+    ]:
+        if guard not in guards:
+            raise DesignCheckError(f"live: missing guard {guard!r}")
+
+    artifacts = payload.get("artifacts")
+    if not isinstance(artifacts, dict):
+        raise DesignCheckError("live: artifacts must be an object")
+    for key in [
+        "ui_summary",
+        "ui_wallet_send",
+        "ui_produced_block",
+        "ui_confirmed_status",
+        "ui_snapshot_after",
+        "wallet_submit_refusal",
+        "network",
+        "mempool_empty",
+    ]:
+        existing_path(artifacts.get(key), f"live artifact {key}")
+
+    sensitive_fields = find_sensitive_fields(payload)
+    if sensitive_fields:
+        raise DesignCheckError(f"live summary contains sensitive fields {sensitive_fields}")
+
+    return {
+        "path": str(path),
+        "wallet_send_tx_hash": payload.get("wallet_send_tx_hash"),
+        "produced_block_hash": payload.get("produced_block_hash"),
+        "block_production_enabled": True,
+        "wallet_submit_enabled": False,
+    }
+
+
 def write_summary(path: Path, report: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -270,9 +398,16 @@ def main(argv: list[str] | None = None) -> int:
         admin_ui = read_text(ADMIN_UI)
         api_client = read_text(API_CLIENT)
         static_check = read_text(STATIC_CHECK)
+        package_json = read_text(PACKAGE_JSON)
+        live_ui_check = read_text(LIVE_UI_CHECK)
+        live_smoke = read_text(LIVE_SMOKE)
         refresh_summary = args.refresh_summary or latest(
             "xriq-phase1-2-wallet-send-refresh-smoke-*/summary.json",
             "wallet-send refresh summary",
+        )
+        live_summary = args.live_summary or latest(
+            "xriq-phase1-2-block-production-ui-live-smoke-*/summary.json",
+            "block-production UI live summary",
         )
 
         require_markers(design_doc, REQUIRED_DESIGN_MARKERS, "block-production UI design")
@@ -280,11 +415,15 @@ def main(argv: list[str] | None = None) -> int:
         require_markers(phase_plan_doc, REQUIRED_PHASE_PLAN_MARKERS, "Phase 1.2 plan")
         require_markers(handoff_doc, REQUIRED_HANDOFF_MARKERS, "handoff")
         require_markers(admin_ui, REQUIRED_ADMIN_DISABLED_MARKERS, "Admin UI disabled guard")
+        require_markers(admin_ui, REQUIRED_ADMIN_IMPLEMENTATION_MARKERS, "Admin UI implementation")
         require_markers(api_client, REQUIRED_API_MARKERS, "API client")
         require_markers(static_check, REQUIRED_STATIC_MARKERS, "static UI check")
+        require_markers(package_json, REQUIRED_PACKAGE_MARKERS, "package scripts")
+        require_markers(live_ui_check, REQUIRED_LIVE_UI_CHECK_MARKERS, "live UI check")
+        require_markers(live_smoke, REQUIRED_LIVE_SMOKE_MARKERS, "live UI smoke")
         require_absent(
             admin_ui,
-            FORBIDDEN_ADMIN_IMPLEMENTATION_MARKERS,
+            FORBIDDEN_ADMIN_BEHAVIOR_MARKERS,
             "Admin UI",
         )
         require_absent(
@@ -293,6 +432,7 @@ def main(argv: list[str] | None = None) -> int:
             "API client",
         )
         refresh = verify_refresh_summary(refresh_summary)
+        live = verify_live_summary(live_summary)
 
         report = {
             "ok": "xriq-phase1-2-block-production-ui-design-check",
@@ -301,17 +441,20 @@ def main(argv: list[str] | None = None) -> int:
             "scope": "local-private-post-rc-hardening",
             "design_doc": str(DESIGN_DOC),
             "refresh_summary": refresh,
-            "review_only": True,
-            "implementation_allowed": False,
-            "block_production_ui_enabled": False,
-            "approval_required_before_implementation": True,
+            "live_summary": live,
+            "review_only": False,
+            "implementation_allowed": True,
+            "approval_recorded": True,
+            "block_production_ui_feature_switch_required": True,
+            "block_production_ui_default_enabled": False,
             "required_approval": (
                 "I explicitly approve implementing the Phase 1.2 "
                 "local/private-devnet block-production UI mutation control "
                 "behind the UI mutation-control gate."
             ),
             "admin_disabled_guard_present": True,
-            "next": "request explicit approval before implementing block-production UI",
+            "live_smoke_verified": True,
+            "next": "keep block-production UI live smoke evidence current",
         }
         write_summary(artifact_dir / "summary.json", report)
     except DesignCheckError as error:

@@ -2,13 +2,21 @@ import { useEffect, useState } from "react";
 import {
   BLOCK_PRODUCTION_REFUSAL_ENDPOINT,
   ExplorerSnapshot,
+  LocalBlockProductionAcceptedResponse,
   LocalMutationRefusalResponse,
   PostgresReadModelStatusResponse,
   WalletTransactionStatusResponse,
   loadBlockProductionRefusal,
   loadPostgresReadModelStatus,
   loadWalletTransactionStatus,
+  produceLocalBlock,
+  validateLocalBlockProductionAcceptedContract,
 } from "./api";
+
+const LOCAL_BLOCK_PRODUCTION_UI_ENABLED =
+  import.meta.env.VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI === "true";
+const LOCAL_BLOCK_PRODUCER = "xriqdev1author00000000000";
+const LOCAL_BLOCK_MAX_TRANSACTIONS = "4";
 
 interface AdminStatusPanelProps {
   apiBaseUrl: string;
@@ -27,6 +35,12 @@ type BlockProductionGuardState =
   | { status: "loading"; data: LocalMutationRefusalResponse | null; error: null }
   | { status: "ready"; data: LocalMutationRefusalResponse; error: null }
   | { status: "error"; data: LocalMutationRefusalResponse | null; error: string };
+
+type BlockProductionState =
+  | { status: "idle"; data: null; error: null }
+  | { status: "loading"; data: LocalBlockProductionAcceptedResponse | null; error: null }
+  | { status: "ready"; data: LocalBlockProductionAcceptedResponse; error: null }
+  | { status: "error"; data: LocalBlockProductionAcceptedResponse | null; error: string };
 
 export type PostgresStatusState =
   | { status: "idle"; data: null; error: null }
@@ -63,6 +77,11 @@ export function AdminStatusPanel({
       data: null,
       error: null,
     });
+  const [blockProduction, setBlockProduction] = useState<BlockProductionState>({
+    status: "idle",
+    data: null,
+    error: null,
+  });
   const snapshotCatalog = snapshot?.snapshots.snapshots[0];
   const latestAuditEvent = snapshot?.auditEvents.audit_events[0];
   const blockProductionAuditEvent =
@@ -180,6 +199,42 @@ export function AdminStatusPanel({
     }
   }
 
+  async function handleProduceLocalBlock() {
+    const localRequestId = `block-production-ui-${Date.now().toString(36)}`;
+    const request = {
+      local_request_id: localRequestId,
+      producer: LOCAL_BLOCK_PRODUCER,
+      max_transactions: LOCAL_BLOCK_MAX_TRANSACTIONS,
+      timestamp_ms: Date.now().toString(),
+    };
+    setBlockProduction((current) => ({
+      status: "loading",
+      data: current.data,
+      error: null,
+    }));
+    try {
+      const data = await produceLocalBlock(apiBaseUrl, request);
+      const contractErrors = validateLocalBlockProductionAcceptedContract(data, {
+        localRequestId,
+        producer: LOCAL_BLOCK_PRODUCER,
+        maxTransactions: Number.parseInt(LOCAL_BLOCK_MAX_TRANSACTIONS, 10),
+      });
+      if (contractErrors.length > 0) {
+        throw new Error(contractErrors.join("; "));
+      }
+      setBlockProduction({ status: "ready", data, error: null });
+    } catch (error) {
+      setBlockProduction((current) => ({
+        status: "error",
+        data: current.data,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Local block production failed",
+      }));
+    }
+  }
+
   return (
     <section className="panel detailPanel widePanel adminPanel">
       <div className="panelTitle">
@@ -257,6 +312,12 @@ export function AdminStatusPanel({
           guard={blockProductionGuard}
           onCheck={() => void handleCheckBlockProductionGuard()}
         />
+        <LocalBlockProductionControl
+          enabled={LOCAL_BLOCK_PRODUCTION_UI_ENABLED}
+          pendingCount={mempool?.pending_count ?? 0}
+          state={blockProduction}
+          onProduce={() => void handleProduceLocalBlock()}
+        />
         <StatusBlock
           title="Snapshot Catalog"
           rows={[
@@ -285,6 +346,73 @@ export function AdminStatusPanel({
         />
       </div>
     </section>
+  );
+}
+
+function LocalBlockProductionControl({
+  enabled,
+  pendingCount,
+  state,
+  onProduce,
+}: {
+  enabled: boolean;
+  pendingCount: number;
+  state: BlockProductionState;
+  onProduce: () => void;
+}) {
+  const data = state.data;
+  const metadata = data?.audit_event.metadata;
+  const produceDisabled = !enabled || pendingCount <= 0 || state.status === "loading";
+
+  return (
+    <div className="adminBlock localBlockProduction" aria-label="Local Block Production">
+      <div className="subHeading">
+        <h3>Local Block Production</h3>
+        <span>{enabled ? "feature switch on" : "feature switch off"}</span>
+      </div>
+      <div className="adminGuardButtons" aria-label="block-production local-only guard">
+        <button type="button" onClick={onProduce} disabled={produceDisabled}>
+          Produce Local
+        </button>
+        <span>chain_and_pending_state_local_only</span>
+      </div>
+      <dl className="detailList">
+        <FragmentRow label="State" value={state.status} />
+        <FragmentRow label="Pending" value={pendingCount} />
+        <FragmentRow label="Producer" value={LOCAL_BLOCK_PRODUCER} />
+        <FragmentRow label="Max Tx" value={LOCAL_BLOCK_MAX_TRANSACTIONS} />
+        <FragmentRow label="Wallet Send" value="wallet send remains separate" />
+        <FragmentRow label="Wallet Submit" value="wallet submit deferred" />
+        <FragmentRow label="Action" value="explicit local action" />
+      </dl>
+      {state.status === "error" ? <p className="errorText">{state.error}</p> : null}
+      {data ? (
+        <dl
+          className="detailList localBlockProductionResult"
+          aria-label="Local block production result"
+        >
+          <FragmentRow label="Status" value={data.status} />
+          <FragmentRow label="Mutation" value={data.mutation} />
+          <FragmentRow label="Block Height" value={data.block.height} />
+          <FragmentRow label="Block Hash" value={data.block.block_hash} />
+          <FragmentRow label="Local Request" value={metadata?.local_request_id ?? "-"} />
+          <FragmentRow label="Audit Event" value={data.audit_event.event_id} />
+          <FragmentRow label="Confirmed" value={data.confirmed_transactions.length} />
+          <FragmentRow label="Pending Before" value={data.pending_state.before_count} />
+          <FragmentRow label="Pending After" value={data.pending_state.after_count} />
+          <FragmentRow label="Previous Height" value={data.chain_state.previous_height} />
+          <FragmentRow label="Current Height" value={data.chain_state.current_height} />
+          <FragmentRow
+            label="Confirmed Hashes"
+            value={
+              data.confirmed_transactions
+                .map((transaction) => transaction.tx_hash)
+                .join(", ") || "-"
+            }
+          />
+        </dl>
+      ) : null}
+    </div>
   );
 }
 
