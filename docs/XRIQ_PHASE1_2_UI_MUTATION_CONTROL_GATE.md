@@ -51,12 +51,23 @@ for all of the following:
 - Phase 1.2 refusal smoke for wallet submit, wallet send, and block production.
 - Phase 1.2 accepted wallet-submit and wallet-send local artifacts.
 - Phase 1.2 wallet-send lifecycle evidence proving pending-to-confirmed flow.
+- Phase 1.2 block-production UI live evidence proving a pending transaction
+  becomes confirmed through the shared UI client.
+- Phase 1.2 block-production Admin refresh evidence proving Admin rows move
+  from one pending transaction at height `1` to zero pending transactions at
+  height `2`.
+- Phase 1.2 block-production no-pending negative evidence proving HTTP `400`
+  `no_pending_transactions` leaves chain and pending state unchanged.
 - Phase 1.2 readiness summary with
   `ready_for_ui_mutation_design_review: true`.
 - The same readiness summary must still report
   `ui_mutation_controls_enabled: false`,
   `safe_to_enable_ui_mutation_controls: false`, and
   `approval_required_before_ui_mutation_controls: true`.
+- Before any Phase 1.2 RC decision, the readiness summary must report
+  `block_production_evidence_required_for_rc: true`,
+  `ready_for_phase1_2_rc_decision: false`, and
+  `phase1_2_rc_approval_required: true`.
 
 ## Non-Negotiable UI Rules
 
@@ -99,6 +110,10 @@ The approved wallet-send and block-production implementation must stay narrow:
   `scripts/xriq_phase1_2_wallet_send_refresh_smoke.py`.
 - Keep block-production UI live-smoke evidence current. The current live-smoke
   path is `scripts/xriq_phase1_2_block_production_ui_live_smoke.py`.
+- Keep block-production Admin refresh and no-pending negative evidence current.
+  The current paths are
+  `scripts/xriq_phase1_2_block_production_admin_refresh_smoke.py` and
+  `scripts/xriq_phase1_2_block_production_no_pending_smoke.py`.
 
 ## Approval Required
 

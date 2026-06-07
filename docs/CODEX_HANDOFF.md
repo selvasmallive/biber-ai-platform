@@ -236,7 +236,7 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `75%` overall after the initial
+- Phase 1.2 estimated completion: about `76%` overall after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
   submit/send, React/client disabled-action guard coverage, and audit-event
@@ -277,7 +277,10 @@ unless the user changes the project scope again.
   with one pending transaction to height `2` with zero pending transactions,
   plus a no-pending negative block-production smoke proving HTTP `400`
   `no_pending_transactions` leaves Admin rows, network height, mempool count,
-  and the pending file unchanged when there are no transactions to include.
+  and the pending file unchanged when there are no transactions to include,
+  plus an updated readiness summary and UI mutation-control gate requiring the
+  latest block-production UI live, Admin refresh, and no-pending negative
+  evidence before any Phase 1.2 RC decision.
   It is not a public launch phase. Its current
   target is defining and hardening local-only action contracts before broader
   UI mutation controls, snapshot-mutation, DEX, custody, public network
@@ -542,23 +545,31 @@ to save cost.
   Latest artifact:
   `xriq/target/xriq-phase1-2-wallet-send-lifecycle-smoke-20260606T213131Z/summary.json`.
 - Latest native XRIQ Phase 1.2 readiness-summary checkpoint:
-  added `scripts/xriq_phase1_2_readiness_summary.py`, a CPU-only local
-  evidence gate that checks the latest Phase 1.2 refusal summary, the latest
-  accepted local wallet-send artifact, and the latest wallet-send lifecycle
-  summary before any UI mutation-control milestone is considered. It verifies
-  the disabled fixture/audit guard set, the accepted wallet-send response and
-  audit fields, absence of signing/custody field names, request-mode
-  pending-to-confirmed evidence, temporary `serve-readonly`
-  pending-to-confirmed evidence, required artifact file paths, empty mempool
-  after block production, and network height `2` after the local block is
-  produced. The summary reports `ready_for_ui_mutation_design_review: true`
-  while keeping `ui_mutation_controls_enabled: false`,
-  `safe_to_enable_ui_mutation_controls: false`, and
-  `approval_required_before_ui_mutation_controls: true`.
+  `scripts/xriq_phase1_2_readiness_summary.py` is now a CPU-only local
+  evidence gate that checks the latest Phase 1.2 refusal summary, accepted
+  local wallet-send artifact, wallet-send lifecycle summary, block-production
+  UI live summary, block-production Admin refresh summary, and
+  block-production no-pending negative summary before any UI mutation-control
+  milestone or Phase 1.2 RC decision is considered. It verifies the disabled
+  fixture/audit guard set, the accepted wallet-send response and audit fields,
+  absence of signing/custody field names, request-mode pending-to-confirmed
+  evidence, temporary `serve-readonly` pending-to-confirmed evidence, required
+  artifact file paths, empty mempool after block production, network height
+  `2` after the local block is produced, Admin row refresh from height `1` to
+  `2`, and the HTTP `400` `no_pending_transactions` path that leaves chain and
+  pending state unchanged. The summary reports
+  `ready_for_ui_mutation_design_review: true`,
+  `block_production_evidence_required_for_rc: true`, and
+  `block_production_evidence_current: true` while keeping
+  `ui_mutation_controls_enabled: false`,
+  `safe_to_enable_ui_mutation_controls: false`,
+  `approval_required_before_ui_mutation_controls: true`,
+  `ready_for_phase1_2_rc_decision: false`, and
+  `phase1_2_rc_approval_required: true`.
   Verification passed bundled-Python `py_compile` and bundled-Python
   `scripts/xriq_phase1_2_readiness_summary.py`.
   Latest artifact:
-  `xriq/target/xriq-phase1-2-readiness-summary-20260607T105541Z/summary.json`.
+  `xriq/target/xriq-phase1-2-readiness-summary-20260607T115109Z/summary.json`.
 - Latest native XRIQ Phase 1.2 UI mutation-control gate checkpoint:
   `docs/XRIQ_PHASE1_2_UI_MUTATION_CONTROL_GATE.md` now records the user's
   explicit 2026-06-06 approval for local/private-devnet wallet-send UI behind
@@ -569,15 +580,18 @@ to save cost.
   `scripts/xriq_phase1_2_ui_mutation_gate_check.py`, a CPU-only local checker
   validates the gate document, latest readiness summary, wallet UI source,
   Admin UI source, static UI guardrails, and shared accepted-response
-  validators. The checker verifies default UI mutation remains disabled,
-  wallet-send and block-production require their feature switches, wallet
-  submit remains deferred, UI mutation sources have no direct mutation endpoint
-  strings or direct `fetch(`, and UI mutation sources have no browser
-  persistence or sensitive signing/custody field names.
+  validators. The checker now requires the readiness summary to include
+  current block-production UI live, Admin refresh, and no-pending negative
+  evidence, `block_production_evidence_required_for_rc: true`, and
+  `ready_for_phase1_2_rc_decision: false`. It verifies default UI mutation
+  remains disabled, wallet-send and block-production require their feature
+  switches, wallet submit remains deferred, UI mutation sources have no direct
+  mutation endpoint strings or direct `fetch(`, and UI mutation sources have no
+  browser persistence or sensitive signing/custody field names.
   Verification passed bundled-Python `py_compile` and bundled-Python
   `scripts/xriq_phase1_2_ui_mutation_gate_check.py`.
   Latest artifact:
-  `xriq/target/xriq-phase1-2-ui-mutation-gate-check-20260607T111018Z/summary.json`.
+  `xriq/target/xriq-phase1-2-ui-mutation-gate-check-20260607T115109Z/summary.json`.
 - Latest native XRIQ Phase 1.2 wallet-send UI implementation checkpoint:
   `docs/XRIQ_PHASE1_2_WALLET_SEND_UI_IMPLEMENTATION_PLAN.md` now records the
   approved implementation. `xriq/apps/explorer-ui/src/api.ts` exposes
@@ -677,7 +691,7 @@ to save cost.
   `fetch(`, no hard-coded block-production endpoint path in Admin UI source, no
   browser persistence markers, and no sensitive signing/custody field names.
   Latest design-check artifact:
-  `xriq/target/xriq-phase1-2-block-production-ui-design-check-20260607T112201Z/summary.json`.
+  `xriq/target/xriq-phase1-2-block-production-ui-design-check-20260607T115109Z/summary.json`.
 - Latest native XRIQ Phase 1.2 block-production UI live smoke checkpoint:
   added `xriq/apps/explorer-ui/scripts/check-block-production-ui-control.mjs`,
   `xriq/apps/explorer-ui/scripts/check-block-production-ui-live.mjs`, and
@@ -983,12 +997,14 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: update the Phase 1.2 readiness summary/gate to
-  require the latest block-production UI live, Admin refresh, and no-pending
-  negative smoke evidence before any Phase 1.2 RC decision. Keep wallet submit,
-  snapshot import/export mutation, DEX, smart contracts, public mainnet,
-  custody, bridges, exchange listings, and production infrastructure out of
-  scope until explicitly approved.
+- Recommended next narrow step: prepare a docs-only Phase 1.2 RC candidate
+  report/checklist that references the latest readiness summary, UI mutation
+  gate, block-production UI live, Admin refresh, and no-pending negative smoke
+  evidence. Do not create, move, or push a Phase 1.2 tag without explicit user
+  approval naming the exact tag. Keep wallet submit, snapshot import/export
+  mutation, DEX, smart contracts, public mainnet, custody, bridges, exchange
+  listings, and production infrastructure out of scope until explicitly
+  approved.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return

@@ -30,6 +30,9 @@ REQUIRED_GATE_MARKERS = [
     "ui_mutation_controls_enabled: false",
     "safe_to_enable_ui_mutation_controls: false",
     "approval_required_before_ui_mutation_controls: true",
+    "block_production_evidence_required_for_rc: true",
+    "ready_for_phase1_2_rc_decision: false",
+    "phase1_2_rc_approval_required: true",
     "No private key, seed phrase, mnemonic, raw signature, or signed transaction",
     "No direct `fetch(` calls from wallet UI source.",
     "No hard-coded wallet submit/send endpoint strings in wallet UI source.",
@@ -44,6 +47,8 @@ REQUIRED_PLAN_MARKERS = [
     "Current wallet-send UI implementation checkpoint:",
     "Current block-production UI design checkpoint:",
     "Current block-production UI live smoke checkpoint:",
+    "Current block-production Admin refresh smoke checkpoint:",
+    "Current block-production no-pending negative smoke checkpoint:",
 ]
 
 REQUIRED_WALLET_MARKERS = [
@@ -94,10 +99,14 @@ REQUIRED_API_MARKERS = [
     "LocalWalletSubmitAcceptedResponse",
     "LocalWalletSendAcceptedResponse",
     "LocalBlockProductionAcceptedResponse",
+    "produceLocalBlockNoPendingRefusal",
+    "validateLocalBlockProductionNoPendingContract",
     "wallet_submit_accepted_local_only",
     "wallet_send_accepted_local_only",
     "block_production_accepted_local_only",
+    "no_pending_transactions",
     "acceptedStatuses: [201]",
+    "acceptedStatuses: [400]",
 ]
 
 REQUIRED_ADMIN_MARKERS = [
@@ -240,15 +249,48 @@ def verify_readiness_summary(path: Path) -> dict[str, Any]:
     require_equal(payload, "ui_mutation_controls_enabled", False, "readiness")
     require_equal(payload, "safe_to_enable_ui_mutation_controls", False, "readiness")
     require_equal(payload, "approval_required_before_ui_mutation_controls", True, "readiness")
+    require_equal(payload, "block_production_evidence_required_for_rc", True, "readiness")
+    require_equal(payload, "block_production_evidence_current", True, "readiness")
+    require_equal(payload, "ready_for_phase1_2_rc_decision", False, "readiness")
+    require_equal(payload, "phase1_2_rc_approval_required", True, "readiness")
     require_equal(payload, "scope", "local-private-post-rc-hardening", "readiness")
 
     sensitive_fields = find_sensitive_fields(payload)
     if sensitive_fields:
         raise GateCheckError(f"readiness summary contains sensitive fields {sensitive_fields}")
 
-    for key in ["refusal_summary", "wallet_send_accepted", "wallet_send_lifecycle"]:
+    for key in [
+        "refusal_summary",
+        "wallet_send_accepted",
+        "wallet_send_lifecycle",
+        "block_production_ui_live",
+        "block_production_admin_refresh",
+        "block_production_no_pending",
+    ]:
         if not isinstance(payload.get(key), dict):
             raise GateCheckError(f"readiness: expected object at {key}")
+
+    live = payload["block_production_ui_live"]
+    admin_refresh = payload["block_production_admin_refresh"]
+    no_pending = payload["block_production_no_pending"]
+    require_equal(live, "block_production_enabled", True, "readiness block live")
+    require_equal(live, "wallet_submit_enabled", False, "readiness block live")
+    require_equal(admin_refresh, "admin_rows_verified", True, "readiness admin refresh")
+    require_equal(admin_refresh, "wallet_submit_enabled", False, "readiness admin refresh")
+    require_equal(
+        no_pending,
+        "no_pending_refusal_code",
+        "no_pending_transactions",
+        "readiness no pending",
+    )
+    require_equal(
+        no_pending,
+        "chain_and_pending_unchanged",
+        True,
+        "readiness no pending",
+    )
+    require_equal(no_pending, "wallet_send_enabled", False, "readiness no pending")
+    require_equal(no_pending, "wallet_submit_enabled", False, "readiness no pending")
 
     return {
         "path": str(path),
@@ -256,6 +298,8 @@ def verify_readiness_summary(path: Path) -> dict[str, Any]:
         "ui_mutation_controls_enabled": False,
         "safe_to_enable_ui_mutation_controls": False,
         "approval_required_before_ui_mutation_controls": True,
+        "block_production_evidence_current": True,
+        "ready_for_phase1_2_rc_decision": False,
         "wallet_send_tx_hash": payload["wallet_send_lifecycle"].get("wallet_send_tx_hash"),
     }
 
@@ -330,6 +374,8 @@ def main(argv: list[str] | None = None) -> int:
                 "Latest native XRIQ Phase 1.2 wallet-send read-only refresh smoke checkpoint:",
                 "Latest native XRIQ Phase 1.2 block-production UI design checkpoint:",
                 "Latest native XRIQ Phase 1.2 block-production UI live smoke checkpoint:",
+                "Latest native XRIQ Phase 1.2 block-production Admin refresh smoke checkpoint:",
+                "Latest native XRIQ Phase 1.2 block-production no-pending negative smoke checkpoint:",
             ],
             "handoff",
         )

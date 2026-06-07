@@ -54,6 +54,58 @@ REQUIRED_LIFECYCLE_ARTIFACTS = [
     "serve_readonly_network",
 ]
 
+REQUIRED_BLOCK_PRODUCTION_LIVE_COMPLETED = [
+    "block-production UI live produced one local block",
+    "pending file cleared after confirmed block production",
+    "wallet submit remains refused",
+    "network height advanced exactly one block",
+    "mempool empty after local block production",
+]
+
+REQUIRED_BLOCK_PRODUCTION_LIVE_ARTIFACTS = [
+    "ui_summary",
+    "ui_wallet_send",
+    "ui_produced_block",
+    "ui_confirmed_status",
+    "ui_snapshot_after",
+    "wallet_submit_refusal",
+    "network",
+    "mempool_empty",
+]
+
+REQUIRED_ADMIN_REFRESH_COMPLETED = [
+    "Admin rows refresh from pending to confirmed state",
+    "pending file cleared after Admin refresh block production",
+    "wallet submit remains refused",
+]
+
+REQUIRED_ADMIN_REFRESH_ARTIFACTS = [
+    "ui_summary",
+    "ui_rows_before",
+    "ui_rows_after",
+    "ui_produced_block",
+    "ui_confirmed_status",
+    "wallet_submit_refusal",
+]
+
+REQUIRED_NO_PENDING_COMPLETED = [
+    "Admin rows stayed unchanged after no-pending refusal",
+    "direct API no-pending refusal remains stable",
+    "network height unchanged after no-pending refusal",
+    "mempool remains empty after no-pending refusal",
+    "pending file remains empty after no-pending refusal",
+]
+
+REQUIRED_NO_PENDING_ARTIFACTS = [
+    "ui_summary",
+    "ui_rows_before",
+    "ui_refusal",
+    "ui_rows_after",
+    "api_no_pending_refusal",
+    "network",
+    "mempool_empty",
+]
+
 
 class ReadinessError(RuntimeError):
     pass
@@ -75,6 +127,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--refusal-summary", type=Path, default=None)
     parser.add_argument("--wallet-send-accepted", type=Path, default=None)
     parser.add_argument("--lifecycle-summary", type=Path, default=None)
+    parser.add_argument("--block-production-live-summary", type=Path, default=None)
+    parser.add_argument("--block-production-admin-refresh-summary", type=Path, default=None)
+    parser.add_argument("--block-production-no-pending-summary", type=Path, default=None)
     return parser.parse_args(argv)
 
 
@@ -283,6 +338,50 @@ def verify_mempool_empty(path: Path, context: str) -> None:
         raise ReadinessError(f"{context}: expected empty entries list")
 
 
+def verify_network_height(path: Path, expected_height: int, context: str) -> None:
+    payload = load_json_object(path, context)
+    require_equal(payload, "current_height", expected_height, context)
+
+
+def verify_no_pending_refusal(path: Path, context: str) -> None:
+    payload = load_json_object(path, context)
+    error = payload.get("error")
+    if not isinstance(error, dict):
+        raise ReadinessError(f"{context}: expected error object")
+    require_equal(error, "code", "no_pending_transactions", context)
+    message = error.get("message")
+    if not isinstance(message, str) or "at least one pending transaction" not in message:
+        raise ReadinessError(f"{context}: expected no-pending explanation")
+
+
+def require_completed_steps(
+    payload: dict[str, Any],
+    required_steps: list[str],
+    context: str,
+) -> int:
+    completed = payload.get("completed")
+    if not isinstance(completed, list):
+        raise ReadinessError(f"{context}: completed must be a list")
+    missing_completed = [step for step in required_steps if step not in completed]
+    if missing_completed:
+        raise ReadinessError(f"{context}: missing completed steps {missing_completed}")
+    return len(completed)
+
+
+def require_artifact_paths(
+    payload: dict[str, Any],
+    required_keys: list[str],
+    context: str,
+) -> dict[str, Path]:
+    artifacts = payload.get("artifacts")
+    if not isinstance(artifacts, dict):
+        raise ReadinessError(f"{context}: artifacts must be an object")
+    artifact_paths: dict[str, Path] = {}
+    for key in required_keys:
+        artifact_paths[key] = existing_path(artifacts.get(key), f"{context} artifact {key}")
+    return artifact_paths
+
+
 def verify_lifecycle_summary(path: Path) -> dict[str, Any]:
     payload = load_json_object(path, "wallet-send lifecycle summary")
     require_equal(payload, "ok", "xriq-phase1-2-wallet-send-lifecycle-smoke", "lifecycle")
@@ -362,6 +461,217 @@ def verify_lifecycle_summary(path: Path) -> dict[str, Any]:
     }
 
 
+def verify_block_production_live_summary(path: Path) -> dict[str, Any]:
+    payload = load_json_object(path, "block-production UI live summary")
+    require_equal(payload, "ok", "xriq-phase1-2-block-production-ui-live-smoke", "block live")
+    require_equal(
+        payload,
+        "feature_switch",
+        "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true",
+        "block live",
+    )
+    tx_hash = require_hash(payload.get("wallet_send_tx_hash"), "block live wallet_send_tx_hash")
+    block_hash = require_hash(payload.get("produced_block_hash"), "block live produced_block_hash")
+
+    flags = payload.get("serve_readonly_flags")
+    if not isinstance(flags, dict):
+        raise ReadinessError("block live: serve_readonly_flags must be an object")
+    require_equal(flags, "enable_local_wallet_send", True, "block live flags")
+    require_equal(flags, "enable_local_wallet_submit", False, "block live flags")
+    require_equal(flags, "enable_local_block_production", True, "block live flags")
+
+    completed_steps = require_completed_steps(
+        payload,
+        REQUIRED_BLOCK_PRODUCTION_LIVE_COMPLETED,
+        "block live",
+    )
+    guards = payload.get("guards")
+    if not isinstance(guards, list):
+        raise ReadinessError("block live: guards must be a list")
+    for guard in [
+        "block-production UI requires VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true",
+        "block-production UI uses the shared API client helper",
+        "block production requires --enable-local-block-production",
+        "wallet send remains separate and explicit",
+        "wallet submit remains disabled without --enable-local-wallet-submit",
+        "accepted block-production mutation is chain_and_pending_state_local_only",
+        "pending file removes confirmed transaction hashes",
+        "chain height advances exactly one block",
+        "no signing material or custody material is accepted",
+    ]:
+        if guard not in guards:
+            raise ReadinessError(f"block live: missing guard {guard!r}")
+
+    artifact_paths = require_artifact_paths(
+        payload,
+        REQUIRED_BLOCK_PRODUCTION_LIVE_ARTIFACTS,
+        "block live",
+    )
+    verify_block(artifact_paths["ui_produced_block"], tx_hash, "block live produced block")
+    verify_confirmed_status(
+        artifact_paths["ui_confirmed_status"],
+        tx_hash,
+        "block live confirmed status",
+    )
+    verify_mempool_empty(artifact_paths["mempool_empty"], "block live mempool empty")
+    verify_network_height(artifact_paths["network"], 2, "block live network")
+
+    return {
+        "path": str(path),
+        "wallet_send_tx_hash": tx_hash,
+        "produced_block_hash": block_hash,
+        "completed_steps": completed_steps,
+        "artifacts_checked": len(REQUIRED_BLOCK_PRODUCTION_LIVE_ARTIFACTS),
+        "block_production_enabled": True,
+        "wallet_submit_enabled": False,
+    }
+
+
+def verify_block_production_admin_refresh_summary(path: Path) -> dict[str, Any]:
+    payload = load_json_object(path, "block-production Admin refresh summary")
+    require_equal(
+        payload,
+        "ok",
+        "xriq-phase1-2-block-production-admin-refresh-smoke",
+        "admin refresh",
+    )
+    require_equal(
+        payload,
+        "feature_switch",
+        "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true",
+        "admin refresh",
+    )
+    tx_hash = require_hash(
+        payload.get("wallet_send_tx_hash"),
+        "admin refresh wallet_send_tx_hash",
+    )
+    block_hash = require_hash(
+        payload.get("produced_block_hash"),
+        "admin refresh produced_block_hash",
+    )
+
+    flags = payload.get("serve_readonly_flags")
+    if not isinstance(flags, dict):
+        raise ReadinessError("admin refresh: serve_readonly_flags must be an object")
+    require_equal(flags, "enable_local_wallet_send", True, "admin refresh flags")
+    require_equal(flags, "enable_local_wallet_submit", False, "admin refresh flags")
+    require_equal(flags, "enable_local_block_production", True, "admin refresh flags")
+
+    completed_steps = require_completed_steps(
+        payload,
+        REQUIRED_ADMIN_REFRESH_COMPLETED,
+        "admin refresh",
+    )
+    guards = payload.get("guards")
+    if not isinstance(guards, list):
+        raise ReadinessError("admin refresh: guards must be a list")
+    for guard in [
+        "Admin refresh uses the same adminSnapshotRows helper as the UI",
+        "block-production Admin refresh requires VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true",
+        "block production requires --enable-local-block-production",
+        "wallet send remains separate and explicit",
+        "wallet submit remains disabled without --enable-local-wallet-submit",
+        "Admin rows show pending before block production",
+        "Admin rows show height 2 and zero pending after block production",
+        "no signing material or custody material is accepted",
+    ]:
+        if guard not in guards:
+            raise ReadinessError(f"admin refresh: missing guard {guard!r}")
+
+    artifact_paths = require_artifact_paths(
+        payload,
+        REQUIRED_ADMIN_REFRESH_ARTIFACTS,
+        "admin refresh",
+    )
+    verify_block(artifact_paths["ui_produced_block"], tx_hash, "admin refresh produced block")
+    verify_confirmed_status(
+        artifact_paths["ui_confirmed_status"],
+        tx_hash,
+        "admin refresh confirmed status",
+    )
+
+    return {
+        "path": str(path),
+        "wallet_send_tx_hash": tx_hash,
+        "produced_block_hash": block_hash,
+        "completed_steps": completed_steps,
+        "artifacts_checked": len(REQUIRED_ADMIN_REFRESH_ARTIFACTS),
+        "admin_rows_verified": True,
+        "wallet_submit_enabled": False,
+    }
+
+
+def verify_block_production_no_pending_summary(path: Path) -> dict[str, Any]:
+    payload = load_json_object(path, "block-production no-pending summary")
+    require_equal(
+        payload,
+        "ok",
+        "xriq-phase1-2-block-production-no-pending-smoke",
+        "no pending",
+    )
+    require_equal(
+        payload,
+        "feature_switch",
+        "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true",
+        "no pending",
+    )
+    require_equal(
+        payload,
+        "no_pending_refusal_code",
+        "no_pending_transactions",
+        "no pending",
+    )
+
+    flags = payload.get("serve_readonly_flags")
+    if not isinstance(flags, dict):
+        raise ReadinessError("no pending: serve_readonly_flags must be an object")
+    require_equal(flags, "enable_local_wallet_send", False, "no pending flags")
+    require_equal(flags, "enable_local_wallet_submit", False, "no pending flags")
+    require_equal(flags, "enable_local_block_production", True, "no pending flags")
+
+    completed_steps = require_completed_steps(
+        payload,
+        REQUIRED_NO_PENDING_COMPLETED,
+        "no pending",
+    )
+    guards = payload.get("guards")
+    if not isinstance(guards, list):
+        raise ReadinessError("no pending: guards must be a list")
+    for guard in [
+        "no-pending block production returns no_pending_transactions",
+        "no-pending block production does not mutate chain state",
+        "no-pending block production does not mutate pending state",
+        "Admin rows stay at height 1 with zero pending transactions",
+        "block production requires --enable-local-block-production",
+        "feature-switched UI still disables Produce Local when pending_count is zero",
+        "wallet send remains separate and disabled in this smoke",
+        "wallet submit remains deferred",
+        "no signing material or custody material is accepted",
+    ]:
+        if guard not in guards:
+            raise ReadinessError(f"no pending: missing guard {guard!r}")
+
+    artifact_paths = require_artifact_paths(
+        payload,
+        REQUIRED_NO_PENDING_ARTIFACTS,
+        "no pending",
+    )
+    verify_no_pending_refusal(artifact_paths["api_no_pending_refusal"], "no pending API refusal")
+    verify_network_height(artifact_paths["network"], 1, "no pending network")
+    verify_mempool_empty(artifact_paths["mempool_empty"], "no pending mempool empty")
+
+    return {
+        "path": str(path),
+        "no_pending_refusal_code": "no_pending_transactions",
+        "completed_steps": completed_steps,
+        "artifacts_checked": len(REQUIRED_NO_PENDING_ARTIFACTS),
+        "block_production_enabled": True,
+        "chain_and_pending_unchanged": True,
+        "wallet_send_enabled": False,
+        "wallet_submit_enabled": False,
+    }
+
+
 def write_summary(path: Path, report: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -383,12 +693,42 @@ def main(argv: list[str] | None = None) -> int:
             "xriq-phase1-2-wallet-send-lifecycle-smoke-*/summary.json",
             "Phase 1.2 wallet-send lifecycle summary",
         )
+        block_production_live_summary = args.block_production_live_summary or latest(
+            "xriq-phase1-2-block-production-ui-live-smoke-*/summary.json",
+            "Phase 1.2 block-production UI live summary",
+        )
+        block_production_admin_refresh_summary = (
+            args.block_production_admin_refresh_summary
+            or latest(
+                "xriq-phase1-2-block-production-admin-refresh-smoke-*/summary.json",
+                "Phase 1.2 block-production Admin refresh summary",
+            )
+        )
+        block_production_no_pending_summary = args.block_production_no_pending_summary or latest(
+            "xriq-phase1-2-block-production-no-pending-smoke-*/summary.json",
+            "Phase 1.2 block-production no-pending summary",
+        )
         refusal = verify_refusal_summary(refusal_summary)
         accepted = verify_wallet_send_accepted(wallet_send_accepted)
         lifecycle = verify_lifecycle_summary(lifecycle_summary)
+        block_live = verify_block_production_live_summary(block_production_live_summary)
+        admin_refresh = verify_block_production_admin_refresh_summary(
+            block_production_admin_refresh_summary
+        )
+        no_pending = verify_block_production_no_pending_summary(
+            block_production_no_pending_summary
+        )
         if accepted["tx_hash"] != lifecycle["wallet_send_tx_hash"]:
             raise ReadinessError(
                 "accepted wallet-send tx hash does not match latest lifecycle tx hash"
+            )
+        if block_live["wallet_send_tx_hash"] != admin_refresh["wallet_send_tx_hash"]:
+            raise ReadinessError(
+                "block-production live and Admin refresh tx hashes do not match"
+            )
+        if block_live["produced_block_hash"] != admin_refresh["produced_block_hash"]:
+            raise ReadinessError(
+                "block-production live and Admin refresh block hashes do not match"
             )
         report = {
             "ok": "xriq-phase1-2-readiness-summary",
@@ -398,10 +738,17 @@ def main(argv: list[str] | None = None) -> int:
             "refusal_summary": refusal,
             "wallet_send_accepted": accepted,
             "wallet_send_lifecycle": lifecycle,
+            "block_production_ui_live": block_live,
+            "block_production_admin_refresh": admin_refresh,
+            "block_production_no_pending": no_pending,
             "ready_for_ui_mutation_design_review": True,
             "ui_mutation_controls_enabled": False,
             "safe_to_enable_ui_mutation_controls": False,
             "approval_required_before_ui_mutation_controls": True,
+            "block_production_evidence_required_for_rc": True,
+            "block_production_evidence_current": True,
+            "ready_for_phase1_2_rc_decision": False,
+            "phase1_2_rc_approval_required": True,
             "blocked_scope": [
                 "public mainnet",
                 "DEX",
@@ -413,9 +760,9 @@ def main(argv: list[str] | None = None) -> int:
                 "production infrastructure",
             ],
             "next": (
-                "run the wallet-send UI implementation, live-smoke, refresh-smoke, "
-                "and block-production UI design checks before considering any "
-                "additional UI mutation-control scope"
+                "keep wallet-send, block-production UI live, Admin refresh, and "
+                "no-pending negative smoke evidence current before any Phase 1.2 "
+                "RC decision"
             ),
         }
         write_summary(artifact_dir / "summary.json", report)

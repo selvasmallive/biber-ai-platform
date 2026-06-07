@@ -314,14 +314,20 @@ Current Phase 1.2 readiness summary checkpoint:
 `scripts/xriq_phase1_2_readiness_summary.py` now checks the latest refusal
 summary, the latest accepted local wallet-send artifact, and the latest
 wallet-send lifecycle summary before any UI mutation-control milestone is
-considered. The summary validates fixture/refusal guards, audit expectation
-coverage, accepted wallet-send response fields, absence of signing/custody
-field names, request-mode lifecycle evidence, temporary `serve-readonly`
-lifecycle evidence, and required artifact file paths. It reports
-`ready_for_ui_mutation_design_review: true`, while keeping
+considered. It now also requires the latest block-production UI live smoke,
+Admin refresh smoke, and no-pending negative smoke before any Phase 1.2 RC
+decision can be considered. The summary validates fixture/refusal guards, audit
+expectation coverage, accepted wallet-send response fields, absence of
+signing/custody field names, request-mode lifecycle evidence, temporary
+`serve-readonly` lifecycle evidence, block-production live evidence, Admin
+row-refresh evidence, no-pending refusal evidence, and required artifact file
+paths. It reports `ready_for_ui_mutation_design_review: true`, while keeping
 `ui_mutation_controls_enabled: false`,
-`safe_to_enable_ui_mutation_controls: false`, and
-`approval_required_before_ui_mutation_controls: true`.
+`safe_to_enable_ui_mutation_controls: false`,
+`approval_required_before_ui_mutation_controls: true`,
+`block_production_evidence_required_for_rc: true`,
+`ready_for_phase1_2_rc_decision: false`, and
+`phase1_2_rc_approval_required: true`.
 
 Current UI mutation-control design gate checkpoint:
 `docs/XRIQ_PHASE1_2_UI_MUTATION_CONTROL_GATE.md` now defines the approved
