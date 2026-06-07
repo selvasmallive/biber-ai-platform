@@ -111,6 +111,15 @@ local/private UI helper paths:
 This milestone must continue to avoid direct mutation `fetch(` calls from UI
 source files and must keep default controls disabled.
 
+Initial checkpoint:
+
+- executable UI-backed smoke:
+  `python scripts/xriq_phase1_3_wallet_behavior_ui_smoke.py`
+- matching npm/Vite SSR client check:
+  `npm run check:phase1-3-wallet-behavior-live`
+- latest passing artifact:
+  `xriq/target/xriq-phase1-3-wallet-behavior-ui-smoke-20260607T132901Z/summary.json`
+
 ## Milestone D: Negative Behavior Matrix
 
 Keep the negative cases current:
@@ -138,14 +147,23 @@ git diff --check
 ```
 
 The behavior contract check now exists and writes timestamped artifacts under
-`xriq/target/xriq-phase1-3-*`. Add the wallet behavior smoke incrementally next;
-it should avoid external services by default.
+`xriq/target/xriq-phase1-3-*`.
 On this Windows workstation, use the bundled Codex Python if `python` is not on
 PATH.
 The CPU-only wallet behavior smoke also now exists and should stay cheap:
 
 ```bash
 python scripts/xriq_phase1_3_wallet_behavior_smoke.py --skip-build
+```
+
+The UI-backed behavior smoke now starts a temporary local/private API, runs the
+shared TypeScript client path through Vite SSR, verifies wallet/Admin refresh
+rows, balances, history, wallet-submit refusal, and no-pending block-production
+refusal, and still avoids browser, Docker, GCP, Vast, public, DEX, custody, and
+production scope:
+
+```bash
+python scripts/xriq_phase1_3_wallet_behavior_ui_smoke.py --skip-build
 ```
 
 ## Completion Criteria

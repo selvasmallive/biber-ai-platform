@@ -301,12 +301,13 @@ unless the user changes the project scope again.
   local/private hardening baseline for local-only action contracts before broader
   UI mutation controls, snapshot-mutation, DEX, custody, public network
   behavior, or production infrastructure are implemented.
-- Phase 1.3 estimated completion: about `35%` after the initial local/private
-  behavior plan, canonical behavior fixture/contract check, and CPU-only
-  request-mode wallet behavior smoke. No Phase 1.3 UI-backed behavior smoke,
-  readiness report, or tag exists yet. The next narrow implementation step is a
-  UI-backed local/private behavior smoke through the shared TypeScript client
-  using the same fixture contract.
+- Phase 1.3 estimated completion: about `60%` after the initial local/private
+  behavior plan, canonical behavior fixture/contract check, CPU-only
+  request-mode wallet behavior smoke, and UI-backed shared TypeScript client
+  behavior smoke. No Phase 1.3 readiness report or tag exists yet. The next
+  narrow implementation step is a cheap Phase 1.3 readiness/negative-matrix
+  consolidation guard that references the latest fixture, CPU smoke, and UI
+  smoke evidence without adding new public/product scope.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -851,6 +852,30 @@ an active target because the GPU was terminated to save cost.
   `scripts/xriq_phase1_3_wallet_behavior_smoke.py --skip-build`, and
   `git diff --check`. Latest artifact:
   `xriq/target/xriq-phase1-3-wallet-behavior-smoke-20260607T131636Z/summary.json`.
+- Latest native XRIQ Phase 1.3 UI-backed wallet behavior smoke checkpoint:
+  added `xriq/apps/explorer-ui/scripts/check-phase1-3-wallet-behavior-live.mjs`,
+  the npm script `check:phase1-3-wallet-behavior-live`, and
+  `scripts/xriq_phase1_3_wallet_behavior_ui_smoke.py`. The wrapper validates
+  the Phase 1.3 fixture, creates a temporary base chain, starts a local
+  `serve-readonly` API with only `--enable-local-wallet-send true` and
+  `--enable-local-block-production true`, sets only
+  `VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true` and
+  `VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true`, then runs the shared
+  TypeScript client flow through Vite SSR. The smoke verifies wallet-submit
+  refusal, wallet send to pending, wallet/Admin pending rows before block
+  production, one local block production, confirmed wallet status, wallet/Admin
+  rows after block production, final balances/history for Alice/Bob/Carol/fee
+  sink, and no-pending block-production refusal with state unchanged. It scans
+  wallet/Admin UI sources for direct mutation `fetch(` calls, browser
+  persistence, and sensitive signing/custody markers. It starts no browser,
+  Docker, GCP, Vast, GPU, public/DEX behavior, custody, smart contracts,
+  production infrastructure, or tag operation. Verification passed bundled
+  Python `py_compile`, Node `--check`, bundled Python
+  `scripts/xriq_phase1_3_behavior_contract_check.py --artifact-dir xriq/target/xriq-phase1-3-behavior-contract-check-ui-smoke-final2`,
+  `npm.cmd run check` in `xriq/apps/explorer-ui`, bundled Python
+  `scripts/xriq_phase1_3_wallet_behavior_ui_smoke.py --skip-build`, and
+  `git diff --check`. The UI smoke wrote latest artifact:
+  `xriq/target/xriq-phase1-3-wallet-behavior-ui-smoke-20260607T132901Z/summary.json`.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI
@@ -1110,11 +1135,12 @@ an active target because the GPU was terminated to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: implement the Phase 1.3 UI-backed local/private
-  behavior smoke through the shared TypeScript API client, using
-  `xriq/fixtures/phase1_3/local-wallet-behavior-v1.json` as the expected
-  behavior contract and keeping default UI mutation controls disabled. Do not
-  create, move, delete, recreate, or repush
+- Recommended next narrow step: add a cheap Phase 1.3 readiness/negative-matrix
+  consolidation guard that reads the latest fixture, CPU behavior smoke, and
+  UI-backed behavior smoke summaries, confirms disabled/default and invalid
+  request evidence is present, and reports that no Phase 1.3 tag should be
+  created without a later explicit approval naming the exact tag. Do not create,
+  move, delete, recreate, or repush
   `phase1-2-xriq-local-private-hardening-rc1` unless the user explicitly asks
   for that exact tag maintenance operation. Keep wallet submit UI, snapshot
   import/export mutation, DEX, smart contracts, public mainnet, custody,

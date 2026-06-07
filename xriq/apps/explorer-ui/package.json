@@ -10,6 +10,7 @@
     "check:wallet-send": "node scripts/check-wallet-send-accepted-contract.mjs",
     "check:wallet-send-ui-live": "node scripts/check-wallet-send-ui-live.mjs",
     "check:wallet-send-refresh-live": "node scripts/check-wallet-send-refresh-live.mjs",
+    "check:phase1-3-wallet-behavior-live": "node scripts/check-phase1-3-wallet-behavior-live.mjs",
     "check:block-production-ui-live": "node scripts/check-block-production-ui-live.mjs",
     "check:block-production-admin-refresh-live": "node scripts/check-block-production-admin-refresh-live.mjs",
     "check:block-production-no-pending-live": "node scripts/check-block-production-no-pending-live.mjs",

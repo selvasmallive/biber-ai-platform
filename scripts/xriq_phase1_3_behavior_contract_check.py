@@ -436,8 +436,8 @@ def main(argv: list[str] | None = None) -> int:
             "completed_at": datetime.now(UTC).isoformat(),
             **result,
             "next": (
-                "run the CPU-only Phase 1.3 wallet behavior smoke, then add "
-                "the UI-backed local/private behavior smoke using this fixture"
+                "run the CPU-only and UI-backed Phase 1.3 wallet behavior smokes, "
+                "then consolidate the readiness and negative-matrix evidence"
             ),
         }
         write_json(artifact_dir / "summary.json", summary)
