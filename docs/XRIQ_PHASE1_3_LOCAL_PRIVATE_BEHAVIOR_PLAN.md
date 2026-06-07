@@ -89,6 +89,13 @@ services:
 
 The smoke should be deterministic and suitable for low-cost local execution.
 
+Initial checkpoint:
+
+- executable smoke:
+  `python scripts/xriq_phase1_3_wallet_behavior_smoke.py`
+- latest passing artifact:
+  `xriq/target/xriq-phase1-3-wallet-behavior-smoke-20260607T131636Z/summary.json`
+
 ## Milestone C: UI-Backed Behavior Smoke
 
 After Milestone B is stable, add or extend a Vite SSR/browser-compatible smoke
@@ -135,6 +142,11 @@ The behavior contract check now exists and writes timestamped artifacts under
 it should avoid external services by default.
 On this Windows workstation, use the bundled Codex Python if `python` is not on
 PATH.
+The CPU-only wallet behavior smoke also now exists and should stay cheap:
+
+```bash
+python scripts/xriq_phase1_3_wallet_behavior_smoke.py --skip-build
+```
 
 ## Completion Criteria
 

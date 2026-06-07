@@ -223,7 +223,7 @@ def verify_behavior_flow(payload: dict[str, Any]) -> None:
         "pending_after_count": 1,
         "chain_unchanged": True,
         "wallet_transaction_status": "pending",
-        "audit_scope": "api-local-accepted",
+        "audit_recording": "accepted-audit-event",
         "audit_action": "wallet_transfer_send_attempt",
     }.items():
         require_equal(expected, key, value, context)
@@ -304,10 +304,26 @@ def verify_post_block(payload: dict[str, Any]) -> None:
         "mempool_pending": 0,
     }.items():
         require_equal(admin, key, value, context)
-    audit_actions = {str(action) for action in require_list(admin, "required_audit_actions", context)}
+    accepted_audit_actions = {
+        str(action) for action in require_list(admin, "accepted_response_audit_actions", context)
+    }
     for required in {"wallet_transfer_send_attempt", "block_production_attempt"}:
-        if required not in audit_actions:
-            raise BehaviorContractError(f"{context}: missing audit action {required}")
+        if required not in accepted_audit_actions:
+            raise BehaviorContractError(
+                f"{context}: missing accepted response audit action {required}"
+            )
+    refusal_audit_actions = {
+        str(action) for action in require_list(admin, "required_refusal_audit_actions", context)
+    }
+    for required in {
+        "wallet_transfer_submit_attempt",
+        "wallet_transfer_send_attempt",
+        "block_production_attempt",
+    }:
+        if required not in refusal_audit_actions:
+            raise BehaviorContractError(
+                f"{context}: missing required refusal audit action {required}"
+            )
 
     audit = require_dict(post, "audit", context)
     policy = audit.get("metadata_policy")
@@ -342,7 +358,7 @@ def verify_negative_matrix(payload: dict[str, Any]) -> None:
         ),
         "invalid_wallet_send_request": (
             "POST /api/v1/wallet/transfers/send",
-            "validation_failed",
+            "zero_amount",
         ),
     }
     if set(by_case) != set(expected):
@@ -420,8 +436,8 @@ def main(argv: list[str] | None = None) -> int:
             "completed_at": datetime.now(UTC).isoformat(),
             **result,
             "next": (
-                "add the CPU-only one-shot Phase 1.3 wallet behavior smoke "
-                "using this fixture as the expected contract"
+                "run the CPU-only Phase 1.3 wallet behavior smoke, then add "
+                "the UI-backed local/private behavior smoke using this fixture"
             ),
         }
         write_json(artifact_dir / "summary.json", summary)

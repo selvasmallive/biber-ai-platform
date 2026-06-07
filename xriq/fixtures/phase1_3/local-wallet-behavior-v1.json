@@ -82,7 +82,7 @@
         "pending_after_count": 1,
         "chain_unchanged": true,
         "wallet_transaction_status": "pending",
-        "audit_scope": "api-local-accepted",
+        "audit_recording": "accepted-audit-event",
         "audit_action": "wallet_transfer_send_attempt"
       }
     },
@@ -151,7 +151,12 @@
       "node_pending": 0,
       "wallet_pending": 0,
       "mempool_pending": 0,
-      "required_audit_actions": [
+      "accepted_response_audit_actions": [
+        "wallet_transfer_send_attempt",
+        "block_production_attempt"
+      ],
+      "required_refusal_audit_actions": [
+        "wallet_transfer_submit_attempt",
         "wallet_transfer_send_attempt",
         "block_production_attempt"
       ]
@@ -190,7 +195,7 @@
     {
       "case": "invalid_wallet_send_request",
       "endpoint": "POST /api/v1/wallet/transfers/send",
-      "expected_code": "validation_failed",
+      "expected_code": "zero_amount",
       "expected_mutation": "none"
     }
   ],

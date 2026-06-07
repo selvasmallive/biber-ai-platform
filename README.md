@@ -267,6 +267,9 @@ The initial Phase 1.3 behavior fixture is
 `xriq/fixtures/phase1_3/local-wallet-behavior-v1.json`; validate it with
 `python scripts/xriq_phase1_3_behavior_contract_check.py` or the bundled Codex
 Python if `python` is not on PATH.
+Run the first CPU-only Phase 1.3 local wallet behavior smoke with
+`python scripts/xriq_phase1_3_wallet_behavior_smoke.py --skip-build` after
+local `xriq-node` and `xriq-api` debug binaries exist.
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The first Phase 1.2 wallet mutation preflight fixtures are in
