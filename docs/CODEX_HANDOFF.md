@@ -8,8 +8,11 @@ Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
 API/backend, React + TypeScript UI, PostgreSQL indexer, ISO 20022 compatibility
 adapter, and readiness guardrails are tagged as
-`phase1-1-xriq-local-e2e-rc1`. Current next scope is Phase 1.2 planning and
-execution for local/private post-RC hardening only.
+`phase1-1-xriq-local-e2e-rc1`. Phase 1.2 local/private post-RC hardening is
+complete and tagged as `phase1-2-xriq-local-private-hardening-rc1` at commit
+`b3a2fe4`. Current next scope is Phase 1.3 local/private behavioral wallet
+testing only, using `docs/XRIQ_PHASE1_3_LOCAL_PRIVATE_BEHAVIOR_PLAN.md` as the
+scope boundary.
 Phase 1.1 local/private end-to-end RC1 is also now tagged and pushed as
 `phase1-1-xriq-local-e2e-rc1` at commit `6a38a51a`.
 Do not include BIBER MVP, model training, repo-adaptation, runtime-profile, or
@@ -20,9 +23,9 @@ up locally, so future sessions must not assume `/workspace`, vLLM, FastAPI, or
 live Vast SSH access exists unless the user provides a fresh instance.
 
 - Current focus:
-  - Active focus as of 2026-06-01: continue XRIQ Phase 1.2 local/private
-    post-RC hardening after the completed Phase 1.1 RC1 tag. Use
-    `docs/XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md` as the scope boundary.
+  - Active focus as of 2026-06-07: continue XRIQ Phase 1.3 local/private
+    behavioral wallet testing after the completed Phase 1.2 RC1 tag. Use
+    `docs/XRIQ_PHASE1_3_LOCAL_PRIVATE_BEHAVIOR_PLAN.md` as the scope boundary.
   - Phase 2, after Phase 1: BIBER MVP/local model API, model registry, repo
     context, file-edit/test workflows, GitHub save/PR path, optional OpenAI
     mentor review, repo-adaptation eval/training loop, and Replit-replacement
@@ -40,6 +43,12 @@ live Vast SSH access exists unless the user provides a fresh instance.
     `--enable-local-block-production true`; wallet-send and block-production UI
     controls now exist only behind explicit Vite feature switches and matching
     local API flags. Default UI mutation controls remain disabled.
+  - XRIQ Phase 1.3: local/private behavioral wallet testing only: define the
+    canonical local behavior fixture, prove wallet send to pending, produce one
+    local block, refresh wallet/explorer/mempool/Admin/audit views, and cover
+    disabled/default and invalid-input negative paths without enabling wallet
+    submit UI, custody, DEX, smart contracts, public network behavior, or
+    production infrastructure.
 - Delayed scope:
   - Public XRIQ remains part of the later project plan, but do not implement
     public token economics, DEX/liquidity, validator rewards, public governance,
@@ -292,6 +301,10 @@ unless the user changes the project scope again.
   local/private hardening baseline for local-only action contracts before broader
   UI mutation controls, snapshot-mutation, DEX, custody, public network
   behavior, or production infrastructure are implemented.
+- Phase 1.3 estimated completion: about `5%` after the initial local/private
+  behavior plan. No Phase 1.3 behavior smoke, readiness report, or tag exists
+  yet. The next narrow implementation step is the behavior fixture/contract
+  check followed by a CPU-only one-shot wallet-send plus block-production smoke.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -305,11 +318,11 @@ unless the user changes the project scope again.
 
 ## Immediate Resume State
 
-As of the latest 2026-06-06 checkpoint, the active work mode is local
-workstation development for XRIQ Phase 1.2 local/private post-RC hardening
-after the completed private-devnet RC1 and Phase 1.1 local/e2e RC1 tags. The
-previous Vast deployment is not an active target because the GPU was terminated
-to save cost.
+As of the latest 2026-06-07 checkpoint, the active work mode is local
+workstation development for XRIQ Phase 1.3 local/private behavioral wallet
+testing after the completed private-devnet RC1, Phase 1.1 local/e2e RC1, and
+Phase 1.2 local/private hardening RC1 tags. The previous Vast deployment is not
+an active target because the GPU was terminated to save cost.
 
 - Latest native XRIQ Phase 1.2 local block-production API checkpoint:
   `xriq-api request` and `xriq-api serve-readonly` now parse
@@ -786,6 +799,19 @@ to save cost.
   `phase1-2-xriq-local-private-hardening-rc1` at commit `b3a2fe4`. Do not
   move, delete, recreate, or repush this tag unless the user explicitly asks
   for that exact tag maintenance operation.
+- Latest native XRIQ Phase 1.3 planning checkpoint: added
+  `docs/XRIQ_PHASE1_3_LOCAL_PRIVATE_BEHAVIOR_PLAN.md` as the post-Phase 1.2 RC1
+  local/private behavior plan. The plan keeps Phase 1.3 scoped to behavioral
+  wallet testing only: local wallet send, one local block production, read-model
+  refresh checks, Admin/audit visibility, disabled/default negative paths, and
+  invalid-input refusal checks. It reuses only the accepted Phase 1.2 local
+  switches (`--enable-local-wallet-send true`,
+  `--enable-local-block-production true`,
+  `VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true`, and
+  `VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true`) and keeps wallet submit UI,
+  snapshot import/export mutation, DEX/liquidity, smart contracts, custody,
+  public network behavior, production infrastructure, and exchange/listing
+  claims out of scope.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI
@@ -1045,14 +1071,15 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: Phase 1.2 local/private RC1 is complete and
-  tagged. Ask the user what post-RC or next-phase scope to begin next. Do not
-  create, move, delete, recreate, or repush
-  `phase1-2-xriq-local-private-hardening-rc1` unless the user explicitly asks
-  for that exact tag maintenance operation. Keep wallet submit, snapshot import/export
-  mutation, DEX, smart contracts, public mainnet, custody, bridges, exchange
-  listings, and production infrastructure out of scope until explicitly
-  approved.
+- Recommended next narrow step: implement the first Phase 1.3 behavior fixture
+  inventory/contract check, then a CPU-only one-shot local/private wallet-send
+  plus block-production smoke that writes a timestamped summary under
+  `xriq/target/xriq-phase1-3-*`. Do not create, move, delete, recreate, or
+  repush `phase1-2-xriq-local-private-hardening-rc1` unless the user explicitly
+  asks for that exact tag maintenance operation. Keep wallet submit UI, snapshot
+  import/export mutation, DEX, smart contracts, public mainnet, custody,
+  bridges, exchange listings, and production infrastructure out of scope until
+  explicitly approved.
 - Latest native XRIQ Phase 1.1 Postgres-backed ISO 20022 account-statement
   checkpoint: extended `xriq-api request-postgres` and explicitly
   Postgres-enabled `xriq-api serve-readonly` to return

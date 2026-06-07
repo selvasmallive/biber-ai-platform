@@ -261,6 +261,8 @@ The post-RC end-to-end Phase 1.1 plan is in
 `docs/XRIQ_PHASE1_1_END_TO_END_PLAN.md`.
 The post-Phase 1.1 RC1 local/private Phase 1.2 plan is in
 `docs/XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md`.
+The post-Phase 1.2 RC1 local/private Phase 1.3 behavioral wallet testing plan
+is in `docs/XRIQ_PHASE1_3_LOCAL_PRIVATE_BEHAVIOR_PLAN.md`.
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The first Phase 1.2 wallet mutation preflight fixtures are in
