@@ -6,6 +6,7 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const requiredFiles = [
   "index.html",
   "package.json",
+  "scripts/check-block-production-admin-refresh-live.mjs",
   "scripts/check-block-production-ui-control.mjs",
   "scripts/check-block-production-ui-live.mjs",
   "scripts/check-postgres-ui-state.mjs",
@@ -357,6 +358,8 @@ for (const requiredText of [
   "explicit local action",
   "produceLocalBlock",
   "validateLocalBlockProductionAcceptedContract",
+  "adminSnapshotRows",
+  "AdminSnapshotRows",
   'const produceDisabled = !enabled || pendingCount <= 0 || state.status === "loading";',
 ]) {
   if (!adminSource.includes(requiredText)) {

@@ -113,6 +113,8 @@ REQUIRED_ADMIN_MARKERS = [
     "wallet submit deferred",
     "produceLocalBlock",
     "validateLocalBlockProductionAcceptedContract",
+    "adminSnapshotRows",
+    "AdminSnapshotRows",
 ]
 
 FORBIDDEN_ADMIN_MARKERS = [

@@ -408,6 +408,22 @@ is cleared, verifies network height advances from `1` to `2`, verifies the
 wallet transaction becomes confirmed, and verifies wallet submit remains
 refused without `--enable-local-wallet-submit`.
 
+Current block-production Admin refresh smoke checkpoint:
+`xriq/apps/explorer-ui/src/admin.tsx` now exports the pure `adminSnapshotRows`
+helper and uses it for the Admin Status `Node`, `Network`, `Wallet`, and
+`Mempool` rows. The new
+`xriq/apps/explorer-ui/scripts/check-block-production-admin-refresh-live.mjs`
+uses Vite SSR to send one local wallet transfer, read Admin rows before block
+production, produce one local block, read Admin rows again, and verify the rows
+move from one pending transaction at height `1` to zero pending transactions at
+height `2`. The orchestrator
+`scripts/xriq_phase1_2_block_production_admin_refresh_smoke.py` runs this
+against a fresh temporary `serve-readonly` API with
+`--enable-local-wallet-send true` and `--enable-local-block-production true`,
+while verifying wallet submit remains refused. The Admin read-only status rows
+remain disabled labels; the explicit local action remains controlled by the
+feature switch and API flag.
+
 ## Validation
 
 For Phase 1.2 docs-only planning checkpoints, use:
@@ -475,4 +491,10 @@ For the current block-production UI live smoke checkpoint, use:
 
 ```bash
 python scripts/xriq_phase1_2_block_production_ui_live_smoke.py
+```
+
+For the current block-production Admin refresh smoke checkpoint, use:
+
+```bash
+python scripts/xriq_phase1_2_block_production_admin_refresh_smoke.py
 ```

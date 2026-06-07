@@ -23,7 +23,18 @@ PACKAGE_JSON = ROOT / "xriq" / "apps" / "explorer-ui" / "package.json"
 LIVE_UI_CHECK = (
     ROOT / "xriq" / "apps" / "explorer-ui" / "scripts" / "check-block-production-ui-live.mjs"
 )
+ADMIN_REFRESH_UI_CHECK = (
+    ROOT
+    / "xriq"
+    / "apps"
+    / "explorer-ui"
+    / "scripts"
+    / "check-block-production-admin-refresh-live.mjs"
+)
 LIVE_SMOKE = ROOT / "scripts" / "xriq_phase1_2_block_production_ui_live_smoke.py"
+ADMIN_REFRESH_SMOKE = (
+    ROOT / "scripts" / "xriq_phase1_2_block_production_admin_refresh_smoke.py"
+)
 
 REQUIRED_DESIGN_MARKERS = [
     "Design Status: Approved And Implemented Behind Feature Switch",
@@ -37,6 +48,7 @@ REQUIRED_DESIGN_MARKERS = [
     "block-production UI mutation control behind the UI mutation-control gate.",
     "Current implementation:",
     "Current live UI smoke:",
+    "Current Admin refresh smoke:",
 ]
 
 REQUIRED_GATE_MARKERS = [
@@ -51,12 +63,14 @@ REQUIRED_PHASE_PLAN_MARKERS = [
     "Current wallet-send read-only refresh smoke checkpoint:",
     "Current block-production UI design checkpoint:",
     "Current block-production UI live smoke checkpoint:",
+    "Current block-production Admin refresh smoke checkpoint:",
 ]
 
 REQUIRED_HANDOFF_MARKERS = [
     "Latest native XRIQ Phase 1.2 wallet-send read-only refresh smoke checkpoint:",
     "Latest native XRIQ Phase 1.2 block-production UI design checkpoint:",
     "Latest native XRIQ Phase 1.2 block-production UI live smoke checkpoint:",
+    "Latest native XRIQ Phase 1.2 block-production Admin refresh smoke checkpoint:",
 ]
 
 REQUIRED_ADMIN_DISABLED_MARKERS = [
@@ -84,6 +98,8 @@ REQUIRED_ADMIN_IMPLEMENTATION_MARKERS = [
     "explicit local action",
     "produceLocalBlock",
     "validateLocalBlockProductionAcceptedContract",
+    "adminSnapshotRows",
+    "AdminSnapshotRows",
     'const produceDisabled = !enabled || pendingCount <= 0 || state.status === "loading";',
 ]
 
@@ -112,6 +128,8 @@ REQUIRED_STATIC_MARKERS = [
     "Produce Local",
     "produceLocalBlock",
     "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI",
+    "adminSnapshotRows",
+    "check-block-production-admin-refresh-live.mjs",
     "/api/v1/blocks/produce",
     "fetch(",
 ]
@@ -119,6 +137,7 @@ REQUIRED_STATIC_MARKERS = [
 REQUIRED_PACKAGE_MARKERS = [
     "check-block-production-ui-control.mjs",
     "check:block-production-ui-live",
+    "check:block-production-admin-refresh-live",
 ]
 
 REQUIRED_LIVE_UI_CHECK_MARKERS = [
@@ -131,6 +150,15 @@ REQUIRED_LIVE_UI_CHECK_MARKERS = [
     "wallet_send_separate",
 ]
 
+REQUIRED_ADMIN_REFRESH_UI_CHECK_MARKERS = [
+    "xriq-block-production-admin-refresh-live",
+    "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI",
+    "adminSnapshotRows",
+    "admin_rows_before",
+    "wallet submit deferred",
+    "Produce Local",
+]
+
 REQUIRED_LIVE_SMOKE_MARKERS = [
     "xriq-phase1-2-block-production-ui-live-smoke",
     "check:block-production-ui-live",
@@ -138,6 +166,15 @@ REQUIRED_LIVE_SMOKE_MARKERS = [
     "enable_local_block_production=True",
     "enable_local_wallet_submit",
     "block-production UI live produced one local block",
+    "wallet submit remains refused",
+]
+
+REQUIRED_ADMIN_REFRESH_SMOKE_MARKERS = [
+    "xriq-phase1-2-block-production-admin-refresh-smoke",
+    "check:block-production-admin-refresh-live",
+    "enable_local_wallet_send=True",
+    "enable_local_block_production=True",
+    "Admin rows refresh from pending to confirmed state",
     "wallet submit remains refused",
 ]
 
@@ -177,6 +214,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--refresh-summary", type=Path, default=None)
     parser.add_argument("--live-summary", type=Path, default=None)
+    parser.add_argument("--admin-refresh-summary", type=Path, default=None)
     return parser.parse_args(argv)
 
 
@@ -382,6 +420,81 @@ def verify_live_summary(path: Path) -> dict[str, Any]:
     }
 
 
+def verify_admin_refresh_summary(path: Path) -> dict[str, Any]:
+    payload = load_json_object(path, "block-production Admin refresh summary")
+    require_equal(
+        payload,
+        "ok",
+        "xriq-phase1-2-block-production-admin-refresh-smoke",
+        "admin refresh",
+    )
+    require_equal(
+        payload,
+        "feature_switch",
+        "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true",
+        "admin refresh",
+    )
+
+    flags = payload.get("serve_readonly_flags")
+    if not isinstance(flags, dict):
+        raise DesignCheckError("admin refresh: expected serve_readonly_flags object")
+    require_equal(flags, "enable_local_wallet_send", True, "admin refresh flags")
+    require_equal(flags, "enable_local_wallet_submit", False, "admin refresh flags")
+    require_equal(flags, "enable_local_block_production", True, "admin refresh flags")
+
+    completed = payload.get("completed")
+    if not isinstance(completed, list):
+        raise DesignCheckError("admin refresh: completed must be a list")
+    for step in [
+        "Admin rows refresh from pending to confirmed state",
+        "pending file cleared after Admin refresh block production",
+        "wallet submit remains refused",
+    ]:
+        if step not in completed:
+            raise DesignCheckError(f"admin refresh: missing completed step {step!r}")
+
+    guards = payload.get("guards")
+    if not isinstance(guards, list):
+        raise DesignCheckError("admin refresh: guards must be a list")
+    for guard in [
+        "Admin refresh uses the same adminSnapshotRows helper as the UI",
+        "block-production Admin refresh requires VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true",
+        "block production requires --enable-local-block-production",
+        "wallet send remains separate and explicit",
+        "wallet submit remains disabled without --enable-local-wallet-submit",
+        "Admin rows show pending before block production",
+        "Admin rows show height 2 and zero pending after block production",
+        "no signing material or custody material is accepted",
+    ]:
+        if guard not in guards:
+            raise DesignCheckError(f"admin refresh: missing guard {guard!r}")
+
+    artifacts = payload.get("artifacts")
+    if not isinstance(artifacts, dict):
+        raise DesignCheckError("admin refresh: artifacts must be an object")
+    for key in [
+        "ui_summary",
+        "ui_rows_before",
+        "ui_rows_after",
+        "ui_produced_block",
+        "ui_confirmed_status",
+        "wallet_submit_refusal",
+    ]:
+        existing_path(artifacts.get(key), f"admin refresh artifact {key}")
+
+    sensitive_fields = find_sensitive_fields(payload)
+    if sensitive_fields:
+        raise DesignCheckError(f"admin refresh summary contains sensitive fields {sensitive_fields}")
+
+    return {
+        "path": str(path),
+        "wallet_send_tx_hash": payload.get("wallet_send_tx_hash"),
+        "produced_block_hash": payload.get("produced_block_hash"),
+        "admin_rows_verified": True,
+        "wallet_submit_enabled": False,
+    }
+
+
 def write_summary(path: Path, report: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -400,7 +513,9 @@ def main(argv: list[str] | None = None) -> int:
         static_check = read_text(STATIC_CHECK)
         package_json = read_text(PACKAGE_JSON)
         live_ui_check = read_text(LIVE_UI_CHECK)
+        admin_refresh_ui_check = read_text(ADMIN_REFRESH_UI_CHECK)
         live_smoke = read_text(LIVE_SMOKE)
+        admin_refresh_smoke = read_text(ADMIN_REFRESH_SMOKE)
         refresh_summary = args.refresh_summary or latest(
             "xriq-phase1-2-wallet-send-refresh-smoke-*/summary.json",
             "wallet-send refresh summary",
@@ -408,6 +523,10 @@ def main(argv: list[str] | None = None) -> int:
         live_summary = args.live_summary or latest(
             "xriq-phase1-2-block-production-ui-live-smoke-*/summary.json",
             "block-production UI live summary",
+        )
+        admin_refresh_summary = args.admin_refresh_summary or latest(
+            "xriq-phase1-2-block-production-admin-refresh-smoke-*/summary.json",
+            "block-production Admin refresh summary",
         )
 
         require_markers(design_doc, REQUIRED_DESIGN_MARKERS, "block-production UI design")
@@ -420,7 +539,17 @@ def main(argv: list[str] | None = None) -> int:
         require_markers(static_check, REQUIRED_STATIC_MARKERS, "static UI check")
         require_markers(package_json, REQUIRED_PACKAGE_MARKERS, "package scripts")
         require_markers(live_ui_check, REQUIRED_LIVE_UI_CHECK_MARKERS, "live UI check")
+        require_markers(
+            admin_refresh_ui_check,
+            REQUIRED_ADMIN_REFRESH_UI_CHECK_MARKERS,
+            "admin refresh UI check",
+        )
         require_markers(live_smoke, REQUIRED_LIVE_SMOKE_MARKERS, "live UI smoke")
+        require_markers(
+            admin_refresh_smoke,
+            REQUIRED_ADMIN_REFRESH_SMOKE_MARKERS,
+            "admin refresh smoke",
+        )
         require_absent(
             admin_ui,
             FORBIDDEN_ADMIN_BEHAVIOR_MARKERS,
@@ -433,6 +562,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         refresh = verify_refresh_summary(refresh_summary)
         live = verify_live_summary(live_summary)
+        admin_refresh = verify_admin_refresh_summary(admin_refresh_summary)
 
         report = {
             "ok": "xriq-phase1-2-block-production-ui-design-check",
@@ -442,6 +572,7 @@ def main(argv: list[str] | None = None) -> int:
             "design_doc": str(DESIGN_DOC),
             "refresh_summary": refresh,
             "live_summary": live,
+            "admin_refresh_summary": admin_refresh,
             "review_only": False,
             "implementation_allowed": True,
             "approval_recorded": True,
@@ -454,6 +585,7 @@ def main(argv: list[str] | None = None) -> int:
             ),
             "admin_disabled_guard_present": True,
             "live_smoke_verified": True,
+            "admin_refresh_smoke_verified": True,
             "next": "keep block-production UI live smoke evidence current",
         }
         write_summary(artifact_dir / "summary.json", report)

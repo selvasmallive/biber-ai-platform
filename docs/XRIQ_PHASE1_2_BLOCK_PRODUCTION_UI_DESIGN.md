@@ -93,6 +93,21 @@ The live smoke is:
 python scripts/xriq_phase1_2_block_production_ui_live_smoke.py
 ```
 
+Current Admin refresh smoke:
+
+- uses the same exported `adminSnapshotRows` helper as the Admin UI,
+- verifies Admin rows show one pending transaction before block production,
+- verifies Admin rows show network height `2` and zero pending after block
+  production,
+- keeps the read-only status rows disabled even while the explicit local action
+  helper is allowed by the server flags,
+- verifies wallet submit remains deferred, and
+- verifies no signing or custody fields exist in source or artifacts.
+
+```bash
+python scripts/xriq_phase1_2_block_production_admin_refresh_smoke.py
+```
+
 ## Validation
 
 Run this implementation design check after edits:

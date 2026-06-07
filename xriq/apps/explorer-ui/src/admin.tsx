@@ -56,9 +56,7 @@ export function AdminStatusPanel({
   snapshot,
   loadStatus,
 }: AdminStatusPanelProps) {
-  const node = snapshot?.nodeStatus;
   const indexer = snapshot?.indexer;
-  const wallet = snapshot?.walletStatus;
   const mempool = snapshot?.mempool;
   const firstPending = mempool?.entries[0];
   const [walletTxStatus, setWalletTxStatus] = useState<WalletTxStatusState>({
@@ -88,15 +86,11 @@ export function AdminStatusPanel({
     snapshot?.auditEvents.local_refusal_audit_events.find(
       (event) => event.resource_type === "block_production",
     ) ?? null;
-  const pendingWalletStatus = firstPending
-    ? walletTxStatus.data?.status ?? walletTxStatus.status
-    : "-";
-  const pendingWalletBlock = firstPending
-    ? nullableNumber(walletTxStatus.data?.block_height)
-    : "-";
-  const pendingWalletIndex = firstPending
-    ? nullableNumber(walletTxStatus.data?.transaction_index)
-    : "-";
+  const statusRows = adminSnapshotRows(
+    snapshot,
+    walletTxStatus.data,
+    walletTxStatus.status,
+  );
 
   useEffect(() => {
     if (!firstPending?.tx_hash) {
@@ -245,24 +239,11 @@ export function AdminStatusPanel({
       <div className="adminGrid" aria-label="Private-devnet admin status">
         <StatusBlock
           title="Node"
-          rows={[
-            ["Status", node?.status ?? "-"],
-            ["Mode", node?.mode ?? "-"],
-            ["Source", node?.source ?? "-"],
-            ["Stored Blocks", node?.stored_blocks ?? "-"],
-            ["Pending", node?.pending_transactions ?? "-"],
-            ["Wallet Submit", node?.wallet_submit_status ?? "-"],
-            ["Block Production", node?.block_production_status ?? "-"],
-          ]}
+          rows={statusRows.node}
         />
         <StatusBlock
           title="Network"
-          rows={[
-            ["Environment", snapshot?.network.environment ?? "private-devnet"],
-            ["Height", snapshot?.network.current_height ?? "-"],
-            ["Tip Hash", snapshot?.network.latest_block_hash ?? "-"],
-            ["State Root", snapshot?.network.state_root ?? "-"],
-          ]}
+          rows={statusRows.network}
         />
         <StatusBlock
           title="Indexer"
@@ -281,32 +262,11 @@ export function AdminStatusPanel({
         />
         <StatusBlock
           title="Wallet"
-          rows={[
-            ["Warning", wallet?.warning ?? "-"],
-            ["Accounts", wallet?.account_count ?? "-"],
-            ["Pending", wallet?.pending_transactions ?? "-"],
-            ["Draft", wallet?.capabilities.draft ? "enabled" : "disabled"],
-            ["Submit", wallet?.capabilities.submit ? "enabled" : "disabled"],
-            ["Send", wallet?.capabilities.send ? "enabled" : "disabled"],
-          ]}
+          rows={statusRows.wallet}
         />
         <StatusBlock
           title="Mempool"
-          rows={[
-            ["Warning", mempool?.warning ?? "-"],
-            ["Height", mempool?.current_height ?? "-"],
-            ["Pending", mempool?.pending_count ?? "-"],
-            ["Entries", mempool?.entries.length ?? "-"],
-            ["First Pending", firstPending?.tx_hash ?? "-"],
-            ["First Amount", firstPending?.amount_base_units ?? "-"],
-            ["First Status", firstPending?.status ?? "-"],
-            ["Wallet Tx Status", pendingWalletStatus],
-            ["Wallet Tx Block", pendingWalletBlock],
-            ["Wallet Tx Index", pendingWalletIndex],
-            ["Inspect", mempool?.inspect_status ?? "-"],
-            ["Submit", mempool?.submit_status ?? "-"],
-            ["Produce Block", mempool?.produce_block_status ?? "-"],
-          ]}
+          rows={statusRows.mempool}
         />
         <AdminActionGuards
           guard={blockProductionGuard}
@@ -495,6 +455,74 @@ export function postgresReadModelRows(
     ["Read Only", postgres?.read_only ? "true" : "-"],
     ["Error", postgresStatus.error ?? "-"],
   ];
+}
+
+export interface AdminSnapshotRows {
+  node: AdminStatusRow[];
+  network: AdminStatusRow[];
+  wallet: AdminStatusRow[];
+  mempool: AdminStatusRow[];
+}
+
+export function adminSnapshotRows(
+  snapshot: ExplorerSnapshot | null,
+  walletTxStatus?: WalletTransactionStatusResponse | null,
+  walletTxStatusState = "idle",
+): AdminSnapshotRows {
+  const node = snapshot?.nodeStatus;
+  const mempool = snapshot?.mempool;
+  const wallet = snapshot?.walletStatus;
+  const firstPending = mempool?.entries[0];
+  const pendingWalletStatus = firstPending
+    ? walletTxStatus?.status ?? walletTxStatusState
+    : "-";
+  const pendingWalletBlock = firstPending
+    ? nullableNumber(walletTxStatus?.block_height)
+    : "-";
+  const pendingWalletIndex = firstPending
+    ? nullableNumber(walletTxStatus?.transaction_index)
+    : "-";
+
+  return {
+    node: [
+      ["Status", node?.status ?? "-"],
+      ["Mode", node?.mode ?? "-"],
+      ["Source", node?.source ?? "-"],
+      ["Stored Blocks", node?.stored_blocks ?? "-"],
+      ["Pending", node?.pending_transactions ?? "-"],
+      ["Wallet Submit", node?.wallet_submit_status ?? "-"],
+      ["Block Production", node?.block_production_status ?? "-"],
+    ],
+    network: [
+      ["Environment", snapshot?.network.environment ?? "private-devnet"],
+      ["Height", snapshot?.network.current_height ?? "-"],
+      ["Tip Hash", snapshot?.network.latest_block_hash ?? "-"],
+      ["State Root", snapshot?.network.state_root ?? "-"],
+    ],
+    wallet: [
+      ["Warning", wallet?.warning ?? "-"],
+      ["Accounts", wallet?.account_count ?? "-"],
+      ["Pending", wallet?.pending_transactions ?? "-"],
+      ["Draft", wallet?.capabilities.draft ? "enabled" : "disabled"],
+      ["Submit", wallet?.capabilities.submit ? "enabled" : "disabled"],
+      ["Send", wallet?.capabilities.send ? "enabled" : "disabled"],
+    ],
+    mempool: [
+      ["Warning", mempool?.warning ?? "-"],
+      ["Height", mempool?.current_height ?? "-"],
+      ["Pending", mempool?.pending_count ?? "-"],
+      ["Entries", mempool?.entries.length ?? "-"],
+      ["First Pending", firstPending?.tx_hash ?? "-"],
+      ["First Amount", firstPending?.amount_base_units ?? "-"],
+      ["First Status", firstPending?.status ?? "-"],
+      ["Wallet Tx Status", pendingWalletStatus],
+      ["Wallet Tx Block", pendingWalletBlock],
+      ["Wallet Tx Index", pendingWalletIndex],
+      ["Inspect", mempool?.inspect_status ?? "-"],
+      ["Submit", mempool?.submit_status ?? "-"],
+      ["Produce Block", mempool?.produce_block_status ?? "-"],
+    ],
+  };
 }
 
 function validateBlockProductionRefusalContract(
