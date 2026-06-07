@@ -105,10 +105,11 @@ guardrail:
 python scripts/xriq_phase1_2_rc_readiness.py --require-tag-absent
 ```
 
-The guard verifies this candidate report, the latest readiness summary, the
-latest UI mutation-control gate, the latest block-production UI design check,
-the required smoke evidence, the handoff/plan/gate doc references, and absence
-of the proposed local/remote tag. It does not create, move, or push any tag.
+The guard verifies this candidate report, confirms that the report references
+the selected readiness summary, UI mutation-control gate, and block-production
+UI design check, validates the required smoke evidence, checks the
+handoff/plan/gate doc references, and confirms absence of the proposed
+local/remote tag. It does not create, move, or push any tag.
 When a saved evidence file is useful, add `--write-summary`; the script writes
 a timestamped `summary.json` under `xriq/target/`.
 

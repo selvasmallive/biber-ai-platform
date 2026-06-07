@@ -459,9 +459,12 @@ Current Phase 1.2 RC readiness guardrail checkpoint:
 `scripts/xriq_phase1_2_rc_readiness.py` is the non-mutating RC guard. It checks
 the candidate report, required evidence summaries, referenced artifact paths,
 handoff/plan/gate doc references, and optional clean-git/origin-main/tag-absent
-conditions. It must pass before any explicitly approved Phase 1.2 RC tag is
-created or pushed. Add `--write-summary` when a timestamped `summary.json`
-evidence artifact under `xriq/target/` is needed.
+conditions. It also fails if the candidate report does not reference the
+selected readiness, UI mutation-control, and block-production design summaries,
+which prevents stale RC evidence from being tagged. It must pass before any
+explicitly approved Phase 1.2 RC tag is created or pushed. Add
+`--write-summary` when a timestamped `summary.json` evidence artifact under
+`xriq/target/` is needed.
 
 ## Validation
 

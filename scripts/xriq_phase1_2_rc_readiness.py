@@ -236,7 +236,31 @@ def run_git(args: list[str], *, allow_failure: bool = False) -> subprocess.Compl
     return completed
 
 
-def verify_candidate_report() -> dict[str, Any]:
+def path_reference_markers(path: Path) -> list[str]:
+    absolute_path = path if path.is_absolute() else ROOT / path
+    markers = [str(absolute_path)]
+    try:
+        relative_path = absolute_path.resolve().relative_to(ROOT)
+    except ValueError:
+        return markers
+    markers.extend([str(relative_path), relative_path.as_posix()])
+    return list(dict.fromkeys(markers))
+
+
+def verify_candidate_path_reference(text: str, label: str, path: Path) -> str:
+    markers = path_reference_markers(path)
+    if not any(marker in text for marker in markers):
+        raise RcReadinessError(
+            f"candidate report does not reference selected {label}: expected one of {markers}"
+        )
+    return markers[-1]
+
+
+def verify_candidate_report(
+    readiness_summary: Path,
+    ui_gate_summary: Path,
+    block_production_design_summary: Path,
+) -> dict[str, Any]:
     try:
         text = CANDIDATE_DOC.read_text(encoding="utf-8")
     except FileNotFoundError as error:
@@ -252,11 +276,26 @@ def verify_candidate_report() -> dict[str, Any]:
     for path_text in REQUIRED_CANDIDATE_ARTIFACT_PATHS:
         existing_path(path_text)
 
+    selected_evidence = {
+        "readiness_summary": verify_candidate_path_reference(
+            text, "readiness summary", readiness_summary
+        ),
+        "ui_gate_summary": verify_candidate_path_reference(
+            text, "UI mutation-control gate summary", ui_gate_summary
+        ),
+        "block_production_design_summary": verify_candidate_path_reference(
+            text,
+            "block-production UI design summary",
+            block_production_design_summary,
+        ),
+    }
+
     return {
         "candidate_report": str(CANDIDATE_DOC.relative_to(ROOT)),
         "proposed_tag": PROPOSED_TAG,
         "required_approval_phrase": APPROVAL_PHRASE,
         "artifact_paths_checked": len(REQUIRED_CANDIDATE_ARTIFACT_PATHS),
+        "selected_evidence": selected_evidence,
         "tag_created_by_report": False,
     }
 
@@ -561,7 +600,11 @@ def main(argv: list[str] | None = None) -> int:
             "scope": "local-private-post-rc-hardening",
             "non_mutating": True,
             "tag_created": False,
-            "candidate": verify_candidate_report(),
+            "candidate": verify_candidate_report(
+                readiness_summary,
+                ui_gate_summary,
+                block_production_design_summary,
+            ),
             "doc_references": verify_doc_references(),
             "readiness_summary": verify_readiness_summary(readiness_summary),
             "ui_gate_summary": verify_ui_gate_summary(ui_gate_summary, readiness_summary),
