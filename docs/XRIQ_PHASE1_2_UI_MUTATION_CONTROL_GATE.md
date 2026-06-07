@@ -30,6 +30,11 @@ started with `--enable-local-wallet-send true`. The wallet-send UI path must
 use the shared API client, validate `wallet_send_accepted_local_only`, mutate
 pending state only, keep wallet submit deferred, and ensure wallet submit remains deferred.
 
+Review-only candidate: block-production UI is not approved for implementation.
+Any future block-production UI mutation control must be covered by
+`docs/XRIQ_PHASE1_2_BLOCK_PRODUCTION_UI_DESIGN.md` and must receive separate
+explicit approval before code is added.
+
 ## Required Evidence Before Implementation Review
 
 Before any implementation review may start, the repo must have passing evidence
@@ -87,14 +92,21 @@ The approved wallet-send implementation must stay narrow:
 ## Approval Required
 
 Explicit user approval is required before enabling any additional wallet
-submit/send UI mutation control. The approval must name this gate and the exact
-action being enabled.
+submit/send or block-production UI mutation control. The approval must name
+this gate and the exact action being enabled.
 
 Acceptable approval shape:
 
 ```text
 I explicitly approve implementing the Phase 1.2 local/private-devnet wallet-send
 UI mutation control behind the UI mutation-control gate.
+```
+
+Acceptable approval shape for the review-only block-production candidate:
+
+```text
+I explicitly approve implementing the Phase 1.2 local/private-devnet
+block-production UI mutation control behind the UI mutation-control gate.
 ```
 
 ## Validation

@@ -34,12 +34,14 @@ REQUIRED_GATE_MARKERS = [
     "No default-enabled submit/send controls.",
     "Explicit user approval is required",
     "local/private-devnet wallet-send",
+    "block-production UI mutation control",
 ]
 
 REQUIRED_PLAN_MARKERS = [
     "Current Phase 1.2 readiness summary checkpoint:",
     "Current UI mutation-control design gate checkpoint:",
     "Current wallet-send UI implementation checkpoint:",
+    "Current block-production UI design checkpoint:",
 ]
 
 REQUIRED_WALLET_MARKERS = [
@@ -272,6 +274,7 @@ def main(argv: list[str] | None = None) -> int:
                 "Latest native XRIQ Phase 1.2 UI mutation-control gate checkpoint:",
                 "Latest native XRIQ Phase 1.2 wallet-send UI implementation checkpoint:",
                 "Latest native XRIQ Phase 1.2 wallet-send read-only refresh smoke checkpoint:",
+                "Latest native XRIQ Phase 1.2 block-production UI design checkpoint:",
             ],
             "handoff",
         )
@@ -295,8 +298,8 @@ def main(argv: list[str] | None = None) -> int:
             "wallet_submit_deferred": True,
             "approval_required_before_ui_mutation_controls": True,
             "next": (
-                "keep the wallet-send UI live and refresh smoke evidence current before any "
-                "additional UI mutation-control scope is considered"
+                "require explicit approval before any additional UI mutation-control "
+                "scope is implemented"
             ),
         }
         write_summary(artifact_dir / "summary.json", report)

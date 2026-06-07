@@ -382,10 +382,22 @@ recipient. The orchestrator
 temporary `serve-readonly` API with only `--enable-local-wallet-send true` and
 verifies wallet submit and block production remain refused.
 
-Recommended next implementation: add a review-only design note/checker for a
-separate local block-production UI control. Do not implement or enable that
-control until the user explicitly approves that exact mutation scope behind the
-UI mutation-control gate.
+Current block-production UI design checkpoint:
+`docs/XRIQ_PHASE1_2_BLOCK_PRODUCTION_UI_DESIGN.md` now defines the possible
+future local/private-devnet block-production UI mutation control as
+review-only and not approved for implementation. The design requires a separate
+feature switch, `VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true`, an API
+started with `--enable-local-block-production true`, shared API-client usage,
+`validateLocalBlockProductionAcceptedContract`, explicit audit rendering, and
+separation from wallet send. The checker
+`scripts/xriq_phase1_2_block_production_ui_design_check.py` verifies the design
+doc, current disabled Admin `Produce Block` guard, latest wallet-send refresh
+smoke evidence, and absence of enabled block-production UI implementation.
+
+Recommended next implementation: wait for explicit user approval before
+implementing any block-production UI mutation control. The required approval
+phrase is documented in
+`docs/XRIQ_PHASE1_2_BLOCK_PRODUCTION_UI_DESIGN.md`.
 
 ## Validation
 
@@ -442,4 +454,10 @@ For the current wallet-send read-only refresh smoke checkpoint, use:
 
 ```bash
 python scripts/xriq_phase1_2_wallet_send_refresh_smoke.py
+```
+
+For the current block-production UI design checkpoint, use:
+
+```bash
+python scripts/xriq_phase1_2_block_production_ui_design_check.py
 ```

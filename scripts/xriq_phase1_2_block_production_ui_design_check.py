@@ -1,0 +1,326 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+
+ROOT = Path(__file__).resolve().parents[1]
+TARGET_DIR = ROOT / "xriq" / "target"
+DESIGN_DOC = ROOT / "docs" / "XRIQ_PHASE1_2_BLOCK_PRODUCTION_UI_DESIGN.md"
+GATE_DOC = ROOT / "docs" / "XRIQ_PHASE1_2_UI_MUTATION_CONTROL_GATE.md"
+PHASE_PLAN_DOC = ROOT / "docs" / "XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md"
+HANDOFF_DOC = ROOT / "docs" / "CODEX_HANDOFF.md"
+ADMIN_UI = ROOT / "xriq" / "apps" / "explorer-ui" / "src" / "admin.tsx"
+API_CLIENT = ROOT / "xriq" / "apps" / "explorer-ui" / "src" / "api.ts"
+STATIC_CHECK = ROOT / "xriq" / "apps" / "explorer-ui" / "scripts" / "check-static.mjs"
+
+REQUIRED_DESIGN_MARKERS = [
+    "Design Status: Review Only - Not Approved For Implementation",
+    "Candidate: local block production only.",
+    "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true",
+    "--enable-local-block-production true",
+    "validateLocalBlockProductionAcceptedContract",
+    "Never run block production automatically after wallet send.",
+    "No block-production UI implementation in this review-only checkpoint.",
+    "No default-enabled `Produce Block` action.",
+    "I explicitly approve implementing the Phase 1.2 local/private-devnet",
+    "block-production UI mutation control behind the UI mutation-control gate.",
+]
+
+REQUIRED_GATE_MARKERS = [
+    "Gate Status: Approved For Wallet Send Only",
+    "Default UI mutation controls remain disabled.",
+    "Explicit user approval is required",
+    "block-production UI mutation control",
+]
+
+REQUIRED_PHASE_PLAN_MARKERS = [
+    "Current wallet-send read-only refresh smoke checkpoint:",
+    "Current block-production UI design checkpoint:",
+]
+
+REQUIRED_HANDOFF_MARKERS = [
+    "Latest native XRIQ Phase 1.2 wallet-send read-only refresh smoke checkpoint:",
+    "Latest native XRIQ Phase 1.2 block-production UI design checkpoint:",
+]
+
+REQUIRED_ADMIN_DISABLED_MARKERS = [
+    "Admin Action Guards",
+    "Block Production Guard",
+    "Produce Block",
+    "Check Guard",
+    "block production disabled",
+    "loadBlockProductionRefusal",
+    "validateBlockProductionRefusalContract",
+    "block_production_disabled",
+    "--enable-local-block-production",
+    'button type="button" disabled',
+]
+
+REQUIRED_API_MARKERS = [
+    "LocalBlockProductionAcceptedResponse",
+    "LocalBlockProductionConfirmedTransaction",
+    "LocalBlockProductionAcceptedExpectations",
+    "validateLocalBlockProductionAcceptedContract",
+    "LOCAL_BLOCK_PRODUCTION_ACCEPTED_CODE",
+    "LOCAL_BLOCK_PRODUCTION_ACCEPTED_MUTATION",
+    "BLOCK_PRODUCTION_REFUSAL_ENDPOINT",
+    "loadBlockProductionRefusal",
+]
+
+REQUIRED_STATIC_MARKERS = [
+    "Admin Action Guards",
+    "Block Production Guard",
+    "Produce Block",
+    "Check Guard",
+    "loadBlockProductionRefusal",
+    "validateBlockProductionRefusalContract",
+    "/api/v1/blocks/produce",
+    "fetch(",
+]
+
+FORBIDDEN_ADMIN_IMPLEMENTATION_MARKERS = [
+    "produceLocalBlock",
+    "handleProduceBlock",
+    "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI",
+    "validateLocalBlockProductionAcceptedContract",
+    "acceptedStatuses: [201]",
+    "localStorage",
+    "sessionStorage",
+    "indexedDB",
+    "document.cookie",
+]
+
+FORBIDDEN_API_IMPLEMENTATION_MARKERS = [
+    "produceLocalBlock",
+    "sendLocalBlockProduction",
+    "produceBlockLocal",
+]
+
+SENSITIVE_KEY_RE = re.compile(
+    r"(private[_-]?key|seed[_-]?phrase|mnemonic|signature|signed[_-]?transaction)",
+    re.IGNORECASE,
+)
+
+
+class DesignCheckError(RuntimeError):
+    pass
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Validate the review-only XRIQ Phase 1.2 block-production UI design."
+    )
+    parser.add_argument(
+        "--artifact-dir",
+        type=Path,
+        default=None,
+        help="Directory for design-check artifacts. Defaults under xriq/target/.",
+    )
+    parser.add_argument("--refresh-summary", type=Path, default=None)
+    return parser.parse_args(argv)
+
+
+def default_artifact_dir() -> Path:
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return TARGET_DIR / f"xriq-phase1-2-block-production-ui-design-check-{timestamp}"
+
+
+def read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except FileNotFoundError as error:
+        raise DesignCheckError(f"required file is missing: {path}") from error
+
+
+def require_markers(text: str, markers: list[str], context: str) -> None:
+    missing = [marker for marker in markers if marker not in text]
+    if missing:
+        raise DesignCheckError(f"{context}: missing markers {missing}")
+
+
+def require_absent(text: str, markers: list[str], context: str) -> None:
+    found = [marker for marker in markers if marker.lower() in text.lower()]
+    if found:
+        raise DesignCheckError(f"{context}: forbidden implementation markers found {found}")
+
+
+def latest(pattern: str, description: str) -> Path:
+    candidates = list(TARGET_DIR.glob(pattern))
+    if not candidates:
+        raise DesignCheckError(f"no {description} found under {TARGET_DIR}")
+    return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def load_json_object(path: Path, description: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        raise DesignCheckError(f"{description} does not exist: {path}") from error
+    except json.JSONDecodeError as error:
+        raise DesignCheckError(f"{description} is not valid JSON: {path}: {error}") from error
+    if not isinstance(payload, dict):
+        raise DesignCheckError(f"{description} must be a JSON object: {path}")
+    return payload
+
+
+def require_equal(payload: dict[str, Any], key: str, expected: Any, context: str) -> None:
+    actual = payload.get(key)
+    if actual != expected:
+        raise DesignCheckError(f"{context}: expected {key}={expected!r}, got {actual!r}")
+
+
+def existing_path(path_text: Any, context: str) -> Path:
+    if not isinstance(path_text, str) or not path_text:
+        raise DesignCheckError(f"{context}: expected non-empty artifact path")
+    path = Path(path_text)
+    if not path.is_absolute():
+        path = ROOT / path
+    if not path.exists():
+        raise DesignCheckError(f"{context}: artifact does not exist: {path}")
+    return path
+
+
+def find_sensitive_fields(value: Any, path: str = "") -> list[str]:
+    found: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else key
+            if SENSITIVE_KEY_RE.search(key):
+                found.append(child_path)
+            found.extend(find_sensitive_fields(child, child_path))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            found.extend(find_sensitive_fields(child, f"{path}[{index}]"))
+    return found
+
+
+def verify_refresh_summary(path: Path) -> dict[str, Any]:
+    payload = load_json_object(path, "wallet-send refresh summary")
+    require_equal(payload, "ok", "xriq-phase1-2-wallet-send-refresh-smoke", "refresh")
+    require_equal(payload, "feature_switch", "VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true", "refresh")
+
+    flags = payload.get("serve_readonly_flags")
+    if not isinstance(flags, dict):
+        raise DesignCheckError("refresh: expected serve_readonly_flags object")
+    require_equal(flags, "enable_local_wallet_send", True, "refresh flags")
+    require_equal(flags, "enable_local_wallet_submit", False, "refresh flags")
+    require_equal(flags, "enable_local_block_production", False, "refresh flags")
+
+    completed = payload.get("completed")
+    if not isinstance(completed, list):
+        raise DesignCheckError("refresh: completed must be a list")
+    for step in [
+        "wallet-send refresh visible in snapshot and activity rows",
+        "wallet submit remains refused",
+        "block production remains refused",
+    ]:
+        if step not in completed:
+            raise DesignCheckError(f"refresh: missing completed step {step!r}")
+
+    guards = payload.get("guards")
+    if not isinstance(guards, list):
+        raise DesignCheckError("refresh: guards must be a list")
+    for guard in [
+        "wallet submit remains disabled without --enable-local-wallet-submit",
+        "block production remains disabled without --enable-local-block-production",
+        "accepted wallet-send mutation is pending_state_only",
+        "no signing material or custody material is accepted",
+    ]:
+        if guard not in guards:
+            raise DesignCheckError(f"refresh: missing guard {guard!r}")
+
+    artifacts = payload.get("artifacts")
+    if not isinstance(artifacts, dict):
+        raise DesignCheckError("refresh: artifacts must be an object")
+    for key in ["ui_summary", "ui_snapshot", "wallet_submit_refusal", "block_production_refusal"]:
+        existing_path(artifacts.get(key), f"refresh artifact {key}")
+
+    sensitive_fields = find_sensitive_fields(payload)
+    if sensitive_fields:
+        raise DesignCheckError(f"refresh summary contains sensitive fields {sensitive_fields}")
+
+    return {
+        "path": str(path),
+        "wallet_send_tx_hash": payload.get("wallet_send_tx_hash"),
+        "block_production_enabled": False,
+        "wallet_submit_enabled": False,
+    }
+
+
+def write_summary(path: Path, report: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    artifact_dir = (args.artifact_dir or default_artifact_dir()).resolve()
+    try:
+        design_doc = read_text(DESIGN_DOC)
+        gate_doc = read_text(GATE_DOC)
+        phase_plan_doc = read_text(PHASE_PLAN_DOC)
+        handoff_doc = read_text(HANDOFF_DOC)
+        admin_ui = read_text(ADMIN_UI)
+        api_client = read_text(API_CLIENT)
+        static_check = read_text(STATIC_CHECK)
+        refresh_summary = args.refresh_summary or latest(
+            "xriq-phase1-2-wallet-send-refresh-smoke-*/summary.json",
+            "wallet-send refresh summary",
+        )
+
+        require_markers(design_doc, REQUIRED_DESIGN_MARKERS, "block-production UI design")
+        require_markers(gate_doc, REQUIRED_GATE_MARKERS, "UI mutation gate")
+        require_markers(phase_plan_doc, REQUIRED_PHASE_PLAN_MARKERS, "Phase 1.2 plan")
+        require_markers(handoff_doc, REQUIRED_HANDOFF_MARKERS, "handoff")
+        require_markers(admin_ui, REQUIRED_ADMIN_DISABLED_MARKERS, "Admin UI disabled guard")
+        require_markers(api_client, REQUIRED_API_MARKERS, "API client")
+        require_markers(static_check, REQUIRED_STATIC_MARKERS, "static UI check")
+        require_absent(
+            admin_ui,
+            FORBIDDEN_ADMIN_IMPLEMENTATION_MARKERS,
+            "Admin UI",
+        )
+        require_absent(
+            api_client,
+            FORBIDDEN_API_IMPLEMENTATION_MARKERS,
+            "API client",
+        )
+        refresh = verify_refresh_summary(refresh_summary)
+
+        report = {
+            "ok": "xriq-phase1-2-block-production-ui-design-check",
+            "artifact_dir": str(artifact_dir),
+            "phase": "1.2",
+            "scope": "local-private-post-rc-hardening",
+            "design_doc": str(DESIGN_DOC),
+            "refresh_summary": refresh,
+            "review_only": True,
+            "implementation_allowed": False,
+            "block_production_ui_enabled": False,
+            "approval_required_before_implementation": True,
+            "required_approval": (
+                "I explicitly approve implementing the Phase 1.2 "
+                "local/private-devnet block-production UI mutation control "
+                "behind the UI mutation-control gate."
+            ),
+            "admin_disabled_guard_present": True,
+            "next": "request explicit approval before implementing block-production UI",
+        }
+        write_summary(artifact_dir / "summary.json", report)
+    except DesignCheckError as error:
+        print(json.dumps({"ok": False, "error": str(error)}, indent=2), file=sys.stderr)
+        return 1
+
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
