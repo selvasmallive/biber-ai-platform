@@ -448,9 +448,11 @@ refusal, network height, mempool count, and pending file stay unchanged.
 Current Phase 1.2 RC candidate report checkpoint:
 `docs/XRIQ_PHASE1_2_RC_CANDIDATE_REPORT.md` is the docs-only RC candidate
 report for the local/private hardening scope. It proposes
-`phase1-2-xriq-local-private-hardening-rc1` as the tag name, but no tag may be
-created, moved, or pushed without explicit user approval naming that exact tag.
-The report references the latest readiness summary, UI mutation gate,
+`phase1-2-xriq-local-private-hardening-rc1` as the tag name. After exact
+explicit user approval on 2026-06-07, the pre-tag readiness guard passed and
+the tag was created and pushed at commit `b3a2fe4`. Do not move, delete,
+recreate, or repush that tag unless the user explicitly asks for that exact tag
+maintenance operation. The report references the latest readiness summary, UI mutation gate,
 block-production UI design check, wallet-send lifecycle/UI/refresh evidence,
 block-production UI live evidence, Admin refresh evidence, and no-pending
 negative evidence.

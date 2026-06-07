@@ -236,7 +236,9 @@ unless the user changes the project scope again.
   `docs/XRIQ_PHASE1_1_RC_CANDIDATE_REPORT.md`; proposed tag
   `phase1-1-xriq-local-e2e-rc1` must not be created without explicit user
   approval naming that tag.
-- Phase 1.2 estimated completion: about `78%` overall after the initial
+- Phase 1.2 estimated completion: `100%` for the approved local/private RC1
+  baseline tagged as `phase1-2-xriq-local-private-hardening-rc1` at commit
+  `b3a2fe4`, after the initial
   local/private scope plan, disabled wallet submit/send preflight fixtures,
   refusal-smoke guardrail, and API-level disabled/refused responses for wallet
   submit/send, React/client disabled-action guard coverage, and audit-event
@@ -283,11 +285,11 @@ unless the user changes the project scope again.
   evidence before any Phase 1.2 RC decision, plus a docs-only Phase 1.2 RC
   candidate report/checklist proposing a tag name but not creating it, plus a
   non-mutating Phase 1.2 RC readiness guardrail that verifies the candidate
-  report, latest evidence summaries, referenced artifacts, doc references, and
-  optional clean-git/origin-main/tag-absent conditions before any explicitly
-  approved RC tag action.
-  It is not a public launch phase. Its current
-  target is defining and hardening local-only action contracts before broader
+  report, latest evidence summaries, referenced artifacts, doc references,
+  optional clean-git/origin-main/tag-absent conditions before the explicitly
+  approved RC tag action, and the approved Phase 1.2 RC1 tag itself.
+  It is not a public launch phase. The approved Phase 1.2 RC1 scope is the
+  local/private hardening baseline for local-only action contracts before broader
   UI mutation controls, snapshot-mutation, DEX, custody, public network
   behavior, or production infrastructure are implemented.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
@@ -773,10 +775,17 @@ to save cost.
   refresh evidence, and no-pending negative evidence, and keeps public mainnet,
   DEX/liquidity, bridges, custody, smart contracts, wallet-submit UI mutation,
   snapshot mutation, production infrastructure, ISO certification, and market
-  claims out of scope. No tag was created, moved, or pushed by this checkpoint.
-  Do not create, move, or push the proposed tag unless the user explicitly
-  says:
-  `I explicitly approve creating and pushing the Phase 1.2 RC tag phase1-2-xriq-local-private-hardening-rc1.`
+  claims out of scope. No tag was created, moved, or pushed by that report
+  checkpoint; the tag was created later only after exact explicit user
+  approval.
+- Latest native XRIQ Phase 1.2 RC1 tag checkpoint: after exact explicit user
+  approval on 2026-06-07, ran
+  `python scripts/xriq_phase1_2_rc_readiness.py --require-clean-git --require-origin-main --require-tag-absent --write-summary`,
+  which passed with clean Git, `HEAD == origin/main`, selected evidence matching
+  the candidate report, and local/remote tag absence. Then created and pushed
+  `phase1-2-xriq-local-private-hardening-rc1` at commit `b3a2fe4`. Do not
+  move, delete, recreate, or repush this tag unless the user explicitly asks
+  for that exact tag maintenance operation.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI
@@ -1036,16 +1045,11 @@ to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: ask the user for a decision on the Phase 1.2 RC
-  candidate. The non-mutating RC readiness guardrail is now present. If the
-  user explicitly approves
-  `phase1-2-xriq-local-private-hardening-rc1` using the phrase in
-  `docs/XRIQ_PHASE1_2_RC_CANDIDATE_REPORT.md`, run
-  `python scripts/xriq_phase1_2_rc_readiness.py --require-clean-git --require-origin-main --require-tag-absent --write-summary`,
-  then create and push only that tag if the guard passes. If there is no
-  explicit tag approval and the guard still passes, ask the user for the human
-  RC decision instead of adding more RC-readiness guardrail churn, unless new
-  evidence or a concrete risk appears. Keep wallet submit, snapshot import/export
+- Recommended next narrow step: Phase 1.2 local/private RC1 is complete and
+  tagged. Ask the user what post-RC or next-phase scope to begin next. Do not
+  create, move, delete, recreate, or repush
+  `phase1-2-xriq-local-private-hardening-rc1` unless the user explicitly asks
+  for that exact tag maintenance operation. Keep wallet submit, snapshot import/export
   mutation, DEX, smart contracts, public mainnet, custody, bridges, exchange
   listings, and production infrastructure out of scope until explicitly
   approved.
