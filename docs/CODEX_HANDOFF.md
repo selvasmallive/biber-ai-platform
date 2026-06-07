@@ -301,15 +301,15 @@ unless the user changes the project scope again.
   local/private hardening baseline for local-only action contracts before broader
   UI mutation controls, snapshot-mutation, DEX, custody, public network
   behavior, or production infrastructure are implemented.
-- Phase 1.3 estimated completion: about `80%` after the initial local/private
+- Phase 1.3 estimated completion: about `85%` after the initial local/private
   behavior plan, canonical behavior fixture/contract check, CPU-only
   request-mode wallet behavior smoke, and UI-backed shared TypeScript client
   behavior smoke, plus the cheap readiness/negative-matrix consolidation guard
-  in `scripts/xriq_phase1_3_readiness_summary.py`. No Phase 1.3 RC candidate
-  report or tag exists yet. The next narrow implementation step after this
-  guard is a docs-only Phase 1.3 RC candidate report/checklist, if the user
-  wants to prepare an RC decision. A generic continue request is not tag
-  approval.
+  in `scripts/xriq_phase1_3_readiness_summary.py`, plus the local/private
+  browser demo runbook and launcher. No Phase 1.3 RC candidate report or tag
+  exists yet. The next narrow implementation step after this demo checkpoint is
+  a docs-only Phase 1.3 RC candidate report/checklist, if the user wants to
+  prepare an RC decision. A generic continue request is not tag approval.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -896,6 +896,28 @@ an active target because the GPU was terminated to save cost.
   `scripts/xriq_phase1_3_readiness_summary.py --cpu-smoke-summary xriq/target/xriq-phase1-3-wallet-behavior-smoke-20260607T131636Z/summary.json`.
   Latest artifact:
   `xriq/target/xriq-phase1-3-readiness-summary-20260607T134243Z/summary.json`.
+- Latest native XRIQ Phase 1.3 browser demo checkpoint: added
+  `docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md` and
+  `scripts/xriq_phase1_3_demo_launcher.py`. The launcher has a safe default
+  prepare-only mode that creates deterministic demo chain/pending files plus
+  `demo-context.json`, `summary.json`, `demo-commands.ps1`, and
+  `demo-commands.sh`; `--smoke-only` starts the local API/UI, verifies both
+  respond, then stops; `--launch` keeps both local servers open until Ctrl+C.
+  The demo uses the Phase 1.3 fixture, starts `xriq-api serve-readonly` with
+  only `--enable-local-wallet-send true` and
+  `--enable-local-block-production true`, starts Vite with only
+  `VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true` and
+  `VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true`, and walks the user through
+  Alice-to-Carol local send, pending state, one local block production, refresh,
+  and confirmed wallet/Admin/mempool state. It remains local/private only and
+  excludes private keys, seed phrases, signing, custody, public mainnet, DEX,
+  smart contracts, GCP, Vast, Docker, production infrastructure, and tags.
+  Verification passed bundled Python `py_compile`, prepare-only launcher run,
+  and escalated bundled Python
+  `scripts/xriq_phase1_3_demo_launcher.py --skip-build --smoke-only --auto-port`
+  because the managed Codex sandbox blocked Vite config reads without
+  escalation. Latest smoke artifact:
+  `xriq/target/xriq-phase1-3-demo-20260607T135028Z/summary.json`.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI
@@ -1155,9 +1177,12 @@ an active target because the GPU was terminated to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: if the user wants to prepare Phase 1.3 for an
-  RC decision, add a docs-only Phase 1.3 RC candidate report/checklist that
-  references the latest `scripts/xriq_phase1_3_readiness_summary.py` evidence.
+- Recommended next narrow step: the user can now run a manual browser demo with
+  `python scripts/xriq_phase1_3_demo_launcher.py --skip-build --launch --auto-port`
+  and follow `docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`. If the user wants to prepare
+  Phase 1.3 for an RC decision after the demo, add a docs-only Phase 1.3 RC
+  candidate report/checklist that references the latest
+  `scripts/xriq_phase1_3_readiness_summary.py` and demo evidence.
   Do not create, move, delete, recreate, or repush the future
   `phase1-3-xriq-local-private-behavior-rc1` tag, or
   `phase1-2-xriq-local-private-hardening-rc1` unless the user explicitly asks

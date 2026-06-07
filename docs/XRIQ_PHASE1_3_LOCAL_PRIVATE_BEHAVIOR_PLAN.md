@@ -182,6 +182,15 @@ Consolidate Phase 1.3 behavior readiness and negative-matrix evidence with:
 python scripts/xriq_phase1_3_readiness_summary.py
 ```
 
+Prepare or launch the manual browser demo with:
+
+```bash
+python scripts/xriq_phase1_3_demo_launcher.py --skip-build --launch --auto-port
+```
+
+The click path and demo boundaries live in
+`docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`.
+
 ## Completion Criteria
 
 Phase 1.3 is ready for a later RC decision only when:

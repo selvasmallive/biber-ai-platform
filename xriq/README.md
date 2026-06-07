@@ -74,6 +74,9 @@ after local `xriq-node` and `xriq-api` debug binaries exist.
 The Phase 1.3 local/private behavior readiness and negative-matrix
 consolidation guard is `../scripts/xriq_phase1_3_readiness_summary.py`; from the
 repo root, run it with `python scripts/xriq_phase1_3_readiness_summary.py`.
+The Phase 1.3 browser demo runbook is
+`../docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`; from the repo root, launch it with
+`python scripts/xriq_phase1_3_demo_launcher.py --skip-build --launch --auto-port`.
 The first Phase 1.2 wallet mutation preflight fixtures live in
 `fixtures/phase1_2/`; they are disabled/refusal contracts only and do not enable
 wallet submit/send behavior. From the repo root, validate them with

@@ -275,6 +275,9 @@ Run the UI-backed Phase 1.3 shared-client behavior smoke with
 local `xriq-node` and `xriq-api` debug binaries exist.
 Consolidate the Phase 1.3 local/private behavior readiness and negative matrix
 with `python scripts/xriq_phase1_3_readiness_summary.py`.
+The browser demo runbook is in `docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`; prepare or
+launch it with `python scripts/xriq_phase1_3_demo_launcher.py --skip-build
+--launch --auto-port`.
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The first Phase 1.2 wallet mutation preflight fixtures are in
