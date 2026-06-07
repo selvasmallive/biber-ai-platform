@@ -455,6 +455,13 @@ block-production UI design check, wallet-send lifecycle/UI/refresh evidence,
 block-production UI live evidence, Admin refresh evidence, and no-pending
 negative evidence.
 
+Current Phase 1.2 RC readiness guardrail checkpoint:
+`scripts/xriq_phase1_2_rc_readiness.py` is the non-mutating RC guard. It checks
+the candidate report, required evidence summaries, referenced artifact paths,
+handoff/plan/gate doc references, and optional clean-git/origin-main/tag-absent
+conditions. It must pass before any explicitly approved Phase 1.2 RC tag is
+created or pushed.
+
 ## Validation
 
 For Phase 1.2 docs-only planning checkpoints, use:
@@ -534,4 +541,11 @@ For the current block-production no-pending negative smoke checkpoint, use:
 
 ```bash
 python scripts/xriq_phase1_2_block_production_no_pending_smoke.py
+```
+
+For the current Phase 1.2 RC readiness guardrail, use:
+
+```bash
+python scripts/xriq_phase1_2_rc_readiness.py
+python scripts/xriq_phase1_2_rc_readiness.py --require-tag-absent
 ```

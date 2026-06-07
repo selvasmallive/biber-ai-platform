@@ -96,6 +96,20 @@ xriq/target/xriq-phase1-2-block-production-no-pending-smoke-20260607T112046Z/sum
 - [x] Phase 1.2 RC tag creation still requires explicit user approval naming
       the exact tag.
 
+## Cheap RC Readiness Guardrail
+
+Before any Phase 1.2 RC tag decision is acted on, run the non-mutating
+guardrail:
+
+```bash
+python scripts/xriq_phase1_2_rc_readiness.py --require-tag-absent
+```
+
+The guard verifies this candidate report, the latest readiness summary, the
+latest UI mutation-control gate, the latest block-production UI design check,
+the required smoke evidence, the handoff/plan/gate doc references, and absence
+of the proposed local/remote tag. It does not create, move, or push any tag.
+
 ## Non-Production Boundaries
 
 This RC candidate does not approve or include:
@@ -128,7 +142,14 @@ proposed tag unless the user explicitly says:
 I explicitly approve creating and pushing the Phase 1.2 RC tag phase1-2-xriq-local-private-hardening-rc1.
 ```
 
-After that explicit approval, run only:
+After that explicit approval, first run the non-mutating guardrail from a clean
+checkout:
+
+```bash
+python scripts/xriq_phase1_2_rc_readiness.py --require-clean-git --require-origin-main --require-tag-absent
+```
+
+If it passes, run only:
 
 ```bash
 git tag phase1-2-xriq-local-private-hardening-rc1
