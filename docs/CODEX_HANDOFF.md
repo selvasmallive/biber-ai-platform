@@ -301,10 +301,12 @@ unless the user changes the project scope again.
   local/private hardening baseline for local-only action contracts before broader
   UI mutation controls, snapshot-mutation, DEX, custody, public network
   behavior, or production infrastructure are implemented.
-- Phase 1.3 estimated completion: about `5%` after the initial local/private
-  behavior plan. No Phase 1.3 behavior smoke, readiness report, or tag exists
-  yet. The next narrow implementation step is the behavior fixture/contract
-  check followed by a CPU-only one-shot wallet-send plus block-production smoke.
+- Phase 1.3 estimated completion: about `8%` after the initial local/private
+  behavior plan and canonical behavior fixture/contract check. No Phase 1.3
+  behavior smoke, readiness report, or tag exists yet. The next narrow
+  implementation step is a CPU-only one-shot wallet-send plus block-production
+  smoke using `xriq/fixtures/phase1_3/local-wallet-behavior-v1.json` as the
+  expected contract.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -812,6 +814,25 @@ an active target because the GPU was terminated to save cost.
   snapshot import/export mutation, DEX/liquidity, smart contracts, custody,
   public network behavior, production infrastructure, and exchange/listing
   claims out of scope.
+- Latest native XRIQ Phase 1.3 behavior fixture checkpoint: added
+  `xriq/fixtures/phase1_3/local-wallet-behavior-v1.json` and
+  `scripts/xriq_phase1_3_behavior_contract_check.py`. The fixture defines the
+  canonical local/private behavior loop: prepare a base private-devnet chain
+  with Alice sending `25` plus fee `2` to Bob, then run guarded wallet send from
+  Alice to Carol for `5` plus fee `2`, then produce exactly one local block and
+  verify pending cleanup, height `2`, wallet status, explorer/admin/audit
+  expectations, and disabled/default negative cases. The checker validates the
+  approved local switches, Phase 1.2 RC1 tag reference, no-go scope markers,
+  identities, balances/nonces (`Alice=66/nonce=2`, `Bob=25`, `Carol=5`,
+  fee sink `4`), expected audit actions, negative matrix, artifact policy, and
+  absence of sensitive key field names. This checkpoint is fixture/checker only:
+  it does not mutate chain state, start a server, run Docker, provision GCP/Vast,
+  create tags, or enable wallet submit UI, DEX, smart contracts, custody, public
+  network behavior, or production infrastructure. Verification passed bundled
+  Python `py_compile`, bundled Python
+  `scripts/xriq_phase1_3_behavior_contract_check.py`, and `git diff --check`.
+  Latest artifact:
+  `xriq/target/xriq-phase1-3-behavior-contract-check-20260607T130905Z/summary.json`.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI
@@ -1071,9 +1092,10 @@ an active target because the GPU was terminated to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: implement the first Phase 1.3 behavior fixture
-  inventory/contract check, then a CPU-only one-shot local/private wallet-send
-  plus block-production smoke that writes a timestamped summary under
+- Recommended next narrow step: implement the CPU-only one-shot Phase 1.3
+  local/private wallet-send plus block-production smoke using
+  `xriq/fixtures/phase1_3/local-wallet-behavior-v1.json` as the expected
+  behavior contract. It should write a timestamped summary under
   `xriq/target/xriq-phase1-3-*`. Do not create, move, delete, recreate, or
   repush `phase1-2-xriq-local-private-hardening-rc1` unless the user explicitly
   asks for that exact tag maintenance operation. Keep wallet submit UI, snapshot

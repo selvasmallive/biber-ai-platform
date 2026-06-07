@@ -59,6 +59,10 @@ The post-Phase 1.1 RC1 local/private Phase 1.2 plan is documented at
 `../docs/XRIQ_PHASE1_2_LOCAL_PRIVATE_PLAN.md`.
 The post-Phase 1.2 RC1 local/private Phase 1.3 behavioral wallet testing plan is
 documented at `../docs/XRIQ_PHASE1_3_LOCAL_PRIVATE_BEHAVIOR_PLAN.md`.
+The initial Phase 1.3 behavior fixture is
+`fixtures/phase1_3/local-wallet-behavior-v1.json`; from the repo root, validate
+it with `python scripts/xriq_phase1_3_behavior_contract_check.py` or the
+bundled Codex Python if `python` is not on PATH.
 The first Phase 1.2 wallet mutation preflight fixtures live in
 `fixtures/phase1_2/`; they are disabled/refusal contracts only and do not enable
 wallet submit/send behavior. From the repo root, validate them with

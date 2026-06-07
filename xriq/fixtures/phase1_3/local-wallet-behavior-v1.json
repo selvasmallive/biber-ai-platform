@@ -1,0 +1,204 @@
+{
+  "environment": "private-devnet",
+  "network": "xriq-devnet",
+  "fixture": "phase1-3-local-wallet-behavior-v1",
+  "status": "contract-fixture",
+  "scope": "local-private-behavior-only",
+  "source_phase1_2_tag": {
+    "tag": "phase1-2-xriq-local-private-hardening-rc1",
+    "commit": "b3a2fe4",
+    "tag_maintenance": "do-not-move-delete-recreate-or-repush"
+  },
+  "approved_local_switches": [
+    "--enable-local-wallet-send true",
+    "--enable-local-block-production true",
+    "VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI=true",
+    "VITE_XRIQ_ENABLE_LOCAL_BLOCK_PRODUCTION_UI=true"
+  ],
+  "forbidden_scope": [
+    "wallet-submit-ui",
+    "snapshot-import-export-mutation",
+    "dex-liquidity",
+    "smart-contract-vm",
+    "custody",
+    "public-mainnet",
+    "validator-economics",
+    "bridges",
+    "exchange-listing-claims",
+    "production-infrastructure",
+    "gcp-or-vast-provisioning"
+  ],
+  "identities": {
+    "sender": "xriqdev1alice00000000000",
+    "base_recipient": "xriqdev1bobbb00000000000",
+    "behavior_recipient": "xriqdev1carol00000000000",
+    "producer": "xriqdev1author00000000000",
+    "fee_sink": "xriqdev1fees000000000000"
+  },
+  "base_chain_setup": {
+    "command": "xriq-node preflight-transfer",
+    "starting_chain_height": 0,
+    "starting_pending_transactions": 0,
+    "sender_start_balance_base_units": "100",
+    "transfer": {
+      "from_address": "xriqdev1alice00000000000",
+      "to_address": "xriqdev1bobbb00000000000",
+      "amount_base_units": "25",
+      "fee_base_units": "2",
+      "nonce": 0,
+      "expires_at_height": 100,
+      "timestamp_ms": 1000
+    },
+    "expected": {
+      "confirmed_block_height": 1,
+      "confirmed_transaction_index": 0,
+      "sender_balance_base_units": "73",
+      "sender_nonce": 1,
+      "base_recipient_balance_base_units": "25",
+      "pending_transactions": 0,
+      "transaction_status": "confirmed"
+    }
+  },
+  "behavior_flow": [
+    {
+      "step": "wallet_send_to_pending",
+      "endpoint": "POST /api/v1/wallet/transfers/send",
+      "required_switch": "--enable-local-wallet-send true",
+      "local_request_id": "phase1-3-wallet-send-1",
+      "request": {
+        "from_address": "xriqdev1alice00000000000",
+        "to_address": "xriqdev1carol00000000000",
+        "amount_base_units": "5",
+        "fee_base_units": "2",
+        "nonce": 1,
+        "expires_at_height": 100
+      },
+      "expected": {
+        "http_status": 201,
+        "code": "wallet_send_accepted_local_only",
+        "status": "pending",
+        "mutation": "pending_state_only",
+        "pending_before_count": 0,
+        "pending_after_count": 1,
+        "chain_unchanged": true,
+        "wallet_transaction_status": "pending",
+        "audit_scope": "api-local-accepted",
+        "audit_action": "wallet_transfer_send_attempt"
+      }
+    },
+    {
+      "step": "produce_one_block",
+      "endpoint": "POST /api/v1/blocks/produce",
+      "required_switch": "--enable-local-block-production true",
+      "local_request_id": "phase1-3-block-produce-1",
+      "request": {
+        "producer": "xriqdev1author00000000000",
+        "max_transactions": 4,
+        "timestamp_ms": 2000
+      },
+      "expected": {
+        "http_status": 201,
+        "code": "block_production_accepted_local_only",
+        "status": "confirmed",
+        "mutation": "chain_and_pending_state_local_only",
+        "previous_height": 1,
+        "current_height": 2,
+        "confirmed_transaction_count": 1,
+        "pending_before_count": 1,
+        "pending_after_count": 0,
+        "wallet_transaction_status": "confirmed",
+        "mempool_pending_count": 0,
+        "audit_scope": "api-local-accepted",
+        "audit_action": "block_production_attempt"
+      }
+    }
+  ],
+  "post_block_expectations": {
+    "accounts": [
+      {
+        "address": "xriqdev1alice00000000000",
+        "balance_base_units": "66",
+        "nonce": 2
+      },
+      {
+        "address": "xriqdev1bobbb00000000000",
+        "balance_base_units": "25",
+        "nonce": 0
+      },
+      {
+        "address": "xriqdev1carol00000000000",
+        "balance_base_units": "5",
+        "nonce": 0
+      },
+      {
+        "address": "xriqdev1fees000000000000",
+        "balance_base_units": "4",
+        "nonce": 0
+      }
+    ],
+    "wallet_history": {
+      "sender_min_confirmed_rows": 2,
+      "behavior_transaction_direction": "sent",
+      "recipient_transaction_direction": "received"
+    },
+    "explorer": {
+      "current_height": 2,
+      "stored_blocks": 2,
+      "confirmed_transactions": 2,
+      "pending_transactions": 0
+    },
+    "admin": {
+      "node_pending": 0,
+      "wallet_pending": 0,
+      "mempool_pending": 0,
+      "required_audit_actions": [
+        "wallet_transfer_send_attempt",
+        "block_production_attempt"
+      ]
+    },
+    "audit": {
+      "metadata_policy": "request fields and local state transition summary only",
+      "sensitive_material": "absent",
+      "custody_material": "absent"
+    }
+  },
+  "negative_matrix": [
+    {
+      "case": "default_wallet_send_disabled",
+      "endpoint": "POST /api/v1/wallet/transfers/send",
+      "expected_code": "wallet_send_disabled",
+      "expected_mutation": "none"
+    },
+    {
+      "case": "default_block_production_disabled",
+      "endpoint": "POST /api/v1/blocks/produce",
+      "expected_code": "block_production_disabled",
+      "expected_mutation": "none"
+    },
+    {
+      "case": "wallet_submit_ui_deferred",
+      "endpoint": "POST /api/v1/wallet/transfers/submit",
+      "expected_code": "wallet_submit_disabled",
+      "expected_mutation": "none"
+    },
+    {
+      "case": "no_pending_block_production",
+      "endpoint": "POST /api/v1/blocks/produce",
+      "expected_code": "no_pending_transactions",
+      "expected_mutation": "none"
+    },
+    {
+      "case": "invalid_wallet_send_request",
+      "endpoint": "POST /api/v1/wallet/transfers/send",
+      "expected_code": "validation_failed",
+      "expected_mutation": "none"
+    }
+  ],
+  "artifact_policy": {
+    "root": "xriq/target/xriq-phase1-3-*",
+    "external_services": false,
+    "gpu_required": false,
+    "docker_required_by_default": false,
+    "writes_public_state": false
+  }
+}

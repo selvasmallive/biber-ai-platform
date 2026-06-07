@@ -65,6 +65,13 @@ wallet testing:
 This milestone is documentation and fixture inventory only. It must not add new
 mutation capability.
 
+Initial checkpoint:
+
+- canonical fixture:
+  `xriq/fixtures/phase1_3/local-wallet-behavior-v1.json`
+- executable contract check:
+  `python scripts/xriq_phase1_3_behavior_contract_check.py`
+
 ## Milestone B: One-Shot Behavior Smoke
 
 Add a local CPU-only smoke that runs the full behavior loop without external
@@ -123,9 +130,11 @@ python scripts/xriq_phase1_3_wallet_behavior_smoke.py
 git diff --check
 ```
 
-If those scripts do not exist yet, add them incrementally. They should write
-timestamped artifacts under `xriq/target/xriq-phase1-3-*` and avoid external
-services by default.
+The behavior contract check now exists and writes timestamped artifacts under
+`xriq/target/xriq-phase1-3-*`. Add the wallet behavior smoke incrementally next;
+it should avoid external services by default.
+On this Windows workstation, use the bundled Codex Python if `python` is not on
+PATH.
 
 ## Completion Criteria
 
