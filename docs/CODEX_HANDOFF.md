@@ -788,8 +788,9 @@ to save cost.
   RC evidence from being tagged. The guard output now includes
   `release_decision.generic_continue_is_approval: false`, the exact approval
   phrase, allowed no-approval actions, allowed post-approval commands, and
-  prohibited tag/scope actions. It can also write a timestamped ignored
-  evidence artifact under `xriq/target/` with `--write-summary`. Use
+  prohibited tag/scope actions, plus `release_decision_check` so the guard
+  fails if those decision boundaries drift. It can also write a timestamped
+  ignored evidence artifact under `xriq/target/` with `--write-summary`. Use
   `python scripts/xriq_phase1_2_rc_readiness.py` for a cheap local check, and
   after an exact explicit tag approval, run
   `python scripts/xriq_phase1_2_rc_readiness.py --require-clean-git --require-origin-main --require-tag-absent --write-summary`

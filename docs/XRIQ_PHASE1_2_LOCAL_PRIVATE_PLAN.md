@@ -467,7 +467,8 @@ explicitly approved Phase 1.2 RC tag is created or pushed. Add
 `xriq/target/` is needed. The summary includes a `release_decision` object that
 records that a generic continue request is not approval, lists the exact
 approval phrase, and separates allowed no-approval actions from post-approval
-tag commands.
+tag commands. The guard also emits `release_decision_check` and fails if those
+decision boundaries drift.
 
 ## Validation
 

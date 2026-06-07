@@ -573,6 +573,61 @@ def release_decision() -> dict[str, Any]:
     }
 
 
+def verify_release_decision(decision: dict[str, Any]) -> dict[str, Any]:
+    expected_after_approval = [
+        (
+            "python scripts/xriq_phase1_2_rc_readiness.py "
+            "--require-clean-git --require-origin-main --require-tag-absent "
+            "--write-summary"
+        ),
+        f"git tag {PROPOSED_TAG}",
+        f"git push origin {PROPOSED_TAG}",
+    ]
+    expected_prohibited = [
+        f"git tag {PROPOSED_TAG}",
+        f"git push origin {PROPOSED_TAG}",
+        f"moving or recreating {PROPOSED_TAG}",
+    ]
+    if decision.get("human_decision_required") is not True:
+        raise RcReadinessError("release decision must require a human decision")
+    if decision.get("generic_continue_is_approval") is not False:
+        raise RcReadinessError("release decision must reject generic continue as approval")
+    if decision.get("exact_approval_phrase_required") != APPROVAL_PHRASE:
+        raise RcReadinessError("release decision approval phrase drifted")
+    if decision.get("proposed_tag") != PROPOSED_TAG:
+        raise RcReadinessError("release decision proposed tag drifted")
+    if decision.get("tag_created_by_this_guard") is not False:
+        raise RcReadinessError("release decision must state this guard creates no tag")
+
+    allowed_after = decision.get("allowed_after_exact_approval")
+    if allowed_after != expected_after_approval:
+        raise RcReadinessError("release decision post-approval commands drifted")
+
+    allowed_without = decision.get("allowed_without_exact_approval")
+    if not isinstance(allowed_without, list) or not allowed_without:
+        raise RcReadinessError("release decision must list no-approval actions")
+    if not any("ask the user" in str(item) for item in allowed_without):
+        raise RcReadinessError("release decision must allow asking for the RC decision")
+    if any(PROPOSED_TAG in str(item) for item in allowed_without):
+        raise RcReadinessError("release decision must not allow tag commands before approval")
+
+    prohibited = decision.get("prohibited_without_exact_approval")
+    if not isinstance(prohibited, list):
+        raise RcReadinessError("release decision must list prohibited no-approval actions")
+    missing_prohibited = [item for item in expected_prohibited if item not in prohibited]
+    if missing_prohibited:
+        raise RcReadinessError(
+            f"release decision missing prohibited actions: {missing_prohibited}"
+        )
+
+    return {
+        "human_decision_required": True,
+        "generic_continue_is_approval": False,
+        "post_approval_commands_checked": len(expected_after_approval),
+        "prohibited_actions_checked": len(expected_prohibited),
+    }
+
+
 def resolve_output_dir(path: Path | None) -> Path:
     output_dir = path or default_artifact_dir()
     if not output_dir.is_absolute():
@@ -631,7 +686,6 @@ def main(argv: list[str] | None = None) -> int:
             "scope": "local-private-post-rc-hardening",
             "non_mutating": True,
             "tag_created": False,
-            "release_decision": release_decision(),
             "candidate": verify_candidate_report(
                 readiness_summary,
                 ui_gate_summary,
@@ -646,6 +700,9 @@ def main(argv: list[str] | None = None) -> int:
             "git": verify_git(args.require_clean_git, args.require_origin_main),
             "tag_checks": {},
         }
+        decision = release_decision()
+        report["release_decision"] = decision
+        report["release_decision_check"] = verify_release_decision(decision)
         if args.require_tag_absent:
             report["tag_checks"] = verify_tag_absent()
         if args.write_summary or args.artifact_dir is not None:

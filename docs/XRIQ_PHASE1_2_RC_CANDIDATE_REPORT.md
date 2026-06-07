@@ -112,7 +112,8 @@ handoff/plan/gate doc references, and confirms absence of the proposed
 local/remote tag. It does not create, move, or push any tag.
 Its output includes `release_decision.generic_continue_is_approval: false`,
 the exact approval phrase, the allowed no-approval actions, the allowed
-post-approval commands, and the prohibited tag/scope actions.
+post-approval commands, and the prohibited tag/scope actions. It also includes
+`release_decision_check` so the guard fails if those decision boundaries drift.
 When a saved evidence file is useful, add `--write-summary`; the script writes
 a timestamped `summary.json` under `xriq/target/`.
 
