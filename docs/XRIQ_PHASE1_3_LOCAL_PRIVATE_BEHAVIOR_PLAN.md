@@ -197,8 +197,9 @@ The Phase 1.3 RC candidate report/checklist is documented at:
 docs/XRIQ_PHASE1_3_RC_CANDIDATE_REPORT.md
 ```
 
-It proposes `phase1-3-xriq-local-private-behavior-rc1` for a later exact
-approval decision, but does not create, move, delete, recreate, or push any tag.
+The approved Phase 1.3 RC tag is
+`phase1-3-xriq-local-private-behavior-rc1` at commit `345d353`. Do not move,
+delete, recreate, or repush that tag without an exact tag-maintenance request.
 
 ## Completion Criteria
 
@@ -215,13 +216,15 @@ Phase 1.3 is ready for a later RC decision only when:
 
 ## Future Tag Rule
 
-Phase 1.3 does not automatically create a release tag. If future work needs a
-new post-RC tag, use a new deliberate tag name such as
-`phase1-3-xriq-local-private-behavior-rc1` only after:
+Phase 1.3 did not automatically create a release tag; the tag was created only
+after exact explicit approval. If future work needs another post-RC tag, use a
+new deliberate tag name only after:
 
 - a candidate report is written,
 - the non-mutating Phase 1.3 readiness summary passes from a clean checkout,
 - the user explicitly approves the exact tag name.
 
 Do not create, move, delete, recreate, or push any tag from a generic continue
+request. Do not move, delete, recreate, or repush
+`phase1-3-xriq-local-private-behavior-rc1` without an exact tag-maintenance
 request.

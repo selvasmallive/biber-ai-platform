@@ -301,16 +301,17 @@ unless the user changes the project scope again.
   local/private hardening baseline for local-only action contracts before broader
   UI mutation controls, snapshot-mutation, DEX, custody, public network
   behavior, or production infrastructure are implemented.
-- Phase 1.3 estimated completion: about `90%` after the initial local/private
+- Phase 1.3 estimated completion: `100%` after the initial local/private
   behavior plan, canonical behavior fixture/contract check, CPU-only
   request-mode wallet behavior smoke, and UI-backed shared TypeScript client
   behavior smoke, plus the cheap readiness/negative-matrix consolidation guard
   in `scripts/xriq_phase1_3_readiness_summary.py`, plus the local/private
   browser demo runbook and launcher, plus the docs-only
-  `docs/XRIQ_PHASE1_3_RC_CANDIDATE_REPORT.md`. No Phase 1.3 tag exists yet.
-  The next narrow step is a human Phase 1.3 RC decision: either exact approval
-  for `phase1-3-xriq-local-private-behavior-rc1`, or a request for one more
-  narrow local/private fix. A generic continue request is not tag approval.
+  `docs/XRIQ_PHASE1_3_RC_CANDIDATE_REPORT.md`, and the approved/pushed
+  `phase1-3-xriq-local-private-behavior-rc1` tag at commit `345d353`.
+  The next narrow step is post-RC/next-phase work only. Do not move, delete,
+  recreate, or repush the Phase 1.3 tag unless the user explicitly requests
+  that exact tag maintenance operation.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -927,7 +928,15 @@ an active target because the GPU was terminated to save cost.
   required contract/CPU/UI/demo evidence, the manual demo command, explicit
   non-production boundaries, and the exact approval phrase:
   `I explicitly approve creating and pushing the Phase 1.3 RC tag phase1-3-xriq-local-private-behavior-rc1.`
-  No tag was created. A generic continue request remains not approval.
+  At that candidate-report checkpoint, no tag was created. The tag was created
+  later only after exact explicit user approval.
+- Latest native XRIQ Phase 1.3 RC tag checkpoint: after exact explicit user
+  approval on 2026-06-08, reran
+  `scripts/xriq_phase1_3_readiness_summary.py --cpu-smoke-summary xriq/target/xriq-phase1-3-wallet-behavior-smoke-20260607T131636Z/summary.json --require-clean-git --require-origin-main`;
+  it passed with `clean_git: true` and `head_matches_origin_main: true`.
+  Verified the local and remote tag were absent, then created and pushed
+  `phase1-3-xriq-local-private-behavior-rc1` at commit `345d353`. Do not move,
+  delete, recreate, or repush this tag without an exact tag-maintenance request.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI
@@ -1187,14 +1196,15 @@ an active target because the GPU was terminated to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: ask the user for a Phase 1.3 RC decision. They
-  can first run the manual browser demo with
+- Recommended next narrow step: Phase 1.3 is RC-tagged. The user can still run
+  the manual browser demo with
   `python scripts/xriq_phase1_3_demo_launcher.py --skip-build --launch --auto-port`
-  and follow `docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`. If satisfied, the exact tag
-  approval phrase is:
-  `I explicitly approve creating and pushing the Phase 1.3 RC tag phase1-3-xriq-local-private-behavior-rc1.`
-  Do not create, move, delete, recreate, or repush the future
-  `phase1-3-xriq-local-private-behavior-rc1` tag, or
+  and follow `docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`. Otherwise choose exactly one
+  post-RC local/private next-phase task before implementing more: Phase 1.4
+  planning, local signing/key-material design without custody, wallet submit UI
+  design review, snapshot mutation design, or another narrow evidence fix. Do
+  not move, delete, recreate, or repush
+  `phase1-3-xriq-local-private-behavior-rc1`, or
   `phase1-2-xriq-local-private-hardening-rc1` unless the user explicitly asks
   for that exact tag maintenance operation. Keep wallet submit UI, snapshot
   import/export mutation, DEX, smart contracts, public mainnet, custody,

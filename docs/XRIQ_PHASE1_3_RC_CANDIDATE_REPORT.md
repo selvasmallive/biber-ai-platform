@@ -1,12 +1,15 @@
 # XRIQ Phase 1.3 RC Candidate Report
 
-Status: candidate report only. No Phase 1.3 RC tag has been created by this
-report.
+Status: candidate report with completed RC tag action.
 
-Proposed tag, only after exact explicit user approval:
+Approved RC tag:
 `phase1-3-xriq-local-private-behavior-rc1`
 
-Required approval phrase:
+Post-report tag status: after exact explicit user approval on 2026-06-08, the
+tag `phase1-3-xriq-local-private-behavior-rc1` was created and pushed at
+commit `345d353`.
+
+Historical approval phrase used:
 
 ```text
 I explicitly approve creating and pushing the Phase 1.3 RC tag phase1-3-xriq-local-private-behavior-rc1.
@@ -128,32 +131,26 @@ This RC candidate does not approve or include:
 
 ## Candidate Decision
 
-The local/private Phase 1.3 candidate is ready for user review. The next action
-is a human decision, not more automatic implementation:
+The local/private Phase 1.3 candidate was reviewed as a documentation and
+evidence checkpoint. The human decision was completed after exact explicit user
+approval on 2026-06-08.
 
-- approve creating and pushing `phase1-3-xriq-local-private-behavior-rc1`, or
-- request another narrow local/private fix before tagging.
-
-Before any tag action, rerun the readiness summary from the repo root:
+Pre-tag validation passed:
 
 ```bash
 python scripts/xriq_phase1_3_readiness_summary.py --cpu-smoke-summary xriq/target/xriq-phase1-3-wallet-behavior-smoke-20260607T131636Z/summary.json
 ```
 
-Do not tag from a generic continue request. Do not create, move, delete,
-recreate, or push the proposed tag unless the user explicitly says:
-
-```text
-I explicitly approve creating and pushing the Phase 1.3 RC tag phase1-3-xriq-local-private-behavior-rc1.
-```
-
-After that exact approval, run only:
+Then the tag was created and pushed:
 
 ```bash
 git tag phase1-3-xriq-local-private-behavior-rc1
 git push origin phase1-3-xriq-local-private-behavior-rc1
 ```
 
-If there is no exact tag approval, keep Phase 1.3 local/private and choose only
-one next narrow task: manual demo follow-up, another local/private evidence fix,
-or post-RC planning outside this candidate.
+Do not move, delete, recreate, or repush
+`phase1-3-xriq-local-private-behavior-rc1` unless the user explicitly asks for
+that exact tag maintenance operation.
+
+Next scope is post-RC or next-phase work only, still local/private unless the
+user explicitly approves broader scope.
