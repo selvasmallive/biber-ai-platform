@@ -146,6 +146,23 @@ signed-submit behavior, wallet submit UI mutation, custody, browser-held keys,
 public network behavior, DEX, bridges, smart contracts, production
 infrastructure, or tag operations.
 
+Current CLI-only signed artifact checkpoint:
+
+- `xriq-wallet signed-transfer ... --signer-label <lowercase-label>` renders a
+  local/private test signed-transfer artifact.
+- The signer label must resolve to the transfer sender test identity.
+- The artifact includes transaction signing hash, transaction hash, test-only
+  signature algorithm metadata, and signed-submit preview metadata.
+- It does not expose private keys, seed phrases, mnemonics, raw test signature
+  bytes, custody accounts, browser storage, public network endpoints, DEX
+  routing, production infrastructure, or tag behavior.
+
+Validate the CLI artifact with:
+
+```bash
+python scripts/xriq_phase1_4_signed_artifact_check.py
+```
+
 ## UI Rules
 
 The browser UI must not:

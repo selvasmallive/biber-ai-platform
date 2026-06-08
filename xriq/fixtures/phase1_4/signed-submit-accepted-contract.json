@@ -105,7 +105,7 @@
     "mutation": "pending_state_only",
     "warning": "local-private-devnet-test-signature-only",
     "transaction": {
-      "tx_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "tx_hash": "628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7",
       "status": "pending",
       "from_address": "xriqdev1alice00000000000",
       "to_address": "xriqdev1carol00000000000",
@@ -118,15 +118,15 @@
     },
     "verification": {
       "signature_algorithm": "test-only",
-      "transaction_signing_hash": "2222222222222222222222222222222222222222222222222222222222222222",
-      "transaction_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "transaction_signing_hash": "3c0f7f54bca53ad4c49ff98ba9ba2930ac6147a3cb510ead3265c894fcf1850b",
+      "transaction_hash": "628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7",
       "verifier": "TestOnlySignatureVerifier",
       "verified": true
     },
     "pending_state": {
       "before_count": 0,
       "after_count": 1,
-      "added_tx_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "added_tx_hash": "628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7",
       "pending_file": "target/xriq-devnet-pending.tsv"
     },
     "chain_state": {
@@ -141,7 +141,7 @@
       "actor": "local-private-devnet-operator",
       "action": "wallet_transfer_signed_submit_attempt",
       "resource_type": "wallet_transfer",
-      "resource_id": "3333333333333333333333333333333333333333333333333333333333333333",
+      "resource_id": "628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7",
       "environment": "private-devnet",
       "metadata": {
         "endpoint": "POST /api/v1/wallet/transfers/submit-signed",
@@ -159,7 +159,7 @@
         "verifier": "TestOnlySignatureVerifier",
         "pending_before_count": 0,
         "pending_after_count": 1,
-        "added_tx_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+        "added_tx_hash": "628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7",
         "chain_current_height": 1,
         "metadata_policy": "request fields, hashes, verifier result, and local pending-state transition summary only; no key material or custody material"
       }

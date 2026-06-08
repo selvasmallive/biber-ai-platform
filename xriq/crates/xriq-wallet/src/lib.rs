@@ -6,7 +6,9 @@
 use std::{fmt, fs};
 
 use xriq_core::{Address, AddressError, Hash32, SignatureBytes, Transaction, XriqAmount};
-use xriq_crypto::{test_only_signature_for_hash, transaction_hash, transaction_signing_hash};
+use xriq_crypto::{
+    test_only_signature_for_hash, transaction_hash, transaction_signing_hash, SignatureAlgorithm,
+};
 use xriq_node::{
     private_devnet_file_account_detail_data, private_devnet_file_account_list_data,
     private_devnet_file_account_transactions_data, private_devnet_file_chain_check,
@@ -19,6 +21,9 @@ use xriq_node::{
 };
 
 const TEST_IDENTITY_WARNING: &str = "private-devnet-test-identity-only";
+const TEST_SIGNATURE_WARNING: &str = "local-private-devnet-test-signature-only";
+const SIGNED_TRANSFER_FORMAT_VERSION: &str = "xriq-local-signed-transfer-envelope-v1";
+const TRANSACTION_SIGNING_DOMAIN: &str = "xriq:v1:transaction:signing";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TestIdentity {
@@ -41,6 +46,14 @@ pub struct TransferRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransferDraft {
     pub transaction: Transaction,
+    pub warning: &'static str,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignedTransferArtifact {
+    pub signer_label: String,
+    pub signer_address: Address,
+    pub draft: TransferDraft,
     pub warning: &'static str,
 }
 
@@ -181,6 +194,8 @@ pub enum WalletOutput {
     TransactionStatusJson(WalletTransactionStatus),
     TransferDraft(TransferDraft),
     TransferSubmitJson(TransferDraft),
+    SignedTransferArtifact(SignedTransferArtifact),
+    SignedTransferArtifactJson(SignedTransferArtifact),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -193,9 +208,20 @@ pub enum WalletError {
     UnexpectedArgument(String),
     InvalidLabel,
     InvalidAddress(AddressError),
-    InvalidNumber { flag: &'static str, value: String },
-    InvalidHash { flag: &'static str, value: String },
+    InvalidNumber {
+        flag: &'static str,
+        value: String,
+    },
+    InvalidHash {
+        flag: &'static str,
+        value: String,
+    },
     InvalidFormat(String),
+    SignerAddressMismatch {
+        signer_label: String,
+        signer_address: Address,
+        from_address: Address,
+    },
     Node(String),
 }
 
@@ -228,6 +254,14 @@ impl fmt::Display for WalletError {
             Self::InvalidFormat(value) => {
                 write!(formatter, "invalid format: {value}; expected text or json")
             }
+            Self::SignerAddressMismatch {
+                signer_label,
+                signer_address,
+                from_address,
+            } => write!(
+                formatter,
+                "signer label {signer_label} resolves to {signer_address}, not transfer sender {from_address}"
+            ),
             Self::Node(message) => write!(formatter, "node error: {message}"),
         }
     }
@@ -301,6 +335,12 @@ impl fmt::Display for WalletOutput {
             Self::TransferSubmitJson(draft) => {
                 formatter.write_str(&render_transfer_submit_json(draft))
             }
+            Self::SignedTransferArtifact(artifact) => {
+                formatter.write_str(&render_signed_transfer_artifact(artifact))
+            }
+            Self::SignedTransferArtifactJson(artifact) => {
+                formatter.write_str(&render_signed_transfer_artifact_json(artifact))
+            }
         }
     }
 }
@@ -329,6 +369,7 @@ pub fn help_text() -> String {
         "  xriq-wallet send --chain-file <path> --pending-file <path> --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number|auto> [--alice-balance <base-units>] [--expires-at-height <height>] [--format text|json]",
         "  xriq-wallet tx status --chain-file <path> --tx-hash <64-hex> [--draft-file <path>|--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet transfer --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number|auto> [--chain-file <path>] [--alice-balance <base-units>] [--expires-at-height <height>] [--format text|json]",
+        "  xriq-wallet signed-transfer --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number|auto> --signer-label <lowercase-label> [--chain-file <path>] [--alice-balance <base-units>] [--expires-at-height <height>] [--format text|json]",
         "",
         "Warning: this wallet is for private devnet tests only and does not manage real keys.",
     ]
@@ -358,6 +399,7 @@ where
         Some("send") => run_send_command(&args[1..]),
         Some("tx") => run_tx_command(&args[1..]),
         Some("transfer") => run_transfer_command(&args[1..]),
+        Some("signed-transfer") => run_signed_transfer_command(&args[1..]),
         Some(command) => Err(WalletError::UnknownCommand(command.to_string())),
     }
 }
@@ -398,6 +440,26 @@ pub fn build_test_transfer(request: TransferRequest) -> TransferDraft {
         transaction,
         warning: TEST_IDENTITY_WARNING,
     }
+}
+
+pub fn build_test_signed_transfer_artifact(
+    request: TransferRequest,
+    signer_label: &str,
+) -> Result<SignedTransferArtifact, WalletError> {
+    let signer = generate_test_identity(signer_label)?;
+    if signer.address != request.from {
+        return Err(WalletError::SignerAddressMismatch {
+            signer_label: signer_label.to_string(),
+            signer_address: signer.address,
+            from_address: request.from,
+        });
+    }
+    Ok(SignedTransferArtifact {
+        signer_label: signer_label.to_string(),
+        signer_address: signer.address,
+        draft: build_test_transfer(request),
+        warning: TEST_SIGNATURE_WARNING,
+    })
 }
 
 fn run_key_command(args: &[String]) -> Result<WalletOutput, WalletError> {
@@ -773,6 +835,31 @@ fn run_transfer_command(args: &[String]) -> Result<WalletOutput, WalletError> {
     })
 }
 
+fn run_signed_transfer_command(args: &[String]) -> Result<WalletOutput, WalletError> {
+    let flags = FlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-id",
+        "--from",
+        "--to",
+        "--amount",
+        "--fee",
+        "--nonce",
+        "--signer-label",
+        "--chain-file",
+        "--alice-balance",
+        "--expires-at-height",
+        "--format",
+    ])?;
+    let output_format = WalletOutputFormat::parse(flags.optional("--format"))?;
+    let signer_label = flags.required("--signer-label")?;
+    let artifact =
+        build_test_signed_transfer_artifact(transfer_request_from_flags(&flags)?, signer_label)?;
+    Ok(match output_format {
+        WalletOutputFormat::Text => WalletOutput::SignedTransferArtifact(artifact),
+        WalletOutputFormat::Json => WalletOutput::SignedTransferArtifactJson(artifact),
+    })
+}
+
 fn transfer_request_from_flags(flags: &FlagParser) -> Result<TransferRequest, WalletError> {
     let chain_id = flags.required("--chain-id")?.to_string();
     let from = parse_address(flags.required("--from")?)?;
@@ -914,6 +1001,200 @@ fn render_transfer_submit_json(draft: &TransferDraft) -> String {
     output.push_str("  \"signature_bytes\": ");
     output.push_str(&tx.signature.as_slice().len().to_string());
     output.push_str("\n}");
+    output
+}
+
+fn render_signed_transfer_artifact(artifact: &SignedTransferArtifact) -> String {
+    let tx = &artifact.draft.transaction;
+    let signing_hash = transaction_signing_hash(tx);
+    let tx_hash = transaction_hash(tx);
+    let mut output = String::new();
+    {
+        use fmt::Write;
+        writeln!(&mut output, "warning={}", artifact.warning).expect("write to String");
+        writeln!(
+            &mut output,
+            "format_version={SIGNED_TRANSFER_FORMAT_VERSION}"
+        )
+        .expect("write to String");
+        writeln!(&mut output, "environment=private-devnet").expect("write to String");
+        writeln!(&mut output, "network={}", tx.chain_id).expect("write to String");
+        writeln!(&mut output, "signer_label={}", artifact.signer_label).expect("write to String");
+        writeln!(&mut output, "signer_address={}", artifact.signer_address)
+            .expect("write to String");
+        writeln!(&mut output, "version={}", tx.version).expect("write to String");
+        writeln!(&mut output, "chain_id={}", tx.chain_id).expect("write to String");
+        writeln!(&mut output, "from={}", tx.from).expect("write to String");
+        writeln!(&mut output, "to={}", tx.to).expect("write to String");
+        writeln!(&mut output, "amount_base_units={}", tx.amount.base_units())
+            .expect("write to String");
+        writeln!(&mut output, "fee_base_units={}", tx.fee.base_units()).expect("write to String");
+        writeln!(&mut output, "nonce={}", tx.nonce).expect("write to String");
+        writeln!(
+            &mut output,
+            "expires_at_height={}",
+            tx.expires_at_height
+                .map(|height| height.to_string())
+                .unwrap_or_default()
+        )
+        .expect("write to String");
+        writeln!(&mut output, "signing_domain={TRANSACTION_SIGNING_DOMAIN}")
+            .expect("write to String");
+        writeln!(
+            &mut output,
+            "transaction_signing_hash={}",
+            hash_hex(signing_hash)
+        )
+        .expect("write to String");
+        writeln!(&mut output, "transaction_hash={}", hash_hex(tx_hash)).expect("write to String");
+        writeln!(&mut output, "signature_algorithm=test-only").expect("write to String");
+        writeln!(
+            &mut output,
+            "signature_algorithm_id={}",
+            SignatureAlgorithm::TestOnly.id()
+        )
+        .expect("write to String");
+        writeln!(
+            &mut output,
+            "signature_bytes={}",
+            tx.signature.as_slice().len()
+        )
+        .expect("write to String");
+        writeln!(
+            &mut output,
+            "verification=TestOnlySignatureVerifier.verify_transaction"
+        )
+        .expect("write to String");
+        writeln!(
+            &mut output,
+            "submit_endpoint=POST /api/v1/wallet/transfers/submit-signed"
+        )
+        .expect("write to String");
+        writeln!(
+            &mut output,
+            "required_enablement=--enable-local-wallet-submit-signed"
+        )
+        .expect("write to String");
+        writeln!(&mut output, "mutation_when_disabled=none").expect("write to String");
+        writeln!(&mut output, "mutation_when_accepted=pending_state_only")
+            .expect("write to String");
+        write!(
+            &mut output,
+            "scope=local-private-devnet-test-identity-only-no-custody-no-browser-keys"
+        )
+        .expect("write to String");
+    }
+    output
+}
+
+fn render_signed_transfer_artifact_json(artifact: &SignedTransferArtifact) -> String {
+    let tx = &artifact.draft.transaction;
+    let signing_hash = hash_hex(transaction_signing_hash(tx));
+    let tx_hash = hash_hex(transaction_hash(tx));
+    let mut output = String::new();
+    output.push_str("{\n");
+    output.push_str("  \"format_version\": ");
+    output.push_str(&json_string(SIGNED_TRANSFER_FORMAT_VERSION));
+    output.push_str(",\n");
+    output.push_str("  \"warning\": ");
+    output.push_str(&json_string(artifact.warning));
+    output.push_str(",\n");
+    output.push_str("  \"environment\": \"private-devnet\",\n");
+    output.push_str("  \"network\": ");
+    output.push_str(&json_string(&tx.chain_id));
+    output.push_str(",\n");
+    output.push_str("  \"scope\": {\n");
+    output.push_str("    \"local_private_only\": true,\n");
+    output.push_str("    \"test_identity_only\": true,\n");
+    output.push_str("    \"non_mutating\": true,\n");
+    output.push_str("    \"browser_key_material_allowed\": false,\n");
+    output.push_str("    \"custody_allowed\": false,\n");
+    output.push_str("    \"public_network_allowed\": false,\n");
+    output.push_str("    \"dex_allowed\": false,\n");
+    output.push_str("    \"production_infrastructure_allowed\": false\n");
+    output.push_str("  },\n");
+    output.push_str("  \"signer\": {\n");
+    output.push_str("    \"label\": ");
+    output.push_str(&json_string(&artifact.signer_label));
+    output.push_str(",\n");
+    output.push_str("    \"address\": ");
+    output.push_str(&json_string(artifact.signer_address.as_str()));
+    output.push_str(",\n");
+    output.push_str("    \"role\": \"local-test-identity-label\"\n");
+    output.push_str("  },\n");
+    output.push_str("  \"transaction\": {\n");
+    output.push_str("    \"version\": ");
+    output.push_str(&tx.version.to_string());
+    output.push_str(",\n");
+    output.push_str("    \"chain_id\": ");
+    output.push_str(&json_string(&tx.chain_id));
+    output.push_str(",\n");
+    output.push_str("    \"from\": ");
+    output.push_str(&json_string(tx.from.as_str()));
+    output.push_str(",\n");
+    output.push_str("    \"to\": ");
+    output.push_str(&json_string(tx.to.as_str()));
+    output.push_str(",\n");
+    output.push_str("    \"amount_base_units\": ");
+    output.push_str(&json_string(&tx.amount.base_units().to_string()));
+    output.push_str(",\n");
+    output.push_str("    \"fee_base_units\": ");
+    output.push_str(&json_string(&tx.fee.base_units().to_string()));
+    output.push_str(",\n");
+    output.push_str("    \"nonce\": ");
+    output.push_str(&tx.nonce.to_string());
+    output.push_str(",\n");
+    output.push_str("    \"memo_hash\": null,\n");
+    output.push_str("    \"expires_at_height\": ");
+    output.push_str(&json_optional_u64(tx.expires_at_height));
+    output.push_str("\n");
+    output.push_str("  },\n");
+    output.push_str("  \"hashes\": {\n");
+    output.push_str("    \"signing_domain\": ");
+    output.push_str(&json_string(TRANSACTION_SIGNING_DOMAIN));
+    output.push_str(",\n");
+    output.push_str("    \"signing_hash_algorithm\": \"sha256\",\n");
+    output.push_str("    \"transaction_hash_algorithm\": \"sha256\",\n");
+    output.push_str("    \"transaction_signing_hash\": ");
+    output.push_str(&json_string(&signing_hash));
+    output.push_str(",\n");
+    output.push_str("    \"transaction_hash\": ");
+    output.push_str(&json_string(&tx_hash));
+    output.push_str("\n");
+    output.push_str("  },\n");
+    output.push_str("  \"signature_envelope\": {\n");
+    output.push_str("    \"algorithm\": \"test-only\",\n");
+    output.push_str("    \"algorithm_id\": ");
+    output.push_str(&SignatureAlgorithm::TestOnly.id().to_string());
+    output.push_str(",\n");
+    output.push_str("    \"public_key_role\": \"local-test-identity-label\",\n");
+    output.push_str("    \"public_key_hint\": ");
+    output.push_str(&json_string(&artifact.signer_label));
+    output.push_str(",\n");
+    output.push_str("    \"signature_encoding\": \"test-only-prefix-plus-signing-hash\",\n");
+    output.push_str("    \"signature_bytes_length\": ");
+    output.push_str(&tx.signature.as_slice().len().to_string());
+    output.push_str(",\n");
+    output.push_str("    \"verification\": \"TestOnlySignatureVerifier.verify_transaction\"\n");
+    output.push_str("  },\n");
+    output.push_str("  \"submit_request_preview\": {\n");
+    output.push_str("    \"endpoint\": \"POST /api/v1/wallet/transfers/submit-signed\",\n");
+    output.push_str("    \"required_enablement\": \"--enable-local-wallet-submit-signed\",\n");
+    output.push_str("    \"mutation_when_disabled\": \"none\",\n");
+    output.push_str("    \"mutation_when_accepted\": \"pending_state_only\",\n");
+    output.push_str("    \"audit_event_required\": true\n");
+    output.push_str("  },\n");
+    output.push_str("  \"forbidden_fields\": [\n");
+    output.push_str("    \"private_key\",\n");
+    output.push_str("    \"seed_phrase\",\n");
+    output.push_str("    \"mnemonic\",\n");
+    output.push_str("    \"secret_key\",\n");
+    output.push_str("    \"raw_signature\",\n");
+    output.push_str("    \"custody_account\",\n");
+    output.push_str("    \"public_network_endpoint\",\n");
+    output.push_str("    \"dex_route\"\n");
+    output.push_str("  ]\n");
+    output.push_str("}");
     output
 }
 
@@ -1639,6 +1920,7 @@ fn flag_to_static(flag: &str) -> &'static str {
         "--amount" => "--amount",
         "--fee" => "--fee",
         "--nonce" => "--nonce",
+        "--signer-label" => "--signer-label",
         "--expires-at-height" => "--expires-at-height",
         "--format" => "--format",
         _ => "--flag",
@@ -1855,6 +2137,135 @@ mod tests {
         }
 
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn builds_test_signed_transfer_artifact() {
+        let artifact = build_test_signed_transfer_artifact(
+            TransferRequest {
+                chain_id: "xriq-devnet".to_string(),
+                from: alice(),
+                to: bob(),
+                amount: XriqAmount::from_base_units(25),
+                fee: XriqAmount::from_base_units(2),
+                nonce: 7,
+                expires_at_height: Some(100),
+            },
+            "alice",
+        )
+        .unwrap();
+
+        assert_eq!(artifact.signer_label, "alice");
+        assert_eq!(artifact.signer_address, alice());
+        assert_eq!(artifact.warning, TEST_SIGNATURE_WARNING);
+        assert_eq!(artifact.draft.transaction.from, alice());
+        assert_eq!(
+            artifact.draft.transaction.signature,
+            test_only_signature_for_hash(transaction_signing_hash(&artifact.draft.transaction))
+        );
+    }
+
+    #[test]
+    fn parses_signed_transfer_command_as_json() {
+        let output = run_wallet_command([
+            "signed-transfer",
+            "--chain-id",
+            "xriq-devnet",
+            "--from",
+            alice().as_str(),
+            "--to",
+            bob().as_str(),
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "7",
+            "--signer-label",
+            "alice",
+            "--expires-at-height",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+
+        assert!(output.contains("\"format_version\": \"xriq-local-signed-transfer-envelope-v1\""));
+        assert!(output.contains("\"warning\": \"local-private-devnet-test-signature-only\""));
+        assert!(output.contains("\"from\": \"xriqdev1alice00000000000\""));
+        assert!(output.contains("\"public_key_hint\": \"alice\""));
+        assert!(output.contains("\"transaction_signing_hash\": "));
+        assert!(output.contains("\"transaction_hash\": "));
+        assert!(output.contains("\"algorithm\": \"test-only\""));
+        assert!(output.contains("\"signature_bytes_length\": 60"));
+        assert!(output.contains("\"mutation_when_disabled\": \"none\""));
+        assert!(output.contains("\"mutation_when_accepted\": \"pending_state_only\""));
+        assert!(!output.contains("xriq-test-only-signature"));
+    }
+
+    #[test]
+    fn signed_transfer_text_output_omits_key_material() {
+        let output = run_wallet_command([
+            "signed-transfer",
+            "--chain-id",
+            "xriq-devnet",
+            "--from",
+            alice().as_str(),
+            "--to",
+            bob().as_str(),
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "7",
+            "--signer-label",
+            "alice",
+        ])
+        .unwrap()
+        .to_string();
+
+        assert!(output.contains("warning=local-private-devnet-test-signature-only"));
+        assert!(output.contains("format_version=xriq-local-signed-transfer-envelope-v1"));
+        assert!(output.contains("transaction_signing_hash="));
+        assert!(output.contains("transaction_hash="));
+        assert!(output.contains("signature_algorithm=test-only"));
+        assert!(output.contains("signature_bytes=60"));
+        assert!(!output.contains("private_key"));
+        assert!(!output.contains("seed"));
+        assert!(!output.contains("mnemonic"));
+        assert!(!output.contains("xriq-test-only-signature"));
+    }
+
+    #[test]
+    fn signed_transfer_requires_signer_to_match_sender() {
+        let output = run_wallet_command([
+            "signed-transfer",
+            "--chain-id",
+            "xriq-devnet",
+            "--from",
+            alice().as_str(),
+            "--to",
+            bob().as_str(),
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "7",
+            "--signer-label",
+            "bobbb",
+        ]);
+
+        assert_eq!(
+            output,
+            Err(WalletError::SignerAddressMismatch {
+                signer_label: "bobbb".to_string(),
+                signer_address: bob(),
+                from_address: alice(),
+            })
+        );
     }
 
     #[test]

@@ -287,6 +287,8 @@ The Phase 1.4 local/private signing plan is in
 The Phase 1.4 signed-transfer fixture inventory is under
 `xriq/fixtures/phase1_4/`; validate it with
 `python scripts/xriq_phase1_4_contract_check.py`.
+The Phase 1.4 CLI-only local signed artifact can be checked with
+`python scripts/xriq_phase1_4_signed_artifact_check.py`.
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The first Phase 1.2 wallet mutation preflight fixtures are in

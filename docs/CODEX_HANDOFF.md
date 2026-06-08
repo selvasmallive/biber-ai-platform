@@ -322,6 +322,9 @@ unless the user changes the project scope again.
   The first contract inventory is under `xriq/fixtures/phase1_4/` and is
   checked by `scripts/xriq_phase1_4_contract_check.py`; it is still
   non-mutating and not implemented in the API/UI.
+  The first CLI-only artifact command is `xriq-wallet signed-transfer ...`;
+  it is checked by `scripts/xriq_phase1_4_signed_artifact_check.py` and remains
+  local/private test metadata only.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -971,6 +974,17 @@ an active target because the GPU was terminated to save cost.
   key generation/storage, no custody/hosted signing, no public network, no DEX,
   no bridge, no smart contracts, no asset issuance, no production
   infrastructure, and no tag operation.
+- Latest native XRIQ Phase 1.4 CLI-only signed artifact checkpoint: added
+  `xriq-wallet signed-transfer --chain-id ... --from ... --to ... --amount ...
+  --fee ... --nonce ... --signer-label <lowercase-label> [--format text|json]`
+  plus `scripts/xriq_phase1_4_signed_artifact_check.py`. The signer label must
+  resolve to the sender test identity. The artifact renders
+  `xriq-local-signed-transfer-envelope-v1`, transaction signing hash,
+  transaction hash, test-only signature algorithm metadata, and signed-submit
+  preview metadata. It deliberately does not expose private keys, seed phrases,
+  mnemonics, raw test signature bytes, custody accounts, browser storage,
+  public network endpoints, DEX routing, production infrastructure, or tags.
+  No API/UI signed-submit implementation was added.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI
@@ -1233,10 +1247,13 @@ an active target because the GPU was terminated to save cost.
 - Recommended next narrow step: run
   `python scripts/xriq_phase1_4_plan_check.py` and
   `python scripts/xriq_phase1_4_contract_check.py` after any Phase 1.4
-  planning or fixture edit. The next implementation checkpoint should extend
-  the checker/fixtures or add a CLI-only test signed-artifact command; it should
-  not add UI mutation, custody, browser key material, public network, DEX,
-  bridge, smart-contract, asset issuance, production infrastructure, or tags.
+  planning or fixture edit, and
+  `python scripts/xriq_phase1_4_signed_artifact_check.py` after any wallet CLI
+  signed-artifact edit. The next implementation checkpoint should add an
+  API-side signed-submit verifier contract/refusal path or extend negative
+  cases; it should not add UI mutation, custody, browser key material, public
+  network, DEX, bridge, smart-contract, asset issuance, production
+  infrastructure, or tags.
   The user can still run the Phase 1.3 manual browser demo with
   `python scripts/xriq_phase1_3_demo_launcher.py --skip-build --launch --auto-port`
   and follow `docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`. Do not move, delete,

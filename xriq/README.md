@@ -86,6 +86,8 @@ guardrails with `python scripts/xriq_phase1_4_plan_check.py`.
 The Phase 1.4 signed-transfer fixture inventory is under
 `fixtures/phase1_4/`; from the repo root, validate it with
 `python scripts/xriq_phase1_4_contract_check.py`.
+The Phase 1.4 CLI-only local signed artifact can be checked from the repo root
+with `python scripts/xriq_phase1_4_signed_artifact_check.py`.
 The first Phase 1.2 wallet mutation preflight fixtures live in
 `fixtures/phase1_2/`; they are disabled/refusal contracts only and do not enable
 wallet submit/send behavior. From the repo root, validate them with
