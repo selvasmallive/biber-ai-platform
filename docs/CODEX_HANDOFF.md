@@ -1043,6 +1043,17 @@ an active target because the GPU was terminated to save cost.
   public network, DEX/bridge/smart-contract scope, production infrastructure,
   or tags were added. Verification passed
   `xriq/target/xriq-phase1-4-contract-check-20260608T185809Z/summary.json`.
+- Latest native XRIQ Phase 1.4 signed-submit negative-smoke checkpoint: added
+  `scripts/xriq_phase1_4_signed_submit_negative_smoke.py`. The smoke reads
+  `signed-submit-negative-cases.json` plus the test-only envelope fixture,
+  generates tampered scenario artifacts and expected refusal artifacts for all
+  parse, verify, and state negative cases, and enforces `mutation: none`,
+  `pending_write_allowed: false`, unchanged chain state, unchanged pending
+  state, and local API audit visibility. It is parse/verify-only and does not
+  call an accepted API mutation path or write pending state. Latest verified
+  artifact:
+  `xriq/target/xriq-phase1-4-signed-submit-negative-smoke-20260608T193237Z/summary.json`
+  with `cases_checked: 10`.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI
@@ -1309,9 +1320,11 @@ an active target because the GPU was terminated to save cost.
   `python scripts/xriq_phase1_4_signed_artifact_check.py` after any wallet CLI
   signed-artifact edit, and
   `python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py` after any API
-  signed-submit refusal edit. The next implementation checkpoint should be a
-  parse/verify-only scaffold or smoke for these negative cases, still returning
-  refusal-only outcomes and avoiding any pending-state write. Do not add
+  signed-submit refusal edit, and
+  `python scripts/xriq_phase1_4_signed_submit_negative_smoke.py` after any
+  negative-case matrix edit. The next implementation checkpoint should be a
+  Rust-side pure parse/verify scaffold for these negative cases that is not
+  wired to an accepted endpoint and never writes pending state. Do not add
   accepted signed-submit mutation, UI mutation, custody, browser key material,
   public network, DEX, bridge, smart-contract, asset issuance, production
   infrastructure, or tags without explicit approval.

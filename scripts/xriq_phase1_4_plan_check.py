@@ -36,6 +36,8 @@ REQUIRED_PLAN_MARKERS = [
     "signed-submit-negative-cases.json",
     "malformed envelope fields",
     "duplicate pending transaction",
+    "scripts/xriq_phase1_4_signed_submit_negative_smoke.py",
+    "parse/verify-only",
     "wallet-transfer-signed-submit:local_request_id",
     "scripts/xriq_phase1_4_signed_submit_refusal_smoke.py",
     "Mutating signed-submit endpoints must remain disabled by default.",

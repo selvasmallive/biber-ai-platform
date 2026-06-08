@@ -213,7 +213,12 @@ Validate the negative contract with:
 
 ```bash
 python scripts/xriq_phase1_4_contract_check.py
+python scripts/xriq_phase1_4_signed_submit_negative_smoke.py
 ```
+
+The negative smoke is parse/verify-only. It writes tampered local/private
+scenario artifacts and expected refusal artifacts, but it does not call an
+accepted API mutation path and does not write pending state.
 
 ## UI Rules
 

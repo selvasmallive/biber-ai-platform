@@ -289,6 +289,8 @@ The Phase 1.4 signed-transfer fixture inventory is under
 `python scripts/xriq_phase1_4_contract_check.py`.
 That inventory now includes the parse/verify-only negative matrix at
 `xriq/fixtures/phase1_4/signed-submit-negative-cases.json`.
+Generate/check the negative scenario artifacts with
+`python scripts/xriq_phase1_4_signed_submit_negative_smoke.py`.
 The Phase 1.4 CLI-only local signed artifact can be checked with
 `python scripts/xriq_phase1_4_signed_artifact_check.py`.
 The Phase 1.4 API signed-submit route is refusal-only by default; check
