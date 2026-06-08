@@ -1054,6 +1054,37 @@ an active target because the GPU was terminated to save cost.
   artifact:
   `xriq/target/xriq-phase1-4-signed-submit-negative-smoke-20260608T193237Z/summary.json`
   with `cases_checked: 10`.
+- Latest native XRIQ Phase 1.4 Rust-side signed-submit verifier-preview
+  checkpoint: added typed `xriq-api` inputs for the Phase 1.4 signed-transfer
+  envelope, transaction, hashes, signature envelope, and local state context,
+  plus `verify_signed_submit_envelope_preview`. The helper verifies the
+  `xriq-local-signed-transfer-envelope-v1` fixture against canonical
+  transaction signing hash, transaction hash, `test-only` signature algorithm,
+  test-only signature encoding, chain id, nonce, expiry, and duplicate pending
+  state. A valid preview returns `status: "verified"` and `mutation: "none"`.
+  Negative cases return the same refusal codes/audit event ids as
+  `signed-submit-negative-cases.json`, with `pending_write_allowed: false`,
+  unchanged pending state, and unchanged chain state. This helper is not wired
+  into an accepted API route yet; live
+  `POST /api/v1/wallet/transfers/submit-signed` remains default-refused with
+  `403 signed_submit_disabled`. Verification passed `cargo fmt`,
+  `cargo test --target-dir target-codex-phase14-verify -p xriq-api -j 1`,
+  bundled-Python `scripts/xriq_phase1_4_contract_check.py`
+  (`xriq/target/xriq-phase1-4-contract-check-20260608T212447Z/summary.json`),
+  `scripts/xriq_phase1_4_signed_submit_negative_smoke.py`
+  (`xriq/target/xriq-phase1-4-signed-submit-negative-smoke-20260608T212447Z/summary.json`),
+  `scripts/xriq_phase1_4_plan_check.py`
+  (`xriq/target/xriq-phase1-4-plan-check-20260608T212917Z/summary.json`),
+  `scripts/xriq_phase1_4_signed_artifact_check.py`
+  (`xriq/target/xriq-phase1-4-signed-artifact-check-20260608T212450Z/summary.json`),
+  and rebuilt `scripts/xriq_phase1_4_signed_submit_refusal_smoke.py`
+  (`xriq/target/xriq-phase1-4-signed-submit-refusal-smoke-20260608T212512Z/summary.json`).
+  The first refusal-smoke attempt with `--skip-build` reused an old
+  `xriq/target/debug/xriq-api.exe`; run without `--skip-build` unless that
+  debug binary has just been rebuilt. Next recommended narrow step: wire this
+  verifier preview into the future accepted local/private signed-submit path
+  only after explicit approval, or first add a non-mutating request/parser
+  adapter that still returns refusals and writes no pending state.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI

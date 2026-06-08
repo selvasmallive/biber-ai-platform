@@ -38,6 +38,8 @@ REQUIRED_PLAN_MARKERS = [
     "duplicate pending transaction",
     "scripts/xriq_phase1_4_signed_submit_negative_smoke.py",
     "parse/verify-only",
+    "Rust-side signed-submit parse/verify preview checkpoint",
+    "verify_signed_submit_envelope_preview",
     "wallet-transfer-signed-submit:local_request_id",
     "scripts/xriq_phase1_4_signed_submit_refusal_smoke.py",
     "Mutating signed-submit endpoints must remain disabled by default.",
@@ -186,6 +188,7 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
             "fixture design",
             "contract/checker expansion",
             "negative-case planning",
+            "non-mutating parser/verifier adapter work that keeps accepted mutation disabled",
         ],
         "prohibited_without_explicit_approval": [
             "wallet submit UI mutation",

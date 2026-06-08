@@ -53,6 +53,11 @@ pub const WALLET_SUBMIT_AUDIT_RESOURCE_ID: &str = "draft_id_or_local_request_id"
 pub const WALLET_SIGNED_SUBMIT_AUDIT_RESOURCE_ID: &str =
     "signed_transfer_envelope_or_local_request_id";
 pub const WALLET_SEND_AUDIT_RESOURCE_ID: &str = "local_request_id";
+pub const SIGNED_SUBMIT_ENDPOINT: &str = "POST /api/v1/wallet/transfers/submit-signed";
+pub const SIGNED_SUBMIT_FORMAT_VERSION: &str = "xriq-local-signed-transfer-envelope-v1";
+pub const SIGNED_SUBMIT_TEST_SIGNATURE_ALGORITHM: &str = "test-only";
+pub const SIGNED_SUBMIT_TEST_SIGNATURE_ENCODING: &str = "test-only-prefix-plus-signing-hash";
+pub const SIGNED_SUBMIT_TEST_VERIFIER: &str = "TestOnlySignatureVerifier";
 pub const BLOCK_PRODUCTION_AUDIT_RESOURCE_TYPE: &str = "block_production";
 pub const BLOCK_PRODUCTION_AUDIT_ACTION: &str = "block_production_attempt";
 pub const BLOCK_PRODUCTION_AUDIT_EVENT_ID: &str = "block-production:local_request_id";
@@ -634,6 +639,345 @@ impl ApiHttpResponse {
             self.body.len(),
             self.body
         )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignedSubmitEnvelopeInput<'a> {
+    pub format_version: Option<&'a str>,
+    pub transaction: Option<SignedSubmitTransactionInput<'a>>,
+    pub hashes: Option<SignedSubmitHashesInput<'a>>,
+    pub signature_envelope: Option<SignedSubmitSignatureEnvelopeInput<'a>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SignedSubmitTransactionInput<'a> {
+    pub version: Option<u16>,
+    pub chain_id: Option<&'a str>,
+    pub from: Option<&'a str>,
+    pub to: Option<&'a str>,
+    pub amount_base_units: Option<&'a str>,
+    pub fee_base_units: Option<&'a str>,
+    pub nonce: Option<u64>,
+    pub expires_at_height: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SignedSubmitHashesInput<'a> {
+    pub transaction_signing_hash: Option<&'a str>,
+    pub transaction_hash: Option<&'a str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SignedSubmitSignatureEnvelopeInput<'a> {
+    pub algorithm: Option<&'a str>,
+    pub signature_encoding: Option<&'a str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SignedSubmitStateContext<'a> {
+    pub expected_chain_id: &'a str,
+    pub current_height: u64,
+    pub sender_chain_nonce: u64,
+    pub pending_transaction_hashes: &'a [&'a str],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignedSubmitVerificationOk {
+    pub endpoint: &'static str,
+    pub status: &'static str,
+    pub mutation: &'static str,
+    pub transaction_signing_hash: String,
+    pub transaction_hash: String,
+    pub signature_algorithm: &'static str,
+    pub verifier: &'static str,
+    pub verified: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignedSubmitVerificationRefusal {
+    pub endpoint: &'static str,
+    pub code: &'static str,
+    pub http_status: u16,
+    pub status: &'static str,
+    pub mutation: &'static str,
+    pub verifier: &'static str,
+    pub verifier_error: &'static str,
+    pub audit_event_id: &'static str,
+    pub pending_write_allowed: bool,
+    pub pending_state_unchanged: bool,
+    pub chain_state_unchanged: bool,
+}
+
+pub fn verify_signed_submit_envelope_preview(
+    envelope: SignedSubmitEnvelopeInput<'_>,
+    state: SignedSubmitStateContext<'_>,
+) -> Result<SignedSubmitVerificationOk, SignedSubmitVerificationRefusal> {
+    let format_version = signed_submit_required_str(envelope.format_version, "format_version")?;
+    if format_version != SIGNED_SUBMIT_FORMAT_VERSION {
+        return Err(signed_submit_refusal(
+            "malformed_signed_envelope",
+            400,
+            "UnsupportedFormatVersion",
+            "signed-submit-malformed-envelope:local_request_id",
+        ));
+    }
+
+    let transaction = envelope
+        .transaction
+        .ok_or_else(|| signed_submit_missing_field_refusal("transaction"))?;
+    let hashes = envelope
+        .hashes
+        .ok_or_else(|| signed_submit_missing_field_refusal("hashes"))?;
+    let signature = envelope
+        .signature_envelope
+        .ok_or_else(|| signed_submit_missing_field_refusal("signature_envelope"))?;
+
+    let version = signed_submit_required_u16(transaction.version, "transaction.version")?;
+    let chain_id = signed_submit_required_str(transaction.chain_id, "transaction.chain_id")?;
+    if chain_id != state.expected_chain_id {
+        return Err(signed_submit_refusal(
+            "wrong_chain_id",
+            400,
+            "WrongChainId",
+            "signed-submit-wrong-chain-id:local_request_id",
+        ));
+    }
+    let from = signed_submit_address(transaction.from, "transaction.from")?;
+    let to = signed_submit_address(transaction.to, "transaction.to")?;
+    let amount = signed_submit_amount(
+        transaction.amount_base_units,
+        "transaction.amount_base_units",
+    )?;
+    let fee = signed_submit_amount(transaction.fee_base_units, "transaction.fee_base_units")?;
+    let nonce = signed_submit_required_u64(transaction.nonce, "transaction.nonce")?;
+    let expires_at_height = signed_submit_required_u64(
+        transaction.expires_at_height,
+        "transaction.expires_at_height",
+    )?;
+    let transaction_signing_hash = signed_submit_required_hash(
+        hashes.transaction_signing_hash,
+        "hashes.transaction_signing_hash",
+    )?;
+    let submitted_transaction_hash =
+        signed_submit_required_hash(hashes.transaction_hash, "hashes.transaction_hash")?;
+    let signature_algorithm =
+        signed_submit_required_str(signature.algorithm, "signature_envelope.algorithm")?;
+    if signature_algorithm != SIGNED_SUBMIT_TEST_SIGNATURE_ALGORITHM {
+        return Err(signed_submit_refusal(
+            "unsupported_signature_algorithm",
+            400,
+            "UnsupportedSignatureAlgorithm",
+            "signed-submit-unsupported-signature-algorithm:local_request_id",
+        ));
+    }
+    let signature_encoding = signed_submit_required_str(
+        signature.signature_encoding,
+        "signature_envelope.signature_encoding",
+    )?;
+    if signature_encoding != SIGNED_SUBMIT_TEST_SIGNATURE_ENCODING {
+        return Err(signed_submit_refusal(
+            "invalid_test_signature",
+            400,
+            "InvalidSignature",
+            "signed-submit-invalid-signature:local_request_id",
+        ));
+    }
+
+    if nonce < state.sender_chain_nonce {
+        return Err(signed_submit_refusal(
+            "stale_nonce",
+            400,
+            "StaleNonce",
+            "signed-submit-stale-nonce:local_request_id",
+        ));
+    }
+    if expires_at_height <= state.current_height {
+        return Err(signed_submit_refusal(
+            "expired_transaction",
+            400,
+            "ExpiredTransaction",
+            "signed-submit-expired-transaction:local_request_id",
+        ));
+    }
+    if state
+        .pending_transaction_hashes
+        .iter()
+        .any(|pending_hash| *pending_hash == submitted_transaction_hash)
+    {
+        return Err(signed_submit_refusal(
+            "duplicate_pending_transaction",
+            409,
+            "DuplicatePendingTransaction",
+            "signed-submit-duplicate-pending:local_request_id",
+        ));
+    }
+
+    let mut transaction = Transaction {
+        version,
+        chain_id: chain_id.to_string(),
+        from,
+        to,
+        amount,
+        fee,
+        nonce,
+        memo_hash: None,
+        expires_at_height: Some(expires_at_height),
+        signature: SignatureBytes::new(Vec::new()),
+    };
+    let signing_hash = xriq_crypto::transaction_signing_hash(&transaction);
+    let expected_signing_hash = hash_hex(signing_hash);
+    if expected_signing_hash != transaction_signing_hash {
+        return Err(signed_submit_refusal(
+            "transaction_signing_hash_mismatch",
+            400,
+            "SigningHashMismatch",
+            "signed-submit-signing-hash-mismatch:local_request_id",
+        ));
+    }
+
+    transaction.signature = xriq_crypto::test_only_signature_for_hash(signing_hash);
+    let expected_transaction_hash = hash_hex(transaction_hash(&transaction));
+    if expected_transaction_hash != submitted_transaction_hash {
+        return Err(signed_submit_refusal(
+            "transaction_hash_mismatch",
+            400,
+            "TransactionHashMismatch",
+            "signed-submit-transaction-hash-mismatch:local_request_id",
+        ));
+    }
+
+    Ok(SignedSubmitVerificationOk {
+        endpoint: SIGNED_SUBMIT_ENDPOINT,
+        status: "verified",
+        mutation: "none",
+        transaction_signing_hash: expected_signing_hash,
+        transaction_hash: expected_transaction_hash,
+        signature_algorithm: SIGNED_SUBMIT_TEST_SIGNATURE_ALGORITHM,
+        verifier: SIGNED_SUBMIT_TEST_VERIFIER,
+        verified: true,
+    })
+}
+
+fn signed_submit_required_str<'a>(
+    value: Option<&'a str>,
+    field: &'static str,
+) -> Result<&'a str, SignedSubmitVerificationRefusal> {
+    value.ok_or_else(|| signed_submit_missing_field_refusal(field))
+}
+
+fn signed_submit_required_u16(
+    value: Option<u16>,
+    field: &'static str,
+) -> Result<u16, SignedSubmitVerificationRefusal> {
+    value.ok_or_else(|| signed_submit_missing_field_refusal(field))
+}
+
+fn signed_submit_required_u64(
+    value: Option<u64>,
+    field: &'static str,
+) -> Result<u64, SignedSubmitVerificationRefusal> {
+    value.ok_or_else(|| signed_submit_missing_field_refusal(field))
+}
+
+fn signed_submit_required_hash<'a>(
+    value: Option<&'a str>,
+    field: &'static str,
+) -> Result<&'a str, SignedSubmitVerificationRefusal> {
+    let value = signed_submit_required_str(value, field)?;
+    if is_lower_hex(value, 64) {
+        Ok(value)
+    } else {
+        Err(signed_submit_invalid_field_refusal(field))
+    }
+}
+
+fn signed_submit_address(
+    value: Option<&str>,
+    field: &'static str,
+) -> Result<Address, SignedSubmitVerificationRefusal> {
+    let value = signed_submit_required_str(value, field)?;
+    Address::parse(value).map_err(|_| signed_submit_invalid_field_refusal(field))
+}
+
+fn signed_submit_amount(
+    value: Option<&str>,
+    field: &'static str,
+) -> Result<XriqAmount, SignedSubmitVerificationRefusal> {
+    let value = signed_submit_required_str(value, field)?;
+    parse_base_units(value)
+        .map(XriqAmount::from_base_units)
+        .ok_or_else(|| signed_submit_invalid_field_refusal(field))
+}
+
+fn signed_submit_missing_field_refusal(field: &'static str) -> SignedSubmitVerificationRefusal {
+    let verifier_error = match field {
+        "format_version" => "MissingRequiredField(format_version)",
+        "transaction" => "MissingRequiredField(transaction)",
+        "transaction.version" => "MissingRequiredField(transaction.version)",
+        "transaction.chain_id" => "MissingRequiredField(transaction.chain_id)",
+        "transaction.from" => "MissingRequiredField(transaction.from)",
+        "transaction.to" => "MissingRequiredField(transaction.to)",
+        "transaction.amount_base_units" => "MissingRequiredField(transaction.amount_base_units)",
+        "transaction.fee_base_units" => "MissingRequiredField(transaction.fee_base_units)",
+        "transaction.nonce" => "MissingRequiredField(transaction.nonce)",
+        "transaction.expires_at_height" => "MissingRequiredField(transaction.expires_at_height)",
+        "hashes" => "MissingRequiredField(hashes)",
+        "hashes.transaction_signing_hash" => {
+            "MissingRequiredField(hashes.transaction_signing_hash)"
+        }
+        "hashes.transaction_hash" => "MissingRequiredField(hashes.transaction_hash)",
+        "signature_envelope" => "MissingRequiredField(signature_envelope)",
+        "signature_envelope.algorithm" => "MissingRequiredField(signature_envelope.algorithm)",
+        "signature_envelope.signature_encoding" => {
+            "MissingRequiredField(signature_envelope.signature_encoding)"
+        }
+        _ => "MissingRequiredField(unknown)",
+    };
+    signed_submit_refusal(
+        "malformed_signed_envelope",
+        400,
+        verifier_error,
+        "signed-submit-malformed-envelope:local_request_id",
+    )
+}
+
+fn signed_submit_invalid_field_refusal(field: &'static str) -> SignedSubmitVerificationRefusal {
+    let verifier_error = match field {
+        "transaction.from" => "InvalidField(transaction.from)",
+        "transaction.to" => "InvalidField(transaction.to)",
+        "transaction.amount_base_units" => "InvalidField(transaction.amount_base_units)",
+        "transaction.fee_base_units" => "InvalidField(transaction.fee_base_units)",
+        "hashes.transaction_signing_hash" => "InvalidField(hashes.transaction_signing_hash)",
+        "hashes.transaction_hash" => "InvalidField(hashes.transaction_hash)",
+        _ => "InvalidField(unknown)",
+    };
+    signed_submit_refusal(
+        "malformed_signed_envelope",
+        400,
+        verifier_error,
+        "signed-submit-malformed-envelope:local_request_id",
+    )
+}
+
+fn signed_submit_refusal(
+    code: &'static str,
+    http_status: u16,
+    verifier_error: &'static str,
+    audit_event_id: &'static str,
+) -> SignedSubmitVerificationRefusal {
+    SignedSubmitVerificationRefusal {
+        endpoint: SIGNED_SUBMIT_ENDPOINT,
+        code,
+        http_status,
+        status: "refused",
+        mutation: "none",
+        verifier: SIGNED_SUBMIT_TEST_VERIFIER,
+        verifier_error,
+        audit_event_id,
+        pending_write_allowed: false,
+        pending_state_unchanged: true,
+        chain_state_unchanged: true,
     }
 }
 
@@ -3439,6 +3783,68 @@ mod tests {
         output
     }
 
+    const SIGNED_SUBMIT_SIGNING_HASH: &str =
+        "3c0f7f54bca53ad4c49ff98ba9ba2930ac6147a3cb510ead3265c894fcf1850b";
+    const SIGNED_SUBMIT_TX_HASH: &str =
+        "628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7";
+
+    fn valid_signed_submit_envelope() -> SignedSubmitEnvelopeInput<'static> {
+        SignedSubmitEnvelopeInput {
+            format_version: Some(SIGNED_SUBMIT_FORMAT_VERSION),
+            transaction: Some(SignedSubmitTransactionInput {
+                version: Some(Transaction::SUPPORTED_VERSION),
+                chain_id: Some("xriq-devnet"),
+                from: Some("xriqdev1alice00000000000"),
+                to: Some("xriqdev1carol00000000000"),
+                amount_base_units: Some("5"),
+                fee_base_units: Some("2"),
+                nonce: Some(1),
+                expires_at_height: Some(100),
+            }),
+            hashes: Some(SignedSubmitHashesInput {
+                transaction_signing_hash: Some(SIGNED_SUBMIT_SIGNING_HASH),
+                transaction_hash: Some(SIGNED_SUBMIT_TX_HASH),
+            }),
+            signature_envelope: Some(SignedSubmitSignatureEnvelopeInput {
+                algorithm: Some(SIGNED_SUBMIT_TEST_SIGNATURE_ALGORITHM),
+                signature_encoding: Some(SIGNED_SUBMIT_TEST_SIGNATURE_ENCODING),
+            }),
+        }
+    }
+
+    fn signed_submit_state_context<'a>(
+        pending_transaction_hashes: &'a [&'a str],
+    ) -> SignedSubmitStateContext<'a> {
+        SignedSubmitStateContext {
+            expected_chain_id: "xriq-devnet",
+            current_height: 1,
+            sender_chain_nonce: 1,
+            pending_transaction_hashes,
+        }
+    }
+
+    fn assert_signed_submit_refusal(
+        envelope: SignedSubmitEnvelopeInput<'static>,
+        state: SignedSubmitStateContext<'_>,
+        code: &'static str,
+        http_status: u16,
+        verifier_error: &'static str,
+        audit_event_id: &'static str,
+    ) {
+        let refusal = verify_signed_submit_envelope_preview(envelope, state).unwrap_err();
+        assert_eq!(refusal.endpoint, SIGNED_SUBMIT_ENDPOINT);
+        assert_eq!(refusal.code, code);
+        assert_eq!(refusal.http_status, http_status);
+        assert_eq!(refusal.status, "refused");
+        assert_eq!(refusal.mutation, "none");
+        assert_eq!(refusal.verifier, SIGNED_SUBMIT_TEST_VERIFIER);
+        assert_eq!(refusal.verifier_error, verifier_error);
+        assert_eq!(refusal.audit_event_id, audit_event_id);
+        assert!(!refusal.pending_write_allowed);
+        assert!(refusal.pending_state_unchanged);
+        assert!(refusal.chain_state_unchanged);
+    }
+
     fn snapshot() -> IndexedChainSnapshot {
         let mut blocks = BTreeMap::new();
         blocks.insert(
@@ -3709,6 +4115,167 @@ mod tests {
         let wrong_hash_error =
             pending_mempool_entries_from_tsv(&wrong_hash, "xriq-devnet").unwrap_err();
         assert!(wrong_hash_error.message.contains("hash does not match"));
+    }
+
+    #[test]
+    fn signed_submit_preview_verifies_fixture_without_mutation() {
+        let pending = [];
+        let verified = verify_signed_submit_envelope_preview(
+            valid_signed_submit_envelope(),
+            signed_submit_state_context(&pending),
+        )
+        .unwrap();
+
+        assert_eq!(verified.endpoint, SIGNED_SUBMIT_ENDPOINT);
+        assert_eq!(verified.status, "verified");
+        assert_eq!(verified.mutation, "none");
+        assert_eq!(
+            verified.signature_algorithm,
+            SIGNED_SUBMIT_TEST_SIGNATURE_ALGORITHM
+        );
+        assert_eq!(verified.verifier, SIGNED_SUBMIT_TEST_VERIFIER);
+        assert!(verified.verified);
+        assert_eq!(
+            verified.transaction_signing_hash,
+            SIGNED_SUBMIT_SIGNING_HASH
+        );
+        assert_eq!(verified.transaction_hash, SIGNED_SUBMIT_TX_HASH);
+    }
+
+    #[test]
+    fn signed_submit_preview_returns_refusal_matrix_without_state_mutation() {
+        let pending = [];
+
+        let mut missing_format_version = valid_signed_submit_envelope();
+        missing_format_version.format_version = None;
+        assert_signed_submit_refusal(
+            missing_format_version,
+            signed_submit_state_context(&pending),
+            "malformed_signed_envelope",
+            400,
+            "MissingRequiredField(format_version)",
+            "signed-submit-malformed-envelope:local_request_id",
+        );
+
+        let mut missing_hashes = valid_signed_submit_envelope();
+        missing_hashes.hashes = None;
+        assert_signed_submit_refusal(
+            missing_hashes,
+            signed_submit_state_context(&pending),
+            "malformed_signed_envelope",
+            400,
+            "MissingRequiredField(hashes)",
+            "signed-submit-malformed-envelope:local_request_id",
+        );
+
+        let mut unsupported_signature_algorithm = valid_signed_submit_envelope();
+        unsupported_signature_algorithm
+            .signature_envelope
+            .as_mut()
+            .unwrap()
+            .algorithm = Some("unsupported");
+        assert_signed_submit_refusal(
+            unsupported_signature_algorithm,
+            signed_submit_state_context(&pending),
+            "unsupported_signature_algorithm",
+            400,
+            "UnsupportedSignatureAlgorithm",
+            "signed-submit-unsupported-signature-algorithm:local_request_id",
+        );
+
+        let mut wrong_chain = valid_signed_submit_envelope();
+        wrong_chain.transaction.as_mut().unwrap().chain_id = Some("xriq-devnet-other");
+        assert_signed_submit_refusal(
+            wrong_chain,
+            signed_submit_state_context(&pending),
+            "wrong_chain_id",
+            400,
+            "WrongChainId",
+            "signed-submit-wrong-chain-id:local_request_id",
+        );
+
+        let mut signing_hash_mismatch = valid_signed_submit_envelope();
+        signing_hash_mismatch
+            .hashes
+            .as_mut()
+            .unwrap()
+            .transaction_signing_hash =
+            Some("0000000000000000000000000000000000000000000000000000000000000000");
+        assert_signed_submit_refusal(
+            signing_hash_mismatch,
+            signed_submit_state_context(&pending),
+            "transaction_signing_hash_mismatch",
+            400,
+            "SigningHashMismatch",
+            "signed-submit-signing-hash-mismatch:local_request_id",
+        );
+
+        let mut transaction_hash_mismatch = valid_signed_submit_envelope();
+        transaction_hash_mismatch
+            .hashes
+            .as_mut()
+            .unwrap()
+            .transaction_hash =
+            Some("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        assert_signed_submit_refusal(
+            transaction_hash_mismatch,
+            signed_submit_state_context(&pending),
+            "transaction_hash_mismatch",
+            400,
+            "TransactionHashMismatch",
+            "signed-submit-transaction-hash-mismatch:local_request_id",
+        );
+
+        let mut invalid_signature = valid_signed_submit_envelope();
+        invalid_signature
+            .signature_envelope
+            .as_mut()
+            .unwrap()
+            .signature_encoding = Some("tampered-test-only-prefix-plus-signing-hash");
+        assert_signed_submit_refusal(
+            invalid_signature,
+            signed_submit_state_context(&pending),
+            "invalid_test_signature",
+            400,
+            "InvalidSignature",
+            "signed-submit-invalid-signature:local_request_id",
+        );
+
+        let mut stale_nonce = valid_signed_submit_envelope();
+        stale_nonce.transaction.as_mut().unwrap().nonce = Some(0);
+        assert_signed_submit_refusal(
+            stale_nonce,
+            signed_submit_state_context(&pending),
+            "stale_nonce",
+            400,
+            "StaleNonce",
+            "signed-submit-stale-nonce:local_request_id",
+        );
+
+        let mut expired_transaction = valid_signed_submit_envelope();
+        expired_transaction
+            .transaction
+            .as_mut()
+            .unwrap()
+            .expires_at_height = Some(1);
+        assert_signed_submit_refusal(
+            expired_transaction,
+            signed_submit_state_context(&pending),
+            "expired_transaction",
+            400,
+            "ExpiredTransaction",
+            "signed-submit-expired-transaction:local_request_id",
+        );
+
+        let duplicate_pending = [SIGNED_SUBMIT_TX_HASH];
+        assert_signed_submit_refusal(
+            valid_signed_submit_envelope(),
+            signed_submit_state_context(&duplicate_pending),
+            "duplicate_pending_transaction",
+            409,
+            "DuplicatePendingTransaction",
+            "signed-submit-duplicate-pending:local_request_id",
+        );
     }
 
     #[test]

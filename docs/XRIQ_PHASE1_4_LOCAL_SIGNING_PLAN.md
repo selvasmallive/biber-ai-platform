@@ -2,7 +2,8 @@
 
 Status: active local/private implementation checkpoint. Current approved
 implementation includes signed-transfer fixtures, a CLI-only test signed
-artifact, and a default-disabled API signed-submit refusal/audit path.
+artifact, a default-disabled API signed-submit refusal/audit path, and a
+Rust-side parse/verify preview helper.
 No accepted signed-submit mutation, wallet submit UI, custody, public network,
 DEX, bridge, smart-contract, production infrastructure, or key-management
 implementation is approved by this document.
@@ -219,6 +220,34 @@ python scripts/xriq_phase1_4_signed_submit_negative_smoke.py
 The negative smoke is parse/verify-only. It writes tampered local/private
 scenario artifacts and expected refusal artifacts, but it does not call an
 accepted API mutation path and does not write pending state.
+
+Current Rust-side signed-submit parse/verify preview checkpoint:
+
+- `xriq-api` defines typed signed-submit envelope, transaction, hash,
+  signature-envelope, and local state-context inputs.
+- `verify_signed_submit_envelope_preview` verifies the Phase 1.4 test-only
+  signed-transfer fixture against canonical transaction signing hash,
+  transaction hash, signature algorithm, signature encoding, chain id, nonce,
+  expiry, and duplicate pending state.
+- Valid preview verification returns `mutation: none`; refusal cases return the
+  negative-matrix refusal codes plus `pending_write_allowed: false`, unchanged
+  pending state, and unchanged chain state.
+- This helper is not wired into an accepted API route yet. The live
+  `POST /api/v1/wallet/transfers/submit-signed` route remains default-refused
+  with `403 signed_submit_disabled`.
+
+Validate the Rust-side preview with:
+
+```bash
+cargo test --target-dir target-codex-phase14-verify -p xriq-api -j 1
+python scripts/xriq_phase1_4_contract_check.py
+python scripts/xriq_phase1_4_signed_submit_negative_smoke.py
+python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py
+```
+
+This checkpoint still does not implement an accepted signed-submit mutation,
+wallet submit UI mutation, custody, browser-held keys, public network behavior,
+DEX, bridges, smart contracts, production infrastructure, or tag operations.
 
 ## UI Rules
 
