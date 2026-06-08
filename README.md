@@ -292,6 +292,8 @@ The Phase 1.4 CLI-only local signed artifact can be checked with
 The Phase 1.4 API signed-submit route is refusal-only by default; check
 `POST /api/v1/wallet/transfers/submit-signed` with
 `cargo test --target-dir target-codex-phase14-api -p xriq-api -j 1`.
+The standalone Phase 1.4 signed-submit refusal smoke is
+`python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py`.
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The first Phase 1.2 wallet mutation preflight fixtures are in

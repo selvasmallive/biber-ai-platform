@@ -7,38 +7,48 @@
   "code": "signed_submit_disabled",
   "http_status": 403,
   "mutation": "none",
-  "warning": "local-private-devnet-only",
-  "message": "Local/private signed-submit is disabled by default.",
+  "warning": "local-private-devnet-preflight-only",
+  "message": "signed wallet transfer submit is disabled by default in Phase 1.4 local signing preflight mode",
   "required_enablement": {
     "mode": "local-private-devnet",
     "explicit_flag": "--enable-local-wallet-submit-signed",
     "audit_event_required": true,
     "test_identity_only": true
   },
+  "request_fields": [
+    "local_request_id",
+    "signed_transfer_envelope",
+    "transaction_signing_hash",
+    "transaction_hash",
+    "signature_algorithm"
+  ],
   "refusal_guards": [
-    "default path remains refused and non-mutating",
-    "chain file remains unchanged",
-    "pending file remains unchanged",
-    "browser key material is not accepted",
-    "custody material is not accepted",
-    "public network endpoints are not accepted",
-    "DEX or bridge routing is not accepted"
+    "default mode refuses mutation",
+    "test-only signed-submit verifier is not enabled",
+    "key material is not accepted",
+    "custody is not supported",
+    "pending state is not changed",
+    "chain state is not changed",
+    "audit event is required before any future accepted mutation"
   ],
   "audit_event_recorded": true,
   "audit_event": {
-    "event_id": "signed-submit-disabled:local_request_id",
+    "event_id": "wallet-transfer-signed-submit:local_request_id",
     "actor": "local-private-devnet-operator",
     "action": "wallet_transfer_signed_submit_attempt",
     "resource_type": "wallet_transfer",
-    "resource_id": "local_request_id",
+    "resource_id": "signed_transfer_envelope_or_local_request_id",
     "environment": "private-devnet",
     "metadata": {
       "endpoint": "POST /api/v1/wallet/transfers/submit-signed",
       "outcome": "refused",
-      "code": "signed_submit_disabled",
+      "status": "disabled",
+      "refusal_code": "signed_submit_disabled",
       "explicit_flag": "--enable-local-wallet-submit-signed",
+      "local_request_id": "local_request_id",
+      "resource_id_policy": "signed_transfer_envelope_or_local_request_id",
       "mutation": "none",
-      "metadata_policy": "request fields and refusal summary only; no key material or custody material"
+      "metadata_policy": "request fields and verifier metadata only; no key material, raw signatures, or custody material"
     }
   }
 }

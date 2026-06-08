@@ -34,6 +34,7 @@ REQUIRED_PLAN_MARKERS = [
     "POST /api/v1/wallet/transfers/submit-signed",
     "signed_submit_disabled",
     "wallet-transfer-signed-submit:local_request_id",
+    "scripts/xriq_phase1_4_signed_submit_refusal_smoke.py",
     "Mutating signed-submit endpoints must remain disabled by default.",
     "Do not create, move, delete, recreate, or push any tag from a generic continue",
 ]

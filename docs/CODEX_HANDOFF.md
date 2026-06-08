@@ -341,7 +341,8 @@ unless the user changes the project scope again.
   and leaves pending state and chain state unchanged. No accepted
   signed-submit verifier, wallet submit UI mutation, custody, browser-held key
   material, public network, DEX, bridge, smart-contract, production
-  infrastructure, or tag operation has been added.
+  infrastructure, or tag operation has been added. The standalone negative
+  smoke is `scripts/xriq_phase1_4_signed_submit_refusal_smoke.py`.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -1014,6 +1015,20 @@ an active target because the GPU was terminated to save cost.
   key material, raw signatures, custody material, browser storage, public
   network behavior, DEX/bridge/smart-contract scope, production infrastructure,
   or tags. The route has no accepted verifier implementation yet.
+- Latest native XRIQ Phase 1.4 signed-submit refusal smoke checkpoint: aligned
+  `xriq/fixtures/phase1_4/signed-submit-disabled.json` with the live
+  refusal/audit response and added
+  `scripts/xriq_phase1_4_signed_submit_refusal_smoke.py`. The smoke builds
+  `xriq-node` and `xriq-api`, creates a temporary local/private base chain,
+  calls `POST /api/v1/wallet/transfers/submit-signed` in default mode with the
+  Phase 1.4 fixture hashes, verifies HTTP `403 signed_submit_disabled`,
+  verifies the signed-submit local refusal audit event, writes timestamped
+  artifacts under `xriq/target/`, and confirms no pending file is created. It
+  does not add accepted signed-submit mutation, UI mutation, custody,
+  browser-held key material, public network, DEX/bridge/smart-contract scope,
+  production infrastructure, or tags. Latest verified artifact:
+  `xriq/target/xriq-phase1-4-signed-submit-refusal-smoke-20260608T183016Z/summary.json`
+  with `pending_file_created: false`.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI
@@ -1278,9 +1293,11 @@ an active target because the GPU was terminated to save cost.
   `python scripts/xriq_phase1_4_contract_check.py` after any Phase 1.4
   planning or fixture edit, and
   `python scripts/xriq_phase1_4_signed_artifact_check.py` after any wallet CLI
-  signed-artifact edit. The next implementation checkpoint should extend
-  signed-submit negative cases or add a parse/verify-only contract for the
-  future accepted verifier. Do not add accepted signed-submit mutation, UI
+  signed-artifact edit, and
+  `python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py` after any API
+  signed-submit refusal edit. The next implementation checkpoint should add a
+  parse/verify-only contract for malformed/invalid signed-submit envelopes or
+  extend negative cases. Do not add accepted signed-submit mutation, UI
   mutation, custody, browser key material, public network, DEX, bridge,
   smart-contract, asset issuance, production infrastructure, or tags without
   explicit approval.

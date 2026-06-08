@@ -224,7 +224,61 @@ def verify_fixtures(fixtures: dict[str, dict[str, Any]]) -> dict[str, Any]:
     require_equal(disabled, "status", "disabled", "disabled")
     require_equal(disabled, "code", "signed_submit_disabled", "disabled")
     require_equal(disabled, "mutation", "none", "disabled")
+    require_equal(disabled, "warning", "local-private-devnet-preflight-only", "disabled")
     require_path(disabled, ["required_enablement", "explicit_flag"], "--enable-local-wallet-submit-signed", "disabled")
+    require_list_contains(
+        disabled,
+        ["request_fields"],
+        [
+            "local_request_id",
+            "signed_transfer_envelope",
+            "transaction_signing_hash",
+            "transaction_hash",
+            "signature_algorithm",
+        ],
+        "disabled",
+    )
+    require_list_contains(
+        disabled,
+        ["refusal_guards"],
+        [
+            "default mode refuses mutation",
+            "test-only signed-submit verifier is not enabled",
+            "pending state is not changed",
+            "chain state is not changed",
+        ],
+        "disabled",
+    )
+    require_path(
+        disabled,
+        ["audit_event", "event_id"],
+        "wallet-transfer-signed-submit:local_request_id",
+        "disabled",
+    )
+    require_path(
+        disabled,
+        ["audit_event", "action"],
+        "wallet_transfer_signed_submit_attempt",
+        "disabled",
+    )
+    require_path(
+        disabled,
+        ["audit_event", "resource_id"],
+        "signed_transfer_envelope_or_local_request_id",
+        "disabled",
+    )
+    require_path(
+        disabled,
+        ["audit_event", "metadata", "refusal_code"],
+        "signed_submit_disabled",
+        "disabled",
+    )
+    require_path(
+        disabled,
+        ["audit_event", "metadata", "resource_id_policy"],
+        "signed_transfer_envelope_or_local_request_id",
+        "disabled",
+    )
     require_path(disabled, ["audit_event", "metadata", "mutation"], "none", "disabled")
 
     require_equal(

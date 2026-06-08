@@ -190,6 +190,7 @@ Validate the default refusal contract with:
 
 ```bash
 cargo test --target-dir target-codex-phase14-api -p xriq-api -j 1
+python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py
 ```
 
 This checkpoint still does not implement an accepted signed-submit verifier,
