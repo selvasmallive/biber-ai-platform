@@ -6190,6 +6190,12 @@ mod tests {
         )
     }
 
+    fn wallet_signed_submit_target(local_request_id: &str) -> String {
+        format!(
+            "/api/v1/wallet/transfers/submit-signed?local_request_id={local_request_id}&transaction_signing_hash=3c0f7f54bca53ad4c49ff98ba9ba2930ac6147a3cb510ead3265c894fcf1850b&transaction_hash=628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7&signature_algorithm=xriq-dev-test-only"
+        )
+    }
+
     fn wallet_send_target(local_request_id: &str, from_address: &str) -> String {
         format!(
             "/api/v1/wallet/transfers/send?local_request_id={local_request_id}&from_address={from_address}&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=0&expires_at_height=100"
@@ -6284,6 +6290,49 @@ mod tests {
 
         assert!(response.contains("status_code=403"));
         assert!(response.contains("\"code\": \"wallet_submit_disabled\""));
+        assert!(!pending_path.exists());
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn local_wallet_signed_submit_request_requires_explicit_enablement() {
+        let path = temp_store_path("disabled-wallet-signed-submit");
+        let pending_path = path.with_extension("pending");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        FileChainStore::open(&path).unwrap();
+        let target = wallet_signed_submit_target("local-signed-submit-disabled");
+
+        let response = run([
+            "request",
+            "--chain-file",
+            &path_text,
+            "--pending-file",
+            &pending_text,
+            "--alice-balance",
+            "100",
+            "--method",
+            "POST",
+            "--target",
+            &target,
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=403"));
+        assert!(response.contains("\"code\": \"signed_submit_disabled\""));
+        assert!(response.contains("\"endpoint\": \"POST /api/v1/wallet/transfers/submit-signed\""));
+        assert!(response.contains("\"explicit_flag\": \"--enable-local-wallet-submit-signed\""));
+        assert!(
+            response.contains("\"event_id\": \"wallet-transfer-signed-submit:local_request_id\"")
+        );
+        assert!(response.contains("\"mutation\": \"none\""));
+        assert!(response.contains("test-only signed-submit verifier is not enabled"));
+        assert!(response.contains("pending state is not changed"));
+        assert!(response.contains("chain state is not changed"));
+        assert!(!response.contains("private_key"));
+        assert!(!response.contains("seed_phrase"));
+        assert!(!response.contains("mnemonic"));
         assert!(!pending_path.exists());
 
         let _ = fs::remove_file(path);
@@ -6932,11 +6981,13 @@ audit_event_0_environment=private-devnet
             "\"resource_id\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\""
         ));
         assert!(body.contains("\"environment\": \"private-devnet\""));
-        assert!(body.contains("\"local_refusal_audit_count\": 3"));
+        assert!(body.contains("\"local_refusal_audit_count\": 4"));
         assert!(body.contains("\"local_refusal_audit_events\": ["));
         assert!(body.contains("\"event_id\": \"wallet-transfer-submit:local_request_id\""));
         assert!(body.contains("\"event_id\": \"wallet-transfer-send:local_request_id\""));
         assert!(body.contains("\"event_id\": \"block-production:local_request_id\""));
+        assert!(body.contains("\"event_id\": \"wallet-transfer-signed-submit:local_request_id\""));
+        assert!(body.contains("\"action\": \"wallet_transfer_signed_submit_attempt\""));
         assert!(body.contains("\"action\": \"block_production_attempt\""));
         assert!(body.contains("\"resource_type\": \"block_production\""));
         assert!(body.contains("\"audit_scope\": \"api-local-refusal\""));

@@ -39,12 +39,19 @@ pub const LOCAL_REFUSAL_AUDIT_ACTOR: &str = "local-private-devnet-operator";
 pub const LOCAL_REFUSAL_AUDIT_SCOPE: &str = "api-local-refusal";
 pub const LOCAL_REFUSAL_AUDIT_METADATA_POLICY: &str =
     "request fields only; no signing material or transaction hashes";
+pub const LOCAL_SIGNED_SUBMIT_REFUSAL_METADATA_POLICY: &str =
+    "request fields and verifier metadata only; no key material, raw signatures, or custody material";
 pub const WALLET_AUDIT_RESOURCE_TYPE: &str = "wallet_transfer";
 pub const WALLET_SUBMIT_AUDIT_ACTION: &str = "wallet_transfer_submit_attempt";
+pub const WALLET_SIGNED_SUBMIT_AUDIT_ACTION: &str = "wallet_transfer_signed_submit_attempt";
 pub const WALLET_SEND_AUDIT_ACTION: &str = "wallet_transfer_send_attempt";
 pub const WALLET_SUBMIT_AUDIT_EVENT_ID: &str = "wallet-transfer-submit:local_request_id";
+pub const WALLET_SIGNED_SUBMIT_AUDIT_EVENT_ID: &str =
+    "wallet-transfer-signed-submit:local_request_id";
 pub const WALLET_SEND_AUDIT_EVENT_ID: &str = "wallet-transfer-send:local_request_id";
 pub const WALLET_SUBMIT_AUDIT_RESOURCE_ID: &str = "draft_id_or_local_request_id";
+pub const WALLET_SIGNED_SUBMIT_AUDIT_RESOURCE_ID: &str =
+    "signed_transfer_envelope_or_local_request_id";
 pub const WALLET_SEND_AUDIT_RESOURCE_ID: &str = "local_request_id";
 pub const BLOCK_PRODUCTION_AUDIT_RESOURCE_TYPE: &str = "block_production";
 pub const BLOCK_PRODUCTION_AUDIT_ACTION: &str = "block_production_attempt";
@@ -648,6 +655,7 @@ pub fn product_api_http_response(
                 WALLET_SUBMIT_AUDIT_EVENT_ID,
                 WALLET_AUDIT_RESOURCE_TYPE,
                 WALLET_SUBMIT_AUDIT_RESOURCE_ID,
+                LOCAL_REFUSAL_AUDIT_METADATA_POLICY,
                 &[
                     "draft_id",
                     "from_address",
@@ -664,6 +672,34 @@ pub fn product_api_http_response(
                     "audit event is required before any future accepted mutation",
                 ],
             ),
+            "/api/v1/wallet/transfers/submit-signed" => local_mutation_disabled_response(
+                &service.snapshot().chain_id,
+                "POST /api/v1/wallet/transfers/submit-signed",
+                "signed_submit_disabled",
+                "signed wallet transfer submit is disabled by default in Phase 1.4 local signing preflight mode",
+                "--enable-local-wallet-submit-signed",
+                WALLET_SIGNED_SUBMIT_AUDIT_ACTION,
+                WALLET_SIGNED_SUBMIT_AUDIT_EVENT_ID,
+                WALLET_AUDIT_RESOURCE_TYPE,
+                WALLET_SIGNED_SUBMIT_AUDIT_RESOURCE_ID,
+                LOCAL_SIGNED_SUBMIT_REFUSAL_METADATA_POLICY,
+                &[
+                    "local_request_id",
+                    "signed_transfer_envelope",
+                    "transaction_signing_hash",
+                    "transaction_hash",
+                    "signature_algorithm",
+                ],
+                &[
+                    "default mode refuses mutation",
+                    "test-only signed-submit verifier is not enabled",
+                    "key material is not accepted",
+                    "custody is not supported",
+                    "pending state is not changed",
+                    "chain state is not changed",
+                    "audit event is required before any future accepted mutation",
+                ],
+            ),
             "/api/v1/wallet/transfers/send" => local_mutation_disabled_response(
                 &service.snapshot().chain_id,
                 "POST /api/v1/wallet/transfers/send",
@@ -674,6 +710,7 @@ pub fn product_api_http_response(
                 WALLET_SEND_AUDIT_EVENT_ID,
                 WALLET_AUDIT_RESOURCE_TYPE,
                 WALLET_SEND_AUDIT_RESOURCE_ID,
+                LOCAL_REFUSAL_AUDIT_METADATA_POLICY,
                 &[
                     "draft_id",
                     "from_address",
@@ -701,6 +738,7 @@ pub fn product_api_http_response(
                 BLOCK_PRODUCTION_AUDIT_EVENT_ID,
                 BLOCK_PRODUCTION_AUDIT_RESOURCE_TYPE,
                 BLOCK_PRODUCTION_AUDIT_RESOURCE_ID,
+                LOCAL_REFUSAL_AUDIT_METADATA_POLICY,
                 &[
                     "pending_file",
                     "chain_file",
@@ -1549,6 +1587,27 @@ pub fn local_refusal_audit_events() -> Vec<LocalRefusalAuditEventResponse> {
                 metadata_policy: LOCAL_REFUSAL_AUDIT_METADATA_POLICY,
             },
         },
+        LocalRefusalAuditEventResponse {
+            event_id: WALLET_SIGNED_SUBMIT_AUDIT_EVENT_ID,
+            actor: LOCAL_REFUSAL_AUDIT_ACTOR,
+            action: WALLET_SIGNED_SUBMIT_AUDIT_ACTION,
+            resource_type: WALLET_AUDIT_RESOURCE_TYPE,
+            resource_id: WALLET_SIGNED_SUBMIT_AUDIT_RESOURCE_ID,
+            environment: API_ENVIRONMENT,
+            audit_scope: LOCAL_REFUSAL_AUDIT_SCOPE,
+            recording: "api-local-response",
+            outcome: "refused",
+            status: "disabled",
+            mutation: "none",
+            metadata: LocalRefusalAuditMetadataResponse {
+                endpoint: "POST /api/v1/wallet/transfers/submit-signed",
+                refusal_code: "signed_submit_disabled",
+                explicit_flag: "--enable-local-wallet-submit-signed",
+                local_request_id: "local_request_id",
+                resource_id_policy: WALLET_SIGNED_SUBMIT_AUDIT_RESOURCE_ID,
+                metadata_policy: LOCAL_SIGNED_SUBMIT_REFUSAL_METADATA_POLICY,
+            },
+        },
     ]
 }
 
@@ -1783,6 +1842,7 @@ fn local_mutation_disabled_response(
     event_id: &str,
     resource_type: &str,
     resource_id_policy: &str,
+    metadata_policy: &str,
     request_fields: &[&str],
     refusal_guards: &[&str],
 ) -> ApiHttpResponse {
@@ -1872,7 +1932,7 @@ fn local_mutation_disabled_response(
     writeln!(
         &mut body,
         "      \"metadata_policy\": {}",
-        json_string(LOCAL_REFUSAL_AUDIT_METADATA_POLICY)
+        json_string(metadata_policy)
     )
     .expect("write to String");
     writeln!(&mut body, "    }}").expect("write to String");
@@ -3795,7 +3855,7 @@ mod tests {
             audit.audit_events[0].resource_id.as_deref(),
             Some(BLOCK_HASH)
         );
-        assert_eq!(audit.local_refusal_audit_events.len(), 3);
+        assert_eq!(audit.local_refusal_audit_events.len(), 4);
         assert_eq!(
             audit.local_refusal_audit_events[0].event_id,
             WALLET_SUBMIT_AUDIT_EVENT_ID
@@ -3835,6 +3895,26 @@ mod tests {
         assert_eq!(
             audit.local_refusal_audit_events[2].metadata.refusal_code,
             "block_production_disabled"
+        );
+        assert_eq!(
+            audit.local_refusal_audit_events[3].event_id,
+            WALLET_SIGNED_SUBMIT_AUDIT_EVENT_ID
+        );
+        assert_eq!(
+            audit.local_refusal_audit_events[3].action,
+            WALLET_SIGNED_SUBMIT_AUDIT_ACTION
+        );
+        assert_eq!(
+            audit.local_refusal_audit_events[3].resource_type,
+            WALLET_AUDIT_RESOURCE_TYPE
+        );
+        assert_eq!(
+            audit.local_refusal_audit_events[3].metadata.refusal_code,
+            "signed_submit_disabled"
+        );
+        assert_eq!(
+            audit.local_refusal_audit_events[3].metadata.metadata_policy,
+            LOCAL_SIGNED_SUBMIT_REFUSAL_METADATA_POLICY
         );
 
         let snapshots = api.snapshots();
@@ -3996,7 +4076,7 @@ mod tests {
         assert_eq!(audit.status_code, 200);
         assert!(audit.body.contains("\"audit_events\""));
         assert!(audit.body.contains("\"action\": \"index_block\""));
-        assert!(audit.body.contains("\"local_refusal_audit_count\": 3"));
+        assert!(audit.body.contains("\"local_refusal_audit_count\": 4"));
         assert!(audit.body.contains("\"local_refusal_audit_events\""));
         assert!(audit
             .body
@@ -4184,6 +4264,60 @@ mod tests {
         assert!(!disabled_submit.body.contains("private_key"));
         assert!(!disabled_submit.body.contains("seed_phrase"));
         assert!(!disabled_submit.body.contains("mnemonic"));
+
+        let disabled_signed_submit =
+            product_api_http_response(&api, "POST", "/api/v1/wallet/transfers/submit-signed");
+        assert_eq!(disabled_signed_submit.status_code, 403);
+        assert!(disabled_signed_submit
+            .body
+            .contains("\"code\": \"signed_submit_disabled\""));
+        assert!(disabled_signed_submit.body.contains("\"enabled\": false"));
+        assert!(disabled_signed_submit
+            .body
+            .contains("\"mutation\": \"none\""));
+        assert!(disabled_signed_submit
+            .body
+            .contains("\"explicit_flag\": \"--enable-local-wallet-submit-signed\""));
+        assert!(disabled_signed_submit
+            .body
+            .contains("\"audit_scope\": \"api-local-refusal\""));
+        assert!(disabled_signed_submit
+            .body
+            .contains("\"audit_event_recorded\": true"));
+        assert!(disabled_signed_submit
+            .body
+            .contains("\"event_id\": \"wallet-transfer-signed-submit:local_request_id\""));
+        assert!(disabled_signed_submit
+            .body
+            .contains("\"action\": \"wallet_transfer_signed_submit_attempt\""));
+        assert!(disabled_signed_submit
+            .body
+            .contains("\"resource_type\": \"wallet_transfer\""));
+        assert!(disabled_signed_submit
+            .body
+            .contains("\"resource_id\": \"signed_transfer_envelope_or_local_request_id\""));
+        assert!(disabled_signed_submit
+            .body
+            .contains("\"refusal_code\": \"signed_submit_disabled\""));
+        assert!(disabled_signed_submit
+            .body
+            .contains("\"signed_transfer_envelope\""));
+        assert!(disabled_signed_submit
+            .body
+            .contains("\"transaction_signing_hash\""));
+        assert!(disabled_signed_submit.body.contains("\"transaction_hash\""));
+        assert!(disabled_signed_submit
+            .body
+            .contains("test-only signed-submit verifier is not enabled"));
+        assert!(disabled_signed_submit
+            .body
+            .contains("pending state is not changed"));
+        assert!(disabled_signed_submit
+            .body
+            .contains("chain state is not changed"));
+        assert!(!disabled_signed_submit.body.contains("private_key"));
+        assert!(!disabled_signed_submit.body.contains("seed_phrase"));
+        assert!(!disabled_signed_submit.body.contains("mnemonic"));
 
         let disabled_send =
             product_api_http_response(&api, "POST", "/api/v1/wallet/transfers/send");

@@ -328,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
             **verify_fixtures(fixtures),
             "scope_boundaries": [
                 "local/private signed-transfer contract inventory only",
-                "no signed-submit implementation",
+                "no accepted signed-submit mutation",
                 "no wallet submit UI mutation",
                 "no browser key generation or storage",
                 "no custody or hosted signing",

@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-06-07
+Last updated: 2026-06-08
 
 ## Current Goal
 
@@ -10,9 +10,10 @@ API/backend, React + TypeScript UI, PostgreSQL indexer, ISO 20022 compatibility
 adapter, and readiness guardrails are tagged as
 `phase1-1-xriq-local-e2e-rc1`. Phase 1.2 local/private post-RC hardening is
 complete and tagged as `phase1-2-xriq-local-private-hardening-rc1` at commit
-`b3a2fe4`. Current next scope is Phase 1.3 local/private behavioral wallet
-testing only, using `docs/XRIQ_PHASE1_3_LOCAL_PRIVATE_BEHAVIOR_PLAN.md` as the
-scope boundary.
+`b3a2fe4`. Phase 1.3 local/private behavioral wallet testing is complete and
+tagged as `phase1-3-xriq-local-private-behavior-rc1` at commit `345d353`.
+Current next scope is Phase 1.4 local/private signed-transfer work only, using
+`docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md` as the scope boundary.
 Phase 1.1 local/private end-to-end RC1 is also now tagged and pushed as
 `phase1-1-xriq-local-e2e-rc1` at commit `6a38a51a`.
 Do not include BIBER MVP, model training, repo-adaptation, runtime-profile, or
@@ -23,9 +24,9 @@ up locally, so future sessions must not assume `/workspace`, vLLM, FastAPI, or
 live Vast SSH access exists unless the user provides a fresh instance.
 
 - Current focus:
-  - Active focus as of 2026-06-07: continue XRIQ Phase 1.3 local/private
-    behavioral wallet testing after the completed Phase 1.2 RC1 tag. Use
-    `docs/XRIQ_PHASE1_3_LOCAL_PRIVATE_BEHAVIOR_PLAN.md` as the scope boundary.
+  - Active focus as of 2026-06-08: continue XRIQ Phase 1.4 local/private
+    signed-transfer work after the completed Phase 1.3 RC1 tag. Use
+    `docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md` as the scope boundary.
   - Phase 2, after Phase 1: BIBER MVP/local model API, model registry, repo
     context, file-edit/test workflows, GitHub save/PR path, optional OpenAI
     mentor review, repo-adaptation eval/training loop, and Replit-replacement
@@ -49,6 +50,13 @@ live Vast SSH access exists unless the user provides a fresh instance.
     disabled/default and invalid-input negative paths without enabling wallet
     submit UI, custody, DEX, smart contracts, public network behavior, or
     production infrastructure.
+  - XRIQ Phase 1.4: local/private signed-transfer work only: signed-transfer
+    fixtures, CLI-only test signed artifacts, default-disabled API
+    signed-submit refusal/audit behavior, and future verifier/smoke work behind
+    explicit local/private gates. Do not add accepted signed-submit mutation,
+    wallet submit UI mutation, custody, browser-held key material, public
+    network, DEX, bridge, smart-contract, production infrastructure, or tags
+    without explicit approval.
 - Delayed scope:
   - Public XRIQ remains part of the later project plan, but do not implement
     public token economics, DEX/liquidity, validator rewards, public governance,
@@ -312,19 +320,28 @@ unless the user changes the project scope again.
   The next narrow step is post-RC/next-phase work only. Do not move, delete,
   recreate, or repush the Phase 1.3 tag unless the user explicitly requests
   that exact tag maintenance operation.
-- Phase 1.4 active focus: local/private signed-transfer planning only. The
-  first checkpoint is `docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md` plus
-  `scripts/xriq_phase1_4_plan_check.py`. This phase should move toward a
-  local CLI/test-only signed artifact and signed-submit verifier contract, but
-  it must keep browser key material, custody, public networks, DEX/bridge,
-  smart contracts, asset issuance, production infrastructure, and tags out of
-  scope until explicitly approved.
+- Phase 1.4 active focus: local/private signed-transfer work only. The first
+  checkpoint is `docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md` plus
+  `scripts/xriq_phase1_4_plan_check.py`. This phase should move toward a local
+  CLI/test-only signed artifact and signed-submit verifier contract, but it
+  must keep browser key material, custody, public networks, DEX/bridge, smart
+  contracts, asset issuance, production infrastructure, and tags out of scope
+  until explicitly approved.
   The first contract inventory is under `xriq/fixtures/phase1_4/` and is
   checked by `scripts/xriq_phase1_4_contract_check.py`; it is still
   non-mutating and not implemented in the API/UI.
   The first CLI-only artifact command is `xriq-wallet signed-transfer ...`;
   it is checked by `scripts/xriq_phase1_4_signed_artifact_check.py` and remains
   local/private test metadata only.
+  The first API signed-submit route checkpoint is refusal/audit only:
+  `POST /api/v1/wallet/transfers/submit-signed` returns
+  `403 signed_submit_disabled` by default, advertises
+  `--enable-local-wallet-submit-signed` as a future local/private gate, adds the
+  `wallet-transfer-signed-submit:local_request_id` local refusal audit event,
+  and leaves pending state and chain state unchanged. No accepted
+  signed-submit verifier, wallet submit UI mutation, custody, browser-held key
+  material, public network, DEX, bridge, smart-contract, production
+  infrastructure, or tag operation has been added.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -969,11 +986,11 @@ an active target because the GPU was terminated to save cost.
   local/private signed-transfer shape before implementation: signing intent,
   test-only envelope, disabled default refusal, invalid-signature refusal, and
   accepted signed-submit response contract behind
-  `--enable-local-wallet-submit-signed`. This remains contract inventory only:
-  no API signed-submit implementation, no wallet submit UI mutation, no browser
-  key generation/storage, no custody/hosted signing, no public network, no DEX,
-  no bridge, no smart contracts, no asset issuance, no production
-  infrastructure, and no tag operation.
+  `--enable-local-wallet-submit-signed`. At that fixture checkpoint, this was
+  contract inventory only: the API refusal route did not exist yet, and there
+  was no wallet submit UI mutation, browser key generation/storage,
+  custody/hosted signing, public network, DEX, bridge, smart contracts, asset
+  issuance, production infrastructure, or tag operation.
 - Latest native XRIQ Phase 1.4 CLI-only signed artifact checkpoint: added
   `xriq-wallet signed-transfer --chain-id ... --from ... --to ... --amount ...
   --fee ... --nonce ... --signer-label <lowercase-label> [--format text|json]`
@@ -984,7 +1001,19 @@ an active target because the GPU was terminated to save cost.
   preview metadata. It deliberately does not expose private keys, seed phrases,
   mnemonics, raw test signature bytes, custody accounts, browser storage,
   public network endpoints, DEX routing, production infrastructure, or tags.
-  No API/UI signed-submit implementation was added.
+  At that CLI-only checkpoint, no API/UI signed-submit implementation was
+  added.
+- Latest native XRIQ Phase 1.4 API signed-submit refusal checkpoint: added the
+  default-disabled product/API route
+  `POST /api/v1/wallet/transfers/submit-signed`. It returns
+  `403 signed_submit_disabled`, advertises future explicit local enablement via
+  `--enable-local-wallet-submit-signed`, records/exposes
+  `wallet-transfer-signed-submit:local_request_id` in the local refusal audit
+  catalog, and leaves pending state and chain state unchanged. The refusal
+  response lists signed-envelope verifier metadata fields but does not accept
+  key material, raw signatures, custody material, browser storage, public
+  network behavior, DEX/bridge/smart-contract scope, production infrastructure,
+  or tags. The route has no accepted verifier implementation yet.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI
@@ -1249,11 +1278,12 @@ an active target because the GPU was terminated to save cost.
   `python scripts/xriq_phase1_4_contract_check.py` after any Phase 1.4
   planning or fixture edit, and
   `python scripts/xriq_phase1_4_signed_artifact_check.py` after any wallet CLI
-  signed-artifact edit. The next implementation checkpoint should add an
-  API-side signed-submit verifier contract/refusal path or extend negative
-  cases; it should not add UI mutation, custody, browser key material, public
-  network, DEX, bridge, smart-contract, asset issuance, production
-  infrastructure, or tags.
+  signed-artifact edit. The next implementation checkpoint should extend
+  signed-submit negative cases or add a parse/verify-only contract for the
+  future accepted verifier. Do not add accepted signed-submit mutation, UI
+  mutation, custody, browser key material, public network, DEX, bridge,
+  smart-contract, asset issuance, production infrastructure, or tags without
+  explicit approval.
   The user can still run the Phase 1.3 manual browser demo with
   `python scripts/xriq_phase1_3_demo_launcher.py --skip-build --launch --auto-port`
   and follow `docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`. Do not move, delete,

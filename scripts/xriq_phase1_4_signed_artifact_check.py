@@ -216,7 +216,7 @@ def main(argv: list[str] | None = None) -> int:
             "transaction_hash": hashes["transaction_hash"],
             "scope_boundaries": [
                 "CLI-only local/private test signed artifact",
-                "no API signed-submit implementation",
+                "no accepted API signed-submit mutation",
                 "no wallet submit UI mutation",
                 "no browser key generation or storage",
                 "no custody or hosted signing",

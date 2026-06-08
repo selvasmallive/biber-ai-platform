@@ -1,8 +1,11 @@
 # XRIQ Phase 1.4 Local Signing Plan
 
-Status: planning checkpoint only. No Phase 1.4 signing, wallet submit UI,
-custody, public network, DEX, bridge, smart-contract, production
-infrastructure, or key-management implementation is approved by this document.
+Status: active local/private implementation checkpoint. Current approved
+implementation includes signed-transfer fixtures, a CLI-only test signed
+artifact, and a default-disabled API signed-submit refusal/audit path.
+No accepted signed-submit mutation, wallet submit UI, custody, public network,
+DEX, bridge, smart-contract, production infrastructure, or key-management
+implementation is approved by this document.
 
 Phase 1.4 starts after:
 
@@ -89,20 +92,27 @@ Use this order unless the user explicitly chooses a different narrow milestone.
    signed transfer artifact. It must print a test-only warning, avoid persistent
    key storage, and avoid browser or server-held key material.
 
-4. API signed-submit verifier.
+4. API signed-submit refusal/audit path.
+   Add the default product API path for
+   `POST /api/v1/wallet/transfers/submit-signed` as a disabled local/private
+   refusal contract. It must return `403 signed_submit_disabled`, advertise the
+   future explicit local flag, expose the local refusal audit event, and leave
+   pending state and chain state unchanged.
+
+5. API signed-submit verifier.
    Add an accepted local/private signed-submit path only behind explicit local
    enablement. The API should verify envelope shape, chain id, transaction hash,
    signing hash/digest, sender identity, signature bytes, nonce, fee, expiry,
    and duplicate pending state before writing to the pending file.
 
-5. Local signed-send smoke.
+6. Local signed-send smoke.
    Add a CPU-only smoke that creates a draft, signs it with the local CLI test
    signer, submits the signed artifact, produces one local block, and confirms
    wallet balances/history/mempool/Admin/audit state. Negative cases must cover
    disabled submit, invalid signature, wrong chain id, stale nonce, duplicate
    pending transaction, expired transaction, and malformed envelope.
 
-6. UI design review only.
+7. UI design review only.
    Before any UI mutation implementation, add a design-check document and guard
    proving the UI will not create, store, or manage key material. A future UI
    submit control may inspect and submit a pre-signed local artifact only after
@@ -110,7 +120,7 @@ Use this order unless the user explicitly chooses a different narrow milestone.
 
 ## Required Gates Before Code
 
-Before implementing signed-submit behavior, update or add:
+Before implementing accepted signed-submit mutation behavior, update or add:
 
 - local/private signed-transfer fixtures
 - contract validation
@@ -141,10 +151,10 @@ Validate the inventory with:
 python scripts/xriq_phase1_4_contract_check.py
 ```
 
-This checkpoint is still contract inventory only. It does not implement
-signed-submit behavior, wallet submit UI mutation, custody, browser-held keys,
-public network behavior, DEX, bridges, smart contracts, production
-infrastructure, or tag operations.
+At that inventory checkpoint, the fixtures were contract inventory only. They
+did not implement accepted signed-submit behavior, wallet submit UI mutation,
+custody, browser-held keys, public network behavior, DEX, bridges, smart
+contracts, production infrastructure, or tag operations.
 
 Current CLI-only signed artifact checkpoint:
 
@@ -162,6 +172,29 @@ Validate the CLI artifact with:
 ```bash
 python scripts/xriq_phase1_4_signed_artifact_check.py
 ```
+
+Current API signed-submit refusal/audit checkpoint:
+
+- `POST /api/v1/wallet/transfers/submit-signed` is present in the local product
+  API route table.
+- The route is disabled by default and returns `403 signed_submit_disabled`.
+- The response advertises the future local/private flag
+  `--enable-local-wallet-submit-signed` but does not implement that flag yet.
+- The local refusal audit catalog includes
+  `wallet-transfer-signed-submit:local_request_id` with action
+  `wallet_transfer_signed_submit_attempt`.
+- The route accepts no key material, does not verify or store custody material,
+  and leaves pending state and chain state unchanged.
+
+Validate the default refusal contract with:
+
+```bash
+cargo test --target-dir target-codex-phase14-api -p xriq-api -j 1
+```
+
+This checkpoint still does not implement an accepted signed-submit verifier,
+wallet submit UI mutation, custody, browser-held keys, public network behavior,
+DEX, bridges, smart contracts, production infrastructure, or tag operations.
 
 ## UI Rules
 
@@ -188,7 +221,8 @@ Phase 1.4 is ready for a later RC decision only when:
 
 - signed-transfer fixtures and contract checks pass,
 - CLI-only test signing creates a verifiable local artifact,
-- API signed-submit accepts only explicitly enabled local/private requests,
+- API signed-submit refuses by default and accepts only explicitly enabled
+  local/private requests after a future approved verifier step,
 - negative cases prove no mutation on disabled or invalid input,
 - one signed transfer can move from signed artifact to pending to confirmed,
 - wallet, mempool, explorer, Admin, and audit views refresh consistently,

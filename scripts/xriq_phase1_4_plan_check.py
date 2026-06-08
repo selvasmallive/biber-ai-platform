@@ -18,7 +18,7 @@ PHASE1_3_TAG_COMMIT = "345d353"
 
 REQUIRED_PLAN_MARKERS = [
     "# XRIQ Phase 1.4 Local Signing Plan",
-    "Status: planning checkpoint only.",
+    "Status: active local/private implementation checkpoint.",
     PHASE1_3_TAG,
     "deterministic local/private signing intent",
     "test-only signed transfer envelope",
@@ -27,15 +27,19 @@ REQUIRED_PLAN_MARKERS = [
     "explorer-ui",
     "Signed-transfer contract inventory.",
     "CLI-only test signing path.",
+    "API signed-submit refusal/audit path.",
     "API signed-submit verifier.",
     "Local signed-send smoke.",
     "UI design review only.",
+    "POST /api/v1/wallet/transfers/submit-signed",
+    "signed_submit_disabled",
+    "wallet-transfer-signed-submit:local_request_id",
     "Mutating signed-submit endpoints must remain disabled by default.",
     "Do not create, move, delete, recreate, or push any tag from a generic continue",
 ]
 
 REQUIRED_BOUNDARY_MARKERS = [
-    "No Phase 1.4 signing, wallet submit UI,",
+    "No accepted signed-submit mutation, wallet submit UI,",
     "production private-key generation",
     "browser-held private keys",
     "hosted wallet custody",
