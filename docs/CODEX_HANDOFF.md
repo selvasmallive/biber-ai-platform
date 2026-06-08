@@ -312,6 +312,13 @@ unless the user changes the project scope again.
   The next narrow step is post-RC/next-phase work only. Do not move, delete,
   recreate, or repush the Phase 1.3 tag unless the user explicitly requests
   that exact tag maintenance operation.
+- Phase 1.4 active focus: local/private signed-transfer planning only. The
+  first checkpoint is `docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md` plus
+  `scripts/xriq_phase1_4_plan_check.py`. This phase should move toward a
+  local CLI/test-only signed artifact and signed-submit verifier contract, but
+  it must keep browser key material, custody, public networks, DEX/bridge,
+  smart contracts, asset issuance, production infrastructure, and tags out of
+  scope until explicitly approved.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -937,6 +944,16 @@ an active target because the GPU was terminated to save cost.
   Verified the local and remote tag were absent, then created and pushed
   `phase1-3-xriq-local-private-behavior-rc1` at commit `345d353`. Do not move,
   delete, recreate, or repush this tag without an exact tag-maintenance request.
+- Latest native XRIQ Phase 1.4 planning checkpoint: added
+  `docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md` and
+  `scripts/xriq_phase1_4_plan_check.py`. The plan starts after
+  `phase1-3-xriq-local-private-behavior-rc1` and defines a local/private
+  signed-transfer path: signed intent/envelope fixtures, CLI-only test signing,
+  API signed-submit verifier, local signed-send smoke, and UI design review
+  before any UI mutation. It explicitly prohibits production key management,
+  browser-held private keys, seed phrases, mnemonics, raw signatures, custody,
+  public networking, DEX, bridges, smart contracts, asset issuance, production
+  infrastructure, and tag actions without explicit approval.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI
@@ -1196,14 +1213,14 @@ an active target because the GPU was terminated to save cost.
   bundled-Python `py_compile`, `python scripts/xriq_phase1_1_rc_readiness.py`,
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
-- Recommended next narrow step: Phase 1.3 is RC-tagged. The user can still run
-  the manual browser demo with
+- Recommended next narrow step: run
+  `python scripts/xriq_phase1_4_plan_check.py` after any Phase 1.4 planning
+  edit. The next implementation checkpoint should be a local/private
+  signed-transfer fixture/contract inventory only, not UI mutation or custody.
+  The user can still run the Phase 1.3 manual browser demo with
   `python scripts/xriq_phase1_3_demo_launcher.py --skip-build --launch --auto-port`
-  and follow `docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`. Otherwise choose exactly one
-  post-RC local/private next-phase task before implementing more: Phase 1.4
-  planning, local signing/key-material design without custody, wallet submit UI
-  design review, snapshot mutation design, or another narrow evidence fix. Do
-  not move, delete, recreate, or repush
+  and follow `docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`. Do not move, delete,
+  recreate, or repush
   `phase1-3-xriq-local-private-behavior-rc1`, or
   `phase1-2-xriq-local-private-hardening-rc1` unless the user explicitly asks
   for that exact tag maintenance operation. Keep wallet submit UI, snapshot

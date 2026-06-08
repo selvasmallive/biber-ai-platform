@@ -80,6 +80,9 @@ The Phase 1.3 browser demo runbook is
 The Phase 1.3 RC candidate report is
 `../docs/XRIQ_PHASE1_3_RC_CANDIDATE_REPORT.md`; the approved RC tag is
 `phase1-3-xriq-local-private-behavior-rc1` at commit `345d353`.
+The Phase 1.4 local/private signing plan is
+`../docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md`; from the repo root, validate its
+guardrails with `python scripts/xriq_phase1_4_plan_check.py`.
 The first Phase 1.2 wallet mutation preflight fixtures live in
 `fixtures/phase1_2/`; they are disabled/refusal contracts only and do not enable
 wallet submit/send behavior. From the repo root, validate them with

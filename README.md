@@ -281,6 +281,9 @@ launch it with `python scripts/xriq_phase1_3_demo_launcher.py --skip-build
 The Phase 1.3 RC candidate report is in
 `docs/XRIQ_PHASE1_3_RC_CANDIDATE_REPORT.md`; the approved RC tag is
 `phase1-3-xriq-local-private-behavior-rc1` at commit `345d353`.
+The Phase 1.4 local/private signing plan is in
+`docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md`; validate its guardrails with
+`python scripts/xriq_phase1_4_plan_check.py`.
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The first Phase 1.2 wallet mutation preflight fixtures are in
