@@ -77,6 +77,9 @@ repo root, run it with `python scripts/xriq_phase1_3_readiness_summary.py`.
 The Phase 1.3 browser demo runbook is
 `../docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`; from the repo root, launch it with
 `python scripts/xriq_phase1_3_demo_launcher.py --skip-build --launch --auto-port`.
+The Phase 1.3 RC candidate report is
+`../docs/XRIQ_PHASE1_3_RC_CANDIDATE_REPORT.md`; it proposes
+`phase1-3-xriq-local-private-behavior-rc1` but does not create any tag.
 The first Phase 1.2 wallet mutation preflight fixtures live in
 `fixtures/phase1_2/`; they are disabled/refusal contracts only and do not enable
 wallet submit/send behavior. From the repo root, validate them with

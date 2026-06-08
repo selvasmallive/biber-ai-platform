@@ -278,6 +278,9 @@ with `python scripts/xriq_phase1_3_readiness_summary.py`.
 The browser demo runbook is in `docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`; prepare or
 launch it with `python scripts/xriq_phase1_3_demo_launcher.py --skip-build
 --launch --auto-port`.
+The Phase 1.3 RC candidate report is in
+`docs/XRIQ_PHASE1_3_RC_CANDIDATE_REPORT.md`; it proposes
+`phase1-3-xriq-local-private-behavior-rc1` but does not create any tag.
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The first Phase 1.2 wallet mutation preflight fixtures are in

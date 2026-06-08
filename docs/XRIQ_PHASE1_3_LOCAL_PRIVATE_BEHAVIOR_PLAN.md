@@ -191,6 +191,15 @@ python scripts/xriq_phase1_3_demo_launcher.py --skip-build --launch --auto-port
 The click path and demo boundaries live in
 `docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`.
 
+The Phase 1.3 RC candidate report/checklist is documented at:
+
+```text
+docs/XRIQ_PHASE1_3_RC_CANDIDATE_REPORT.md
+```
+
+It proposes `phase1-3-xriq-local-private-behavior-rc1` for a later exact
+approval decision, but does not create, move, delete, recreate, or push any tag.
+
 ## Completion Criteria
 
 Phase 1.3 is ready for a later RC decision only when:
@@ -211,7 +220,7 @@ new post-RC tag, use a new deliberate tag name such as
 `phase1-3-xriq-local-private-behavior-rc1` only after:
 
 - a candidate report is written,
-- a non-mutating readiness guard passes from a clean checkout,
+- the non-mutating Phase 1.3 readiness summary passes from a clean checkout,
 - the user explicitly approves the exact tag name.
 
 Do not create, move, delete, recreate, or push any tag from a generic continue
