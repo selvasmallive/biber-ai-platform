@@ -1085,6 +1085,34 @@ an active target because the GPU was terminated to save cost.
   verifier preview into the future accepted local/private signed-submit path
   only after explicit approval, or first add a non-mutating request/parser
   adapter that still returns refusals and writes no pending state.
+- Latest native XRIQ Phase 1.4 non-mutating signed-submit request/parser
+  adapter checkpoint: added `LocalWalletSignedSubmitPreviewRequest` in
+  `xriq/crates/xriq-api/src/main.rs`. It parses signed-submit query fields into
+  the typed verifier-preview envelope, derives sender nonce and duplicate
+  pending-hash state from the current `XriqApiService`, and calls
+  `verify_signed_submit_envelope_preview`. Tests cover valid preview
+  verification against real height-1 private-devnet state plus malformed format,
+  wrong chain id, and duplicate pending refusal behavior. This is still not a
+  live accepted signed-submit route and it writes no pending state; product
+  `POST /api/v1/wallet/transfers/submit-signed` remains default-refused with
+  `403 signed_submit_disabled`. Verification passed `cargo fmt` and
+  `cargo test --target-dir target-codex-phase14-adapter -p xriq-api -j 1`
+  with 18 lib tests and 72 binary tests passing, plus bundled-Python
+  `scripts/xriq_phase1_4_plan_check.py`
+  (`xriq/target/xriq-phase1-4-plan-check-20260608T223258Z/summary.json`).
+  Next recommended narrow step for Phase 1.4 is to add a disabled/default
+  response smoke or explicit approval gate for the future accepted
+  signed-submit mutation before any pending-file append is implemented.
+- Latest XRIQ production handoff checkpoint for later GitHub Copilot work:
+  added `.github/copilot-instructions.md` and
+  `docs/XRIQ_PRODUCTION_ROADMAP.md`. These files make the post-private-devnet
+  strategy explicit: complete the XRIQ private-devnet prototype with Codex,
+  then use GitHub Copilot agents/PRs in the same repo for Phase 2-6 production
+  hardening while keeping Codex/OpenAI usage minimal. The roadmap separates
+  Phase 2 hardened private/staging devnet, Phase 3 public testnet, Phase 4
+  security/legal/economic readiness, Phase 5 production candidate, and Phase 6
+  public mainnet/ecosystem. This checkpoint does not start production work and
+  does not broaden the current active Codex scope beyond XRIQ private-devnet.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI

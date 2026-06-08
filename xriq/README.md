@@ -98,8 +98,14 @@ directory, check `POST /api/v1/wallet/transfers/submit-signed` with
 The Phase 1.4 Rust-side signed-submit parse/verify preview helper is
 `verify_signed_submit_envelope_preview`; from this directory, check it with
 `cargo test --target-dir target-codex-phase14-verify -p xriq-api -j 1`.
+The Phase 1.4 non-mutating signed-submit request/parser adapter is covered
+from this directory by
+`cargo test --target-dir target-codex-phase14-adapter -p xriq-api -j 1`.
 The standalone Phase 1.4 signed-submit refusal smoke can be run from the repo
 root with `python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py`.
+The later production roadmap for GitHub Copilot agents is
+`../docs/XRIQ_PRODUCTION_ROADMAP.md`; repo-wide Copilot instructions are in
+`../.github/copilot-instructions.md`.
 The first Phase 1.2 wallet mutation preflight fixtures live in
 `fixtures/phase1_2/`; they are disabled/refusal contracts only and do not enable
 wallet submit/send behavior. From the repo root, validate them with

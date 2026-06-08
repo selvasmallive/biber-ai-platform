@@ -299,8 +299,13 @@ The Phase 1.4 API signed-submit route is refusal-only by default; check
 The Phase 1.4 Rust-side signed-submit parse/verify preview helper is
 `verify_signed_submit_envelope_preview`; check it with
 `cargo test --target-dir target-codex-phase14-verify -p xriq-api -j 1`.
+The Phase 1.4 non-mutating signed-submit request/parser adapter is covered by
+`cargo test --target-dir target-codex-phase14-adapter -p xriq-api -j 1`.
 The standalone Phase 1.4 signed-submit refusal smoke is
 `python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py`.
+The post-private-devnet production path for GitHub Copilot agents is in
+`docs/XRIQ_PRODUCTION_ROADMAP.md`, with repository-wide Copilot instructions in
+`.github/copilot-instructions.md`.
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The first Phase 1.2 wallet mutation preflight fixtures are in

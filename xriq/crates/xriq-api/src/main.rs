@@ -11,8 +11,12 @@ use std::{
 
 use xriq_api::{
     local_refusal_audit_events, pending_mempool_entries_from_tsv, product_api_http_response,
-    ApiHttpResponse, LocalRefusalAuditEventResponse, XriqApiService, LOCAL_REFUSAL_AUDIT_ACTOR,
-    MEMPOOL_READONLY_WARNING, SNAPSHOT_READONLY_WARNING, WALLET_AUDIT_RESOURCE_TYPE,
+    verify_signed_submit_envelope_preview, ApiHttpResponse, LocalRefusalAuditEventResponse,
+    SignedSubmitEnvelopeInput, SignedSubmitHashesInput, SignedSubmitSignatureEnvelopeInput,
+    SignedSubmitStateContext, SignedSubmitTransactionInput, SignedSubmitVerificationOk,
+    SignedSubmitVerificationRefusal, XriqApiService, LOCAL_REFUSAL_AUDIT_ACTOR,
+    MEMPOOL_READONLY_WARNING, SIGNED_SUBMIT_ENDPOINT, SIGNED_SUBMIT_TEST_SIGNATURE_ALGORITHM,
+    SIGNED_SUBMIT_TEST_VERIFIER, SNAPSHOT_READONLY_WARNING, WALLET_AUDIT_RESOURCE_TYPE,
     WALLET_PREVIEW_WARNING, WALLET_SEND_AUDIT_ACTION, WALLET_SEND_AUDIT_RESOURCE_ID,
     WALLET_SUBMIT_AUDIT_ACTION, WALLET_SUBMIT_AUDIT_RESOURCE_ID,
 };
@@ -541,6 +545,93 @@ impl<'a> LocalWalletSubmitRequest<'a> {
             nonce,
             expires_at_height,
         })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct LocalWalletSignedSubmitPreviewRequest<'a> {
+    local_request_id: &'a str,
+    envelope: SignedSubmitEnvelopeInput<'a>,
+}
+
+impl<'a> LocalWalletSignedSubmitPreviewRequest<'a> {
+    fn from_query(query: Option<&'a str>) -> Result<Self, ApiHttpResponse> {
+        let local_request_id = required_query_param_any(query, &["local_request_id"])
+            .map_err(|error| local_api_error_response(400, "bad_request", &error))?;
+        if !valid_local_request_id(local_request_id) {
+            return Err(local_api_error_response(
+                400,
+                "invalid_local_request_id",
+                "local_request_id must use letters, digits, dash, or underscore and be 1-64 characters",
+            ));
+        }
+        let version = optional_u16_query(query, "version")
+            .map_err(|error| local_api_error_response(400, "bad_request", &error))?;
+        let nonce = query_param(query, "nonce")
+            .map(|value| parse_u64_query(value, "nonce"))
+            .transpose()
+            .map_err(|error| local_api_error_response(400, "bad_request", &error))?;
+        let expires_at_height = query_param(query, "expires_at_height")
+            .map(|value| parse_u64_query(value, "expires_at_height"))
+            .transpose()
+            .map_err(|error| local_api_error_response(400, "bad_request", &error))?;
+
+        Ok(Self {
+            local_request_id,
+            envelope: SignedSubmitEnvelopeInput {
+                format_version: query_param(query, "format_version")
+                    .or_else(|| query_param(query, "signed_transfer_envelope")),
+                transaction: Some(SignedSubmitTransactionInput {
+                    version,
+                    chain_id: query_param(query, "chain_id"),
+                    from: query_param(query, "from_address").or_else(|| query_param(query, "from")),
+                    to: query_param(query, "to_address").or_else(|| query_param(query, "to")),
+                    amount_base_units: query_param(query, "amount_base_units")
+                        .or_else(|| query_param(query, "amount")),
+                    fee_base_units: query_param(query, "fee_base_units")
+                        .or_else(|| query_param(query, "fee")),
+                    nonce,
+                    expires_at_height,
+                }),
+                hashes: Some(SignedSubmitHashesInput {
+                    transaction_signing_hash: query_param(query, "transaction_signing_hash"),
+                    transaction_hash: query_param(query, "transaction_hash"),
+                }),
+                signature_envelope: Some(SignedSubmitSignatureEnvelopeInput {
+                    algorithm: query_param(query, "signature_algorithm")
+                        .or_else(|| query_param(query, "algorithm")),
+                    signature_encoding: query_param(query, "signature_encoding"),
+                }),
+            },
+        })
+    }
+
+    fn verify_preview(
+        &self,
+        service: &XriqApiService,
+    ) -> Result<SignedSubmitVerificationOk, SignedSubmitVerificationRefusal> {
+        let mempool = service.mempool(usize::MAX);
+        let pending_hashes = mempool
+            .entries
+            .iter()
+            .map(|entry| entry.tx_hash.as_str())
+            .collect::<Vec<_>>();
+        let sender_chain_nonce = self
+            .envelope
+            .transaction
+            .as_ref()
+            .and_then(|transaction| transaction.from)
+            .and_then(|from| service.account(from).ok().map(|account| account.nonce))
+            .unwrap_or(0);
+        verify_signed_submit_envelope_preview(
+            self.envelope.clone(),
+            SignedSubmitStateContext {
+                expected_chain_id: &service.snapshot().chain_id,
+                current_height: service.snapshot().current_height,
+                sender_chain_nonce,
+                pending_transaction_hashes: &pending_hashes,
+            },
+        )
     }
 }
 
@@ -5654,6 +5745,16 @@ fn parse_u64_query(value: &str, key: &str) -> Result<u64, String> {
         .map_err(|_| format!("invalid {key}: {value}"))
 }
 
+fn optional_u16_query(query: Option<&str>, key: &str) -> Result<Option<u16>, String> {
+    let Some(value) = query_param(query, key) else {
+        return Ok(None);
+    };
+    value
+        .parse::<u16>()
+        .map(Some)
+        .map_err(|_| format!("invalid {key}: {value}"))
+}
+
 fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
@@ -6196,10 +6297,47 @@ mod tests {
         )
     }
 
+    fn wallet_signed_submit_preview_target(local_request_id: &str) -> String {
+        format!(
+            "/api/v1/wallet/transfers/submit-signed?local_request_id={local_request_id}&format_version=xriq-local-signed-transfer-envelope-v1&version=1&chain_id=xriq-devnet&from_address=xriqdev1alice00000000000&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=1&expires_at_height=100&transaction_signing_hash=3c0f7f54bca53ad4c49ff98ba9ba2930ac6147a3cb510ead3265c894fcf1850b&transaction_hash=628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7&signature_algorithm=test-only&signature_encoding=test-only-prefix-plus-signing-hash"
+        )
+    }
+
     fn wallet_send_target(local_request_id: &str, from_address: &str) -> String {
         format!(
             "/api/v1/wallet/transfers/send?local_request_id={local_request_id}&from_address={from_address}&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=0&expires_at_height=100"
         )
+    }
+
+    fn confirmed_signed_submit_preview_service(
+        label: &str,
+    ) -> (std::path::PathBuf, std::path::PathBuf, XriqApiService) {
+        let path = temp_store_path(label);
+        let pending_path = path.with_extension("pending");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        xriq_node::private_devnet_file_submit_pending_transfer_body(
+            &path_text,
+            &pending_text,
+            Some(XriqAmount::from_base_units(100)),
+            &pending_transfer_body(),
+        )
+        .unwrap();
+        xriq_node::private_devnet_file_produce_pending_block(
+            &path_text,
+            &pending_text,
+            Some(XriqAmount::from_base_units(100)),
+            2_000,
+            0,
+        )
+        .unwrap();
+        let service = build_service(
+            &path_text,
+            Some(&pending_text),
+            Some(XriqAmount::from_base_units(100)),
+        )
+        .unwrap();
+        (path, pending_path, service)
     }
 
     #[test]
@@ -6336,6 +6474,114 @@ mod tests {
         assert!(!pending_path.exists());
 
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn local_wallet_signed_submit_preview_adapter_verifies_fixture_without_mutation() {
+        let (path, pending_path, service) =
+            confirmed_signed_submit_preview_service("signed-submit-preview");
+        assert_eq!(service.snapshot().current_height, 1);
+        assert_eq!(
+            service.account("xriqdev1alice00000000000").unwrap().nonce,
+            1
+        );
+        assert_eq!(service.mempool(usize::MAX).pending_count, 0);
+        let target = wallet_signed_submit_preview_target("local-signed-submit-preview");
+        let (_, query) = split_http_target(&target);
+        let request = LocalWalletSignedSubmitPreviewRequest::from_query(query).unwrap();
+
+        let verified = request.verify_preview(&service).unwrap();
+
+        assert_eq!(request.local_request_id, "local-signed-submit-preview");
+        assert_eq!(verified.endpoint, SIGNED_SUBMIT_ENDPOINT);
+        assert_eq!(verified.status, "verified");
+        assert_eq!(verified.mutation, "none");
+        assert_eq!(
+            verified.signature_algorithm,
+            SIGNED_SUBMIT_TEST_SIGNATURE_ALGORITHM
+        );
+        assert_eq!(verified.verifier, SIGNED_SUBMIT_TEST_VERIFIER);
+        assert!(verified.verified);
+        assert_eq!(
+            verified.transaction_signing_hash,
+            "3c0f7f54bca53ad4c49ff98ba9ba2930ac6147a3cb510ead3265c894fcf1850b"
+        );
+        assert_eq!(
+            verified.transaction_hash,
+            "628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7"
+        );
+        assert_eq!(service.mempool(usize::MAX).pending_count, 0);
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn local_wallet_signed_submit_preview_adapter_returns_refusals_without_mutation() {
+        let (path, pending_path, service) =
+            confirmed_signed_submit_preview_service("signed-submit-preview-refusals");
+        let target = wallet_signed_submit_preview_target("local-signed-submit-preview-refusal");
+
+        let missing_format =
+            target.replace("format_version=xriq-local-signed-transfer-envelope-v1&", "");
+        let (_, missing_format_query) = split_http_target(&missing_format);
+        let missing_format_request =
+            LocalWalletSignedSubmitPreviewRequest::from_query(missing_format_query).unwrap();
+        let missing_format_refusal = missing_format_request.verify_preview(&service).unwrap_err();
+        assert_eq!(missing_format_refusal.code, "malformed_signed_envelope");
+        assert_eq!(
+            missing_format_refusal.verifier_error,
+            "MissingRequiredField(format_version)"
+        );
+        assert_eq!(missing_format_refusal.mutation, "none");
+        assert!(!missing_format_refusal.pending_write_allowed);
+        assert!(missing_format_refusal.pending_state_unchanged);
+        assert!(missing_format_refusal.chain_state_unchanged);
+
+        let wrong_chain = target.replace("chain_id=xriq-devnet", "chain_id=xriq-devnet-other");
+        let (_, wrong_chain_query) = split_http_target(&wrong_chain);
+        let wrong_chain_request =
+            LocalWalletSignedSubmitPreviewRequest::from_query(wrong_chain_query).unwrap();
+        let wrong_chain_refusal = wrong_chain_request.verify_preview(&service).unwrap_err();
+        assert_eq!(wrong_chain_refusal.code, "wrong_chain_id");
+        assert_eq!(wrong_chain_refusal.verifier_error, "WrongChainId");
+        assert_eq!(
+            wrong_chain_refusal.audit_event_id,
+            "signed-submit-wrong-chain-id:local_request_id"
+        );
+
+        let duplicate_service =
+            service
+                .clone()
+                .with_pending_mempool_entries(vec![xriq_api::MempoolEntryResponse {
+                    tx_hash: "628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7"
+                        .to_string(),
+                    from_address: "xriqdev1alice00000000000".to_string(),
+                    to_address: "xriqdev1carol00000000000".to_string(),
+                    amount_base_units: "5".to_string(),
+                    fee_base_units: "2".to_string(),
+                    nonce: 1,
+                    status: "pending".to_string(),
+                    first_seen_at_utc: None,
+                    last_seen_at_utc: None,
+                }]);
+        let (_, duplicate_query) = split_http_target(&target);
+        let duplicate_request =
+            LocalWalletSignedSubmitPreviewRequest::from_query(duplicate_query).unwrap();
+        let duplicate_refusal = duplicate_request
+            .verify_preview(&duplicate_service)
+            .unwrap_err();
+        assert_eq!(duplicate_refusal.code, "duplicate_pending_transaction");
+        assert_eq!(duplicate_refusal.http_status, 409);
+        assert_eq!(
+            duplicate_refusal.verifier_error,
+            "DuplicatePendingTransaction"
+        );
+        assert_eq!(duplicate_refusal.mutation, "none");
+        assert_eq!(service.mempool(usize::MAX).pending_count, 0);
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
     }
 
     #[test]

@@ -40,6 +40,8 @@ REQUIRED_PLAN_MARKERS = [
     "parse/verify-only",
     "Rust-side signed-submit parse/verify preview checkpoint",
     "verify_signed_submit_envelope_preview",
+    "non-mutating signed-submit request/parser adapter checkpoint",
+    "LocalWalletSignedSubmitPreviewRequest",
     "wallet-transfer-signed-submit:local_request_id",
     "scripts/xriq_phase1_4_signed_submit_refusal_smoke.py",
     "Mutating signed-submit endpoints must remain disabled by default.",

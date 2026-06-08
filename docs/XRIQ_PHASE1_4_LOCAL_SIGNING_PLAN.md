@@ -249,6 +249,26 @@ This checkpoint still does not implement an accepted signed-submit mutation,
 wallet submit UI mutation, custody, browser-held keys, public network behavior,
 DEX, bridges, smart contracts, production infrastructure, or tag operations.
 
+Current non-mutating signed-submit request/parser adapter checkpoint:
+
+- `xriq-api` request-mode code defines `LocalWalletSignedSubmitPreviewRequest`
+  to parse signed-submit query fields into the typed verifier-preview envelope.
+- The adapter derives sender nonce and duplicate-pending state from the current
+  `XriqApiService` snapshot/mempool before calling
+  `verify_signed_submit_envelope_preview`.
+- Tests cover valid preview verification against real height-1 private-devnet
+  state and refusal behavior for malformed format, wrong chain id, and duplicate
+  pending transaction.
+- This adapter is not wired into a live accepted API response path yet. It
+  writes no pending state, leaves chain state unchanged, and keeps the product
+  `POST /api/v1/wallet/transfers/submit-signed` path default-refused.
+
+Validate the adapter with:
+
+```bash
+cargo test --target-dir target-codex-phase14-adapter -p xriq-api -j 1
+```
+
 ## UI Rules
 
 The browser UI must not:
