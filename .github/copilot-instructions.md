@@ -38,6 +38,9 @@ fixtures before editing.
 - Do not create, move, delete, or push release tags unless the issue explicitly
   asks for the exact tag action.
 - Do not rotate credentials or change secrets. Never commit secrets.
+- Do not create, modify, or destroy Azure, AWS, GCP, DNS, registrar, payment,
+  exchange, or production resources unless the issue explicitly approves the
+  provider, account/project/subscription, region, environment, and exact action.
 
 ## XRIQ Safety Rules
 
@@ -54,6 +57,39 @@ fixtures before editing.
 - Privacy features should be directionally compatible with selective disclosure
   and auditability; do not implement Monero-like default opacity as the public
   default without explicit human approval and legal review.
+
+## Cloud Production Rules
+
+The production roadmap supports Azure, AWS, or Google Cloud Platform. Copilot
+must not choose a provider by default. If a cloud task does not state the
+provider, create provider-neutral docs or interfaces and ask for a human
+decision in the PR summary.
+
+When production infrastructure is requested, prefer infrastructure-as-code and
+reviewable plans over manual console steps. Terraform is the default IaC choice
+unless an issue explicitly chooses another tool. Do not run `terraform apply`,
+`pulumi up`, cloud deletion commands, or production deployment commands unless
+the issue explicitly authorizes that exact action.
+
+Production cloud PRs must preserve these boundaries:
+
+- separate accounts/projects/subscriptions for dev, staging, public testnet,
+  production candidate, and mainnet;
+- least-privilege IAM/service accounts;
+- private networking for databases and internal node services;
+- TLS at public edges;
+- managed secrets storage and KMS/HSM-backed key protection where available;
+- encrypted storage and backups;
+- container/image signing or provenance when available;
+- centralized logs, metrics, traces, and alerts;
+- DDoS/WAF/rate-limit controls for public APIs;
+- documented rollback and disaster-recovery procedures;
+- no production custody or managed user-key service unless a later human issue
+  explicitly approves custody architecture and legal review.
+
+Credential changes must be rare, deliberate, and documented. Do not implement
+frequent automatic credential rotation unless the issue explicitly asks for it
+and explains the operational plan.
 
 ## Engineering Standards
 
@@ -84,11 +120,25 @@ python scripts/xriq_phase1_4_plan_check.py
 python scripts/xriq_phase1_4_contract_check.py
 python scripts/xriq_phase1_4_signed_submit_negative_smoke.py
 python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py
+python scripts/xriq_production_roadmap_check.py
 ```
 
 For UI changes, run the existing frontend check/build commands and local smoke
 scripts referenced by the changed docs. If a check cannot run, explain why in
 the PR.
+
+For cloud/IaC changes, include the safe validation command output in the PR.
+Examples:
+
+```bash
+terraform fmt -check
+terraform validate
+terraform plan
+```
+
+Only run a plan against a real cloud account/project/subscription when the issue
+explicitly approves that target. Otherwise use static validation and document
+what was not run.
 
 ## PR Requirements
 
@@ -98,6 +148,7 @@ Every Copilot PR should include:
 - why it is within the requested phase,
 - tests/checks run,
 - risks or skipped checks,
+- cloud provider/environment affected, or `none`,
 - confirmation that no secrets, custody behavior, public network behavior, or
   production claims were added unless explicitly requested.
 

@@ -1100,9 +1100,17 @@ an active target because the GPU was terminated to save cost.
   with 18 lib tests and 72 binary tests passing, plus bundled-Python
   `scripts/xriq_phase1_4_plan_check.py`
   (`xriq/target/xriq-phase1-4-plan-check-20260608T223258Z/summary.json`).
-  Next recommended narrow step for Phase 1.4 is to add a disabled/default
-  response smoke or explicit approval gate for the future accepted
-  signed-submit mutation before any pending-file append is implemented.
+  The Phase 1.4 plan now also includes the accepted signed-submit mutation
+  approval gate. Do not implement pending-file append from a generic continue.
+  The exact required approval phrase is:
+  `I explicitly approve implementing the Phase 1.4 local/private signed-submit accepted mutation behind --enable-local-wallet-submit-signed.`
+  Verification passed bundled-Python
+  `scripts/xriq_phase1_4_plan_check.py`
+  (`xriq/target/xriq-phase1-4-plan-check-20260608T225342Z/summary.json`).
+  Next recommended narrow implementation step after that exact approval is to
+  add the accepted local/private signed-submit mutation behind
+  `--enable-local-wallet-submit-signed`, then cover it with disabled/default,
+  invalid-input, pending append, and block confirmation smoke.
 - Latest XRIQ production handoff checkpoint for later GitHub Copilot work:
   added `.github/copilot-instructions.md` and
   `docs/XRIQ_PRODUCTION_ROADMAP.md`. These files make the post-private-devnet
@@ -1113,6 +1121,21 @@ an active target because the GPU was terminated to save cost.
   security/legal/economic readiness, Phase 5 production candidate, and Phase 6
   public mainnet/ecosystem. This checkpoint does not start production work and
   does not broaden the current active Codex scope beyond XRIQ private-devnet.
+- Latest XRIQ production cloud/Copilot handoff hardening checkpoint: expanded
+  `.github/copilot-instructions.md` and `docs/XRIQ_PRODUCTION_ROADMAP.md` with
+  Azure/AWS/GCP-neutral production guidance. The docs now require a human cloud
+  provider decision before provider-specific IaC, prohibit creating/modifying/
+  destroying cloud resources without explicit approval, prefer Terraform for
+  reviewable infrastructure plans, and define environment isolation,
+  reference production architecture, secrets/KMS/HSM policy, observability,
+  WAF/DDoS/rate-limit, backups, rollback, cost alarms, and provider examples
+  for managed Kubernetes, PostgreSQL, object storage, secrets, KMS/HSM,
+  container registry, monitoring, and edge/WAF. Added
+  `scripts/xriq_production_roadmap_check.py` to validate the production roadmap
+  and Copilot cloud handoff markers; verification passed
+  `xriq/target/xriq-production-roadmap-check-20260608T225342Z/summary.json`.
+  This still does not start production cloud work and does not create
+  Azure/AWS/GCP resources.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI

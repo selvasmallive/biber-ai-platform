@@ -306,6 +306,8 @@ The standalone Phase 1.4 signed-submit refusal smoke is
 The post-private-devnet production path for GitHub Copilot agents is in
 `docs/XRIQ_PRODUCTION_ROADMAP.md`, with repository-wide Copilot instructions in
 `.github/copilot-instructions.md`.
+Validate those production/cloud handoff guardrails with
+`python scripts/xriq_production_roadmap_check.py`.
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The first Phase 1.2 wallet mutation preflight fixtures are in

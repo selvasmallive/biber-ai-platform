@@ -106,6 +106,8 @@ root with `python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py`.
 The later production roadmap for GitHub Copilot agents is
 `../docs/XRIQ_PRODUCTION_ROADMAP.md`; repo-wide Copilot instructions are in
 `../.github/copilot-instructions.md`.
+Validate those production/cloud handoff guardrails from the repo root with
+`python scripts/xriq_production_roadmap_check.py`.
 The first Phase 1.2 wallet mutation preflight fixtures live in
 `fixtures/phase1_2/`; they are disabled/refusal contracts only and do not enable
 wallet submit/send behavior. From the repo root, validate them with

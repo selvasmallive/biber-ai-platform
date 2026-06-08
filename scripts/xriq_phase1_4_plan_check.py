@@ -42,6 +42,8 @@ REQUIRED_PLAN_MARKERS = [
     "verify_signed_submit_envelope_preview",
     "non-mutating signed-submit request/parser adapter checkpoint",
     "LocalWalletSignedSubmitPreviewRequest",
+    "Accepted Signed-Submit Mutation Approval Gate",
+    "I explicitly approve implementing the Phase 1.4 local/private signed-submit accepted mutation behind --enable-local-wallet-submit-signed.",
     "wallet-transfer-signed-submit:local_request_id",
     "scripts/xriq_phase1_4_signed_submit_refusal_smoke.py",
     "Mutating signed-submit endpoints must remain disabled by default.",

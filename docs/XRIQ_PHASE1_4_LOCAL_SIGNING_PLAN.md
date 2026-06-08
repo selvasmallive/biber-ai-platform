@@ -269,6 +269,35 @@ Validate the adapter with:
 cargo test --target-dir target-codex-phase14-adapter -p xriq-api -j 1
 ```
 
+## Accepted Signed-Submit Mutation Approval Gate
+
+Do not implement a pending-file append for signed-submit from a generic
+continue request. Accepted signed-submit mutation may begin only after the user
+gives this exact approval phrase:
+
+`I explicitly approve implementing the Phase 1.4 local/private signed-submit accepted mutation behind --enable-local-wallet-submit-signed.`
+
+Before implementing that mutation, rerun:
+
+```bash
+cargo test --target-dir target-codex-phase14-adapter -p xriq-api -j 1
+python scripts/xriq_phase1_4_contract_check.py
+python scripts/xriq_phase1_4_signed_submit_negative_smoke.py
+python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py
+```
+
+The accepted mutation implementation must:
+
+- stay local/private-devnet only,
+- require `--enable-local-wallet-submit-signed`,
+- verify the signed envelope before any pending-state write,
+- append exactly one verified transaction to the local pending file,
+- leave chain state unchanged until block production,
+- record accepted local API audit metadata,
+- keep disabled/default and invalid-input paths non-mutating,
+- avoid browser-held keys, custody, raw signatures in logs, public network,
+  DEX, bridge, smart-contract, production infrastructure, and tag behavior.
+
 ## UI Rules
 
 The browser UI must not:
