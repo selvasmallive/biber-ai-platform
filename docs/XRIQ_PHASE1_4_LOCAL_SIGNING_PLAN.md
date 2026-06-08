@@ -125,6 +125,27 @@ Mutating signed-submit endpoints must remain disabled by default. They must
 require explicit local/private-devnet flags or config names that cannot be
 confused with production mode.
 
+## Current Checkpoint
+
+Current signed-transfer contract inventory checkpoint:
+
+- `xriq/fixtures/phase1_4/local-signing-intent.json`
+- `xriq/fixtures/phase1_4/test-only-signed-transfer-envelope.json`
+- `xriq/fixtures/phase1_4/signed-submit-disabled.json`
+- `xriq/fixtures/phase1_4/signed-submit-invalid-signature.json`
+- `xriq/fixtures/phase1_4/signed-submit-accepted-contract.json`
+
+Validate the inventory with:
+
+```bash
+python scripts/xriq_phase1_4_contract_check.py
+```
+
+This checkpoint is still contract inventory only. It does not implement
+signed-submit behavior, wallet submit UI mutation, custody, browser-held keys,
+public network behavior, DEX, bridges, smart contracts, production
+infrastructure, or tag operations.
+
 ## UI Rules
 
 The browser UI must not:

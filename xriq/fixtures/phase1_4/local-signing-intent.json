@@ -1,0 +1,63 @@
+{
+  "environment": "private-devnet",
+  "network": "xriq-devnet",
+  "fixture": "phase1-4-local-signing-intent-v1",
+  "status": "contract-inventory-only",
+  "warning": "local-private-devnet-test-identity-only",
+  "purpose": "describe the local signing intent before any signed-submit mutation is implemented",
+  "producer": "xriq-wallet",
+  "consumer": "xriq-api",
+  "scope": {
+    "local_private_only": true,
+    "test_identity_only": true,
+    "non_mutating": true,
+    "browser_key_material_allowed": false,
+    "custody_allowed": false,
+    "public_network_allowed": false,
+    "dex_allowed": false,
+    "production_infrastructure_allowed": false
+  },
+  "intent": {
+    "format_version": "xriq-local-signing-intent-v1",
+    "chain_id": "xriq-devnet",
+    "from_address": "xriqdev1alice00000000000",
+    "to_address": "xriqdev1carol00000000000",
+    "amount_base_units": "5",
+    "fee_base_units": "2",
+    "nonce": 1,
+    "expires_at_height": 100,
+    "memo_hash": null,
+    "local_request_id": "phase1-4-local-signing-intent-demo",
+    "chain_file": "target/xriq-devnet.bin",
+    "pending_file": "target/xriq-devnet-pending.tsv"
+  },
+  "digest_contract": {
+    "transaction_version": 1,
+    "signing_domain": "xriq:v1:transaction:signing",
+    "signing_hash_algorithm": "sha256",
+    "transaction_hash_algorithm": "sha256",
+    "signing_hash_field": "transaction_signing_hash",
+    "transaction_hash_field": "transaction_hash",
+    "hash_encoding": "lowercase_hex_64"
+  },
+  "required_validation_before_signing": [
+    "chain_id must equal xriq-devnet",
+    "sender and recipient must be devnet addresses",
+    "sender must be a configured local test identity",
+    "amount and fee must be integer base-unit strings",
+    "fee must satisfy the private-devnet minimum fee",
+    "nonce must match the sender nonce from local chain state",
+    "expires_at_height must be greater than current local height",
+    "local_request_id is required for audit correlation"
+  ],
+  "forbidden_fields": [
+    "private_key",
+    "seed_phrase",
+    "mnemonic",
+    "secret_key",
+    "raw_signature",
+    "custody_account",
+    "public_network_endpoint",
+    "dex_route"
+  ]
+}

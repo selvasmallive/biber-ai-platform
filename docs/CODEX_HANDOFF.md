@@ -319,6 +319,9 @@ unless the user changes the project scope again.
   it must keep browser key material, custody, public networks, DEX/bridge,
   smart contracts, asset issuance, production infrastructure, and tags out of
   scope until explicitly approved.
+  The first contract inventory is under `xriq/fixtures/phase1_4/` and is
+  checked by `scripts/xriq_phase1_4_contract_check.py`; it is still
+  non-mutating and not implemented in the API/UI.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -954,6 +957,20 @@ an active target because the GPU was terminated to save cost.
   browser-held private keys, seed phrases, mnemonics, raw signatures, custody,
   public networking, DEX, bridges, smart contracts, asset issuance, production
   infrastructure, and tag actions without explicit approval.
+- Latest native XRIQ Phase 1.4 signed-transfer contract inventory checkpoint:
+  added `xriq/fixtures/phase1_4/local-signing-intent.json`,
+  `test-only-signed-transfer-envelope.json`, `signed-submit-disabled.json`,
+  `signed-submit-invalid-signature.json`, and
+  `signed-submit-accepted-contract.json`, plus
+  `scripts/xriq_phase1_4_contract_check.py`. The fixtures define the next
+  local/private signed-transfer shape before implementation: signing intent,
+  test-only envelope, disabled default refusal, invalid-signature refusal, and
+  accepted signed-submit response contract behind
+  `--enable-local-wallet-submit-signed`. This remains contract inventory only:
+  no API signed-submit implementation, no wallet submit UI mutation, no browser
+  key generation/storage, no custody/hosted signing, no public network, no DEX,
+  no bridge, no smart contracts, no asset issuance, no production
+  infrastructure, and no tag operation.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI
@@ -1214,9 +1231,12 @@ an active target because the GPU was terminated to save cost.
   `python scripts/xriq_phase1_1_rc_readiness.py --latest-summary`, and
   `git diff --check`. Phase 1.1 status was about `94%` overall.
 - Recommended next narrow step: run
-  `python scripts/xriq_phase1_4_plan_check.py` after any Phase 1.4 planning
-  edit. The next implementation checkpoint should be a local/private
-  signed-transfer fixture/contract inventory only, not UI mutation or custody.
+  `python scripts/xriq_phase1_4_plan_check.py` and
+  `python scripts/xriq_phase1_4_contract_check.py` after any Phase 1.4
+  planning or fixture edit. The next implementation checkpoint should extend
+  the checker/fixtures or add a CLI-only test signed-artifact command; it should
+  not add UI mutation, custody, browser key material, public network, DEX,
+  bridge, smart-contract, asset issuance, production infrastructure, or tags.
   The user can still run the Phase 1.3 manual browser demo with
   `python scripts/xriq_phase1_3_demo_launcher.py --skip-build --launch --auto-port`
   and follow `docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`. Do not move, delete,

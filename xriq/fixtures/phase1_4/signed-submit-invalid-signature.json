@@ -1,0 +1,47 @@
+{
+  "environment": "private-devnet",
+  "network": "xriq-devnet",
+  "endpoint": "POST /api/v1/wallet/transfers/submit-signed",
+  "fixture": "phase1-4-signed-submit-invalid-signature-v1",
+  "status": "refused",
+  "code": "invalid_test_signature",
+  "http_status": 400,
+  "mutation": "none",
+  "warning": "local-private-devnet-test-signature-only",
+  "message": "The signed transfer envelope did not verify against the local/private test-only verifier.",
+  "required_enablement": {
+    "mode": "local-private-devnet",
+    "explicit_flag": "--enable-local-wallet-submit-signed",
+    "audit_event_required": true,
+    "test_identity_only": true
+  },
+  "invalid_case": {
+    "source_envelope_fixture": "test-only-signed-transfer-envelope.json",
+    "tamper": "signature does not match transaction_signing_hash",
+    "expected_verifier_error": "InvalidSignature",
+    "expected_mutation": "none"
+  },
+  "state_guards": [
+    "invalid signature never appends to pending file",
+    "invalid signature never changes chain file",
+    "invalid signature response must not reveal key material",
+    "invalid signature response must record local API audit visibility"
+  ],
+  "audit_event_recorded": true,
+  "audit_event": {
+    "event_id": "signed-submit-invalid-signature:local_request_id",
+    "actor": "local-private-devnet-operator",
+    "action": "wallet_transfer_signed_submit_attempt",
+    "resource_type": "wallet_transfer",
+    "resource_id": "local_request_id",
+    "environment": "private-devnet",
+    "metadata": {
+      "endpoint": "POST /api/v1/wallet/transfers/submit-signed",
+      "outcome": "refused",
+      "code": "invalid_test_signature",
+      "verifier": "TestOnlySignatureVerifier",
+      "mutation": "none",
+      "metadata_policy": "hashes, verifier result, and refusal summary only; no key material or custody material"
+    }
+  }
+}

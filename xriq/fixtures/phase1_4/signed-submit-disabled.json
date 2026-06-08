@@ -1,0 +1,44 @@
+{
+  "environment": "private-devnet",
+  "network": "xriq-devnet",
+  "endpoint": "POST /api/v1/wallet/transfers/submit-signed",
+  "fixture": "phase1-4-signed-submit-disabled-v1",
+  "status": "disabled",
+  "code": "signed_submit_disabled",
+  "http_status": 403,
+  "mutation": "none",
+  "warning": "local-private-devnet-only",
+  "message": "Local/private signed-submit is disabled by default.",
+  "required_enablement": {
+    "mode": "local-private-devnet",
+    "explicit_flag": "--enable-local-wallet-submit-signed",
+    "audit_event_required": true,
+    "test_identity_only": true
+  },
+  "refusal_guards": [
+    "default path remains refused and non-mutating",
+    "chain file remains unchanged",
+    "pending file remains unchanged",
+    "browser key material is not accepted",
+    "custody material is not accepted",
+    "public network endpoints are not accepted",
+    "DEX or bridge routing is not accepted"
+  ],
+  "audit_event_recorded": true,
+  "audit_event": {
+    "event_id": "signed-submit-disabled:local_request_id",
+    "actor": "local-private-devnet-operator",
+    "action": "wallet_transfer_signed_submit_attempt",
+    "resource_type": "wallet_transfer",
+    "resource_id": "local_request_id",
+    "environment": "private-devnet",
+    "metadata": {
+      "endpoint": "POST /api/v1/wallet/transfers/submit-signed",
+      "outcome": "refused",
+      "code": "signed_submit_disabled",
+      "explicit_flag": "--enable-local-wallet-submit-signed",
+      "mutation": "none",
+      "metadata_policy": "request fields and refusal summary only; no key material or custody material"
+    }
+  }
+}
