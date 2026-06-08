@@ -1,0 +1,179 @@
+{
+  "environment": "private-devnet",
+  "network": "xriq-devnet",
+  "endpoint": "POST /api/v1/wallet/transfers/submit-signed",
+  "fixture": "phase1-4-signed-submit-negative-cases-v1",
+  "status": "contract-inventory-only",
+  "implementation_status": "parse-verify-contract-only",
+  "warning": "local-private-devnet-test-signature-only",
+  "purpose": "define parse/verify-only negative cases before any accepted signed-submit mutation is implemented",
+  "source_envelope_fixture": "test-only-signed-transfer-envelope.json",
+  "scope": {
+    "local_private_only": true,
+    "test_identity_only": true,
+    "non_mutating": true,
+    "browser_key_material_allowed": false,
+    "custody_allowed": false,
+    "public_network_allowed": false,
+    "dex_allowed": false,
+    "production_infrastructure_allowed": false
+  },
+  "required_enablement": {
+    "mode": "local-private-devnet",
+    "explicit_flag": "--enable-local-wallet-submit-signed",
+    "audit_event_required": true,
+    "test_identity_only": true
+  },
+  "parser_policy": {
+    "runs_only_after_default_disabled_gate_is_explicitly_enabled": true,
+    "parse_before_verify": true,
+    "verify_before_pending_mutation": true,
+    "chain_state_unchanged_on_failure": true,
+    "pending_state_unchanged_on_failure": true,
+    "forbidden_fields": [
+      "private_key",
+      "seed_phrase",
+      "mnemonic",
+      "secret_key",
+      "raw_signature",
+      "custody_account",
+      "public_network_endpoint",
+      "dex_route"
+    ]
+  },
+  "expected_response_contract": {
+    "status": "refused",
+    "mutation": "none",
+    "http_status": 400,
+    "required_fields": [
+      "environment",
+      "network",
+      "endpoint",
+      "code",
+      "status",
+      "mutation",
+      "warning",
+      "verification",
+      "state_guards",
+      "audit_event_recorded",
+      "audit_event"
+    ],
+    "audit_event": {
+      "actor": "local-private-devnet-operator",
+      "action": "wallet_transfer_signed_submit_attempt",
+      "resource_type": "wallet_transfer",
+      "resource_id_policy": "local_request_id_or_transaction_hash",
+      "environment": "private-devnet",
+      "metadata_policy": "request fields, hashes, verifier result, and refusal summary only; no key material or custody material"
+    }
+  },
+  "negative_cases": [
+    {
+      "case_id": "malformed_envelope_missing_format_version",
+      "category": "parse",
+      "tamper": "remove format_version from signed transfer envelope",
+      "expected_code": "malformed_signed_envelope",
+      "expected_http_status": 400,
+      "expected_verifier_error": "MissingRequiredField(format_version)",
+      "expected_mutation": "none",
+      "audit_event_id": "signed-submit-malformed-envelope:local_request_id"
+    },
+    {
+      "case_id": "malformed_envelope_missing_hashes",
+      "category": "parse",
+      "tamper": "remove hashes object from signed transfer envelope",
+      "expected_code": "malformed_signed_envelope",
+      "expected_http_status": 400,
+      "expected_verifier_error": "MissingRequiredField(hashes)",
+      "expected_mutation": "none",
+      "audit_event_id": "signed-submit-malformed-envelope:local_request_id"
+    },
+    {
+      "case_id": "unsupported_signature_algorithm",
+      "category": "verify",
+      "tamper": "change signature_envelope.algorithm from test-only to unsupported",
+      "expected_code": "unsupported_signature_algorithm",
+      "expected_http_status": 400,
+      "expected_verifier_error": "UnsupportedSignatureAlgorithm",
+      "expected_mutation": "none",
+      "audit_event_id": "signed-submit-unsupported-signature-algorithm:local_request_id"
+    },
+    {
+      "case_id": "wrong_chain_id",
+      "category": "verify",
+      "tamper": "change transaction.chain_id from xriq-devnet to another local chain id",
+      "expected_code": "wrong_chain_id",
+      "expected_http_status": 400,
+      "expected_verifier_error": "WrongChainId",
+      "expected_mutation": "none",
+      "audit_event_id": "signed-submit-wrong-chain-id:local_request_id"
+    },
+    {
+      "case_id": "transaction_signing_hash_mismatch",
+      "category": "verify",
+      "tamper": "replace transaction_signing_hash with a different lowercase hex hash",
+      "expected_code": "transaction_signing_hash_mismatch",
+      "expected_http_status": 400,
+      "expected_verifier_error": "SigningHashMismatch",
+      "expected_mutation": "none",
+      "audit_event_id": "signed-submit-signing-hash-mismatch:local_request_id"
+    },
+    {
+      "case_id": "transaction_hash_mismatch",
+      "category": "verify",
+      "tamper": "replace transaction_hash with a different lowercase hex hash",
+      "expected_code": "transaction_hash_mismatch",
+      "expected_http_status": 400,
+      "expected_verifier_error": "TransactionHashMismatch",
+      "expected_mutation": "none",
+      "audit_event_id": "signed-submit-transaction-hash-mismatch:local_request_id"
+    },
+    {
+      "case_id": "invalid_test_signature",
+      "category": "verify",
+      "tamper": "signature does not match transaction_signing_hash",
+      "expected_code": "invalid_test_signature",
+      "expected_http_status": 400,
+      "expected_verifier_error": "InvalidSignature",
+      "expected_mutation": "none",
+      "audit_event_id": "signed-submit-invalid-signature:local_request_id"
+    },
+    {
+      "case_id": "stale_nonce",
+      "category": "state",
+      "tamper": "use a nonce lower than the sender nonce from local chain state",
+      "expected_code": "stale_nonce",
+      "expected_http_status": 400,
+      "expected_verifier_error": "StaleNonce",
+      "expected_mutation": "none",
+      "audit_event_id": "signed-submit-stale-nonce:local_request_id"
+    },
+    {
+      "case_id": "expired_transaction",
+      "category": "state",
+      "tamper": "set expires_at_height less than or equal to current local height",
+      "expected_code": "expired_transaction",
+      "expected_http_status": 400,
+      "expected_verifier_error": "ExpiredTransaction",
+      "expected_mutation": "none",
+      "audit_event_id": "signed-submit-expired-transaction:local_request_id"
+    },
+    {
+      "case_id": "duplicate_pending_transaction",
+      "category": "state",
+      "tamper": "submit a transaction hash that is already in the local pending file",
+      "expected_code": "duplicate_pending_transaction",
+      "expected_http_status": 409,
+      "expected_verifier_error": "DuplicatePendingTransaction",
+      "expected_mutation": "none",
+      "audit_event_id": "signed-submit-duplicate-pending:local_request_id"
+    }
+  ],
+  "state_guards": [
+    "parse/verify failure never appends to pending file",
+    "parse/verify failure never changes chain file",
+    "parse/verify failure never stores key material",
+    "parse/verify failure must record local API audit visibility",
+    "accepted pending mutation remains deferred until explicit approval"
+  ]
+}

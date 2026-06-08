@@ -1027,8 +1027,22 @@ an active target because the GPU was terminated to save cost.
   does not add accepted signed-submit mutation, UI mutation, custody,
   browser-held key material, public network, DEX/bridge/smart-contract scope,
   production infrastructure, or tags. Latest verified artifact:
-  `xriq/target/xriq-phase1-4-signed-submit-refusal-smoke-20260608T183016Z/summary.json`
+  `xriq/target/xriq-phase1-4-signed-submit-refusal-smoke-20260608T185808Z/summary.json`
   with `pending_file_created: false`.
+- Latest native XRIQ Phase 1.4 signed-submit negative-contract checkpoint:
+  added `xriq/fixtures/phase1_4/signed-submit-negative-cases.json` and wired
+  it into `scripts/xriq_phase1_4_contract_check.py`. This is a
+  parse/verify-only contract matrix for the future verifier, not an accepted
+  mutation implementation. Required cases include malformed envelope missing
+  `format_version`, malformed envelope missing hashes, unsupported signature
+  algorithm, wrong chain id, signing-hash mismatch, transaction-hash mismatch,
+  invalid test signature, stale nonce, expired transaction, and duplicate
+  pending transaction. Every case requires `mutation: none`, unchanged chain
+  state, unchanged pending state, and local API audit visibility. No accepted
+  signed-submit mutation, UI mutation, custody, browser-held key material,
+  public network, DEX/bridge/smart-contract scope, production infrastructure,
+  or tags were added. Verification passed
+  `xriq/target/xriq-phase1-4-contract-check-20260608T185809Z/summary.json`.
 - Latest native XRIQ Phase 1.2 RC readiness guardrail checkpoint:
   added `scripts/xriq_phase1_2_rc_readiness.py` as a non-mutating guard that
   checks the RC candidate report, the latest readiness summary, the latest UI
@@ -1295,12 +1309,12 @@ an active target because the GPU was terminated to save cost.
   `python scripts/xriq_phase1_4_signed_artifact_check.py` after any wallet CLI
   signed-artifact edit, and
   `python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py` after any API
-  signed-submit refusal edit. The next implementation checkpoint should add a
-  parse/verify-only contract for malformed/invalid signed-submit envelopes or
-  extend negative cases. Do not add accepted signed-submit mutation, UI
-  mutation, custody, browser key material, public network, DEX, bridge,
-  smart-contract, asset issuance, production infrastructure, or tags without
-  explicit approval.
+  signed-submit refusal edit. The next implementation checkpoint should be a
+  parse/verify-only scaffold or smoke for these negative cases, still returning
+  refusal-only outcomes and avoiding any pending-state write. Do not add
+  accepted signed-submit mutation, UI mutation, custody, browser key material,
+  public network, DEX, bridge, smart-contract, asset issuance, production
+  infrastructure, or tags without explicit approval.
   The user can still run the Phase 1.3 manual browser demo with
   `python scripts/xriq_phase1_3_demo_launcher.py --skip-build --launch --auto-port`
   and follow `docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`. Do not move, delete,

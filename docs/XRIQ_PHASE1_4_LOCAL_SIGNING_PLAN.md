@@ -143,6 +143,7 @@ Current signed-transfer contract inventory checkpoint:
 - `xriq/fixtures/phase1_4/test-only-signed-transfer-envelope.json`
 - `xriq/fixtures/phase1_4/signed-submit-disabled.json`
 - `xriq/fixtures/phase1_4/signed-submit-invalid-signature.json`
+- `xriq/fixtures/phase1_4/signed-submit-negative-cases.json`
 - `xriq/fixtures/phase1_4/signed-submit-accepted-contract.json`
 
 Validate the inventory with:
@@ -196,6 +197,23 @@ python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py
 This checkpoint still does not implement an accepted signed-submit verifier,
 wallet submit UI mutation, custody, browser-held keys, public network behavior,
 DEX, bridges, smart contracts, production infrastructure, or tag operations.
+
+Current parse/verify negative contract checkpoint:
+
+- `xriq/fixtures/phase1_4/signed-submit-negative-cases.json` defines the
+  future verifier refusal matrix before any accepted mutation exists.
+- Required cases include malformed envelope fields, unsupported signature
+  algorithm, wrong chain id, signing-hash mismatch, transaction-hash mismatch,
+  invalid test signature, stale nonce, expired transaction, and duplicate pending transaction.
+- Every case requires `mutation: none`, unchanged pending state, unchanged chain
+  state, and local API audit visibility before any future accepted path can be
+  implemented.
+
+Validate the negative contract with:
+
+```bash
+python scripts/xriq_phase1_4_contract_check.py
+```
 
 ## UI Rules
 

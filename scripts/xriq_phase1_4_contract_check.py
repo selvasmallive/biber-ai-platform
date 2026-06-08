@@ -19,7 +19,61 @@ FIXTURES = {
     "envelope": FIXTURE_DIR / "test-only-signed-transfer-envelope.json",
     "disabled": FIXTURE_DIR / "signed-submit-disabled.json",
     "invalid_signature": FIXTURE_DIR / "signed-submit-invalid-signature.json",
+    "negative_cases": FIXTURE_DIR / "signed-submit-negative-cases.json",
     "accepted_contract": FIXTURE_DIR / "signed-submit-accepted-contract.json",
+}
+
+REQUIRED_NEGATIVE_CASES = {
+    "malformed_envelope_missing_format_version": {
+        "expected_code": "malformed_signed_envelope",
+        "expected_http_status": 400,
+        "expected_verifier_error": "MissingRequiredField(format_version)",
+    },
+    "malformed_envelope_missing_hashes": {
+        "expected_code": "malformed_signed_envelope",
+        "expected_http_status": 400,
+        "expected_verifier_error": "MissingRequiredField(hashes)",
+    },
+    "unsupported_signature_algorithm": {
+        "expected_code": "unsupported_signature_algorithm",
+        "expected_http_status": 400,
+        "expected_verifier_error": "UnsupportedSignatureAlgorithm",
+    },
+    "wrong_chain_id": {
+        "expected_code": "wrong_chain_id",
+        "expected_http_status": 400,
+        "expected_verifier_error": "WrongChainId",
+    },
+    "transaction_signing_hash_mismatch": {
+        "expected_code": "transaction_signing_hash_mismatch",
+        "expected_http_status": 400,
+        "expected_verifier_error": "SigningHashMismatch",
+    },
+    "transaction_hash_mismatch": {
+        "expected_code": "transaction_hash_mismatch",
+        "expected_http_status": 400,
+        "expected_verifier_error": "TransactionHashMismatch",
+    },
+    "invalid_test_signature": {
+        "expected_code": "invalid_test_signature",
+        "expected_http_status": 400,
+        "expected_verifier_error": "InvalidSignature",
+    },
+    "stale_nonce": {
+        "expected_code": "stale_nonce",
+        "expected_http_status": 400,
+        "expected_verifier_error": "StaleNonce",
+    },
+    "expired_transaction": {
+        "expected_code": "expired_transaction",
+        "expected_http_status": 400,
+        "expected_verifier_error": "ExpiredTransaction",
+    },
+    "duplicate_pending_transaction": {
+        "expected_code": "duplicate_pending_transaction",
+        "expected_http_status": 409,
+        "expected_verifier_error": "DuplicatePendingTransaction",
+    },
 }
 
 FORBIDDEN_KEY_RE = re.compile(
@@ -107,6 +161,17 @@ def require_list_contains(payload: dict[str, Any], path: list[str], items: list[
         raise ContractCheckError(f"{label}: {'.'.join(path)} missing {missing}")
 
 
+def require_list_field(payload: dict[str, Any], path: list[str], label: str) -> list[Any]:
+    value: Any = payload
+    for key in path:
+        if not isinstance(value, dict) or key not in value:
+            raise ContractCheckError(f"{label}: missing {'.'.join(path)}")
+        value = value[key]
+    if not isinstance(value, list):
+        raise ContractCheckError(f"{label}: expected list at {'.'.join(path)}")
+    return value
+
+
 def require_hash(value: Any, label: str) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
         raise ContractCheckError(f"{label}: expected 64 lowercase hex characters, got {value!r}")
@@ -170,11 +235,123 @@ def verify_scope(payload: dict[str, Any], label: str) -> None:
         require_path(payload, ["scope", key], False, label)
 
 
+def verify_negative_cases_matrix(payload: dict[str, Any]) -> list[str]:
+    label = "negative_cases"
+    verify_scope(payload, label)
+    require_equal(payload, "fixture", "phase1-4-signed-submit-negative-cases-v1", label)
+    require_equal(payload, "endpoint", "POST /api/v1/wallet/transfers/submit-signed", label)
+    require_equal(payload, "status", "contract-inventory-only", label)
+    require_equal(payload, "implementation_status", "parse-verify-contract-only", label)
+    require_equal(payload, "source_envelope_fixture", "test-only-signed-transfer-envelope.json", label)
+    require_path(
+        payload,
+        ["required_enablement", "explicit_flag"],
+        "--enable-local-wallet-submit-signed",
+        label,
+    )
+    require_path(
+        payload,
+        ["parser_policy", "runs_only_after_default_disabled_gate_is_explicitly_enabled"],
+        True,
+        label,
+    )
+    require_path(payload, ["parser_policy", "parse_before_verify"], True, label)
+    require_path(payload, ["parser_policy", "verify_before_pending_mutation"], True, label)
+    require_path(payload, ["parser_policy", "chain_state_unchanged_on_failure"], True, label)
+    require_path(payload, ["parser_policy", "pending_state_unchanged_on_failure"], True, label)
+    require_list_contains(
+        payload,
+        ["parser_policy", "forbidden_fields"],
+        [
+            "private_key",
+            "seed_phrase",
+            "mnemonic",
+            "secret_key",
+            "raw_signature",
+            "custody_account",
+            "public_network_endpoint",
+            "dex_route",
+        ],
+        label,
+    )
+    require_path(payload, ["expected_response_contract", "status"], "refused", label)
+    require_path(payload, ["expected_response_contract", "mutation"], "none", label)
+    require_list_contains(
+        payload,
+        ["expected_response_contract", "required_fields"],
+        [
+            "environment",
+            "network",
+            "endpoint",
+            "code",
+            "status",
+            "mutation",
+            "verification",
+            "audit_event",
+        ],
+        label,
+    )
+    require_path(
+        payload,
+        ["expected_response_contract", "audit_event", "action"],
+        "wallet_transfer_signed_submit_attempt",
+        label,
+    )
+    require_list_contains(
+        payload,
+        ["state_guards"],
+        [
+            "parse/verify failure never appends to pending file",
+            "parse/verify failure never changes chain file",
+            "parse/verify failure never stores key material",
+            "accepted pending mutation remains deferred until explicit approval",
+        ],
+        label,
+    )
+
+    cases = require_list_field(payload, ["negative_cases"], label)
+    by_id: dict[str, dict[str, Any]] = {}
+    for case in cases:
+        if not isinstance(case, dict):
+            raise ContractCheckError(f"{label}: each negative case must be an object")
+        case_id = case.get("case_id")
+        if not isinstance(case_id, str) or not case_id:
+            raise ContractCheckError(f"{label}: negative case missing case_id")
+        if case_id in by_id:
+            raise ContractCheckError(f"{label}: duplicate case_id {case_id}")
+        by_id[case_id] = case
+        category = case.get("category")
+        if category not in {"parse", "verify", "state"}:
+            raise ContractCheckError(f"{label}: invalid category for {case_id}: {category!r}")
+        if case.get("expected_mutation") != "none":
+            raise ContractCheckError(f"{label}: {case_id} must have expected_mutation='none'")
+        audit_event_id = case.get("audit_event_id")
+        if not isinstance(audit_event_id, str) or not audit_event_id.startswith("signed-submit-"):
+            raise ContractCheckError(f"{label}: {case_id} has invalid audit_event_id")
+        if "local_request_id" not in audit_event_id:
+            raise ContractCheckError(f"{label}: {case_id} audit_event_id must include local_request_id")
+
+    missing = sorted(set(REQUIRED_NEGATIVE_CASES) - set(by_id))
+    if missing:
+        raise ContractCheckError(f"{label}: missing required negative cases {missing}")
+    for case_id, expected in REQUIRED_NEGATIVE_CASES.items():
+        case = by_id[case_id]
+        for field, expected_value in expected.items():
+            actual = case.get(field)
+            if actual != expected_value:
+                raise ContractCheckError(
+                    f"{label}: {case_id} expected {field}={expected_value!r}, got {actual!r}"
+                )
+
+    return sorted(by_id)
+
+
 def verify_fixtures(fixtures: dict[str, dict[str, Any]]) -> dict[str, Any]:
     intent = fixtures["intent"]
     envelope = fixtures["envelope"]
     disabled = fixtures["disabled"]
     invalid = fixtures["invalid_signature"]
+    negative_cases = fixtures["negative_cases"]
     accepted = fixtures["accepted_contract"]
 
     for label, payload in fixtures.items():
@@ -298,6 +475,10 @@ def verify_fixtures(fixtures: dict[str, dict[str, Any]]) -> dict[str, Any]:
     require_path(invalid, ["invalid_case", "expected_mutation"], "none", "invalid_signature")
     require_path(invalid, ["audit_event", "metadata", "mutation"], "none", "invalid_signature")
 
+    negative_case_ids = verify_negative_cases_matrix(negative_cases)
+    if "invalid_test_signature" not in negative_case_ids:
+        raise ContractCheckError("negative_cases: missing invalid_test_signature parity case")
+
     require_equal(accepted, "contract", "phase1-4-signed-submit-accepted-v1", "accepted_contract")
     require_equal(accepted, "implementation_status", "not-implemented", "accepted_contract")
     require_equal(
@@ -362,7 +543,7 @@ def verify_fixtures(fixtures: dict[str, dict[str, Any]]) -> dict[str, Any]:
         "fixtures_checked": sorted(FIXTURES),
         "signing_hash": signing_hash,
         "transaction_hash": transaction_hash,
-        "negative_cases": ["signed_submit_disabled", "invalid_test_signature"],
+        "negative_cases": ["signed_submit_disabled", *negative_case_ids],
     }
 
 
