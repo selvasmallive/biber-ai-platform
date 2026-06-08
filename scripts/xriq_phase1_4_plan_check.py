@@ -42,7 +42,8 @@ REQUIRED_PLAN_MARKERS = [
     "verify_signed_submit_envelope_preview",
     "non-mutating signed-submit request/parser adapter checkpoint",
     "LocalWalletSignedSubmitPreviewRequest",
-    "Accepted Signed-Submit Mutation Approval Gate",
+    "Current accepted signed-submit mutation checkpoint",
+    "signed_submit_accepted_local_only",
     "I explicitly approve implementing the Phase 1.4 local/private signed-submit accepted mutation behind --enable-local-wallet-submit-signed.",
     "wallet-transfer-signed-submit:local_request_id",
     "scripts/xriq_phase1_4_signed_submit_refusal_smoke.py",
@@ -51,7 +52,7 @@ REQUIRED_PLAN_MARKERS = [
 ]
 
 REQUIRED_BOUNDARY_MARKERS = [
-    "No accepted signed-submit mutation, wallet submit UI,",
+    "No wallet submit UI, custody, public network, DEX, bridge",
     "production private-key generation",
     "browser-held private keys",
     "hosted wallet custody",
@@ -187,13 +188,14 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
             "ui_rules": len(REQUIRED_UI_RULE_MARKERS),
         },
         "doc_references": verify_doc_references(),
-        "next_allowed_without_explicit_implementation_approval": [
-            "docs updates",
-            "fixture design",
-            "contract/checker expansion",
-            "negative-case planning",
-            "non-mutating parser/verifier adapter work that keeps accepted mutation disabled",
-        ],
+            "next_allowed_without_explicit_implementation_approval": [
+                "docs updates",
+                "fixture design",
+                "contract/checker expansion",
+                "negative-case planning",
+                "accepted signed-submit refusal/verification/test fixes that keep the explicit local flag",
+                "local signed-send lifecycle smoke using the approved accepted API path",
+            ],
         "prohibited_without_explicit_approval": [
             "wallet submit UI mutation",
             "browser key generation or storage",

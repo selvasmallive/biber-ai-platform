@@ -352,7 +352,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "expected_refusal_artifacts": refusal_paths,
         "scope_boundaries": [
             "parse/verify-only signed-submit negative smoke",
-            "no accepted signed-submit mutation",
+            "no accepted signed-submit mutation in this negative smoke",
             "no pending-state write",
             "no wallet submit UI mutation",
             "no browser key generation or storage",

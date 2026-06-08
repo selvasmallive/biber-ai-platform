@@ -3,10 +3,12 @@
 Status: active local/private implementation checkpoint. Current approved
 implementation includes signed-transfer fixtures, a CLI-only test signed
 artifact, a default-disabled API signed-submit refusal/audit path, and a
-Rust-side parse/verify preview helper.
-No accepted signed-submit mutation, wallet submit UI, custody, public network,
-DEX, bridge, smart-contract, production infrastructure, or key-management
-implementation is approved by this document.
+Rust-side parse/verify preview helper, plus an accepted local/private
+signed-submit pending-file mutation behind
+`--enable-local-wallet-submit-signed`.
+No wallet submit UI, custody, public network, DEX, bridge, smart-contract,
+production infrastructure, or key-management implementation is approved by
+this document.
 
 Phase 1.4 starts after:
 
@@ -180,8 +182,8 @@ Current API signed-submit refusal/audit checkpoint:
 - `POST /api/v1/wallet/transfers/submit-signed` is present in the local product
   API route table.
 - The route is disabled by default and returns `403 signed_submit_disabled`.
-- The response advertises the future local/private flag
-  `--enable-local-wallet-submit-signed` but does not implement that flag yet.
+- The response advertises the local/private flag
+  `--enable-local-wallet-submit-signed`.
 - The local refusal audit catalog includes
   `wallet-transfer-signed-submit:local_request_id` with action
   `wallet_transfer_signed_submit_attempt`.
@@ -195,20 +197,20 @@ cargo test --target-dir target-codex-phase14-api -p xriq-api -j 1
 python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py
 ```
 
-This checkpoint still does not implement an accepted signed-submit verifier,
-wallet submit UI mutation, custody, browser-held keys, public network behavior,
-DEX, bridges, smart contracts, production infrastructure, or tag operations.
+This checkpoint still does not implement wallet submit UI mutation, custody,
+browser-held keys, public network behavior, DEX, bridges, smart contracts,
+production infrastructure, or tag operations.
 
 Current parse/verify negative contract checkpoint:
 
 - `xriq/fixtures/phase1_4/signed-submit-negative-cases.json` defines the
-  future verifier refusal matrix before any accepted mutation exists.
+  verifier refusal matrix for disabled/default and invalid-input behavior.
 - Required cases include malformed envelope fields, unsupported signature
   algorithm, wrong chain id, signing-hash mismatch, transaction-hash mismatch,
   invalid test signature, stale nonce, expired transaction, and duplicate pending transaction.
 - Every case requires `mutation: none`, unchanged pending state, unchanged chain
-  state, and local API audit visibility before any future accepted path can be
-  implemented.
+  state, and local API audit visibility before any accepted path can report
+  success.
 
 Validate the negative contract with:
 
@@ -232,9 +234,9 @@ Current Rust-side signed-submit parse/verify preview checkpoint:
 - Valid preview verification returns `mutation: none`; refusal cases return the
   negative-matrix refusal codes plus `pending_write_allowed: false`, unchanged
   pending state, and unchanged chain state.
-- This helper is not wired into an accepted API route yet. The live
-  `POST /api/v1/wallet/transfers/submit-signed` route remains default-refused
-  with `403 signed_submit_disabled`.
+- The live `POST /api/v1/wallet/transfers/submit-signed` route remains
+  default-refused with `403 signed_submit_disabled` unless the local/private
+  accepted-mutation flag is explicitly enabled.
 
 Validate the Rust-side preview with:
 
@@ -245,9 +247,9 @@ python scripts/xriq_phase1_4_signed_submit_negative_smoke.py
 python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py
 ```
 
-This checkpoint still does not implement an accepted signed-submit mutation,
-wallet submit UI mutation, custody, browser-held keys, public network behavior,
-DEX, bridges, smart contracts, production infrastructure, or tag operations.
+This checkpoint still does not implement wallet submit UI mutation, custody,
+browser-held keys, public network behavior, DEX, bridges, smart contracts,
+production infrastructure, or tag operations.
 
 Current non-mutating signed-submit request/parser adapter checkpoint:
 
@@ -259,7 +261,8 @@ Current non-mutating signed-submit request/parser adapter checkpoint:
 - Tests cover valid preview verification against real height-1 private-devnet
   state and refusal behavior for malformed format, wrong chain id, and duplicate
   pending transaction.
-- This adapter is not wired into a live accepted API response path yet. It
+- This adapter now feeds the approved live accepted API response path only when
+  `--enable-local-wallet-submit-signed true` is present. Without that flag it
   writes no pending state, leaves chain state unchanged, and keeps the product
   `POST /api/v1/wallet/transfers/submit-signed` path default-refused.
 
@@ -269,24 +272,35 @@ Validate the adapter with:
 cargo test --target-dir target-codex-phase14-adapter -p xriq-api -j 1
 ```
 
-## Accepted Signed-Submit Mutation Approval Gate
+Current accepted signed-submit mutation checkpoint:
 
-Do not implement a pending-file append for signed-submit from a generic
-continue request. Accepted signed-submit mutation may begin only after the user
-gives this exact approval phrase:
+- User approval was explicitly given with the required phrase:
 
 `I explicitly approve implementing the Phase 1.4 local/private signed-submit accepted mutation behind --enable-local-wallet-submit-signed.`
 
-Before implementing that mutation, rerun:
+- `xriq-api request` and `xriq-api serve-readonly` accept
+  `--enable-local-wallet-submit-signed true`.
+- The accepted route verifies the signed envelope before mutation, rejects
+  forbidden key/custody/public/DEX fields, appends exactly one verified
+  transaction to the local pending file, leaves chain state unchanged, returns
+  `201 signed_submit_accepted_local_only`, and refreshes server-mode mempool
+  state after success.
+- Invalid or forbidden accepted-route inputs remain non-mutating.
+- The implementation still uses the Phase 1.4 test-only signature verifier and
+  does not add wallet submit UI mutation, custody, browser-held keys, public
+  network behavior, DEX, bridges, smart contracts, production infrastructure, or
+  tag operations.
+
+Validate this checkpoint with:
 
 ```bash
-cargo test --target-dir target-codex-phase14-adapter -p xriq-api -j 1
+cargo test --target-dir target-codex-phase14-signed-accepted -p xriq-api -j 1
 python scripts/xriq_phase1_4_contract_check.py
 python scripts/xriq_phase1_4_signed_submit_negative_smoke.py
 python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py
 ```
 
-The accepted mutation implementation must:
+Any future change to this mutation must:
 
 - stay local/private-devnet only,
 - require `--enable-local-wallet-submit-signed`,
@@ -324,7 +338,7 @@ Phase 1.4 is ready for a later RC decision only when:
 - signed-transfer fixtures and contract checks pass,
 - CLI-only test signing creates a verifiable local artifact,
 - API signed-submit refuses by default and accepts only explicitly enabled
-  local/private requests after a future approved verifier step,
+  local/private requests after verifier success,
 - negative cases prove no mutation on disabled or invalid input,
 - one signed transfer can move from signed artifact to pending to confirmed,
 - wallet, mempool, explorer, Admin, and audit views refresh consistently,

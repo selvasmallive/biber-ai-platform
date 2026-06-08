@@ -18,7 +18,7 @@ use xriq_api::{
     MEMPOOL_READONLY_WARNING, SIGNED_SUBMIT_ENDPOINT, SIGNED_SUBMIT_TEST_SIGNATURE_ALGORITHM,
     SIGNED_SUBMIT_TEST_VERIFIER, SNAPSHOT_READONLY_WARNING, WALLET_AUDIT_RESOURCE_TYPE,
     WALLET_PREVIEW_WARNING, WALLET_SEND_AUDIT_ACTION, WALLET_SEND_AUDIT_RESOURCE_ID,
-    WALLET_SUBMIT_AUDIT_ACTION, WALLET_SUBMIT_AUDIT_RESOURCE_ID,
+    WALLET_SIGNED_SUBMIT_AUDIT_ACTION, WALLET_SUBMIT_AUDIT_ACTION, WALLET_SUBMIT_AUDIT_RESOURCE_ID,
 };
 use xriq_core::{
     Address, Hash32, XriqAmount, PRIVATE_DEVNET_MAX_TRANSACTIONS_PER_BLOCK,
@@ -42,13 +42,17 @@ const WALLET_SUBMIT_ROUTE: &str = "/api/v1/wallet/transfers/submit";
 const WALLET_SUBMIT_ENDPOINT: &str = "POST /api/v1/wallet/transfers/submit";
 const WALLET_SEND_ROUTE: &str = "/api/v1/wallet/transfers/send";
 const WALLET_SEND_ENDPOINT: &str = "POST /api/v1/wallet/transfers/send";
+const WALLET_SIGNED_SUBMIT_ROUTE: &str = "/api/v1/wallet/transfers/submit-signed";
 const ENABLE_LOCAL_BLOCK_PRODUCTION_FLAG: &str = "--enable-local-block-production";
 const ENABLE_LOCAL_WALLET_SUBMIT_FLAG: &str = "--enable-local-wallet-submit";
 const ENABLE_LOCAL_WALLET_SEND_FLAG: &str = "--enable-local-wallet-send";
+const ENABLE_LOCAL_WALLET_SIGNED_SUBMIT_FLAG: &str = "--enable-local-wallet-submit-signed";
 const LOCAL_BLOCK_PRODUCTION_ACCEPTED_CODE: &str = "block_production_accepted_local_only";
 const LOCAL_WALLET_SUBMIT_ACCEPTED_CODE: &str = "wallet_submit_accepted_local_only";
 const LOCAL_WALLET_SEND_ACCEPTED_CODE: &str = "wallet_send_accepted_local_only";
+const LOCAL_WALLET_SIGNED_SUBMIT_ACCEPTED_CODE: &str = "signed_submit_accepted_local_only";
 const LOCAL_BLOCK_PRODUCTION_AUDIT_SCOPE: &str = "api-local-accepted";
+const LOCAL_SIGNED_SUBMIT_TEST_WARNING: &str = "local-private-devnet-test-signature-only";
 const PRIVATE_DEVNET_TEST_SENDER: &str = "xriqdev1alice00000000000";
 const PRIVATE_DEVNET_PRODUCER: &str = "xriqdev1author00000000000";
 const POSTGRES_READ_MODEL_STATUS_ROUTE: &str = "/api/v1/admin/postgres/read-model-status";
@@ -138,6 +142,16 @@ fn run_request(args: &[&str]) -> Result<String, String> {
             config.alice_balance,
         );
     }
+    if response.is_none() && config.enable_local_wallet_signed_submit {
+        response = maybe_local_wallet_signed_submit_http_response(
+            &service,
+            config.method,
+            config.target,
+            config.chain_file,
+            config.pending_file,
+            config.alice_balance,
+        );
+    }
     if response.is_none() && config.enable_local_block_production {
         response = maybe_local_block_production_http_response(
             &service,
@@ -173,6 +187,7 @@ fn run_serve_readonly(args: &[&str]) -> Result<String, String> {
         alice_balance: config.alice_balance,
         enable_local_wallet_submit: config.enable_local_wallet_submit,
         enable_local_wallet_send: config.enable_local_wallet_send,
+        enable_local_wallet_signed_submit: config.enable_local_wallet_signed_submit,
         enable_local_block_production: config.enable_local_block_production,
     };
     let mut runtime = runtime;
@@ -239,6 +254,7 @@ struct LocalApiRuntime<'a> {
     alice_balance: Option<XriqAmount>,
     enable_local_wallet_submit: bool,
     enable_local_wallet_send: bool,
+    enable_local_wallet_signed_submit: bool,
     enable_local_block_production: bool,
 }
 
@@ -306,6 +322,22 @@ fn local_api_http_response(
 
     if runtime.enable_local_wallet_send {
         if let Some(response) = maybe_local_wallet_send_http_response(
+            &runtime.service,
+            method,
+            target,
+            &runtime.chain_file,
+            runtime.pending_file.as_deref(),
+            runtime.alice_balance,
+        ) {
+            if let Some(error) = refresh_runtime_after_local_mutation(runtime, &response) {
+                return error;
+            }
+            return response;
+        }
+    }
+
+    if runtime.enable_local_wallet_signed_submit {
+        if let Some(response) = maybe_local_wallet_signed_submit_http_response(
             &runtime.service,
             method,
             target,
@@ -632,6 +664,670 @@ impl<'a> LocalWalletSignedSubmitPreviewRequest<'a> {
                 pending_transaction_hashes: &pending_hashes,
             },
         )
+    }
+}
+
+fn maybe_local_wallet_signed_submit_http_response(
+    service: &XriqApiService,
+    method: &str,
+    target: &str,
+    chain_file: &str,
+    pending_file: Option<&str>,
+    alice_balance: Option<XriqAmount>,
+) -> Option<ApiHttpResponse> {
+    let (path, query) = split_http_target(target);
+    if method != "POST" || path != WALLET_SIGNED_SUBMIT_ROUTE {
+        return None;
+    }
+    Some(local_wallet_signed_submit_http_response(
+        service,
+        query,
+        chain_file,
+        pending_file,
+        alice_balance,
+    ))
+}
+
+fn local_wallet_signed_submit_http_response(
+    service: &XriqApiService,
+    query: Option<&str>,
+    chain_file: &str,
+    pending_file: Option<&str>,
+    alice_balance: Option<XriqAmount>,
+) -> ApiHttpResponse {
+    let Some(pending_file) = pending_file else {
+        return local_api_error_response(
+            400,
+            "missing_pending_file",
+            "accepted local signed wallet submit requires --pending-file",
+        );
+    };
+    if query_param(query, "dry_run") == Some("true") {
+        return local_api_error_response(
+            400,
+            "dry_run_not_enabled",
+            "dry_run is contract-only in this checkpoint and does not mutate state",
+        );
+    }
+    if let Some(field) = forbidden_signed_submit_query_field(query) {
+        return local_api_error_response(
+            400,
+            "forbidden_signed_submit_field",
+            &format!("{field} is not accepted by the local/private signed-submit endpoint"),
+        );
+    }
+    let request = match LocalWalletSignedSubmitPreviewRequest::from_query(query) {
+        Ok(request) => request,
+        Err(response) => return response,
+    };
+    if let Some(transaction) = request.envelope.transaction {
+        if let Some(from_address) = transaction.from {
+            if from_address != PRIVATE_DEVNET_TEST_SENDER {
+                return local_api_error_response(
+                    400,
+                    "invalid_sender",
+                    "signed wallet submit is limited to the configured private-devnet Alice test sender",
+                );
+            }
+        }
+    }
+
+    let verified = match request.verify_preview(service) {
+        Ok(verified) => verified,
+        Err(refusal) => {
+            return render_local_wallet_signed_submit_verification_refusal_response(
+                service, &request, refusal,
+            );
+        }
+    };
+
+    let before_count = service.mempool(usize::MAX).pending_count;
+    let body = match render_local_wallet_signed_submit_transfer_body(service, &request) {
+        Ok(body) => body,
+        Err(response) => return response,
+    };
+    let detail = match private_devnet_file_submit_pending_transfer_body(
+        chain_file,
+        pending_file,
+        alice_balance,
+        &body,
+    ) {
+        Ok(detail) => detail,
+        Err(error) => {
+            return local_api_error_response(
+                400,
+                error.code(),
+                &format!("local signed wallet submit failed: {error}"),
+            );
+        }
+    };
+    let detail_tx_hash = hash_hex(detail.tx_hash);
+    if detail_tx_hash != verified.transaction_hash {
+        return local_api_error_response(
+            503,
+            "signed_submit_hash_drift",
+            "local signed wallet submit wrote a transaction hash different from the verified envelope",
+        );
+    }
+
+    render_local_wallet_signed_submit_accepted_response(
+        service,
+        &detail,
+        &verified,
+        LocalWalletSignedSubmitRenderInput {
+            local_request_id: request.local_request_id,
+            chain_file,
+            pending_file,
+            before_count,
+            after_count: before_count + 1,
+        },
+    )
+}
+
+fn forbidden_signed_submit_query_field(query: Option<&str>) -> Option<&'static str> {
+    [
+        "private_key",
+        "seed_phrase",
+        "mnemonic",
+        "secret_key",
+        "raw_signature",
+        "custody_account",
+        "public_network_endpoint",
+        "dex_route",
+    ]
+    .into_iter()
+    .find(|field| query_param(query, field).is_some())
+}
+
+fn render_local_wallet_signed_submit_verification_refusal_response(
+    service: &XriqApiService,
+    request: &LocalWalletSignedSubmitPreviewRequest<'_>,
+    refusal: SignedSubmitVerificationRefusal,
+) -> ApiHttpResponse {
+    let reason = match refusal.http_status {
+        400 => "Bad Request",
+        409 => "Conflict",
+        503 => "Service Unavailable",
+        _ => "Error",
+    };
+    let event_id = refusal
+        .audit_event_id
+        .replace("local_request_id", request.local_request_id);
+    let mut body = String::new();
+    writeln!(&mut body, "{{").expect("write to String");
+    writeln!(&mut body, "  \"environment\": \"private-devnet\",").expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"network\": {},",
+        json_string(&service.snapshot().chain_id)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"endpoint\": {},",
+        json_string(refusal.endpoint)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  \"code\": {},", json_string(refusal.code)).expect("write to String");
+    writeln!(&mut body, "  \"status\": {},", json_string(refusal.status)).expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"mutation\": {},",
+        json_string(refusal.mutation)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  \"verification\": {{").expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"verifier\": {},",
+        json_string(refusal.verifier)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"verifier_error\": {},",
+        json_string(refusal.verifier_error)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    \"verified\": false,").expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"pending_write_allowed\": {},",
+        refusal.pending_write_allowed
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"pending_state_unchanged\": {},",
+        refusal.pending_state_unchanged
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"chain_state_unchanged\": {}",
+        refusal.chain_state_unchanged
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  }},").expect("write to String");
+    writeln!(&mut body, "  \"audit_event_recorded\": true,").expect("write to String");
+    writeln!(&mut body, "  \"audit_event\": {{").expect("write to String");
+    writeln!(&mut body, "    \"event_id\": {},", json_string(&event_id)).expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"actor\": {},",
+        json_string(LOCAL_REFUSAL_AUDIT_ACTOR)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"action\": {},",
+        json_string(WALLET_SIGNED_SUBMIT_AUDIT_ACTION)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"resource_type\": {},",
+        json_string(WALLET_AUDIT_RESOURCE_TYPE)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"resource_id\": {},",
+        json_string(request.local_request_id)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    \"environment\": \"private-devnet\",").expect("write to String");
+    writeln!(&mut body, "    \"metadata\": {{").expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"endpoint\": {},",
+        json_string(SIGNED_SUBMIT_ENDPOINT)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "      \"outcome\": \"refused\",").expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"refusal_code\": {},",
+        json_string(refusal.code)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"explicit_flag\": {},",
+        json_string(ENABLE_LOCAL_WALLET_SIGNED_SUBMIT_FLAG)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"local_request_id\": {},",
+        json_string(request.local_request_id)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"metadata_policy\": \"request fields and verifier metadata only; no key material, raw signatures, or custody material\""
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    }}").expect("write to String");
+    writeln!(&mut body, "  }}").expect("write to String");
+    body.push('}');
+
+    ApiHttpResponse {
+        status_code: refusal.http_status,
+        reason,
+        body,
+    }
+}
+
+fn render_local_wallet_signed_submit_transfer_body(
+    service: &XriqApiService,
+    request: &LocalWalletSignedSubmitPreviewRequest<'_>,
+) -> Result<String, ApiHttpResponse> {
+    let Some(transaction) = request.envelope.transaction else {
+        return Err(local_api_error_response(
+            400,
+            "malformed_signed_envelope",
+            "missing signed-submit transaction",
+        ));
+    };
+    let version = transaction.version.ok_or_else(|| {
+        local_api_error_response(
+            400,
+            "malformed_signed_envelope",
+            "missing signed-submit transaction.version",
+        )
+    })?;
+    let chain_id = transaction.chain_id.ok_or_else(|| {
+        local_api_error_response(
+            400,
+            "malformed_signed_envelope",
+            "missing signed-submit transaction.chain_id",
+        )
+    })?;
+    let from = transaction.from.ok_or_else(|| {
+        local_api_error_response(
+            400,
+            "malformed_signed_envelope",
+            "missing signed-submit transaction.from",
+        )
+    })?;
+    let to = transaction.to.ok_or_else(|| {
+        local_api_error_response(
+            400,
+            "malformed_signed_envelope",
+            "missing signed-submit transaction.to",
+        )
+    })?;
+    let amount_base_units = transaction.amount_base_units.ok_or_else(|| {
+        local_api_error_response(
+            400,
+            "malformed_signed_envelope",
+            "missing signed-submit transaction.amount_base_units",
+        )
+    })?;
+    let fee_base_units = transaction.fee_base_units.ok_or_else(|| {
+        local_api_error_response(
+            400,
+            "malformed_signed_envelope",
+            "missing signed-submit transaction.fee_base_units",
+        )
+    })?;
+    let nonce = transaction.nonce.ok_or_else(|| {
+        local_api_error_response(
+            400,
+            "malformed_signed_envelope",
+            "missing signed-submit transaction.nonce",
+        )
+    })?;
+    let expires_at_height = transaction.expires_at_height.ok_or_else(|| {
+        local_api_error_response(
+            400,
+            "malformed_signed_envelope",
+            "missing signed-submit transaction.expires_at_height",
+        )
+    })?;
+
+    let mut body = String::new();
+    writeln!(&mut body, "{{").expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"format_version\": \"xriq-node-transfer-submit-v1\","
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  \"version\": {version},").expect("write to String");
+    writeln!(&mut body, "  \"chain_id\": {},", json_string(chain_id)).expect("write to String");
+    writeln!(&mut body, "  \"from\": {},", json_string(from)).expect("write to String");
+    writeln!(&mut body, "  \"to\": {},", json_string(to)).expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"amount_base_units\": {},",
+        json_string(amount_base_units)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"fee_base_units\": {},",
+        json_string(fee_base_units)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  \"nonce\": {nonce},").expect("write to String");
+    writeln!(&mut body, "  \"expires_at_height\": {expires_at_height}").expect("write to String");
+    body.push('}');
+
+    if chain_id != service.snapshot().chain_id {
+        return Err(local_api_error_response(
+            400,
+            "wrong_chain_id",
+            "signed-submit chain_id does not match local private-devnet chain",
+        ));
+    }
+
+    Ok(body)
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LocalWalletSignedSubmitRenderInput<'a> {
+    local_request_id: &'a str,
+    chain_file: &'a str,
+    pending_file: &'a str,
+    before_count: usize,
+    after_count: usize,
+}
+
+fn render_local_wallet_signed_submit_accepted_response(
+    service: &XriqApiService,
+    detail: &PrivateDevnetPendingTransactionDetail,
+    verified: &SignedSubmitVerificationOk,
+    input: LocalWalletSignedSubmitRenderInput<'_>,
+) -> ApiHttpResponse {
+    let tx = &detail.transaction;
+    let tx_hash = hash_hex(detail.tx_hash);
+    let expires_at_height = tx
+        .expires_at_height
+        .unwrap_or(service.snapshot().current_height + 1);
+    let mut body = String::new();
+    writeln!(&mut body, "{{").expect("write to String");
+    writeln!(&mut body, "  \"environment\": \"private-devnet\",").expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"network\": {},",
+        json_string(&service.snapshot().chain_id)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"endpoint\": {},",
+        json_string(SIGNED_SUBMIT_ENDPOINT)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"code\": {},",
+        json_string(LOCAL_WALLET_SIGNED_SUBMIT_ACCEPTED_CODE)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  \"status\": \"pending\",").expect("write to String");
+    writeln!(&mut body, "  \"mutation\": \"pending_state_only\",").expect("write to String");
+    writeln!(
+        &mut body,
+        "  \"warning\": {},",
+        json_string(LOCAL_SIGNED_SUBMIT_TEST_WARNING)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  \"transaction\": {{").expect("write to String");
+    writeln!(&mut body, "    \"tx_hash\": {},", json_string(&tx_hash)).expect("write to String");
+    writeln!(&mut body, "    \"status\": \"pending\",").expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"from_address\": {},",
+        json_string(tx.from.as_str())
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"to_address\": {},",
+        json_string(tx.to.as_str())
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"amount_base_units\": {},",
+        json_string(&tx.amount.base_units().to_string())
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"fee_base_units\": {},",
+        json_string(&tx.fee.base_units().to_string())
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    \"nonce\": {},", tx.nonce).expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"expires_at_height\": {},",
+        expires_at_height
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    \"block_height\": null,").expect("write to String");
+    writeln!(&mut body, "    \"transaction_index\": null").expect("write to String");
+    writeln!(&mut body, "  }},").expect("write to String");
+    writeln!(&mut body, "  \"verification\": {{").expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"signature_algorithm\": {},",
+        json_string(verified.signature_algorithm)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"transaction_signing_hash\": {},",
+        json_string(&verified.transaction_signing_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"transaction_hash\": {},",
+        json_string(&verified.transaction_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"verifier\": {},",
+        json_string(verified.verifier)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    \"verified\": {}", verified.verified).expect("write to String");
+    writeln!(&mut body, "  }},").expect("write to String");
+    writeln!(&mut body, "  \"pending_state\": {{").expect("write to String");
+    writeln!(&mut body, "    \"before_count\": {},", input.before_count).expect("write to String");
+    writeln!(&mut body, "    \"after_count\": {},", input.after_count).expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"added_tx_hash\": {},",
+        json_string(&tx_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"pending_file\": {}",
+        json_string(input.pending_file)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "  }},").expect("write to String");
+    writeln!(&mut body, "  \"chain_state\": {{").expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"current_height\": {},",
+        service.snapshot().current_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"latest_block_hash\": {},",
+        json_string(&service.snapshot().latest_block_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"chain_file\": {},",
+        json_string(input.chain_file)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    \"chain_unchanged\": true").expect("write to String");
+    writeln!(&mut body, "  }},").expect("write to String");
+    writeln!(&mut body, "  \"audit_event_recorded\": true,").expect("write to String");
+    writeln!(&mut body, "  \"audit_event\": {{").expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"event_id\": {},",
+        json_string(&format!(
+            "signed-submit-accepted:{}",
+            input.local_request_id
+        ))
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"actor\": {},",
+        json_string(LOCAL_REFUSAL_AUDIT_ACTOR)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"action\": {},",
+        json_string(WALLET_SIGNED_SUBMIT_AUDIT_ACTION)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "    \"resource_type\": {},",
+        json_string(WALLET_AUDIT_RESOURCE_TYPE)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    \"resource_id\": {},", json_string(&tx_hash))
+        .expect("write to String");
+    writeln!(&mut body, "    \"environment\": \"private-devnet\",").expect("write to String");
+    writeln!(&mut body, "    \"metadata\": {{").expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"endpoint\": {},",
+        json_string(SIGNED_SUBMIT_ENDPOINT)
+    )
+    .expect("write to String");
+    writeln!(&mut body, "      \"outcome\": \"accepted\",").expect("write to String");
+    writeln!(&mut body, "      \"status\": \"pending\",").expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"explicit_flag\": {},",
+        json_string(ENABLE_LOCAL_WALLET_SIGNED_SUBMIT_FLAG)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"local_request_id\": {},",
+        json_string(input.local_request_id)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"from_address\": {},",
+        json_string(tx.from.as_str())
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"to_address\": {},",
+        json_string(tx.to.as_str())
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"amount_base_units\": {},",
+        json_string(&tx.amount.base_units().to_string())
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"fee_base_units\": {},",
+        json_string(&tx.fee.base_units().to_string())
+    )
+    .expect("write to String");
+    writeln!(&mut body, "      \"nonce\": {},", tx.nonce).expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"expires_at_height\": {},",
+        expires_at_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"signature_algorithm\": {},",
+        json_string(verified.signature_algorithm)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"verifier\": {},",
+        json_string(verified.verifier)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"pending_before_count\": {},",
+        input.before_count
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"pending_after_count\": {},",
+        input.after_count
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"added_tx_hash\": {},",
+        json_string(&tx_hash)
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"chain_current_height\": {},",
+        service.snapshot().current_height
+    )
+    .expect("write to String");
+    writeln!(
+        &mut body,
+        "      \"metadata_policy\": \"request fields, hashes, verifier result, and local pending-state transition summary only; no key material or custody material\""
+    )
+    .expect("write to String");
+    writeln!(&mut body, "    }}").expect("write to String");
+    writeln!(&mut body, "  }}").expect("write to String");
+    body.push('}');
+
+    ApiHttpResponse {
+        status_code: 201,
+        reason: "Created",
+        body,
     }
 }
 
@@ -5758,14 +6454,15 @@ fn optional_u16_query(query: Option<&str>, key: &str) -> Result<Option<u16>, Str
 fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
-        "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET|POST] [--enable-local-wallet-submit true] [--enable-local-wallet-send true] [--enable-local-block-production true] --target <api-path>",
+        "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET|POST] [--enable-local-wallet-submit true] [--enable-local-wallet-send true] [--enable-local-wallet-submit-signed true] [--enable-local-block-production true] --target <api-path>",
         "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/node/status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/blocks/<height-or-hash>|/api/v1/transactions?limit=5|/api/v1/mempool?limit=5|/api/v1/wallet/status|/api/v1/wallet/transfers/draft-preview?...|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/iso20022/transactions/<tx_hash>/status|/api/v1/iso20022/payment-initiation/preview?tx_hash=<tx_hash>|/api/v1/iso20022/accounts/<address>/statement?from=...&to=...|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5|/api/v1/snapshots?limit=5|/api/v1/snapshots/<snapshot_name>",
-        "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--enable-local-wallet-submit true] [--enable-local-wallet-send true] [--enable-local-block-production true] [--postgres-docker-container <container> --postgres-database <database>]",
+        "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--enable-local-wallet-submit true] [--enable-local-wallet-send true] [--enable-local-wallet-submit-signed true] [--enable-local-block-production true] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
         "  xriq-api request --chain-file target/xriq-devnet.bin --alice-balance 100 --target /api/v1/health",
         "  xriq-api request --chain-file target/xriq-devnet.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --method POST --enable-local-wallet-submit true --target /api/v1/wallet/transfers/submit?local_request_id=local-1&draft_id=draft-1&from_address=xriqdev1alice00000000000&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=0&expires_at_height=100",
         "  xriq-api request --chain-file target/xriq-devnet.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --method POST --enable-local-wallet-send true --target /api/v1/wallet/transfers/send?local_request_id=local-1&from_address=xriqdev1alice00000000000&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=0&expires_at_height=100",
+        "  xriq-api request --chain-file target/xriq-devnet.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --method POST --enable-local-wallet-submit-signed true --target /api/v1/wallet/transfers/submit-signed?local_request_id=local-1&format_version=xriq-local-signed-transfer-envelope-v1&version=1&chain_id=xriq-devnet&from_address=xriqdev1alice00000000000&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=1&expires_at_height=100&transaction_signing_hash=<hash>&transaction_hash=<hash>&signature_algorithm=test-only&signature_encoding=test-only-prefix-plus-signing-hash",
         "  xriq-api request --chain-file target/xriq-devnet.bin --pending-file target/xriq-devnet-pending.tsv --alice-balance 100 --method POST --enable-local-block-production true --target /api/v1/blocks/produce?local_request_id=local-1&producer=xriqdev1author00000000000&max_transactions=4&timestamp_ms=2000",
         "  xriq-api request-postgres --target /api/v1/admin/postgres/read-model-status",
         "  xriq-api request-postgres --target /api/v1/admin/node/status",
@@ -5806,6 +6503,7 @@ struct RequestConfig<'a> {
     target: &'a str,
     enable_local_wallet_submit: bool,
     enable_local_wallet_send: bool,
+    enable_local_wallet_signed_submit: bool,
     enable_local_block_production: bool,
 }
 
@@ -5820,6 +6518,7 @@ impl<'a> RequestConfig<'a> {
             "--target",
             "--enable-local-wallet-submit",
             "--enable-local-wallet-send",
+            "--enable-local-wallet-submit-signed",
             "--enable-local-block-production",
         ])?;
         Ok(Self {
@@ -5839,6 +6538,11 @@ impl<'a> RequestConfig<'a> {
             enable_local_wallet_send: flags
                 .optional("--enable-local-wallet-send")
                 .map(|value| parse_bool_flag("--enable-local-wallet-send", value))
+                .transpose()?
+                .unwrap_or(false),
+            enable_local_wallet_signed_submit: flags
+                .optional("--enable-local-wallet-submit-signed")
+                .map(|value| parse_bool_flag("--enable-local-wallet-submit-signed", value))
                 .transpose()?
                 .unwrap_or(false),
             enable_local_block_production: flags
@@ -5952,6 +6656,7 @@ struct ServeConfig<'a> {
     postgres_read_model: Option<PostgresReadModelConfig<'a>>,
     enable_local_wallet_submit: bool,
     enable_local_wallet_send: bool,
+    enable_local_wallet_signed_submit: bool,
     enable_local_block_production: bool,
 }
 
@@ -5965,6 +6670,7 @@ impl<'a> ServeConfig<'a> {
             "--bind",
             "--enable-local-wallet-submit",
             "--enable-local-wallet-send",
+            "--enable-local-wallet-submit-signed",
             "--enable-local-block-production",
             "--postgres-docker-container",
             "--postgres-database",
@@ -6007,6 +6713,11 @@ impl<'a> ServeConfig<'a> {
             enable_local_wallet_send: flags
                 .optional("--enable-local-wallet-send")
                 .map(|value| parse_bool_flag("--enable-local-wallet-send", value))
+                .transpose()?
+                .unwrap_or(false),
+            enable_local_wallet_signed_submit: flags
+                .optional("--enable-local-wallet-submit-signed")
+                .map(|value| parse_bool_flag("--enable-local-wallet-submit-signed", value))
                 .transpose()?
                 .unwrap_or(false),
             enable_local_block_production: flags
@@ -6359,6 +7070,7 @@ mod tests {
         assert_eq!(config.target, "/api/v1/health");
         assert!(!config.enable_local_wallet_submit);
         assert!(!config.enable_local_wallet_send);
+        assert!(!config.enable_local_wallet_signed_submit);
         assert!(!config.enable_local_block_production);
 
         let error = RequestConfig::parse(&["--chain-file", "target/xriq.bin"]).unwrap_err();
@@ -6385,6 +7097,17 @@ mod tests {
         ])
         .unwrap();
         assert!(wallet_send_enabled.enable_local_wallet_send);
+
+        let wallet_signed_submit_enabled = RequestConfig::parse(&[
+            "--chain-file",
+            "target/xriq.bin",
+            "--target",
+            "/api/v1/wallet/transfers/submit-signed",
+            "--enable-local-wallet-submit-signed",
+            "true",
+        ])
+        .unwrap();
+        assert!(wallet_signed_submit_enabled.enable_local_wallet_signed_submit);
 
         let enabled = RequestConfig::parse(&[
             "--chain-file",
@@ -6585,6 +7308,179 @@ mod tests {
     }
 
     #[test]
+    fn local_wallet_signed_submit_request_appends_pending_with_explicit_local_flag() {
+        let (path, pending_path, service) =
+            confirmed_signed_submit_preview_service("signed-submit-accepted");
+        assert_eq!(service.snapshot().current_height, 1);
+        assert_eq!(service.mempool(usize::MAX).pending_count, 0);
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let target = wallet_signed_submit_preview_target("local-signed-submit-accepted");
+
+        let response = run([
+            "request",
+            "--chain-file",
+            &path_text,
+            "--pending-file",
+            &pending_text,
+            "--alice-balance",
+            "100",
+            "--method",
+            "POST",
+            "--target",
+            &target,
+            "--enable-local-wallet-submit-signed",
+            "true",
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=201"));
+        assert!(response.contains("\"code\": \"signed_submit_accepted_local_only\""));
+        assert!(response.contains("\"status\": \"pending\""));
+        assert!(response.contains("\"mutation\": \"pending_state_only\""));
+        assert!(response.contains("\"warning\": \"local-private-devnet-test-signature-only\""));
+        assert!(response.contains("\"signature_algorithm\": \"test-only\""));
+        assert!(response.contains("\"verifier\": \"TestOnlySignatureVerifier\""));
+        assert!(response.contains("\"verified\": true"));
+        assert!(response.contains(
+            "\"transaction_signing_hash\": \"3c0f7f54bca53ad4c49ff98ba9ba2930ac6147a3cb510ead3265c894fcf1850b\""
+        ));
+        assert!(response.contains(
+            "\"tx_hash\": \"628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7\""
+        ));
+        assert!(response.contains("\"before_count\": 0"));
+        assert!(response.contains("\"after_count\": 1"));
+        assert!(response.contains("\"chain_unchanged\": true"));
+        assert!(response
+            .contains("\"event_id\": \"signed-submit-accepted:local-signed-submit-accepted\""));
+        assert!(response.contains("\"action\": \"wallet_transfer_signed_submit_attempt\""));
+        assert!(response.contains("\"explicit_flag\": \"--enable-local-wallet-submit-signed\""));
+        assert!(response.contains("\"from_address\": \"xriqdev1alice00000000000\""));
+        assert!(response.contains("\"to_address\": \"xriqdev1carol00000000000\""));
+        assert!(!response.contains("private_key"));
+        assert!(!response.contains("seed_phrase"));
+        assert!(!response.contains("mnemonic"));
+
+        let pending_text = fs::read_to_string(&pending_path).unwrap();
+        assert!(pending_text.contains("xriq-pending-transaction-v1"));
+        assert!(pending_text
+            .contains("628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7"));
+        assert!(pending_text.contains("xriqdev1carol00000000000"));
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn local_wallet_signed_submit_request_refuses_invalid_or_forbidden_fields_without_pending_write(
+    ) {
+        let (path, pending_path, _service) =
+            confirmed_signed_submit_preview_service("signed-submit-accepted-invalid");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let base_pending_text = fs::read_to_string(&pending_path).unwrap();
+        let invalid_target = wallet_signed_submit_preview_target("local-signed-submit-invalid")
+            .replace(
+                "signature_algorithm=test-only",
+                "signature_algorithm=not-test-only",
+            );
+
+        let response = run([
+            "request",
+            "--chain-file",
+            &path_text,
+            "--pending-file",
+            &pending_text,
+            "--alice-balance",
+            "100",
+            "--method",
+            "POST",
+            "--target",
+            &invalid_target,
+            "--enable-local-wallet-submit-signed",
+            "true",
+        ])
+        .unwrap();
+
+        assert!(response.contains("status_code=400"));
+        assert!(response.contains("\"code\": \"unsupported_signature_algorithm\""));
+        assert!(response.contains("\"mutation\": \"none\""));
+        assert!(response.contains("\"pending_write_allowed\": false"));
+        assert_eq!(
+            fs::read_to_string(&pending_path).unwrap(),
+            base_pending_text
+        );
+
+        let forbidden_target = format!(
+            "{}&private_key=not-allowed",
+            wallet_signed_submit_preview_target("local-signed-submit-forbidden")
+        );
+        let forbidden_response = run([
+            "request",
+            "--chain-file",
+            &path_text,
+            "--pending-file",
+            &pending_text,
+            "--alice-balance",
+            "100",
+            "--method",
+            "POST",
+            "--target",
+            &forbidden_target,
+            "--enable-local-wallet-submit-signed",
+            "true",
+        ])
+        .unwrap();
+
+        assert!(forbidden_response.contains("status_code=400"));
+        assert!(forbidden_response.contains("\"code\": \"forbidden_signed_submit_field\""));
+        assert_eq!(
+            fs::read_to_string(&pending_path).unwrap(),
+            base_pending_text
+        );
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn local_wallet_signed_submit_runtime_refreshes_pending_mempool() {
+        let (path, pending_path, service) =
+            confirmed_signed_submit_preview_service("server-signed-submit");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let mut runtime = LocalApiRuntime {
+            service,
+            postgres_read_model: None,
+            chain_file: path_text.clone(),
+            pending_file: Some(pending_text.clone()),
+            alice_balance: Some(XriqAmount::from_base_units(100)),
+            enable_local_wallet_submit: false,
+            enable_local_wallet_send: false,
+            enable_local_wallet_signed_submit: true,
+            enable_local_block_production: false,
+        };
+        let target = wallet_signed_submit_preview_target("local-signed-submit-server-1");
+
+        let response = local_api_http_response(&mut runtime, "POST", &target);
+
+        assert_eq!(response.status_code, 201);
+        assert!(response
+            .body
+            .contains("\"code\": \"signed_submit_accepted_local_only\""));
+        let mempool = local_api_http_response(&mut runtime, "GET", "/api/v1/mempool?limit=5");
+        assert_eq!(mempool.status_code, 200);
+        assert!(mempool.body.contains("\"pending_count\": 1"));
+        assert!(mempool
+            .body
+            .contains("628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7"));
+        assert!(mempool.body.contains("xriqdev1carol00000000000"));
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
     fn local_wallet_submit_request_appends_pending_with_explicit_local_flag() {
         let path = temp_store_path("enabled-wallet-submit");
         let pending_path = path.with_extension("pending");
@@ -6654,6 +7550,7 @@ mod tests {
             alice_balance: Some(XriqAmount::from_base_units(100)),
             enable_local_wallet_submit: true,
             enable_local_wallet_send: false,
+            enable_local_wallet_signed_submit: false,
             enable_local_block_production: false,
         };
         let target = wallet_submit_target(
@@ -6811,6 +7708,7 @@ mod tests {
             alice_balance: Some(XriqAmount::from_base_units(100)),
             enable_local_wallet_submit: false,
             enable_local_wallet_send: true,
+            enable_local_wallet_signed_submit: false,
             enable_local_block_production: false,
         };
         let target = wallet_send_target("local-wallet-send-server-1", PRIVATE_DEVNET_TEST_SENDER);
@@ -8423,6 +9321,7 @@ transaction_0_fee_base_units=2
         assert_eq!(config.postgres_read_model, None);
         assert!(!config.enable_local_wallet_submit);
         assert!(!config.enable_local_wallet_send);
+        assert!(!config.enable_local_wallet_signed_submit);
         assert!(!config.enable_local_block_production);
 
         let wallet_enabled = ServeConfig::parse(&[
@@ -8442,6 +9341,15 @@ transaction_0_fee_base_units=2
         ])
         .unwrap();
         assert!(wallet_send_enabled.enable_local_wallet_send);
+
+        let wallet_signed_submit_enabled = ServeConfig::parse(&[
+            "--chain-file",
+            "target/xriq.bin",
+            "--enable-local-wallet-submit-signed",
+            "true",
+        ])
+        .unwrap();
+        assert!(wallet_signed_submit_enabled.enable_local_wallet_signed_submit);
 
         let enabled = ServeConfig::parse(&[
             "--chain-file",

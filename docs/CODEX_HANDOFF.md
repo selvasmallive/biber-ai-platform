@@ -52,11 +52,12 @@ live Vast SSH access exists unless the user provides a fresh instance.
     production infrastructure.
   - XRIQ Phase 1.4: local/private signed-transfer work only: signed-transfer
     fixtures, CLI-only test signed artifacts, default-disabled API
-    signed-submit refusal/audit behavior, and future verifier/smoke work behind
-    explicit local/private gates. Do not add accepted signed-submit mutation,
-    wallet submit UI mutation, custody, browser-held key material, public
-    network, DEX, bridge, smart-contract, production infrastructure, or tags
-    without explicit approval.
+    signed-submit refusal/audit behavior, Rust-side verifier preview, and the
+    approved accepted pending-file mutation behind
+    `--enable-local-wallet-submit-signed true`. Do not add wallet submit UI
+    mutation, custody, browser-held key material, public network, DEX, bridge,
+    smart-contract, production infrastructure, or tags without explicit
+    approval.
 - Delayed scope:
   - Public XRIQ remains part of the later project plan, but do not implement
     public token economics, DEX/liquidity, validator rewards, public governance,
@@ -320,29 +321,20 @@ unless the user changes the project scope again.
   The next narrow step is post-RC/next-phase work only. Do not move, delete,
   recreate, or repush the Phase 1.3 tag unless the user explicitly requests
   that exact tag maintenance operation.
-- Phase 1.4 active focus: local/private signed-transfer work only. The first
-  checkpoint is `docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md` plus
-  `scripts/xriq_phase1_4_plan_check.py`. This phase should move toward a local
-  CLI/test-only signed artifact and signed-submit verifier contract, but it
-  must keep browser key material, custody, public networks, DEX/bridge, smart
-  contracts, asset issuance, production infrastructure, and tags out of scope
-  until explicitly approved.
-  The first contract inventory is under `xriq/fixtures/phase1_4/` and is
-  checked by `scripts/xriq_phase1_4_contract_check.py`; it is still
-  non-mutating and not implemented in the API/UI.
-  The first CLI-only artifact command is `xriq-wallet signed-transfer ...`;
-  it is checked by `scripts/xriq_phase1_4_signed_artifact_check.py` and remains
-  local/private test metadata only.
-  The first API signed-submit route checkpoint is refusal/audit only:
-  `POST /api/v1/wallet/transfers/submit-signed` returns
-  `403 signed_submit_disabled` by default, advertises
-  `--enable-local-wallet-submit-signed` as a future local/private gate, adds the
-  `wallet-transfer-signed-submit:local_request_id` local refusal audit event,
-  and leaves pending state and chain state unchanged. No accepted
-  signed-submit verifier, wallet submit UI mutation, custody, browser-held key
-  material, public network, DEX, bridge, smart-contract, production
-  infrastructure, or tag operation has been added. The standalone negative
-  smoke is `scripts/xriq_phase1_4_signed_submit_refusal_smoke.py`.
+- Phase 1.4 estimated completion: about `85%` for the local/private
+  signed-transfer prototype work after the approved accepted signed-submit API
+  mutation checkpoint. This percentage is for XRIQ private-devnet
+  non-production work only, not BIBER MVP or public/production XRIQ.
+  Completed Phase 1.4 surfaces now include the signing plan, fixture inventory,
+  CLI-only `xriq-wallet signed-transfer ...` test artifact, default-disabled
+  signed-submit refusal/audit route, Rust-side verifier preview, non-mutating
+  signed-submit request/parser adapter, and accepted local/private pending-file
+  mutation behind `--enable-local-wallet-submit-signed true`.
+  Remaining Phase 1.4 work is mainly local signed-send lifecycle smoke and any
+  later explicitly approved UI design/control work that still avoids browser
+  key material. Keep custody, public networks, DEX/bridge, smart contracts,
+  asset issuance, production infrastructure, and tags out of scope until
+  explicitly approved.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -1111,6 +1103,34 @@ an active target because the GPU was terminated to save cost.
   add the accepted local/private signed-submit mutation behind
   `--enable-local-wallet-submit-signed`, then cover it with disabled/default,
   invalid-input, pending append, and block confirmation smoke.
+- Latest native XRIQ Phase 1.4 accepted signed-submit mutation checkpoint:
+  after the user explicitly approved the exact required phrase, `xriq-api`
+  now supports `--enable-local-wallet-submit-signed true` in both one-shot
+  `request` and `serve-readonly` modes for
+  `POST /api/v1/wallet/transfers/submit-signed`. The default route still
+  returns `403 signed_submit_disabled` without that flag. With the flag, the
+  API parses the signed-submit envelope, rejects forbidden key/custody/public/
+  DEX fields, verifies the test-only signed envelope before mutation, appends
+  exactly one verified transaction to the local pending file through the
+  existing node validation helper, compares the written transaction hash with
+  the verified envelope hash, returns `201 signed_submit_accepted_local_only`,
+  records accepted audit metadata, leaves chain state unchanged, and refreshes
+  server-mode mempool state after success. Invalid or forbidden accepted-route
+  inputs remain non-mutating. This checkpoint does not add wallet submit UI
+  mutation, custody, browser-held key material, raw signatures in logs, public
+  network, DEX, bridge, smart-contract, production infrastructure, or tags.
+  Verification passed `cargo fmt --check` and
+  `cargo test -p xriq-api -j 1 --target-dir target-codex-phase14-signed-accepted`
+  with 18 library tests and 75 binary tests passing, plus bundled-Python
+  `scripts/xriq_phase1_4_contract_check.py`
+  (`xriq/target/xriq-phase1-4-contract-check-20260608T231501Z/summary.json`)
+  and `scripts/xriq_phase1_4_plan_check.py`
+  (`xriq/target/xriq-phase1-4-plan-check-20260608T231646Z/summary.json`),
+  plus `scripts/xriq_phase1_4_signed_submit_negative_smoke.py`
+  (`xriq/target/xriq-phase1-4-signed-submit-negative-smoke-20260608T231551Z/summary.json`)
+  and `scripts/xriq_phase1_4_signed_submit_refusal_smoke.py`
+  (`xriq/target/xriq-phase1-4-signed-submit-refusal-smoke-20260608T231601Z/summary.json`).
+  Phase 1.4/XRIQ private-devnet non-production status is now about `85%`.
 - Latest XRIQ production handoff checkpoint for later GitHub Copilot work:
   added `.github/copilot-instructions.md` and
   `docs/XRIQ_PRODUCTION_ROADMAP.md`. These files make the post-private-devnet
@@ -1404,12 +1424,14 @@ an active target because the GPU was terminated to save cost.
   `python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py` after any API
   signed-submit refusal edit, and
   `python scripts/xriq_phase1_4_signed_submit_negative_smoke.py` after any
-  negative-case matrix edit. The next implementation checkpoint should be a
-  Rust-side pure parse/verify scaffold for these negative cases that is not
-  wired to an accepted endpoint and never writes pending state. Do not add
-  accepted signed-submit mutation, UI mutation, custody, browser key material,
-  public network, DEX, bridge, smart-contract, asset issuance, production
-  infrastructure, or tags without explicit approval.
+  negative-case matrix edit. The next implementation checkpoint after the
+  accepted signed-submit API mutation should be a local signed-send lifecycle
+  smoke that creates/uses the signed artifact, submits it through the
+  explicit-flag accepted API path, produces one local block, and verifies
+  wallet/mempool/explorer/Admin/audit state. Do not add wallet submit UI
+  mutation, custody, browser key material, public network, DEX, bridge,
+  smart-contract, asset issuance, production infrastructure, or tags without
+  explicit approval.
   The user can still run the Phase 1.3 manual browser demo with
   `python scripts/xriq_phase1_3_demo_launcher.py --skip-build --launch --auto-port`
   and follow `docs/XRIQ_PHASE1_3_DEMO_RUNBOOK.md`. Do not move, delete,

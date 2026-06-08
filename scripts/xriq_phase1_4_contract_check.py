@@ -480,11 +480,16 @@ def verify_fixtures(fixtures: dict[str, dict[str, Any]]) -> dict[str, Any]:
         raise ContractCheckError("negative_cases: missing invalid_test_signature parity case")
 
     require_equal(accepted, "contract", "phase1-4-signed-submit-accepted-v1", "accepted_contract")
-    require_equal(accepted, "implementation_status", "not-implemented", "accepted_contract")
+    require_equal(
+        accepted,
+        "implementation_status",
+        "implemented-local-only",
+        "accepted_contract",
+    )
     require_equal(
         accepted,
         "mutation",
-        "none-until-explicit-local-enable-and-valid-test-signature",
+        "pending-state-only-after-explicit-local-enable-and-valid-test-signature",
         "accepted_contract",
     )
     require_path(
@@ -562,8 +567,8 @@ def main(argv: list[str] | None = None) -> int:
             "fixture_dir": str(FIXTURE_DIR.relative_to(ROOT)),
             **verify_fixtures(fixtures),
             "scope_boundaries": [
-                "local/private signed-transfer contract inventory only",
-                "no accepted signed-submit mutation",
+                "local/private signed-transfer contract and accepted API mutation only",
+                "accepted signed-submit mutation is explicit-flag local/private only",
                 "no wallet submit UI mutation",
                 "no browser key generation or storage",
                 "no custody or hosted signing",

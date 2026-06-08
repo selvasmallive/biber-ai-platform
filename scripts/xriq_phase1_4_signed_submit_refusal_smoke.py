@@ -354,7 +354,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "completed": completed,
         "scope_boundaries": [
             "local/private signed-submit refusal smoke only",
-            "no accepted signed-submit mutation",
+            "no accepted signed-submit mutation in this refusal smoke",
             "no wallet submit UI mutation",
             "no browser key generation or storage",
             "no custody or hosted signing",

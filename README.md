@@ -293,9 +293,11 @@ Generate/check the negative scenario artifacts with
 `python scripts/xriq_phase1_4_signed_submit_negative_smoke.py`.
 The Phase 1.4 CLI-only local signed artifact can be checked with
 `python scripts/xriq_phase1_4_signed_artifact_check.py`.
-The Phase 1.4 API signed-submit route is refusal-only by default; check
+The Phase 1.4 API signed-submit route is refusal-only by default and can append
+a verified local/private pending transaction only with
+`--enable-local-wallet-submit-signed true`; check
 `POST /api/v1/wallet/transfers/submit-signed` with
-`cargo test --target-dir target-codex-phase14-api -p xriq-api -j 1`.
+`cargo test --target-dir target-codex-phase14-signed-accepted -p xriq-api -j 1`.
 The Phase 1.4 Rust-side signed-submit parse/verify preview helper is
 `verify_signed_submit_envelope_preview`; check it with
 `cargo test --target-dir target-codex-phase14-verify -p xriq-api -j 1`.
