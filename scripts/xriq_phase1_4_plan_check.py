@@ -15,6 +15,11 @@ TARGET_DIR = ROOT / "xriq" / "target"
 PLAN_DOC = ROOT / "docs" / "XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md"
 PHASE1_3_TAG = "phase1-3-xriq-local-private-behavior-rc1"
 PHASE1_3_TAG_COMMIT = "345d353"
+PHASE1_4_PROPOSED_TAG = "phase1-4-xriq-local-signed-submit-rc1"
+PHASE1_4_APPROVAL_PHRASE = (
+    "I explicitly approve creating and pushing the Phase 1.4 RC tag "
+    "phase1-4-xriq-local-signed-submit-rc1."
+)
 
 REQUIRED_PLAN_MARKERS = [
     "# XRIQ Phase 1.4 Local Signing Plan",
@@ -46,6 +51,11 @@ REQUIRED_PLAN_MARKERS = [
     "signed_submit_accepted_local_only",
     "Current signed-submit lifecycle smoke checkpoint",
     "scripts/xriq_phase1_4_signed_submit_lifecycle_smoke.py",
+    "Current RC candidate report checkpoint:",
+    "docs/XRIQ_PHASE1_4_RC_CANDIDATE_REPORT.md",
+    "scripts/xriq_phase1_4_rc_readiness.py",
+    PHASE1_4_PROPOSED_TAG,
+    PHASE1_4_APPROVAL_PHRASE,
     "I explicitly approve implementing the Phase 1.4 local/private signed-submit accepted mutation behind --enable-local-wallet-submit-signed.",
     "wallet-transfer-signed-submit:local_request_id",
     "scripts/xriq_phase1_4_signed_submit_refusal_smoke.py",
@@ -82,14 +92,20 @@ REQUIRED_DOC_REFERENCES = {
     "README.md": [
         "docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md",
         "scripts/xriq_phase1_4_plan_check.py",
+        "docs/XRIQ_PHASE1_4_RC_CANDIDATE_REPORT.md",
+        "scripts/xriq_phase1_4_rc_readiness.py",
     ],
     "xriq/README.md": [
         "../docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md",
         "scripts/xriq_phase1_4_plan_check.py",
+        "../docs/XRIQ_PHASE1_4_RC_CANDIDATE_REPORT.md",
+        "scripts/xriq_phase1_4_rc_readiness.py",
     ],
     "docs/CODEX_HANDOFF.md": [
         "docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md",
         "scripts/xriq_phase1_4_plan_check.py",
+        "docs/XRIQ_PHASE1_4_RC_CANDIDATE_REPORT.md",
+        "scripts/xriq_phase1_4_rc_readiness.py",
         "Phase 1.4",
         "local/private signed-transfer",
     ],

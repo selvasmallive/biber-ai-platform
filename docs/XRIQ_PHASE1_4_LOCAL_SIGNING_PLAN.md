@@ -336,6 +336,23 @@ Validate this checkpoint with:
 python scripts/xriq_phase1_4_signed_submit_lifecycle_smoke.py
 ```
 
+Current RC candidate report checkpoint:
+
+- `docs/XRIQ_PHASE1_4_RC_CANDIDATE_REPORT.md` is the Phase 1.4 docs-only
+  candidate report for the proposed RC tag
+  `phase1-4-xriq-local-signed-submit-rc1`.
+- `scripts/xriq_phase1_4_rc_readiness.py` is the cheap pre-tag readiness guard.
+- No Phase 1.4 RC tag has been created by the report or readiness guard.
+- Do not create, move, delete, recreate, or push the proposed tag from a
+  generic continue request.
+
+Before creating or pushing the proposed Phase 1.4 RC tag, the user must approve
+this exact phrase:
+
+```text
+I explicitly approve creating and pushing the Phase 1.4 RC tag phase1-4-xriq-local-signed-submit-rc1.
+```
+
 ## UI Rules
 
 The browser UI must not:

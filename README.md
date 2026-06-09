@@ -310,6 +310,12 @@ The Phase 1.4 signed-submit lifecycle smoke is
 CLI-only signed artifact can move through accepted signed submit, pending
 status, local block production, confirmed wallet/explorer/mempool/Admin
 read-back, and non-mutating disabled/invalid refusal checks.
+The Phase 1.4 RC candidate report is in
+`docs/XRIQ_PHASE1_4_RC_CANDIDATE_REPORT.md`; validate its pre-tag guardrails
+with `python scripts/xriq_phase1_4_rc_readiness.py`. The proposed tag is
+`phase1-4-xriq-local-signed-submit-rc1`, but no tag may be created or pushed
+from a generic continue request. Exact approval required before tagging:
+`I explicitly approve creating and pushing the Phase 1.4 RC tag phase1-4-xriq-local-signed-submit-rc1.`
 The post-private-devnet production path for GitHub Copilot agents is in
 `docs/XRIQ_PRODUCTION_ROADMAP.md`, with repository-wide Copilot instructions in
 `.github/copilot-instructions.md`.
