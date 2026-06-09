@@ -12,7 +12,9 @@ adapter, and readiness guardrails are tagged as
 complete and tagged as `phase1-2-xriq-local-private-hardening-rc1` at commit
 `b3a2fe4`. Phase 1.3 local/private behavioral wallet testing is complete and
 tagged as `phase1-3-xriq-local-private-behavior-rc1` at commit `345d353`.
-Current next scope is post-Phase 1.4 local/private work only. Phase 1.4
+Current next scope is post-private-devnet decision work only. The consolidated
+private-devnet wrap-up is `docs/XRIQ_PRIVATE_DEVNET_WRAPUP.md`, with cheap
+verification in `scripts/xriq_private_devnet_wrapup_check.py`. Phase 1.4
 local/private signed-transfer RC1 is complete and tagged as
 `phase1-4-xriq-local-signed-submit-rc1` at commit `45be474`.
 Use `docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md` as the scope boundary for any
@@ -32,11 +34,10 @@ up locally, so future sessions must not assume `/workspace`, vLLM, FastAPI, or
 live Vast SSH access exists unless the user provides a fresh instance.
 
 - Current focus:
-  - Active focus as of 2026-06-09: Phase 1.4 local/private signed-transfer
-    RC1 is complete and tagged. Continue only post-RC local/private maintenance
-    or the next explicitly selected phase. Use
-    `docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md` as the scope boundary for any
-    Phase 1.4 follow-up.
+  - Active focus as of 2026-06-09: XRIQ private-devnet prototype wrap-up is
+    complete for the Codex/local non-production scope. Continue only a
+    selected next scope: production hardening through GitHub Copilot, a narrow
+    local/private Phase 1.5 gap, BIBER MVP/model work, or manual demo support.
   - Phase 2, after Phase 1: BIBER MVP/local model API, model registry, repo
     context, file-edit/test workflows, GitHub save/PR path, optional OpenAI
     mentor review, repo-adaptation eval/training loop, and Replit-replacement
@@ -350,6 +351,10 @@ unless the user changes the project scope again.
   Remaining work is post-RC/next-phase selection only. Keep custody, public
   networks, DEX/bridge, smart contracts, asset issuance, production
   infrastructure, and tag maintenance out of scope until explicitly approved.
+- XRIQ private-devnet wrap-up completion: `100%` for the Codex/local
+  non-production private-devnet baseline through Phase 1.4. The consolidated
+  wrap-up is `docs/XRIQ_PRIVATE_DEVNET_WRAPUP.md`; the cheap guard is
+  `scripts/xriq_private_devnet_wrapup_check.py`.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -1194,6 +1199,17 @@ an active target because the GPU was terminated to save cost.
   Do not move, delete, recreate, or repush the tag without an exact
   tag-maintenance request. Phase 1.4/XRIQ private-devnet non-production status
   is now `100%` for this local/private signed-transfer RC1 scope.
+- Latest native XRIQ private-devnet wrap-up checkpoint: added
+  `docs/XRIQ_PRIVATE_DEVNET_WRAPUP.md` and
+  `scripts/xriq_private_devnet_wrapup_check.py` to consolidate Phase 1 through
+  Phase 1.4 into a completed 100% non-production private-devnet handoff. The
+  guard validates the five Phase 1 tags, docs references, source-control
+  status, and scope boundaries without running heavy Rust tests, touching cloud
+  resources, or creating tags. This checkpoint also links the wrap-up from
+  `README.md`, `xriq/README.md`, `.github/copilot-instructions.md`, and
+  `docs/XRIQ_PRODUCTION_ROADMAP.md`. Next scope should be a human decision:
+  GitHub Copilot production hardening, a narrow local/private Phase 1.5 gap,
+  BIBER MVP/model work, or manual demo support.
 - Latest XRIQ production handoff checkpoint for later GitHub Copilot work:
   added `.github/copilot-instructions.md` and
   `docs/XRIQ_PRODUCTION_ROADMAP.md`. These files make the post-private-devnet

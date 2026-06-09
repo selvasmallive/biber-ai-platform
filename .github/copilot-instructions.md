@@ -7,6 +7,8 @@ overrides them in an issue or pull request.
 ## Current Strategy
 
 - Treat **XRIQ private-devnet prototype** as the current completed-by-Codex base.
+- Treat `docs/XRIQ_PRIVATE_DEVNET_WRAPUP.md` as the completed private-devnet
+  baseline handoff.
 - Treat **production XRIQ work** as Phase 2 through Phase 6 in
   `docs/XRIQ_PRODUCTION_ROADMAP.md`.
 - Use this same GitHub repository as the source of truth for production work.
@@ -18,6 +20,7 @@ overrides them in an issue or pull request.
 Read the relevant parts of these files before implementing changes:
 
 - `docs/CODEX_HANDOFF.md`
+- `docs/XRIQ_PRIVATE_DEVNET_WRAPUP.md`
 - `docs/XRIQ_PRODUCTION_ROADMAP.md`
 - `docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md`
 - `docs/XRIQ_LEGAL_RISK_REDUCTION.md`

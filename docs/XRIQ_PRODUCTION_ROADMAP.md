@@ -3,6 +3,8 @@
 Status: planning guide for GitHub Copilot agents and future production work.
 The current Codex focus remains the XRIQ private-devnet prototype. This roadmap
 defines the later path from that prototype to a production public ecosystem.
+The private-devnet prototype wrap-up is recorded in
+`docs/XRIQ_PRIVATE_DEVNET_WRAPUP.md`.
 
 This document is not legal, financial, tax, securities, banking, or compliance
 advice. Before public launch, exchange integrations, token issuance, privacy

@@ -116,6 +116,10 @@ its readiness/status guardrails with
 `python scripts/xriq_phase1_4_rc_readiness.py`. The approved RC tag is
 `phase1-4-xriq-local-signed-submit-rc1` at commit `45be474`; do not move,
 delete, recreate, or repush it without an exact tag-maintenance request.
+The consolidated XRIQ private-devnet wrap-up is
+`../docs/XRIQ_PRIVATE_DEVNET_WRAPUP.md`; from the repo root, validate the 100%
+non-production private-devnet handoff with
+`python scripts/xriq_private_devnet_wrapup_check.py`.
 The later production roadmap for GitHub Copilot agents is
 `../docs/XRIQ_PRODUCTION_ROADMAP.md`; repo-wide Copilot instructions are in
 `../.github/copilot-instructions.md`.
