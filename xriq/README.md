@@ -105,6 +105,11 @@ from this directory by
 `cargo test --target-dir target-codex-phase14-adapter -p xriq-api -j 1`.
 The standalone Phase 1.4 signed-submit refusal smoke can be run from the repo
 root with `python scripts/xriq_phase1_4_signed_submit_refusal_smoke.py`.
+The Phase 1.4 signed-submit lifecycle smoke can be run from the repo root with
+`python scripts/xriq_phase1_4_signed_submit_lifecycle_smoke.py`; it proves the
+CLI-only signed artifact can move through accepted signed submit, pending
+status, local block production, confirmed wallet/explorer/mempool/Admin
+read-back, and non-mutating disabled/invalid refusal checks.
 The later production roadmap for GitHub Copilot agents is
 `../docs/XRIQ_PRODUCTION_ROADMAP.md`; repo-wide Copilot instructions are in
 `../.github/copilot-instructions.md`.

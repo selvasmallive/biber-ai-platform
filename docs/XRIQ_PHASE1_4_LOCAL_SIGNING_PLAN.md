@@ -5,7 +5,8 @@ implementation includes signed-transfer fixtures, a CLI-only test signed
 artifact, a default-disabled API signed-submit refusal/audit path, and a
 Rust-side parse/verify preview helper, plus an accepted local/private
 signed-submit pending-file mutation behind
-`--enable-local-wallet-submit-signed`.
+`--enable-local-wallet-submit-signed`, and a CPU-only signed-submit lifecycle
+smoke.
 No wallet submit UI, custody, public network, DEX, bridge, smart-contract,
 production infrastructure, or key-management implementation is approved by
 this document.
@@ -311,6 +312,29 @@ Any future change to this mutation must:
 - keep disabled/default and invalid-input paths non-mutating,
 - avoid browser-held keys, custody, raw signatures in logs, public network,
   DEX, bridge, smart-contract, production infrastructure, and tag behavior.
+
+Current signed-submit lifecycle smoke checkpoint:
+
+- `scripts/xriq_phase1_4_signed_submit_lifecycle_smoke.py` is a CPU-only
+  request-mode smoke.
+- It uses an isolated Cargo target directory by default to avoid locked Windows
+  binaries.
+- It creates a height-1 private-devnet base chain, generates a CLI-only
+  `xriq-wallet signed-transfer` artifact, verifies default signed-submit
+  refusal, verifies invalid signed-submit refusal, submits the valid artifact
+  with `--enable-local-wallet-submit-signed true`, confirms pending status,
+  produces one block with `--enable-local-block-production true`, and verifies
+  confirmed status, empty mempool, network/explorer state, wallet balances,
+  wallet history, and Admin audit catalog visibility.
+- This smoke does not add wallet submit UI mutation, custody, browser-held keys,
+  public network behavior, DEX, bridges, smart contracts, production
+  infrastructure, or tag operations.
+
+Validate this checkpoint with:
+
+```bash
+python scripts/xriq_phase1_4_signed_submit_lifecycle_smoke.py
+```
 
 ## UI Rules
 
