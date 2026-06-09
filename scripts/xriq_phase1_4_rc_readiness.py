@@ -16,6 +16,7 @@ TARGET_DIR = ROOT / "xriq" / "target"
 CANDIDATE_DOC = ROOT / "docs" / "XRIQ_PHASE1_4_RC_CANDIDATE_REPORT.md"
 PROPOSED_TAG = "phase1-4-xriq-local-signed-submit-rc1"
 PRE_REPORT_COMMIT = "50b8281"
+RC_TAG_COMMIT = "45be474"
 APPROVAL_PHRASE = (
     "I explicitly approve creating and pushing the Phase 1.4 RC tag "
     "phase1-4-xriq-local-signed-submit-rc1."
@@ -54,15 +55,19 @@ EXPECTED_NEGATIVE_CASES = [
 
 REQUIRED_CANDIDATE_MARKERS = [
     "# XRIQ Phase 1.4 RC Candidate Report",
-    "Status: candidate report only. No Phase 1.4 RC tag has been created by this",
+    "Status: candidate report with completed RC tag action.",
+    "Approved RC tag:",
+    "Post-report tag status: after exact explicit user approval on 2026-06-09",
+    "tag `phase1-4-xriq-local-signed-submit-rc1` was created and pushed at commit",
+    "`45be474`",
     PROPOSED_TAG,
+    "Historical approval phrase used:",
     f"Pre-report implementation checkpoint reviewed for this candidate: `{PRE_REPORT_COMMIT}`.",
     APPROVAL_PHRASE,
-    "Do not tag from a generic continue request.",
     "## Candidate Scope",
     "## Latest Validation Evidence",
     "## RC Go/No-Go Checklist",
-    "## Pre-Tag Readiness Guard",
+    "## Readiness Guard",
     "## Non-Production Boundaries",
     "## Candidate Decision",
     "xriq-phase1-4-signed-submit-lifecycle-smoke",
@@ -76,6 +81,7 @@ REQUIRED_CANDIDATE_MARKERS = [
     "No wallet submit UI mutation is included.",
     "No browser key generation",
     "no-generic-approval rule",
+    "Do not move, delete, recreate, or repush",
 ]
 
 REQUIRED_DOC_REFERENCES = {
@@ -83,20 +89,23 @@ REQUIRED_DOC_REFERENCES = {
         "docs/XRIQ_PHASE1_4_RC_CANDIDATE_REPORT.md",
         "scripts/xriq_phase1_4_rc_readiness.py",
         PROPOSED_TAG,
-        APPROVAL_PHRASE,
+        "do not",
+        "move, delete, recreate, or repush",
     ],
     "xriq/README.md": [
         "../docs/XRIQ_PHASE1_4_RC_CANDIDATE_REPORT.md",
         "scripts/xriq_phase1_4_rc_readiness.py",
         PROPOSED_TAG,
-        APPROVAL_PHRASE,
+        "do not move",
+        "delete, recreate, or repush",
     ],
     "docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md": [
         "Current RC candidate report checkpoint:",
         "docs/XRIQ_PHASE1_4_RC_CANDIDATE_REPORT.md",
         "scripts/xriq_phase1_4_rc_readiness.py",
         PROPOSED_TAG,
-        APPROVAL_PHRASE,
+        "commit `45be474`",
+        "Do not move, delete, recreate, or repush",
     ],
     "docs/CODEX_HANDOFF.md": [
         "Latest native XRIQ Phase 1.4 RC candidate report checkpoint:",
@@ -136,6 +145,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--require-tag-absent",
         action="store_true",
         help=f"Fail if local tag {PROPOSED_TAG} already exists.",
+    )
+    parser.add_argument(
+        "--require-tag-present",
+        action="store_true",
+        help=f"Fail unless local tag {PROPOSED_TAG} exists at the reviewed commit.",
     )
     parser.add_argument(
         "--write-summary",
@@ -269,7 +283,7 @@ def verify_candidate_report(selected_paths: dict[str, Path]) -> dict[str, Any]:
         "proposed_tag": PROPOSED_TAG,
         "approval_phrase": APPROVAL_PHRASE,
         "generic_continue_is_approval": False,
-        "tag_action_taken": False,
+        "tag_action_taken": True,
     }
 
 
@@ -461,6 +475,14 @@ def verify_git(args: argparse.Namespace) -> dict[str, Any]:
         if local_tag:
             raise RcReadinessError(f"local tag already exists: {PROPOSED_TAG}")
         status["local_tag_absent"] = True
+    if args.require_tag_present:
+        tag_commit = run_git(["rev-list", "-n", "1", PROPOSED_TAG]).stdout.strip()
+        if not tag_commit.startswith(RC_TAG_COMMIT):
+            raise RcReadinessError(
+                f"{PROPOSED_TAG} points to {tag_commit}, expected prefix {RC_TAG_COMMIT}"
+            )
+        status["local_tag_present"] = True
+        status["tag_commit"] = tag_commit
     return status
 
 
@@ -509,11 +531,12 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
         "completed_at": datetime.now(UTC).isoformat(),
         "proposed_tag": PROPOSED_TAG,
         "approval_phrase_required": APPROVAL_PHRASE,
-        "ready_for_phase1_4_rc_decision": True,
+        "phase1_4_rc_tag_complete": True,
+        "ready_for_phase1_4_rc_decision": False,
         "ready_to_create_tag_now": False,
         "generic_continue_is_approval": False,
-        "tag_action_taken": False,
-        "completion_estimate_after_this_checkpoint": "about 95%",
+        "tag_action_taken": True,
+        "completion_estimate_after_this_checkpoint": "100% for Phase 1.4 RC1 scope",
         "candidate_report": verify_candidate_report(selected_paths),
         "evidence": {
             "lifecycle": verify_lifecycle_summary(selected_paths["lifecycle summary"]),

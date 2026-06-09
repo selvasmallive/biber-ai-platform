@@ -12,15 +12,16 @@ adapter, and readiness guardrails are tagged as
 complete and tagged as `phase1-2-xriq-local-private-hardening-rc1` at commit
 `b3a2fe4`. Phase 1.3 local/private behavioral wallet testing is complete and
 tagged as `phase1-3-xriq-local-private-behavior-rc1` at commit `345d353`.
-Current next scope is Phase 1.4 local/private signed-transfer work only, using
-`docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md` as the scope boundary.
+Current next scope is post-Phase 1.4 local/private work only. Phase 1.4
+local/private signed-transfer RC1 is complete and tagged as
+`phase1-4-xriq-local-signed-submit-rc1` at commit `45be474`.
+Use `docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md` as the scope boundary for any
+post-RC maintenance.
 The Phase 1.4 RC candidate report is now
-`docs/XRIQ_PHASE1_4_RC_CANDIDATE_REPORT.md`, and the cheap pre-tag readiness
-guard is `scripts/xriq_phase1_4_rc_readiness.py`. The proposed tag is
-`phase1-4-xriq-local-signed-submit-rc1`, but no Phase 1.4 tag may be created
-or pushed from a generic continue request. Exact approval required before
-tagging:
-`I explicitly approve creating and pushing the Phase 1.4 RC tag phase1-4-xriq-local-signed-submit-rc1.`
+`docs/XRIQ_PHASE1_4_RC_CANDIDATE_REPORT.md`, and the cheap readiness/status
+guard is `scripts/xriq_phase1_4_rc_readiness.py`. Do not move, delete,
+recreate, or repush the Phase 1.4 RC tag unless the user explicitly asks for
+that exact tag maintenance operation.
 Phase 1.1 local/private end-to-end RC1 is also now tagged and pushed as
 `phase1-1-xriq-local-e2e-rc1` at commit `6a38a51a`.
 Do not include BIBER MVP, model training, repo-adaptation, runtime-profile, or
@@ -31,9 +32,11 @@ up locally, so future sessions must not assume `/workspace`, vLLM, FastAPI, or
 live Vast SSH access exists unless the user provides a fresh instance.
 
 - Current focus:
-  - Active focus as of 2026-06-08: continue XRIQ Phase 1.4 local/private
-    signed-transfer work after the completed Phase 1.3 RC1 tag. Use
-    `docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md` as the scope boundary.
+  - Active focus as of 2026-06-09: Phase 1.4 local/private signed-transfer
+    RC1 is complete and tagged. Continue only post-RC local/private maintenance
+    or the next explicitly selected phase. Use
+    `docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md` as the scope boundary for any
+    Phase 1.4 follow-up.
   - Phase 2, after Phase 1: BIBER MVP/local model API, model registry, repo
     context, file-edit/test workflows, GitHub save/PR path, optional OpenAI
     mentor review, repo-adaptation eval/training loop, and Replit-replacement
@@ -57,15 +60,16 @@ live Vast SSH access exists unless the user provides a fresh instance.
     disabled/default and invalid-input negative paths without enabling wallet
     submit UI, custody, DEX, smart contracts, public network behavior, or
     production infrastructure.
-  - XRIQ Phase 1.4: local/private signed-transfer work only: signed-transfer
+  - XRIQ Phase 1.4: complete local/private signed-transfer work:
     fixtures, CLI-only test signed artifacts, default-disabled API
     signed-submit refusal/audit behavior, Rust-side verifier preview, and the
     approved accepted pending-file mutation behind
     `--enable-local-wallet-submit-signed true`, plus the Phase 1.4 RC
-    candidate report and pre-tag readiness guard. Do not add wallet submit UI
+    candidate report, readiness/status guard, and approved/pushed RC tag
+    `phase1-4-xriq-local-signed-submit-rc1`. Do not add wallet submit UI
     mutation, custody, browser-held key material, public network, DEX, bridge,
-    smart-contract, production infrastructure, or tags without explicit
-    approval.
+    smart-contract, production infrastructure, or tag maintenance without
+    explicit approval.
 - Delayed scope:
   - Public XRIQ remains part of the later project plan, but do not implement
     public token economics, DEX/liquidity, validator rewards, public governance,
@@ -329,10 +333,11 @@ unless the user changes the project scope again.
   The next narrow step is post-RC/next-phase work only. Do not move, delete,
   recreate, or repush the Phase 1.3 tag unless the user explicitly requests
   that exact tag maintenance operation.
-- Phase 1.4 estimated completion: about `95%` for the local/private
-  signed-transfer prototype work after the signed-submit lifecycle smoke,
-  RC-candidate report, and pre-tag readiness guard checkpoint. This percentage
-  is for XRIQ private-devnet non-production work only, not BIBER MVP or
+- Phase 1.4 estimated completion: `100%` for the local/private
+  signed-transfer prototype RC1 after the signed-submit lifecycle smoke,
+  RC-candidate report, readiness/status guard, and approved/pushed
+  `phase1-4-xriq-local-signed-submit-rc1` tag. This percentage is for XRIQ
+  private-devnet non-production Phase 1.4 only, not BIBER MVP or
   public/production XRIQ.
   Completed Phase 1.4 surfaces now include the signing plan, fixture inventory,
   CLI-only `xriq-wallet signed-transfer ...` test artifact, default-disabled
@@ -342,11 +347,9 @@ unless the user changes the project scope again.
   signed-submit lifecycle smoke proving signed artifact -> accepted submit ->
   pending status -> local block production -> confirmed wallet/explorer/
   mempool/Admin read-back.
-  Remaining Phase 1.4 work is mainly the human RC tag decision and any later
-  explicitly approved UI design review/control work that still avoids browser
-  key material. Keep custody, public networks, DEX/bridge, smart contracts,
-  asset issuance, production infrastructure, and tags out of scope until
-  explicitly approved.
+  Remaining work is post-RC/next-phase selection only. Keep custody, public
+  networks, DEX/bridge, smart contracts, asset issuance, production
+  infrastructure, and tag maintenance out of scope until explicitly approved.
 - Phase 1.1 Google Cloud resource stance: no GCP runtime resources are required
   for the current local contracts/indexer scaffold work. Prepare a
   project/region/budget plan, but delay paid Cloud SQL/Cloud Run/Artifact
@@ -1180,6 +1183,17 @@ an active target because the GPU was terminated to save cost.
   this checkpoint, and then ask the user for the exact Phase 1.4 RC tag
   decision. Phase 1.4/XRIQ private-devnet non-production status is now about
   `95%`.
+- Latest native XRIQ Phase 1.4 RC tag checkpoint: after exact explicit user
+  approval on 2026-06-09, created and pushed
+  `phase1-4-xriq-local-signed-submit-rc1` at commit `45be474`. Updated
+  `docs/XRIQ_PHASE1_4_RC_CANDIDATE_REPORT.md`,
+  `docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md`, README references, and
+  `scripts/xriq_phase1_4_rc_readiness.py` to record the completed tag action
+  and support post-tag status checks with
+  `python scripts/xriq_phase1_4_rc_readiness.py --require-clean-git --require-origin-main --require-tag-present`.
+  Do not move, delete, recreate, or repush the tag without an exact
+  tag-maintenance request. Phase 1.4/XRIQ private-devnet non-production status
+  is now `100%` for this local/private signed-transfer RC1 scope.
 - Latest XRIQ production handoff checkpoint for later GitHub Copilot work:
   added `.github/copilot-instructions.md` and
   `docs/XRIQ_PRODUCTION_ROADMAP.md`. These files make the post-private-devnet

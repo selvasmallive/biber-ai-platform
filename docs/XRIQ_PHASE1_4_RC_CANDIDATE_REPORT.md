@@ -1,20 +1,21 @@
 # XRIQ Phase 1.4 RC Candidate Report
 
-Status: candidate report only. No Phase 1.4 RC tag has been created by this
-document.
+Status: candidate report with completed RC tag action.
 
-Proposed RC tag:
+Approved RC tag:
 `phase1-4-xriq-local-signed-submit-rc1`
 
-Pre-report implementation checkpoint reviewed for this candidate: `50b8281`.
+Post-report tag status: after exact explicit user approval on 2026-06-09, the
+tag `phase1-4-xriq-local-signed-submit-rc1` was created and pushed at commit
+`45be474`.
 
-Exact approval phrase required before creating or pushing the proposed tag:
+Historical approval phrase used:
 
 ```text
 I explicitly approve creating and pushing the Phase 1.4 RC tag phase1-4-xriq-local-signed-submit-rc1.
 ```
 
-Do not tag from a generic continue request.
+Pre-report implementation checkpoint reviewed for this candidate: `50b8281`.
 
 ## Candidate Scope
 
@@ -105,23 +106,29 @@ cargo test --target-dir target-codex-phase14-signed-accepted -p xriq-api -j 1
 - [x] A generic continue request is explicitly not approval to create or push
       the proposed RC tag.
 
-## Pre-Tag Readiness Guard
+## Readiness Guard
 
-Run the cheap readiness guard from the repo root:
+Run the cheap readiness/status guard from the repo root:
 
 ```bash
 python scripts/xriq_phase1_4_rc_readiness.py
 ```
 
-After the candidate report checkpoint is committed and pushed, a stricter local
-check can be run without rerunning Rust:
+Before the tag was created, the stricter pre-tag check passed without rerunning
+Rust:
 
 ```bash
 python scripts/xriq_phase1_4_rc_readiness.py --require-clean-git --require-origin-main --require-tag-absent --write-summary
 ```
 
+After the tag has been created and pushed, the post-tag status check is:
+
+```bash
+python scripts/xriq_phase1_4_rc_readiness.py --require-clean-git --require-origin-main --require-tag-present
+```
+
 This guard checks the candidate report, selected evidence summaries, required
-docs references, local tag absence, and the explicit no-generic-approval rule.
+docs references, local tag status, and the explicit no-generic-approval rule.
 It does not create, move, delete, recreate, or push any tag.
 
 ## Non-Production Boundaries
@@ -145,15 +152,26 @@ This RC candidate does not approve or include:
 
 ## Candidate Decision
 
-This is ready for a human Phase 1.4 RC decision after the pre-tag readiness
-guard passes from a clean pushed checkout.
+The local/private Phase 1.4 candidate was reviewed as a documentation and
+evidence checkpoint. The human tag decision was completed after exact explicit
+user approval on 2026-06-09.
 
-If the user wants the tag created and pushed, they must approve the exact tag
-name with:
+Pre-tag validation passed:
 
-```text
-I explicitly approve creating and pushing the Phase 1.4 RC tag phase1-4-xriq-local-signed-submit-rc1.
+```bash
+python scripts/xriq_phase1_4_rc_readiness.py --require-clean-git --require-origin-main --require-tag-absent
 ```
 
-Until that approval is given, leave
-`phase1-4-xriq-local-signed-submit-rc1` uncreated.
+Then the tag was created and pushed:
+
+```bash
+git tag phase1-4-xriq-local-signed-submit-rc1
+git push origin phase1-4-xriq-local-signed-submit-rc1
+```
+
+Do not move, delete, recreate, or repush
+`phase1-4-xriq-local-signed-submit-rc1` unless the user explicitly asks for
+that exact tag maintenance operation.
+
+Next scope is post-RC or next-phase work only, still local/private unless the
+user explicitly approves broader scope.
