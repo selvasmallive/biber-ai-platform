@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-06-09
+Last updated: 2026-06-14
 
 ## Current Goal
 
@@ -17,6 +17,12 @@ private-devnet wrap-up is `docs/XRIQ_PRIVATE_DEVNET_WRAPUP.md`, with cheap
 verification in `scripts/xriq_private_devnet_wrapup_check.py`. Phase 1.4
 local/private signed-transfer RC1 is complete and tagged as
 `phase1-4-xriq-local-signed-submit-rc1` at commit `45be474`.
+Gemini Code Assist Enterprise handoff prompts have been added for the next
+cost-saving development phase:
+`docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and
+`docs/GEMINI_CODE_ASSIST_BIBER_PROMPT.md` for BIBER MVP. The intended GitHub
+backup branches for the pre-Gemini handoff state are
+`backup/xriq-pre-gemini-20260614` and `backup/biber-pre-gemini-20260614`.
 Use `docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md` as the scope boundary for any
 post-RC maintenance.
 The Phase 1.4 RC candidate report is now
@@ -38,6 +44,11 @@ live Vast SSH access exists unless the user provides a fresh instance.
     complete for the Codex/local non-production scope. Continue only a
     selected next scope: production hardening through GitHub Copilot, a narrow
     local/private Phase 1.5 gap, BIBER MVP/model work, or manual demo support.
+  - Active handoff as of 2026-06-14: the user plans to use Gemini Code Assist
+    Enterprise for XRIQ production and BIBER MVP work to save development cost,
+    with Codex used only as an occasional monitor/reviewer between milestones.
+    Use `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` and
+    `docs/GEMINI_CODE_ASSIST_BIBER_PROMPT.md` as the Gemini starting prompts.
   - Phase 2, after Phase 1: BIBER MVP/local model API, model registry, repo
     context, file-edit/test workflows, GitHub save/PR path, optional OpenAI
     mentor review, repo-adaptation eval/training loop, and Replit-replacement
@@ -1210,6 +1221,15 @@ an active target because the GPU was terminated to save cost.
   `docs/XRIQ_PRODUCTION_ROADMAP.md`. Next scope should be a human decision:
   GitHub Copilot production hardening, a narrow local/private Phase 1.5 gap,
   BIBER MVP/model work, or manual demo support.
+- Latest Gemini Code Assist Enterprise handoff checkpoint: added
+  `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` and
+  `docs/GEMINI_CODE_ASSIST_BIBER_PROMPT.md`. These prompts direct Gemini to
+  work from GitHub repo `https://github.com/selvasmallive/biber-ai-platform`,
+  use `main` as the base branch, preserve backup branches
+  `backup/xriq-pre-gemini-20260614` and
+  `backup/biber-pre-gemini-20260614`, keep PRs narrow, avoid cloud/secrets/tag
+  changes, and ask Codex to monitor/review direction between meaningful Gemini
+  milestones.
 - Latest XRIQ production handoff checkpoint for later GitHub Copilot work:
   added `.github/copilot-instructions.md` and
   `docs/XRIQ_PRODUCTION_ROADMAP.md`. These files make the post-private-devnet
