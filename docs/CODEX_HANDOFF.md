@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-06-14
+Last updated: 2026-06-15
 
 ## Current Goal
 
@@ -23,6 +23,9 @@ cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_BIBER_PROMPT.md` for BIBER MVP. The intended GitHub
 backup branches for the pre-Gemini handoff state are
 `backup/xriq-pre-gemini-20260614` and `backup/biber-pre-gemini-20260614`.
+The BIBER team-share branch `share/biber-team-20260615` was created from
+GitHub `main` at commit `f8a3e3e` so it can be shared with other team members
+without disturbing the active `main` branch.
 Use `docs/XRIQ_PHASE1_4_LOCAL_SIGNING_PLAN.md` as the scope boundary for any
 post-RC maintenance.
 The Phase 1.4 RC candidate report is now
