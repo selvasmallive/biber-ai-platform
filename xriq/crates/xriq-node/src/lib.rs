@@ -2233,7 +2233,9 @@ fn private_devnet_node_with_pending_file(
     let genesis = private_devnet_runner_genesis(alice_balance);
     let mut node =
         XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?;
-    for (tx_hash, transaction) in read_pending_transaction_records(pending_file.as_ref())? {
+    let pending_load = read_pending_transaction_records(pending_file.as_ref())?;
+    quarantine_corrupt_pending_lines(pending_file.as_ref(), &pending_load)?;
+    for (tx_hash, transaction) in pending_load.records {
         if private_devnet_file_confirmed_transaction_detail(
             node.store().path(),
             alice_balance,
@@ -3565,11 +3567,32 @@ fn parse_private_devnet_transfer_body(
     }
 }
 
+const PENDING_QUARANTINE_MARKER: &str = "xriq-pending-quarantine-v1";
+
+struct QuarantinedPendingLine {
+    line_number: usize,
+    raw: String,
+}
+
+struct PendingReplayLoad {
+    records: Vec<(Hash32, Transaction)>,
+    quarantined: Vec<QuarantinedPendingLine>,
+}
+
+fn pending_quarantine_path(pending_file: &Path) -> std::path::PathBuf {
+    let mut name = pending_file.as_os_str().to_os_string();
+    name.push(".quarantine");
+    std::path::PathBuf::from(name)
+}
+
 fn read_pending_transaction_records(
     pending_file: &Path,
-) -> Result<Vec<(Hash32, Transaction)>, NodeRunnerError> {
+) -> Result<PendingReplayLoad, NodeRunnerError> {
     if !pending_file.exists() {
-        return Ok(Vec::new());
+        return Ok(PendingReplayLoad {
+            records: Vec::new(),
+            quarantined: Vec::new(),
+        });
     }
     let text =
         fs::read_to_string(pending_file).map_err(|error| NodeRunnerError::PendingFileRead {
@@ -3577,14 +3600,71 @@ fn read_pending_transaction_records(
             error: error.to_string(),
         })?;
     let mut records = Vec::new();
-    for line in text.lines() {
-        let line = line.trim();
+    let mut quarantined = Vec::new();
+    for (index, raw_line) in text.lines().enumerate() {
+        let line = raw_line.trim();
         if line.is_empty() {
             continue;
         }
-        records.push(parse_pending_transaction_record(line)?);
+        match parse_pending_transaction_record(line) {
+            Ok(record) => records.push(record),
+            // Fail-open recovery: an unparseable pending line must not brick
+            // node startup. Capture it for quarantine instead of aborting so a
+            // single corrupt record cannot deny startup for valid ones.
+            Err(_) => quarantined.push(QuarantinedPendingLine {
+                line_number: index + 1,
+                raw: raw_line.to_string(),
+            }),
+        }
     }
-    Ok(records)
+    Ok(PendingReplayLoad {
+        records,
+        quarantined,
+    })
+}
+
+fn quarantine_corrupt_pending_lines(
+    pending_file: &Path,
+    load: &PendingReplayLoad,
+) -> Result<(), NodeRunnerError> {
+    if load.quarantined.is_empty() {
+        return Ok(());
+    }
+    let quarantine_file = pending_quarantine_path(pending_file);
+    if let Some(parent) = quarantine_file
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent).map_err(|error| NodeRunnerError::PendingFileRead {
+            path: quarantine_file.to_string_lossy().to_string(),
+            error: error.to_string(),
+        })?;
+    }
+    let mut quarantine_text = String::new();
+    for entry in &load.quarantined {
+        writeln!(
+            &mut quarantine_text,
+            "{PENDING_QUARANTINE_MARKER}\t{}\t{}",
+            entry.line_number, entry.raw
+        )
+        .expect("write to String");
+    }
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&quarantine_file)
+        .map_err(|error| NodeRunnerError::PendingFileRead {
+            path: quarantine_file.to_string_lossy().to_string(),
+            error: error.to_string(),
+        })?;
+    write!(file, "{quarantine_text}").map_err(|error| NodeRunnerError::PendingFileRead {
+        path: quarantine_file.to_string_lossy().to_string(),
+        error: error.to_string(),
+    })?;
+    // Self-healing rewrite: drop the corrupt lines from the live pending file
+    // exactly once. This is not silent loss; the corrupt content is preserved in
+    // the quarantine sidecar above for later inspection/recovery.
+    write_pending_transaction_records(pending_file, &load.records)
 }
 
 fn append_pending_transaction_record(
@@ -7306,6 +7386,74 @@ mod tests {
 
         let _ = fs::remove_file(path);
         let _ = fs::remove_file(pending_path);
+        let _ = fs::remove_file(draft_path);
+    }
+
+    #[test]
+    fn node_runner_quarantines_corrupt_pending_line_on_replay() {
+        let path = temp_store_path();
+        let pending_path = path.with_extension("pending");
+        let draft_path = path.with_extension("draft");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        write_wallet_draft(&draft_path, 25, 2, 0);
+        let draft_body = fs::read_to_string(&draft_path).unwrap();
+        let pending_detail = private_devnet_file_submit_pending_transfer_body(
+            &path_text,
+            &pending_text,
+            Some(XriqAmount::from_base_units(100)),
+            &draft_body,
+        )
+        .unwrap();
+
+        // Append a corrupt (unparseable) pending line, as could happen from a
+        // truncated write or external tampering.
+        let corrupt_line = "this-is-not-a-valid-pending-record";
+        {
+            use std::io::Write as _;
+            let mut file = fs::OpenOptions::new()
+                .append(true)
+                .open(&pending_path)
+                .unwrap();
+            writeln!(file, "{corrupt_line}").unwrap();
+        }
+
+        // Startup replay must recover instead of bricking on the corrupt line.
+        let pending_json = run_node_command([
+            "mempool-detail",
+            "--chain-file",
+            path_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(pending_json.contains("\"command\": \"mempool-detail\""));
+        assert!(pending_json.contains("\"pending_count\": 1"));
+        assert!(pending_json.contains(&hash_hex(pending_detail.tx_hash)));
+
+        // The corrupt line is self-healed out of the live pending file but
+        // preserved in the quarantine sidecar (no silent loss).
+        let healed_pending = fs::read_to_string(&pending_path).unwrap();
+        assert!(!healed_pending.contains(corrupt_line));
+        assert!(healed_pending.contains(&hash_hex(pending_detail.tx_hash)));
+
+        let quarantine_path = {
+            let mut name = pending_path.clone().into_os_string();
+            name.push(".quarantine");
+            PathBuf::from(name)
+        };
+        let quarantined = fs::read_to_string(&quarantine_path).unwrap();
+        assert!(quarantined.contains(PENDING_QUARANTINE_MARKER));
+        assert!(quarantined.contains(corrupt_line));
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+        let _ = fs::remove_file(quarantine_path);
         let _ = fs::remove_file(draft_path);
     }
 
