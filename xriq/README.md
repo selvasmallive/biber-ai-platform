@@ -125,6 +125,12 @@ The later production roadmap for GitHub Copilot agents is
 `../.github/copilot-instructions.md`.
 Validate those production/cloud handoff guardrails from the repo root with
 `python scripts/xriq_production_roadmap_check.py`.
+The Phase 2 hardened private/staging-devnet planning checkpoint is
+`../docs/XRIQ_PHASE2_STAGING_DEVNET_PLAN.md`; it opens roadmap Phase 2 with
+acceptance criteria, hardening gaps, environment boundaries, and
+provider-neutral operational decisions without choosing a cloud provider or
+creating resources. From the repo root, validate its guardrails with
+`python scripts/xriq_phase2_plan_check.py`.
 The first Phase 1.2 wallet mutation preflight fixtures live in
 `fixtures/phase1_2/`; they are disabled/refusal contracts only and do not enable
 wallet submit/send behavior. From the repo root, validate them with

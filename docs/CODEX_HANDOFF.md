@@ -17,6 +17,18 @@ private-devnet wrap-up is `docs/XRIQ_PRIVATE_DEVNET_WRAPUP.md`, with cheap
 verification in `scripts/xriq_private_devnet_wrapup_check.py`. Phase 1.4
 local/private signed-transfer RC1 is complete and tagged as
 `phase1-4-xriq-local-signed-submit-rc1` at commit `45be474`.
+Phase 2 (Hardened Private/Staging Devnet) has now been opened with a narrow
+planning checkpoint only: `docs/XRIQ_PHASE2_STAGING_DEVNET_PLAN.md` records the
+Phase 2 acceptance criteria, the production-hardening gaps carried out of the
+private-devnet prototype, the `local`/`staging-devnet`/`public-testnet`/
+`production-candidate`/`mainnet` environment boundaries, and provider-neutral
+operational design decisions (config, secrets/KMS, IAM, deployment,
+observability, backup, rollback) without choosing Azure/AWS/GCP or creating any
+cloud resource. The cheap guard is `scripts/xriq_phase2_plan_check.py`. This
+checkpoint creates no tags, touches no secrets or cloud resources, and changes
+no runtime behavior. The recommended next Phase 2 PR is the first roadmap code
+item: harden the signed-submit accepted path persistence and replay, in a
+narrow separately reviewable PR.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and
