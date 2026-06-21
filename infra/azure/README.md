@@ -1,40 +1,40 @@
-# XRIQ Azure Infrastructure (staging-devnet boundaries)
+# XRIQ Azure Infrastructure (staging-devnet)
 
-Status: provider-specific module **boundaries** only. Nothing is provisioned.
+Status: Terraform for the XRIQ `staging-devnet`. Validated, not applied from
+automation.
 
-This directory holds the Terraform module boundaries for the XRIQ
-`staging-devnet` on Azure, per the decision in
-`../../docs/XRIQ_AZURE_PROVIDER_DECISION.md` and the policy in
+This directory holds the Terraform that provisions the XRIQ `staging-devnet` on
+Azure, per `../../docs/XRIQ_AZURE_PROVIDER_DECISION.md` and the policy in
 `../../docs/XRIQ_PRODUCTION_ROADMAP.md`.
 
-The modules declare their interfaces and responsibilities but **create no
-resources yet**. They exist so the topology, naming, tags, budget, and module
-seams can be reviewed before any real plan or apply.
+The modules declare real resources, but **nothing is applied by this repo or
+CI** — only `terraform fmt` and `terraform validate` run here. Provisioning is a
+human-gated step; follow `../../docs/XRIQ_AZURE_APPLY_RUNBOOK.md`.
 
 ## Safety boundaries
 
-- No resources are created, modified, or destroyed by anything in this repo.
 - No `az login`, `terraform apply`, or cloud deletion is run by automation.
 - No secrets, subscription IDs, or tenant IDs are stored here. Authentication is
-  resolved at apply time from the maintainer's `az login` session or a
-  least-privilege service principal supplied via environment variables.
+  resolved at apply time from the maintainer's `az login` session or ARM_* env
+  vars. The PostgreSQL admin password is supplied at apply time via
+  `TF_VAR_postgres_admin_password` and is never committed.
 - State backend is intentionally unconfigured so static validation needs no
-  Azure access. A remote Azure Blob backend is added per environment by the
-  human maintainer before any apply.
+  Azure access; the config defaults to local state. See the apply runbook for
+  remote-state options.
 
 ## Layout
 
 - `versions.tf` — Terraform and azurerm provider version constraints.
 - `variables.tf` — non-secret planning inputs (project, environment, region,
-  budget, tags).
-- `main.tf` — root composition wiring the module boundaries.
-- `outputs.tf` — planning metadata only.
+  `name_suffix`, budget, SKUs, SSH public key, ...).
+- `main.tf` — root composition: resource group + module wiring.
+- `outputs.tf` — key resource identifiers.
 - `terraform.tfvars.example` — copy to `terraform.tfvars` (gitignored) and edit.
-- `modules/network` — private VNet and subnets.
-- `modules/security` — Key Vault secrets, identities, container registry.
-- `modules/data` — managed PostgreSQL read model and object storage.
-- `modules/compute` — node/API/indexer compute (cheapest viable staging tier).
-- `modules/observability` — logs/metrics/traces and a monthly budget with alerts.
+- `modules/network` — VNet, app subnet, delegated database subnet, NSG.
+- `modules/security` — Key Vault (RBAC), workload identity, container registry.
+- `modules/data` — object storage and a private PostgreSQL Flexible Server.
+- `modules/compute` — a single small Linux node VM (SSH-key auth, private).
+- `modules/observability` — Log Analytics, Application Insights, consumption budget.
 
 ## Safe validation (no cloud access)
 
@@ -45,9 +45,9 @@ terraform init -backend=false
 terraform validate
 ```
 
-## Apply (human maintainer only, after explicit approval)
+## Apply (human maintainer only)
 
-`terraform plan` / `terraform apply` against a real subscription are run only by
-the human maintainer after approving the exact subscription, region,
-environment, and action. Implement the module resources first; do not apply
-empty boundary modules.
+See `../../docs/XRIQ_AZURE_APPLY_RUNBOOK.md`. `terraform plan`/`apply` run only
+by the human maintainer after `az login` and explicit review, against an approved
+subscription. Expect to iterate on `plan` for any region/quota-specific SKU
+adjustments.

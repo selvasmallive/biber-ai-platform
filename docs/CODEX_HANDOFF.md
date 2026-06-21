@@ -132,6 +132,24 @@ staging smokes in CI, restart/replay recovery, no browser/server key material,
 private/staging config separated from production across both binaries, and a
 documented cloud-provider decision before any provider-specific IaC). No secrets,
 cloud resources, or tags were touched.
+The explorer-ui now shows an environment banner (`VITE_XRIQ_ENVIRONMENT`,
+local/staging-devnet/unsupported), and the `infra/azure/` Terraform modules now
+declare real resources: resource group; network (VNet, app subnet, delegated
+database subnet, NSG); security (Key Vault with RBAC, workload user-assigned
+identity, container registry, AcrPull role); data (object storage + a
+VNet-integrated private PostgreSQL Flexible Server, password auth via the
+sensitive apply-time `TF_VAR_postgres_admin_password`); compute (a single small
+SSH-key-only Linux node VM, private); and observability (Log Analytics,
+Application Insights, a consumption budget with 80%/100% alerts). `terraform
+validate` passes with no warnings, and the CI Terraform job validates it on every
+push. Nothing is applied from automation: provisioning is a human-gated step in
+`docs/XRIQ_AZURE_APPLY_RUNBOOK.md` (the operator runs `az login`, sets
+non-secret tfvars plus the password env var, then `terraform plan`/`apply`). The
+provider-decision guard now asserts each module declares an azurerm resource and
+that no secret/backend material is committed. No secrets, cloud resources, or
+tags were touched by automation. Note: a real `terraform plan` may need minor
+region/quota-specific SKU adjustments since only `validate` (not `plan`) runs in
+CI.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and

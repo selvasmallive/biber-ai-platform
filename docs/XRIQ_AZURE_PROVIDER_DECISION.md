@@ -115,15 +115,25 @@ terraform validate
   tokenomics behavior.
 - No tag creation, movement, or deletion.
 
+## Implementation Status
+
+The `infra/azure/` modules now declare real Terraform resources (resource group,
+network, Key Vault + workload identity + container registry, private PostgreSQL
+Flexible Server + object storage, a Linux node VM, and Log Analytics +
+Application Insights + a consumption budget). They are validated with
+`terraform validate` only; **no resources are created from automation or CI**.
+Applying them is a human-gated step documented in
+`docs/XRIQ_AZURE_APPLY_RUNBOOK.md`.
+
 ## Next Steps After This Decision
 
 1. Review and edit this decision (subscription details, any region/budget
    changes) — owner action.
-2. Flesh out `infra/azure/` module boundaries into reviewable plans (still no
-   apply).
-3. When ready, the owner runs `az login` and `terraform plan` locally against
-   the chosen subscription and reviews the plan before any apply.
-4. Add observability, backup, and incident-response runbook skeletons.
+2. Follow `docs/XRIQ_AZURE_APPLY_RUNBOOK.md`: the owner runs `az login`,
+   configures the remote state backend, runs `terraform plan` against the chosen
+   subscription, reviews it, and only then applies.
+3. Add incident-response and disaster-recovery runbook detail as the staging
+   environment is exercised.
 
 ## Cheap Verification
 

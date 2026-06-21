@@ -178,9 +178,15 @@ Do not start public testnet work until these Phase 2 exit criteria are met.
 
 - The explorer-ui environment banner is complete: it shows the active profile
   (local/staging-devnet, or "unsupported") via `VITE_XRIQ_ENVIRONMENT`.
+- The `infra/azure/` module resources are implemented (resource group, network,
+  Key Vault/identity/registry, private PostgreSQL + storage, node VM, and
+  observability + budget), validated by `terraform validate` in CI. No resources
+  are created from automation; the human-gated apply is documented in
+  `docs/XRIQ_AZURE_APPLY_RUNBOOK.md`.
 
-Remaining: implementing the Azure module resources for a human-run plan (a
-later, human-gated apply; not required to operate the local/staging devnet).
+All five Phase 2 exit criteria are met. The remaining roadmap work is operational
+(running a real Azure `terraform plan`/`apply`, then incident-response/DR detail),
+which is human-gated and outside automation.
 
 ## Cheap Verification
 

@@ -47,9 +47,9 @@ REQUIRED_INFRA_FILES = [
     "modules/observability/main.tf",
 ]
 
-# Modules must remain boundary-only (no resources) until a human implements and
-# applies them deliberately.
-BOUNDARY_MODULE_FILES = [
+# Modules define real Terraform resources (validated, not applied from
+# automation). Each must declare at least one azurerm resource.
+RESOURCE_MODULE_FILES = [
     "modules/network/main.tf",
     "modules/security/main.tf",
     "modules/data/main.tf",
@@ -125,11 +125,11 @@ def verify_infra_layout() -> list[str]:
         if not path.is_file():
             raise DecisionCheckError(f"infra/azure: missing required file {relative}")
         checked.append(relative)
-    for relative in BOUNDARY_MODULE_FILES:
+    for relative in RESOURCE_MODULE_FILES:
         text = read_text(INFRA_DIR / relative)
-        if "implemented = false" not in text:
+        if 'resource "azurerm_' not in text:
             raise DecisionCheckError(
-                f"infra/azure module {relative} must stay boundary-only (implemented = false)"
+                f"infra/azure module {relative} must declare at least one azurerm resource"
             )
     return checked
 
@@ -180,7 +180,7 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
         "markers_checked": {
             "decision": len(REQUIRED_DECISION_MARKERS),
             "infra_files": len(infra_files),
-            "boundary_modules": len(BOUNDARY_MODULE_FILES),
+            "resource_modules": len(RESOURCE_MODULE_FILES),
         },
         "infra_files": infra_files,
         "doc_references": verify_doc_references(),
@@ -189,7 +189,7 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
             "no az login, terraform apply, or cloud deletion from automation",
             "no secrets, subscription ids, or tenant ids in git",
             "no remote backend configured in-repo (static validation stays offline)",
-            "modules remain boundary-only until human-implemented and applied",
+            "module resources are validated only; apply is human-gated",
         ],
     }
 

@@ -349,8 +349,12 @@ The Phase 2 cloud provider decision selects Azure in
 boundaries (no resources created) under `infra/azure/`. Validate the decision
 and boundaries with `python scripts/xriq_azure_provider_decision_check.py`, and
 statically validate the Terraform with `cd infra/azure && terraform fmt -check &&
-terraform init -backend=false && terraform validate`. No cloud resources are
-created and no secrets are stored.
+terraform init -backend=false && terraform validate`. The `infra/azure/` modules
+now declare real resources (resource group, network, Key Vault/identity/registry,
+private PostgreSQL + storage, node VM, observability + budget) but **nothing is
+applied from automation or CI** — provisioning is a human-gated step in
+`docs/XRIQ_AZURE_APPLY_RUNBOOK.md`. No cloud resources are created and no secrets
+are stored by this repo.
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The first Phase 1.2 wallet mutation preflight fixtures are in

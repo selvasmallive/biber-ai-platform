@@ -1,39 +1,87 @@
-# Compute boundary for the XRIQ Azure staging-devnet.
+# Compute module for the XRIQ Azure staging-devnet.
 #
-# Responsibility (not yet implemented): run the XRIQ node/API/indexer services.
-# Start with the cheapest viable option for staging (small AKS node pool or a
-# single VM scale set), scalable or stoppable when idle for cost control. Admin
-# and operator surfaces stay on the private network only. No resources are
-# created here yet.
-#
-# Planned resources: azurerm_kubernetes_cluster (or azurerm_linux_virtual_machine_scale_set),
-# with images pulled from the security module's container registry.
+# A single small Linux VM to run the XRIQ node/API/indexer for staging. It has no
+# public IP (private subnet only); operator access is via the network's optional
+# SSH rule plus a bastion/VPN added later. Admin auth is SSH-public-key only;
+# password auth is disabled. No secrets are stored here.
 
 variable "name_prefix" {
-  description = "Resource name prefix."
-  type        = string
+  type = string
+}
+
+variable "resource_group_name" {
+  type = string
 }
 
 variable "location" {
-  description = "Azure region."
-  type        = string
+  type = string
+}
+
+variable "subnet_id" {
+  type = string
+}
+
+variable "vm_size" {
+  type = string
+}
+
+variable "admin_username" {
+  type = string
+}
+
+variable "ssh_public_key" {
+  type = string
 }
 
 variable "tags" {
-  description = "Common tags."
-  type        = map(string)
+  type = map(string)
 }
 
-output "boundary" {
-  description = "Declared responsibilities and planned resources for this module."
-  value = {
-    name_prefix    = var.name_prefix
-    location       = var.location
-    tags           = var.tags
-    responsibility = "node/API/indexer compute; cheapest viable staging tier; admin stays private"
-    planned_resources = [
-      "azurerm_kubernetes_cluster_or_vm_scale_set",
-    ]
-    implemented = false
+resource "azurerm_network_interface" "node" {
+  name                = "${var.name_prefix}-node-nic"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  tags                = var.tags
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = var.subnet_id
+    private_ip_address_allocation = "Dynamic"
   }
+}
+
+resource "azurerm_linux_virtual_machine" "node" {
+  name                            = "${var.name_prefix}-node"
+  resource_group_name             = var.resource_group_name
+  location                        = var.location
+  size                            = var.vm_size
+  admin_username                  = var.admin_username
+  network_interface_ids           = [azurerm_network_interface.node.id]
+  disable_password_authentication = true
+  tags                            = var.tags
+
+  admin_ssh_key {
+    username   = var.admin_username
+    public_key = var.ssh_public_key
+  }
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+}
+
+output "vm_id" {
+  value = azurerm_linux_virtual_machine.node.id
+}
+
+output "private_ip_address" {
+  value = azurerm_network_interface.node.private_ip_address
 }
