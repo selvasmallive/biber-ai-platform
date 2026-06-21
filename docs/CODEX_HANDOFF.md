@@ -26,9 +26,24 @@ operational design decisions (config, secrets/KMS, IAM, deployment,
 observability, backup, rollback) without choosing Azure/AWS/GCP or creating any
 cloud resource. The cheap guard is `scripts/xriq_phase2_plan_check.py`. This
 checkpoint creates no tags, touches no secrets or cloud resources, and changes
-no runtime behavior. The recommended next Phase 2 PR is the first roadmap code
-item: harden the signed-submit accepted path persistence and replay, in a
-narrow separately reviewable PR.
+no runtime behavior.
+The first Phase 2 hardening code item has now begun on branch
+`xriq/phase2-staging-devnet-plan`: pending-file replay is now idempotent for
+duplicate entries. Previously, a pending file containing the same accepted
+transaction twice (for example from a crash mid-append or a double-write) would
+brick node startup, because the replay loop in
+`private_devnet_node_with_pending_file` (xriq/crates/xriq-node/src/lib.rs)
+propagated `MempoolError::DuplicateTransaction`. The loop now treats a duplicate
+as a benign skip (the transaction is already in the mempool), so a single
+corrupt/duplicated pending line no longer prevents recovery. This is covered by
+the new test `node_runner_replays_duplicate_pending_line_idempotently` and does
+not change the default-refused signed-submit contract, enable any UI mutation,
+or touch secrets/cloud/tags. Verified with `cargo test -p xriq-node -j 1`
+(53 passed), `cargo test -p xriq-api -j 1` (75 passed), and
+`python scripts/xriq_phase1_4_signed_submit_lifecycle_smoke.py` (ok). The next
+Phase 2 items remain: restart/recovery smoke for pending and chain files, a CI
+workflow, and the corrupt-pending-line (non-duplicate) recovery policy, which
+involves a fail-closed vs fail-open decision a human should weigh in on.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and

@@ -2244,8 +2244,15 @@ fn private_devnet_node_with_pending_file(
         {
             continue;
         }
-        node.submit_transaction(tx_hash, transaction)
-            .map_err(NodeRunnerError::Node)?;
+        match node.submit_transaction(tx_hash, transaction) {
+            Ok(()) => {}
+            // Idempotent replay: a duplicate pending entry (for example a line
+            // written twice by a crash mid-append or a double-write) must not
+            // brick startup. The transaction is already in the mempool, so skip
+            // the duplicate instead of returning an error.
+            Err(NodeError::Mempool(MempoolError::DuplicateTransaction)) => {}
+            Err(error) => return Err(NodeRunnerError::Node(error)),
+        }
     }
     Ok(node)
 }
@@ -7240,6 +7247,62 @@ mod tests {
         .unwrap()
         .to_string();
         assert!(in_memory_json.contains("\"pending_count\": 0"));
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+        let _ = fs::remove_file(draft_path);
+    }
+
+    #[test]
+    fn node_runner_replays_duplicate_pending_line_idempotently() {
+        let path = temp_store_path();
+        let pending_path = path.with_extension("pending");
+        let draft_path = path.with_extension("draft");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        write_wallet_draft(&draft_path, 25, 2, 0);
+        let draft_body = fs::read_to_string(&draft_path).unwrap();
+        let pending_detail = private_devnet_file_submit_pending_transfer_body(
+            &path_text,
+            &pending_text,
+            Some(XriqAmount::from_base_units(100)),
+            &draft_body,
+        )
+        .unwrap();
+
+        // Simulate a corrupt-on-restart pending file that contains the same
+        // accepted transaction twice (for example from a crash mid-append).
+        let single_line = fs::read_to_string(&pending_path).unwrap();
+        assert_eq!(single_line.lines().count(), 1);
+        append_pending_transaction_record(
+            &pending_path,
+            pending_detail.tx_hash,
+            &pending_detail.transaction,
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(&pending_path).unwrap().lines().count(),
+            2
+        );
+
+        // Startup replay must not brick on the duplicate; the transaction is
+        // already in the mempool, so it stays a single pending entry.
+        let pending_json = run_node_command([
+            "mempool-detail",
+            "--chain-file",
+            path_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(pending_json.contains("\"command\": \"mempool-detail\""));
+        assert!(pending_json.contains("\"pending_count\": 1"));
+        assert!(pending_json.contains(&hash_hex(pending_detail.tx_hash)));
 
         let _ = fs::remove_file(path);
         let _ = fs::remove_file(pending_path);
