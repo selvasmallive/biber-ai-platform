@@ -61,13 +61,33 @@ xriq-api request --chain-file <path> --target /api/v1/health --environment produ
 
 ## Scope And Follow-Ups
 
-- This slice covers `xriq-core` (the profile type, fail-closed parsing, tests)
-  and the `xriq-api` binary (the `--environment` flag and validation).
-- The `xriq-node` CLI and the explorer-ui environment banner are follow-ups; the
-  node remains local/private and the UI feature switches are unchanged.
+- This covers `xriq-core` (the profile type, fail-closed parsing, tests) and
+  both binaries:
+  - `xriq-api` accepts `--environment` on `request` and `serve-readonly`.
+  - `xriq-node` accepts `--environment` on every subcommand and on
+    `serve-readonly`/`serve-private`; the flag is parsed centrally and stripped
+    before per-command parsing, defaulting to local and rejecting production-class
+    values with `unsupported_environment`.
+- The explorer-ui environment banner remains a follow-up; the UI feature
+  switches are unchanged.
 - The API response `environment` field (`"private-devnet"`) and the genesis
   `chain_id` (`"xriq-devnet"`) are deliberately unchanged to preserve existing
   response contracts and fixtures.
+
+## Clean-Clone Staging Smokes
+
+A clean clone can build and run the Phase 2 smokes, including the staging-devnet
+profile, with a single command:
+
+```bash
+python scripts/xriq_phase2_staging_smokes.py
+```
+
+It builds the binaries once, runs the Phase 1.4 lifecycle smoke (local profile),
+and runs the Phase 2 restart/recovery smoke under `--environment staging-devnet`,
+exercising the fail-closed profile end-to-end across both binaries. The CI Rust
+job runs this on every push (CI checks out a clean clone), which satisfies the
+Phase 2 "clean clone can run local/staging smoke tests" exit criterion.
 
 ## Verification
 

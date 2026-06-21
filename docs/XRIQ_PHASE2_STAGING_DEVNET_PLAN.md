@@ -163,10 +163,16 @@ Do not start public testnet work until these Phase 2 exit criteria are met.
 - The wallet UI safety review is complete (item 5): the browser UI holds no key
   material, and `docs/XRIQ_PHASE2_WALLET_UI_SAFETY_REVIEW.md` plus the
   CI-enforced `check-wallet-key-safety.mjs` guard lock this in.
+- Config separation now covers both binaries: `xriq-api` and `xriq-node` accept
+  a fail-closed `--environment local|staging-devnet` flag (item 4 extended to
+  the node CLI).
+- The Phase 2 "clean clone can run local/staging smoke tests" exit criterion is
+  met: `scripts/xriq_phase2_staging_smokes.py` builds once and runs the
+  lifecycle smoke (local) plus the restart/recovery smoke under staging-devnet,
+  and CI runs it on every push from a clean checkout.
 
-Remaining: finish config separation across the node CLI and UI, the
-node/operator runbook, and implementing the Azure module resources for a
-human-run plan.
+Remaining: the explorer-ui environment banner, the node/operator runbook, and
+implementing the Azure module resources for a human-run plan.
 
 ## Cheap Verification
 

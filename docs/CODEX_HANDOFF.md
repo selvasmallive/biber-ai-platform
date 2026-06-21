@@ -106,6 +106,21 @@ transaction) and asserts the affirmative no-signing markers. Findings are
 recorded in `docs/XRIQ_PHASE2_WALLET_UI_SAFETY_REVIEW.md`. Verified: the guard
 passes (10 files scanned), a negative probe confirmed it catches a violation,
 and `npm run check` is green. No secrets, cloud resources, or tags were touched.
+Config separation was then extended to the `xriq-node` CLI: a fail-closed
+`--environment local|staging-devnet` flag is parsed centrally in
+`run_node_command` (and validated in the serve config parser), stripped before
+per-command parsing, defaulting to local and rejecting production-class values
+with the `unsupported_environment` error (`NodeRunnerError::UnsupportedEnvironment`).
+The Phase 2 "clean clone can run local/staging smoke tests" exit criterion is
+now met: `scripts/xriq_phase2_restart_recovery_smoke.py` accepts
+`--environment`, and `scripts/xriq_phase2_staging_smokes.py` builds once and runs
+the lifecycle smoke (local) plus the restart/recovery smoke under
+`staging-devnet`. CI runs the staging-smokes runner on every push from a clean
+checkout (replacing the two separate smoke steps). Verified: `cargo test -p
+xriq-node -j 1` (55 passed, incl. `node_environment_flag_is_fail_closed`), the
+staging-devnet restart/recovery smoke (ok), and the staging-smokes runner (ok).
+The explorer-ui environment banner and the node/operator runbook remain
+follow-ups. No secrets, cloud resources, or tags were touched.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and

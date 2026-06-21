@@ -44,12 +44,9 @@ jobs:
         run: cargo build --workspace --locked
       - name: cargo test
         run: cargo test --workspace -j 1
-      - name: Phase 1.4 signed-submit lifecycle smoke
+      - name: Phase 2 staging smokes (lifecycle + restart/recovery under staging-devnet)
         working-directory: .
-        run: python scripts/xriq_phase1_4_signed_submit_lifecycle_smoke.py --skip-build
-      - name: Phase 2 restart/recovery smoke
-        working-directory: .
-        run: python scripts/xriq_phase2_restart_recovery_smoke.py --skip-build
+        run: python scripts/xriq_phase2_staging_smokes.py --skip-build
 
   doc-guards:
     name: Documentation and roadmap guards

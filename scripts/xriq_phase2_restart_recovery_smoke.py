@@ -80,6 +80,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Reuse existing xriq-node, xriq-api, and xriq-wallet debug binaries.",
     )
+    parser.add_argument(
+        "--environment",
+        choices=["local", "staging-devnet"],
+        default="local",
+        help="Deployment environment profile to exercise (fail-closed; default local).",
+    )
     return parser.parse_args(argv)
 
 
@@ -100,6 +106,7 @@ def node_mempool_pending_count(
     pending_file: Path,
     *,
     label: str,
+    environment: str,
 ) -> dict[str, Any]:
     payload = run_json(
         f"xriq-node mempool-detail ({label})",
@@ -112,6 +119,8 @@ def node_mempool_pending_count(
             str(pending_file),
             "--alice-balance",
             "100",
+            "--environment",
+            environment,
             "--format",
             "json",
         ],
@@ -132,6 +141,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     api_dir = artifact_dir / "api"
     artifact_dir.mkdir(parents=True, exist_ok=False)
     completed: list[str] = []
+    environment = args.environment
 
     if not args.skip_build:
         if "CARGO_TARGET_DIR" not in os.environ:
@@ -210,7 +220,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         lambda payload: require_equal(
             payload, "code", "signed_submit_accepted_local_only", "Phase 2 accepted signed-submit"
         ),
-        extra_args=[SIGNED_SUBMIT_FLAG, "true"],
+        extra_args=[SIGNED_SUBMIT_FLAG, "true", "--environment", environment],
     )
     require_equal(accepted, "status", "pending", "Phase 2 accepted signed-submit")
     if len(pending_lines(pending_file)) != 1:
@@ -219,7 +229,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
 
     # 3. Clean restart: the pending transaction replays from the file.
     restart1 = node_mempool_pending_count(
-        node_binary, xriq_dir, chain_file, pending_file, label="clean-restart"
+        node_binary, xriq_dir, chain_file, pending_file, label="clean-restart", environment=environment
     )
     require_pending_count(restart1, 1, "Phase 2 clean restart")
     if tx_hash not in json.dumps(restart1):
@@ -232,7 +242,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     if len(pending_lines(pending_file)) != 2:
         raise SmokeError("duplicate injection did not produce two pending lines")
     restart2 = node_mempool_pending_count(
-        node_binary, xriq_dir, chain_file, pending_file, label="duplicate-recovery"
+        node_binary, xriq_dir, chain_file, pending_file, label="duplicate-recovery", environment=environment
     )
     require_pending_count(restart2, 1, "Phase 2 duplicate recovery")
     completed.append("verified duplicate pending line replays idempotently")
@@ -240,7 +250,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     # 5. Corrupt pending line is quarantined and self-healed out of the file.
     append_pending_line(pending_file, CORRUPT_PENDING_LINE)
     restart3 = node_mempool_pending_count(
-        node_binary, xriq_dir, chain_file, pending_file, label="corrupt-recovery"
+        node_binary, xriq_dir, chain_file, pending_file, label="corrupt-recovery", environment=environment
     )
     require_pending_count(restart3, 1, "Phase 2 corrupt recovery")
     healed = pending_file.read_text(encoding="utf-8")
@@ -272,7 +282,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         lambda payload: require_equal(
             payload, "status", "confirmed", "Phase 2 block production"
         ),
-        extra_args=[BLOCK_PRODUCTION_FLAG, "true"],
+        extra_args=[BLOCK_PRODUCTION_FLAG, "true", "--environment", environment],
     )
     block = produced_block.get("block")
     if not isinstance(block, dict):
@@ -282,7 +292,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         raise SmokeError("block production did not clear the pending file")
 
     restart4 = node_mempool_pending_count(
-        node_binary, xriq_dir, chain_file, pending_file, label="post-block-restart"
+        node_binary, xriq_dir, chain_file, pending_file, label="post-block-restart", environment=environment
     )
     require_pending_count(restart4, 0, "Phase 2 post-block restart")
     completed.append("verified block confirms transaction and clears pending across restart")
@@ -290,6 +300,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     summary = {
         "ok": "xriq-phase2-restart-recovery-smoke",
         "completed_at": datetime.now(UTC).isoformat(),
+        "environment": environment,
         "artifact_dir": str(artifact_dir),
         "chain_file": str(chain_file),
         "pending_file": str(pending_file),

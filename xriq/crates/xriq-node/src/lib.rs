@@ -11,7 +11,7 @@ use std::{
 
 use xriq_consensus::{BlockProductionError, BlockProductionInput, SingleAuthorityProducer};
 use xriq_core::{
-    Address, AddressError, Block, BlockHeader, BlockValidationError, GenesisConfig,
+    Address, AddressError, Block, BlockHeader, BlockValidationError, Environment, GenesisConfig,
     GenesisConfigError, Hash32, ParentHeaderView, SignatureBytes, Transaction,
     TransactionValidationContext, TransactionValidationError, XriqAmount,
 };
@@ -238,6 +238,7 @@ pub enum NodeRunnerError {
     UnknownCommand(String),
     UnknownFlag(String),
     MissingFlag(&'static str),
+    UnsupportedEnvironment(String),
     DuplicateFlag(String),
     UnexpectedArgument(String),
     DraftFileRead { path: String, error: String },
@@ -528,6 +529,10 @@ impl fmt::Display for NodeRunnerError {
             Self::UnknownCommand(command) => write!(formatter, "unknown command: {command}"),
             Self::UnknownFlag(flag) => write!(formatter, "unknown flag: {flag}"),
             Self::MissingFlag(flag) => write!(formatter, "missing required flag: {flag}"),
+            Self::UnsupportedEnvironment(value) => write!(
+                formatter,
+                "unsupported environment {value:?}: only \"local\" and \"staging-devnet\" are allowed; production, mainnet, and public-testnet are not runnable from this build"
+            ),
             Self::DuplicateFlag(flag) => write!(formatter, "duplicate flag: {flag}"),
             Self::UnexpectedArgument(argument) => {
                 write!(formatter, "unexpected argument: {argument}")
@@ -608,6 +613,7 @@ impl NodeRunnerError {
             Self::UnknownCommand(_) => "unknown_command",
             Self::UnknownFlag(_) => "unknown_flag",
             Self::MissingFlag(_) => "missing_flag",
+            Self::UnsupportedEnvironment(_) => "unsupported_environment",
             Self::DuplicateFlag(_) => "duplicate_flag",
             Self::UnexpectedArgument(_) => "unexpected_argument",
             Self::DraftFileRead { .. } => "draft_file_read",
@@ -641,6 +647,7 @@ impl NodeRunnerError {
 pub fn node_help_text() -> String {
     [
         "xriq-node private-devnet commands:",
+        "  All commands accept an optional [--environment local|staging-devnet] profile (default local; production/mainnet/public-testnet are rejected).",
         "  xriq-node status --chain-file <path> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node chain-check --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node produce-transfer-block --chain-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
@@ -716,6 +723,43 @@ fn node_runner_command_name(args: &[String]) -> Option<&str> {
         .filter(|command| !command.starts_with('-'))
 }
 
+// Resolve an optional `--environment` value, fail-closed. None defaults to
+// local; production/mainnet/public-testnet and unknown values are rejected so
+// the node cannot be run as, or confused with, production.
+fn parse_node_environment(value: Option<&str>) -> Result<Environment, NodeRunnerError> {
+    match value {
+        None => Ok(Environment::DEFAULT),
+        Some(raw) => raw
+            .parse::<Environment>()
+            .map_err(|error| NodeRunnerError::UnsupportedEnvironment(error.value)),
+    }
+}
+
+// Extract and validate an optional `--environment` flag from a command's
+// argument list, returning the resolved profile and the remaining arguments
+// with the flag removed so existing per-command parsers are unaffected.
+fn take_environment_flag(args: &[String]) -> Result<(Environment, Vec<String>), NodeRunnerError> {
+    let mut value: Option<String> = None;
+    let mut rest: Vec<String> = Vec::with_capacity(args.len());
+    let mut index = 0;
+    while index < args.len() {
+        if args[index] == "--environment" {
+            let raw = args
+                .get(index + 1)
+                .ok_or(NodeRunnerError::MissingFlag("--environment"))?;
+            if value.is_some() {
+                return Err(NodeRunnerError::DuplicateFlag("--environment".to_string()));
+            }
+            value = Some(raw.clone());
+            index += 2;
+        } else {
+            rest.push(args[index].clone());
+            index += 1;
+        }
+    }
+    Ok((parse_node_environment(value.as_deref())?, rest))
+}
+
 pub fn run_node_command<I, S>(args: I) -> Result<NodeRunnerOutput, NodeRunnerError>
 where
     I: IntoIterator<Item = S>,
@@ -725,6 +769,19 @@ where
         .into_iter()
         .map(|argument| argument.as_ref().to_string())
         .collect();
+    // Resolve and strip the optional --environment flag (fail-closed) for any
+    // real subcommand; the help and no-command paths are unaffected.
+    let args: Vec<String> = match args.first().map(String::as_str) {
+        None | Some("help") | Some("--help") | Some("-h") => args,
+        Some(_) => {
+            let (environment, mut rest) = take_environment_flag(&args[1..])?;
+            eprintln!("xriq-node environment={environment}");
+            let mut full = Vec::with_capacity(rest.len() + 1);
+            full.push(args[0].clone());
+            full.append(&mut rest);
+            full
+        }
+    };
     match args.first().map(String::as_str) {
         None => Err(NodeRunnerError::MissingCommand),
         Some("help" | "--help" | "-h") => Ok(NodeRunnerOutput::Help(node_help_text())),
@@ -765,7 +822,11 @@ pub fn parse_private_devnet_http_server_config(
         "--pending-file",
         "--snapshot-root",
         "--alice-balance",
+        "--environment",
     ])?;
+    // Validate the optional environment profile fail-closed; the server stays
+    // local/private and never runs as production.
+    parse_node_environment(flags.optional("--environment"))?;
     let bind = flags
         .optional("--bind")
         .unwrap_or("127.0.0.1:8787")
@@ -7331,6 +7392,90 @@ mod tests {
         let _ = fs::remove_file(path);
         let _ = fs::remove_file(pending_path);
         let _ = fs::remove_file(draft_path);
+    }
+
+    #[test]
+    fn node_environment_flag_is_fail_closed() {
+        let path = temp_store_path();
+        let pending = path.with_extension("pending");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending.to_string_lossy().to_string();
+
+        // staging-devnet is accepted and the command runs normally.
+        let staging = run_node_command([
+            "preflight-transfer",
+            "--chain-file",
+            path_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1bobbb00000000000",
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--expires-at-height",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--environment",
+            "staging-devnet",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(staging.contains("\"command\": \"preflight-transfer\""));
+
+        // Production-class profiles are rejected before the command executes.
+        let error = run_node_command([
+            "status",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--environment",
+            "production",
+        ])
+        .unwrap_err();
+        assert!(matches!(error, NodeRunnerError::UnsupportedEnvironment(_)));
+
+        // No flag still defaults to local and works.
+        let default_ok = run_node_command([
+            "status",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(default_ok.contains("\"command\": \"status\""));
+
+        // The serve config parser shares the same fail-closed validation.
+        let serve_error = parse_private_devnet_http_server_config(
+            &[
+                "--chain-file".to_string(),
+                path_text.clone(),
+                "--environment".to_string(),
+                "mainnet".to_string(),
+            ],
+            false,
+        )
+        .unwrap_err();
+        assert!(matches!(
+            serve_error,
+            NodeRunnerError::UnsupportedEnvironment(_)
+        ));
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending);
     }
 
     #[test]

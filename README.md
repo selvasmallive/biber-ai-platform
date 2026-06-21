@@ -335,6 +335,11 @@ The Phase 2 restart/recovery hardening is covered by
 xriq-api across real process restarts to prove pending state survives restarts
 and recovers from duplicate and corrupt pending lines (corrupt lines are
 quarantined to a `<pending-file>.quarantine` sidecar) without bricking startup.
+A clean clone can build and run the Phase 2 staging smokes (lifecycle plus
+restart/recovery under the fail-closed `staging-devnet` environment profile) with
+`python scripts/xriq_phase2_staging_smokes.py`; both `xriq-api` and `xriq-node`
+accept an `--environment local|staging-devnet` flag that rejects production-class
+values. CI runs this on every push from a clean checkout.
 The Phase 2 cloud provider decision selects Azure in
 `docs/XRIQ_AZURE_PROVIDER_DECISION.md`, with provider-specific Terraform module
 boundaries (no resources created) under `infra/azure/`. Validate the decision
