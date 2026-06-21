@@ -40,10 +40,25 @@ the new test `node_runner_replays_duplicate_pending_line_idempotently` and does
 not change the default-refused signed-submit contract, enable any UI mutation,
 or touch secrets/cloud/tags. Verified with `cargo test -p xriq-node -j 1`
 (53 passed), `cargo test -p xriq-api -j 1` (75 passed), and
-`python scripts/xriq_phase1_4_signed_submit_lifecycle_smoke.py` (ok). The next
-Phase 2 items remain: restart/recovery smoke for pending and chain files, a CI
-workflow, and the corrupt-pending-line (non-duplicate) recovery policy, which
-involves a fail-closed vs fail-open decision a human should weigh in on.
+`python scripts/xriq_phase1_4_signed_submit_lifecycle_smoke.py` (ok).
+Two further Phase 2 hardening items then landed on the same branch. First,
+corrupt-pending-line recovery: `read_pending_transaction_records` is now
+fail-open and `quarantine_corrupt_pending_lines` moves unparseable lines to a
+`<pending-file>.quarantine` sidecar (with a `xriq-pending-quarantine-v1` marker)
+and self-heals them out of the live pending file exactly once, so a single
+corrupt/truncated/tampered line no longer bricks startup and nothing is silently
+lost. Second, a restart/recovery smoke
+`scripts/xriq_phase2_restart_recovery_smoke.py` drives xriq-node and xriq-api
+across real process restarts to prove accepted signed-submit persists, survives
+a clean restart, replays a duplicate line idempotently, quarantines a corrupt
+line, and confirms through block production across a final restart. Verified:
+`cargo test -p xriq-node -j 1` (54 passed), `cargo test -p xriq-api -j 1`
+(75 passed), the restart/recovery smoke (ok), and the Phase 1.4 lifecycle smoke
+(ok). On Windows/OneDrive, run cargo with `CARGO_TARGET_DIR` pointed outside the
+OneDrive tree to avoid transient `LNK1104` link locks. The remaining Phase 2
+items are a CI workflow (Rust + frontend + Python smokes), staging config
+separation, a wallet UI safety review, a node/operator runbook, and the cloud
+provider decision issue. No secrets, cloud resources, or tags were touched.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and

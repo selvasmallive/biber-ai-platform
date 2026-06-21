@@ -164,3 +164,24 @@ guards green:
 python scripts/xriq_production_roadmap_check.py
 python scripts/xriq_private_devnet_wrapup_check.py
 ```
+
+## Behavior-Level Verification
+
+The restart/recovery hardening is covered by a local smoke that drives the
+xriq-node and xriq-api binaries across real process restarts (each invocation is
+a fresh process, so state is reconstructed from the chain and pending files):
+
+```bash
+python scripts/xriq_phase2_restart_recovery_smoke.py
+```
+
+It proves accepted signed-submit persists, survives a clean restart, replays a
+duplicate pending line idempotently, quarantines a corrupt pending line to a
+`<pending-file>.quarantine` sidecar without silent loss, and confirms the
+transaction through block production across a final restart. The underlying
+hardening is also covered by Rust tests:
+
+```bash
+cargo test -p xriq-node -j 1
+cargo test -p xriq-api -j 1
+```

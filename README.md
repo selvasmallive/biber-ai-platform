@@ -330,6 +330,11 @@ acceptance criteria, hardening gaps, environment boundaries, and
 provider-neutral operational decisions without choosing a cloud provider or
 creating resources. Validate its guardrails with
 `python scripts/xriq_phase2_plan_check.py`.
+The Phase 2 restart/recovery hardening is covered by
+`python scripts/xriq_phase2_restart_recovery_smoke.py`; it drives xriq-node and
+xriq-api across real process restarts to prove pending state survives restarts
+and recovers from duplicate and corrupt pending lines (corrupt lines are
+quarantined to a `<pending-file>.quarantine` sidecar) without bricking startup.
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The first Phase 1.2 wallet mutation preflight fixtures are in

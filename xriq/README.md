@@ -131,6 +131,12 @@ acceptance criteria, hardening gaps, environment boundaries, and
 provider-neutral operational decisions without choosing a cloud provider or
 creating resources. From the repo root, validate its guardrails with
 `python scripts/xriq_phase2_plan_check.py`.
+The Phase 2 restart/recovery hardening smoke is
+`python scripts/xriq_phase2_restart_recovery_smoke.py` (run from the repo root);
+it drives xriq-node and xriq-api across real process restarts to prove pending
+state survives restarts and recovers from duplicate and corrupt pending lines
+(corrupt lines are quarantined to a `<pending-file>.quarantine` sidecar) without
+bricking startup.
 The first Phase 1.2 wallet mutation preflight fixtures live in
 `fixtures/phase1_2/`; they are disabled/refusal contracts only and do not enable
 wallet submit/send behavior. From the repo root, validate them with
