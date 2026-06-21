@@ -21,7 +21,9 @@ models/
 checkpoints/
 datasets/
 backups/
-data/
+# Root-anchored so it ignores the BIBER datasets dir but not nested paths like
+# infra/azure/modules/data/.
+/data/
 outputs/
 adapters/
 .biber-runtime/
