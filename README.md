@@ -335,6 +335,13 @@ The Phase 2 restart/recovery hardening is covered by
 xriq-api across real process restarts to prove pending state survives restarts
 and recovers from duplicate and corrupt pending lines (corrupt lines are
 quarantined to a `<pending-file>.quarantine` sidecar) without bricking startup.
+The Phase 2 cloud provider decision selects Azure in
+`docs/XRIQ_AZURE_PROVIDER_DECISION.md`, with provider-specific Terraform module
+boundaries (no resources created) under `infra/azure/`. Validate the decision
+and boundaries with `python scripts/xriq_azure_provider_decision_check.py`, and
+statically validate the Terraform with `cd infra/azure && terraform fmt -check &&
+terraform init -backend=false && terraform validate`. No cloud resources are
+created and no secrets are stored.
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The first Phase 1.2 wallet mutation preflight fixtures are in

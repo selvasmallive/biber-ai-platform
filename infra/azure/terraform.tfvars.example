@@ -1,0 +1,18 @@
+# Example variables for the XRIQ Azure staging-devnet boundaries.
+# Copy to terraform.tfvars and edit. Contains NO secrets and NO subscription or
+# tenant identifiers; those come from the environment / az login at apply time.
+# terraform.tfvars itself is gitignored.
+
+project     = "xriq"
+environment = "staging-devnet"
+location    = "eastus"
+
+monthly_budget_amount           = 150
+budget_alert_threshold_percents = [80, 100]
+
+tags = {
+  project     = "xriq"
+  environment = "staging-devnet"
+  managed_by  = "terraform"
+  scope       = "private-staging-no-public-financial-claims"
+}

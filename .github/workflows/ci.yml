@@ -64,10 +64,29 @@ jobs:
           python-version: "3.12"
       - name: Phase 2 staging-devnet plan guard
         run: python scripts/xriq_phase2_plan_check.py
+      - name: Azure provider decision guard
+        run: python scripts/xriq_azure_provider_decision_check.py
       - name: Production roadmap guard
         run: python scripts/xriq_production_roadmap_check.py
       - name: Private-devnet wrap-up guard
         run: python scripts/xriq_private_devnet_wrapup_check.py
+
+  terraform:
+    name: Terraform static validation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/azure
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+      - name: terraform fmt
+        run: terraform fmt -recursive -check
+      - name: terraform init (no backend, no cloud access)
+        run: terraform init -backend=false
+      - name: terraform validate
+        run: terraform validate
 
   frontend:
     name: Explorer UI checks

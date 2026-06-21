@@ -33,3 +33,19 @@ dist/
 
 .DS_Store
 Thumbs.db
+
+# Terraform (no state, plans, or local vars in git)
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfplan
+infra/**/terraform.tfvars
+infra/**/*.auto.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl

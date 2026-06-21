@@ -137,6 +137,12 @@ it drives xriq-node and xriq-api across real process restarts to prove pending
 state survives restarts and recovers from duplicate and corrupt pending lines
 (corrupt lines are quarantined to a `<pending-file>.quarantine` sidecar) without
 bricking startup.
+The Phase 2 cloud provider decision selects Azure in
+`../docs/XRIQ_AZURE_PROVIDER_DECISION.md`, with provider-specific Terraform
+module boundaries (no resources created) under `../infra/azure/`. From the repo
+root, validate the decision and boundaries with
+`python scripts/xriq_azure_provider_decision_check.py`. No cloud resources are
+created and no secrets are stored.
 The first Phase 1.2 wallet mutation preflight fixtures live in
 `fixtures/phase1_2/`; they are disabled/refusal contracts only and do not enable
 wallet submit/send behavior. From the repo root, validate them with

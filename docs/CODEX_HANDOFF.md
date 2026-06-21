@@ -59,6 +59,24 @@ OneDrive tree to avoid transient `LNK1104` link locks. The remaining Phase 2
 items are a CI workflow (Rust + frontend + Python smokes), staging config
 separation, a wallet UI safety review, a node/operator runbook, and the cloud
 provider decision issue. No secrets, cloud resources, or tags were touched.
+The CI workflow then landed at `.github/workflows/ci.yml` (Rust fmt/build/test
+plus the lifecycle and restart/recovery smokes, the doc/roadmap guards, and the
+explorer-ui check/build); its first hosted run on `main` passed all three jobs.
+The user then selected Azure as the cloud provider (account owner
+`selva@kani.network`, region `eastus`, staging-devnet monthly budget ceiling
+USD 150 with alerts at 80%/100%). This is recorded as a decision and Terraform
+module boundaries only, with no resources created and no credentials handled:
+`docs/XRIQ_AZURE_PROVIDER_DECISION.md` plus `infra/azure/` (root module wiring
+boundary-only network/security/data/compute/observability modules that create no
+resources yet). Static validation passes locally (`terraform fmt -recursive
+-check`, `terraform init -backend=false`, `terraform validate`) and the cheap
+guard `scripts/xriq_azure_provider_decision_check.py` passes. The state backend
+is intentionally unconfigured so validation needs no Azure access; `az login`,
+`terraform plan`, and `terraform apply` against a real subscription remain
+human-only actions after explicit approval. The remaining Phase 2 items are
+staging config separation, a wallet UI safety review, a node/operator runbook,
+and then implementing the `infra/azure/` module resources for a human-run plan.
+No secrets, cloud resources, or tags were touched.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and
