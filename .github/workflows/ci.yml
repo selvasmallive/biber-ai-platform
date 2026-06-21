@@ -1,0 +1,91 @@
+name: CI
+
+# Local/private XRIQ continuous integration. This workflow runs deterministic
+# Rust tests, cheap documentation/guard checks, the local/private smokes, and
+# the explorer-ui static checks. It does not deploy anything, touch cloud
+# resources, manage secrets, or create tags.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust tests and smokes
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: xriq
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Rust toolchain info
+        run: |
+          rustup component add rustfmt
+          rustc --version
+          cargo --version
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+      - name: cargo build
+        run: cargo build --workspace --locked
+      - name: cargo test
+        run: cargo test --workspace -j 1
+      - name: Phase 1.4 signed-submit lifecycle smoke
+        working-directory: .
+        run: python scripts/xriq_phase1_4_signed_submit_lifecycle_smoke.py --skip-build
+      - name: Phase 2 restart/recovery smoke
+        working-directory: .
+        run: python scripts/xriq_phase2_restart_recovery_smoke.py --skip-build
+
+  doc-guards:
+    name: Documentation and roadmap guards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Phase 2 staging-devnet plan guard
+        run: python scripts/xriq_phase2_plan_check.py
+      - name: Production roadmap guard
+        run: python scripts/xriq_production_roadmap_check.py
+      - name: Private-devnet wrap-up guard
+        run: python scripts/xriq_private_devnet_wrapup_check.py
+
+  frontend:
+    name: Explorer UI checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: xriq/apps/explorer-ui
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: xriq/apps/explorer-ui/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Static contract checks
+        run: npm run check
+      - name: Build
+        run: npm run build
