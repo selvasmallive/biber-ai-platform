@@ -68,8 +68,10 @@ xriq-api request --chain-file <path> --target /api/v1/health --environment produ
     `serve-readonly`/`serve-private`; the flag is parsed centrally and stripped
     before per-command parsing, defaulting to local and rejecting production-class
     values with `unsupported_environment`.
-- The explorer-ui environment banner remains a follow-up; the UI feature
-  switches are unchanged.
+- The explorer-ui shows the active profile via an environment banner wired to a
+  `VITE_XRIQ_ENVIRONMENT` build var (default local; `staging-devnet` is
+  highlighted; any other value renders as "unsupported"). The UI feature
+  switches are otherwise unchanged.
 - The API response `environment` field (`"private-devnet"`) and the genesis
   `chain_id` (`"xriq-devnet"`) are deliberately unchanged to preserve existing
   response contracts and fixtures.

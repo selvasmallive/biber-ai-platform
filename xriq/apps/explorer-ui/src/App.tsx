@@ -20,6 +20,28 @@ import { SnapshotCatalogPanel } from "./snapshots";
 import "./styles.css";
 import { WalletShell } from "./wallet";
 
+// Deployment environment banner. Mirrors the binaries' fail-closed profile:
+// only local and staging-devnet are supported; anything else (e.g. production)
+// is surfaced as unsupported rather than silently shown as local.
+interface EnvironmentBanner {
+  label: string;
+  supported: boolean;
+}
+
+function resolveEnvironment(raw: string | undefined): EnvironmentBanner {
+  if (raw === undefined || raw === "" || raw === "local") {
+    return { label: "local", supported: true };
+  }
+  if (raw === "staging-devnet") {
+    return { label: "staging-devnet", supported: true };
+  }
+  return { label: raw, supported: false };
+}
+
+const XRIQ_ENVIRONMENT = resolveEnvironment(
+  import.meta.env.VITE_XRIQ_ENVIRONMENT as string | undefined,
+);
+
 type LoadState =
   | { status: "loading"; snapshot: ExplorerSnapshot | null; error: null }
   | { status: "ready"; snapshot: ExplorerSnapshot; error: null }
@@ -237,6 +259,15 @@ function App() {
           <h1>XRIQ Explorer</h1>
         </div>
         <div className="statusCluster">
+          <span
+            className={`envPill ${XRIQ_ENVIRONMENT.supported ? XRIQ_ENVIRONMENT.label : "unsupported"}`}
+            aria-label="Environment profile"
+            title="Deployment environment profile"
+          >
+            {XRIQ_ENVIRONMENT.supported
+              ? XRIQ_ENVIRONMENT.label
+              : `unsupported: ${XRIQ_ENVIRONMENT.label}`}
+          </span>
           <span className={`statusPill ${loadState.status}`}>{statusText}</span>
           <button className="iconButton" type="button" onClick={() => void refresh()}>
             <span>Refresh</span>

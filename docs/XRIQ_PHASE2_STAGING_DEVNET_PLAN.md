@@ -176,9 +176,11 @@ Do not start public testnet work until these Phase 2 exit criteria are met.
   running the node/API, pending-file recovery, snapshots, smokes/guards, and an
   incident quick reference.
 
-Remaining: the explorer-ui environment banner, and implementing the Azure module
-resources for a human-run plan (a later, human-gated apply; not required to
-operate the local/staging devnet).
+- The explorer-ui environment banner is complete: it shows the active profile
+  (local/staging-devnet, or "unsupported") via `VITE_XRIQ_ENVIRONMENT`.
+
+Remaining: implementing the Azure module resources for a human-run plan (a
+later, human-gated apply; not required to operate the local/staging devnet).
 
 ## Cheap Verification
 

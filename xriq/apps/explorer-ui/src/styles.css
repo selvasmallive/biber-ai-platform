@@ -125,6 +125,33 @@ h3 {
   color: #9b1c31;
 }
 
+.envPill {
+  min-height: 40px;
+  padding: 10px 14px;
+  border: 1px solid rgba(22, 50, 79, 0.16);
+  border-radius: 8px;
+  box-shadow: 0 16px 34px rgba(22, 50, 79, 0.08);
+  background: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.envPill.local {
+  color: #0f684e;
+}
+
+.envPill.staging-devnet {
+  color: #75510a;
+  background: #fff7e6;
+}
+
+.envPill.unsupported {
+  color: #ffffff;
+  background: #9b1c31;
+}
+
 .iconButton,
 .apiBar button {
   min-height: 40px;

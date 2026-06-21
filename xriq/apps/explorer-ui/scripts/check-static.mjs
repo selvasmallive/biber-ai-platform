@@ -159,6 +159,11 @@ for (const requiredText of [
   "SnapshotCatalogPanel",
   "IsoPreviewPanel",
   "AdminStatusPanel",
+  "VITE_XRIQ_ENVIRONMENT",
+  "resolveEnvironment",
+  "staging-devnet",
+  "envPill",
+  "unsupported",
 ]) {
   if (!appSource.includes(requiredText)) {
     throw new Error(`missing UI marker: ${requiredText}`);
