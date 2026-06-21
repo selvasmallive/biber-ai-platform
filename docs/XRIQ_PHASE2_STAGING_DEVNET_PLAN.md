@@ -160,9 +160,13 @@ Do not start public testnet work until these Phase 2 exit criteria are met.
   deployment environment profile (`local` / `staging-devnet`, production
   rejected) is documented in `docs/XRIQ_PHASE2_CONFIG_SEPARATION.md`.
 
-Remaining: finish config separation across the node CLI and UI, the wallet UI
-safety review, the node/operator runbook, and implementing the Azure module
-resources for a human-run plan.
+- The wallet UI safety review is complete (item 5): the browser UI holds no key
+  material, and `docs/XRIQ_PHASE2_WALLET_UI_SAFETY_REVIEW.md` plus the
+  CI-enforced `check-wallet-key-safety.mjs` guard lock this in.
+
+Remaining: finish config separation across the node CLI and UI, the
+node/operator runbook, and implementing the Azure module resources for a
+human-run plan.
 
 ## Cheap Verification
 

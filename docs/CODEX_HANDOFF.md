@@ -94,6 +94,18 @@ lifecycle and restart/recovery smokes (ok under the default local profile), and
 a manual binary check that `--environment production` is rejected. The node CLI
 and explorer-ui environment gating remain follow-ups. No secrets, cloud
 resources, or tags were touched.
+The wallet UI safety review is now complete. The explorer-ui was reviewed and
+holds no key material: it transmits only transfer fields (addresses, amount,
+fee, nonce, expiry), performs no client-side signing, and uses no browser
+storage of key-like material. This is enforced by a new CI-run guard
+`xriq/apps/explorer-ui/scripts/check-wallet-key-safety.mjs` (wired into
+`npm run check`), which fails the build on any forbidden pattern (private/secret
+key, seed phrase, mnemonic, key pair, keystore, crypto.subtle, generateKey,
+localStorage, sessionStorage, indexedDB, document.cookie, raw signature, sign
+transaction) and asserts the affirmative no-signing markers. Findings are
+recorded in `docs/XRIQ_PHASE2_WALLET_UI_SAFETY_REVIEW.md`. Verified: the guard
+passes (10 files scanned), a negative probe confirmed it catches a violation,
+and `npm run check` is green. No secrets, cloud resources, or tags were touched.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and

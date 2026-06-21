@@ -11,6 +11,7 @@ const requiredFiles = [
   "scripts/check-block-production-ui-control.mjs",
   "scripts/check-block-production-ui-live.mjs",
   "scripts/check-postgres-ui-state.mjs",
+  "scripts/check-wallet-key-safety.mjs",
   "scripts/check-wallet-send-accepted-contract.mjs",
   "scripts/check-wallet-submit-accepted-contract.mjs",
   "tsconfig.json",
