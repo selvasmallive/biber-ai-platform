@@ -141,6 +141,7 @@ A clean clone can run the Phase 2 staging smokes (lifecycle plus restart/recover
 under the fail-closed `staging-devnet` profile) from the repo root with
 `python scripts/xriq_phase2_staging_smokes.py`; both `xriq-api` and `xriq-node`
 accept `--environment local|staging-devnet` and reject production-class values.
+The local/staging node/operator runbook is `../docs/XRIQ_PHASE2_NODE_OPERATOR_RUNBOOK.md`.
 The Phase 2 cloud provider decision selects Azure in
 `../docs/XRIQ_AZURE_PROVIDER_DECISION.md`, with provider-specific Terraform
 module boundaries (no resources created) under `../infra/azure/`. From the repo

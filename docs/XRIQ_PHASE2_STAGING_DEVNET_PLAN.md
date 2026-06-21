@@ -171,8 +171,14 @@ Do not start public testnet work until these Phase 2 exit criteria are met.
   lifecycle smoke (local) plus the restart/recovery smoke under staging-devnet,
   and CI runs it on every push from a clean checkout.
 
-Remaining: the explorer-ui environment banner, the node/operator runbook, and
-implementing the Azure module resources for a human-run plan.
+- The node/operator local runbook is complete (item 6):
+  `docs/XRIQ_PHASE2_NODE_OPERATOR_RUNBOOK.md` covers build, environment profiles,
+  running the node/API, pending-file recovery, snapshots, smokes/guards, and an
+  incident quick reference.
+
+Remaining: the explorer-ui environment banner, and implementing the Azure module
+resources for a human-run plan (a later, human-gated apply; not required to
+operate the local/staging devnet).
 
 ## Cheap Verification
 

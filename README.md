@@ -340,6 +340,10 @@ restart/recovery under the fail-closed `staging-devnet` environment profile) wit
 `python scripts/xriq_phase2_staging_smokes.py`; both `xriq-api` and `xriq-node`
 accept an `--environment local|staging-devnet` flag that rejects production-class
 values. CI runs this on every push from a clean checkout.
+The local/staging node/operator runbook is in
+`docs/XRIQ_PHASE2_NODE_OPERATOR_RUNBOOK.md` (build, environment profiles,
+running the node/API, pending-file recovery, snapshots, smokes, and an incident
+quick reference).
 The Phase 2 cloud provider decision selects Azure in
 `docs/XRIQ_AZURE_PROVIDER_DECISION.md`, with provider-specific Terraform module
 boundaries (no resources created) under `infra/azure/`. Validate the decision

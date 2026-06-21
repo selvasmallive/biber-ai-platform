@@ -119,8 +119,19 @@ the lifecycle smoke (local) plus the restart/recovery smoke under
 checkout (replacing the two separate smoke steps). Verified: `cargo test -p
 xriq-node -j 1` (55 passed, incl. `node_environment_flag_is_fail_closed`), the
 staging-devnet restart/recovery smoke (ok), and the staging-smokes runner (ok).
-The explorer-ui environment banner and the node/operator runbook remain
-follow-ups. No secrets, cloud resources, or tags were touched.
+The node/operator local runbook is now complete:
+`docs/XRIQ_PHASE2_NODE_OPERATOR_RUNBOOK.md` documents build, environment
+profiles, running the node/API, accepted-mutation flags, pending-file
+duplicate/corrupt recovery, snapshots, the smokes/guards, and an incident quick
+reference, all local/staging only. A local node/operator runbook needs no Azure
+resources, so no cloud changes were made for it; standing up Azure remains a
+later human-gated `terraform plan`/`apply` step. The explorer-ui environment
+banner and implementing the `infra/azure/` module resources remain follow-ups.
+With this, all five Phase 2 roadmap exit criteria are satisfied (clean-clone
+staging smokes in CI, restart/replay recovery, no browser/server key material,
+private/staging config separated from production across both binaries, and a
+documented cloud-provider decision before any provider-specific IaC). No secrets,
+cloud resources, or tags were touched.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and
