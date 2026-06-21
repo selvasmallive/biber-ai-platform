@@ -4,6 +4,7 @@ pub mod address;
 pub mod amount;
 pub mod block;
 pub mod config;
+pub mod environment;
 pub mod hash;
 pub mod state;
 pub mod transaction;
@@ -16,6 +17,7 @@ pub use config::{
     PRIVATE_DEVNET_MAX_TRANSACTIONS_PER_BLOCK, PRIVATE_DEVNET_MEMPOOL_MAX_TRANSACTIONS,
     PRIVATE_DEVNET_MIN_FEE_BASE_UNITS,
 };
+pub use environment::{Environment, EnvironmentError, CANONICAL_NETWORK};
 pub use hash::Hash32;
 pub use state::AccountStateEntry;
 pub use transaction::{

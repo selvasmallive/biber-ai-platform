@@ -77,6 +77,23 @@ human-only actions after explicit approval. The remaining Phase 2 items are
 staging config separation, a wallet UI safety review, a node/operator runbook,
 and then implementing the `infra/azure/` module resources for a human-run plan.
 No secrets, cloud resources, or tags were touched.
+Staging config separation has now begun: an explicit, fail-closed deployment
+environment profile lives in `xriq-core`
+(`xriq/crates/xriq-core/src/environment.rs`: `Environment::{Local,
+StagingDevnet}`, with `production`/`mainnet`/`public-testnet`/unknown rejected).
+The `xriq-api` binary takes an optional `--environment local|staging-devnet`
+flag on `request` and `serve-readonly`, defaulting to `local` so all existing
+commands, tests, fixtures, and smokes are unchanged; production-class values
+make the binary exit non-zero with a clear error. See
+`docs/XRIQ_PHASE2_CONFIG_SEPARATION.md`. The API response `environment` field
+(`private-devnet`) and genesis `chain_id` (`xriq-devnet`) are intentionally
+unchanged to preserve response contracts. Verified: `cargo test -p xriq-core -j
+1` (23 passed, incl. fail-closed parse tests), `cargo test -p xriq-api -j 1`
+(76 passed, incl. `environment_flag_is_fail_closed_for_request_and_serve`), the
+lifecycle and restart/recovery smokes (ok under the default local profile), and
+a manual binary check that `--environment production` is rejected. The node CLI
+and explorer-ui environment gating remain follow-ups. No secrets, cloud
+resources, or tags were touched.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and

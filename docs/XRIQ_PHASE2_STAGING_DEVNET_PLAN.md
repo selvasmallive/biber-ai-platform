@@ -147,6 +147,23 @@ Follow the roadmap Phase 2 issue sequence in narrow, separately reviewable PRs:
 
 Do not start public testnet work until these Phase 2 exit criteria are met.
 
+## Progress
+
+- Signed-submit replay hardening (idempotent duplicate handling, corrupt-line
+  quarantine) and a restart/recovery smoke are complete (items 1-2).
+- A CI workflow runs Rust, doc/roadmap guards, the smokes, Terraform static
+  validation, and the explorer-ui checks (item 3).
+- The cloud provider decision selected Azure with provider-neutral Terraform
+  module boundaries; see `docs/XRIQ_AZURE_PROVIDER_DECISION.md` and `infra/azure/`
+  (items 7-8, no resources created).
+- Staging configuration separation has begun (item 4): an explicit, fail-closed
+  deployment environment profile (`local` / `staging-devnet`, production
+  rejected) is documented in `docs/XRIQ_PHASE2_CONFIG_SEPARATION.md`.
+
+Remaining: finish config separation across the node CLI and UI, the wallet UI
+safety review, the node/operator runbook, and implementing the Azure module
+resources for a human-run plan.
+
 ## Cheap Verification
 
 Validate this plan's guardrails from the repository root:

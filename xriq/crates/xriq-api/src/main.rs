@@ -21,7 +21,7 @@ use xriq_api::{
     WALLET_SIGNED_SUBMIT_AUDIT_ACTION, WALLET_SUBMIT_AUDIT_ACTION, WALLET_SUBMIT_AUDIT_RESOURCE_ID,
 };
 use xriq_core::{
-    Address, Hash32, XriqAmount, PRIVATE_DEVNET_MAX_TRANSACTIONS_PER_BLOCK,
+    Address, Environment, Hash32, XriqAmount, PRIVATE_DEVNET_MAX_TRANSACTIONS_PER_BLOCK,
     PRIVATE_DEVNET_MIN_FEE_BASE_UNITS,
 };
 use xriq_crypto::transaction_hash;
@@ -120,6 +120,7 @@ where
 
 fn run_request(args: &[&str]) -> Result<String, String> {
     let config = RequestConfig::parse(args)?;
+    eprintln!("xriq-api request environment={}", config.environment);
     let service = build_service(config.chain_file, config.pending_file, config.alice_balance)?;
     let mut response = None;
     if config.enable_local_wallet_submit {
@@ -194,11 +195,12 @@ fn run_serve_readonly(args: &[&str]) -> Result<String, String> {
     let listener = TcpListener::bind(config.bind)
         .map_err(|error| format!("could not bind xriq-api to {}: {error}", config.bind))?;
     eprintln!(
-        "xriq-api private-devnet read-only server listening on {}",
+        "xriq-api private-devnet read-only server listening on {} (environment={})",
         listener
             .local_addr()
             .map(|address| address.to_string())
-            .unwrap_or_else(|_| config.bind.to_string())
+            .unwrap_or_else(|_| config.bind.to_string()),
+        config.environment
     );
 
     for stream in listener.incoming() {
@@ -6454,9 +6456,9 @@ fn optional_u16_query(query: Option<&str>, key: &str) -> Result<Option<u16>, Str
 fn help_text() -> String {
     [
         "xriq-api private-devnet commands:",
-        "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET|POST] [--enable-local-wallet-submit true] [--enable-local-wallet-send true] [--enable-local-wallet-submit-signed true] [--enable-local-block-production true] --target <api-path>",
+        "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET|POST] [--environment local|staging-devnet] [--enable-local-wallet-submit true] [--enable-local-wallet-send true] [--enable-local-wallet-submit-signed true] [--enable-local-block-production true] --target <api-path>",
         "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/node/status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/blocks/<height-or-hash>|/api/v1/transactions?limit=5|/api/v1/mempool?limit=5|/api/v1/wallet/status|/api/v1/wallet/transfers/draft-preview?...|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/iso20022/transactions/<tx_hash>/status|/api/v1/iso20022/payment-initiation/preview?tx_hash=<tx_hash>|/api/v1/iso20022/accounts/<address>/statement?from=...&to=...|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5|/api/v1/snapshots?limit=5|/api/v1/snapshots/<snapshot_name>",
-        "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--enable-local-wallet-submit true] [--enable-local-wallet-send true] [--enable-local-wallet-submit-signed true] [--enable-local-block-production true] [--postgres-docker-container <container> --postgres-database <database>]",
+        "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--environment local|staging-devnet] [--enable-local-wallet-submit true] [--enable-local-wallet-send true] [--enable-local-wallet-submit-signed true] [--enable-local-block-production true] [--postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
         "  xriq-api request --chain-file target/xriq-devnet.bin --alice-balance 100 --target /api/v1/health",
@@ -6501,6 +6503,7 @@ struct RequestConfig<'a> {
     alice_balance: Option<XriqAmount>,
     method: &'a str,
     target: &'a str,
+    environment: Environment,
     enable_local_wallet_submit: bool,
     enable_local_wallet_send: bool,
     enable_local_wallet_signed_submit: bool,
@@ -6516,6 +6519,7 @@ impl<'a> RequestConfig<'a> {
             "--alice-balance",
             "--method",
             "--target",
+            "--environment",
             "--enable-local-wallet-submit",
             "--enable-local-wallet-send",
             "--enable-local-wallet-submit-signed",
@@ -6524,6 +6528,7 @@ impl<'a> RequestConfig<'a> {
         Ok(Self {
             chain_file: flags.required("--chain-file")?,
             pending_file: flags.optional("--pending-file"),
+            environment: parse_environment(flags.optional("--environment"))?,
             alice_balance: flags
                 .optional("--alice-balance")
                 .map(parse_amount)
@@ -6653,6 +6658,7 @@ struct ServeConfig<'a> {
     pending_file: Option<&'a str>,
     alice_balance: Option<XriqAmount>,
     bind: &'a str,
+    environment: Environment,
     postgres_read_model: Option<PostgresReadModelConfig<'a>>,
     enable_local_wallet_submit: bool,
     enable_local_wallet_send: bool,
@@ -6668,6 +6674,7 @@ impl<'a> ServeConfig<'a> {
             "--pending-file",
             "--alice-balance",
             "--bind",
+            "--environment",
             "--enable-local-wallet-submit",
             "--enable-local-wallet-send",
             "--enable-local-wallet-submit-signed",
@@ -6704,6 +6711,7 @@ impl<'a> ServeConfig<'a> {
                 .map(parse_amount)
                 .transpose()?,
             bind: flags.optional("--bind").unwrap_or(DEFAULT_BIND),
+            environment: parse_environment(flags.optional("--environment"))?,
             postgres_read_model,
             enable_local_wallet_submit: flags
                 .optional("--enable-local-wallet-submit")
@@ -6734,6 +6742,18 @@ fn parse_bool_flag(flag: &'static str, value: &str) -> Result<bool, String> {
         "true" | "1" | "yes" => Ok(true),
         "false" | "0" | "no" => Ok(false),
         _ => Err(format!("{flag} must be true or false, got {value:?}")),
+    }
+}
+
+// Resolve the deployment environment profile. Defaults to local and is
+// fail-closed: production/mainnet/public-testnet and unknown values are
+// rejected so this build cannot be run as, or confused with, production.
+fn parse_environment(value: Option<&str>) -> Result<Environment, String> {
+    match value {
+        None => Ok(Environment::DEFAULT),
+        Some(raw) => raw
+            .parse::<Environment>()
+            .map_err(|error| error.to_string()),
     }
 }
 
@@ -7068,6 +7088,7 @@ mod tests {
         assert_eq!(config.alice_balance.unwrap().base_units(), 100);
         assert_eq!(config.method, "GET");
         assert_eq!(config.target, "/api/v1/health");
+        assert_eq!(config.environment, Environment::Local);
         assert!(!config.enable_local_wallet_submit);
         assert!(!config.enable_local_wallet_send);
         assert!(!config.enable_local_wallet_signed_submit);
@@ -7119,6 +7140,81 @@ mod tests {
         ])
         .unwrap();
         assert!(enabled.enable_local_block_production);
+    }
+
+    #[test]
+    fn environment_flag_is_fail_closed_for_request_and_serve() {
+        // Supported non-production profiles parse.
+        let staging = RequestConfig::parse(&[
+            "--chain-file",
+            "target/xriq.bin",
+            "--target",
+            "/api/v1/health",
+            "--environment",
+            "staging-devnet",
+        ])
+        .unwrap();
+        assert_eq!(staging.environment, Environment::StagingDevnet);
+
+        let local = RequestConfig::parse(&[
+            "--chain-file",
+            "target/xriq.bin",
+            "--target",
+            "/api/v1/health",
+            "--environment",
+            "local",
+        ])
+        .unwrap();
+        assert_eq!(local.environment, Environment::Local);
+
+        // Production-class and unknown profiles are rejected (fail-closed).
+        for bad in ["production", "mainnet", "public-testnet", "prod"] {
+            let error = RequestConfig::parse(&[
+                "--chain-file",
+                "target/xriq.bin",
+                "--target",
+                "/api/v1/health",
+                "--environment",
+                bad,
+            ])
+            .unwrap_err();
+            assert!(
+                error.contains("unsupported environment"),
+                "expected rejection for {bad:?}, got: {error}"
+            );
+        }
+
+        // Accepted local mutation flags remain usable under a non-production
+        // profile; the environment cannot be set to production at all.
+        let staging_mutation = RequestConfig::parse(&[
+            "--chain-file",
+            "target/xriq.bin",
+            "--target",
+            "/api/v1/wallet/transfers/submit-signed",
+            "--environment",
+            "staging-devnet",
+            "--enable-local-wallet-submit-signed",
+            "true",
+        ])
+        .unwrap();
+        assert_eq!(staging_mutation.environment, Environment::StagingDevnet);
+        assert!(staging_mutation.enable_local_wallet_signed_submit);
+
+        // ServeConfig shares the same fail-closed parsing and defaults to local.
+        let serve_default = ServeConfig::parse(&["--chain-file", "target/xriq.bin"]).unwrap();
+        assert_eq!(serve_default.environment, Environment::Local);
+
+        let serve_error = ServeConfig::parse(&[
+            "--chain-file",
+            "target/xriq.bin",
+            "--environment",
+            "mainnet",
+        ])
+        .unwrap_err();
+        assert!(
+            serve_error.contains("unsupported environment"),
+            "got: {serve_error}"
+        );
     }
 
     #[test]
