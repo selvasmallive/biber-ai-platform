@@ -11,23 +11,23 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_DIR = ROOT / "xriq" / "target"
-DECISION_DOC = ROOT / "docs" / "XRIQ_AZURE_PROVIDER_DECISION.md"
-INFRA_DIR = ROOT / "infra" / "azure"
+DECISION_DOC = ROOT / "docs" / "XRIQ_GCP_PROVIDER_DECISION.md"
+INFRA_DIR = ROOT / "infra" / "gcp"
 
 REQUIRED_DECISION_MARKERS = [
-    "# XRIQ Cloud Provider Decision: Azure",
+    "# XRIQ Cloud Provider Decision: Google Cloud Platform",
     "Status: provider decision recorded. No cloud resources created.",
-    "Microsoft Azure",
-    "selva@kani.network",
-    "eastus",
+    "Google Cloud Platform",
+    "xriq@kani.network",
+    "northamerica-northeast2",
     "USD 150",
     "80%",
     "staging-devnet",
-    "Azure Key Vault",
-    "Azure Database for PostgreSQL Flexible Server",
+    "Secret Manager",
+    "Cloud SQL for PostgreSQL",
     "No resource creation, modification, or destruction from automation.",
-    "infra/azure/",
-    "scripts/xriq_azure_provider_decision_check.py",
+    "infra/gcp/",
+    "scripts/xriq_gcp_provider_decision_check.py",
     "docs/XRIQ_LEGAL_RISK_REDUCTION.md",
     "docs/XRIQ_PRODUCTION_ROADMAP.md",
     "terraform fmt -recursive -check",
@@ -48,7 +48,7 @@ REQUIRED_INFRA_FILES = [
 ]
 
 # Modules define real Terraform resources (validated, not applied from
-# automation). Each must declare at least one azurerm resource.
+# automation). Each must declare at least one google resource.
 RESOURCE_MODULE_FILES = [
     "modules/network/main.tf",
     "modules/security/main.tf",
@@ -57,28 +57,29 @@ RESOURCE_MODULE_FILES = [
     "modules/observability/main.tf",
 ]
 
-# Static-validation must stay offline: no remote backend configured in-repo.
+# Static-validation must stay offline and secret-free: no remote backend and no
+# service-account key or private key material in-repo.
 FORBIDDEN_INFRA_SUBSTRINGS = [
     "client_secret",
-    "ARM_CLIENT_SECRET",
+    "private_key_id",
     "-----BEGIN",
-    'backend "azurerm"',
+    'backend "gcs"',
     'backend "local"',
 ]
 
 REQUIRED_DOC_REFERENCES = {
     "README.md": [
-        "docs/XRIQ_AZURE_PROVIDER_DECISION.md",
-        "infra/azure",
+        "docs/XRIQ_GCP_PROVIDER_DECISION.md",
+        "infra/gcp",
     ],
     "xriq/README.md": [
-        "../docs/XRIQ_AZURE_PROVIDER_DECISION.md",
-        "infra/azure",
+        "../docs/XRIQ_GCP_PROVIDER_DECISION.md",
+        "infra/gcp",
     ],
     "docs/CODEX_HANDOFF.md": [
-        "docs/XRIQ_AZURE_PROVIDER_DECISION.md",
-        "infra/azure",
-        "Azure",
+        "docs/XRIQ_GCP_PROVIDER_DECISION.md",
+        "infra/gcp",
+        "GCP",
     ],
 }
 
@@ -89,7 +90,7 @@ class DecisionCheckError(RuntimeError):
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Validate the XRIQ Azure provider decision and infra boundaries."
+        description="Validate the XRIQ GCP provider decision and infra resources."
     )
     parser.add_argument(
         "--artifact-dir",
@@ -102,7 +103,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def default_artifact_dir() -> Path:
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    return TARGET_DIR / f"xriq-azure-provider-decision-check-{timestamp}"
+    return TARGET_DIR / f"xriq-gcp-provider-decision-check-{timestamp}"
 
 
 def read_text(path: Path) -> str:
@@ -123,29 +124,28 @@ def verify_infra_layout() -> list[str]:
     for relative in REQUIRED_INFRA_FILES:
         path = INFRA_DIR / relative
         if not path.is_file():
-            raise DecisionCheckError(f"infra/azure: missing required file {relative}")
+            raise DecisionCheckError(f"infra/gcp: missing required file {relative}")
         checked.append(relative)
     for relative in RESOURCE_MODULE_FILES:
         text = read_text(INFRA_DIR / relative)
-        if 'resource "azurerm_' not in text:
+        if 'resource "google_' not in text:
             raise DecisionCheckError(
-                f"infra/azure module {relative} must declare at least one azurerm resource"
+                f"infra/gcp module {relative} must declare at least one google resource"
             )
     return checked
 
 
 def verify_no_secret_or_apply_material() -> None:
-    # A real terraform.tfvars (non-example) or state must not be committed.
     if (INFRA_DIR / "terraform.tfvars").exists():
-        raise DecisionCheckError("infra/azure: terraform.tfvars must not be committed (use the .example)")
+        raise DecisionCheckError("infra/gcp: terraform.tfvars must not be committed (use the .example)")
     for state in INFRA_DIR.rglob("*.tfstate"):
-        raise DecisionCheckError(f"infra/azure: terraform state must not be committed: {state}")
+        raise DecisionCheckError(f"infra/gcp: terraform state must not be committed: {state}")
     for source in list(INFRA_DIR.rglob("*.tf")) + list(INFRA_DIR.rglob("*.example")):
         text = source.read_text(encoding="utf-8")
         for forbidden in FORBIDDEN_INFRA_SUBSTRINGS:
             if forbidden in text:
                 raise DecisionCheckError(
-                    f"infra/azure: forbidden content '{forbidden}' in {source.relative_to(ROOT)}"
+                    f"infra/gcp: forbidden content '{forbidden}' in {source.relative_to(ROOT)}"
                 )
 
 
@@ -169,12 +169,12 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
     infra_files = verify_infra_layout()
     verify_no_secret_or_apply_material()
     return {
-        "ok": "xriq-azure-provider-decision-check",
+        "ok": "xriq-gcp-provider-decision-check",
         "completed_at": datetime.now(UTC).isoformat(),
         "decision_doc": str(DECISION_DOC.relative_to(ROOT)),
         "infra_dir": str(INFRA_DIR.relative_to(ROOT)),
-        "selected_provider": "azure",
-        "region": "eastus",
+        "selected_provider": "gcp",
+        "region": "northamerica-northeast2",
         "environment": "staging-devnet",
         "cloud_resources_created": False,
         "markers_checked": {
@@ -186,8 +186,8 @@ def build_summary(args: argparse.Namespace) -> dict[str, Any]:
         "doc_references": verify_doc_references(),
         "guardrails": [
             "no cloud resources created, modified, or destroyed",
-            "no az login, terraform apply, or cloud deletion from automation",
-            "no secrets, subscription ids, or tenant ids in git",
+            "no gcloud auth, terraform apply, or cloud deletion from automation",
+            "no secrets, project keys, or service-account keys in git",
             "no remote backend configured in-repo (static validation stays offline)",
             "module resources are validated only; apply is human-gated",
         ],

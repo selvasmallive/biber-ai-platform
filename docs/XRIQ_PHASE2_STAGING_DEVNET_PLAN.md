@@ -153,9 +153,9 @@ Do not start public testnet work until these Phase 2 exit criteria are met.
   quarantine) and a restart/recovery smoke are complete (items 1-2).
 - A CI workflow runs Rust, doc/roadmap guards, the smokes, Terraform static
   validation, and the explorer-ui checks (item 3).
-- The cloud provider decision selected Azure with provider-neutral Terraform
-  module boundaries; see `docs/XRIQ_AZURE_PROVIDER_DECISION.md` and `infra/azure/`
-  (items 7-8, no resources created).
+- The cloud provider decision selected Google Cloud Platform; see
+  `docs/XRIQ_GCP_PROVIDER_DECISION.md` and `infra/gcp/` (items 7-8, no resources
+  created).
 - Staging configuration separation has begun (item 4): an explicit, fail-closed
   deployment environment profile (`local` / `staging-devnet`, production
   rejected) is documented in `docs/XRIQ_PHASE2_CONFIG_SEPARATION.md`.
@@ -178,14 +178,14 @@ Do not start public testnet work until these Phase 2 exit criteria are met.
 
 - The explorer-ui environment banner is complete: it shows the active profile
   (local/staging-devnet, or "unsupported") via `VITE_XRIQ_ENVIRONMENT`.
-- The `infra/azure/` module resources are implemented (resource group, network,
-  Key Vault/identity/registry, private PostgreSQL + storage, node VM, and
-  observability + budget), validated by `terraform validate` in CI. No resources
-  are created from automation; the human-gated apply is documented in
-  `docs/XRIQ_AZURE_APPLY_RUNBOOK.md`.
+- The `infra/gcp/` module resources are implemented (enabled APIs, VPC + private
+  services access, Artifact Registry + Secret Manager + workload service account,
+  private Cloud SQL + Cloud Storage, node VM, and a billing budget), validated by
+  `terraform validate` in CI. No resources are created from automation; the
+  human-gated apply is documented in `docs/XRIQ_GCP_APPLY_RUNBOOK.md`.
 
 All five Phase 2 exit criteria are met. The remaining roadmap work is operational
-(running a real Azure `terraform plan`/`apply`, then incident-response/DR detail),
+(running a real GCP `terraform plan`/`apply`, then incident-response/DR detail),
 which is human-gated and outside automation.
 
 ## Cheap Verification

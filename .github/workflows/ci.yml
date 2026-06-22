@@ -61,8 +61,8 @@ jobs:
           python-version: "3.12"
       - name: Phase 2 staging-devnet plan guard
         run: python scripts/xriq_phase2_plan_check.py
-      - name: Azure provider decision guard
-        run: python scripts/xriq_azure_provider_decision_check.py
+      - name: GCP provider decision guard
+        run: python scripts/xriq_gcp_provider_decision_check.py
       - name: Production roadmap guard
         run: python scripts/xriq_production_roadmap_check.py
       - name: Private-devnet wrap-up guard
@@ -73,7 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: infra/azure
+        working-directory: infra/gcp
     steps:
       - uses: actions/checkout@v4
       - name: Set up Terraform

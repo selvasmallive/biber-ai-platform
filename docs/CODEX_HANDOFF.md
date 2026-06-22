@@ -150,6 +150,26 @@ that no secret/backend material is committed. No secrets, cloud resources, or
 tags were touched by automation. Note: a real `terraform plan` may need minor
 region/quota-specific SKU adjustments since only `validate` (not `plan`) runs in
 CI.
+Provider switch (supersedes the Azure paragraphs above): the user then chose
+**Google Cloud Platform** instead of Azure (owner `xriq@kani.network`, region
+`northamerica-northeast2`, same USD 150 budget). The Azure implementation was
+removed (`infra/azure/`, the Azure decision doc, Azure apply runbook, and Azure
+guard are deleted) and replaced by GCP under `infra/gcp/`:
+`docs/XRIQ_GCP_PROVIDER_DECISION.md` records the decision;
+`scripts/xriq_gcp_provider_decision_check.py` is the guard (asserts each module
+declares a `google_` resource and no secret/backend material); and
+`docs/XRIQ_GCP_APPLY_RUNBOOK.md` is the human-operated apply runbook. The GCP
+modules declare real resources (enabled project APIs; custom VPC + subnet +
+firewall + private services access; workload service account, Artifact Registry,
+Secret Manager db secret; private-IP Cloud SQL for PostgreSQL + Cloud Storage
+bucket; a Compute Engine node VM; and a Cloud Billing budget with 80%/100%
+alerts). `terraform fmt -recursive -check` and `terraform validate` pass with the
+`hashicorp/google ~> 6.0` provider, and CI's Terraform job now validates
+`infra/gcp` and the doc-guards run the GCP guard. Nothing is applied from
+automation; `gcloud auth`, `terraform plan`/`apply`, and the Cloud SQL password
+(`TF_VAR_postgres_admin_password`, stored in Secret Manager at apply) remain
+human-only. A real `terraform plan` may still need minor region/quota tier
+adjustments since only `validate` runs in CI.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and

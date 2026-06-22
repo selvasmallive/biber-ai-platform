@@ -142,12 +142,12 @@ under the fail-closed `staging-devnet` profile) from the repo root with
 `python scripts/xriq_phase2_staging_smokes.py`; both `xriq-api` and `xriq-node`
 accept `--environment local|staging-devnet` and reject production-class values.
 The local/staging node/operator runbook is `../docs/XRIQ_PHASE2_NODE_OPERATOR_RUNBOOK.md`.
-The Phase 2 cloud provider decision selects Azure in
-`../docs/XRIQ_AZURE_PROVIDER_DECISION.md`, with provider-specific Terraform
-module boundaries (no resources created) under `../infra/azure/`. From the repo
-root, validate the decision and boundaries with
-`python scripts/xriq_azure_provider_decision_check.py`. No cloud resources are
-created and no secrets are stored.
+The Phase 2 cloud provider decision selects Google Cloud Platform in
+`../docs/XRIQ_GCP_PROVIDER_DECISION.md`, with provider-specific Terraform under
+`../infra/gcp/`. From the repo root, validate the decision with
+`python scripts/xriq_gcp_provider_decision_check.py`; the apply runbook is
+`../docs/XRIQ_GCP_APPLY_RUNBOOK.md`. No cloud resources are created and no
+secrets are stored.
 The first Phase 1.2 wallet mutation preflight fixtures live in
 `fixtures/phase1_2/`; they are disabled/refusal contracts only and do not enable
 wallet submit/send behavior. From the repo root, validate them with

@@ -344,17 +344,17 @@ The local/staging node/operator runbook is in
 `docs/XRIQ_PHASE2_NODE_OPERATOR_RUNBOOK.md` (build, environment profiles,
 running the node/API, pending-file recovery, snapshots, smokes, and an incident
 quick reference).
-The Phase 2 cloud provider decision selects Azure in
-`docs/XRIQ_AZURE_PROVIDER_DECISION.md`, with provider-specific Terraform module
-boundaries (no resources created) under `infra/azure/`. Validate the decision
-and boundaries with `python scripts/xriq_azure_provider_decision_check.py`, and
-statically validate the Terraform with `cd infra/azure && terraform fmt -check &&
-terraform init -backend=false && terraform validate`. The `infra/azure/` modules
-now declare real resources (resource group, network, Key Vault/identity/registry,
-private PostgreSQL + storage, node VM, observability + budget) but **nothing is
-applied from automation or CI** — provisioning is a human-gated step in
-`docs/XRIQ_AZURE_APPLY_RUNBOOK.md`. No cloud resources are created and no secrets
-are stored by this repo.
+The Phase 2 cloud provider decision selects Google Cloud Platform in
+`docs/XRIQ_GCP_PROVIDER_DECISION.md`, with provider-specific Terraform under
+`infra/gcp/`. Validate the decision with
+`python scripts/xriq_gcp_provider_decision_check.py`, and statically validate the
+Terraform with `cd infra/gcp && terraform fmt -check && terraform init
+-backend=false && terraform validate`. The `infra/gcp/` modules declare real
+resources (enabled APIs, VPC + private services access, Artifact Registry +
+Secret Manager + workload service account, private Cloud SQL + Cloud Storage,
+node VM, billing budget) but **nothing is applied from automation or CI** —
+provisioning is a human-gated step in `docs/XRIQ_GCP_APPLY_RUNBOOK.md`. No cloud
+resources are created and no secrets are stored by this repo.
 The Phase 1.1 API/database contract baseline is in
 `docs/XRIQ_PHASE1_1_CONTRACTS.md`.
 The first Phase 1.2 wallet mutation preflight fixtures are in
