@@ -184,9 +184,15 @@ Do not start public testnet work until these Phase 2 exit criteria are met.
   `terraform validate` in CI. No resources are created from automation; the
   human-gated apply is documented in `docs/XRIQ_GCP_APPLY_RUNBOOK.md`.
 
-All five Phase 2 exit criteria are met. The remaining roadmap work is operational
-(running a real GCP `terraform plan`/`apply`, then incident-response/DR detail),
-which is human-gated and outside automation.
+All five Phase 2 exit criteria are met. The staging-devnet has also been
+**deployed and operated end-to-end on GCP** (project `xriq-project-dev`): the
+`xriq-api` service runs on the node VM serving the read model directly from the
+private Cloud SQL, blocks are produced (chain advanced past genesis), and the
+indexer keeps Cloud SQL in sync — see `docs/XRIQ_GCP_DEPLOY_RUNBOOK.md` and
+`docs/XRIQ_GCP_LIVE_CHAIN_SMOKE.md`. CI lints the deploy scripts with
+`shellcheck`. The remaining roadmap work is operational (block-production cadence,
+observability/dashboards, incident-response/DR) and Phase 3 (public testnet),
+which are human-gated and outside repo automation.
 
 ## Cheap Verification
 

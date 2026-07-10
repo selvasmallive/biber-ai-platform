@@ -105,3 +105,13 @@ jobs:
         run: npm run check
       - name: Build
         run: npm run build
+
+  deploy-scripts:
+    name: Deploy script lint (shellcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure shellcheck
+        run: shellcheck --version || (sudo apt-get update && sudo apt-get install -y shellcheck)
+      - name: shellcheck deploy scripts
+        run: shellcheck --severity=warning deploy/gcp/vm-bootstrap.sh deploy/gcp/bin/*.sh
