@@ -292,6 +292,21 @@ obligations, and a project-operated DEX is a separate high-risk regulated-produc
 review item explicitly out of Phase 3 scope. The recommended first Phase 3 code
 milestone is networked multi-node sync. No tags, secrets, cloud resources, or
 runtime behavior changed by this checkpoint.
+Phase 3 milestone 1 (networked multi-node sync) has begun with increment 1 (the
+validated sync core, no transport yet): `xriq-storage` gained a public peer-block
+wire codec (`encode_peer_blocks`/`decode_peer_blocks`, tag `XPB1`) reusing the
+canonical field encoding — the block hash is not sent, so a receiver recomputes
+and fully validates it. `xriq-node` gained `XriqNode::export_peer_blocks(from_height,
+limit)` (read-only) and `XriqNode::import_peer_blocks(bytes) -> PeerSyncOutcome`,
+which decodes and imports each block through the existing full validation
+(canonical roots, ledger execution, producer authority, test-only signatures),
+skipping already-synced heights so a resend is idempotent. Proven by the test
+`follower_syncs_multiple_blocks_from_peer_export` (a leader produces two blocks,
+the follower imports the exported range and reaches the same tip/ledger, and a
+re-import applies zero). Remaining increments for milestone 1: a peer HTTP
+endpoint (`GET /v1/peer/blocks?from_height=N&limit=M`) served by the node, a
+minimal follower pull loop / `peer-sync` CLI over TCP, and an allowlist for any
+push-based admission. Everything stays test-only with no public economics.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and

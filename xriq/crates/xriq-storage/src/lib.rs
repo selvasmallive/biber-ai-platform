@@ -233,6 +233,55 @@ fn read_block_record(cursor: &mut Cursor<&[u8]>) -> Result<StoredBlock, StorageE
     })
 }
 
+const PEER_BLOCKS_TAG: &[u8; 4] = b"XPB1";
+
+/// Encode a sequence of blocks for peer transfer (headers + bodies). The block
+/// hash is not sent; a receiving node recomputes and fully validates each block
+/// on import, so a peer cannot inject a block with a forged hash. Uses the same
+/// canonical field encoding as the on-disk chain store.
+pub fn encode_peer_blocks(blocks: &[Block]) -> Result<Vec<u8>, StorageError> {
+    let mut output = Vec::new();
+    output.extend_from_slice(PEER_BLOCKS_TAG);
+    write_u32(&mut output, checked_len(blocks.len())?);
+    for block in blocks {
+        write_header(&mut output, &block.header)?;
+        write_u32(&mut output, checked_len(block.transactions.len())?);
+        for transaction in &block.transactions {
+            write_transaction(&mut output, transaction)?;
+        }
+    }
+    Ok(output)
+}
+
+/// Decode blocks produced by `encode_peer_blocks`. Rejects a wrong tag or any
+/// trailing bytes as corrupt data.
+pub fn decode_peer_blocks(bytes: &[u8]) -> Result<Vec<Block>, StorageError> {
+    let mut cursor = Cursor::new(bytes);
+    let mut tag = [0; 4];
+    read_exact(&mut cursor, &mut tag)?;
+    if &tag != PEER_BLOCKS_TAG {
+        return Err(StorageError::CorruptData);
+    }
+    let count = read_u32(&mut cursor)?;
+    let mut blocks = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        let header = read_header(&mut cursor)?;
+        let transaction_count = read_u32(&mut cursor)?;
+        let mut transactions = Vec::with_capacity(transaction_count as usize);
+        for _ in 0..transaction_count {
+            transactions.push(read_transaction(&mut cursor)?);
+        }
+        blocks.push(Block {
+            header,
+            transactions,
+        });
+    }
+    if usize::try_from(cursor.position()).map_err(|_| StorageError::CorruptData)? != bytes.len() {
+        return Err(StorageError::CorruptData);
+    }
+    Ok(blocks)
+}
+
 fn write_header(output: &mut Vec<u8>, header: &BlockHeader) -> Result<(), StorageError> {
     write_u16(output, header.version);
     write_string(output, &header.chain_id)?;
@@ -494,6 +543,31 @@ mod tests {
             .unwrap()
             .as_nanos();
         std::env::temp_dir().join(format!("xriq-store-{nanos}.bin"))
+    }
+
+    #[test]
+    fn peer_blocks_encode_decode_roundtrip() {
+        let blocks = vec![block(1, hash(0)), block(2, hash(1))];
+        let encoded = encode_peer_blocks(&blocks).unwrap();
+        assert_eq!(decode_peer_blocks(&encoded).unwrap(), blocks);
+
+        // Empty range roundtrips.
+        assert_eq!(
+            decode_peer_blocks(&encode_peer_blocks(&[]).unwrap()).unwrap(),
+            vec![]
+        );
+
+        // A wrong tag or trailing garbage is rejected.
+        assert_eq!(
+            decode_peer_blocks(b"NOPE").err(),
+            Some(StorageError::CorruptData)
+        );
+        let mut trailing = encode_peer_blocks(&blocks).unwrap();
+        trailing.push(0xff);
+        assert_eq!(
+            decode_peer_blocks(&trailing).err(),
+            Some(StorageError::CorruptData)
+        );
     }
 
     #[test]

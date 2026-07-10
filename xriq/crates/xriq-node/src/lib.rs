@@ -80,6 +80,14 @@ pub struct ProducedBlock {
     pub applied_transactions: usize,
 }
 
+/// Result of importing peer-encoded blocks into a follower node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PeerSyncOutcome {
+    pub applied: usize,
+    pub current_height: u64,
+    pub latest_block_hash: Hash32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeStatus {
     pub warning: &'static str,
@@ -6441,6 +6449,43 @@ impl<S: ChainStore> XriqNode<S> {
         self.import_block_inner(None, block)
     }
 
+    /// Export up to `limit` stored blocks starting at `from_height`, encoded for
+    /// peer transfer. Serving these is read-only and safe for any peer to pull.
+    pub fn export_peer_blocks(&self, from_height: u64, limit: usize) -> Result<Vec<u8>, NodeError> {
+        let mut blocks = Vec::new();
+        let mut height = from_height;
+        while blocks.len() < limit {
+            match self.store.block_by_height(height) {
+                Some(record) => blocks.push(record.block.clone()),
+                None => break,
+            }
+            height += 1;
+        }
+        xriq_storage::encode_peer_blocks(&blocks).map_err(NodeError::Storage)
+    }
+
+    /// Import peer-encoded blocks into this node. Each block is fully validated
+    /// (canonical roots, ledger execution, producer authority, and test-only
+    /// signatures) before commit, exactly like a locally produced block; a peer
+    /// cannot inject invalid state. Blocks at or below the current height are
+    /// skipped so a resend is idempotent.
+    pub fn import_peer_blocks(&mut self, bytes: &[u8]) -> Result<PeerSyncOutcome, NodeError> {
+        let blocks = xriq_storage::decode_peer_blocks(bytes).map_err(NodeError::Storage)?;
+        let mut applied = 0usize;
+        for block in blocks {
+            if block.header.height <= self.ledger.current_height() {
+                continue;
+            }
+            self.import_block_with_canonical_hash(block)?;
+            applied += 1;
+        }
+        Ok(PeerSyncOutcome {
+            applied,
+            current_height: self.ledger.current_height(),
+            latest_block_hash: self.latest_block_hash,
+        })
+    }
+
     fn import_block_inner(
         &mut self,
         block_hash_override: Option<Hash32>,
@@ -7013,6 +7058,41 @@ mod tests {
             XriqAmount::from_base_units(73)
         );
         assert_eq!(producer.ledger(), follower.ledger());
+    }
+
+    #[test]
+    fn follower_syncs_multiple_blocks_from_peer_export() {
+        let mut leader = node();
+        let mut follower = node();
+
+        // Leader produces two blocks (one transaction each).
+        leader
+            .submit_transaction(hash(1), transaction(address("alice"), 0, 25, 2))
+            .unwrap();
+        leader
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&leader))
+            .unwrap();
+        leader
+            .submit_transaction(hash(2), transaction(address("alice"), 1, 10, 2))
+            .unwrap();
+        leader
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&leader))
+            .unwrap();
+        assert_eq!(leader.ledger().current_height(), 2);
+
+        // Follower pulls the encoded block range and imports it (validated).
+        let exported = leader.export_peer_blocks(1, 100).unwrap();
+        let outcome = follower.import_peer_blocks(&exported).unwrap();
+
+        assert_eq!(outcome.applied, 2);
+        assert_eq!(outcome.current_height, 2);
+        assert_eq!(follower.latest_block_hash(), leader.latest_block_hash());
+        assert_eq!(follower.ledger(), leader.ledger());
+
+        // Re-importing the same range is idempotent (already-synced blocks skipped).
+        let again = follower.import_peer_blocks(&exported).unwrap();
+        assert_eq!(again.applied, 0);
+        assert_eq!(again.current_height, 2);
     }
 
     #[test]
