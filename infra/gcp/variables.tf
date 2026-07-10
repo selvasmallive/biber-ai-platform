@@ -125,6 +125,12 @@ variable "operator_allowed_cidr" {
   default     = null
 }
 
+variable "enable_iap_ssh" {
+  description = "Allow SSH from Google's IAP range so operators can reach the no-external-IP VM via gcloud compute ssh --tunnel-through-iap."
+  type        = bool
+  default     = true
+}
+
 variable "labels" {
   description = "Common labels applied to resources."
   type        = map(string)

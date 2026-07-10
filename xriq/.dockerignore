@@ -1,0 +1,10 @@
+target
+target-*
+**/target
+**/node_modules
+apps/explorer-ui/dist
+**/*.bin
+**/*.tsv
+**/*.tfstate
+**/*.tfstate.*
+.git

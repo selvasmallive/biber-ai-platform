@@ -20,10 +20,34 @@ variable "operator_allowed_cidr" {
   default = null
 }
 
+variable "enable_iap_ssh" {
+  description = "Allow SSH from Google's Identity-Aware Proxy range so operators can reach the no-external-IP VM via `gcloud compute ssh --tunnel-through-iap`."
+  type        = bool
+  default     = true
+}
+
 resource "google_compute_network" "main" {
   project                 = var.project_id
   name                    = "${var.name_prefix}-vpc"
   auto_create_subnetworks = false
+}
+
+# Allow SSH from the Identity-Aware Proxy range (35.235.240.0/20) to the node so
+# operators can tunnel in without a public IP. IAP itself is Google-authenticated.
+resource "google_compute_firewall" "iap_ssh" {
+  count     = var.enable_iap_ssh ? 1 : 0
+  project   = var.project_id
+  name      = "${var.name_prefix}-allow-iap-ssh"
+  network   = google_compute_network.main.id
+  direction = "INGRESS"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+
+  source_ranges = ["35.235.240.0/20"]
+  target_tags   = ["xriq-node"]
 }
 
 resource "google_compute_subnetwork" "main" {

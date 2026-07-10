@@ -199,10 +199,24 @@ was globally taken; and `enable_budget = false` locally because
 `google_billing_budget` returned a 400 (the budget is optional and can be created
 manually in Cloud Billing). `terraform.tfvars` and `terraform.tfstate.d/` stay
 local and gitignored; the guard checks git-tracked files so they do not
-false-fail it. Next milestone: deploy XRIQ onto the staging-devnet
-(containerize the node/API, push to Artifact Registry, apply the PostgreSQL
-schema to Cloud SQL over the private network, and run the node), which is a
-human/agent-operated cloud step, not repo automation.
+false-fail it. A VM deploy package was then prepared for a Codex agent to run:
+`xriq/Dockerfile` (+ `.dockerignore`) builds `xriq-node`/`xriq-api`/`xriq-indexer`
+into a slim image with `psql`; `deploy/gcp/` holds the run wrappers, systemd
+units (`xriq-api.service` file-backed API with staging mutation flags, plus an
+`xriq-indexer` service+timer that populates Cloud SQL), `xriq.env.example`, and
+`vm-bootstrap.sh`; `docs/XRIQ_GCP_DEPLOY_RUNBOOK.md` is the agent-executable
+runbook. Grounding facts from a code map: the node/API run file-backed on the VM
+today; `xriq-indexer apply-postgres --database-url ...` supports a real
+connection string so it can populate the private Cloud SQL from the VM; but
+`xriq-api`'s own Postgres read-model path is docker-only
+(`--postgres-docker-container`), so serving the read model *from* Cloud SQL is a
+documented follow-up needing a native PG client in `xriq-api`. The Terraform
+gained an `enable_iap_ssh` firewall rule (default true) so the no-external-IP VM
+is reachable via `gcloud compute ssh --tunnel-through-iap`; `terraform validate`
+and all guards still pass. Verified locally: `cargo build --release -p xriq-node
+-p xriq-api -p xriq-indexer` succeeds and the deploy shell scripts pass
+`bash -n`. Applying the IAP rule, building/pushing the image, and running the
+bootstrap on the VM remain human/agent cloud steps, not repo automation.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and

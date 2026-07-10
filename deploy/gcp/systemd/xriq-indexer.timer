@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the XRIQ indexer periodically to refresh the Cloud SQL read model
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,16 @@
+[Unit]
+Description=XRIQ staging-devnet API (file-backed read model + staging mutations)
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker rm -f xriq-api
+ExecStart=/usr/local/bin/xriq-api-run.sh
+ExecStop=-/usr/bin/docker stop xriq-api
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

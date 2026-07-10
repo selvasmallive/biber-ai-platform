@@ -53,6 +53,7 @@ module "network" {
   name_prefix           = local.name_prefix
   region                = var.region
   operator_allowed_cidr = var.operator_allowed_cidr
+  enable_iap_ssh        = var.enable_iap_ssh
 
   depends_on = [time_sleep.wait_for_apis]
 }
