@@ -149,8 +149,9 @@ connection name, bucket, budget id) back to the user.
 | `Billing must be enabled` / `billingEnabled: False` | Link billing: `gcloud billing projects link "$PROJECT_ID" --billing-account="$BILLING_ACCOUNT"` |
 | `Permission denied on resource project` / `403` on project | Wrong project or ADC; re-run step 1 and confirm `gcloud config get-value project` matches `PROJECT_ID` |
 | `API [...] not enabled` / `Service Networking` errors | Re-run step 2, wait 60s, re-apply (the `time_sleep` gate usually covers this) |
-| `403` on the **budget** / `billing.budgets` | You lack billing IAM: set `enable_budget = false` in `terraform.tfvars`, re-apply |
-| Cloud SQL `tier ... not supported` / quota | Set `postgres_tier = "db-g1-small"` (or a `db-custom-1-3840`) in `terraform.tfvars`, re-apply |
+| `400`/`invalid argument` on the **budget** (`google_billing_budget`), or `403` on `billing.budgets` | Set `enable_budget = false` in `terraform.tfvars` and re-apply; create the budget manually in Cloud Billing if desired |
+| Cloud Storage bucket name `already exists` / unavailable | Bucket names are global; change `name_suffix` in `terraform.tfvars` (e.g. add a letter: `dev01` -> `dev01a`) and re-apply |
+| Cloud SQL `tier ... not supported` / quota | Set `postgres_tier = "db-g1-small"` (the module pins `edition = "ENTERPRISE"` so shared-core tiers work) or a `db-custom-1-3840`, re-apply |
 | VM `machine type ... not found` / quota | Set `vm_machine_type = "e2-medium"` in `terraform.tfvars`, re-apply |
 | Cloud SQL delete blocked on destroy | Set `db_deletion_protection = false`, `terraform apply`, then destroy |
 

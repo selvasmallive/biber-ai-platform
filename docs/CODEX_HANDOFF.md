@@ -182,6 +182,27 @@ now checks git-tracked files (via `git ls-files`) instead of the filesystem, so 
 local operator `terraform.tfvars`/`tfstate`/`tfplan` no longer false-fails it,
 and `.gitignore` also ignores bare `tfplan`. `terraform validate` still passes
 with the `time` provider added.
+Milestone: the staging-devnet was then provisioned on GCP by a Codex agent
+(project `xriq-project-dev`, Terraform workspace `xriq-project-dev`). Non-secret
+outputs (from `terraform output`): node VM internal IP `10.42.1.2`; Cloud SQL
+private IP `10.103.0.3` (no public IP), connection name
+`xriq-project-dev:northamerica-northeast2:xriq-staging-devnet-postgres`, db
+`xriq`, admin user `xriqpgadmin`; Artifact Registry
+`xriq-staging-devnet-containers`; bucket
+`xriq-staging-devnet-artifacts-dev01a`; VPC `xriq-staging-devnet-vpc`. The DB
+password lives only in Secret Manager (`xriq-staging-devnet-db-password`) and
+local gitignored files — never in the repo or chat. Apply-time deviations:
+Cloud SQL `settings.edition = "ENTERPRISE"` was pinned (committed as `5e66aee`)
+so `db-g1-small` works instead of defaulting to Enterprise Plus; the local
+`terraform.tfvars` uses `name_suffix = "dev01a"` because the `dev01` bucket name
+was globally taken; and `enable_budget = false` locally because
+`google_billing_budget` returned a 400 (the budget is optional and can be created
+manually in Cloud Billing). `terraform.tfvars` and `terraform.tfstate.d/` stay
+local and gitignored; the guard checks git-tracked files so they do not
+false-fail it. Next milestone: deploy XRIQ onto the staging-devnet
+(containerize the node/API, push to Artifact Registry, apply the PostgreSQL
+schema to Cloud SQL over the private network, and run the node), which is a
+human/agent-operated cloud step, not repo automation.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and
