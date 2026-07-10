@@ -303,10 +303,15 @@ which decodes and imports each block through the existing full validation
 skipping already-synced heights so a resend is idempotent. Proven by the test
 `follower_syncs_multiple_blocks_from_peer_export` (a leader produces two blocks,
 the follower imports the exported range and reaches the same tip/ledger, and a
-re-import applies zero). Remaining increments for milestone 1: a peer HTTP
-endpoint (`GET /v1/peer/blocks?from_height=N&limit=M`) served by the node, a
-minimal follower pull loop / `peer-sync` CLI over TCP, and an allowlist for any
-push-based admission. Everything stays test-only with no public economics.
+re-import applies zero). Increment 2 then added the peer HTTP endpoint: a
+`peer-blocks-export` node command (parses `--from-height`/`--limit`, exports the
+validated block range as hex in JSON) served over the existing node HTTP server
+at `GET /v1/peer/blocks?from_height=N&limit=M` (read-only), covered by the test
+`node_runner_peer_blocks_export_serves_validated_blocks` (default limit 128, max
+1024). Remaining increments for milestone 1: a minimal follower pull loop /
+`peer-sync` CLI (an HTTP client that polls a peer's `/v1/peer/blocks` and calls
+`import_peer_blocks`), and an allowlist for any push-based admission. Everything
+stays test-only with no public economics.
 A legal-counsel briefing was also prepared: `docs/XRIQ_LEGAL_COUNSEL_QUESTIONS.md`
 gathers the project facts and the specific questions (entity/jurisdiction,
 securities, commodities, money transmission, AML/CFT/sanctions, tax, DEX, custody,

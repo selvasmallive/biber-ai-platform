@@ -670,6 +670,7 @@ pub fn node_help_text() -> String {
         "  xriq-node account-transactions --chain-file <path> --address <address> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node transaction-list --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node peer-blocks-export --chain-file <path> [--from-height <height>] [--limit <count>] [--alice-balance <base-units>] [--format json]  (read-only; serves validated blocks for peer sync, also at GET /v1/peer/blocks)",
         "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-list --snapshot-root <path> [--limit <count>] [--format text|json]",
         "  xriq-node snapshot-latest --snapshot-root <path> [--format text|json]",
@@ -807,6 +808,7 @@ where
         Some("account-transactions") => run_account_transactions_command(&args[1..]),
         Some("transaction-list") => run_transaction_list_command(&args[1..]),
         Some("mempool-detail") => run_mempool_detail_command(&args[1..]),
+        Some("peer-blocks-export") => run_peer_blocks_export_command(&args[1..]),
         Some("transaction-detail") => run_transaction_detail_command(&args[1..]),
         Some("snapshot-list") => run_snapshot_list_command(&args[1..]),
         Some("snapshot-latest") => run_snapshot_latest_command(&args[1..]),
@@ -947,6 +949,19 @@ pub fn private_devnet_http_response_with_body(
         "/v1/snapshots/latest/check" => snapshot_latest_check_http_response(config),
         "/v1/blocks" => {
             let mut args = private_devnet_http_runner_args("block-list", config);
+            if let Some(limit) = query_value(query, "limit") {
+                args.push("--limit".to_string());
+                args.push(limit.to_string());
+            }
+            runner_json_http_response(args)
+        }
+        "/v1/peer/blocks" => {
+            // Read-only peer sync: serve validated blocks a follower can import.
+            let mut args = private_devnet_http_runner_args("peer-blocks-export", config);
+            if let Some(from_height) = query_value(query, "from_height") {
+                args.push("--from-height".to_string());
+                args.push(from_height.to_string());
+            }
             if let Some(limit) = query_value(query, "limit") {
                 args.push("--limit".to_string());
                 args.push(limit.to_string());
@@ -2851,6 +2866,55 @@ fn run_status_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerErr
             NodeRunnerOutput::Json(render_node_status_json("status", &status))
         }
     })
+}
+
+const PEER_BLOCKS_DEFAULT_LIMIT: usize = 128;
+const PEER_BLOCKS_MAX_LIMIT: usize = 1024;
+
+fn run_peer_blocks_export_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--pending-file",
+        "--alice-balance",
+        "--from-height",
+        "--limit",
+        "--format",
+    ])?;
+    // JSON only; the payload is hex-encoded binary block data.
+    let _ = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let chain_file = flags.required("--chain-file")?;
+    let pending_file = flags.optional("--pending-file").unwrap_or("");
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let from_height = match flags.optional("--from-height") {
+        Some(value) => value
+            .parse::<u64>()
+            .map_err(|_| NodeRunnerError::InvalidNumber {
+                flag: "--from-height",
+                value: value.to_string(),
+            })?,
+        None => 1,
+    };
+    let limit = flags
+        .optional("--limit")
+        .map(|value| parse_usize("--limit", value))
+        .transpose()?
+        .unwrap_or(PEER_BLOCKS_DEFAULT_LIMIT)
+        .min(PEER_BLOCKS_MAX_LIMIT);
+
+    let node = private_devnet_node_with_pending_file(chain_file, pending_file, alice_balance)?;
+    let bytes = node
+        .export_peer_blocks(from_height, limit)
+        .map_err(NodeRunnerError::Node)?;
+    let current_height = node.ledger().current_height();
+    let json = format!(
+        "{{\n  \"command\": \"peer-blocks-export\",\n  \"environment\": \"private-devnet\",\n  \"network\": \"xriq-devnet\",\n  \"from_height\": {from_height},\n  \"current_height\": {current_height},\n  \"encoding\": \"xriq-peer-blocks-v1-hex\",\n  \"blocks_hex\": {}\n}}",
+        json_string(&bytes_hex(&bytes))
+    );
+    Ok(NodeRunnerOutput::Json(json))
 }
 
 fn run_chain_check_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
@@ -7680,6 +7744,71 @@ mod tests {
         let _ = fs::remove_file(pending_path);
         let _ = fs::remove_file(quarantine_path);
         let _ = fs::remove_file(draft_path);
+    }
+
+    #[test]
+    fn node_runner_peer_blocks_export_serves_validated_blocks() {
+        let path = temp_store_path();
+        let pending_path = path.with_extension("pending");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+
+        run_node_command([
+            "preflight-transfer",
+            "--chain-file",
+            path_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1bobbb00000000000",
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--expires-at-height",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+
+        let json = run_node_command([
+            "peer-blocks-export",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from-height",
+            "1",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+
+        assert!(json.contains("\"command\": \"peer-blocks-export\""));
+        assert!(json.contains("\"from_height\": 1"));
+        assert!(json.contains("\"current_height\": 1"));
+
+        // Extract blocks_hex and decode it back into validated-importable blocks.
+        let marker = "\"blocks_hex\": \"";
+        let start = json.find(marker).unwrap() + marker.len();
+        let end = json[start..].find('"').unwrap() + start;
+        let hex = &json[start..end];
+        assert!(!hex.is_empty());
+        let bytes = parse_hex_bytes(hex).unwrap();
+        let blocks = xriq_storage::decode_peer_blocks(&bytes).unwrap();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].header.height, 1);
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
     }
 
     #[test]
