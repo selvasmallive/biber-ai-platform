@@ -312,6 +312,17 @@ at `GET /v1/peer/blocks?from_height=N&limit=M` (read-only), covered by the test
 `peer-sync` CLI (an HTTP client that polls a peer's `/v1/peer/blocks` and calls
 `import_peer_blocks`), and an allowlist for any push-based admission. Everything
 stays test-only with no public economics.
+The user provided a master engineering roadmap, recorded as
+`docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
+blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,
+explorer, SDKs, AI-assisted security review + independent audit note, testing,
+CI/CD, docs, DX, open-source, performance, reliability, monitoring, public
+testnet with valueless test units, governance, exchange-readiness checklist),
+plus a "things to avoid until much later" list (ICO/token sale/DEX/bridge/
+custody/staking/etc.) and Principal-Engineer AI development rules. It is
+explicitly conservative on legal posture and defers all legally-gated items
+behind counsel review; it complements (does not override)
+`docs/XRIQ_PRODUCTION_ROADMAP.md` and `docs/XRIQ_LEGAL_RISK_REDUCTION.md`.
 A legal-counsel briefing was also prepared: `docs/XRIQ_LEGAL_COUNSEL_QUESTIONS.md`
 gathers the project facts and the specific questions (entity/jurisdiction,
 securities, commodities, money transmission, AML/CFT/sanctions, tax, DEX, custody,
