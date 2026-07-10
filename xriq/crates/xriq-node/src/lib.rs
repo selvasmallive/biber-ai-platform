@@ -247,6 +247,7 @@ pub enum NodeRunnerError {
     UnknownFlag(String),
     MissingFlag(&'static str),
     UnsupportedEnvironment(String),
+    PeerSyncError(String),
     DuplicateFlag(String),
     UnexpectedArgument(String),
     DraftFileRead { path: String, error: String },
@@ -541,6 +542,7 @@ impl fmt::Display for NodeRunnerError {
                 formatter,
                 "unsupported environment {value:?}: only \"local\" and \"staging-devnet\" are allowed; production, mainnet, and public-testnet are not runnable from this build"
             ),
+            Self::PeerSyncError(message) => write!(formatter, "peer sync failed: {message}"),
             Self::DuplicateFlag(flag) => write!(formatter, "duplicate flag: {flag}"),
             Self::UnexpectedArgument(argument) => {
                 write!(formatter, "unexpected argument: {argument}")
@@ -622,6 +624,7 @@ impl NodeRunnerError {
             Self::UnknownFlag(_) => "unknown_flag",
             Self::MissingFlag(_) => "missing_flag",
             Self::UnsupportedEnvironment(_) => "unsupported_environment",
+            Self::PeerSyncError(_) => "peer_sync_error",
             Self::DuplicateFlag(_) => "duplicate_flag",
             Self::UnexpectedArgument(_) => "unexpected_argument",
             Self::DraftFileRead { .. } => "draft_file_read",
@@ -671,6 +674,7 @@ pub fn node_help_text() -> String {
         "  xriq-node transaction-list --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node peer-blocks-export --chain-file <path> [--from-height <height>] [--limit <count>] [--alice-balance <base-units>] [--format json]  (read-only; serves validated blocks for peer sync, also at GET /v1/peer/blocks)",
+        "  xriq-node peer-sync --chain-file <path> --peer <http://host:port> [--limit <count>] [--max-rounds <count>] [--alice-balance <base-units>] [--format json]  (follower; pulls and validates blocks from a peer's /v1/peer/blocks into the chain file)",
         "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-list --snapshot-root <path> [--limit <count>] [--format text|json]",
         "  xriq-node snapshot-latest --snapshot-root <path> [--format text|json]",
@@ -809,6 +813,7 @@ where
         Some("transaction-list") => run_transaction_list_command(&args[1..]),
         Some("mempool-detail") => run_mempool_detail_command(&args[1..]),
         Some("peer-blocks-export") => run_peer_blocks_export_command(&args[1..]),
+        Some("peer-sync") => run_peer_sync_command(&args[1..]),
         Some("transaction-detail") => run_transaction_detail_command(&args[1..]),
         Some("snapshot-list") => run_snapshot_list_command(&args[1..]),
         Some("snapshot-latest") => run_snapshot_latest_command(&args[1..]),
@@ -2913,6 +2918,147 @@ fn run_peer_blocks_export_command(args: &[String]) -> Result<NodeRunnerOutput, N
     let json = format!(
         "{{\n  \"command\": \"peer-blocks-export\",\n  \"environment\": \"private-devnet\",\n  \"network\": \"xriq-devnet\",\n  \"from_height\": {from_height},\n  \"current_height\": {current_height},\n  \"encoding\": \"xriq-peer-blocks-v1-hex\",\n  \"blocks_hex\": {}\n}}",
         json_string(&bytes_hex(&bytes))
+    );
+    Ok(NodeRunnerOutput::Json(json))
+}
+
+fn extract_json_string<'a>(body: &'a str, key: &str) -> Option<&'a str> {
+    let marker = format!("\"{key}\": \"");
+    let start = body.find(&marker)? + marker.len();
+    let rest = &body[start..];
+    let end = rest.find('"')?;
+    Some(&rest[..end])
+}
+
+fn extract_json_u64(body: &str, key: &str) -> Option<u64> {
+    let marker = format!("\"{key}\": ");
+    let start = body.find(&marker)? + marker.len();
+    let rest = &body[start..];
+    let end = rest
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(rest.len());
+    rest[..end].parse::<u64>().ok()
+}
+
+fn parse_peer_blocks_response(body: &str) -> Result<(u64, Vec<u8>), NodeRunnerError> {
+    let current_height = extract_json_u64(body, "current_height").ok_or_else(|| {
+        NodeRunnerError::PeerSyncError("peer response missing current_height".to_string())
+    })?;
+    let hex = extract_json_string(body, "blocks_hex").ok_or_else(|| {
+        NodeRunnerError::PeerSyncError("peer response missing blocks_hex".to_string())
+    })?;
+    let bytes = parse_hex_bytes(hex).map_err(|_| {
+        NodeRunnerError::PeerSyncError("peer response blocks_hex is not valid hex".to_string())
+    })?;
+    Ok((current_height, bytes))
+}
+
+// Minimal blocking HTTP GET for peer sync (the peer server responds once and
+// closes the connection). Only http:// is supported for the private testnet.
+fn peer_http_get(base_url: &str, path_and_query: &str) -> Result<String, NodeRunnerError> {
+    let authority = base_url.strip_prefix("http://").ok_or_else(|| {
+        NodeRunnerError::PeerSyncError(format!("peer url must start with http:// (got {base_url})"))
+    })?;
+    let authority = authority.split('/').next().unwrap_or(authority);
+    let (host, port) = match authority.rsplit_once(':') {
+        Some((host, port)) => {
+            let port = port.parse::<u16>().map_err(|_| {
+                NodeRunnerError::PeerSyncError(format!("invalid peer port in {base_url}"))
+            })?;
+            (host, port)
+        }
+        None => (authority, 80),
+    };
+    if host.is_empty() {
+        return Err(NodeRunnerError::PeerSyncError(format!(
+            "missing peer host in {base_url}"
+        )));
+    }
+    let mut stream = TcpStream::connect((host, port)).map_err(|error| {
+        NodeRunnerError::PeerSyncError(format!("could not connect to {host}:{port}: {error}"))
+    })?;
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(10)));
+    let request = format!(
+        "GET {path_and_query} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: xriq-peer-sync\r\nConnection: close\r\n\r\n"
+    );
+    stream.write_all(request.as_bytes()).map_err(|error| {
+        NodeRunnerError::PeerSyncError(format!("could not send request: {error}"))
+    })?;
+    let mut response = Vec::new();
+    stream.read_to_end(&mut response).map_err(|error| {
+        NodeRunnerError::PeerSyncError(format!("could not read response: {error}"))
+    })?;
+    let response = String::from_utf8_lossy(&response);
+    let (head, body) = response.split_once("\r\n\r\n").ok_or_else(|| {
+        NodeRunnerError::PeerSyncError("malformed HTTP response (no header/body split)".to_string())
+    })?;
+    let status_line = head.lines().next().unwrap_or("");
+    if status_line.split_whitespace().nth(1) != Some("200") {
+        return Err(NodeRunnerError::PeerSyncError(format!(
+            "peer returned: {status_line}"
+        )));
+    }
+    Ok(body.to_string())
+}
+
+fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--pending-file",
+        "--peer",
+        "--alice-balance",
+        "--limit",
+        "--max-rounds",
+        "--format",
+    ])?;
+    let _ = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let chain_file = flags.required("--chain-file")?;
+    let pending_file = flags.optional("--pending-file").unwrap_or("");
+    let peer = flags.required("--peer")?;
+    let alice_balance = flags
+        .optional("--alice-balance")
+        .map(|value| parse_amount("--alice-balance", value))
+        .transpose()?;
+    let limit = flags
+        .optional("--limit")
+        .map(|value| parse_usize("--limit", value))
+        .transpose()?
+        .unwrap_or(PEER_BLOCKS_DEFAULT_LIMIT)
+        .min(PEER_BLOCKS_MAX_LIMIT);
+    let max_rounds = flags
+        .optional("--max-rounds")
+        .map(|value| parse_usize("--max-rounds", value))
+        .transpose()?
+        .unwrap_or(1000);
+
+    let mut node = private_devnet_node_with_pending_file(chain_file, pending_file, alice_balance)?;
+    let mut total_applied = 0usize;
+    let mut peer_height = 0u64;
+    let mut rounds = 0usize;
+    while rounds < max_rounds {
+        rounds += 1;
+        let from_height = node.ledger().current_height() + 1;
+        let body = peer_http_get(
+            peer,
+            &format!("/v1/peer/blocks?from_height={from_height}&limit={limit}"),
+        )?;
+        let (current_peer_height, bytes) = parse_peer_blocks_response(&body)?;
+        peer_height = current_peer_height;
+        // Each imported block is fully validated before commit (see import_peer_blocks).
+        let outcome = node
+            .import_peer_blocks(&bytes)
+            .map_err(NodeRunnerError::Node)?;
+        total_applied += outcome.applied;
+        if outcome.applied == 0 {
+            break;
+        }
+    }
+    let final_height = node.ledger().current_height();
+    let json = format!(
+        "{{\n  \"command\": \"peer-sync\",\n  \"peer\": {},\n  \"applied\": {total_applied},\n  \"rounds\": {rounds},\n  \"current_height\": {final_height},\n  \"peer_current_height\": {peer_height}\n}}",
+        json_string(peer)
     );
     Ok(NodeRunnerOutput::Json(json))
 }
@@ -7809,6 +7955,206 @@ mod tests {
 
         let _ = fs::remove_file(path);
         let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn peer_sync_response_parser_reads_export_json() {
+        let path = temp_store_path();
+        let pending_path = path.with_extension("pending");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+
+        run_node_command([
+            "preflight-transfer",
+            "--chain-file",
+            path_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1bobbb00000000000",
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--expires-at-height",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+
+        let export = run_node_command([
+            "peer-blocks-export",
+            "--chain-file",
+            path_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from-height",
+            "1",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+
+        // The follower parses exactly what the peer server produces.
+        let (current_height, bytes) = parse_peer_blocks_response(&export).unwrap();
+        assert_eq!(current_height, 1);
+        let blocks = xriq_storage::decode_peer_blocks(&bytes).unwrap();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].header.height, 1);
+
+        // Malformed peer bodies surface as peer-sync errors, not panics.
+        assert!(matches!(
+            parse_peer_blocks_response("{}"),
+            Err(NodeRunnerError::PeerSyncError(_))
+        ));
+        assert!(matches!(
+            parse_peer_blocks_response("{\n  \"current_height\": 1\n}"),
+            Err(NodeRunnerError::PeerSyncError(_))
+        ));
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn peer_sync_follower_pulls_blocks_from_leader_over_tcp() {
+        // Leader: a chain file holding one validated block, served by the real
+        // private-devnet HTTP handler over a loopback socket.
+        let leader_path = temp_store_path();
+        let leader_pending = leader_path.with_extension("pending");
+        let leader_text = leader_path.to_string_lossy().to_string();
+        let leader_pending_text = leader_pending.to_string_lossy().to_string();
+
+        run_node_command([
+            "preflight-transfer",
+            "--chain-file",
+            leader_text.as_str(),
+            "--pending-file",
+            leader_pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1bobbb00000000000",
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--expires-at-height",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+
+        // Serve exactly one request against the leader chain file, then return.
+        fn serve_one_peer_request(chain_file: String) -> (u16, std::thread::JoinHandle<()>) {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let port = listener.local_addr().unwrap().port();
+            let config = PrivateDevnetHttpServerConfig {
+                bind: format!("127.0.0.1:{port}"),
+                chain_file,
+                pending_file: None,
+                snapshot_root: None,
+                alice_balance: Some(XriqAmount::from_base_units(100)),
+                allow_transaction_submission: false,
+            };
+            let handle = std::thread::spawn(move || {
+                if let Ok((mut stream, _)) = listener.accept() {
+                    let mut buffer = [0_u8; 8192];
+                    let bytes_read = stream.read(&mut buffer).unwrap_or(0);
+                    let request = String::from_utf8_lossy(&buffer[..bytes_read]).to_string();
+                    let response = private_devnet_http_response_from_request(&config, &request);
+                    let _ = stream.write_all(response.to_http_response().as_bytes());
+                    let _ = stream.flush();
+                }
+            });
+            (port, handle)
+        }
+
+        // Follower: a distinct, initially-empty chain file at the shared genesis.
+        let follower_path = temp_store_path();
+        let follower_text = follower_path.to_string_lossy().to_string();
+
+        // Round 1 — the follower connects, pulls the leader's block, and commits
+        // it to its own chain file.
+        let (port, handle) = serve_one_peer_request(leader_text.clone());
+        let synced = run_node_command([
+            "peer-sync",
+            "--chain-file",
+            follower_text.as_str(),
+            "--peer",
+            format!("http://127.0.0.1:{port}").as_str(),
+            "--alice-balance",
+            "100",
+            "--max-rounds",
+            "1",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        handle.join().unwrap();
+        assert!(synced.contains("\"command\": \"peer-sync\""));
+        assert!(synced.contains("\"applied\": 1"));
+        assert!(synced.contains("\"current_height\": 1"));
+        assert!(synced.contains("\"peer_current_height\": 1"));
+
+        // Round 2 — re-opening the persisted follower file shows it is caught up:
+        // the next pull applies nothing (proving the block reached disk).
+        let (port, handle) = serve_one_peer_request(leader_text.clone());
+        let resynced = run_node_command([
+            "peer-sync",
+            "--chain-file",
+            follower_text.as_str(),
+            "--peer",
+            format!("http://127.0.0.1:{port}").as_str(),
+            "--alice-balance",
+            "100",
+            "--max-rounds",
+            "1",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        handle.join().unwrap();
+        assert!(resynced.contains("\"applied\": 0"));
+        assert!(resynced.contains("\"current_height\": 1"));
+
+        // Bad peer address is a clean error, not a panic.
+        let unreachable = run_node_command([
+            "peer-sync",
+            "--chain-file",
+            follower_text.as_str(),
+            "--peer",
+            "not-a-url",
+            "--alice-balance",
+            "100",
+            "--max-rounds",
+            "1",
+            "--format",
+            "json",
+        ]);
+        assert!(matches!(
+            unreachable,
+            Err(NodeRunnerError::PeerSyncError(_))
+        ));
+
+        let _ = fs::remove_file(leader_path);
+        let _ = fs::remove_file(leader_pending);
+        let _ = fs::remove_file(follower_path);
     }
 
     #[test]

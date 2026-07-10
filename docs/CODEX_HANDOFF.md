@@ -308,9 +308,23 @@ re-import applies zero). Increment 2 then added the peer HTTP endpoint: a
 validated block range as hex in JSON) served over the existing node HTTP server
 at `GET /v1/peer/blocks?from_height=N&limit=M` (read-only), covered by the test
 `node_runner_peer_blocks_export_serves_validated_blocks` (default limit 128, max
-1024). Remaining increments for milestone 1: a minimal follower pull loop /
-`peer-sync` CLI (an HTTP client that polls a peer's `/v1/peer/blocks` and calls
-`import_peer_blocks`), and an allowlist for any push-based admission. Everything
+1024). Increment 3 then closed the loop with the follower pull client: a
+`peer-sync` node command (`xriq-node peer-sync --chain-file <path> --peer
+<http://host:port> [--limit N] [--max-rounds R] [--alice-balance B]`) built on a
+minimal blocking HTTP GET (`peer_http_get`, http-only, connection-close) plus a
+tolerant response parser (`parse_peer_blocks_response`). It loops: read the local
+tip, `GET /v1/peer/blocks?from_height=tip+1&limit=N`, hex-decode, and
+`import_peer_blocks` (each block re-validated before commit) into the file-backed
+chain until a round applies zero (caught up) or `--max-rounds` is hit; it emits a
+JSON summary (`applied`, `rounds`, `current_height`, `peer_current_height`). Two
+tests cover it: `peer_sync_response_parser_reads_export_json` (parses the real
+export JSON and rejects malformed bodies as `PeerSyncError`, not panics) and
+`peer_sync_follower_pulls_blocks_from_leader_over_tcp` (a follower pulls a leader's
+block over a real loopback socket into its own chain file, then a second pull
+against the re-opened file applies zero — proving on-disk persistence and
+idempotent convergence; a bad peer URL is a clean `PeerSyncError`). This makes two
+real node processes stay in sync over TCP. Remaining for milestone 1: an allowlist
+for any push-based admission (pull is the default and needs none). Everything
 stays test-only with no public economics.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
