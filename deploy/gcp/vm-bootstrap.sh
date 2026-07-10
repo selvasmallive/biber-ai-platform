@@ -49,7 +49,7 @@ XRIQ_IMAGE=$IMAGE
 XRIQ_ENVIRONMENT=staging-devnet
 XRIQ_ALICE_BALANCE=$ALICE_BALANCE
 XRIQ_API_BIND=0.0.0.0:8090
-XRIQ_API_MUTATION_FLAGS=--enable-local-wallet-submit-signed true --enable-local-block-production true
+XRIQ_API_MUTATION_FLAGS=--enable-local-wallet-send true --enable-local-wallet-submit-signed true --enable-local-block-production true
 XRIQ_POSTGRES_URL=postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:5432/${DB_NAME}
 EOF
 chmod 600 /etc/xriq/xriq.env
@@ -69,8 +69,10 @@ install -m 0644 "$SCRIPT_DIR/systemd/xriq-indexer.service" /etc/systemd/system/x
 install -m 0644 "$SCRIPT_DIR/systemd/xriq-indexer.timer" /etc/systemd/system/xriq-indexer.timer
 systemctl daemon-reload
 
-echo "[8/8] Enabling and starting services"
-systemctl enable --now xriq-api.service
-systemctl enable --now xriq-indexer.timer
+echo "[8/8] Enabling and (re)starting services"
+systemctl enable xriq-api.service xriq-indexer.timer
+# restart picks up a new image or env on re-runs; it also starts if stopped.
+systemctl restart xriq-api.service
+systemctl restart xriq-indexer.timer
 
 echo "Done. Check: systemctl status xriq-api; journalctl -u xriq-api -n 50"

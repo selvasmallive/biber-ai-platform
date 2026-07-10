@@ -230,10 +230,23 @@ for package installs; `xriq/Dockerfile` copies `db/schema.sql` into the image at
 `/opt/xriq/db`; and `deploy/gcp/bin/xriq-indexer-run.sh` passes
 `--schema-file /opt/xriq/db/schema.sql`; plus `xriq/.gcloudignore` keeps build
 dirs out of Cloud Build uploads. All secret material (DB password, VM
-`/etc/xriq/xriq.env`, local credentials JSON) stays out of the repo. Remaining
-follow-up: a native PostgreSQL client in `xriq-api` so it serves the read model
-directly from Cloud SQL (currently docker-only), and producing blocks so the
-indexed height advances past genesis.
+`/etc/xriq/xriq.env`, local credentials JSON) stays out of the repo. Both earlier
+follow-ups are now addressed. First, `xriq-api` can serve the Postgres read model
+directly from a host such as Cloud SQL: a new `--postgres-database-url-env <ENV>`
+option (default target `XRIQ_POSTGRES_URL`) resolves the connection URL from the
+environment at query time and runs `psql` with `PG*` env vars, so the password
+never enters the config, argv, or logs; the docker-container path stays for local
+use, and the two are mutually exclusive (`build_postgres_read_model_config`, plus
+`parse_postgres_url`/`psql_url_query`, covered by unit tests;
+`cargo test -p xriq-api` = 78). The API run wrapper auto-enables this when
+`XRIQ_POSTGRES_URL` is set. Second, a live-chain smoke
+`deploy/gcp/bin/xriq-live-smoke.sh` plus `docs/XRIQ_GCP_LIVE_CHAIN_SMOKE.md`
+redeploys the updated image/config and advances the chain (staging mutation flags
+now include `--enable-local-wallet-send`, so a block can be produced without a
+client artifact): send -> produce block -> re-run the indexer -> verify the Cloud
+SQL counts (`blocks`/`latest_height`) and the API's
+`/api/v1/admin/postgres/read-model-status` reflect it. Running the redeploy and
+smoke on the VM remains a human/agent cloud step.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and

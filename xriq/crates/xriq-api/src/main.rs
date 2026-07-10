@@ -2957,7 +2957,15 @@ fn postgres_read_model_http_response(
         }
     };
 
-    let output = docker_psql_query(config.docker_container, config.database, &sql, label)?;
+    let output = match config.database_url_env {
+        Some(env_name) => {
+            let url = std::env::var(env_name).map_err(|_| {
+                format!("environment variable {env_name} is not set for the Postgres read model")
+            })?;
+            psql_url_query(&url, &sql, label)?
+        }
+        None => docker_psql_query(config.docker_container, config.database, &sql, label)?,
+    };
     let values = parse_key_value_lines(&output, label)?;
     if matches!(
         label,
@@ -3013,7 +3021,7 @@ fn postgres_read_model_disabled_response() -> ApiHttpResponse {
     local_api_error_response(
         404,
         "not_found",
-        "XRIQ Postgres read-model endpoint is disabled; restart serve-readonly with --postgres-docker-container and --postgres-database to enable it",
+        "XRIQ Postgres read-model endpoint is disabled; restart serve-readonly with --postgres-database-url-env <ENV> (e.g. XRIQ_POSTGRES_URL) for a host such as Cloud SQL, or --postgres-docker-container and --postgres-database for a local container, to enable it",
     )
 }
 
@@ -3079,6 +3087,134 @@ fn docker_psql_query(
     Err(format!(
         "docker psql failed while reading {label}: {stderr}"
     ))
+}
+
+fn validate_env_var_name(name: &str, label: &str) -> Result<(), String> {
+    let mut chars = name.chars();
+    let first = chars
+        .next()
+        .ok_or_else(|| format!("{label} must not be empty"))?;
+    if !(first.is_ascii_alphabetic() || first == '_') {
+        return Err(format!("{label} must start with a letter or underscore"));
+    }
+    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return Err(format!(
+            "{label} must contain only letters, digits, and underscores"
+        ));
+    }
+    Ok(())
+}
+
+// Resolve the Postgres read-model configuration from the mutually-exclusive
+// options: a database-url env var (Cloud SQL / any host) or a docker
+// container + database (local).
+fn build_postgres_read_model_config<'a>(
+    url_env: Option<&'a str>,
+    docker_container: Option<&'a str>,
+    database: Option<&'a str>,
+) -> Result<Option<PostgresReadModelConfig<'a>>, String> {
+    if let Some(env_name) = url_env {
+        if docker_container.is_some() || database.is_some() {
+            return Err(
+                "provide either --postgres-database-url-env or --postgres-docker-container/--postgres-database, not both"
+                    .to_string(),
+            );
+        }
+        return Ok(Some(PostgresReadModelConfig::from_url_env(env_name)?));
+    }
+    match (docker_container, database) {
+        (None, None) => Ok(None),
+        (Some(container), Some(database)) => {
+            Ok(Some(PostgresReadModelConfig::new(container, database)?))
+        }
+        (Some(_), None) => Err(
+            "missing required flag when enabling Postgres read model: --postgres-database"
+                .to_string(),
+        ),
+        (None, Some(_)) => Err(
+            "missing required flag when enabling Postgres read model: --postgres-docker-container"
+                .to_string(),
+        ),
+    }
+}
+
+struct PostgresConnection {
+    host: String,
+    port: String,
+    user: String,
+    password: String,
+    dbname: String,
+}
+
+// Parse postgresql://user:password@host[:port]/dbname into connection parts.
+// Passwords produced by the deploy tooling use the base64 alphabet (no '@' ':'
+// '/'), so a straightforward split is sufficient and avoids adding a URL crate.
+fn parse_postgres_url(url: &str) -> Result<PostgresConnection, String> {
+    let rest = url
+        .strip_prefix("postgresql://")
+        .or_else(|| url.strip_prefix("postgres://"))
+        .ok_or_else(|| "postgres url must start with postgresql:// or postgres://".to_string())?;
+    let (userinfo, hostpart) = rest
+        .split_once('@')
+        .ok_or_else(|| "postgres url must include user:password@host".to_string())?;
+    let (user, password) = userinfo
+        .split_once(':')
+        .ok_or_else(|| "postgres url userinfo must be user:password".to_string())?;
+    let hostpart = hostpart.split('?').next().unwrap_or(hostpart);
+    let (authority, dbname) = hostpart
+        .split_once('/')
+        .ok_or_else(|| "postgres url must include /dbname".to_string())?;
+    let (host, port) = match authority.split_once(':') {
+        Some((host, port)) => (host, port),
+        None => (authority, "5432"),
+    };
+    if host.is_empty() || user.is_empty() || dbname.is_empty() {
+        return Err("postgres url is missing host, user, or dbname".to_string());
+    }
+    Ok(PostgresConnection {
+        host: host.to_string(),
+        port: port.to_string(),
+        user: user.to_string(),
+        password: password.to_string(),
+        dbname: dbname.to_string(),
+    })
+}
+
+// Run read-only SQL against a PostgreSQL host (e.g. Cloud SQL) using psql. The
+// password is passed only via the PGPASSWORD environment variable of the child
+// process, never on the command line, so it does not appear in `ps` or logs.
+fn psql_url_query(url: &str, sql: &str, label: &str) -> Result<String, String> {
+    let conn = parse_postgres_url(url)?;
+    let mut child = Command::new("psql")
+        .env("PGHOST", &conn.host)
+        .env("PGPORT", &conn.port)
+        .env("PGUSER", &conn.user)
+        .env("PGPASSWORD", &conn.password)
+        .env("PGDATABASE", &conn.dbname)
+        .arg("-v")
+        .arg("ON_ERROR_STOP=1")
+        .arg("-t")
+        .arg("-A")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("could not start psql for {label}: {error}"))?;
+    child
+        .stdin
+        .take()
+        .ok_or_else(|| format!("could not open psql stdin for {label}"))?
+        .write_all(sql.as_bytes())
+        .map_err(|error| format!("could not send {label} SQL to psql: {error}"))?;
+    let output = child
+        .wait_with_output()
+        .map_err(|error| format!("could not wait for psql {label}: {error}"))?;
+    if output.status.success() {
+        return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    Err(format!("psql failed while reading {label}: {stderr}"))
 }
 
 fn postgres_read_model_status_sql() -> &'static str {
@@ -4249,8 +4385,11 @@ fn render_postgres_read_model_status_json(
         ),
         json_string(POSTGRES_READ_MODEL_WARNING),
         json_string(POSTGRES_READ_MODEL_STATUS_ROUTE),
-        json_string(config.docker_container),
-        json_string(config.database),
+        json_string(match config.database_url_env {
+            Some(_) => "database-url-env",
+            None => config.docker_container,
+        }),
+        json_string(config.database_url_env.unwrap_or(config.database)),
         json_string(indexer_status),
         latest_height,
         latest_block_hash,
@@ -6458,7 +6597,7 @@ fn help_text() -> String {
         "xriq-api private-devnet commands:",
         "  xriq-api request --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--method GET|POST] [--environment local|staging-devnet] [--enable-local-wallet-submit true] [--enable-local-wallet-send true] [--enable-local-wallet-submit-signed true] [--enable-local-block-production true] --target <api-path>",
         "  xriq-api request-postgres [--docker-container xriq-postgres] [--database xriq_phase1_1_smoke] [--method GET] --target /api/v1/admin/postgres/read-model-status|/api/v1/admin/node/status|/api/v1/admin/indexer/status|/api/v1/admin/audit-events?limit=5|/api/v1/explorer/overview|/api/v1/blocks?limit=5|/api/v1/blocks/<height-or-hash>|/api/v1/transactions?limit=5|/api/v1/mempool?limit=5|/api/v1/wallet/status|/api/v1/wallet/transfers/draft-preview?...|/api/v1/transactions/<tx_hash>|/api/v1/wallet/transactions/<tx_hash>/status|/api/v1/iso20022/transactions/<tx_hash>/status|/api/v1/iso20022/payment-initiation/preview?tx_hash=<tx_hash>|/api/v1/iso20022/accounts/<address>/statement?from=...&to=...|/api/v1/accounts?limit=5|/api/v1/accounts/<address>|/api/v1/accounts/<address>/transactions?limit=5|/api/v1/wallet/accounts?limit=5|/api/v1/wallet/accounts/<address>/balance|/api/v1/wallet/accounts/<address>/history?limit=5|/api/v1/snapshots?limit=5|/api/v1/snapshots/<snapshot_name>",
-        "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--environment local|staging-devnet] [--enable-local-wallet-submit true] [--enable-local-wallet-send true] [--enable-local-wallet-submit-signed true] [--enable-local-block-production true] [--postgres-docker-container <container> --postgres-database <database>]",
+        "  xriq-api serve-readonly --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--bind 127.0.0.1:8090] [--environment local|staging-devnet] [--enable-local-wallet-submit true] [--enable-local-wallet-send true] [--enable-local-wallet-submit-signed true] [--enable-local-block-production true] [--postgres-database-url-env XRIQ_POSTGRES_URL | --postgres-docker-container <container> --postgres-database <database>]",
         "",
         "Examples:",
         "  xriq-api request --chain-file target/xriq-devnet.bin --alice-balance 100 --target /api/v1/health",
@@ -6588,6 +6727,11 @@ impl<'a> PostgresRequestConfig<'a> {
 struct PostgresReadModelConfig<'a> {
     docker_container: &'a str,
     database: &'a str,
+    // When set, the read model connects to a PostgreSQL host (e.g. Cloud SQL)
+    // using the connection URL read from this environment variable at query
+    // time, via psql with PG* env vars. This keeps the password (in the URL) out
+    // of the config, argv, and logs. When None, the docker-container path is used.
+    database_url_env: Option<&'a str>,
 }
 
 impl<'a> PostgresReadModelConfig<'a> {
@@ -6597,6 +6741,16 @@ impl<'a> PostgresReadModelConfig<'a> {
         Ok(Self {
             docker_container,
             database,
+            database_url_env: None,
+        })
+    }
+
+    fn from_url_env(env_name: &'a str) -> Result<Self, String> {
+        validate_env_var_name(env_name, "postgres database url env")?;
+        Ok(Self {
+            docker_container: "",
+            database: "",
+            database_url_env: Some(env_name),
         })
     }
 }
@@ -6681,28 +6835,13 @@ impl<'a> ServeConfig<'a> {
             "--enable-local-block-production",
             "--postgres-docker-container",
             "--postgres-database",
+            "--postgres-database-url-env",
         ])?;
-        let postgres_read_model = match (
+        let postgres_read_model = build_postgres_read_model_config(
+            flags.optional("--postgres-database-url-env"),
             flags.optional("--postgres-docker-container"),
             flags.optional("--postgres-database"),
-        ) {
-            (None, None) => None,
-            (Some(docker_container), Some(database)) => {
-                Some(PostgresReadModelConfig::new(docker_container, database)?)
-            }
-            (Some(_), None) => {
-                return Err(
-                    "missing required flag when enabling Postgres read model: --postgres-database"
-                        .to_string(),
-                );
-            }
-            (None, Some(_)) => {
-                return Err(
-                    "missing required flag when enabling Postgres read model: --postgres-docker-container"
-                        .to_string(),
-                );
-            }
-        };
+        )?;
         Ok(Self {
             chain_file: flags.required("--chain-file")?,
             pending_file: flags.optional("--pending-file"),
@@ -7216,6 +7355,71 @@ mod tests {
             serve_error.contains("unsupported environment"),
             "got: {serve_error}"
         );
+    }
+
+    #[test]
+    fn postgres_read_model_config_supports_url_env_and_docker() {
+        let via_url = ServeConfig::parse(&[
+            "--chain-file",
+            "target/xriq.bin",
+            "--postgres-database-url-env",
+            "XRIQ_POSTGRES_URL",
+        ])
+        .unwrap();
+        let model = via_url.postgres_read_model.expect("read model configured");
+        assert_eq!(model.database_url_env, Some("XRIQ_POSTGRES_URL"));
+
+        let via_docker = ServeConfig::parse(&[
+            "--chain-file",
+            "target/xriq.bin",
+            "--postgres-docker-container",
+            "xriq-postgres",
+            "--postgres-database",
+            "xriq_db",
+        ])
+        .unwrap();
+        let docker = via_docker
+            .postgres_read_model
+            .expect("read model configured");
+        assert_eq!(docker.database_url_env, None);
+        assert_eq!(docker.docker_container, "xriq-postgres");
+
+        // The two modes are mutually exclusive.
+        let both = ServeConfig::parse(&[
+            "--chain-file",
+            "target/xriq.bin",
+            "--postgres-database-url-env",
+            "XRIQ_POSTGRES_URL",
+            "--postgres-docker-container",
+            "xriq-postgres",
+            "--postgres-database",
+            "xriq_db",
+        ])
+        .unwrap_err();
+        assert!(both.contains("not both"), "got: {both}");
+
+        // Disabled by default.
+        let none = ServeConfig::parse(&["--chain-file", "target/xriq.bin"]).unwrap();
+        assert!(none.postgres_read_model.is_none());
+    }
+
+    #[test]
+    fn parses_postgres_url_parts() {
+        let conn = parse_postgres_url("postgresql://xriqpgadmin:p+a/ss@10.103.0.3:5432/xriq")
+            .expect("valid url");
+        assert_eq!(conn.host, "10.103.0.3");
+        assert_eq!(conn.port, "5432");
+        assert_eq!(conn.user, "xriqpgadmin");
+        assert_eq!(conn.password, "p+a/ss");
+        assert_eq!(conn.dbname, "xriq");
+
+        let default_port = parse_postgres_url("postgres://u:pw@db/xriq").expect("valid url");
+        assert_eq!(default_port.host, "db");
+        assert_eq!(default_port.port, "5432");
+
+        assert!(parse_postgres_url("mysql://u:p@h/db").is_err());
+        assert!(parse_postgres_url("postgresql://u:p@h").is_err());
+        assert!(parse_postgres_url("postgresql://uponly@h/db").is_err());
     }
 
     #[test]
@@ -9475,6 +9679,7 @@ transaction_0_fee_base_units=2
             Some(PostgresReadModelConfig {
                 docker_container: "xriq-postgres",
                 database: "xriq_phase1_1_smoke",
+                database_url_env: None,
             })
         );
 
