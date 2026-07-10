@@ -217,6 +217,23 @@ and all guards still pass. Verified locally: `cargo build --release -p xriq-node
 -p xriq-api -p xriq-indexer` succeeds and the deploy shell scripts pass
 `bash -n`. Applying the IAP rule, building/pushing the image, and running the
 bootstrap on the VM remain human/agent cloud steps, not repo automation.
+Milestone: the deployment was then completed on GCP `xriq-project-dev` by a Codex
+agent. The `xriq-api` service is active and healthy on the VM
+(`xriq-staging-devnet-node`, `0.0.0.0:8090`, health `ok`, network `xriq-devnet`),
+and the indexer populated the private Cloud SQL read model (a successful run with
+`schema_applied=true`, `write_plan_applied=true`; `verify-postgres` showed the
+genesis state: `accounts=2`, `account_balances=2`, `indexer_runs=1`, `blocks=0`,
+`latest_height=none`). Three deploy fixes found during the real run are now in the
+repo: the network module adds a Cloud Router + Cloud NAT
+(`xriq-staging-devnet-router`/`-nat`) so the no-external-IP VM has outbound access
+for package installs; `xriq/Dockerfile` copies `db/schema.sql` into the image at
+`/opt/xriq/db`; and `deploy/gcp/bin/xriq-indexer-run.sh` passes
+`--schema-file /opt/xriq/db/schema.sql`; plus `xriq/.gcloudignore` keeps build
+dirs out of Cloud Build uploads. All secret material (DB password, VM
+`/etc/xriq/xriq.env`, local credentials JSON) stays out of the repo. Remaining
+follow-up: a native PostgreSQL client in `xriq-api` so it serves the read model
+directly from Cloud SQL (currently docker-only), and producing blocks so the
+indexed height advances past genesis.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and

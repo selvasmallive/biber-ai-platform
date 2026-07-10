@@ -17,6 +17,7 @@ RUN useradd --system --uid 10001 --create-home xriq
 COPY --from=builder /build/target/release/xriq-node /usr/local/bin/xriq-node
 COPY --from=builder /build/target/release/xriq-api /usr/local/bin/xriq-api
 COPY --from=builder /build/target/release/xriq-indexer /usr/local/bin/xriq-indexer
+COPY --from=builder /build/db /opt/xriq/db
 USER xriq
 WORKDIR /data
 EXPOSE 8090

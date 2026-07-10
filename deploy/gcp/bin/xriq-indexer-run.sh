@@ -19,5 +19,6 @@ exec /usr/bin/docker run --rm --name xriq-indexer --network host \
   xriq-indexer apply-postgres \
   --chain-file /data/chain.bin \
   --alice-balance "$XRIQ_ALICE_BALANCE" \
+  --schema-file /opt/xriq/db/schema.sql \
   --database-url-env XRIQ_POSTGRES_URL \
   --dry-run false
