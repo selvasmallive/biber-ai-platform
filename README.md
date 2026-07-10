@@ -330,6 +330,11 @@ acceptance criteria, hardening gaps, environment boundaries, and
 provider-neutral operational decisions without choosing a cloud provider or
 creating resources. Validate its guardrails with
 `python scripts/xriq_phase2_plan_check.py`.
+The Phase 3 public-testnet planning checkpoint is in
+`docs/XRIQ_PHASE3_PUBLIC_TESTNET_PLAN.md` (test-only, no monetary value; DEX/
+tokenomics out of scope; networked multi-node sync as the first milestone;
+security/legal gated). Validate its guardrails with
+`python scripts/xriq_phase3_plan_check.py`.
 The Phase 2 restart/recovery hardening is covered by
 `python scripts/xriq_phase2_restart_recovery_smoke.py`; it drives xriq-node and
 xriq-api across real process restarts to prove pending state survives restarts

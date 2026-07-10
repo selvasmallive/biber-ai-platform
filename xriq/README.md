@@ -131,6 +131,10 @@ acceptance criteria, hardening gaps, environment boundaries, and
 provider-neutral operational decisions without choosing a cloud provider or
 creating resources. From the repo root, validate its guardrails with
 `python scripts/xriq_phase2_plan_check.py`.
+The Phase 3 public-testnet planning checkpoint is
+`../docs/XRIQ_PHASE3_PUBLIC_TESTNET_PLAN.md` (test-only; DEX/tokenomics out of
+scope; security/legal gated). From the repo root, validate its guardrails with
+`python scripts/xriq_phase3_plan_check.py`.
 The Phase 2 restart/recovery hardening smoke is
 `python scripts/xriq_phase2_restart_recovery_smoke.py` (run from the repo root);
 it drives xriq-node and xriq-api across real process restarts to prove pending

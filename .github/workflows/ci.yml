@@ -61,6 +61,8 @@ jobs:
           python-version: "3.12"
       - name: Phase 2 staging-devnet plan guard
         run: python scripts/xriq_phase2_plan_check.py
+      - name: Phase 3 public-testnet plan guard
+        run: python scripts/xriq_phase3_plan_check.py
       - name: GCP provider decision guard
         run: python scripts/xriq_gcp_provider_decision_check.py
       - name: Production roadmap guard

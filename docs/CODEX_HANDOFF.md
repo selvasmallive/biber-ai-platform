@@ -275,6 +275,23 @@ publicly reachable — a deliberate posture change documented, with the read-onl
 locking and the Phase 3/legal caveats, in `docs/XRIQ_GCP_PUBLIC_EDGE.md`.
 `terraform validate` passes; applying is human/agent-operated. Remaining approved
 work: Phase 3 public testnet, still behind the roadmap security/legal gate.
+Phase 3 (public testnet) has now been opened with a planning checkpoint only:
+`docs/XRIQ_PHASE3_PUBLIC_TESTNET_PLAN.md` records the goal (a test-only public
+network with no monetary value), the roadmap Phase 3 acceptance criteria, narrow
+milestones (networked multi-node sync as the crux, then peer identity/discovery,
+explicit testnet chain/genesis, a valueless faucet with abuse limits, public
+explorer/wallet, monitoring/abuse controls, GCP multi-node topology, and testnet
+reset/recovery drills), the hard scope boundaries, and the Phase 4 security/legal
+gate. It builds on `docs/XRIQ_PHASE3_DECISIONS.md` (deterministic authority
+consensus, allowlist peer admission) and stays subject to
+`docs/XRIQ_LEGAL_RISK_REDUCTION.md`. The cheap guard is
+`scripts/xriq_phase3_plan_check.py`. Important correction recorded: a DEX does
+**not** lower legal requirements (the user asked); per the legal-risk doc and the
+Treasury DeFi guidance, "decentralized" does not remove AML/CFT/sanctions
+obligations, and a project-operated DEX is a separate high-risk regulated-product
+review item explicitly out of Phase 3 scope. The recommended first Phase 3 code
+milestone is networked multi-node sync. No tags, secrets, cloud resources, or
+runtime behavior changed by this checkpoint.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and
