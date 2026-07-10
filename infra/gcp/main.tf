@@ -38,6 +38,14 @@ resource "google_project_service" "apis" {
   disable_on_destroy = false
 }
 
+# Give newly-enabled APIs time to propagate before dependent resources are
+# created, so a first apply does not fail with transient "API not enabled" or
+# service-networking errors.
+resource "time_sleep" "wait_for_apis" {
+  depends_on      = [google_project_service.apis]
+  create_duration = "60s"
+}
+
 module "network" {
   source = "./modules/network"
 
@@ -46,7 +54,7 @@ module "network" {
   region                = var.region
   operator_allowed_cidr = var.operator_allowed_cidr
 
-  depends_on = [google_project_service.apis]
+  depends_on = [time_sleep.wait_for_apis]
 }
 
 module "security" {
@@ -58,7 +66,7 @@ module "security" {
   postgres_admin_password = var.postgres_admin_password
   labels                  = local.labels
 
-  depends_on = [google_project_service.apis]
+  depends_on = [time_sleep.wait_for_apis]
 }
 
 module "data" {
@@ -76,7 +84,7 @@ module "data" {
   db_deletion_protection  = var.db_deletion_protection
   labels                  = local.labels
 
-  depends_on = [google_project_service.apis]
+  depends_on = [time_sleep.wait_for_apis]
 }
 
 module "compute" {
@@ -93,7 +101,7 @@ module "compute" {
   service_account_email = module.security.workload_service_account_email
   labels                = local.labels
 
-  depends_on = [google_project_service.apis]
+  depends_on = [time_sleep.wait_for_apis]
 }
 
 module "observability" {
@@ -101,10 +109,11 @@ module "observability" {
 
   project_id                      = var.project_id
   name_prefix                     = local.name_prefix
+  enable_budget                   = var.enable_budget
   billing_account                 = var.billing_account
   monthly_budget_amount           = var.monthly_budget_amount
   budget_alert_threshold_percents = var.budget_alert_threshold_percents
   budget_notification_email       = var.budget_notification_email
 
-  depends_on = [google_project_service.apis]
+  depends_on = [time_sleep.wait_for_apis]
 }

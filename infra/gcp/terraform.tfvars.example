@@ -13,7 +13,10 @@ zone        = "northamerica-northeast2-a"
 # 3-8 lowercase alphanumeric chars; makes the Cloud Storage bucket name unique.
 name_suffix = "dev01"
 
-# Cloud Billing account id (XXXXXX-XXXXXX-XXXXXX) and budget settings.
+# Cloud Billing budget. Creating a budget needs billing-account-level IAM
+# (roles/billing.costsManager). Set enable_budget = false to skip the budget if
+# that permission is not available; billing_account may then be left empty.
+enable_budget                   = true
 billing_account                 = "000000-000000-000000"
 monthly_budget_amount           = 150
 budget_alert_threshold_percents = [80, 100]

@@ -170,6 +170,18 @@ automation; `gcloud auth`, `terraform plan`/`apply`, and the Cloud SQL password
 (`TF_VAR_postgres_admin_password`, stored in Secret Manager at apply) remain
 human-only. A real `terraform plan` may still need minor region/quota tier
 adjustments since only `validate` runs in CI.
+The GCP apply path was then hardened for autonomous execution by a Codex agent:
+`docs/XRIQ_GCP_APPLY_RUNBOOK.md` is now an agent-executable runbook (pre-enable
+APIs via `gcloud`, generate SSH key + DB password, write `terraform.tfvars`,
+`init`/`plan`/`apply -auto-approve` with one retry, plus a troubleshooting
+table). The Terraform adds a `hashicorp/time` `time_sleep.wait_for_apis` gate so
+newly-enabled APIs propagate before dependent resources, and an `enable_budget`
+flag (default true) so the Cloud Billing budget can be skipped when
+billing-account IAM (`roles/billing.costsManager`) is unavailable. The GCP guard
+now checks git-tracked files (via `git ls-files`) instead of the filesystem, so a
+local operator `terraform.tfvars`/`tfstate`/`tfplan` no longer false-fails it,
+and `.gitignore` also ignores bare `tfplan`. `terraform validate` still passes
+with the `time` provider added.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and

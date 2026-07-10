@@ -49,8 +49,15 @@ variable "name_suffix" {
 }
 
 variable "billing_account" {
-  description = "Cloud Billing account id (XXXXXX-XXXXXX-XXXXXX) for the budget. An identifier, not a secret."
+  description = "Cloud Billing account id (XXXXXX-XXXXXX-XXXXXX) for the budget. An identifier, not a secret. May be empty when enable_budget is false."
   type        = string
+  default     = ""
+}
+
+variable "enable_budget" {
+  description = "Whether to create the Cloud Billing budget. Creating a budget needs billing-account-level IAM (roles/billing.costsManager); set false to skip it if that permission is not available."
+  type        = bool
+  default     = true
 }
 
 variable "monthly_budget_amount" {

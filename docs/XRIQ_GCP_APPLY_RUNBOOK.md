@@ -1,117 +1,165 @@
-# XRIQ GCP Apply Runbook (Human-Operated)
+# XRIQ GCP Apply Runbook (Agent-Executable)
 
-Status: operator runbook for provisioning the XRIQ `staging-devnet` on Google
-Cloud.
+Status: runbook for an autonomous coding agent (e.g. Codex) to provision the XRIQ
+`staging-devnet` on Google Cloud from the repository.
 
-These steps are run **by the human maintainer**, not by automation or by the
-assistant. The assistant never runs `gcloud auth`, `terraform apply`, or handles
-secrets. The repository and CI only run `terraform fmt`/`validate`.
+This runbook is written to be executed end to end by an agent that has a shell
+with `gcloud` and `terraform`, and permission to authenticate and apply. Run the
+steps in order and follow the decision points. The Terraform is hardened for a
+non-interactive apply (API-enablement is pre-run and gated by a wait; the billing
+budget is optional).
 
-Prerequisites:
+Inputs the agent needs (ask the user if not provided):
 
-- Google Cloud SDK (`gcloud`) and Terraform `>= 1.6` installed locally.
-- A Google Cloud account owned by `xriq@kani.network`, a project (new or
-  existing), and a Cloud Billing account linked to it.
-- The SSH **public** key you will use for the node VM (the private key stays on
-  your machine).
+- `PROJECT_ID` — target Google Cloud project id (new or existing).
+- `BILLING_ACCOUNT` — Cloud Billing account id `XXXXXX-XXXXXX-XXXXXX` (only if
+  creating the budget).
+- `NAME_SUFFIX` — 3-8 lowercase alphanumeric chars (globally-unique bucket name).
+- `NOTIFY_EMAIL` — email for budget alerts (default `xriq@kani.network`).
+- Region is `northamerica-northeast2` (default in the Terraform).
 
-The provisioned footprint (region `northamerica-northeast2`, budget USD 150/mo
-with 80%/100% alerts) is: enabled APIs; VPC + subnet + firewall + private
-services access; workload service account, Artifact Registry, Secret Manager db
-secret; private Cloud SQL for PostgreSQL + Cloud Storage bucket; a small Compute
-Engine node VM; and a Cloud Billing budget. Estimated cost at the default tiers
-is roughly USD 40-70/month; review with `terraform plan` and the GCP pricing
-calculator before applying.
+Non-negotiable safety rules for the agent:
+
+- Never commit `terraform.tfvars`, `*.tfstate`, `tfplan`, the database password,
+  or any secret. They are gitignored; keep them so.
+- Never print the generated database password to logs.
+- This is a private staging environment. Do not add public-network, DEX, custody,
+  or exchange behavior.
+
+## 0. Preconditions
+
+```bash
+gcloud --version && terraform version
+cd infra/gcp
+```
 
 ## 1. Authenticate and select the project
 
 ```bash
 gcloud auth login
 gcloud auth application-default login
-gcloud config set project <your-project-id>
-gcloud projects describe <your-project-id> --format="value(projectId, projectNumber)"
+gcloud config set project "$PROJECT_ID"
 ```
 
-If you need a new project:
+If the project does not exist yet, create and link billing:
 
 ```bash
-gcloud projects create <your-project-id> --name="XRIQ private dev"
-gcloud billing projects link <your-project-id> --billing-account=<XXXXXX-XXXXXX-XXXXXX>
+gcloud projects create "$PROJECT_ID" --name="XRIQ private dev" || true
+gcloud billing projects link "$PROJECT_ID" --billing-account="$BILLING_ACCOUNT"
 ```
 
-## 2. Configure variables
+Verify billing is enabled (required, or apply will fail):
 
 ```bash
-cd infra/gcp
-cp terraform.tfvars.example terraform.tfvars   # terraform.tfvars is gitignored
+gcloud beta billing projects describe "$PROJECT_ID" --format='value(billingEnabled)'
+# Expect: True
 ```
 
-Edit `terraform.tfvars`:
+## 2. Pre-enable the APIs (avoids first-apply propagation errors)
 
-- `project_id` — your GCP project id.
-- `billing_account` — your Cloud Billing account id (`XXXXXX-XXXXXX-XXXXXX`).
-- `name_suffix` — a short unique suffix (3-8 lowercase alphanumeric).
-- `ssh_public_key` — your SSH public key (e.g. contents of `~/.ssh/id_ed25519.pub`).
-- `budget_notification_email` — an address for budget alerts.
-- `operator_allowed_cidr` — optional; your IP as `x.x.x.x/32` to open inbound SSH.
+Terraform also enables these, but pre-enabling makes the first apply
+deterministic:
 
-## 3. Provide the database password out of band (not in git)
+```bash
+gcloud services enable \
+  compute.googleapis.com sqladmin.googleapis.com servicenetworking.googleapis.com \
+  secretmanager.googleapis.com artifactregistry.googleapis.com storage.googleapis.com \
+  monitoring.googleapis.com logging.googleapis.com billingbudgets.googleapis.com \
+  cloudresourcemanager.googleapis.com serviceusage.googleapis.com \
+  --project "$PROJECT_ID"
+```
+
+## 3. Budget IAM decision
+
+The budget needs billing-account IAM. Try to grant it; if that fails, disable the
+budget so the apply still succeeds.
+
+```bash
+ACTIVE_ACCOUNT="$(gcloud config get-value account)"
+gcloud billing accounts add-iam-policy-binding "$BILLING_ACCOUNT" \
+  --member="user:${ACTIVE_ACCOUNT}" --role="roles/billing.costsManager" \
+  && export ENABLE_BUDGET=true \
+  || export ENABLE_BUDGET=false
+```
+
+If you do not have a billing account or do not want the budget, set
+`ENABLE_BUDGET=false`.
+
+## 4. SSH key for the node VM
+
+Use an existing public key or generate one (private key stays on this machine):
+
+```bash
+[ -f ~/.ssh/xriq_node.pub ] || ssh-keygen -t ed25519 -N "" -f ~/.ssh/xriq_node
+SSH_PUBLIC_KEY="$(cat ~/.ssh/xriq_node.pub)"
+```
+
+## 5. Write terraform.tfvars (no secrets in it)
+
+```bash
+cat > terraform.tfvars <<EOF
+project_id  = "$PROJECT_ID"
+region      = "northamerica-northeast2"
+zone        = "northamerica-northeast2-a"
+name_suffix = "$NAME_SUFFIX"
+
+enable_budget             = $ENABLE_BUDGET
+billing_account           = "$BILLING_ACCOUNT"
+budget_notification_email = "$NOTIFY_EMAIL"
+
+ssh_public_key = "$SSH_PUBLIC_KEY"
+EOF
+```
+
+## 6. Database password (out of band, never in a file or log)
 
 ```bash
 export TF_VAR_postgres_admin_password="$(openssl rand -base64 24)"
 ```
 
-Terraform stores this in Secret Manager during apply; keep it out of any file.
+Terraform stores it in Secret Manager during apply.
 
-## 4. Plan and review
-
-State backend: this repo ships with **local state** (no backend block, so the
-config validates without cloud access). For a first staging apply, local state is
-fine — keep `infra/gcp/terraform.tfstate` secure and backed up. To use a remote
-GCS backend instead, create a state bucket and add a local (gitignored)
-`backend "gcs"` configuration before `init`; do not commit that backend block
-(the repo guard intentionally forbids it in tracked files).
+## 7. Init, plan, apply (with one automatic retry)
 
 ```bash
 terraform init
 terraform plan -out tfplan
+terraform apply -auto-approve tfplan || { sleep 60; terraform apply -auto-approve; }
 ```
 
-Read the plan carefully. The first plan/apply may need to enable APIs before
-dependent resources resolve; if a resource fails because an API was just enabled,
-re-run `plan`/`apply`. Region/quota constraints may require a different Cloud SQL
-tier or VM machine type — adjust `terraform.tfvars` and re-plan until clean.
+The retry covers the rare case where a just-enabled API needs extra propagation
+time. If it still fails, go to Troubleshooting.
 
-## 5. Apply
+## 8. Post-apply verification
 
 ```bash
-terraform apply tfplan
+terraform output
+# Confirm the Cloud SQL instance has a PRIVATE ip and no public ip:
+gcloud sql instances describe xriq-staging-devnet-postgres \
+  --project "$PROJECT_ID" --format='value(ipAddresses)'
 ```
 
-## 6. Post-apply
+Report the outputs (node VM internal IP, Artifact Registry repo, Cloud SQL
+connection name, bucket, budget id) back to the user.
 
-- Confirm the Cloud SQL instance has **no public IP** (private IP only).
-- Confirm the budget and alerts exist in Cloud Billing.
-- The database password is in Secret Manager as `<name_prefix>-db-password`;
-  grant only the workload service account access (already configured).
-- Note the outputs (`terraform output`) for the node VM internal IP, Artifact
-  Registry repo, Cloud SQL connection name, and bucket.
+## Troubleshooting (apply the fix, then re-run `terraform apply -auto-approve`)
 
-## Teardown
+| Error contains | Fix |
+|---|---|
+| `Billing must be enabled` / `billingEnabled: False` | Link billing: `gcloud billing projects link "$PROJECT_ID" --billing-account="$BILLING_ACCOUNT"` |
+| `Permission denied on resource project` / `403` on project | Wrong project or ADC; re-run step 1 and confirm `gcloud config get-value project` matches `PROJECT_ID` |
+| `API [...] not enabled` / `Service Networking` errors | Re-run step 2, wait 60s, re-apply (the `time_sleep` gate usually covers this) |
+| `403` on the **budget** / `billing.budgets` | You lack billing IAM: set `enable_budget = false` in `terraform.tfvars`, re-apply |
+| Cloud SQL `tier ... not supported` / quota | Set `postgres_tier = "db-g1-small"` (or a `db-custom-1-3840`) in `terraform.tfvars`, re-apply |
+| VM `machine type ... not found` / quota | Set `vm_machine_type = "e2-medium"` in `terraform.tfvars`, re-apply |
+| Cloud SQL delete blocked on destroy | Set `db_deletion_protection = false`, `terraform apply`, then destroy |
+
+## Teardown (only if asked)
 
 ```bash
-terraform destroy
+# ensure db_deletion_protection = false in terraform.tfvars first, then:
+terraform destroy -auto-approve
 ```
 
-Cloud SQL `deletion_protection` defaults to on; set `db_deletion_protection =
-false` and re-apply before destroying, or remove protection in the console.
-Remove `terraform.tfvars` and the exported password from your shell history when
-finished.
-
-## Safety reminders
-
-- Never commit `terraform.tfvars`, `*.tfstate`, the database password, service
-  account keys, or any secret. They are gitignored; keep them that way.
-- Keep `staging-devnet` separate from any future `production-candidate`/`mainnet`
-  project; do not share credentials, keys, or databases across environments.
-- This is a private staging environment with no public financial claims.
+Remove `terraform.tfvars` and unset `TF_VAR_postgres_admin_password` afterward.
+Do not commit any of the generated files.

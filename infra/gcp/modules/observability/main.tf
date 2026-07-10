@@ -12,6 +12,10 @@ variable "name_prefix" {
   type = string
 }
 
+variable "enable_budget" {
+  type = bool
+}
+
 variable "billing_account" {
   type = string
 }
@@ -33,7 +37,7 @@ data "google_project" "current" {
 }
 
 resource "google_monitoring_notification_channel" "budget" {
-  count        = var.budget_notification_email == "" ? 0 : 1
+  count        = var.enable_budget && var.budget_notification_email != "" ? 1 : 0
   project      = var.project_id
   display_name = "${var.name_prefix}-budget-email"
   type         = "email"
@@ -44,6 +48,7 @@ resource "google_monitoring_notification_channel" "budget" {
 }
 
 resource "google_billing_budget" "main" {
+  count           = var.enable_budget ? 1 : 0
   billing_account = var.billing_account
   display_name    = "${var.name_prefix}-budget"
 
@@ -76,7 +81,7 @@ resource "google_billing_budget" "main" {
 }
 
 output "budget_id" {
-  value = google_billing_budget.main.id
+  value = length(google_billing_budget.main) > 0 ? google_billing_budget.main[0].id : null
 }
 
 output "notification_channel_id" {

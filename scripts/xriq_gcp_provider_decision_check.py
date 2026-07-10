@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -135,18 +136,41 @@ def verify_infra_layout() -> list[str]:
     return checked
 
 
+def git_tracked_infra_paths() -> list[Path]:
+    # Scan only git-tracked files so local operator artifacts (a real
+    # terraform.tfvars, tfstate, or plan produced by running the apply runbook,
+    # all gitignored) do not false-positive this guard.
+    result = subprocess.run(
+        ["git", "ls-files", "--", str(INFRA_DIR)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise DecisionCheckError(f"git ls-files failed: {result.stderr.strip()}")
+    return [ROOT / line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
 def verify_no_secret_or_apply_material() -> None:
-    if (INFRA_DIR / "terraform.tfvars").exists():
+    tracked = git_tracked_infra_paths()
+    tracked_rel = {path.relative_to(ROOT).as_posix() for path in tracked}
+    if "infra/gcp/terraform.tfvars" in tracked_rel:
         raise DecisionCheckError("infra/gcp: terraform.tfvars must not be committed (use the .example)")
-    for state in INFRA_DIR.rglob("*.tfstate"):
-        raise DecisionCheckError(f"infra/gcp: terraform state must not be committed: {state}")
-    for source in list(INFRA_DIR.rglob("*.tf")) + list(INFRA_DIR.rglob("*.example")):
-        text = source.read_text(encoding="utf-8")
-        for forbidden in FORBIDDEN_INFRA_SUBSTRINGS:
-            if forbidden in text:
-                raise DecisionCheckError(
-                    f"infra/gcp: forbidden content '{forbidden}' in {source.relative_to(ROOT)}"
-                )
+    for rel in tracked_rel:
+        if rel.endswith(".tfstate") or ".tfstate." in rel:
+            raise DecisionCheckError(f"infra/gcp: terraform state must not be committed: {rel}")
+    for path in tracked:
+        if path.suffix == ".tf" or path.name.endswith(".example"):
+            try:
+                text = path.read_text(encoding="utf-8")
+            except FileNotFoundError:
+                continue
+            for forbidden in FORBIDDEN_INFRA_SUBSTRINGS:
+                if forbidden in text:
+                    raise DecisionCheckError(
+                        f"infra/gcp: forbidden content '{forbidden}' in {path.relative_to(ROOT)}"
+                    )
 
 
 def verify_doc_references() -> dict[str, list[str]]:
