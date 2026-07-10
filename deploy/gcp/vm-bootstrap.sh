@@ -64,9 +64,15 @@ fi
 echo "[7/8] Installing run wrappers and systemd units"
 install -m 0755 "$SCRIPT_DIR/bin/xriq-api-run.sh" /usr/local/bin/xriq-api-run.sh
 install -m 0755 "$SCRIPT_DIR/bin/xriq-indexer-run.sh" /usr/local/bin/xriq-indexer-run.sh
+install -m 0755 "$SCRIPT_DIR/bin/xriq-produce-run.sh" /usr/local/bin/xriq-produce-run.sh
 install -m 0644 "$SCRIPT_DIR/systemd/xriq-api.service" /etc/systemd/system/xriq-api.service
 install -m 0644 "$SCRIPT_DIR/systemd/xriq-indexer.service" /etc/systemd/system/xriq-indexer.service
 install -m 0644 "$SCRIPT_DIR/systemd/xriq-indexer.timer" /etc/systemd/system/xriq-indexer.timer
+# The block-producer timer is installed but left disabled (opt-in): enable with
+# `systemctl enable --now xriq-producer.timer` to auto-produce blocks when the
+# mempool is non-empty.
+install -m 0644 "$SCRIPT_DIR/systemd/xriq-producer.service" /etc/systemd/system/xriq-producer.service
+install -m 0644 "$SCRIPT_DIR/systemd/xriq-producer.timer" /etc/systemd/system/xriq-producer.timer
 systemctl daemon-reload
 
 echo "[8/8] Enabling and (re)starting services"

@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodically produce an XRIQ block when there are pending transactions
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

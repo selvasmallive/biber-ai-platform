@@ -1,0 +1,8 @@
+[Unit]
+Description=XRIQ staging-devnet block producer (one-shot; produces only when the mempool is non-empty)
+After=xriq-api.service
+Wants=xriq-api.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/xriq-produce-run.sh

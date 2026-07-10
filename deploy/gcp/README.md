@@ -28,6 +28,10 @@ Files:
 - `systemd/xriq-api.service`, `systemd/xriq-indexer.service`,
   `systemd/xriq-indexer.timer` — services.
 - `xriq.env.example` — the `/etc/xriq/xriq.env` template (no secrets).
+- `bin/xriq-produce-run.sh`, `systemd/xriq-producer.{service,timer}` — an
+  **opt-in** block producer that produces a block only when the mempool is
+  non-empty. Installed by the bootstrap but left disabled; enable with
+  `systemctl enable --now xriq-producer.timer`.
 - `vm-bootstrap.sh` — installs Docker, pulls the image, writes the env file from
   Secret Manager, initializes the chain, and starts the services.
 
