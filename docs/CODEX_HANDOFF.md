@@ -307,6 +307,14 @@ re-import applies zero). Remaining increments for milestone 1: a peer HTTP
 endpoint (`GET /v1/peer/blocks?from_height=N&limit=M`) served by the node, a
 minimal follower pull loop / `peer-sync` CLI over TCP, and an allowlist for any
 push-based admission. Everything stays test-only with no public economics.
+A legal-counsel briefing was also prepared: `docs/XRIQ_LEGAL_COUNSEL_QUESTIONS.md`
+gathers the project facts and the specific questions (entity/jurisdiction,
+securities, commodities, money transmission, AML/CFT/sanctions, tax, DEX, custody,
+tokenomics, privacy, public-testnet framing, consumer protection, data privacy,
+open-source) to take to qualified counsel before any public/economic step. It is
+not legal advice; it complements `docs/XRIQ_LEGAL_RISK_REDUCTION.md` and records
+that the DEX-lowers-legal-risk belief needs counsel confirmation (the docs
+suggest the opposite).
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and
