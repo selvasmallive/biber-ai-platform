@@ -2603,6 +2603,9 @@ fn postgres_snapshot_name_from_path(path: &str) -> Option<&str> {
 }
 
 fn postgres_block_identifier_from_path(path: &str) -> Option<&str> {
+    if path == BLOCK_PRODUCTION_ROUTE {
+        return None;
+    }
     let identifier = path.strip_prefix(POSTGRES_BLOCK_DETAIL_PREFIX)?;
     (!identifier.is_empty() && !identifier.contains('/')).then_some(identifier)
 }
@@ -8146,6 +8149,55 @@ mod tests {
         assert!(response.contains("\"audit_scope\": \"api-local-accepted\""));
         assert!(response.contains("\"event_id\": \"block-production:local-test-2\""));
         assert!(response.contains(&tx_hash));
+        assert_eq!(fs::read_to_string(&pending_path).unwrap(), "");
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn local_block_production_takes_precedence_with_postgres_read_model_configured() {
+        let path = temp_store_path("postgres-enabled-block-production");
+        let pending_path = path.with_extension("pending");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let pending_detail = xriq_node::private_devnet_file_submit_pending_transfer_body(
+            &path_text,
+            &pending_text,
+            Some(XriqAmount::from_base_units(100)),
+            &pending_transfer_body(),
+        )
+        .unwrap();
+        let tx_hash = hash_hex(pending_detail.tx_hash);
+        let service = build_service(
+            &path_text,
+            Some(&pending_text),
+            Some(XriqAmount::from_base_units(100)),
+        )
+        .unwrap();
+        let mut runtime = LocalApiRuntime {
+            service,
+            postgres_read_model: Some(
+                PostgresReadModelConfig::from_url_env("XRIQ_POSTGRES_URL").unwrap(),
+            ),
+            chain_file: path_text.clone(),
+            pending_file: Some(pending_text.clone()),
+            alice_balance: Some(XriqAmount::from_base_units(100)),
+            enable_local_wallet_submit: false,
+            enable_local_wallet_send: false,
+            enable_local_wallet_signed_submit: false,
+            enable_local_block_production: true,
+        };
+        let target = "/api/v1/blocks/produce?local_request_id=local-test-postgres-1&producer=xriqdev1author00000000000&max_transactions=4&timestamp_ms=2000";
+
+        let response = local_api_http_response(&mut runtime, "POST", target);
+
+        assert_eq!(response.status_code, 201);
+        assert!(response
+            .body
+            .contains("\"code\": \"block_production_accepted_local_only\""));
+        assert!(response.body.contains("\"current_height\": 1"));
+        assert!(response.body.contains(&tx_hash));
         assert_eq!(fs::read_to_string(&pending_path).unwrap(), "");
 
         let _ = fs::remove_file(path);

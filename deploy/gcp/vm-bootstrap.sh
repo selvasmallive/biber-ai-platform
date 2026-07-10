@@ -49,7 +49,7 @@ XRIQ_IMAGE=$IMAGE
 XRIQ_ENVIRONMENT=staging-devnet
 XRIQ_ALICE_BALANCE=$ALICE_BALANCE
 XRIQ_API_BIND=0.0.0.0:8090
-XRIQ_API_MUTATION_FLAGS=--enable-local-wallet-send true --enable-local-wallet-submit-signed true --enable-local-block-production true
+XRIQ_API_MUTATION_FLAGS="--enable-local-wallet-send true --enable-local-wallet-submit-signed true --enable-local-block-production true"
 XRIQ_POSTGRES_URL=postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:5432/${DB_NAME}
 EOF
 chmod 600 /etc/xriq/xriq.env

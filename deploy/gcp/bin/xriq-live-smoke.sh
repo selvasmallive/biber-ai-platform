@@ -17,7 +17,7 @@ AMOUNT="${XRIQ_AMOUNT:-5}"
 FEE="${XRIQ_FEE:-2}"
 RID="live-smoke-$(date -u +%Y%m%dT%H%M%SZ)"
 
-json_int() { grep -o "\"$1\":[0-9]*" | head -1 | grep -o '[0-9]*'; }
+json_int() { grep -o "\"$1\"[[:space:]]*:[[:space:]]*[0-9]*" | head -1 | grep -o '[0-9]*$'; }
 
 HEIGHT="$(curl -fsS "$API/api/v1/network" | json_int current_height)"
 NONCE="$(curl -fsS "$API/api/v1/wallet/accounts/$ALICE/balance" | json_int nonce)"
