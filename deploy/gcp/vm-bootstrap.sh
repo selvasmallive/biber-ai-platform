@@ -29,6 +29,13 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 systemctl enable --now docker
 
+echo "[1b] Installing the Cloud Ops Agent (VM metrics + logs) if needed"
+if ! systemctl list-unit-files 2>/dev/null | grep -q '^google-cloud-ops-agent'; then
+  curl -fsSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent.sh
+  bash add-google-cloud-ops-agent.sh --also-install
+  rm -f add-google-cloud-ops-agent.sh
+fi
+
 echo "[2/8] Authenticating Docker to Artifact Registry"
 gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 

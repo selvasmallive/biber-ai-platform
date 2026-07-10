@@ -70,6 +70,20 @@ resource "google_secret_manager_secret_iam_member" "workload_accessor" {
   member    = "serviceAccount:${google_service_account.workload.email}"
 }
 
+# Allow the node VM (running as this service account) to ship metrics and logs to
+# Cloud Monitoring/Logging via the Ops Agent.
+resource "google_project_iam_member" "workload_metric_writer" {
+  project = var.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.workload.email}"
+}
+
+resource "google_project_iam_member" "workload_log_writer" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.workload.email}"
+}
+
 output "workload_service_account_email" {
   value = google_service_account.workload.email
 }

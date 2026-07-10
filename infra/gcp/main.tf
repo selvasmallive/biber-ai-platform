@@ -115,6 +115,10 @@ module "observability" {
   monthly_budget_amount           = var.monthly_budget_amount
   budget_alert_threshold_percents = var.budget_alert_threshold_percents
   budget_notification_email       = var.budget_notification_email
+  enable_alerts                   = var.enable_alerts
+  cloudsql_cpu_threshold          = var.cloudsql_cpu_threshold
+  cloudsql_disk_threshold         = var.cloudsql_disk_threshold
+  vm_cpu_threshold                = var.vm_cpu_threshold
 
   depends_on = [time_sleep.wait_for_apis]
 }

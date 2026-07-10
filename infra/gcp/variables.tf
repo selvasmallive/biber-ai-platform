@@ -60,6 +60,30 @@ variable "enable_budget" {
   default     = true
 }
 
+variable "enable_alerts" {
+  description = "Whether to create the monitoring alert policies and dashboard."
+  type        = bool
+  default     = true
+}
+
+variable "cloudsql_cpu_threshold" {
+  description = "Cloud SQL CPU utilization alert threshold (0-1)."
+  type        = number
+  default     = 0.8
+}
+
+variable "cloudsql_disk_threshold" {
+  description = "Cloud SQL disk utilization alert threshold (0-1)."
+  type        = number
+  default     = 0.85
+}
+
+variable "vm_cpu_threshold" {
+  description = "Node VM CPU utilization alert threshold (0-1)."
+  type        = number
+  default     = 0.9
+}
+
 variable "monthly_budget_amount" {
   description = "Monthly cost ceiling in USD for budget alerts."
   type        = number

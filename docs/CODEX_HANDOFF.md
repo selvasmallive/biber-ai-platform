@@ -247,6 +247,21 @@ client artifact): send -> produce block -> re-run the indexer -> verify the Clou
 SQL counts (`blocks`/`latest_height`) and the API's
 `/api/v1/admin/postgres/read-model-status` reflect it. Running the redeploy and
 smoke on the VM remains a human/agent cloud step.
+An observability layer was then added (human-approved next step):
+`infra/gcp/modules/observability` now creates native-metric alert policies
+(Cloud SQL CPU/disk, node VM CPU; tunable thresholds via
+`cloudsql_cpu_threshold`/`cloudsql_disk_threshold`/`vm_cpu_threshold`, default
+0.80/0.85/0.90) and a `google_monitoring_dashboard` (Cloud SQL CPU/disk/
+connections + VM CPU), all wired to an email notification channel that is now
+decoupled from the budget (created whenever `budget_notification_email` is set).
+The security module grants the workload service account
+`roles/monitoring.metricWriter` and `roles/logging.logWriter`, and
+`vm-bootstrap.sh` installs the Cloud Ops Agent for VM memory/disk metrics and
+logs. See `docs/XRIQ_GCP_OBSERVABILITY.md`. `terraform validate` passes; applying
+(re-apply + re-bootstrap) is human/agent-operated. App-level error-log alerting
+is a documented follow-up. Recommended sequence for the remaining approved work:
+observability (done) -> TLS/ingress -> Phase 3 public testnet, with the
+public-facing steps gated behind the roadmap security/legal review.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and
