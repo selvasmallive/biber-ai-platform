@@ -46,6 +46,7 @@ REQUIRED_INFRA_FILES = [
     "modules/data/main.tf",
     "modules/compute/main.tf",
     "modules/observability/main.tf",
+    "modules/edge/main.tf",
 ]
 
 # Modules define real Terraform resources (validated, not applied from
@@ -56,6 +57,7 @@ RESOURCE_MODULE_FILES = [
     "modules/data/main.tf",
     "modules/compute/main.tf",
     "modules/observability/main.tf",
+    "modules/edge/main.tf",
 ]
 
 # Static-validation must stay offline and secret-free: no remote backend and no

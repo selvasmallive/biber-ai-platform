@@ -155,6 +155,24 @@ variable "enable_iap_ssh" {
   default     = true
 }
 
+variable "enable_public_edge" {
+  description = "Create a public HTTPS load balancer (managed TLS + Cloud Armor) in front of the API. Default false: this makes the API PUBLICLY REACHABLE and must be opted into explicitly with a domain. The Cloud Armor policy allows only read (GET) methods and blocks admin endpoints."
+  type        = bool
+  default     = false
+}
+
+variable "api_domain" {
+  description = "Fully-qualified domain for the public API edge (required when enable_public_edge is true). Its DNS A record must point at the edge IP output before the managed certificate provisions."
+  type        = string
+  default     = ""
+}
+
+variable "edge_rate_limit_per_minute" {
+  description = "Per-client-IP request rate limit at the public edge."
+  type        = number
+  default     = 600
+}
+
 variable "labels" {
   description = "Common labels applied to resources."
   type        = map(string)

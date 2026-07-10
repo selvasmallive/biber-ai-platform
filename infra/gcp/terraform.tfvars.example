@@ -28,6 +28,13 @@ cloudsql_cpu_threshold  = 0.8
 cloudsql_disk_threshold = 0.85
 vm_cpu_threshold        = 0.9
 
+# Public HTTPS edge (managed TLS + Cloud Armor). Default OFF: enabling this makes
+# the API PUBLICLY REACHABLE. Requires a domain whose DNS A record you point at
+# the edge_ip output. The edge is read-only (GET-only; admin/mutations blocked).
+enable_public_edge         = false
+# api_domain               = "staging-api.xriq.kani.network"
+edge_rate_limit_per_minute = 600
+
 postgres_tier       = "db-f1-micro"
 postgres_admin_user = "xriqpgadmin"
 

@@ -262,6 +262,19 @@ logs. See `docs/XRIQ_GCP_OBSERVABILITY.md`. `terraform validate` passes; applyin
 is a documented follow-up. Recommended sequence for the remaining approved work:
 observability (done) -> TLS/ingress -> Phase 3 public testnet, with the
 public-facing steps gated behind the roadmap security/legal review.
+TLS/ingress (approved next step) is now built as an optional public edge:
+`infra/gcp/modules/edge` adds a global external HTTPS load balancer with a
+Google-managed TLS certificate, a Cloud Armor policy (per-IP rate limit,
+GET/HEAD/OPTIONS only so all POST mutations are blocked, and `/api/v1/admin`
+blocked), a health check on `/api/v1/health`, an instance group over the node VM,
+and a firewall for the Google Front End/health-check ranges. It is gated by
+`enable_public_edge` (default **false**) plus a required `api_domain`, so nothing
+is exposed unless a human opts in and points a DNS A record at the `edge_ip`
+output (the managed cert provisions after DNS resolves). This makes the API
+publicly reachable — a deliberate posture change documented, with the read-only
+locking and the Phase 3/legal caveats, in `docs/XRIQ_GCP_PUBLIC_EDGE.md`.
+`terraform validate` passes; applying is human/agent-operated. Remaining approved
+work: Phase 3 public testnet, still behind the roadmap security/legal gate.
 Gemini Code Assist Enterprise handoff prompts have been added for the next
 cost-saving development phase:
 `docs/GEMINI_CODE_ASSIST_XRIQ_PROMPT.md` for XRIQ production hardening and

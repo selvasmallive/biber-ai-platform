@@ -80,6 +80,10 @@ output "instance_id" {
   value = google_compute_instance.node.id
 }
 
+output "instance_self_link" {
+  value = google_compute_instance.node.self_link
+}
+
 output "internal_ip" {
   value = google_compute_instance.node.network_interface[0].network_ip
 }

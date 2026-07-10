@@ -34,3 +34,13 @@ output "node_vm_internal_ip" {
   description = "Internal IP of the staging node VM."
   value       = module.compute.internal_ip
 }
+
+output "edge_ip" {
+  description = "Public edge load balancer IP (point the api_domain DNS A record here). Null when the public edge is disabled."
+  value       = var.enable_public_edge ? module.edge[0].edge_ip : null
+}
+
+output "edge_api_url" {
+  description = "Public API URL when the edge is enabled."
+  value       = var.enable_public_edge ? module.edge[0].api_url : null
+}

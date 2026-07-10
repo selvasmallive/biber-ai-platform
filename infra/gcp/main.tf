@@ -105,6 +105,21 @@ module "compute" {
   depends_on = [time_sleep.wait_for_apis]
 }
 
+module "edge" {
+  source = "./modules/edge"
+  count  = var.enable_public_edge ? 1 : 0
+
+  project_id            = var.project_id
+  name_prefix           = local.name_prefix
+  zone                  = var.zone
+  network_id            = module.network.network_id
+  vm_self_link          = module.compute.instance_self_link
+  api_domain            = var.api_domain
+  rate_limit_per_minute = var.edge_rate_limit_per_minute
+
+  depends_on = [time_sleep.wait_for_apis]
+}
+
 module "observability" {
   source = "./modules/observability"
 
