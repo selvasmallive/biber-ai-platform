@@ -138,6 +138,9 @@ pub struct PrivateDevnetHttpServerConfig {
     pub snapshot_root: Option<String>,
     pub alice_balance: Option<XriqAmount>,
     pub allow_transaction_submission: bool,
+    /// Optional path to a peers file this node advertises at
+    /// `GET /v1/peer/peers` so followers can discover other peers.
+    pub peers_file: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -675,7 +678,8 @@ pub fn node_help_text() -> String {
         "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node peer-blocks-export --chain-file <path> [--from-height <height>] [--limit <count>] [--alice-balance <base-units>] [--format json]  (read-only; serves validated blocks for peer sync, also at GET /v1/peer/blocks)",
         "  xriq-node peer-identity --chain-file <path> [--alice-balance <base-units>] [--format json]  (read-only compatibility handshake: network, protocol, tip; also at GET /v1/peer/identity)",
-        "  xriq-node peer-sync --chain-file <path> (--peer <http://host:port> | --peers-file <path>) [--limit <count>] [--max-rounds <count>] [--alice-balance <base-units>] [--format json]  (follower; handshakes then pulls/validates blocks from one or many peers into the chain file)",
+        "  xriq-node peer-peers [--peers-file <path>] [--chain-file <path>] [--format json]  (read-only; advertises this node's known peers for discovery; also at GET /v1/peer/peers)",
+        "  xriq-node peer-sync --chain-file <path> (--peer <http://host:port> | --peers-file <path>) [--discover <max-peers>] [--limit <count>] [--max-rounds <count>] [--alice-balance <base-units>] [--format json]  (follower; handshakes then pulls/validates blocks from one or many peers, optionally discovering more, into the chain file)",
         "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-list --snapshot-root <path> [--limit <count>] [--format text|json]",
         "  xriq-node snapshot-latest --snapshot-root <path> [--format text|json]",
@@ -684,8 +688,8 @@ pub fn node_help_text() -> String {
         "  xriq-node snapshot-check --snapshot-dir <path> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-export --chain-file <path> --snapshot-dir <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-import --snapshot-dir <path> --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
-        "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>] [--snapshot-root <path>]",
-        "  xriq-node serve-private --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>] [--snapshot-root <path>]",
+        "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>] [--snapshot-root <path>] [--peers-file <path>]",
+        "  xriq-node serve-private --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>] [--snapshot-root <path>] [--peers-file <path>]",
         "",
         "Warning: this runner is for private devnet tests only. It does not start a public network.",
     ]
@@ -815,6 +819,7 @@ where
         Some("mempool-detail") => run_mempool_detail_command(&args[1..]),
         Some("peer-blocks-export") => run_peer_blocks_export_command(&args[1..]),
         Some("peer-identity") => run_peer_identity_command(&args[1..]),
+        Some("peer-peers") => run_peer_peers_command(&args[1..]),
         Some("peer-sync") => run_peer_sync_command(&args[1..]),
         Some("transaction-detail") => run_transaction_detail_command(&args[1..]),
         Some("snapshot-list") => run_snapshot_list_command(&args[1..]),
@@ -839,6 +844,7 @@ pub fn parse_private_devnet_http_server_config(
         "--pending-file",
         "--snapshot-root",
         "--alice-balance",
+        "--peers-file",
         "--environment",
     ])?;
     // Validate the optional environment profile fail-closed; the server stays
@@ -855,6 +861,7 @@ pub fn parse_private_devnet_http_server_config(
         .optional("--alice-balance")
         .map(|value| parse_amount("--alice-balance", value))
         .transpose()?;
+    let peers_file = flags.optional("--peers-file").map(str::to_string);
     Ok(PrivateDevnetHttpServerConfig {
         bind,
         chain_file,
@@ -862,6 +869,7 @@ pub fn parse_private_devnet_http_server_config(
         snapshot_root,
         alice_balance,
         allow_transaction_submission,
+        peers_file,
     })
 }
 
@@ -965,6 +973,15 @@ pub fn private_devnet_http_response_with_body(
         "/v1/peer/identity" => {
             // Read-only compatibility handshake: network, protocol, and tip.
             runner_json_http_response(private_devnet_http_runner_args("peer-identity", config))
+        }
+        "/v1/peer/peers" => {
+            // Read-only discovery: advertise this node's configured peer set.
+            let mut args = private_devnet_http_runner_args("peer-peers", config);
+            if let Some(peers_file) = &config.peers_file {
+                args.push("--peers-file".to_string());
+                args.push(peers_file.clone());
+            }
+            runner_json_http_response(args)
         }
         "/v1/peer/blocks" => {
             // Read-only peer sync: serve validated blocks a follower can import.
@@ -3056,24 +3073,59 @@ fn peer_compatibility_error(identity: &PeerIdentity) -> Option<String> {
 }
 
 // A peers file lists one `http://host:port` peer per line; blank lines and
-// lines starting with `#` are ignored. This is the follower's static peer set
-// until identity-based discovery lands.
-fn parse_peers_file(path: &str) -> Result<Vec<String>, NodeRunnerError> {
+// lines starting with `#` are ignored. The lenient reader may return an empty
+// list (used for advertisement); `parse_peers_file` additionally requires at
+// least one peer (used for the follower's `--peers-file` input).
+fn read_peers_file_lenient(path: &str) -> Result<Vec<String>, NodeRunnerError> {
     let contents = fs::read_to_string(path).map_err(|error| {
         NodeRunnerError::PeerSyncError(format!("could not read peers file {path}: {error}"))
     })?;
-    let peers: Vec<String> = contents
+    Ok(contents
         .lines()
         .map(str::trim)
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
         .map(str::to_string)
-        .collect();
+        .collect())
+}
+
+fn parse_peers_file(path: &str) -> Result<Vec<String>, NodeRunnerError> {
+    let peers = read_peers_file_lenient(path)?;
     if peers.is_empty() {
         return Err(NodeRunnerError::PeerSyncError(format!(
             "peers file {path} lists no peers"
         )));
     }
     Ok(peers)
+}
+
+// Extract the string entries of a `"peers": [ ... ]` array from a peer's
+// discovery response. The entries are bare `http://host:port` URLs (no `]` or
+// `"` except as delimiters), so a simple quoted-token scan is sufficient.
+fn parse_advertised_peers(body: &str) -> Vec<String> {
+    let marker = "\"peers\": [";
+    let Some(start) = body.find(marker) else {
+        return Vec::new();
+    };
+    let rest = &body[start + marker.len()..];
+    let inner = &rest[..rest.find(']').unwrap_or(rest.len())];
+    let mut peers = Vec::new();
+    let mut cursor = inner;
+    while let Some(open) = cursor.find('"') {
+        let after = &cursor[open + 1..];
+        let Some(close) = after.find('"') else {
+            break;
+        };
+        peers.push(after[..close].to_string());
+        cursor = &after[close + 1..];
+    }
+    peers
+}
+
+fn peer_fetch_peers(peer: &str) -> Result<Vec<String>, NodeRunnerError> {
+    Ok(parse_advertised_peers(&peer_http_get(
+        peer,
+        "/v1/peer/peers",
+    )?))
 }
 
 struct SinglePeerSyncOutcome {
@@ -3129,6 +3181,7 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
         "--pending-file",
         "--peer",
         "--peers-file",
+        "--discover",
         "--alice-balance",
         "--limit",
         "--max-rounds",
@@ -3152,6 +3205,12 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
         .map(|value| parse_usize("--max-rounds", value))
         .transpose()?
         .unwrap_or(1000);
+    // --discover <max-peers> enables one-hop discovery (query each seed's
+    // advertised peers and merge new ones) and caps the resulting peer set.
+    let discover_cap = flags
+        .optional("--discover")
+        .map(|value| parse_usize("--discover", value))
+        .transpose()?;
 
     // The peer set is --peer (single) and/or --peers-file (many). With a single
     // --peer and no file the semantics stay strict (any failure is fatal); with
@@ -3168,6 +3227,33 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
         return Err(NodeRunnerError::MissingFlag("--peer"));
     }
     let strict = !uses_peers_file && peers.len() == 1;
+
+    // One-hop discovery: ask each configured seed for its advertised peers and
+    // append any new ones (deduped, order-preserving), capped at discover_cap.
+    let mut discovered = 0usize;
+    if let Some(cap) = discover_cap {
+        let seeds = peers.clone();
+        for seed in &seeds {
+            if peers.len() >= cap {
+                break;
+            }
+            let Ok(advertised) = peer_fetch_peers(seed) else {
+                continue;
+            };
+            for candidate in advertised {
+                if peers.len() >= cap {
+                    break;
+                }
+                if candidate.starts_with("http://") && !peers.contains(&candidate) {
+                    peers.push(candidate);
+                    discovered += 1;
+                }
+            }
+        }
+        // Discovery makes the run tolerant even for a single seed: peers may now
+        // include unreachable advertised entries that must not be fatal.
+    }
+    let strict = strict && discover_cap.is_none();
 
     let mut node = private_devnet_node_with_pending_file(chain_file, pending_file, alice_balance)?;
     let mut total_applied = 0usize;
@@ -3208,7 +3294,7 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
     let final_height = node.ledger().current_height();
     let peers_json = peer_reports.join(",\n    ");
     let json = format!(
-        "{{\n  \"command\": \"peer-sync\",\n  \"applied\": {total_applied},\n  \"peers_total\": {},\n  \"peers_reachable\": {reachable},\n  \"current_height\": {final_height},\n  \"peer_current_height\": {peer_current_height},\n  \"peers\": [\n    {peers_json}\n  ]\n}}",
+        "{{\n  \"command\": \"peer-sync\",\n  \"applied\": {total_applied},\n  \"peers_total\": {},\n  \"peers_discovered\": {discovered},\n  \"peers_reachable\": {reachable},\n  \"current_height\": {final_height},\n  \"peer_current_height\": {peer_current_height},\n  \"peers\": [\n    {peers_json}\n  ]\n}}",
         peers.len()
     );
     Ok(NodeRunnerOutput::Json(json))
@@ -3233,6 +3319,38 @@ fn run_peer_identity_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRu
     let current_height = node.ledger().current_height();
     let json = format!(
         "{{\n  \"command\": \"peer-identity\",\n  \"network\": \"{PEER_NETWORK}\",\n  \"protocol\": \"{PEER_PROTOCOL}\",\n  \"current_height\": {current_height}\n}}"
+    );
+    Ok(NodeRunnerOutput::Json(json))
+}
+
+fn run_peer_peers_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    // --chain-file/--alice-balance are accepted for a uniform read-only surface
+    // (the HTTP router passes them) but only the advertised peers file is read.
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--pending-file",
+        "--alice-balance",
+        "--peers-file",
+        "--format",
+    ])?;
+    let _ = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let peers = match flags.optional("--peers-file") {
+        Some(path) => read_peers_file_lenient(path)?,
+        None => Vec::new(),
+    };
+    let peers_json = if peers.is_empty() {
+        "[]".to_string()
+    } else {
+        let items = peers
+            .iter()
+            .map(|peer| format!("\n    {}", json_string(peer)))
+            .collect::<Vec<_>>()
+            .join(",");
+        format!("[{items}\n  ]")
+    };
+    let json = format!(
+        "{{\n  \"command\": \"peer-peers\",\n  \"network\": \"{PEER_NETWORK}\",\n  \"peers\": {peers_json}\n}}"
     );
     Ok(NodeRunnerOutput::Json(json))
 }
@@ -8200,9 +8318,18 @@ mod tests {
 
     // Serve exactly `count` sequential requests against a chain file over the
     // real private-devnet HTTP handler, then return. The follower makes a fixed
-    // number of connections per sync (one handshake + one per pull round), so
-    // `count` must match exactly or `join()` would block on an extra accept.
+    // number of connections per sync (one handshake + one per pull round, plus
+    // one discovery fetch per seed when --discover is used), so `count` must
+    // match exactly or `join()` would block on an extra accept.
     fn serve_peer_requests(chain_file: String, count: usize) -> (u16, std::thread::JoinHandle<()>) {
+        serve_peer_requests_advertising(chain_file, count, None)
+    }
+
+    fn serve_peer_requests_advertising(
+        chain_file: String,
+        count: usize,
+        peers_file: Option<String>,
+    ) -> (u16, std::thread::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         let config = PrivateDevnetHttpServerConfig {
@@ -8212,6 +8339,7 @@ mod tests {
             snapshot_root: None,
             alice_balance: Some(XriqAmount::from_base_units(100)),
             allow_transaction_submission: false,
+            peers_file,
         };
         let handle = std::thread::spawn(move || {
             for _ in 0..count {
@@ -8385,6 +8513,7 @@ mod tests {
             snapshot_root: None,
             alice_balance: Some(XriqAmount::from_base_units(100)),
             allow_transaction_submission: false,
+            peers_file: None,
         };
         let identity = private_devnet_http_response(&config, "GET", "/v1/peer/identity");
         assert_eq!(identity.status_code, 200);
@@ -8519,6 +8648,151 @@ mod tests {
         let _ = fs::remove_file(leader_pending);
         let _ = fs::remove_file(follower_path);
         let _ = fs::remove_file(peers_file);
+    }
+
+    #[test]
+    fn parse_advertised_peers_extracts_urls() {
+        let body = "{\n  \"command\": \"peer-peers\",\n  \"network\": \"xriq-devnet\",\n  \"peers\": [\n    \"http://127.0.0.1:7001\",\n    \"http://127.0.0.1:7002\"\n  ]\n}";
+        assert_eq!(
+            parse_advertised_peers(body),
+            vec![
+                "http://127.0.0.1:7001".to_string(),
+                "http://127.0.0.1:7002".to_string(),
+            ]
+        );
+        let empty = "{\n  \"command\": \"peer-peers\",\n  \"network\": \"xriq-devnet\",\n  \"peers\": []\n}";
+        assert!(parse_advertised_peers(empty).is_empty());
+        assert!(parse_advertised_peers("{}").is_empty());
+    }
+
+    #[test]
+    fn peer_peers_endpoint_advertises_configured_peers() {
+        let chain = temp_store_path();
+        let chain_text = chain.to_string_lossy().to_string();
+        let peers_path = temp_store_path();
+        let peers_text = peers_path.to_string_lossy().to_string();
+        fs::write(
+            &peers_path,
+            "# neighbours\nhttp://127.0.0.1:7101\nhttp://127.0.0.1:7102\n",
+        )
+        .unwrap();
+
+        let config = PrivateDevnetHttpServerConfig {
+            bind: "127.0.0.1:8787".to_string(),
+            chain_file: chain_text,
+            pending_file: None,
+            snapshot_root: None,
+            alice_balance: Some(XriqAmount::from_base_units(100)),
+            allow_transaction_submission: false,
+            peers_file: Some(peers_text),
+        };
+        let advertised = private_devnet_http_response(&config, "GET", "/v1/peer/peers");
+        assert_eq!(advertised.status_code, 200);
+        assert!(advertised.body.contains("\"command\": \"peer-peers\""));
+        assert_eq!(
+            parse_advertised_peers(&advertised.body),
+            vec![
+                "http://127.0.0.1:7101".to_string(),
+                "http://127.0.0.1:7102".to_string(),
+            ]
+        );
+
+        // With no advertised peers file the endpoint returns an empty array.
+        let bare = PrivateDevnetHttpServerConfig {
+            peers_file: None,
+            ..config.clone()
+        };
+        let empty = private_devnet_http_response(&bare, "GET", "/v1/peer/peers");
+        assert_eq!(empty.status_code, 200);
+        assert!(empty.body.contains("\"peers\": []"));
+
+        let _ = fs::remove_file(chain);
+        let _ = fs::remove_file(peers_path);
+    }
+
+    #[test]
+    fn peer_sync_discovers_and_syncs_from_learned_peer() {
+        // Topology: the follower is given only seed A (an empty node). A
+        // advertises node B, which actually holds the block. With --discover the
+        // follower learns B from A and syncs the block from B.
+        let leader_path = temp_store_path();
+        let leader_pending = leader_path.with_extension("pending");
+        let leader_text = leader_path.to_string_lossy().to_string();
+        let leader_pending_text = leader_pending.to_string_lossy().to_string();
+
+        run_node_command([
+            "preflight-transfer",
+            "--chain-file",
+            leader_text.as_str(),
+            "--pending-file",
+            leader_pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1bobbb00000000000",
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--expires-at-height",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+
+        // B (leader) holds the block: one handshake + one pull = 2 requests.
+        let (leader_port, leader_handle) = serve_peer_requests(leader_text.clone(), 2);
+
+        // A (seed) is an empty node that advertises B. The follower makes three
+        // requests to A: one discovery fetch, one handshake, one (empty) pull.
+        let seed_chain = temp_store_path();
+        let seed_chain_text = seed_chain.to_string_lossy().to_string();
+        let seed_peers = temp_store_path();
+        let seed_peers_text = seed_peers.to_string_lossy().to_string();
+        fs::write(&seed_peers, format!("http://127.0.0.1:{leader_port}\n")).unwrap();
+        let (seed_port, seed_handle) =
+            serve_peer_requests_advertising(seed_chain_text, 3, Some(seed_peers_text));
+
+        let follower_path = temp_store_path();
+        let follower_text = follower_path.to_string_lossy().to_string();
+
+        let synced = run_node_command([
+            "peer-sync",
+            "--chain-file",
+            follower_text.as_str(),
+            "--peer",
+            format!("http://127.0.0.1:{seed_port}").as_str(),
+            "--discover",
+            "64",
+            "--alice-balance",
+            "100",
+            "--max-rounds",
+            "1",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        seed_handle.join().unwrap();
+        leader_handle.join().unwrap();
+
+        // The follower learned exactly one new peer (B) and synced the block.
+        assert!(synced.contains("\"peers_total\": 2"));
+        assert!(synced.contains("\"peers_discovered\": 1"));
+        assert!(synced.contains("\"peers_reachable\": 2"));
+        assert!(synced.contains("\"applied\": 1"));
+        assert!(synced.contains("\"current_height\": 1"));
+
+        let _ = fs::remove_file(leader_path);
+        let _ = fs::remove_file(leader_pending);
+        let _ = fs::remove_file(seed_chain);
+        let _ = fs::remove_file(seed_peers);
+        let _ = fs::remove_file(follower_path);
     }
 
     #[test]
@@ -9927,6 +10201,7 @@ mod tests {
             snapshot_root: None,
             alice_balance: Some(XriqAmount::from_base_units(100)),
             allow_transaction_submission: false,
+            peers_file: None,
         };
 
         let health = private_devnet_http_response(&config, "GET", "/health");
@@ -10280,6 +10555,7 @@ mod tests {
             snapshot_root: Some(snapshot_root_text),
             alice_balance: Some(XriqAmount::from_base_units(100)),
             allow_transaction_submission: true,
+            peers_file: None,
         };
         let snapshot_import = private_devnet_http_response_with_body(
             &import_config,
@@ -10339,6 +10615,7 @@ mod tests {
             snapshot_root: None,
             alice_balance: Some(XriqAmount::from_base_units(100)),
             allow_transaction_submission: true,
+            peers_file: None,
         };
         let submit_draft = [
             "warning=private-devnet-test-identity-only",

@@ -341,9 +341,25 @@ only if no peer was reachable. Covered by `peer_identity_endpoint_reports_networ
 `parse_peers_file_reads_urls_and_skips_comments` (parse + empty-file error), and
 `peer_sync_from_peers_file_skips_unreachable_peer` (a follower with a dead peer
 listed first still converges via the one reachable peer and records the skip). The
-increment-3 loopback test was updated for the extra handshake connection. Remaining
-for milestone 2: identity-based discovery (peers learning peers) and stable per-node
-ids. Everything stays test-only with no public economics.
+increment-3 loopback test was updated for the extra handshake connection.
+Milestone 2 increment 2 then added peer discovery (peers learning peers). Each
+node can advertise a configured peer set at a read-only `peer-peers` command /
+`GET /v1/peer/peers` (fed by an optional `--peers-file` on `serve-readonly`/
+`serve-private`, plumbed through `PrivateDevnetHttpServerConfig.peers_file`); the
+response is a JSON `peers[]` array. `peer-sync` gained `--discover <max-peers>`:
+one-hop discovery that queries each configured seed's advertised peers and merges
+new `http://` entries (deduped, order-preserving, capped) into the working set
+before syncing, and reports `peers_discovered` in the summary. Discovery makes the
+run tolerant (advertised peers may be unreachable). Covered by
+`parse_advertised_peers_extracts_urls`, `peer_peers_endpoint_advertises_configured_peers`
+(advertises a file, and empty without one), and
+`peer_sync_discovers_and_syncs_from_learned_peer` (a follower given only an empty
+seed node A that advertises block-holder B learns B via discovery and syncs the
+block from it: `peers_discovered=1`, `peers_reachable=2`, tip reached). Remaining
+for milestone 2: stable per-node ids so the handshake can also authenticate *who*
+a peer is (not just its network/protocol). Next milestone (3): the testnet
+chain/genesis and a valueless faucet. Everything stays test-only with no public
+economics.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,
