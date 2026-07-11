@@ -323,9 +323,27 @@ export JSON and rejects malformed bodies as `PeerSyncError`, not panics) and
 block over a real loopback socket into its own chain file, then a second pull
 against the re-opened file applies zero — proving on-disk persistence and
 idempotent convergence; a bad peer URL is a clean `PeerSyncError`). This makes two
-real node processes stay in sync over TCP. Remaining for milestone 1: an allowlist
-for any push-based admission (pull is the default and needs none). Everything
-stays test-only with no public economics.
+real node processes stay in sync over TCP. Milestone 1 is functionally complete
+(pull is the default and needs no push admission control).
+Phase 3 milestone 2 (peer identity + discovery) has begun with increment 1: a
+compatibility handshake and multi-peer follower resilience. Each node exposes a
+read-only `peer-identity` command / `GET /v1/peer/identity` returning its network
+(`xriq-devnet`), wire protocol (`xriq-peer-blocks-v1`), and current tip. `peer-sync`
+now handshakes each peer before pulling and refuses a mismatched network/protocol
+(`peer_compatibility_error`), and it accepts either `--peer <url>` (single, strict:
+any failure is fatal) or `--peers-file <path>` (many: one `http://host:port` per
+line, `#` comments allowed; unreachable/incompatible peers are skipped and reported
+rather than failing the sync). The summary JSON now carries `peers_total`,
+`peers_reachable`, aggregate `applied`, `current_height`, and a per-peer `peers[]`
+array (`status: ok|skipped`, `applied`, `rounds`, or a skip `reason`); it errors
+only if no peer was reachable. Covered by `peer_identity_endpoint_reports_network_and_protocol`
+(endpoint shape + handshake accept + wrong-network/protocol reject),
+`parse_peers_file_reads_urls_and_skips_comments` (parse + empty-file error), and
+`peer_sync_from_peers_file_skips_unreachable_peer` (a follower with a dead peer
+listed first still converges via the one reachable peer and records the skip). The
+increment-3 loopback test was updated for the extra handshake connection. Remaining
+for milestone 2: identity-based discovery (peers learning peers) and stable per-node
+ids. Everything stays test-only with no public economics.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,
