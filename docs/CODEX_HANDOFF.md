@@ -456,10 +456,27 @@ forbidden terms. The static check (`scripts/check-static.mjs`) was extended with
 faucet markers (file, api route `/api/v1/faucet?`, `requestTestnetFaucet`,
 `TestnetFaucetResponse`, UI strings) + a forbidden-term scan of `faucet.tsx`.
 `npm run check` (all contract checks incl. key-safety) and `npm run build`
-(tsc + vite) pass. IMPORTANT: the UI targets `/api/v1/faucet` on xriq-api, which
-does NOT yet have that route — the node exposes `POST /v1/faucet` but xriq-api must
-add a proxy route for the button to function end-to-end (the remaining backend
-wiring). Everything stays test-only with no monetary value.
+(tsc + vite) pass.
+Milestone 3 increment 7 added the `POST /api/v1/faucet` route to xriq-api, closing
+the UI→api loop for the default (disabled) posture. Following the exact
+`local_mutation_disabled_response` contract used by wallet-submit/send and
+block-production (a mutation is disabled by default and needs an explicit enable
+flag), the route returns 403 `faucet_disabled` with `enabled:false`,
+`mutation:none`, `explicit_flag:--enable-local-testnet-faucet`, the audit fields
+(`testnet_faucet_dispense_attempt` / `testnet_faucet_dispense`), and refusal guards
+("faucet dispenses valueless test units only", "requires a testnet node",
+no signing/custody). New audit constants `FAUCET_AUDIT_*`. Unknown POSTs already
+fall through from main.rs to `product_api_http_response`, so no main.rs change was
+needed for the default. Covered by faucet assertions added to
+`product_api_http_routes_handle_errors_without_mutation` (xriq-api: 79 lib tests).
+SCOPE: this is the disabled-by-default route (correct for the read-only scaffold);
+the UI faucet POST currently accepts only 200/201 so it surfaces the 403 as an
+error. FUNCTIONAL dispensing is the follow-up and needs, like block-production's
+enabled path: a pub node faucet fn (today `faucet-dispense` is a private node
+command), a `maybe_local_testnet_faucet_http_response` + `--enable-local-testnet-faucet`
+flag in xriq-api main.rs, a TESTNET chain-file config for the api (it currently
+opens a devnet chain via `alice_balance`), and a small UI tweak to accept/display
+the 403 refusal. Everything stays test-only with no monetary value.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

@@ -62,6 +62,10 @@ pub const BLOCK_PRODUCTION_AUDIT_RESOURCE_TYPE: &str = "block_production";
 pub const BLOCK_PRODUCTION_AUDIT_ACTION: &str = "block_production_attempt";
 pub const BLOCK_PRODUCTION_AUDIT_EVENT_ID: &str = "block-production:local_request_id";
 pub const BLOCK_PRODUCTION_AUDIT_RESOURCE_ID: &str = "local_request_id";
+pub const FAUCET_AUDIT_RESOURCE_TYPE: &str = "testnet_faucet_dispense";
+pub const FAUCET_AUDIT_ACTION: &str = "testnet_faucet_dispense_attempt";
+pub const FAUCET_AUDIT_EVENT_ID: &str = "testnet-faucet-dispense:to_address";
+pub const FAUCET_AUDIT_RESOURCE_ID: &str = "to_address";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct XriqApiService {
@@ -1096,6 +1100,26 @@ pub fn product_api_http_response(
                     "chain state is not changed",
                     "audit event is required before any future accepted mutation",
                     "test identity only",
+                ],
+            ),
+            "/api/v1/faucet" => local_mutation_disabled_response(
+                &service.snapshot().chain_id,
+                "POST /api/v1/faucet",
+                "faucet_disabled",
+                "the testnet faucet is disabled by default; it requires a testnet node (--network testnet) with faucet dispensing explicitly enabled",
+                "--enable-local-testnet-faucet",
+                FAUCET_AUDIT_ACTION,
+                FAUCET_AUDIT_EVENT_ID,
+                FAUCET_AUDIT_RESOURCE_TYPE,
+                FAUCET_AUDIT_RESOURCE_ID,
+                LOCAL_REFUSAL_AUDIT_METADATA_POLICY,
+                &["to"],
+                &[
+                    "default mode refuses mutation",
+                    "faucet dispenses valueless test units only",
+                    "requires a testnet node (xriq-testnet)",
+                    "signing material is not accepted",
+                    "custody is not supported",
                 ],
             ),
             _ => api_error_response(
@@ -4984,6 +5008,30 @@ mod tests {
         assert!(!disabled_block_production.body.contains("private_key"));
         assert!(!disabled_block_production.body.contains("seed_phrase"));
         assert!(!disabled_block_production.body.contains("mnemonic"));
+
+        // The testnet faucet is a mutation and is disabled by default, following
+        // the same refusal contract (403, no state change).
+        let disabled_faucet = product_api_http_response(&api, "POST", "/api/v1/faucet");
+        assert_eq!(disabled_faucet.status_code, 403);
+        assert!(disabled_faucet
+            .body
+            .contains("\"code\": \"faucet_disabled\""));
+        assert!(disabled_faucet.body.contains("\"enabled\": false"));
+        assert!(disabled_faucet.body.contains("\"mutation\": \"none\""));
+        assert!(disabled_faucet
+            .body
+            .contains("\"explicit_flag\": \"--enable-local-testnet-faucet\""));
+        assert!(disabled_faucet
+            .body
+            .contains("\"action\": \"testnet_faucet_dispense_attempt\""));
+        assert!(disabled_faucet
+            .body
+            .contains("\"resource_type\": \"testnet_faucet_dispense\""));
+        assert!(disabled_faucet.body.contains("\"outcome\": \"refused\""));
+        assert!(disabled_faucet.body.contains("valueless test units only"));
+        assert!(!disabled_faucet.body.contains("\"tx_hash\""));
+        assert!(!disabled_faucet.body.contains("private_key"));
+        assert!(!disabled_faucet.body.contains("seed_phrase"));
 
         let bad_draft = product_api_http_response(
             &api,
