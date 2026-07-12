@@ -5440,6 +5440,20 @@ def test_run_local_repair_loop_status_points_failed_verify_to_retry_without_api_
     assert str(artifact) in result["next_step"]["command"]
 
 
+def test_local_repair_loop_smoke_script_documents_no_api_chain() -> None:
+    script = ROOT / "scripts" / "biber_local_repair_loop_smoke.py"
+    text = script.read_text(encoding="utf-8")
+
+    assert "prepare-repair" in text
+    assert "local-repair-chain" in text
+    assert "review-local-repair-chain" in text
+    assert "apply-repair-edits" in text
+    assert "local-verify-chain" in text
+    assert "local-repair-loop-status" in text
+    assert '"api_required": False' in text
+    assert '"training_allowed": False' in text
+
+
 def test_run_verify_repair_edits_can_override_test_id_and_diagnose_failure(
     monkeypatch,
     tmp_path: Path,

@@ -113,6 +113,15 @@ extraction, local chain, review, plan, apply, and local verification states,
 including the new `prepare-local-verify-repair` retry bridge. Use this first
 when resuming from an artifact directory instead of manually opening every JSON
 file.
+Thirteenth BIBER resume checkpoint on the same branch:
+`scripts/biber_local_repair_loop_smoke.py` now provides a narrow no-API
+confidence check for the local repair loop. It creates a temporary target repo,
+uses a supplied local model-response fixture, and runs
+`prepare-repair -> local-repair-chain -> review-local-repair-chain ->
+apply-repair-edits --approve --review-artifact -> local-verify-chain ->
+local-repair-loop-status`. It requires no BIBER API, OpenAI mentor, Vast GPU,
+or training credentials, and cleans up temp files unless `--keep-temp` is
+provided.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

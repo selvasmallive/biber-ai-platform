@@ -217,6 +217,15 @@ is available, and remains no-API.
 When resuming from a directory of artifacts, start with
 `local-repair-loop-status`. It finds the newest known local-loop artifact and
 prints the next exact no-API command.
+After changing the local repair loop, run the no-API smoke:
+
+```bash
+python scripts/biber_local_repair_loop_smoke.py
+```
+
+It creates a temporary target repo, drives prepare/local-chain/review/
+guarded-apply/verify/status with a supplied local model-response fixture, and
+requires no GPU, OpenAI, or BIBER API credentials.
 
 Do not run QLoRA or any training command just because a session says
 "continue." Training is appropriate only after the BIBER eval/review pipeline

@@ -87,6 +87,15 @@ API credentials.
 When resuming from an artifact directory, run `local-repair-loop-status` first.
 It scans local JSON artifacts, identifies the newest known BIBER repair-loop
 state, and prints the next exact no-API command to run.
+For a quick end-to-end local confidence check after changing this workflow, run:
+
+```bash
+python scripts/biber_local_repair_loop_smoke.py
+```
+
+The smoke creates a temporary target repo, runs prepare/local-chain/review/
+guarded-apply/verify/status with a supplied local model-response fixture, and
+does not require BIBER API, OpenAI, Vast GPU, or training credentials.
 
 ## Vast GPU
 
