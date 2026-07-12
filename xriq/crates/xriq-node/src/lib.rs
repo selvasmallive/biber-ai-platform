@@ -146,6 +146,9 @@ pub struct PrivateDevnetHttpServerConfig {
     /// Optional seed from which this node derives its stable `node_id`,
     /// reported in the `GET /v1/peer/identity` handshake.
     pub node_seed: Option<String>,
+    /// When true this node's peer endpoints serve the public testnet genesis
+    /// (`--network testnet`) instead of the devnet genesis.
+    pub testnet: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -257,6 +260,7 @@ pub enum NodeRunnerError {
     UnsupportedEnvironment(String),
     PeerSyncError(String),
     FaucetRefused(String),
+    InvalidNetwork(String),
     DuplicateFlag(String),
     UnexpectedArgument(String),
     DraftFileRead { path: String, error: String },
@@ -553,6 +557,10 @@ impl fmt::Display for NodeRunnerError {
             ),
             Self::PeerSyncError(message) => write!(formatter, "peer sync failed: {message}"),
             Self::FaucetRefused(message) => write!(formatter, "faucet refused: {message}"),
+            Self::InvalidNetwork(value) => write!(
+                formatter,
+                "invalid network {value:?}: expected \"devnet\" or \"testnet\""
+            ),
             Self::DuplicateFlag(flag) => write!(formatter, "duplicate flag: {flag}"),
             Self::UnexpectedArgument(argument) => {
                 write!(formatter, "unexpected argument: {argument}")
@@ -636,6 +644,7 @@ impl NodeRunnerError {
             Self::UnsupportedEnvironment(_) => "unsupported_environment",
             Self::PeerSyncError(_) => "peer_sync_error",
             Self::FaucetRefused(_) => "faucet_refused",
+            Self::InvalidNetwork(_) => "invalid_network",
             Self::DuplicateFlag(_) => "duplicate_flag",
             Self::UnexpectedArgument(_) => "unexpected_argument",
             Self::DraftFileRead { .. } => "draft_file_read",
@@ -684,12 +693,12 @@ pub fn node_help_text() -> String {
         "  xriq-node account-transactions --chain-file <path> --address <address> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node transaction-list --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
-        "  xriq-node peer-blocks-export --chain-file <path> [--from-height <height>] [--limit <count>] [--alice-balance <base-units>] [--format json]  (read-only; serves validated blocks for peer sync, also at GET /v1/peer/blocks)",
-        "  xriq-node peer-identity --chain-file <path> [--node-seed <string>] [--alice-balance <base-units>] [--format json]  (read-only compatibility handshake: network, protocol, tip, node id; also at GET /v1/peer/identity)",
-        "  xriq-node peer-peers [--peers-file <path>] [--chain-file <path>] [--format json]  (read-only; advertises this node's known peers for discovery; also at GET /v1/peer/peers)",
+        "  xriq-node peer-blocks-export --chain-file <path> [--from-height <height>] [--limit <count>] [--network devnet|testnet] [--alice-balance <base-units>] [--format json]  (read-only; serves validated blocks for peer sync, also at GET /v1/peer/blocks)",
+        "  xriq-node peer-identity --chain-file <path> [--node-seed <string>] [--network devnet|testnet] [--alice-balance <base-units>] [--format json]  (read-only compatibility handshake: network, protocol, tip, node id; also at GET /v1/peer/identity)",
+        "  xriq-node peer-peers [--peers-file <path>] [--network devnet|testnet] [--chain-file <path>] [--format json]  (read-only; advertises this node's known peers for discovery; also at GET /v1/peer/peers)",
         "  xriq-node testnet-genesis [--format json]  (read-only; prints the canonical TEST-ONLY public testnet genesis spec and its reproducible genesis_spec_hash)",
         "  xriq-node faucet-dispense --chain-file <testnet-path> --to <address> [--amount <base-units>] [--max-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <n>] [--format json]  (TEST-ONLY; sends valueless test units from the genesis faucet, balance-capped, and confirms a block)",
-        "  xriq-node peer-sync --chain-file <path> (--peer <http://host:port> | --peers-file <path>) [--discover <max-peers>] [--node-seed <string>] [--limit <count>] [--max-rounds <count>] [--alice-balance <base-units>] [--format json]  (follower; handshakes then pulls/validates blocks from one or many peers, discovering more and skipping itself, into the chain file)",
+        "  xriq-node peer-sync --chain-file <path> (--peer <http://host:port> | --peers-file <path>) [--discover <max-peers>] [--node-seed <string>] [--network devnet|testnet] [--limit <count>] [--max-rounds <count>] [--alice-balance <base-units>] [--format json]  (follower; handshakes then pulls/validates blocks from one or many peers on the same network, discovering more and skipping itself, into the chain file)",
         "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-list --snapshot-root <path> [--limit <count>] [--format text|json]",
         "  xriq-node snapshot-latest --snapshot-root <path> [--format text|json]",
@@ -698,8 +707,8 @@ pub fn node_help_text() -> String {
         "  xriq-node snapshot-check --snapshot-dir <path> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-export --chain-file <path> --snapshot-dir <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-import --snapshot-dir <path> --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
-        "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>] [--snapshot-root <path>] [--peers-file <path>] [--node-seed <string>]",
-        "  xriq-node serve-private --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>] [--snapshot-root <path>] [--peers-file <path>] [--node-seed <string>]",
+        "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>] [--snapshot-root <path>] [--peers-file <path>] [--node-seed <string>] [--network devnet|testnet]",
+        "  xriq-node serve-private --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>] [--snapshot-root <path>] [--peers-file <path>] [--node-seed <string>] [--network devnet|testnet]",
         "",
         "Warning: this runner is for private devnet tests only. It does not start a public network.",
     ]
@@ -858,6 +867,7 @@ pub fn parse_private_devnet_http_server_config(
         "--alice-balance",
         "--peers-file",
         "--node-seed",
+        "--network",
         "--environment",
     ])?;
     // Validate the optional environment profile fail-closed; the server stays
@@ -876,6 +886,7 @@ pub fn parse_private_devnet_http_server_config(
         .transpose()?;
     let peers_file = flags.optional("--peers-file").map(str::to_string);
     let node_seed = flags.optional("--node-seed").map(str::to_string);
+    let testnet = matches!(parse_runner_genesis(&flags)?, RunnerGenesis::Testnet);
     Ok(PrivateDevnetHttpServerConfig {
         bind,
         chain_file,
@@ -885,6 +896,7 @@ pub fn parse_private_devnet_http_server_config(
         allow_transaction_submission,
         peers_file,
         node_seed,
+        testnet,
     })
 }
 
@@ -988,6 +1000,7 @@ pub fn private_devnet_http_response_with_body(
         "/v1/peer/identity" => {
             // Read-only compatibility handshake: network, protocol, tip, node id.
             let mut args = private_devnet_http_runner_args("peer-identity", config);
+            push_network_arg(&mut args, config);
             if let Some(node_seed) = &config.node_seed {
                 args.push("--node-seed".to_string());
                 args.push(node_seed.clone());
@@ -997,6 +1010,7 @@ pub fn private_devnet_http_response_with_body(
         "/v1/peer/peers" => {
             // Read-only discovery: advertise this node's configured peer set.
             let mut args = private_devnet_http_runner_args("peer-peers", config);
+            push_network_arg(&mut args, config);
             if let Some(peers_file) = &config.peers_file {
                 args.push("--peers-file".to_string());
                 args.push(peers_file.clone());
@@ -1006,6 +1020,7 @@ pub fn private_devnet_http_response_with_body(
         "/v1/peer/blocks" => {
             // Read-only peer sync: serve validated blocks a follower can import.
             let mut args = private_devnet_http_runner_args("peer-blocks-export", config);
+            push_network_arg(&mut args, config);
             if let Some(from_height) = query_value(query, "from_height") {
                 args.push("--from-height".to_string());
                 args.push(from_height.to_string());
@@ -1205,6 +1220,14 @@ fn private_devnet_http_runner_args(
     args.push("--format".to_string());
     args.push("json".to_string());
     args
+}
+
+// Peer routes on a testnet-configured server run against the testnet genesis.
+fn push_network_arg(args: &mut Vec<String>, config: &PrivateDevnetHttpServerConfig) {
+    if config.testnet {
+        args.push("--network".to_string());
+        args.push("testnet".to_string());
+    }
 }
 
 fn runner_json_http_response(args: Vec<String>) -> PrivateDevnetHttpResponse {
@@ -1864,6 +1887,7 @@ fn node_runner_error_http_status(error: &NodeRunnerError) -> u16 {
         NodeRunnerError::InvalidSnapshotManifest(_) => 400,
         // Faucet refusals (over cap or exhausted) are client-visible rate limits.
         NodeRunnerError::FaucetRefused(_) => 429,
+        NodeRunnerError::InvalidNetwork(_) => 400,
         _ => 500,
     }
 }
@@ -2927,6 +2951,7 @@ fn run_peer_blocks_export_command(args: &[String]) -> Result<NodeRunnerOutput, N
         "--chain-file",
         "--pending-file",
         "--alice-balance",
+        "--network",
         "--from-height",
         "--limit",
         "--format",
@@ -2935,10 +2960,7 @@ fn run_peer_blocks_export_command(args: &[String]) -> Result<NodeRunnerOutput, N
     let _ = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
     let pending_file = flags.optional("--pending-file").unwrap_or("");
-    let alice_balance = flags
-        .optional("--alice-balance")
-        .map(|value| parse_amount("--alice-balance", value))
-        .transpose()?;
+    let genesis = parse_runner_genesis(&flags)?;
     let from_height = match flags.optional("--from-height") {
         Some(value) => value
             .parse::<u64>()
@@ -2955,13 +2977,15 @@ fn run_peer_blocks_export_command(args: &[String]) -> Result<NodeRunnerOutput, N
         .unwrap_or(PEER_BLOCKS_DEFAULT_LIMIT)
         .min(PEER_BLOCKS_MAX_LIMIT);
 
-    let node = private_devnet_node_with_pending_file(chain_file, pending_file, alice_balance)?;
+    let node = open_peer_node(chain_file, pending_file, genesis)?;
+    let network = node.ledger().config().chain_id.clone();
     let bytes = node
         .export_peer_blocks(from_height, limit)
         .map_err(NodeRunnerError::Node)?;
     let current_height = node.ledger().current_height();
     let json = format!(
-        "{{\n  \"command\": \"peer-blocks-export\",\n  \"environment\": \"private-devnet\",\n  \"network\": \"xriq-devnet\",\n  \"from_height\": {from_height},\n  \"current_height\": {current_height},\n  \"encoding\": \"xriq-peer-blocks-v1-hex\",\n  \"blocks_hex\": {}\n}}",
+        "{{\n  \"command\": \"peer-blocks-export\",\n  \"network\": {},\n  \"from_height\": {from_height},\n  \"current_height\": {current_height},\n  \"encoding\": \"xriq-peer-blocks-v1-hex\",\n  \"blocks_hex\": {}\n}}",
+        json_string(&network),
         json_string(&bytes_hex(&bytes))
     );
     Ok(NodeRunnerOutput::Json(json))
@@ -3047,10 +3071,10 @@ fn peer_http_get(base_url: &str, path_and_query: &str) -> Result<String, NodeRun
     Ok(body.to_string())
 }
 
-// Peer network/protocol identifiers used by the compatibility handshake. Both
-// sides must agree before any blocks are pulled, so a follower never imports a
-// range from a mismatched network or an incompatible wire protocol.
-const PEER_NETWORK: &str = "xriq-devnet";
+// Peer wire protocol identifier used by the compatibility handshake. A node's
+// network is its genesis chain id (checked separately); the protocol must also
+// match before any blocks are pulled, so a follower never imports a range from
+// an incompatible wire format.
 const PEER_PROTOCOL: &str = "xriq-peer-blocks-v1";
 
 // Derive a stable, deterministic node id from a seed. This is a test-only
@@ -3095,11 +3119,11 @@ fn parse_peer_identity_response(body: &str) -> Result<PeerIdentity, NodeRunnerEr
     })
 }
 
-fn peer_compatibility_error(identity: &PeerIdentity) -> Option<String> {
-    if identity.network != PEER_NETWORK {
+fn peer_compatibility_error(identity: &PeerIdentity, own_network: &str) -> Option<String> {
+    if identity.network != own_network {
         return Some(format!(
             "peer network {:?} does not match {:?}",
-            identity.network, PEER_NETWORK
+            identity.network, own_network
         ));
     }
     if identity.protocol != PEER_PROTOCOL {
@@ -3175,9 +3199,9 @@ struct SinglePeerSyncOutcome {
 
 // Handshake with one peer: fetch its identity and refuse a mismatched
 // network/protocol before any blocks are exchanged.
-fn handshake_peer(peer: &str) -> Result<PeerIdentity, NodeRunnerError> {
+fn handshake_peer(peer: &str, own_network: &str) -> Result<PeerIdentity, NodeRunnerError> {
     let identity = parse_peer_identity_response(&peer_http_get(peer, "/v1/peer/identity")?)?;
-    if let Some(reason) = peer_compatibility_error(&identity) {
+    if let Some(reason) = peer_compatibility_error(&identity, own_network) {
         return Err(NodeRunnerError::PeerSyncError(reason));
     }
     Ok(identity)
@@ -3228,6 +3252,7 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
         "--peers-file",
         "--discover",
         "--node-seed",
+        "--network",
         "--alice-balance",
         "--limit",
         "--max-rounds",
@@ -3239,10 +3264,7 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
     // The follower's own id (from its --node-seed), used to recognize and skip
     // itself if discovery ever surfaces its own address.
     let own_node_id = flags.optional("--node-seed").map(derive_node_id);
-    let alice_balance = flags
-        .optional("--alice-balance")
-        .map(|value| parse_amount("--alice-balance", value))
-        .transpose()?;
+    let genesis = parse_runner_genesis(&flags)?;
     let limit = flags
         .optional("--limit")
         .map(|value| parse_usize("--limit", value))
@@ -3304,7 +3326,10 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
     }
     let strict = strict && discover_cap.is_none();
 
-    let mut node = private_devnet_node_with_pending_file(chain_file, pending_file, alice_balance)?;
+    let mut node = open_peer_node(chain_file, pending_file, genesis)?;
+    // The follower's own network is its chain id; peers on a different network
+    // (e.g. devnet vs testnet) are rejected by the handshake.
+    let own_network = node.ledger().config().chain_id.clone();
     let mut total_applied = 0usize;
     let mut reachable = 0usize;
     let mut peer_current_height = 0u64;
@@ -3313,7 +3338,7 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
     for peer in &peers {
         // Handshake first so a mismatched or self peer is detected before any
         // block pull. A skip is never fatal; only a strict single-peer failure is.
-        let identity = match handshake_peer(peer) {
+        let identity = match handshake_peer(peer, &own_network) {
             Ok(identity) => identity,
             Err(error) => {
                 if strict {
@@ -3381,7 +3406,8 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
         .unwrap_or_else(|| "null".to_string());
     let peers_json = peer_reports.join(",\n    ");
     let json = format!(
-        "{{\n  \"command\": \"peer-sync\",\n  \"node_id\": {own_node_id_field},\n  \"applied\": {total_applied},\n  \"peers_total\": {},\n  \"peers_discovered\": {discovered},\n  \"peers_reachable\": {reachable},\n  \"peers_skipped_self\": {skipped_self},\n  \"current_height\": {final_height},\n  \"peer_current_height\": {peer_current_height},\n  \"peers\": [\n    {peers_json}\n  ]\n}}",
+        "{{\n  \"command\": \"peer-sync\",\n  \"network\": {},\n  \"node_id\": {own_node_id_field},\n  \"applied\": {total_applied},\n  \"peers_total\": {},\n  \"peers_discovered\": {discovered},\n  \"peers_reachable\": {reachable},\n  \"peers_skipped_self\": {skipped_self},\n  \"current_height\": {final_height},\n  \"peer_current_height\": {peer_current_height},\n  \"peers\": [\n    {peers_json}\n  ]\n}}",
+        json_string(&own_network),
         peers.len()
     );
     Ok(NodeRunnerOutput::Json(json))
@@ -3394,23 +3420,25 @@ fn run_peer_identity_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRu
         "--pending-file",
         "--alice-balance",
         "--node-seed",
+        "--network",
         "--format",
     ])?;
     let _ = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
     let pending_file = flags.optional("--pending-file").unwrap_or("");
-    let alice_balance = flags
-        .optional("--alice-balance")
-        .map(|value| parse_amount("--alice-balance", value))
-        .transpose()?;
-    let node = private_devnet_node_with_pending_file(chain_file, pending_file, alice_balance)?;
+    let genesis = parse_runner_genesis(&flags)?;
+    let node = open_peer_node(chain_file, pending_file, genesis)?;
+    // The advertised network is the node's actual chain id, so devnet and
+    // testnet nodes identify distinctly and never cross-sync.
+    let network = node.ledger().config().chain_id.clone();
     let current_height = node.ledger().current_height();
     let node_id = flags
         .optional("--node-seed")
         .map(|seed| json_string(&derive_node_id(seed)))
         .unwrap_or_else(|| "null".to_string());
     let json = format!(
-        "{{\n  \"command\": \"peer-identity\",\n  \"network\": \"{PEER_NETWORK}\",\n  \"protocol\": \"{PEER_PROTOCOL}\",\n  \"current_height\": {current_height},\n  \"node_id\": {node_id}\n}}"
+        "{{\n  \"command\": \"peer-identity\",\n  \"network\": {},\n  \"protocol\": \"{PEER_PROTOCOL}\",\n  \"current_height\": {current_height},\n  \"node_id\": {node_id}\n}}",
+        json_string(&network)
     );
     Ok(NodeRunnerOutput::Json(json))
 }
@@ -3424,9 +3452,11 @@ fn run_peer_peers_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunne
         "--pending-file",
         "--alice-balance",
         "--peers-file",
+        "--network",
         "--format",
     ])?;
     let _ = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let network = runner_genesis(parse_runner_genesis(&flags)?).chain_id;
     let peers = match flags.optional("--peers-file") {
         Some(path) => read_peers_file_lenient(path)?,
         None => Vec::new(),
@@ -3442,7 +3472,8 @@ fn run_peer_peers_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunne
         format!("[{items}\n  ]")
     };
     let json = format!(
-        "{{\n  \"command\": \"peer-peers\",\n  \"network\": \"{PEER_NETWORK}\",\n  \"peers\": {peers_json}\n}}"
+        "{{\n  \"command\": \"peer-peers\",\n  \"network\": {},\n  \"peers\": {peers_json}\n}}",
+        json_string(&network)
     );
     Ok(NodeRunnerOutput::Json(json))
 }
@@ -3525,13 +3556,70 @@ fn run_testnet_genesis_command(args: &[String]) -> Result<NodeRunnerOutput, Node
     )))
 }
 
-fn public_testnet_node(
+// Which chain a runner command operates on. Devnet carries the optional Alice
+// funding used by the private devnet genesis; Testnet is the fixed public
+// testnet genesis. This is the selector that lets one code path serve either
+// chain without hardwiring the devnet genesis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RunnerGenesis {
+    Devnet(Option<XriqAmount>),
+    Testnet,
+}
+
+fn runner_genesis(selection: RunnerGenesis) -> GenesisConfig {
+    match selection {
+        RunnerGenesis::Devnet(alice_balance) => private_devnet_runner_genesis(alice_balance),
+        RunnerGenesis::Testnet => GenesisConfig::public_testnet(),
+    }
+}
+
+// Open a file-backed node on the selected genesis (no pending-transaction
+// replay). Used by peer and faucet commands, which read/sync stored blocks.
+fn runner_node(
     chain_file: impl AsRef<Path>,
+    selection: RunnerGenesis,
 ) -> Result<XriqNode<FileChainStore>, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    XriqNode::from_genesis_replaying_store(&GenesisConfig::public_testnet(), store)
+    XriqNode::from_genesis_replaying_store(&runner_genesis(selection), store)
         .map_err(NodeRunnerError::Node)
+}
+
+// Read `--network devnet|testnet` (default devnet, which also reads
+// `--alice-balance`) into a genesis selector.
+fn parse_runner_genesis(flags: &RunnerFlagParser) -> Result<RunnerGenesis, NodeRunnerError> {
+    match flags.optional("--network") {
+        None | Some("devnet") => {
+            let alice_balance = flags
+                .optional("--alice-balance")
+                .map(|value| parse_amount("--alice-balance", value))
+                .transpose()?;
+            Ok(RunnerGenesis::Devnet(alice_balance))
+        }
+        Some("testnet") => Ok(RunnerGenesis::Testnet),
+        Some(other) => Err(NodeRunnerError::InvalidNetwork(other.to_string())),
+    }
+}
+
+// Open a peer node on the selected genesis. Devnet preserves the exact existing
+// path (including pending replay); testnet reads stored blocks only.
+fn open_peer_node(
+    chain_file: &str,
+    pending_file: &str,
+    selection: RunnerGenesis,
+) -> Result<XriqNode<FileChainStore>, NodeRunnerError> {
+    match selection {
+        RunnerGenesis::Devnet(alice_balance) => {
+            private_devnet_node_with_pending_file(chain_file, pending_file, alice_balance)
+        }
+        RunnerGenesis::Testnet => runner_node(chain_file, RunnerGenesis::Testnet),
+    }
+}
+
+fn public_testnet_node(
+    chain_file: impl AsRef<Path>,
+) -> Result<XriqNode<FileChainStore>, NodeRunnerError> {
+    runner_node(chain_file, RunnerGenesis::Testnet)
 }
 
 // Dispense valueless test units from the genesis faucet account on the public
@@ -8632,7 +8720,7 @@ mod tests {
     // one discovery fetch per seed when --discover is used), so `count` must
     // match exactly or `join()` would block on an extra accept.
     fn serve_peer_requests(chain_file: String, count: usize) -> (u16, std::thread::JoinHandle<()>) {
-        serve_peer_requests_full(chain_file, count, None, None)
+        serve_peer_requests_full(chain_file, count, None, None, false)
     }
 
     fn serve_peer_requests_advertising(
@@ -8640,7 +8728,7 @@ mod tests {
         count: usize,
         peers_file: Option<String>,
     ) -> (u16, std::thread::JoinHandle<()>) {
-        serve_peer_requests_full(chain_file, count, peers_file, None)
+        serve_peer_requests_full(chain_file, count, peers_file, None, false)
     }
 
     fn serve_peer_requests_full(
@@ -8648,6 +8736,7 @@ mod tests {
         count: usize,
         peers_file: Option<String>,
         node_seed: Option<String>,
+        testnet: bool,
     ) -> (u16, std::thread::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -8660,6 +8749,7 @@ mod tests {
             allow_transaction_submission: false,
             peers_file,
             node_seed,
+            testnet,
         };
         let handle = std::thread::spawn(move || {
             for _ in 0..count {
@@ -8836,6 +8926,7 @@ mod tests {
             allow_transaction_submission: false,
             peers_file: None,
             node_seed: None,
+            testnet: false,
         };
         let anon = private_devnet_http_response(&anon_config, "GET", "/v1/peer/identity");
         assert_eq!(anon.status_code, 200);
@@ -8859,9 +8950,10 @@ mod tests {
             .contains("\"protocol\": \"xriq-peer-blocks-v1\""));
         assert!(identity.body.contains("\"current_height\": 1"));
 
-        // The follower's parser reads exactly this shape and accepts it.
+        // The follower's parser reads exactly this shape and accepts it (a devnet
+        // follower talking to a devnet peer).
         let parsed = parse_peer_identity_response(&identity.body).unwrap();
-        assert!(peer_compatibility_error(&parsed).is_none());
+        assert!(peer_compatibility_error(&parsed, "xriq-devnet").is_none());
         assert_eq!(
             parsed.node_id.as_deref(),
             Some(derive_node_id("node-alpha").as_str())
@@ -8872,12 +8964,14 @@ mod tests {
             "{\n  \"network\": \"other-net\",\n  \"protocol\": \"xriq-peer-blocks-v1\",\n  \"current_height\": 1\n}",
         )
         .unwrap();
-        assert!(peer_compatibility_error(&wrong_network).is_some());
+        assert!(peer_compatibility_error(&wrong_network, "xriq-devnet").is_some());
+        // A testnet peer is rejected by a devnet follower (network isolation).
+        assert!(peer_compatibility_error(&parsed, "xriq-testnet").is_some());
         let wrong_protocol = parse_peer_identity_response(
             "{\n  \"network\": \"xriq-devnet\",\n  \"protocol\": \"xriq-peer-blocks-v9\",\n  \"current_height\": 1\n}",
         )
         .unwrap();
-        assert!(peer_compatibility_error(&wrong_protocol).is_some());
+        assert!(peer_compatibility_error(&wrong_protocol, "xriq-devnet").is_some());
 
         let _ = fs::remove_file(path);
         let _ = fs::remove_file(pending_path);
@@ -8924,15 +9018,20 @@ mod tests {
             "json",
         ])
         .unwrap();
-        let (leader_port, leader_handle) =
-            serve_peer_requests_full(leader_text.clone(), 2, None, Some("node-b".to_string()));
+        let (leader_port, leader_handle) = serve_peer_requests_full(
+            leader_text.clone(),
+            2,
+            None,
+            Some("node-b".to_string()),
+            false,
+        );
 
         // Self peer A shares the follower's node seed, so it reports our id and
         // is skipped after the handshake (one request, no pull).
         let self_chain = temp_store_path();
         let self_chain_text = self_chain.to_string_lossy().to_string();
         let (self_port, self_handle) =
-            serve_peer_requests_full(self_chain_text, 1, None, Some("me".to_string()));
+            serve_peer_requests_full(self_chain_text, 1, None, Some("me".to_string()), false);
 
         let peers_file = temp_store_path();
         let peers_file_text = peers_file.to_string_lossy().to_string();
@@ -9126,6 +9225,7 @@ mod tests {
             allow_transaction_submission: false,
             peers_file: Some(peers_text),
             node_seed: None,
+            testnet: false,
         };
         let advertised = private_devnet_http_response(&config, "GET", "/v1/peer/peers");
         assert_eq!(advertised.status_code, 200);
@@ -9262,6 +9362,92 @@ mod tests {
             genesis_spec_hash(&testnet),
             genesis_spec_hash(&GenesisConfig::private_devnet())
         );
+    }
+
+    #[test]
+    fn peer_sync_testnet_nodes_sync_over_tcp() {
+        // Leader: a testnet chain holding one block produced by the faucet.
+        let leader_path = temp_store_path();
+        let leader_text = leader_path.to_string_lossy().to_string();
+        run_node_command([
+            "faucet-dispense",
+            "--chain-file",
+            leader_text.as_str(),
+            "--to",
+            "xriqdev1recipient00000000000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+
+        // Served on the testnet genesis (testnet=true → peer routes use --network testnet).
+        let (port, handle) = serve_peer_requests_full(leader_text.clone(), 2, None, None, true);
+
+        let follower_path = temp_store_path();
+        let follower_text = follower_path.to_string_lossy().to_string();
+        let synced = run_node_command([
+            "peer-sync",
+            "--chain-file",
+            follower_text.as_str(),
+            "--network",
+            "testnet",
+            "--peer",
+            format!("http://127.0.0.1:{port}").as_str(),
+            "--max-rounds",
+            "1",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        handle.join().unwrap();
+
+        assert!(synced.contains("\"network\": \"xriq-testnet\""));
+        assert!(synced.contains("\"applied\": 1"));
+        assert!(synced.contains("\"peers_reachable\": 1"));
+        assert!(synced.contains("\"current_height\": 1"));
+
+        let _ = fs::remove_file(leader_path);
+        let _ = fs::remove_file(follower_path);
+    }
+
+    #[test]
+    fn peer_sync_rejects_cross_network_peer() {
+        // A testnet leader with one faucet block.
+        let leader_path = temp_store_path();
+        let leader_text = leader_path.to_string_lossy().to_string();
+        run_node_command([
+            "faucet-dispense",
+            "--chain-file",
+            leader_text.as_str(),
+            "--to",
+            "xriqdev1recipient00000000000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+        // Served as testnet; the devnet follower only reaches the handshake.
+        let (port, handle) = serve_peer_requests_full(leader_text.clone(), 1, None, None, true);
+
+        let follower_path = temp_store_path();
+        let follower_text = follower_path.to_string_lossy().to_string();
+        // Follower defaults to devnet; the testnet peer is a network mismatch.
+        let rejected = run_node_command([
+            "peer-sync",
+            "--chain-file",
+            follower_text.as_str(),
+            "--peer",
+            format!("http://127.0.0.1:{port}").as_str(),
+            "--max-rounds",
+            "1",
+            "--format",
+            "json",
+        ]);
+        handle.join().unwrap();
+        assert!(matches!(rejected, Err(NodeRunnerError::PeerSyncError(_))));
+
+        let _ = fs::remove_file(leader_path);
+        let _ = fs::remove_file(follower_path);
     }
 
     #[test]
@@ -10786,6 +10972,7 @@ mod tests {
             allow_transaction_submission: false,
             peers_file: None,
             node_seed: None,
+            testnet: false,
         };
 
         let health = private_devnet_http_response(&config, "GET", "/health");
@@ -11141,6 +11328,7 @@ mod tests {
             allow_transaction_submission: true,
             peers_file: None,
             node_seed: None,
+            testnet: false,
         };
         let snapshot_import = private_devnet_http_response_with_body(
             &import_config,
@@ -11202,6 +11390,7 @@ mod tests {
             allow_transaction_submission: true,
             peers_file: None,
             node_seed: None,
+            testnet: false,
         };
         let submit_draft = [
             "warning=private-devnet-test-identity-only",

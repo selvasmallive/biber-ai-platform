@@ -78,8 +78,18 @@ new chain (a hard fork). The value is pinned by a golden test in
 
 ## Status
 
-This spec defines the testnet genesis and a CLI faucet; it does **not** start a
-public network by itself. Running public testnet nodes (genesis-parametrized,
-exposing the faucet and peer sync over HTTP) and the public explorer/wallet are
-later Phase 3 milestones (see `docs/XRIQ_PHASE3_PUBLIC_TESTNET_PLAN.md`), each
-still test-only with no value.
+The peer layer is genesis-aware: peer commands and `serve-readonly`/`serve-private`
+take `--network testnet`, each node reports its chain id (`xriq-testnet`) as its
+peer network, and `peer-sync` refuses peers on a different network — so testnet and
+devnet nodes never cross-sync. A testnet peer node runs, e.g.:
+
+```
+xriq-node serve-readonly --chain-file <testnet-chain> --network testnet --bind 127.0.0.1:8899
+xriq-node peer-sync --chain-file <follower> --network testnet --peer http://<seed>:8899
+```
+
+This spec defines the testnet genesis, a CLI faucet, and genesis-aware peer
+sync; it does **not** start a public network by itself. Parametrizing the
+explorer/read routes (status/blocks/accounts) and an HTTP faucet with per-IP
+limits, plus the public explorer/wallet, are later Phase 3 milestones (see
+`docs/XRIQ_PHASE3_PUBLIC_TESTNET_PLAN.md`), each still test-only with no value.
