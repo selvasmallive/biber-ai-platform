@@ -915,6 +915,10 @@ def load_json_artifact(artifact_path: str, *, label: str) -> dict[str, Any]:
     return parsed
 
 
+def format_cli_command(parts: Sequence[object]) -> str:
+    return subprocess.list2cmdline([str(part) for part in parts])
+
+
 def load_jsonl_artifact(jsonl_path: str, *, label: str) -> list[dict[str, Any]]:
     path = Path(jsonl_path)
     try:
@@ -4085,6 +4089,480 @@ def build_local_verification_repair_request(
     if chain.get("target_root"):
         repair["target_root"] = chain.get("target_root")
     return repair
+
+
+def local_loop_output_path(directory: Path, filename: str) -> str:
+    return str(directory / filename)
+
+
+def local_repair_loop_artifact_record(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    try:
+        modified_epoch = path.stat().st_mtime
+    except OSError:
+        modified_epoch = 0.0
+
+    local_verification = normalize_local_repair_verification_chain_artifact(payload)
+    if local_verification is not None:
+        return {
+            "path": str(path),
+            "artifact_type": "local_verification_chain",
+            "source": local_verification.get("source"),
+            "status": local_verification.get("chain_status"),
+            "ok": local_verification.get("ok") is True,
+            "plan_hash": local_verification.get("plan_hash"),
+            "test_id": local_verification.get("test_id"),
+            "target_root": local_verification.get("target_root"),
+            "modified_epoch": modified_epoch,
+        }
+
+    local_review = normalize_local_repair_chain_review_artifact(payload)
+    if local_review is not None:
+        return {
+            "path": str(path),
+            "artifact_type": "local_repair_chain_review",
+            "source": local_review.get("source"),
+            "status": local_review.get("review_status"),
+            "ok": local_review.get("ok") is True,
+            "plan_hash": local_review.get("plan_hash"),
+            "test_id": local_review.get("next_test_id"),
+            "target_root": local_review.get("target_root"),
+            "modified_epoch": modified_epoch,
+        }
+
+    local_chain = normalize_local_repair_chain_artifact(payload)
+    if local_chain is not None:
+        return {
+            "path": str(path),
+            "artifact_type": "local_repair_chain",
+            "source": local_chain.get("source"),
+            "status": local_chain.get("chain_status"),
+            "ok": local_chain.get("ok") is True,
+            "plan_hash": require_mapping(local_chain.get("repair_edit_plan")).get(
+                "plan_hash"
+            ),
+            "test_id": local_chain.get("next_test_id"),
+            "target_root": local_chain.get("target_root"),
+            "modified_epoch": modified_epoch,
+        }
+
+    repair_apply = normalize_repair_edit_apply_artifact(payload)
+    if repair_apply is not None:
+        return {
+            "path": str(path),
+            "artifact_type": "repair_edit_apply",
+            "source": repair_apply.get("source"),
+            "status": repair_apply.get("apply_status"),
+            "ok": repair_apply.get("ok") is True,
+            "plan_hash": repair_apply.get("plan_hash"),
+            "test_id": repair_apply.get("next_test_id"),
+            "target_root": repair_apply.get("target_root"),
+            "modified_epoch": modified_epoch,
+        }
+
+    repair_plan = normalize_repair_edit_plan_artifact(payload)
+    if repair_plan is not None:
+        return {
+            "path": str(path),
+            "artifact_type": "repair_edit_plan",
+            "source": repair_plan.get("source"),
+            "status": repair_plan.get("plan_status"),
+            "ok": repair_plan.get("ok") is True,
+            "plan_hash": repair_plan.get("plan_hash"),
+            "test_id": repair_plan.get("next_test_id"),
+            "target_root": repair_plan.get("target_root"),
+            "modified_epoch": modified_epoch,
+        }
+
+    repair_request = normalize_mvp_loop_repair_request_artifact(payload)
+    if repair_request is not None:
+        return {
+            "path": str(path),
+            "artifact_type": "repair_request",
+            "source": repair_request.get("source"),
+            "status": repair_request.get("repair_status"),
+            "ok": repair_request.get("ok") is True,
+            "plan_hash": None,
+            "test_id": repair_request.get("next_test_id"),
+            "target_root": repair_request.get("target_root"),
+            "modified_epoch": modified_epoch,
+        }
+
+    repair_attempt = normalize_repair_attempt_artifact(payload)
+    if repair_attempt is not None:
+        return {
+            "path": str(path),
+            "artifact_type": "repair_attempt",
+            "source": repair_attempt.get("source"),
+            "status": repair_attempt.get("repair_status"),
+            "ok": repair_attempt.get("ok") is True,
+            "plan_hash": None,
+            "test_id": repair_attempt.get("next_test_id"),
+            "target_root": repair_attempt.get("target_root"),
+            "modified_epoch": modified_epoch,
+        }
+
+    extraction = normalize_repair_edit_extraction_artifact(payload)
+    if extraction is not None:
+        return {
+            "path": str(path),
+            "artifact_type": "repair_edit_extraction",
+            "source": extraction.get("source"),
+            "status": extraction.get("extraction_status"),
+            "ok": extraction.get("ok") is True,
+            "plan_hash": None,
+            "test_id": extraction.get("next_test_id"),
+            "target_root": extraction.get("target_root"),
+            "modified_epoch": modified_epoch,
+        }
+
+    mvp_loop = normalize_mvp_loop_artifact(payload)
+    if mvp_loop is not None:
+        return {
+            "path": str(path),
+            "artifact_type": "mvp_loop",
+            "source": "biber_mvp_loop",
+            "status": "completed" if mvp_loop.get("ok") is True else "failed",
+            "ok": mvp_loop.get("ok") is True,
+            "plan_hash": mvp_loop.get("edit_plan_hash"),
+            "test_id": require_mapping(
+                require_mapping(mvp_loop.get("steps")).get("test_run")
+            ).get("test_id"),
+            "target_root": mvp_loop.get("target_root"),
+            "modified_epoch": modified_epoch,
+        }
+
+    return None
+
+
+def find_local_loop_record(
+    records: list[Mapping[str, Any]],
+    *,
+    artifact_type: str,
+    plan_hash: object,
+) -> Mapping[str, Any] | None:
+    if not isinstance(plan_hash, str) or not plan_hash:
+        return None
+    for record in records:
+        if (
+            record.get("artifact_type") == artifact_type
+            and record.get("plan_hash") == plan_hash
+        ):
+            return record
+    return None
+
+
+def local_repair_loop_next_step(
+    current: Mapping[str, Any],
+    *,
+    records: list[Mapping[str, Any]],
+    directory: Path,
+) -> dict[str, Any]:
+    artifact_type = current.get("artifact_type")
+    path = str(current.get("path") or "")
+    target_root = current.get("target_root") or "<TARGET_ROOT>"
+    model_response_path = directory / "model-response.json"
+
+    if artifact_type == "mvp_loop":
+        if current.get("ok") is True:
+            return {
+                "action": "done_or_start_next_task",
+                "reason": "latest_mvp_loop_ok",
+                "command": None,
+            }
+        return {
+            "action": "prepare_repair",
+            "reason": "latest_mvp_loop_failed",
+            "command": format_cli_command(
+                [
+                    "python",
+                    "scripts/biber_agent_client.py",
+                    "--json",
+                    "prepare-repair",
+                    path,
+                    "--output",
+                    local_loop_output_path(directory, "prepared-repair.json"),
+                ]
+            ),
+        }
+
+    if artifact_type == "repair_request":
+        return {
+            "action": "run_local_repair_chain",
+            "reason": "prepared_repair_request_ready_for_local_model_response",
+            "command": format_cli_command(
+                [
+                    "python",
+                    "scripts/biber_agent_client.py",
+                    "--json",
+                    "local-repair-chain",
+                    path,
+                    "--model-response-file",
+                    model_response_path,
+                    "--target-root",
+                    target_root,
+                    "--output",
+                    local_loop_output_path(directory, "local-repair-chain.json"),
+                ]
+            ),
+        }
+
+    if artifact_type == "repair_attempt":
+        return {
+            "action": "extract_repair_edits",
+            "reason": "repair_attempt_needs_edit_extraction",
+            "command": format_cli_command(
+                [
+                    "python",
+                    "scripts/biber_agent_client.py",
+                    "--json",
+                    "extract-repair-edits",
+                    path,
+                    "--output",
+                    local_loop_output_path(directory, "repair-edit-extraction.json"),
+                ]
+            ),
+        }
+
+    if artifact_type == "repair_edit_extraction":
+        return {
+            "action": "plan_repair_edits",
+            "reason": "extracted_edits_need_local_plan",
+            "command": format_cli_command(
+                [
+                    "python",
+                    "scripts/biber_agent_client.py",
+                    "--json",
+                    "plan-repair-edits",
+                    path,
+                    "--target-root",
+                    target_root,
+                    "--output",
+                    local_loop_output_path(directory, "repair-edit-plan.json"),
+                ]
+            ),
+        }
+
+    if artifact_type == "local_repair_chain":
+        if current.get("status") == "planned":
+            return {
+                "action": "review_local_repair_chain",
+                "reason": "local_chain_has_plan",
+                "command": format_cli_command(
+                    [
+                        "python",
+                        "scripts/biber_agent_client.py",
+                        "--json",
+                        "review-local-repair-chain",
+                        path,
+                        "--output",
+                        local_loop_output_path(
+                            directory,
+                            "local-repair-chain-review.json",
+                        ),
+                    ]
+                ),
+            }
+        return {
+            "action": "rerun_local_repair_chain_with_target_root",
+            "reason": "local_chain_not_planned",
+            "command": format_cli_command(
+                [
+                    "python",
+                    "scripts/biber_agent_client.py",
+                    "--json",
+                    "local-repair-chain",
+                    "<REPAIR_REQUEST_ARTIFACT>",
+                    "--model-response-file",
+                    model_response_path,
+                    "--target-root",
+                    target_root,
+                    "--output",
+                    local_loop_output_path(directory, "local-repair-chain.json"),
+                ]
+            ),
+        }
+
+    if artifact_type == "local_repair_chain_review":
+        matching_plan = find_local_loop_record(
+            records,
+            artifact_type="repair_edit_plan",
+            plan_hash=current.get("plan_hash"),
+        )
+        if current.get("ok") is True and matching_plan is not None:
+            return {
+                "action": "apply_reviewed_repair",
+                "reason": "review_ready_and_matching_plan_found",
+                "command": format_cli_command(
+                    [
+                        "python",
+                        "scripts/biber_agent_client.py",
+                        "--json",
+                        "apply-repair-edits",
+                        str(matching_plan.get("path")),
+                        "--approve",
+                        "--review-artifact",
+                        path,
+                        "--output",
+                        local_loop_output_path(directory, "repair-edit-apply.json"),
+                    ]
+                ),
+            }
+        if current.get("ok") is True:
+            return {
+                "action": "save_matching_repair_plan_then_apply",
+                "reason": "review_ready_but_matching_plan_artifact_not_found",
+                "command": None,
+            }
+        return {
+            "action": "fix_blocked_review_before_apply",
+            "reason": "review_not_ready_for_apply",
+            "command": None,
+        }
+
+    if artifact_type == "repair_edit_plan":
+        matching_review = find_local_loop_record(
+            records,
+            artifact_type="local_repair_chain_review",
+            plan_hash=current.get("plan_hash"),
+        )
+        if matching_review is not None and matching_review.get("ok") is True:
+            return {
+                "action": "apply_reviewed_repair",
+                "reason": "matching_ready_review_found",
+                "command": format_cli_command(
+                    [
+                        "python",
+                        "scripts/biber_agent_client.py",
+                        "--json",
+                        "apply-repair-edits",
+                        path,
+                        "--approve",
+                        "--review-artifact",
+                        str(matching_review.get("path")),
+                        "--output",
+                        local_loop_output_path(directory, "repair-edit-apply.json"),
+                    ]
+                ),
+            }
+        return {
+            "action": "review_or_create_local_chain_review",
+            "reason": "plan_exists_without_matching_ready_review",
+            "command": None,
+        }
+
+    if artifact_type == "repair_edit_apply":
+        return {
+            "action": "run_local_verify_chain",
+            "reason": "repair_applied_needs_local_verification",
+            "command": format_cli_command(
+                [
+                    "python",
+                    "scripts/biber_agent_client.py",
+                    "--json",
+                    "local-verify-chain",
+                    path,
+                    "--diagnose-on-failure",
+                    "--output",
+                    local_loop_output_path(directory, "local-verify-chain.json"),
+                ]
+            ),
+        }
+
+    if artifact_type == "local_verification_chain":
+        if current.get("status") == "verified":
+            return {
+                "action": "human_review_verified_fix",
+                "reason": "local_verification_passed",
+                "command": None,
+            }
+        return {
+            "action": "prepare_local_verify_repair",
+            "reason": "local_verification_failed_or_not_executed",
+            "command": format_cli_command(
+                [
+                    "python",
+                    "scripts/biber_agent_client.py",
+                    "--json",
+                    "prepare-local-verify-repair",
+                    path,
+                    "--output",
+                    local_loop_output_path(
+                        directory,
+                        "prepared-local-verify-repair.json",
+                    ),
+                ]
+            ),
+        }
+
+    return {
+        "action": "inspect_artifacts",
+        "reason": "no_known_next_step_for_latest_artifact",
+        "command": None,
+    }
+
+
+def build_local_repair_loop_status(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(f"Artifact directory does not exist: {root}")
+    if not root.is_dir():
+        raise BiberAgentClientError(f"Artifact path is not a directory: {root}")
+
+    records: list[dict[str, Any]] = []
+    scanned = 0
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            payload = load_json_artifact(str(path), label="local repair loop artifact")
+        except BiberAgentClientError:
+            continue
+        record = local_repair_loop_artifact_record(path, payload)
+        if record is not None:
+            records.append(record)
+
+    records.sort(
+        key=lambda item: (
+            float(item.get("modified_epoch") or 0.0),
+            str(item.get("path") or ""),
+        ),
+        reverse=True,
+    )
+    current = records[0] if records else None
+    next_step = (
+        local_repair_loop_next_step(current, records=records, directory=root)
+        if current is not None
+        else {
+            "action": "create_or_point_to_artifacts",
+            "reason": "no_known_biber_repair_loop_artifacts_found",
+            "command": None,
+        }
+    )
+    return {
+        "source": "biber_local_repair_loop_status",
+        "directory": str(root),
+        "pattern": pattern,
+        "scanned": scanned,
+        "matched": len(records),
+        "training_allowed": False,
+        "auto_applied": False,
+        "auto_saved": False,
+        "apply_allowed": False,
+        "current": current,
+        "next_step": next_step,
+        "artifacts": records[:limit],
+    }
 
 
 def normalize_repair_test_verification_artifact(
@@ -13631,6 +14109,34 @@ def format_local_repair_verification_chain_summary(payload: Mapping[str, Any]) -
     return "\n".join(lines)
 
 
+def format_local_repair_loop_status_summary(payload: Mapping[str, Any]) -> str:
+    current = require_mapping(payload.get("current"))
+    next_step = require_mapping(payload.get("next_step"))
+    command = next_step.get("command")
+    lines = [
+        "BIBER local repair loop status",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"auto_applied: {payload.get('auto_applied', False)}",
+        f"auto_saved: {payload.get('auto_saved', False)}",
+        f"apply_allowed: {payload.get('apply_allowed', False)}",
+        f"current_type: {current.get('artifact_type', '-')}",
+        f"current_status: {current.get('status', '-')}",
+        f"current_ok: {current.get('ok')}",
+        f"current_path: {current.get('path', '-')}",
+        f"plan_hash: {current.get('plan_hash') or '-'}",
+        f"test_id: {current.get('test_id') or '-'}",
+        f"target_root: {current.get('target_root') or '-'}",
+        f"next_action: {next_step.get('action', '-')}",
+        f"next_reason: {next_step.get('reason', '-')}",
+        f"next_command: {command or '-'}",
+    ]
+    return "\n".join(lines)
+
+
 def format_repair_test_verification_artifact_list_summary(
     payload: Mapping[str, Any],
 ) -> str:
@@ -17016,6 +17522,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     prepare_local_verify_repair_parser.add_argument("--max-context-paths", type=int)
     prepare_local_verify_repair_parser.add_argument("--output")
 
+    local_repair_loop_status_parser = subparsers.add_parser(
+        "local-repair-loop-status",
+        help=(
+            "Summarize the latest local BIBER repair-loop artifact in a "
+            "directory and print the next no-API command to run."
+        ),
+    )
+    local_repair_loop_status_parser.add_argument("directory")
+    local_repair_loop_status_parser.add_argument("--pattern", default="*.json")
+    local_repair_loop_status_parser.add_argument("--limit", type=int, default=10)
+    local_repair_loop_status_parser.add_argument("--output")
+
     verify_repair_edits_parser = subparsers.add_parser(
         "verify-repair-edits",
         help=(
@@ -18339,6 +18857,20 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(repair, indent=2, sort_keys=True)
             if args.print_json
             else format_mvp_loop_repair_request_summary(repair)
+        )
+    if args.command == "local-repair-loop-status":
+        status = build_local_repair_loop_status(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+        )
+        if args.output:
+            status["artifact_path"] = str(Path(args.output))
+            write_json_artifact(status, args.output)
+        return (
+            json.dumps(status, indent=2, sort_keys=True)
+            if args.print_json
+            else format_local_repair_loop_status_summary(status)
         )
     if args.command == "extract-repair-edits":
         artifact_path = Path(args.artifact)

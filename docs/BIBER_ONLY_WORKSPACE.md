@@ -84,6 +84,9 @@ local verification chain artifact. It creates the next local-model repair
 request, carries the failed edit paths as context, records forbidden exact
 edits when the linked apply artifact is available, and still does not resolve
 API credentials.
+When resuming from an artifact directory, run `local-repair-loop-status` first.
+It scans local JSON artifacts, identifies the newest known BIBER repair-loop
+state, and prints the next exact no-API command to run.
 
 ## Vast GPU
 

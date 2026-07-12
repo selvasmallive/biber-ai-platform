@@ -104,6 +104,15 @@ edits as forbidden retry edits, and embeds the strict JSON output contract in
 the next local-model repair prompt. Use it after `local-verify-chain` reports
 `still_failing`, then continue with `local-repair-chain --model-response-file`
 and the existing review/apply/verify gates.
+Twelfth BIBER resume checkpoint on the same branch:
+`local-repair-loop-status` now scans a local artifact directory, ignores
+unknown JSON files, identifies the newest recognized BIBER local repair-loop
+artifact, and prints the next exact no-API command when one is available. It
+covers the local MVP failure, prepared repair request, repair attempt,
+extraction, local chain, review, plan, apply, and local verification states,
+including the new `prepare-local-verify-repair` retry bridge. Use this first
+when resuming from an artifact directory instead of manually opening every JSON
+file.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

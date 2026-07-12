@@ -5347,6 +5347,99 @@ def test_prepare_local_verify_repair_rejects_verified_chain(tmp_path: Path) -> N
         raise AssertionError("expected verified local chain to be rejected")
 
 
+def test_run_local_repair_loop_status_points_apply_to_verify_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local-repair-loop-status should not resolve an API key")
+
+    artifact = tmp_path / "repair-edit-apply.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "apply_status": "applied",
+                "ok": True,
+                "plan_hash": "d" * 64,
+                "target_root": str(tmp_path / "target-repo"),
+                "next_test_id": "python-compileall-api",
+                "edit_apply": {
+                    "ok": True,
+                    "applied": [{"path": "src/app.py", "changed": True}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "loop-status.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "local-repair-loop-status",
+                str(tmp_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["source"] == "biber_local_repair_loop_status"
+    assert result["current"]["artifact_type"] == "repair_edit_apply"
+    assert result["next_step"]["action"] == "run_local_verify_chain"
+    assert "local-verify-chain" in result["next_step"]["command"]
+    assert "--diagnose-on-failure" in result["next_step"]["command"]
+    assert str(artifact) in result["next_step"]["command"]
+
+
+def test_run_local_repair_loop_status_points_failed_verify_to_retry_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local-repair-loop-status should not resolve an API key")
+
+    artifact = tmp_path / "local-verify-chain.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_local_repair_verification_chain",
+                "chain_status": "still_failing",
+                "ok": False,
+                "plan_hash": "e" * 64,
+                "target_root": str(tmp_path / "target-repo"),
+                "test_id": "python-pytest",
+                "verification": {"test_run": {"ok": False}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "local-repair-loop-status",
+                str(tmp_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["current"]["artifact_type"] == "local_verification_chain"
+    assert result["current"]["status"] == "still_failing"
+    assert result["next_step"]["action"] == "prepare_local_verify_repair"
+    assert "prepare-local-verify-repair" in result["next_step"]["command"]
+    assert str(artifact) in result["next_step"]["command"]
+
+
 def test_run_verify_repair_edits_can_override_test_id_and_diagnose_failure(
     monkeypatch,
     tmp_path: Path,
