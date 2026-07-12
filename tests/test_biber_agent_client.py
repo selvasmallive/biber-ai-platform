@@ -1612,6 +1612,145 @@ def test_run_local_repair_chain_plans_with_local_target_without_api_key(
     assert result["repair_edit_plan"]["apply_allowed"] is False
 
 
+def test_run_review_local_repair_chain_marks_ready_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("review-local-repair-chain should not resolve an API key")
+
+    plan_hash = "b" * 64
+    chain_path = tmp_path / "local-repair-chain.json"
+    chain_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_local_repair_chain",
+                "chain_status": "planned",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "apply_allowed": False,
+                "source_artifact": str(tmp_path / "failure-mvp-loop.json"),
+                "target_root": str(tmp_path / "target-repo"),
+                "next_test_id": "python-pytest",
+                "repair_edit_extraction": {
+                    "ok": True,
+                    "extraction_status": "ready_for_plan_edit",
+                    "edits": [
+                        {
+                            "path": "src/app.py",
+                            "old_text": "return 1",
+                            "new_text": "return 2",
+                        }
+                    ],
+                    "rejected": [],
+                },
+                "repair_edit_plan": {
+                    "ok": True,
+                    "plan_status": "planned",
+                    "training_allowed": False,
+                    "auto_applied": False,
+                    "apply_allowed": False,
+                    "plan_hash": plan_hash,
+                    "target_root": str(tmp_path / "target-repo"),
+                    "edit_plan": {
+                        "plan_hash": plan_hash,
+                        "planned": [{"path": "src/app.py", "operation": "edit"}],
+                        "rejected": [],
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "review-local-repair-chain.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-local-repair-chain",
+                str(chain_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["source"] == "biber_local_repair_chain_review"
+    assert result["review_status"] == "ready_for_explicit_apply_approval"
+    assert result["apply_recommendation"] == "ready_for_explicit_apply_approval"
+    assert result["ok"] is True
+    assert result["training_allowed"] is False
+    assert result["auto_applied"] is False
+    assert result["apply_allowed"] is False
+    assert result["blockers"] == []
+    assert result["warnings"] == []
+    assert result["edits"] == 1
+    assert result["planned"] == 1
+    assert result["plan_hash"] == plan_hash
+
+
+def test_run_review_local_repair_chain_blocks_missing_plan_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("review-local-repair-chain should not resolve an API key")
+
+    chain_path = tmp_path / "local-repair-chain.json"
+    chain_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_local_repair_chain",
+                "chain_status": "extracted",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "apply_allowed": False,
+                "next_test_id": "python-pytest",
+                "repair_edit_extraction": {
+                    "ok": True,
+                    "extraction_status": "ready_for_plan_edit",
+                    "edits": [
+                        {
+                            "path": "src/app.py",
+                            "old_text": "return 1",
+                            "new_text": "return 2",
+                        }
+                    ],
+                    "rejected": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "review-local-repair-chain",
+                str(chain_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["source"] == "biber_local_repair_chain_review"
+    assert result["review_status"] == "blocked_before_apply"
+    assert result["apply_recommendation"] == "do_not_apply"
+    assert result["ok"] is False
+    assert "chain_not_planned" in result["blockers"]
+    assert "missing_local_plan" in result["blockers"]
+    assert "target_root_missing" in result["warnings"]
+
+
 def test_extract_repair_edits_accepts_json_edit_candidates(tmp_path: Path) -> None:
     attempt = {
         "source": "biber_mvp_loop_repair_attempt",

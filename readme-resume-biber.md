@@ -199,6 +199,9 @@ If the model response is produced outside the live BIBER API, use
 `local-repair-chain --model-response-file ... --target-root ...` to build the
 attempt, extraction, and optional local plan artifact without API auth. It still
 does not apply files.
+Before any apply approval, run `review-local-repair-chain` on the combined
+artifact. It is deterministic and local-only, and it summarizes blockers,
+warnings, plan hash, target root, and the next test id.
 
 Do not run QLoRA or any training command just because a session says
 "continue." Training is appropriate only after the BIBER eval/review pipeline

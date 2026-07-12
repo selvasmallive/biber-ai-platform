@@ -3219,6 +3219,126 @@ def build_local_repair_chain_result(
     return result
 
 
+def normalize_local_repair_chain_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_local_repair_chain":
+        return dict(payload)
+    body = payload.get("body")
+    if isinstance(body, dict) and body.get("source") == "biber_local_repair_chain":
+        return dict(body)
+    return None
+
+
+def review_local_repair_chain(chain: Mapping[str, Any]) -> dict[str, Any]:
+    extraction = require_mapping(chain.get("repair_edit_extraction"))
+    plan = require_mapping(chain.get("repair_edit_plan"))
+    edit_plan = require_mapping(plan.get("edit_plan"))
+    edits = [
+        item for item in require_list(extraction.get("edits")) if isinstance(item, dict)
+    ]
+    extraction_rejected = [
+        item
+        for item in require_list(extraction.get("rejected"))
+        if isinstance(item, dict)
+    ]
+    planned = [
+        item for item in require_list(edit_plan.get("planned")) if isinstance(item, dict)
+    ]
+    plan_rejected = [
+        item for item in require_list(edit_plan.get("rejected")) if isinstance(item, dict)
+    ]
+    blockers: list[str] = []
+    warnings: list[str] = []
+
+    if chain.get("ok") is not True:
+        blockers.append("chain_not_ok")
+    if chain.get("chain_status") != "planned":
+        blockers.append("chain_not_planned")
+    if chain.get("training_allowed") is True:
+        blockers.append("training_allowed_true")
+    if chain.get("auto_applied") is True:
+        blockers.append("auto_applied_true")
+    if chain.get("apply_allowed") is True:
+        blockers.append("apply_allowed_true")
+    if extraction.get("ok") is not True:
+        blockers.append("extraction_not_ok")
+    if extraction.get("extraction_status") != "ready_for_plan_edit":
+        blockers.append("extraction_not_ready")
+    if not edits:
+        blockers.append("no_extracted_edits")
+
+    if not plan:
+        blockers.append("missing_local_plan")
+    else:
+        plan_hash = plan.get("plan_hash")
+        edit_plan_hash = edit_plan.get("plan_hash")
+        if plan.get("ok") is not True:
+            blockers.append("plan_not_ok")
+        if plan.get("plan_status") != "planned":
+            blockers.append("plan_not_planned")
+        if not isinstance(plan_hash, str) or len(plan_hash) != 64:
+            blockers.append("invalid_plan_hash")
+        if isinstance(edit_plan_hash, str) and edit_plan_hash != plan_hash:
+            blockers.append("plan_hash_mismatch")
+        if not planned:
+            blockers.append("no_planned_edits")
+        if plan_rejected:
+            blockers.append("plan_has_rejections")
+        if plan.get("training_allowed") is True:
+            blockers.append("plan_training_allowed_true")
+        if plan.get("auto_applied") is True:
+            blockers.append("plan_auto_applied_true")
+        if plan.get("apply_allowed") is True:
+            blockers.append("plan_apply_allowed_true")
+        if len(planned) != len(edits):
+            warnings.append("planned_edit_count_differs")
+
+    if extraction_rejected:
+        warnings.append("extraction_has_rejections")
+    if not (chain.get("target_root") or plan.get("target_root")):
+        warnings.append("target_root_missing")
+
+    ok = not blockers
+    review_status = (
+        "ready_for_explicit_apply_approval" if ok else "blocked_before_apply"
+    )
+    return {
+        "source": "biber_local_repair_chain_review",
+        "repair_loop_version": "mvp-v1",
+        "source_artifact": chain.get("artifact_path") or chain.get("source_artifact"),
+        "chain_source_artifact": chain.get("source_artifact"),
+        "review_status": review_status,
+        "ok": ok,
+        "apply_recommendation": (
+            "ready_for_explicit_apply_approval" if ok else "do_not_apply"
+        ),
+        "training_allowed": False,
+        "auto_applied": False,
+        "apply_allowed": False,
+        "approval_required": True,
+        "approval_received": False,
+        "mentor_used": False,
+        "blockers": blockers,
+        "warnings": warnings,
+        "chain_status": chain.get("chain_status"),
+        "extraction_status": extraction.get("extraction_status"),
+        "plan_status": plan.get("plan_status") if plan else None,
+        "edits": len(edits),
+        "planned": len(planned),
+        "rejected": len(extraction_rejected) + len(plan_rejected),
+        "plan_hash": plan.get("plan_hash") if plan else None,
+        "target_root": chain.get("target_root") or plan.get("target_root"),
+        "next_test_id": chain.get("next_test_id") or plan.get("next_test_id"),
+        "next_workflow": [
+            "human_review_plan_hash_and_paths",
+            "only_then_run_apply-repair-edits_with_--approve",
+            "rerun_next_test_id",
+            "diagnose_again_if_still_failing",
+        ],
+    }
+
+
 def normalize_repair_edit_plan_artifact(
     payload: Mapping[str, Any],
 ) -> dict[str, Any] | None:
@@ -12941,6 +13061,38 @@ def format_local_repair_chain_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_local_repair_chain_review_summary(payload: Mapping[str, Any]) -> str:
+    blockers = [str(item) for item in require_list(payload.get("blockers"))]
+    warnings = [str(item) for item in require_list(payload.get("warnings"))]
+    lines = [
+        "BIBER local repair chain review",
+        f"review_status: {payload.get('review_status', '-')}",
+        f"ok: {payload.get('ok')}",
+        f"apply_recommendation: {payload.get('apply_recommendation', '-')}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"auto_applied: {payload.get('auto_applied', False)}",
+        f"apply_allowed: {payload.get('apply_allowed', False)}",
+        f"source_artifact: {payload.get('source_artifact', '-')}",
+        f"chain_status: {payload.get('chain_status', '-')}",
+        f"extraction_status: {payload.get('extraction_status', '-')}",
+        f"plan_status: {payload.get('plan_status', '-')}",
+        f"edits: {payload.get('edits', 0)}",
+        f"planned: {payload.get('planned', 0)}",
+        f"rejected: {payload.get('rejected', 0)}",
+        f"plan_hash: {payload.get('plan_hash', '-')}",
+        f"target_root: {payload.get('target_root', '-')}",
+        f"next_test_id: {payload.get('next_test_id') or '-'}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    if blockers:
+        lines.append("blockers:")
+        lines.extend(f"- {item}" for item in blockers)
+    if warnings:
+        lines.append("warnings:")
+        lines.extend(f"- {item}" for item in warnings)
+    return "\n".join(lines)
+
+
 def format_repair_edit_apply_summary(payload: Mapping[str, Any]) -> str:
     edit_apply = require_mapping(payload.get("edit_apply"))
     applied = [
@@ -16296,6 +16448,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     local_repair_chain.add_argument("--output")
 
+    review_local_repair_chain_parser = subparsers.add_parser(
+        "review-local-repair-chain",
+        help=(
+            "Review a saved local-repair-chain artifact before any human-approved "
+            "apply. This is deterministic and does not call the BIBER API."
+        ),
+    )
+    review_local_repair_chain_parser.add_argument("artifact")
+    review_local_repair_chain_parser.add_argument("--output")
+
     extract_repair_edits_parser = subparsers.add_parser(
         "extract-repair-edits",
         help=(
@@ -17561,6 +17723,28 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(chain, indent=2, sort_keys=True)
             if args.print_json
             else format_local_repair_chain_summary(chain)
+        )
+    if args.command == "review-local-repair-chain":
+        artifact_path = Path(args.artifact)
+        artifact = load_json_artifact(
+            str(artifact_path),
+            label="local-repair-chain artifact",
+        )
+        chain = normalize_local_repair_chain_artifact(artifact)
+        if chain is None:
+            raise BiberAgentClientError(
+                "review-local-repair-chain artifact must contain a saved "
+                "local-repair-chain JSON object."
+            )
+        review = review_local_repair_chain(chain)
+        review["source_artifact"] = str(artifact_path)
+        if args.output:
+            review["artifact_path"] = str(Path(args.output))
+            write_json_artifact(review, args.output)
+        return (
+            json.dumps(review, indent=2, sort_keys=True)
+            if args.print_json
+            else format_local_repair_chain_review_summary(review)
         )
     if args.command == "extract-repair-edits":
         artifact_path = Path(args.artifact)

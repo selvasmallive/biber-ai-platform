@@ -68,6 +68,15 @@ Seventh BIBER resume checkpoint on the same branch:
 edit extraction, and optionally a local plan when `--target-root` is supplied.
 It never resolves a BIBER API key, never calls the OpenAI mentor, never trains,
 and never applies files.
+Eighth BIBER resume checkpoint on the same branch:
+`review-local-repair-chain` now reviews a saved `local-repair-chain` artifact
+before any human-approved apply step. It is deterministic and local-only: it
+does not resolve API keys, call the OpenAI mentor, train, or apply files. The
+review reports blockers, warnings, plan hash, target root, edit counts, and
+the next test id, and only marks the chain
+`ready_for_explicit_apply_approval` when the chain is planned, the extraction
+is ready, the local plan is planned, hashes are valid, and all no-training/
+no-auto-apply guards remain false.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

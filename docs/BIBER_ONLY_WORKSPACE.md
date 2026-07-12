@@ -68,6 +68,9 @@ For an offline/local-model response, use `local-repair-chain` with
 `--model-response-file` and optional `--target-root`. It creates a combined
 repair request, attempt, extraction, and local plan artifact without resolving
 an API key and always stops before apply.
+Then run `review-local-repair-chain` on that combined artifact before asking
+for explicit apply approval. The review is deterministic, no-API, and reports
+blockers, warnings, plan hash, target root, and the next test id.
 
 ## Vast GPU
 
