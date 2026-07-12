@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import biber_agent_client as client  # noqa: E402
+import biber_local_openai_provider as local_provider  # noqa: E402
 
 
 def sample_capabilities() -> dict[str, object]:
@@ -69,6 +70,64 @@ def test_build_url_encodes_query_values() -> None:
     )
 
     assert url == "http://127.0.0.1:8000/v1/agent/capabilities?preset=xriq+review"
+
+
+def test_local_openai_provider_builds_chat_payload() -> None:
+    request = {
+        "source": "biber_local_model_command_request",
+        "model": "biber-dev-core-v1",
+        "chat_payload": {
+            "model": "biber-dev-core-v1",
+            "messages": [{"role": "user", "content": "Return JSON edits."}],
+            "temperature": 0.1,
+            "max_tokens": 256,
+        },
+    }
+
+    payload = local_provider.build_chat_completions_payload(
+        request,
+        model="qwen-local-alias",
+        max_tokens=None,
+        temperature=None,
+    )
+
+    assert payload == {
+        "model": "qwen-local-alias",
+        "messages": [{"role": "user", "content": "Return JSON edits."}],
+        "temperature": 0.1,
+        "max_tokens": 256,
+        "stream": False,
+    }
+
+
+def test_local_openai_provider_extracts_content_and_metadata() -> None:
+    response = {
+        "model": "qwen-local-alias",
+        "choices": [{"message": {"content": "  {\"edits\": []}  "}}],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 4},
+    }
+    provider_payload = {
+        "model": "qwen-local-alias",
+        "messages": [{"role": "user", "content": "Return JSON edits."}],
+        "temperature": 0.0,
+        "stream": False,
+    }
+
+    content = local_provider.extract_message_content(response)
+    output = local_provider.build_command_output(
+        content=content,
+        response=response,
+        provider_payload=provider_payload,
+        base_url="http://127.0.0.1:8001/v1",
+    )
+
+    assert content == "{\"edits\": []}"
+    assert output["content"] == "{\"edits\": []}"
+    assert output["provider"] == "openai-compatible-local"
+    assert output["mentor_used"] is False
+    assert output["training_allowed"] is False
+    assert output["api_required"] is False
+    assert output["usage"] == {"prompt_tokens": 10, "completion_tokens": 4}
 
 
 def test_format_capabilities_summary_includes_presets_and_tests() -> None:
@@ -5577,6 +5636,9 @@ def test_run_local_repair_loop_status_includes_model_command_alternative(
     assert result["next_step"]["action"] == "run_local_repair_chain"
     assert "--model-response-file" in result["next_step"]["command"]
     assert "--model-command" in result["next_step"]["model_command_alternative"]
+    assert "biber_local_openai_provider.py" in result["next_step"][
+        "model_command_alternative"
+    ]
 
 
 def test_local_repair_loop_smoke_script_documents_no_api_chain() -> None:

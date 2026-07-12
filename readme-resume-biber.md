@@ -206,13 +206,18 @@ and may print raw model text, strict JSON edits, or a JSON object with a string
 
 ```bash
 python scripts/biber_agent_client.py --json local-repair-chain prepared-repair.json \
-  --model-command "[\"python\",\"scripts/local_model_provider.py\"]" \
+  --model-command "[\"python\",\"scripts/biber_local_openai_provider.py\"]" \
   --target-root /path/to/repo \
   --output /tmp/local-repair-chain.json
 ```
 
 This is the preferred bridge for Qwen2.5 now, Qwen3 later, or any future local
 provider wrapper while OpenAI mentor stays disabled by default.
+`scripts/biber_local_openai_provider.py` calls a local OpenAI-compatible
+`/v1/chat/completions` endpoint. Configure it with
+`BIBER_LOCAL_OPENAI_BASE_URL` (default `http://127.0.0.1:8001/v1`),
+`BIBER_LOCAL_OPENAI_MODEL` for the served model/adapter alias, and optional
+`BIBER_LOCAL_OPENAI_API_KEY` only if the local endpoint requires auth.
 Before any apply approval, run `review-local-repair-chain` on the combined
 artifact. It is deterministic and local-only, and it summarizes blockers,
 warnings, plan hash, target root, and the next test id.

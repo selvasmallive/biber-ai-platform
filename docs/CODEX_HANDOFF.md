@@ -132,6 +132,17 @@ does not apply files. `local-repair-loop-status` now includes a
 `model_command_alternative` next-step command when a prepared repair request is
 ready. The no-API smoke now exercises the command-provider path with a
 temporary fixture provider.
+Fifteenth BIBER resume checkpoint on the same branch:
+`scripts/biber_local_openai_provider.py` now provides the first real local
+provider wrapper for the `--model-command` bridge. It reads the BIBER local
+model-command JSON from stdin, calls a local OpenAI-compatible
+`/v1/chat/completions` endpoint, and prints JSON with a `content` field for
+`local-repair-chain`. Defaults are intentionally local and swappable:
+`BIBER_LOCAL_OPENAI_BASE_URL` defaults to `http://127.0.0.1:8001/v1`,
+`BIBER_LOCAL_OPENAI_MODEL` can override the served model/adapter alias, and
+`BIBER_LOCAL_OPENAI_API_KEY` is optional for endpoints that require auth. This
+adds no OpenAI mentor use, no training, no auto-apply, and no GPU requirement
+for source work.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

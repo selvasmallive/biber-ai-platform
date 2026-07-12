@@ -75,13 +75,19 @@ print raw model text, strict JSON edits, or a JSON object with a string
 
 ```bash
 python scripts/biber_agent_client.py --json local-repair-chain prepared-repair.json \
-  --model-command "[\"python\",\"scripts/local_model_provider.py\"]" \
+  --model-command "[\"python\",\"scripts/biber_local_openai_provider.py\"]" \
   --target-root /path/to/repo \
   --output /tmp/local-repair-chain.json
 ```
 
 This keeps Qwen2.5, Qwen3, llama.cpp, vLLM wrappers, and future local runners
 swappable without enabling OpenAI mentor, API auth, GPU training, or file apply.
+`scripts/biber_local_openai_provider.py` is the stdlib OpenAI-compatible
+wrapper. Set `BIBER_LOCAL_OPENAI_BASE_URL` to the local endpoint base URL
+(default `http://127.0.0.1:8001/v1`) and optionally
+`BIBER_LOCAL_OPENAI_MODEL` to the served model or LoRA alias. If the endpoint
+requires a token, put it in `BIBER_LOCAL_OPENAI_API_KEY`; do not paste it into
+chat or commit it.
 Then run `review-local-repair-chain` on that combined artifact before asking
 for explicit apply approval. The review is deterministic, no-API, and reports
 blockers, warnings, plan hash, target root, and the next test id.

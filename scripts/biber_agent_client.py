@@ -4405,7 +4405,7 @@ def local_repair_loop_next_step(
     path = str(current.get("path") or "")
     target_root = current.get("target_root") or "<TARGET_ROOT>"
     model_response_path = directory / "model-response.json"
-    model_command_placeholder = '["python","scripts/local_model_provider.py"]'
+    model_command_placeholder = '["python","scripts/biber_local_openai_provider.py"]'
 
     if artifact_type == "mvp_loop":
         if current.get("ok") is True:
