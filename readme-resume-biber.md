@@ -206,6 +206,10 @@ After explicit apply approval, run `apply-repair-edits --approve` with
 `--review-artifact` pointing at that accepted review artifact. The apply step
 validates the review status and plan hash before it changes files; local-target
 apply remains no-API when a local target root is recorded or supplied.
+After apply, run `local-verify-chain` on the apply artifact. It reruns the
+recorded next test locally, can run deterministic local diagnosis on failure,
+and emits a compact `verified` / `still_failing` / `not_executed` chain artifact
+without resolving API credentials.
 
 Do not run QLoRA or any training command just because a session says
 "continue." Training is appropriate only after the BIBER eval/review pipeline

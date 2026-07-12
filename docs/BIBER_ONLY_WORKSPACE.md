@@ -75,6 +75,10 @@ If apply is explicitly approved, pass the accepted review artifact to
 `apply-repair-edits --approve --review-artifact ...`. The apply command checks
 that the review is ready and that its plan hash matches the repair plan before
 it changes files.
+After apply, run `local-verify-chain` on the apply artifact. It reruns the
+recorded next test against the local target root, optionally diagnoses failures
+locally, and emits a compact `verified` / `still_failing` / `not_executed`
+artifact for the next loop without resolving API credentials.
 
 ## Vast GPU
 

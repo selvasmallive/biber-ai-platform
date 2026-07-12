@@ -86,6 +86,15 @@ the no-training/no-auto-apply/no-pre-apply guard state, and has the same
 apply artifact records the accepted pre-apply review gate. Local-target apply
 also avoids API-key resolution when `--target-root` is supplied or the repair
 plan records a `target_root`.
+Tenth BIBER resume checkpoint on the same branch:
+`local-verify-chain` now provides the no-API post-apply verification step for
+the local repair loop. It reads an approved `apply-repair-edits` artifact,
+requires a local target root from the artifact or `--target-root`, reruns the
+recorded next test id locally, optionally runs deterministic local diagnosis on
+failure, and emits a compact `biber_local_repair_verification_chain` artifact
+with `chain_status` of `verified`, `still_failing`, or `not_executed`. It never
+resolves API credentials, never calls the OpenAI mentor, never trains, never
+auto-saves, and never applies files.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

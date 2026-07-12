@@ -5001,6 +5001,201 @@ def test_run_verify_repair_edits_uses_apply_target_root_for_local_test(
     assert result["test_run"]["stdout"] == "10 passed in 0.24s\n"
 
 
+def test_run_local_verify_chain_marks_verified_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    target_root = tmp_path / "candidate-repo"
+    target_root.mkdir()
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local-verify-chain should not resolve an API key")
+
+    def fake_run_allowlisted_test_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        captured["target_root"] = target_root
+        captured["payload"] = payload
+        return {
+            "test_id": payload["test_id"],
+            "label": "Python compileall API",
+            "executed": True,
+            "ok": True,
+            "exit_code": 0,
+            "timed_out": False,
+            "duration_ms": 31,
+            "cwd": str(target_root),
+            "command": ["python", "-m", "compileall", "app", "src"],
+            "stdout": "",
+            "stderr": "",
+        }
+
+    artifact = tmp_path / "repair-edit-apply.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "apply_status": "applied",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "auto_saved": False,
+                "approval_received": True,
+                "plan_hash": "a" * 64,
+                "target_root": str(target_root),
+                "target_root_source": "repair_plan_target_root",
+                "next_test_id": "python-compileall-api",
+                "edit_apply": {
+                    "ok": True,
+                    "applied": [{"path": "src/app.py", "changed": True}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "local-verify-chain.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(
+        client,
+        "run_allowlisted_test_local_target",
+        fake_run_allowlisted_test_local_target,
+    )
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "local-verify-chain",
+                str(artifact),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert captured["target_root"] == target_root.resolve()
+    assert captured["payload"] == {"test_id": "python-compileall-api"}
+    assert result["source"] == "biber_local_repair_verification_chain"
+    assert result["chain_status"] == "verified"
+    assert result["ok"] is True
+    assert result["training_allowed"] is False
+    assert result["auto_applied"] is False
+    assert result["auto_saved"] is False
+    assert result["apply_allowed"] is False
+    assert result["verification_status"] == "passed"
+    assert result["test_mode"] == "local_target_root"
+    assert result["target_root"] == str(target_root.resolve())
+    assert result["target_root_source"] == "repair_plan_target_root"
+    assert result["verification"]["verification_status"] == "passed"
+
+
+def test_run_local_verify_chain_marks_still_failing_with_diagnosis_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    target_root = tmp_path / "candidate-repo"
+    target_root.mkdir()
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local-verify-chain should not resolve an API key")
+
+    def fake_run_allowlisted_test_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        captured["target_root"] = target_root
+        captured["payload"] = payload
+        return {
+            "test_id": payload["test_id"],
+            "label": "Python pytest",
+            "executed": True,
+            "ok": False,
+            "exit_code": 1,
+            "timed_out": False,
+            "duration_ms": 44,
+            "cwd": str(target_root),
+            "command": ["python", "-m", "pytest", "-q"],
+            "stdout": "E AssertionError: expected 2\n",
+            "stderr": "",
+        }
+
+    def fake_diagnose_test_failure_local(
+        test_run: dict[str, object],
+        *,
+        max_context_lines: int | None,
+    ) -> dict[str, object]:
+        captured["diagnosis_test_id"] = test_run["test_id"]
+        captured["max_context_lines"] = max_context_lines
+        return {
+            "has_failure": True,
+            "primary_category": "assertion_failure",
+            "detected_stack": "python",
+            "relevant_output": "E AssertionError: expected 2",
+            "summary": "Detected assertion_failure in python output.",
+        }
+
+    artifact = tmp_path / "repair-edit-apply.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "apply_status": "applied",
+                "ok": True,
+                "plan_hash": "b" * 64,
+                "target_root": str(target_root),
+                "next_test_id": "python-pytest",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(
+        client,
+        "run_allowlisted_test_local_target",
+        fake_run_allowlisted_test_local_target,
+    )
+    monkeypatch.setattr(
+        client,
+        "diagnose_test_failure_local",
+        fake_diagnose_test_failure_local,
+    )
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "local-verify-chain",
+                str(artifact),
+                "--diagnose-on-failure",
+                "--max-context-lines",
+                "25",
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert captured["target_root"] == target_root.resolve()
+    assert captured["payload"] == {"test_id": "python-pytest"}
+    assert captured["diagnosis_test_id"] == "python-pytest"
+    assert captured["max_context_lines"] == 25
+    assert result["source"] == "biber_local_repair_verification_chain"
+    assert result["chain_status"] == "still_failing"
+    assert result["ok"] is False
+    assert result["verification_status"] == "failed"
+    assert result["diagnosis_summary"] == "Detected assertion_failure in python output."
+    assert result["primary_category"] == "assertion_failure"
+    assert result["detected_stack"] == "python"
+    assert "do_not_save_or_train_from_unverified_repair" in result["next_workflow"]
+
+
 def test_run_verify_repair_edits_can_override_test_id_and_diagnose_failure(
     monkeypatch,
     tmp_path: Path,

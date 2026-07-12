@@ -3803,6 +3803,69 @@ def build_verify_repair_edits_result(
     return result
 
 
+def build_local_repair_verification_chain_result(
+    *,
+    apply_path: Path,
+    repair_apply: Mapping[str, Any],
+    verification: Mapping[str, Any],
+) -> dict[str, Any]:
+    test_run = require_mapping(verification.get("test_run"))
+    diagnosis = require_mapping(test_run.get("diagnosis"))
+    if verification.get("ok") is True:
+        chain_status = "verified"
+    elif verification.get("verification_status") == "not_executed":
+        chain_status = "not_executed"
+    else:
+        chain_status = "still_failing"
+
+    relevant_output = diagnosis.get("relevant_output") or "\n".join(
+        item
+        for item in [str(test_run.get("stdout") or ""), str(test_run.get("stderr") or "")]
+        if item
+    )
+    result: dict[str, Any] = {
+        "source": "biber_local_repair_verification_chain",
+        "repair_loop_version": "mvp-v1",
+        "source_artifact": str(apply_path),
+        "chain_status": chain_status,
+        "ok": verification.get("ok") is True,
+        "training_allowed": False,
+        "auto_applied": False,
+        "auto_saved": False,
+        "apply_allowed": False,
+        "plan_hash": verification.get("plan_hash") or repair_apply.get("plan_hash"),
+        "test_id": verification.get("test_id") or test_run.get("test_id"),
+        "verification_status": verification.get("verification_status"),
+        "test_mode": verification.get("test_mode"),
+        "test_executed": test_run.get("executed"),
+        "test_ok": test_run.get("ok"),
+        "exit_code": test_run.get("exit_code"),
+        "timed_out": bool(test_run.get("timed_out")),
+        "target_root": verification.get("target_root") or repair_apply.get("target_root"),
+        "target_root_source": verification.get("target_root_source")
+        or repair_apply.get("target_root_source"),
+        "diagnosis_summary": diagnosis.get("summary"),
+        "primary_category": diagnosis.get("primary_category"),
+        "detected_stack": diagnosis.get("detected_stack"),
+        "relevant_output": compact_text(relevant_output, max_chars=1600),
+        "verification": dict(verification),
+        "next_workflow": (
+            [
+                "human_review_verified_fix",
+                "save_to_github_only_if_requested",
+                "record_verified_candidate_only_after_human_review",
+            ]
+            if verification.get("ok") is True
+            else [
+                "prepare_repair_from_verification_artifact",
+                "run_local_repair_chain_again_with_new_model_response",
+                "do_not_save_or_train_from_unverified_repair",
+            ]
+        ),
+    }
+    return result
+
+
 def normalize_repair_test_verification_artifact(
     payload: Mapping[str, Any],
 ) -> dict[str, Any] | None:
@@ -13312,6 +13375,41 @@ def format_repair_test_verification_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_local_repair_verification_chain_summary(payload: Mapping[str, Any]) -> str:
+    lines = [
+        "BIBER local repair verification chain",
+        f"chain_status: {payload.get('chain_status', '-')}",
+        f"ok: {payload.get('ok')}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"auto_applied: {payload.get('auto_applied', False)}",
+        f"auto_saved: {payload.get('auto_saved', False)}",
+        f"apply_allowed: {payload.get('apply_allowed', False)}",
+        f"source_artifact: {payload.get('source_artifact', '-')}",
+        f"plan_hash: {payload.get('plan_hash', '-')}",
+        f"test_id: {payload.get('test_id', '-')}",
+        f"verification_status: {payload.get('verification_status', '-')}",
+        f"test_mode: {payload.get('test_mode', '-')}",
+        f"test_executed: {payload.get('test_executed')}",
+        f"test_ok: {payload.get('test_ok')}",
+        f"exit_code: {payload.get('exit_code')}",
+        f"timed_out: {payload.get('timed_out', False)}",
+        f"target_root: {payload.get('target_root', '-')}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    if payload.get("diagnosis_summary"):
+        lines.append(f"diagnosis: {payload.get('diagnosis_summary')}")
+    if payload.get("primary_category") or payload.get("detected_stack"):
+        lines.append(
+            " ".join(
+                [
+                    f"primary_category={payload.get('primary_category') or '-'}",
+                    f"detected_stack={payload.get('detected_stack') or '-'}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_repair_test_verification_artifact_list_summary(
     payload: Mapping[str, Any],
 ) -> str:
@@ -16655,6 +16753,31 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     apply_repair_edits_parser.add_argument("--output")
 
+    local_verify_chain_parser = subparsers.add_parser(
+        "local-verify-chain",
+        help=(
+            "Run a local-only post-apply verification chain from a repair "
+            "apply artifact and emit a compact verified/still-failing status."
+        ),
+    )
+    local_verify_chain_parser.add_argument("artifact")
+    local_verify_chain_parser.add_argument("--test-id")
+    local_verify_chain_parser.add_argument(
+        "--target-root",
+        help=(
+            "Optional local repository root for verification. Defaults to the "
+            "target_root recorded by apply-repair-edits."
+        ),
+    )
+    local_verify_chain_parser.add_argument("--dry-run", action="store_true")
+    local_verify_chain_parser.add_argument(
+        "--diagnose-on-failure",
+        action="store_true",
+        help="Run local deterministic failure diagnosis when the test executes and fails.",
+    )
+    local_verify_chain_parser.add_argument("--max-context-lines", type=int)
+    local_verify_chain_parser.add_argument("--output")
+
     verify_repair_edits_parser = subparsers.add_parser(
         "verify-repair-edits",
         help=(
@@ -17879,6 +18002,67 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(review, indent=2, sort_keys=True)
             if args.print_json
             else format_local_repair_chain_review_summary(review)
+        )
+    if args.command == "local-verify-chain":
+        artifact_path = Path(args.artifact)
+        artifact = load_json_artifact(
+            str(artifact_path),
+            label="repair-edit apply artifact",
+        )
+        repair_apply = normalize_repair_edit_apply_artifact(artifact)
+        if repair_apply is None:
+            raise BiberAgentClientError(
+                "local-verify-chain artifact must contain a saved repair-edit apply JSON object."
+            )
+        test_payload = build_verify_repair_edits_payload(
+            repair_apply,
+            test_id=args.test_id,
+            dry_run=args.dry_run,
+        )
+        target_root, target_root_source = resolve_verify_target_root(
+            cli_target_root=args.target_root,
+            repair_apply=repair_apply,
+        )
+        if target_root is None:
+            raise BiberAgentClientError(
+                "local-verify-chain requires --target-root or target_root in the apply artifact."
+            )
+        test_run = run_allowlisted_test_local_target(
+            target_root=target_root,
+            payload=test_payload,
+        )
+        if (
+            args.diagnose_on_failure
+            and test_run.get("executed") is True
+            and test_run.get("ok") is False
+        ):
+            diagnosis = diagnose_test_failure_local(
+                test_run,
+                max_context_lines=args.max_context_lines,
+            )
+            test_run = dict(test_run)
+            test_run["diagnosis"] = diagnosis
+        verification = build_verify_repair_edits_result(
+            apply_path=artifact_path,
+            repair_apply=repair_apply,
+            test_payload=test_payload,
+            test_run=test_run,
+            test_mode="local_target_root",
+            target_root=target_root,
+            target_root_source=target_root_source,
+        )
+        chain = build_local_repair_verification_chain_result(
+            apply_path=artifact_path,
+            repair_apply=repair_apply,
+            verification=verification,
+        )
+        if args.output:
+            chain["artifact_path"] = str(Path(args.output))
+            write_json_artifact(chain, args.output)
+        return (
+            json.dumps(chain, indent=2, sort_keys=True)
+            if args.print_json
+            else format_local_repair_verification_chain_summary(chain)
         )
     if args.command == "extract-repair-edits":
         artifact_path = Path(args.artifact)
