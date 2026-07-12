@@ -682,6 +682,7 @@ pub fn node_help_text() -> String {
         "  xriq-node peer-blocks-export --chain-file <path> [--from-height <height>] [--limit <count>] [--alice-balance <base-units>] [--format json]  (read-only; serves validated blocks for peer sync, also at GET /v1/peer/blocks)",
         "  xriq-node peer-identity --chain-file <path> [--node-seed <string>] [--alice-balance <base-units>] [--format json]  (read-only compatibility handshake: network, protocol, tip, node id; also at GET /v1/peer/identity)",
         "  xriq-node peer-peers [--peers-file <path>] [--chain-file <path>] [--format json]  (read-only; advertises this node's known peers for discovery; also at GET /v1/peer/peers)",
+        "  xriq-node testnet-genesis [--format json]  (read-only; prints the canonical TEST-ONLY public testnet genesis spec and its reproducible genesis_spec_hash)",
         "  xriq-node peer-sync --chain-file <path> (--peer <http://host:port> | --peers-file <path>) [--discover <max-peers>] [--node-seed <string>] [--limit <count>] [--max-rounds <count>] [--alice-balance <base-units>] [--format json]  (follower; handshakes then pulls/validates blocks from one or many peers, discovering more and skipping itself, into the chain file)",
         "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-list --snapshot-root <path> [--limit <count>] [--format text|json]",
@@ -824,6 +825,7 @@ where
         Some("peer-identity") => run_peer_identity_command(&args[1..]),
         Some("peer-peers") => run_peer_peers_command(&args[1..]),
         Some("peer-sync") => run_peer_sync_command(&args[1..]),
+        Some("testnet-genesis") => run_testnet_genesis_command(&args[1..]),
         Some("transaction-detail") => run_transaction_detail_command(&args[1..]),
         Some("snapshot-list") => run_snapshot_list_command(&args[1..]),
         Some("snapshot-latest") => run_snapshot_latest_command(&args[1..]),
@@ -3434,6 +3436,84 @@ fn run_peer_peers_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunne
         "{{\n  \"command\": \"peer-peers\",\n  \"network\": \"{PEER_NETWORK}\",\n  \"peers\": {peers_json}\n}}"
     );
     Ok(NodeRunnerOutput::Json(json))
+}
+
+const TESTNET_GENESIS_WARNING: &str = "TEST-ONLY public testnet: native units are valueless test units with no monetary value; not for production, sale, or investment.";
+const GENESIS_SPEC_HASH_DOMAIN: &[u8] = b"xriq-genesis-spec:v1";
+
+fn push_len_prefixed(out: &mut Vec<u8>, data: &[u8]) {
+    out.extend_from_slice(&(data.len() as u64).to_le_bytes());
+    out.extend_from_slice(data);
+}
+
+// A single stable fingerprint over a genesis config's canonical parameters.
+// Independent nodes must compute the same hash to be on the same chain; any
+// drift in chain id, policy, authority, or genesis allocation changes it.
+fn genesis_spec_hash(genesis: &GenesisConfig) -> Hash32 {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(GENESIS_SPEC_HASH_DOMAIN);
+    push_len_prefixed(&mut bytes, genesis.chain_id.as_bytes());
+    bytes.extend_from_slice(&genesis.initial_height.to_le_bytes());
+    bytes.extend_from_slice(genesis.genesis_block_hash.as_bytes());
+    bytes.extend_from_slice(&genesis.min_fee.base_units().to_le_bytes());
+    push_len_prefixed(&mut bytes, genesis.fee_sink.as_str().as_bytes());
+    push_len_prefixed(&mut bytes, genesis.authority.as_str().as_bytes());
+    bytes.extend_from_slice(&(genesis.mempool_max_transactions as u64).to_le_bytes());
+    bytes.extend_from_slice(&(genesis.max_transactions_per_block as u64).to_le_bytes());
+    bytes.extend_from_slice(&(genesis.accounts.len() as u64).to_le_bytes());
+    for account in &genesis.accounts {
+        push_len_prefixed(&mut bytes, account.address.as_str().as_bytes());
+        bytes.extend_from_slice(&account.balance.base_units().to_le_bytes());
+        bytes.extend_from_slice(&account.nonce.to_le_bytes());
+    }
+    xriq_crypto::digest(&bytes)
+}
+
+fn render_testnet_genesis_json(genesis: &GenesisConfig) -> String {
+    let accounts_json = if genesis.accounts.is_empty() {
+        "[]".to_string()
+    } else {
+        let items = genesis
+            .accounts
+            .iter()
+            .map(|account| {
+                format!(
+                    "\n    {{ \"address\": {}, \"balance_base_units\": {}, \"nonce\": {} }}",
+                    json_string(account.address.as_str()),
+                    json_string(&account.balance.base_units().to_string()),
+                    account.nonce
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!("[{items}\n  ]")
+    };
+    format!(
+        "{{\n  \"command\": \"testnet-genesis\",\n  \"warning\": {},\n  \"chain_id\": {},\n  \"initial_height\": {},\n  \"genesis_block_hash\": {},\n  \"min_fee_base_units\": {},\n  \"fee_sink\": {},\n  \"authority\": {},\n  \"mempool_max_transactions\": {},\n  \"max_transactions_per_block\": {},\n  \"accounts\": {},\n  \"genesis_spec_hash\": {}\n}}",
+        json_string(TESTNET_GENESIS_WARNING),
+        json_string(&genesis.chain_id),
+        genesis.initial_height,
+        json_string(&hash_hex(genesis.genesis_block_hash)),
+        json_string(&genesis.min_fee.base_units().to_string()),
+        json_string(genesis.fee_sink.as_str()),
+        json_string(genesis.authority.as_str()),
+        genesis.mempool_max_transactions,
+        genesis.max_transactions_per_block,
+        accounts_json,
+        json_string(&hash_hex(genesis_spec_hash(genesis))),
+    )
+}
+
+// Read-only: print the canonical public testnet genesis spec and its fingerprint.
+// TEST-ONLY; the chain has no monetary value.
+fn run_testnet_genesis_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&["--format"])?;
+    let _ = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let genesis = GenesisConfig::public_testnet();
+    Ok(NodeRunnerOutput::Json(render_testnet_genesis_json(
+        &genesis,
+    )))
 }
 
 fn run_chain_check_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
@@ -9005,6 +9085,34 @@ mod tests {
         let _ = fs::remove_file(seed_chain);
         let _ = fs::remove_file(seed_peers);
         let _ = fs::remove_file(follower_path);
+    }
+
+    #[test]
+    fn testnet_genesis_command_emits_reproducible_spec() {
+        let json = run_node_command(["testnet-genesis", "--format", "json"])
+            .unwrap()
+            .to_string();
+        assert!(json.contains("\"command\": \"testnet-genesis\""));
+        assert!(json.contains("\"chain_id\": \"xriq-testnet\""));
+        assert!(json.contains("\"address\": \"xriqdev1testnetfaucet00000000\""));
+        assert!(json.contains("\"balance_base_units\": \"1000000000000\""));
+        assert!(json.contains("TEST-ONLY"));
+        // Golden fingerprint: independent nodes must reproduce this exact hash.
+        // If this assertion fails, the testnet genesis spec changed (a hard fork).
+        assert!(json.contains(
+            "\"genesis_spec_hash\": \"af01fa096c41538735cae46a6f9a7cb052bb198b1dd33316f905e46ec7ad1580\""
+        ));
+
+        // The fingerprint is deterministic and distinct from the devnet genesis.
+        let testnet = GenesisConfig::public_testnet();
+        assert_eq!(
+            genesis_spec_hash(&testnet),
+            genesis_spec_hash(&GenesisConfig::public_testnet())
+        );
+        assert_ne!(
+            genesis_spec_hash(&testnet),
+            genesis_spec_hash(&GenesisConfig::private_devnet())
+        );
     }
 
     #[test]

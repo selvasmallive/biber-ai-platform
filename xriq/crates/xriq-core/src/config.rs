@@ -5,6 +5,22 @@ pub const PRIVATE_DEVNET_MIN_FEE_BASE_UNITS: u128 = 2;
 pub const PRIVATE_DEVNET_MEMPOOL_MAX_TRANSACTIONS: usize = 8;
 pub const PRIVATE_DEVNET_MAX_TRANSACTIONS_PER_BLOCK: usize = 4;
 
+// Public test network chain spec. This is a TEST-ONLY network: the native unit
+// has NO monetary value, there is no sale/emission beyond the fixed genesis
+// faucet allocation below, and the faucet dispenses clearly-labeled valueless
+// test units. Every field here is fixed and reproducible so independent nodes
+// agree on the same genesis.
+pub const PUBLIC_TESTNET_CHAIN_ID: &str = "xriq-testnet";
+pub const PUBLIC_TESTNET_MIN_FEE_BASE_UNITS: u128 = 2;
+pub const PUBLIC_TESTNET_MEMPOOL_MAX_TRANSACTIONS: usize = 4096;
+pub const PUBLIC_TESTNET_MAX_TRANSACTIONS_PER_BLOCK: usize = 512;
+pub const PUBLIC_TESTNET_AUTHORITY_ADDRESS: &str = "xriqdev1testnetauthority00000";
+pub const PUBLIC_TESTNET_FEE_SINK_ADDRESS: &str = "xriqdev1testnetfees0000000000";
+/// Genesis-funded faucet account. Its balance is valueless test units used only
+/// to seed the public testnet faucet; it is not a supply, sale, or distribution.
+pub const PUBLIC_TESTNET_FAUCET_ADDRESS: &str = "xriqdev1testnetfaucet00000000";
+pub const PUBLIC_TESTNET_FAUCET_BALANCE_BASE_UNITS: u128 = 1_000_000_000_000;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenesisAccount {
     pub address: Address,
@@ -60,6 +76,30 @@ impl GenesisConfig {
             max_transactions_per_block: PRIVATE_DEVNET_MAX_TRANSACTIONS_PER_BLOCK,
             accounts: Vec::new(),
         }
+    }
+
+    /// The public test network genesis: a fixed, reproducible chain spec whose
+    /// only genesis allocation is the valueless faucet account. TEST-ONLY.
+    pub fn public_testnet() -> Self {
+        Self {
+            chain_id: PUBLIC_TESTNET_CHAIN_ID.to_string(),
+            initial_height: 0,
+            genesis_block_hash: Hash32::ZERO,
+            min_fee: XriqAmount::from_base_units(PUBLIC_TESTNET_MIN_FEE_BASE_UNITS),
+            fee_sink: Address::parse(PUBLIC_TESTNET_FEE_SINK_ADDRESS)
+                .expect("public testnet fee sink address is valid"),
+            authority: Address::parse(PUBLIC_TESTNET_AUTHORITY_ADDRESS)
+                .expect("public testnet authority address is valid"),
+            mempool_max_transactions: PUBLIC_TESTNET_MEMPOOL_MAX_TRANSACTIONS,
+            max_transactions_per_block: PUBLIC_TESTNET_MAX_TRANSACTIONS_PER_BLOCK,
+            accounts: Vec::new(),
+        }
+        .with_account(
+            Address::parse(PUBLIC_TESTNET_FAUCET_ADDRESS)
+                .expect("public testnet faucet address is valid"),
+            XriqAmount::from_base_units(PUBLIC_TESTNET_FAUCET_BALANCE_BASE_UNITS),
+            0,
+        )
     }
 
     pub fn with_account(mut self, address: Address, balance: XriqAmount, nonce: u64) -> Self {
@@ -148,6 +188,33 @@ mod tests {
         assert_eq!(
             genesis.total_initial_balance(),
             Ok(XriqAmount::from_base_units(125))
+        );
+    }
+
+    #[test]
+    fn public_testnet_is_valid_and_funds_only_the_faucet() {
+        let genesis = GenesisConfig::public_testnet();
+
+        assert_eq!(genesis.chain_id, PUBLIC_TESTNET_CHAIN_ID);
+        assert_ne!(genesis.chain_id, PRIVATE_DEVNET_CHAIN_ID);
+        assert_eq!(genesis.initial_height, 0);
+        assert_eq!(genesis.genesis_block_hash, Hash32::ZERO);
+        assert_eq!(genesis.validate(), Ok(()));
+
+        // The only genesis allocation is the valueless faucet account.
+        assert_eq!(genesis.accounts.len(), 1);
+        let faucet = &genesis.accounts[0];
+        assert_eq!(faucet.address.as_str(), PUBLIC_TESTNET_FAUCET_ADDRESS);
+        assert_eq!(
+            faucet.balance,
+            XriqAmount::from_base_units(PUBLIC_TESTNET_FAUCET_BALANCE_BASE_UNITS)
+        );
+        assert_eq!(faucet.nonce, 0);
+        assert_eq!(
+            genesis.total_initial_balance(),
+            Ok(XriqAmount::from_base_units(
+                PUBLIC_TESTNET_FAUCET_BALANCE_BASE_UNITS
+            ))
         );
     }
 

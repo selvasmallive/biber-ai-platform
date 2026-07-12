@@ -374,8 +374,23 @@ Covered by `derive_node_id_is_stable_and_seed_specific`, the extended
 `peer_sync_skips_self_by_node_id` (a follower with a self-peer listed first skips it
 and still syncs the block from the real leader: `peers_skipped_self=1`,
 `peers_reachable=1`, tip reached). Milestone 2 (peer identity + discovery) is now
-functionally complete. Next milestone (3): the testnet chain/genesis and a valueless
-faucet. Everything stays test-only with no public economics.
+functionally complete.
+Phase 3 milestone 3 (public testnet) has begun with increment 1: the canonical
+testnet chain/genesis spec. `xriq_core::GenesisConfig::public_testnet()` defines a
+fixed, reproducible genesis — `chain_id` `xriq-testnet` (distinct from the
+`xriq-devnet` devnet), testnet policy limits (mempool 4096 / block 512), dedicated
+authority/fee-sink addresses, and exactly one genesis allocation: a valueless
+faucet account (`xriqdev1testnetfaucet00000000`, 1,000,000,000,000 base units) that
+will seed the forthcoming faucet service. A new `xriq-node testnet-genesis` command
+prints the spec as JSON with a reproducible `genesis_spec_hash` (SHA-256, via the
+`xriq_crypto::digest` added in m2, over a domain-separated `xriq-genesis-spec:v1`
+length-prefixed encoding of every parameter + each account). The golden hash is
+`af01fa096c41538735cae46a6f9a7cb052bb198b1dd33316f905e46ec7ad1580`, pinned by a
+node test (drift = a hard fork) and documented in `docs/XRIQ_TESTNET_CHAINSPEC.md`.
+This defines the genesis only; it does not start a network. Everything stays
+test-only with no monetary value (the chain spec and doc both carry the TEST-ONLY /
+valueless framing). Remaining for milestone 3: the rate-limited valueless faucet
+service, then public testnet nodes and the public explorer/wallet.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,
