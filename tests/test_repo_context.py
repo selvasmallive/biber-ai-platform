@@ -273,8 +273,68 @@ def test_repo_context_plan_endpoint_returns_selected_paths(tmp_path: Path) -> No
     assert body["selected_paths"][0] == "src/service.py"
     assert "python" in body["detected_project_types"]
     assert "tests/test_service.py" in body["selected_paths"]
-    assert body["stack_profiles"] == []
+    profiles = {profile["id"]: profile for profile in body["stack_profiles"]}
+    assert profiles["python"]["recommended_test_ids"] == [
+        "python-pytest",
+        "python-compileall-api",
+    ]
     assert body["summary"].startswith("Detected")
+
+
+def test_plan_repo_context_exposes_node_react_profile(tmp_path: Path) -> None:
+    (tmp_path / "package.json").write_text(
+        '{"scripts":{"check":"tsc --noEmit"}}\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "tsconfig.json").write_text("{}\n", encoding="utf-8")
+    component = tmp_path / "src" / "components" / "WalletButton.tsx"
+    component.parent.mkdir(parents=True)
+    component.write_text("export function WalletButton() { return null }\n", encoding="utf-8")
+    test = tmp_path / "src" / "components" / "WalletButton.test.tsx"
+    test.write_text("test('renders', () => {})\n", encoding="utf-8")
+
+    plan = plan_repo_context(
+        root=str(tmp_path),
+        instruction="Fix WalletButton disabled behavior.",
+        changed_paths=["src/components/WalletButton.tsx"],
+        max_files=8,
+    )
+
+    assert "node-react" in plan["detected_project_types"]
+    assert "src/components/WalletButton.tsx" in plan["selected_paths"]
+    assert "src/components/WalletButton.test.tsx" in plan["selected_paths"]
+    profiles = {profile["id"]: profile for profile in plan["stack_profiles"]}
+    assert profiles["node-react"]["recommended_test_ids"] == [
+        "npm-run-check",
+        "npm-test",
+        "npm-run-build",
+    ]
+
+
+def test_plan_repo_context_detects_tensorflow_docker_and_actions(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "requirements.txt").write_text("tensorflow==2.16.1\n", encoding="utf-8")
+    (tmp_path / "train.py").write_text("import tensorflow as tf\n", encoding="utf-8")
+    (tmp_path / "Dockerfile").write_text("FROM python:3.12-slim\n", encoding="utf-8")
+    workflow = tmp_path / ".github" / "workflows" / "ci.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text("name: ci\n", encoding="utf-8")
+
+    plan = plan_repo_context(
+        root=str(tmp_path),
+        instruction="Improve TensorFlow training CI container setup.",
+        changed_paths=["train.py"],
+        max_files=8,
+    )
+
+    assert {"python", "tensorflow", "docker", "github-actions"}.issubset(
+        set(plan["detected_project_types"])
+    )
+    profiles = {profile["id"]: profile for profile in plan["stack_profiles"]}
+    assert profiles["tensorflow"]["recommended_test_ids"] == ["python-pytest"]
+    assert profiles["docker"]["recommended_test_ids"] == ["docker-compose-config"]
+    assert profiles["github-actions"]["label"] == "GitHub Actions CI/CD"
 
 
 def test_chat_service_injects_repo_context_into_local_prompt(tmp_path: Path) -> None:

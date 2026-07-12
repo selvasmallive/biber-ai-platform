@@ -11,9 +11,13 @@ Copy this prompt into the next Codex session:
 Read readme-resume-biber.md and docs/CODEX_HANDOFF.md. Resume BIBER from the
 current GitHub main branch on a brand-new GPU/volume. Do not assume any old
 /workspace runtime artifacts exist. Keep OpenAI/Codex usage minimal. Do not
-rotate credentials. Do not start training unless I explicitly approve it.
-Current near-term priority is XRIQ private-devnet prototype first, while keeping
-BIBER MVP stable.
+rotate credentials. Keep OpenAI mentor optional and disabled by default.
+Current near-term priority is BIBER MVP only: swappable model providers, repo
+context, safe file edits, test execution/diagnosis, GitHub save/PR workflow,
+and the BIBER agent client flow. XRIQ work is now a separate XRIS-Coin project;
+do not continue XRIQ from this repo unless I explicitly ask for it. Use GPU or
+training only when a concrete BIBER eval/training need exists and current GPU
+runtime access is available.
 ```
 
 ## What GitHub Preserves
@@ -149,15 +153,19 @@ The base local coding model can be restored by running the Vast bootstrap/start
 scripts. Repo-adapted LoRA behavior is not available unless adapter artifacts
 are restored or retrained.
 
-Do not run QLoRA or any training command from a generic "continue" request.
-Training requires separate explicit user approval.
+Do not run QLoRA or any training command just because a session says
+"continue." Training is appropriate only after the BIBER eval/review pipeline
+shows a concrete repeatable model gap, the reviewed dataset is ready, and a
+current GPU runtime is available. Keep source-level BIBER orchestration work
+CPU/local-first until training is actually needed.
 
 ## Cost-Control Rules
 
-- Prefer XRIQ Rust/CPU work while the GPU is offline.
+- Prefer CPU/local BIBER orchestration work while the GPU is offline.
 - Use Codex for narrow patches, review, integration, and handoff updates.
 - Use local deterministic tests and scripts for verification.
 - Use OpenAI mentor only if the user explicitly requests it or the handoff says
   risk justifies it.
-- Keep public XRIQ, DEX, tokenomics, production security audits, listings, and
-  launch claims out of scope until the private-devnet prototype is complete.
+- Keep unrelated XRIQ/XRIS-Coin, public chain, DEX, tokenomics, production
+  security audits, listings, and launch claims out of BIBER MVP scope unless
+  explicitly requested.

@@ -49,10 +49,16 @@ def test_list_test_commands_exposes_fixed_allowlist(tmp_path: Path) -> None:
 
     assert ids == {
         "dotnet-test",
+        "docker-compose-config",
+        "cargo-test",
         "gradle-test",
         "gradle-wrapper-test",
         "maven-test",
+        "npm-run-build",
+        "npm-run-check",
+        "npm-test",
         "python-compileall-api",
+        "python-pytest",
         "pytest-core",
         "pytest-test-diagnosis",
         "xriq-node-fixtures",
@@ -96,6 +102,28 @@ def test_dotnet_and_java_test_commands_are_allowlisted(tmp_path: Path) -> None:
     assert all(
         result["executed"] is False
         for result in (dotnet, maven, gradle, gradle_wrapper)
+    )
+
+
+def test_common_biber_stack_test_commands_are_allowlisted(tmp_path: Path) -> None:
+    settings = make_settings(tmp_path)
+
+    python = run_test_command("python-pytest", settings, dry_run=True)
+    cargo = run_test_command("cargo-test", settings, dry_run=True)
+    npm_check = run_test_command("npm-run-check", settings, dry_run=True)
+    npm_test = run_test_command("npm-test", settings, dry_run=True)
+    npm_build = run_test_command("npm-run-build", settings, dry_run=True)
+    compose = run_test_command("docker-compose-config", settings, dry_run=True)
+
+    assert python["command"][-2:] == ["pytest", "-q"]
+    assert cargo["command"] == ["cargo", "test"]
+    assert npm_check["command"] == ["npm", "run", "check"]
+    assert npm_test["command"] == ["npm", "test"]
+    assert npm_build["command"] == ["npm", "run", "build"]
+    assert compose["command"] == ["docker", "compose", "config"]
+    assert all(
+        result["executed"] is False
+        for result in (python, cargo, npm_check, npm_test, npm_build, compose)
     )
 
 

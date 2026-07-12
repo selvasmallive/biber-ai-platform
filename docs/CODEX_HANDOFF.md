@@ -1,8 +1,22 @@
 # Codex Handoff
 
-Last updated: 2026-06-15
+Last updated: 2026-07-12
 
 ## Current Goal
+
+Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
+work in this repo unless the user explicitly asks for it; XRIQ continuation is
+now treated as a separate XRIS-Coin project. Keep model providers swappable,
+keep OpenAI mentor optional and disabled by default, and use GPU/training only
+when a concrete BIBER eval/training need exists and current runtime access is
+available. The first BIBER resume checkpoint is on branch
+`biber/mvp-resume-20260712`: repo-context stack profiles now cover Rust,
+PostgreSQL, React/TypeScript/JavaScript, Python/FastAPI, Docker/Compose, GitHub
+Actions, Bash, and TensorFlow/Keras; the test runner now exposes matching
+allowlisted commands for Python pytest, Cargo, npm check/test/build, and Docker
+Compose config. Verification used local compile checks plus direct no-pytest
+metadata validations; full pytest was not run because the local bundled Python
+runtime does not have `pytest` installed.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

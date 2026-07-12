@@ -82,10 +82,15 @@ SOURCE_SUFFIXES = {
 MANIFEST_NAMES = {
     "build.gradle",
     "build.gradle.kts",
+    "compose.yaml",
+    "compose.yml",
     "cargo.lock",
     "cargo.toml",
     "directory.build.props",
     "directory.packages.props",
+    "docker-compose.yaml",
+    "docker-compose.yml",
+    "dockerfile",
     "global.json",
     "package.json",
     "pom.xml",
@@ -116,6 +121,19 @@ STACK_CONTEXT_PROFILES = {
             "Avoid appsettings files unless explicitly pinned because they can contain secrets.",
         ],
     },
+    "rust": {
+        "id": "rust",
+        "label": "Rust",
+        "recommended_test_ids": ["cargo-test"],
+        "manifest_patterns": ["Cargo.toml", "Cargo.lock"],
+        "entrypoint_patterns": ["main.rs", "lib.rs"],
+        "related_test_patterns": ["*_test.rs", "*_tests.rs", "tests/*.rs"],
+        "notes": [
+            "Prefer Cargo manifests and the changed crate before broad workspace context.",
+            "Pair changed Rust files with nearby integration or module tests.",
+            "Run formatting and targeted cargo tests before broad repair loops.",
+        ],
+    },
     "java": {
         "id": "java",
         "label": "Java / Spring Boot",
@@ -133,6 +151,107 @@ STACK_CONTEXT_PROFILES = {
             "Prefer Maven or Gradle files before broad source context.",
             "Include the Spring Boot application entrypoint when present.",
             "Pair changed Java/Kotlin files with matching test files when available.",
+        ],
+    },
+    "node-react": {
+        "id": "node-react",
+        "label": "React / TypeScript / JavaScript",
+        "recommended_test_ids": ["npm-run-check", "npm-test", "npm-run-build"],
+        "manifest_patterns": [
+            "package.json",
+            "tsconfig.json",
+            "vite.config.*",
+            "next.config.*",
+        ],
+        "entrypoint_patterns": ["src/main.tsx", "src/App.tsx", "src/index.tsx"],
+        "related_test_patterns": [
+            "*.test.ts",
+            "*.test.tsx",
+            "*.spec.ts",
+            "*.spec.tsx",
+        ],
+        "notes": [
+            "Prefer package and TypeScript config files before broad source context.",
+            "Pair changed components with colocated tests and styles when available.",
+            "Run check/test/build scripts in that order when the project exposes them.",
+        ],
+    },
+    "python": {
+        "id": "python",
+        "label": "Python / FastAPI",
+        "recommended_test_ids": ["python-pytest", "python-compileall-api"],
+        "manifest_patterns": ["pyproject.toml", "requirements.txt", "setup.py"],
+        "entrypoint_patterns": ["main.py", "app.py"],
+        "related_test_patterns": ["test_*.py", "*_test.py", "tests/*.py"],
+        "notes": [
+            "Prefer pyproject/requirements and the changed module before broad context.",
+            "Pair changed modules with matching pytest files when available.",
+            "Use compile checks before model-driven repair if pytest dependencies are unavailable.",
+        ],
+    },
+    "postgres": {
+        "id": "postgres",
+        "label": "PostgreSQL / SQL",
+        "recommended_test_ids": ["docker-compose-config"],
+        "manifest_patterns": ["*.sql", "schema.sql", "migrations/*.sql"],
+        "entrypoint_patterns": ["schema.sql"],
+        "related_test_patterns": ["*_test.sql", "*_tests.sql"],
+        "notes": [
+            "Prefer schema and migration files over generated dumps.",
+            "Include application code that calls the changed query or migration.",
+            "Validate container/database configuration before running destructive migrations.",
+        ],
+    },
+    "docker": {
+        "id": "docker",
+        "label": "Docker / Compose",
+        "recommended_test_ids": ["docker-compose-config"],
+        "manifest_patterns": ["Dockerfile", "docker-compose.yml", "compose.yaml"],
+        "entrypoint_patterns": ["Dockerfile", "docker-compose.yml", "compose.yaml"],
+        "related_test_patterns": [],
+        "notes": [
+            "Prefer Dockerfile and compose files before service source code.",
+            "Validate compose configuration before build or deployment steps.",
+            "Do not include secrets from env files in repo context.",
+        ],
+    },
+    "github-actions": {
+        "id": "github-actions",
+        "label": "GitHub Actions CI/CD",
+        "recommended_test_ids": [],
+        "manifest_patterns": [".github/workflows/*.yml", ".github/workflows/*.yaml"],
+        "entrypoint_patterns": [".github/workflows/*.yml", ".github/workflows/*.yaml"],
+        "related_test_patterns": [],
+        "notes": [
+            "Include workflow files plus the commands they invoke.",
+            "Keep secrets and deployment credentials out of workflow context.",
+            "Prefer dry-run or local validation commands before changing CI broadly.",
+        ],
+    },
+    "bash": {
+        "id": "bash",
+        "label": "Bash / Shell Scripts",
+        "recommended_test_ids": [],
+        "manifest_patterns": ["*.sh"],
+        "entrypoint_patterns": ["scripts/*.sh"],
+        "related_test_patterns": ["test_*.sh", "*_test.sh"],
+        "notes": [
+            "Include the called scripts and the wrappers that invoke them.",
+            "Prefer syntax checks and dry-run flags before mutation scripts.",
+            "Watch for platform-specific path assumptions on Windows versus Linux.",
+        ],
+    },
+    "tensorflow": {
+        "id": "tensorflow",
+        "label": "TensorFlow / Keras",
+        "recommended_test_ids": ["python-pytest"],
+        "manifest_patterns": ["requirements.txt", "pyproject.toml", "environment.yml"],
+        "entrypoint_patterns": ["train.py", "evaluate.py", "model.py"],
+        "related_test_patterns": ["test_*.py", "*_test.py", "tests/*.py"],
+        "notes": [
+            "Prefer dataset, preprocessing, model, training, and evaluation entrypoints.",
+            "Keep raw datasets, credentials, and generated checkpoints out of context.",
+            "Run small CPU-safe tests before any GPU training job.",
         ],
     },
 }
@@ -293,13 +412,7 @@ def plan_repo_context(
         raise RepoContextError(f"Repo context root is not a directory: {root_path}")
 
     scanned_files = list(_iter_repo_files(root_path, max_scan_files=max_scan_files))
-    detected_project_types = sorted(
-        {
-            project_type
-            for relative in scanned_files
-            if (project_type := _project_type_for_path(relative)) is not None
-        }
-    )
+    detected_project_types = _detect_project_types(root_path, scanned_files)
 
     candidates: list[_ContextCandidate] = []
     skipped: list[dict[str, str]] = []
@@ -441,6 +554,7 @@ def _iter_repo_files(root_path: Path, *, max_scan_files: int) -> list[Path]:
 def _project_type_for_path(path: Path) -> str | None:
     name = path.name.lower()
     suffix = path.suffix.lower()
+    path_text = path.as_posix().lower()
     if name.endswith(".csproj") or suffix == ".sln" or name in {
         "directory.build.props",
         "directory.packages.props",
@@ -457,6 +571,16 @@ def _project_type_for_path(path: Path) -> str | None:
         ("vite.config", "next.config")
     ):
         return "node-react"
+    if name in {
+        "dockerfile",
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        "compose.yml",
+        "compose.yaml",
+    }:
+        return "docker"
+    if path_text.startswith(".github/workflows/") and suffix in {".yml", ".yaml"}:
+        return "github-actions"
     if name in {"pyproject.toml", "requirements.txt", "setup.py"}:
         return "python"
     return _project_type_for_source(path)
@@ -474,12 +598,56 @@ def _project_type_for_source(path: Path) -> str | None:
         return "node-react"
     if suffix == ".py":
         return "python"
+    if suffix == ".sql":
+        return "postgres"
+    if suffix == ".sh":
+        return "bash"
     return None
 
 
 def _is_manifest_file(path: Path) -> bool:
     name = path.name.lower()
-    return name in MANIFEST_NAMES or name.endswith(".csproj") or name.endswith(".sln")
+    path_text = path.as_posix().lower()
+    return (
+        name in MANIFEST_NAMES
+        or name.endswith(".csproj")
+        or name.endswith(".sln")
+        or (
+            path_text.startswith(".github/workflows/")
+            and path.suffix.lower() in {".yml", ".yaml"}
+        )
+    )
+
+
+def _detect_project_types(root_path: Path, scanned_files: list[Path]) -> list[str]:
+    project_types = {
+        project_type
+        for relative in scanned_files
+        if (project_type := _project_type_for_path(relative)) is not None
+    }
+    if "python" in project_types and _python_manifest_mentions_tensorflow(
+        root_path,
+        scanned_files,
+    ):
+        project_types.add("tensorflow")
+    return sorted(project_types)
+
+
+def _python_manifest_mentions_tensorflow(root_path: Path, scanned_files: list[Path]) -> bool:
+    manifest_names = {"requirements.txt", "pyproject.toml", "setup.py", "environment.yml"}
+    for relative in scanned_files:
+        if relative.name.lower() not in manifest_names:
+            continue
+        if _is_denied_path(relative):
+            continue
+        try:
+            data = (root_path / relative).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        lowered = data.lower()
+        if "tensorflow" in lowered or "keras" in lowered:
+            return True
+    return False
 
 
 def _is_plan_candidate_file(path: Path) -> bool:
