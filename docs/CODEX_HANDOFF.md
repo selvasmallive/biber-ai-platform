@@ -25,6 +25,11 @@ BIBER API key. GitHub save/PR remains server-backed and still requires the API.
 Verified with `compileall` and a temporary-repo no-server smoke that changed a
 Python file through the local edit-plan/apply path and wrote a local MVP-loop
 artifact.
+Dedicated BIBER-only sparse checkout created at
+`C:\Users\vselv\OneDrive\Biber\biber-mvp-only` from branch
+`biber/mvp-resume-20260712`. It intentionally excludes `xriq/`, `infra/`,
+`deploy/`, XRIQ docs, and XRIQ scripts. Future BIBER sessions should prefer
+that folder and start with `docs/BIBER_ONLY_WORKSPACE.md`.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
@@ -428,9 +433,28 @@ Faucet policy constants live in xriq-core (`PUBLIC_TESTNET_FAUCET_DRIP_BASE_UNIT
 (multi-dispense with nonce increment + on-disk persistence across re-opens across
 three blocks; and refusal both over the cap and when the requested amount exceeds
 the faucet balance). `docs/XRIQ_TESTNET_CHAINSPEC.md` documents the faucet.
-Remaining for milestone 3: genesis-parametrized public testnet nodes (HTTP faucet +
-peer sync with per-IP limits) and the public explorer/wallet. Everything stays
-test-only with no monetary value.
+Milestone 3 increment 3 made the peer layer genesis-parametrized so real testnet
+nodes can form a testnet and stay isolated from devnet. A `RunnerGenesis` selector
+(Devnet(alice_balance) | Testnet) + `runner_genesis`/`runner_node`/`open_peer_node`
+open a node on either genesis; peer commands (`peer-identity`, `peer-blocks-export`,
+`peer-peers`, `peer-sync`) gained `--network devnet|testnet` (default devnet,
+behavior unchanged). Each node now reports its **actual chain id** as its peer
+`network` (devnet→`xriq-devnet`, testnet→`xriq-testnet`) instead of a hardcoded
+constant, and `peer-sync` derives its own network from its genesis and rejects any
+peer on a different network (`peer_compatibility_error` now takes the follower's own
+network; protocol stays a constant). `PrivateDevnetHttpServerConfig` gained a
+`testnet` flag (`--network testnet` on serve-readonly/serve-private) and the peer
+routes pass `--network testnet` through, so a testnet-configured server serves its
+peer endpoints on the testnet genesis (new `InvalidNetwork` error → 400). Covered by
+two new tests: two testnet nodes syncing a faucet-produced block over real loopback
+TCP (`network: xriq-testnet`, applied 1), and a devnet follower rejecting a testnet
+peer; the identity test also asserts cross-network rejection. IMPORTANT SCOPE NOTE:
+this increment parametrizes the PEER + faucet paths only; the ~44
+`private_devnet_file_*` explorer/read helpers (status/blocks/accounts/snapshots)
+remain devnet-genesis and get parametrized in a later increment, at which point a
+full testnet node also exposes explorer routes + an HTTP faucet with per-IP limits.
+Remaining for milestone 3: that read-route parametrization + HTTP faucet, and the
+public explorer/wallet. Everything stays test-only with no monetary value.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

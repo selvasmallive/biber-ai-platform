@@ -155,6 +155,16 @@ are restored or retrained.
 
 ## CPU-Local MVP Loop
 
+Preferred local folder for BIBER-only work:
+
+```text
+C:\Users\vselv\OneDrive\Biber\biber-mvp-only
+```
+
+That folder is a sparse checkout of the BIBER branch and intentionally excludes
+the XRIS-Coin/XRIQ tree. Read `docs/BIBER_ONLY_WORKSPACE.md` there before
+continuing BIBER MVP.
+
 Before provisioning a GPU, continue BIBER orchestration work locally. The agent
 client can now run the cheap workflow directly against a local repository root
 without a live BIBER API:
