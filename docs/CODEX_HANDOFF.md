@@ -39,6 +39,13 @@ future safe-edit/test flows have explicit branch/dirty boundaries. Verified in
 the BIBER-only sparse checkout with `compileall` using a temporary pycache
 prefix, a no-server local `mvp-loop --include-git-state` smoke, and the direct
 CLI guard that rejects `--include-git-state` without `--local-target-root`.
+Fourth BIBER resume checkpoint on the same branch:
+`mvp-loop` artifacts now include `agent_report`, a compact machine-readable
+status summary for local agent flows. It records repo state, selected context,
+edit plan/apply counts, test result, diagnosis/failure summary, and suggested
+next actions. `show-mvp-loop` displays this report in concise text. Future
+sessions should prefer `agent_report` over scraping terminal output when
+deciding the next local BIBER coding-assistant step.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

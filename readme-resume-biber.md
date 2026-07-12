@@ -185,6 +185,9 @@ execution, and diagnosis use local source code. GitHub save and PR creation
 still require the BIBER API because those are server-backed integrations.
 Use `--include-git-state` on local repo work so MVP-loop artifacts capture the
 branch, short HEAD, dirty flag, and `git status --short` before edits/tests.
+Use the artifact's `agent_report` field as the stable, compact status surface:
+it records repo state, selected context, edit counts, test result, failure
+summary, and next actions without needing to scrape terminal output.
 
 Do not run QLoRA or any training command just because a session says
 "continue." Training is appropriate only after the BIBER eval/review pipeline

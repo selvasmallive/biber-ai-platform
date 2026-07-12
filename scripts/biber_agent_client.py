@@ -1147,6 +1147,114 @@ def summarize_mvp_loop_artifact(path: Path, payload: Mapping[str, Any]) -> dict[
     return summary
 
 
+def step_command_text(step: Mapping[str, Any]) -> str | None:
+    command = [str(part) for part in require_list(step.get("command"))]
+    if not command:
+        return None
+    return " ".join(command)
+
+
+def build_mvp_loop_agent_report(payload: Mapping[str, Any]) -> dict[str, Any]:
+    steps = require_mapping(payload.get("steps"))
+    selected_context_paths = [
+        str(path) for path in require_list(payload.get("selected_context_paths"))
+    ]
+    git_state = require_mapping(steps.get("git_state"))
+    edit_plan = require_mapping(steps.get("edit_plan"))
+    edit_apply = require_mapping(steps.get("edit_apply"))
+    test_run = require_mapping(steps.get("test_run"))
+    diagnosis = require_mapping(steps.get("test_diagnosis"))
+
+    planned = [
+        item for item in require_list(edit_plan.get("planned")) if isinstance(item, dict)
+    ]
+    rejected = [
+        item for item in require_list(edit_plan.get("rejected")) if isinstance(item, dict)
+    ]
+    applied = [
+        item for item in require_list(edit_apply.get("applied")) if isinstance(item, dict)
+    ]
+    changed = [item for item in applied if item.get("changed") is True]
+
+    status = "ok" if payload.get("ok") is True else "needs_attention"
+    if not test_run:
+        status = "needs_test"
+    if test_run and test_run.get("executed") is False:
+        status = "dry_run_only"
+    if diagnosis:
+        status = "test_failed"
+    if rejected or edit_plan.get("ok") is False or edit_apply.get("ok") is False:
+        status = "edit_needs_review"
+
+    next_actions: list[str] = []
+    if git_state.get("dirty") is True:
+        next_actions.append("Review local git dirty state before commit or PR.")
+    if rejected:
+        next_actions.append("Review rejected edit-plan entries before applying edits.")
+    if diagnosis:
+        diagnosis_actions = [
+            str(item)
+            for item in require_list(diagnosis.get("suggested_next_actions"))[:4]
+        ]
+        if diagnosis_actions:
+            next_actions.extend(diagnosis_actions)
+        else:
+            next_actions.append("Review the failing test output and prepare a bounded repair edit.")
+    elif test_run and test_run.get("executed") is False:
+        next_actions.append("Run the selected allowlisted test without --test-dry-run.")
+    elif test_run and test_run.get("ok") is True:
+        next_actions.append("Ready for GitHub save/PR or the next narrow change.")
+    elif not test_run:
+        next_actions.append("Run an allowlisted test for the selected context.")
+
+    return {
+        "source": "biber_mvp_loop_agent_report_v1",
+        "status": status,
+        "ok": payload.get("ok") is True,
+        "repo": {
+            "target_root": payload.get("target_root"),
+            "branch": payload.get("git_branch") or git_state.get("branch"),
+            "head": payload.get("git_head") or git_state.get("head"),
+            "dirty": payload.get("git_dirty")
+            if "git_dirty" in payload
+            else git_state.get("dirty"),
+            "status_short": [
+                str(item) for item in require_list(git_state.get("status_short"))
+            ],
+        },
+        "context": {
+            "mode": payload.get("context_mode"),
+            "selected_count": len(selected_context_paths),
+            "selected_paths": selected_context_paths,
+        },
+        "edit": {
+            "mode": payload.get("edit_mode"),
+            "plan_hash": payload.get("edit_plan_hash"),
+            "planned_count": len(planned),
+            "rejected_count": len(rejected),
+            "applied_count": len(applied),
+            "changed_count": len(changed),
+            "ok": edit_apply.get("ok") if edit_apply else edit_plan.get("ok"),
+        },
+        "test": {
+            "mode": payload.get("test_mode"),
+            "test_id": test_run.get("test_id"),
+            "executed": test_run.get("executed"),
+            "ok": payload.get("test_ok"),
+            "exit_code": test_run.get("exit_code"),
+            "timed_out": test_run.get("timed_out"),
+            "command": step_command_text(test_run),
+        },
+        "failure": {
+            "diagnosis_summary": payload.get("diagnosis_summary")
+            or diagnosis.get("summary"),
+            "primary_category": diagnosis.get("primary_category"),
+            "detected_stack": diagnosis.get("detected_stack"),
+        },
+        "next_actions": dedupe_strings(next_actions) or [],
+    }
+
+
 def is_failed_mvp_loop_artifact(payload: Mapping[str, Any]) -> bool:
     return payload.get("ok") is not True or payload.get("test_ok") is False
 
@@ -11963,6 +12071,40 @@ def format_mvp_loop_summary(payload: Mapping[str, Any]) -> str:
         lines.append(f"pull_request_url: {payload.get('pull_request_url')}")
     if payload.get("artifact_path"):
         lines.append(f"artifact_path: {payload.get('artifact_path')}")
+    report = require_mapping(payload.get("agent_report"))
+    if report:
+        repo = require_mapping(report.get("repo"))
+        edit = require_mapping(report.get("edit"))
+        test = require_mapping(report.get("test"))
+        lines.append("agent_report:")
+        lines.append(f"- status: {report.get('status', '-')}")
+        if repo:
+            lines.append(
+                "- repo: "
+                f"branch={repo.get('branch') or '-'} "
+                f"head={repo.get('head') or '-'} "
+                f"dirty={repo.get('dirty')}"
+            )
+        if edit and any(value is not None for value in edit.values()):
+            lines.append(
+                "- edit: "
+                f"planned={edit.get('planned_count', 0)} "
+                f"applied={edit.get('applied_count', 0)} "
+                f"changed={edit.get('changed_count', 0)} "
+                f"rejected={edit.get('rejected_count', 0)}"
+            )
+        if test and any(value is not None for value in test.values()):
+            lines.append(
+                "- test: "
+                f"id={test.get('test_id') or '-'} "
+                f"executed={test.get('executed')} "
+                f"ok={test.get('ok')} "
+                f"exit_code={test.get('exit_code')}"
+            )
+        next_actions = [str(item) for item in require_list(report.get("next_actions"))]
+        if next_actions:
+            lines.append("agent_next_actions:")
+            lines.extend(f"- {action}" for action in next_actions[:5])
     return "\n".join(lines)
 
 
@@ -17831,6 +17973,8 @@ def run(args: argparse.Namespace) -> str:
             summary["pull_request_number"] = pull_request.get("number")
         elif args.pr_head or args.pr_title or args.pr_body or args.pr_body_file:
             raise BiberAgentClientError("PR arguments require --create-pr.")
+
+        summary["agent_report"] = build_mvp_loop_agent_report(summary)
 
         if args.output:
             summary["artifact_path"] = str(Path(args.output))

@@ -448,6 +448,23 @@ def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
             "github_url": "https://github.com/acme/repo/blob/main/generated/a.txt",
             "pull_request_url": "https://github.com/acme/repo/pull/42",
             "artifact_path": "/workspace/outputs/biber-mvp-loop.json",
+            "agent_report": {
+                "status": "test_failed",
+                "repo": {"branch": "feature/biber", "head": "abc1234", "dirty": True},
+                "edit": {
+                    "planned_count": 1,
+                    "applied_count": 1,
+                    "changed_count": 1,
+                    "rejected_count": 0,
+                },
+                "test": {
+                    "test_id": "dotnet-test",
+                    "executed": True,
+                    "ok": False,
+                    "exit_code": 1,
+                },
+                "next_actions": ["Review the failing test output."],
+            },
             "steps": {
                 "context_plan": {},
                 "edit_plan": {},
@@ -465,6 +482,12 @@ def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
     assert "test_ok: False" in output
     assert "pull_request_url: https://github.com/acme/repo/pull/42" in output
     assert "artifact_path: /workspace/outputs/biber-mvp-loop.json" in output
+    assert "agent_report:" in output
+    assert "- status: test_failed" in output
+    assert "- repo: branch=feature/biber head=abc1234 dirty=True" in output
+    assert "- edit: planned=1 applied=1 changed=1 rejected=0" in output
+    assert "- test: id=dotnet-test executed=True ok=False exit_code=1" in output
+    assert "- Review the failing test output." in output
 
 
 def test_run_show_mvp_loop_summarizes_local_artifact_without_api_key(
@@ -12375,6 +12398,17 @@ def test_run_mvp_loop_local_target_chains_without_api_key(
     assert result["target_root_source"] == "cli_local_target_root"
     assert result["runtime_profile_ids"] == ["api-error-response"]
     assert result["selected_context_paths"] == ["README.md"]
+    assert result["agent_report"]["status"] == "test_failed"
+    assert result["agent_report"]["context"]["selected_count"] == 1
+    assert result["agent_report"]["edit"]["planned_count"] == 1
+    assert result["agent_report"]["edit"]["applied_count"] == 1
+    assert result["agent_report"]["edit"]["changed_count"] == 1
+    assert result["agent_report"]["test"]["test_id"] == "python-pytest"
+    assert result["agent_report"]["test"]["ok"] is False
+    assert result["agent_report"]["failure"]["primary_category"] == "assertion_failure"
+    assert result["agent_report"]["next_actions"] == [
+        "Review the failing test output and prepare a bounded repair edit."
+    ]
     assert json.loads(output_path.read_text(encoding="utf-8")) == result
     assert captured["context_target_root"] == target_root.resolve()
     assert captured["edit_apply_payload"] == {
@@ -12456,6 +12490,14 @@ def test_run_mvp_loop_local_target_can_include_git_state_without_api_key(
     assert result["git_dirty"] is True
     assert result["git_branch"] == "feature/biber"
     assert result["git_head"] == "abc1234"
+    assert result["agent_report"]["status"] == "needs_test"
+    assert result["agent_report"]["repo"]["branch"] == "feature/biber"
+    assert result["agent_report"]["repo"]["dirty"] is True
+    assert result["agent_report"]["context"]["selected_paths"] == ["src/app.py"]
+    assert result["agent_report"]["next_actions"] == [
+        "Review local git dirty state before commit or PR.",
+        "Run an allowlisted test for the selected context.",
+    ]
     assert result["steps"]["git_state"]["status_short"] == [
         " M src/app.py",
         "?? notes.md",

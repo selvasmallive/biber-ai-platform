@@ -54,6 +54,9 @@ With `--local-target-root`, context planning, safe edit plan/apply, test
 execution, and diagnosis are local. GitHub save/PR remains server-backed.
 Use `--include-git-state` for repo work so the artifact records the local
 branch, short HEAD, dirty status, and `git status --short` before edits/tests.
+Each MVP-loop artifact includes `agent_report`, a compact machine-readable
+status summary with repo state, selected context, edit counts, test result,
+failure summary, and next actions for the following narrow step.
 
 ## Vast GPU
 
