@@ -946,6 +946,9 @@ pub fn private_devnet_http_response_with_body(
     if method == "POST" && path == "/v1/blocks" {
         return produce_pending_block_http_response(config, query);
     }
+    if method == "POST" && path == "/v1/faucet" {
+        return faucet_http_response(config, query);
+    }
     if method == "POST" && path == "/v1/snapshots/export" {
         return snapshot_export_http_response(config, query);
     }
@@ -963,13 +966,16 @@ pub fn private_devnet_http_response_with_body(
 
     match path {
         "/health" => http_json_response(200, render_private_devnet_http_health_json()),
-        "/v1/chain/status" => {
-            if let Some(pending_file) = &config.pending_file {
+        "/v1/chain/status" => match &config.pending_file {
+            Some(pending_file) if !config.testnet => {
                 pending_status_http_response(config, pending_file)
-            } else {
-                runner_json_http_response(private_devnet_http_runner_args("status", config))
             }
-        }
+            _ => {
+                let mut args = private_devnet_http_runner_args("status", config);
+                push_network_arg(&mut args, config);
+                runner_json_http_response(args)
+            }
+        },
         "/v1/chain/check" => chain_check_http_response(config),
         "/v1/mempool" => {
             if let Some(pending_file) = &config.pending_file {
@@ -991,6 +997,7 @@ pub fn private_devnet_http_response_with_body(
         "/v1/snapshots/latest/check" => snapshot_latest_check_http_response(config),
         "/v1/blocks" => {
             let mut args = private_devnet_http_runner_args("block-list", config);
+            push_network_arg(&mut args, config);
             if let Some(limit) = query_value(query, "limit") {
                 args.push("--limit".to_string());
                 args.push(limit.to_string());
@@ -1068,6 +1075,7 @@ pub fn private_devnet_http_response_with_body(
                 .filter(|address| !address.is_empty())
             {
                 let mut args = private_devnet_http_runner_args("account-detail", config);
+                push_network_arg(&mut args, config);
                 args.push("--address".to_string());
                 args.push(address.to_string());
                 return runner_json_http_response(args);
@@ -1238,6 +1246,46 @@ fn runner_json_http_response(args: Vec<String>) -> PrivateDevnetHttpResponse {
             http_json_response(status_code, render_node_runner_error_json(&args, &error))
         }
     }
+}
+
+// POST /v1/faucet?to=<address>: dispense valueless test units from the genesis
+// faucet on a testnet serve-private node. TEST-ONLY. Rate-limited by the faucet
+// balance cap (see faucet-dispense); FaucetRefused maps to HTTP 429.
+fn faucet_http_response(
+    config: &PrivateDevnetHttpServerConfig,
+    query: Option<&str>,
+) -> PrivateDevnetHttpResponse {
+    if !config.allow_transaction_submission {
+        return http_error_response(
+            501,
+            "not_implemented",
+            "faucet requires xriq-node serve-private",
+        );
+    }
+    if !config.testnet {
+        return http_error_response(
+            400,
+            "not_testnet",
+            "faucet is only available on a testnet node (start with --network testnet)",
+        );
+    }
+    let Some(to) = query_value(query, "to") else {
+        return http_error_response(
+            400,
+            "missing_flag",
+            "POST /v1/faucet requires a ?to=<address> query parameter",
+        );
+    };
+    let args = vec![
+        "faucet-dispense".to_string(),
+        "--chain-file".to_string(),
+        config.chain_file.clone(),
+        "--to".to_string(),
+        to.to_string(),
+        "--format".to_string(),
+        "json".to_string(),
+    ];
+    runner_json_http_response(args)
 }
 
 fn submit_transaction_http_response(
@@ -2039,9 +2087,15 @@ pub fn private_devnet_file_status(
     chain_file: impl AsRef<Path>,
     alice_balance: Option<XriqAmount>,
 ) -> Result<NodeStatus, NodeError> {
+    runner_file_status(chain_file, RunnerGenesis::Devnet(alice_balance))
+}
+
+fn runner_file_status(
+    chain_file: impl AsRef<Path>,
+    genesis: RunnerGenesis,
+) -> Result<NodeStatus, NodeError> {
     let store = FileChainStore::open(chain_file).map_err(NodeError::Storage)?;
-    let genesis = private_devnet_runner_genesis(alice_balance);
-    let node = XriqNode::from_genesis_replaying_store(&genesis, store)?;
+    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)?;
     Ok(node_status(&node))
 }
 
@@ -2689,11 +2743,18 @@ pub fn private_devnet_file_block_list_data(
     alice_balance: Option<XriqAmount>,
     limit: usize,
 ) -> Result<Vec<ExplorerBlockSummary>, NodeRunnerError> {
+    runner_file_block_list_data(chain_file, RunnerGenesis::Devnet(alice_balance), limit)
+}
+
+fn runner_file_block_list_data(
+    chain_file: impl AsRef<Path>,
+    genesis: RunnerGenesis,
+    limit: usize,
+) -> Result<Vec<ExplorerBlockSummary>, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    let genesis = private_devnet_runner_genesis(alice_balance);
-    let node =
-        XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?;
+    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)
+        .map_err(NodeRunnerError::Node)?;
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
     Ok(explorer.latest_blocks(limit))
 }
@@ -2807,11 +2868,18 @@ pub fn private_devnet_file_account_detail_data(
     alice_balance: Option<XriqAmount>,
     address: Address,
 ) -> Result<ExplorerAccountDetail, NodeRunnerError> {
+    runner_file_account_detail_data(chain_file, RunnerGenesis::Devnet(alice_balance), address)
+}
+
+fn runner_file_account_detail_data(
+    chain_file: impl AsRef<Path>,
+    genesis: RunnerGenesis,
+    address: Address,
+) -> Result<ExplorerAccountDetail, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    let genesis = private_devnet_runner_genesis(alice_balance);
-    let node =
-        XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?;
+    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)
+        .map_err(NodeRunnerError::Node)?;
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
     explorer
         .account(&address)
@@ -2925,15 +2993,11 @@ where
 
 fn run_status_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
-    flags.reject_unknown(&["--chain-file", "--alice-balance", "--format"])?;
+    flags.reject_unknown(&["--chain-file", "--alice-balance", "--network", "--format"])?;
     let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
-    let alice_balance = flags
-        .optional("--alice-balance")
-        .map(|value| parse_amount("--alice-balance", value))
-        .transpose()?;
-    let status =
-        private_devnet_file_status(chain_file, alice_balance).map_err(NodeRunnerError::Node)?;
+    let genesis = parse_runner_genesis(&flags)?;
+    let status = runner_file_status(chain_file, genesis).map_err(NodeRunnerError::Node)?;
     Ok(match output_format {
         RunnerOutputFormat::Text => NodeRunnerOutput::Status(status),
         RunnerOutputFormat::Json => {
@@ -3812,25 +3876,25 @@ fn run_explorer_overview_command(args: &[String]) -> Result<NodeRunnerOutput, No
 
 fn run_block_list_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
-    flags.reject_unknown(&["--chain-file", "--alice-balance", "--limit", "--format"])?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--alice-balance",
+        "--network",
+        "--limit",
+        "--format",
+    ])?;
     let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
-    let alice_balance = flags
-        .optional("--alice-balance")
-        .map(|value| parse_amount("--alice-balance", value))
-        .transpose()?;
+    let genesis = parse_runner_genesis(&flags)?;
     let limit = flags
         .optional("--limit")
         .map(|value| parse_usize("--limit", value))
         .transpose()?
         .unwrap_or(25);
+    let blocks = runner_file_block_list_data(chain_file, genesis, limit)?;
     Ok(match output_format {
-        RunnerOutputFormat::Text => {
-            private_devnet_file_block_list(chain_file, alice_balance, limit)
-                .map(NodeRunnerOutput::BlockList)?
-        }
+        RunnerOutputFormat::Text => NodeRunnerOutput::BlockList(render_latest_blocks(&blocks)),
         RunnerOutputFormat::Json => {
-            let blocks = private_devnet_file_block_list_data(chain_file, alice_balance, limit)?;
             NodeRunnerOutput::Json(render_block_list_json("block-list", &blocks))
         }
     })
@@ -3941,22 +4005,21 @@ fn run_account_list_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRun
 
 fn run_account_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
-    flags.reject_unknown(&["--chain-file", "--alice-balance", "--address", "--format"])?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--alice-balance",
+        "--network",
+        "--address",
+        "--format",
+    ])?;
     let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
-    let alice_balance = flags
-        .optional("--alice-balance")
-        .map(|value| parse_amount("--alice-balance", value))
-        .transpose()?;
+    let genesis = parse_runner_genesis(&flags)?;
     let address = parse_address("--address", flags.required("--address")?)?;
+    let detail = runner_file_account_detail_data(chain_file, genesis, address)?;
     Ok(match output_format {
-        RunnerOutputFormat::Text => {
-            private_devnet_file_account_detail(chain_file, alice_balance, address)
-                .map(NodeRunnerOutput::AccountDetail)?
-        }
+        RunnerOutputFormat::Text => NodeRunnerOutput::AccountDetail(render_account_detail(&detail)),
         RunnerOutputFormat::Json => {
-            let detail =
-                private_devnet_file_account_detail_data(chain_file, alice_balance, address)?;
             NodeRunnerOutput::Json(render_account_detail_json("account-detail", &detail))
         }
     })
@@ -9562,6 +9625,121 @@ mod tests {
 
         let _ = fs::remove_file(chain);
         let _ = fs::remove_file(fresh);
+    }
+
+    fn testnet_server_config(
+        chain_file: String,
+        allow_submission: bool,
+    ) -> PrivateDevnetHttpServerConfig {
+        PrivateDevnetHttpServerConfig {
+            bind: "127.0.0.1:8899".to_string(),
+            chain_file,
+            pending_file: None,
+            snapshot_root: None,
+            alice_balance: Some(XriqAmount::from_base_units(100)),
+            allow_transaction_submission: allow_submission,
+            peers_file: None,
+            node_seed: None,
+            testnet: true,
+        }
+    }
+
+    #[test]
+    fn testnet_read_routes_serve_testnet_genesis() {
+        // A testnet chain with one faucet block.
+        let chain = temp_store_path();
+        let chain_text = chain.to_string_lossy().to_string();
+        run_node_command([
+            "faucet-dispense",
+            "--chain-file",
+            chain_text.as_str(),
+            "--to",
+            "xriqdev1recipient00000000000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+
+        let config = testnet_server_config(chain_text, false);
+        // The read routes report the testnet chain, not devnet.
+        let status = private_devnet_http_response(&config, "GET", "/v1/chain/status");
+        assert_eq!(status.status_code, 200);
+        assert!(status.body.contains("\"chain_id\": \"xriq-testnet\""));
+        assert!(status.body.contains("\"current_height\": 1"));
+
+        let blocks = private_devnet_http_response(&config, "GET", "/v1/blocks");
+        assert_eq!(blocks.status_code, 200);
+        assert!(blocks.body.contains("\"command\": \"block-list\""));
+        assert!(blocks.body.contains("\"height\": 1"));
+
+        let account = private_devnet_http_response(
+            &config,
+            "GET",
+            "/v1/accounts/xriqdev1recipient00000000000",
+        );
+        assert_eq!(account.status_code, 200);
+        assert!(account.body.contains("\"balance_base_units\": \"1000\""));
+
+        let _ = fs::remove_file(chain);
+    }
+
+    #[test]
+    fn http_faucet_dispenses_on_testnet_serve_private() {
+        let chain = temp_store_path();
+        let chain_text = chain.to_string_lossy().to_string();
+        let config = testnet_server_config(chain_text, true);
+
+        let dispensed = private_devnet_http_response(
+            &config,
+            "POST",
+            "/v1/faucet?to=xriqdev1recipient00000000000",
+        );
+        assert_eq!(dispensed.status_code, 200);
+        assert!(dispensed.body.contains("\"command\": \"faucet-dispense\""));
+        assert!(dispensed.body.contains("\"block_height\": 1"));
+        assert!(dispensed
+            .body
+            .contains("\"recipient_balance_base_units\": \"1000\""));
+
+        // A second dispense confirms the next block and tops up again.
+        let again = private_devnet_http_response(
+            &config,
+            "POST",
+            "/v1/faucet?to=xriqdev1recipient00000000000",
+        );
+        assert_eq!(again.status_code, 200);
+        assert!(again.body.contains("\"block_height\": 2"));
+        assert!(again
+            .body
+            .contains("\"recipient_balance_base_units\": \"2000\""));
+
+        // Missing recipient is a 400.
+        let missing = private_devnet_http_response(&config, "POST", "/v1/faucet");
+        assert_eq!(missing.status_code, 400);
+
+        // The faucet is unavailable on a read-only server (501) and on a
+        // non-testnet server (400).
+        let readonly = testnet_server_config(config.chain_file.clone(), false);
+        let refused = private_devnet_http_response(
+            &readonly,
+            "POST",
+            "/v1/faucet?to=xriqdev1recipient00000000000",
+        );
+        assert_eq!(refused.status_code, 501);
+
+        let devnet = PrivateDevnetHttpServerConfig {
+            testnet: false,
+            ..testnet_server_config(config.chain_file.clone(), true)
+        };
+        let not_testnet = private_devnet_http_response(
+            &devnet,
+            "POST",
+            "/v1/faucet?to=xriqdev1recipient00000000000",
+        );
+        assert_eq!(not_testnet.status_code, 400);
+        assert!(not_testnet.body.contains("not_testnet"));
+
+        let _ = fs::remove_file(chain);
     }
 
     #[test]

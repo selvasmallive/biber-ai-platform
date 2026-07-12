@@ -59,9 +59,12 @@ normal signed transaction, confirmed in a freshly produced block. Policy:
 Abuse control is a **balance cap**: the faucet refuses a recipient already at or
 above the cap (a chain-derived, deterministic rate limit that needs no side
 state), and refuses when the faucet account cannot cover the amount plus fee.
-The command runs against its own testnet-genesis chain file; an HTTP faucet
-endpoint with additional per-IP rate limiting will arrive with genesis-parametrized
-testnet nodes.
+The command runs against its own testnet-genesis chain file. A testnet
+`serve-private` node also exposes it over HTTP as **`POST /v1/faucet?to=<address>`**
+(available only when the node is started with `--network testnet`; `FaucetRefused`
+maps to HTTP 429). Per-IP rate limiting is not yet implemented — the balance cap is
+the limiter. A testnet node also serves read routes on the testnet chain:
+`GET /v1/chain/status`, `GET /v1/blocks`, and `GET /v1/accounts/{address}`.
 
 ## Genesis spec hash
 

@@ -406,8 +406,32 @@ Faucet policy constants live in xriq-core (`PUBLIC_TESTNET_FAUCET_DRIP_BASE_UNIT
 (multi-dispense with nonce increment + on-disk persistence across re-opens across
 three blocks; and refusal both over the cap and when the requested amount exceeds
 the faucet balance). `docs/XRIQ_TESTNET_CHAINSPEC.md` documents the faucet.
-Remaining for milestone 3: genesis-parametrized public testnet nodes (HTTP faucet +
-peer sync with per-IP limits) and the public explorer/wallet. Everything stays
+Milestone 3 increment 3 made the PEER layer genesis-parametrized (commit on main):
+a `RunnerGenesis` selector (Devnet(alice_balance) | Testnet) + `runner_genesis`/
+`runner_node`/`open_peer_node`; `peer-identity`/`peer-blocks-export`/`peer-peers`/
+`peer-sync` gained `--network devnet|testnet` (default devnet, unchanged); each node
+reports its actual chain id as its peer `network` (xriq-devnet vs xriq-testnet) and
+`peer-sync` rejects peers on a different network (`peer_compatibility_error` takes
+the follower's own network). `PrivateDevnetHttpServerConfig` gained a `testnet` flag
+(`--network testnet` on serve-readonly/serve-private) and peer routes pass it
+through. New `InvalidNetwork` error → 400.
+Milestone 3 increment 4 added the HTTP faucet and testnet read routes. Using a shim
+pattern (a genesis-aware `runner_file_*` core with the existing `pub
+private_devnet_file_*` kept as a `Devnet(alice_balance)` delegate — no cascade, the
+~44-fn devnet flow untouched), the `status`, `block-list`, and `account-detail`
+commands gained `--network`, and the `/v1/chain/status` (testnet bypasses the devnet
+pending branch), `/v1/blocks`, and `/v1/accounts/{addr}` routes pass `--network
+testnet` when the server is testnet — so a testnet node serves its own chain's
+status/blocks/accounts. A new `POST /v1/faucet?to=<address>` route (serve-private +
+testnet only; 501 read-only, 400 not-testnet, 400 missing `to`) dispenses via
+`faucet-dispense` (FaucetRefused → 429). Covered by
+`testnet_read_routes_serve_testnet_genesis` and
+`http_faucet_dispenses_on_testnet_serve_private`. SCOPE: the long-tail read routes
+(snapshots, drafts, mempool detail, tx/block detail, account transactions, explorer
+overview) and produce/submit mutations remain devnet-genesis (same shim pattern
+applies when needed); the HTTP faucet has no per-IP limit yet (the chain-derived
+balance cap is the limiter). Remaining for milestone 3: those remaining routes +
+optional per-IP faucet limiting, and the public explorer/wallet. Everything stays
 test-only with no monetary value.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
