@@ -192,6 +192,9 @@ For a failed MVP loop, run `prepare-repair` before calling any model. The
 repair request now carries `agent_report` forward and embeds it in the bounded
 local-model repair prompt, while keeping OpenAI mentor optional and off by
 default.
+After `attempt-repair`, use the saved artifact's `repair_output_contract` and
+`extraction_hint` to move into `extract-repair-edits` and `plan-repair-edits`.
+The model is expected to return strict JSON first; apply remains manual/guarded.
 
 Do not run QLoRA or any training command just because a session says
 "continue." Training is appropriate only after the BIBER eval/review pipeline

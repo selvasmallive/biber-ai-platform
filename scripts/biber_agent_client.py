@@ -1307,10 +1307,13 @@ def build_repair_prompt(
     failure: Mapping[str, Any],
     suggested_next_actions: list[str],
     agent_report: Mapping[str, Any] | None = None,
+    output_contract: Mapping[str, Any] | None = None,
 ) -> str:
     context_lines = "\n".join(f"- {path}" for path in selected_context_paths) or "- none"
     action_lines = "\n".join(f"- {action}" for action in suggested_next_actions) or "- none"
     command = " ".join(str(part) for part in require_list(failure.get("command"))) or "-"
+    contract = require_mapping(output_contract) or build_repair_output_contract()
+    contract_text = format_repair_output_contract(contract)
     report = require_mapping(agent_report)
     report_repo = require_mapping(report.get("repo"))
     report_edit = require_mapping(report.get("edit"))
@@ -1375,6 +1378,9 @@ def build_repair_prompt(
             "Selected repository context paths:",
             context_lines,
             "",
+            "Output contract:",
+            contract_text,
+            "",
             "Agent report:",
             report_text,
             "",
@@ -1394,6 +1400,63 @@ def build_repair_prompt(
             "",
             "Relevant output:",
             str(failure.get("relevant_output") or ""),
+        ]
+    )
+
+
+def build_repair_output_contract() -> dict[str, Any]:
+    return {
+        "source": "biber_repair_output_contract_v1",
+        "response_format": "strict_json_object_first",
+        "preferred_top_level_shape": (
+            '{"edits":[{"path":"src/file.ext","old_text":"old",'
+            '"new_text":"new","expected_replacements":1}]}'
+        ),
+        "accepted_top_level_shapes": [
+            "object_with_edits_array",
+            "single_edit_object",
+            "array_of_edit_objects",
+        ],
+        "required_edit_keys": ["path", "new_text"],
+        "recommended_edit_keys": ["old_text", "expected_replacements"],
+        "optional_edit_keys": ["create_if_missing", "dry_run"],
+        "accepted_path_aliases": ["path", "file"],
+        "path_rules": [
+            "relative_repo_path_only",
+            "no_absolute_paths",
+            "no_parent_traversal",
+            "no_home_or_drive_prefixes",
+        ],
+        "empty_safe_response": {"edits": []},
+        "next_command": "extract-repair-edits",
+        "plan_command": "plan-repair-edits",
+        "apply_allowed": False,
+        "training_allowed": False,
+    }
+
+
+def format_repair_output_contract(contract: Mapping[str, Any]) -> str:
+    preferred_shape = contract.get("preferred_top_level_shape") or "{}"
+    required = ", ".join(
+        str(item) for item in require_list(contract.get("required_edit_keys"))
+    )
+    recommended = ", ".join(
+        str(item) for item in require_list(contract.get("recommended_edit_keys"))
+    )
+    optional = ", ".join(
+        str(item) for item in require_list(contract.get("optional_edit_keys"))
+    )
+    return "\n".join(
+        [
+            "- Return strict JSON as the first response content, without Markdown fences.",
+            f"- Preferred shape: {preferred_shape}",
+            '- If no safe edit exists, return exactly {"edits":[]}.',
+            f"- Required edit keys: {required or '-'}",
+            f"- Recommended replacement keys: {recommended or '-'}",
+            f"- Optional edit keys: {optional or '-'}",
+            "- Use relative repository paths only; no absolute paths or parent traversal.",
+            "- Do not include secrets, generated dependency folders, or unrelated files.",
+            "- `extract-repair-edits` is the next command; apply is never automatic.",
         ]
     )
 
@@ -1462,6 +1525,7 @@ def build_mvp_loop_repair_request(
     runtime_profile_ids = normalize_runtime_profile_ids(
         payload.get("runtime_profile_ids")
     )
+    repair_output_contract = build_repair_output_contract()
     repair_prompt = build_repair_prompt(
         instruction=repair_instruction,
         original_instruction=payload.get("instruction"),
@@ -1469,6 +1533,7 @@ def build_mvp_loop_repair_request(
         failure=failure,
         suggested_next_actions=suggested_next_actions,
         agent_report=agent_report,
+        output_contract=repair_output_contract,
     )
     repair: dict[str, Any] = {
         "source": "biber_mvp_loop_repair_request",
@@ -1479,6 +1544,7 @@ def build_mvp_loop_repair_request(
         "ok": False,
         "instruction": repair_instruction,
         "repair_prompt": repair_prompt,
+        "repair_output_contract": repair_output_contract,
         "selected_context_paths": selected_context_paths,
         "selected_context_paths_truncated": len(selected_context_paths)
         < len(all_context_paths),
@@ -1499,6 +1565,26 @@ def build_mvp_loop_repair_request(
     return repair
 
 
+def ensure_repair_request_output_contract(
+    repair_request: Mapping[str, Any],
+) -> dict[str, Any]:
+    result = dict(repair_request)
+    contract = require_mapping(result.get("repair_output_contract"))
+    if not contract:
+        contract = build_repair_output_contract()
+        result["repair_output_contract"] = contract
+    prompt = str(result.get("repair_prompt") or "")
+    if prompt and "Output contract:" not in prompt:
+        result["repair_prompt"] = "\n\n".join(
+            [
+                prompt.rstrip(),
+                "Output contract:",
+                format_repair_output_contract(contract),
+            ]
+        )
+    return result
+
+
 def build_or_load_repair_request(
     *,
     path: Path,
@@ -1509,7 +1595,7 @@ def build_or_load_repair_request(
 ) -> dict[str, Any]:
     prepared = normalize_mvp_loop_repair_request_artifact(artifact)
     if prepared is not None:
-        return prepared
+        return ensure_repair_request_output_contract(prepared)
     mvp_loop = normalize_mvp_loop_artifact(artifact)
     if mvp_loop is None:
         raise BiberAgentClientError(
@@ -1574,12 +1660,36 @@ def build_repair_chat_payload(
     return payload
 
 
+def build_repair_attempt_extraction_hint(
+    *,
+    content: str,
+    output_contract: Mapping[str, Any],
+) -> dict[str, Any]:
+    stripped = content.strip()
+    json_values = extract_json_values_from_text(stripped) if stripped else []
+    return {
+        "source": "biber_repair_attempt_extraction_hint_v1",
+        "ready_for_extraction": bool(stripped),
+        "expected_content_field": "repair_content",
+        "json_values_found": len(json_values),
+        "output_contract": output_contract.get("source"),
+        "next_command": output_contract.get("next_command") or "extract-repair-edits",
+        "plan_command": output_contract.get("plan_command") or "plan-repair-edits",
+        "apply_allowed": False,
+        "training_allowed": False,
+    }
+
+
 def build_repair_attempt_result(
     *,
     repair_request: Mapping[str, Any],
     chat_payload: Mapping[str, Any],
     model_response: Mapping[str, Any],
 ) -> dict[str, Any]:
+    repair_content = str(model_response.get("content") or "")
+    output_contract = require_mapping(repair_request.get("repair_output_contract"))
+    if not output_contract:
+        output_contract = build_repair_output_contract()
     return {
         "source": "biber_mvp_loop_repair_attempt",
         "repair_loop_version": "mvp-v1",
@@ -1591,7 +1701,12 @@ def build_repair_attempt_result(
         "repair_request": dict(repair_request),
         "chat_request": dict(chat_payload),
         "model_response": dict(model_response),
-        "repair_content": str(model_response.get("content") or ""),
+        "repair_content": repair_content,
+        "repair_output_contract": output_contract,
+        "extraction_hint": build_repair_attempt_extraction_hint(
+            content=repair_content,
+            output_contract=output_contract,
+        ),
         "next_test_id": repair_request.get("next_test_id"),
         "next_workflow": [
             "review_model_repair_content",
@@ -12287,6 +12402,19 @@ def format_mvp_loop_repair_attempt_summary(payload: Mapping[str, Any]) -> str:
     runtime_profile_ids = repair_attempt_runtime_profile_ids(payload)
     if runtime_profile_ids:
         lines.append(f"runtime_profiles: {', '.join(runtime_profile_ids)}")
+    output_contract = require_mapping(payload.get("repair_output_contract"))
+    if output_contract:
+        lines.append(
+            f"repair_output_contract: {output_contract.get('source', '-')}"
+        )
+    extraction_hint = require_mapping(payload.get("extraction_hint"))
+    if extraction_hint:
+        lines.append(
+            "extraction_hint: "
+            f"ready={extraction_hint.get('ready_for_extraction')} "
+            f"json_values={extraction_hint.get('json_values_found', 0)} "
+            f"next={extraction_hint.get('next_command', '-')}"
+        )
     repair_content = compact_text(payload.get("repair_content"), max_chars=240).strip()
     if repair_content:
         lines.append("repair_content_preview:")

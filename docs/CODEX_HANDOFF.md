@@ -53,6 +53,14 @@ If an older failed artifact lacks `agent_report`, the client derives it from
 the existing steps. This keeps the local repair bridge CPU-only and
 OpenAI-mentor-off by default while giving the local provider explicit repo,
 edit, test, failure, and next-action context.
+Sixth BIBER resume checkpoint on the same branch:
+`attempt-repair` now carries an explicit `repair_output_contract` and
+`extraction_hint`. The contract is embedded in the repair prompt and tells the
+local model to return strict JSON first, preferably `{"edits":[...]}`, using
+the keys accepted by `extract-repair-edits`. The hint records whether response
+content exists, how many JSON values were detected, and the next commands
+(`extract-repair-edits`, then `plan-repair-edits`). OpenAI mentor remains off
+by default and file apply remains guarded.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

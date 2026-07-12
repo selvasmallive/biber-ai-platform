@@ -563,6 +563,14 @@ def test_run_show_repair_attempt_summarizes_local_artifact_without_api_key(
                     "mentor_used": False,
                 },
                 "repair_content": "Use the smallest safe edit.",
+                "repair_output_contract": {
+                    "source": "biber_repair_output_contract_v1",
+                },
+                "extraction_hint": {
+                    "ready_for_extraction": True,
+                    "json_values_found": 0,
+                    "next_command": "extract-repair-edits",
+                },
                 "next_test_id": "cargo-test-workspace",
                 "artifact_path": str(artifact),
             }
@@ -580,6 +588,11 @@ def test_run_show_repair_attempt_summarizes_local_artifact_without_api_key(
     assert "model: biber-dev-core" in output
     assert "mentor_used: False" in output
     assert "runtime_profiles: rust-xriq-codegen" in output
+    assert "repair_output_contract: biber_repair_output_contract_v1" in output
+    assert (
+        "extraction_hint: ready=True json_values=0 next=extract-repair-edits"
+        in output
+    )
     assert "repair_content_preview:" in output
     assert str(artifact) in output
 
@@ -873,6 +886,12 @@ def test_build_mvp_loop_repair_request_extracts_failure_context(tmp_path: Path) 
     assert repair["failure"]["primary_category"] == "compile_error"
     assert repair["failure"]["relevant_output"].endswith("; expected\n")
     assert repair["agent_report"]["status"] == "test_failed"
+    assert repair["repair_output_contract"]["source"] == (
+        "biber_repair_output_contract_v1"
+    )
+    assert repair["repair_output_contract"]["next_command"] == "extract-repair-edits"
+    assert "Output contract:" in repair["repair_prompt"]
+    assert '"edits":[{"path":"src/file.ext"' in repair["repair_prompt"]
     assert "Agent report:" in repair["repair_prompt"]
     assert "- status: test_failed" in repair["repair_prompt"]
     assert "Fix the API compile error." in repair["repair_prompt"]
@@ -1178,11 +1197,26 @@ def test_run_attempt_repair_calls_local_model_and_writes_artifact(
     assert captured["payload"]["use_mentor"] is False
     assert captured["payload"]["max_tokens"] == 128
     assert captured["payload"]["repo_context_paths"] == ["README.md", "src/App.cs"]
+    assert "Output contract:" in captured["payload"]["messages"][0]["content"]
     assert result["repair_status"] == "model_repair_proposed"
     assert result["auto_applied"] is False
     assert result["training_allowed"] is False
     assert result["model_response"]["mentor_used"] is False
     assert result["repair_content"].startswith("Change src/App.cs")
+    assert result["repair_output_contract"]["source"] == (
+        "biber_repair_output_contract_v1"
+    )
+    assert result["extraction_hint"] == {
+        "source": "biber_repair_attempt_extraction_hint_v1",
+        "ready_for_extraction": True,
+        "expected_content_field": "repair_content",
+        "json_values_found": 0,
+        "output_contract": "biber_repair_output_contract_v1",
+        "next_command": "extract-repair-edits",
+        "plan_command": "plan-repair-edits",
+        "apply_allowed": False,
+        "training_allowed": False,
+    }
 
 
 def test_run_attempt_repair_inherits_mvp_loop_runtime_profiles(
@@ -1273,6 +1307,44 @@ def test_run_attempt_repair_inherits_mvp_loop_runtime_profiles(
     assert result["chat_request"]["runtime_profile_ids"] == ["rust-xriq-codegen"]
 
 
+def test_build_repair_attempt_result_reports_json_extraction_hint() -> None:
+    repair_request = {
+        "source_artifact": "/workspace/outputs/failure-mvp-loop.json",
+        "repair_output_contract": client.build_repair_output_contract(),
+        "next_test_id": "python-pytest",
+    }
+    attempt = client.build_repair_attempt_result(
+        repair_request=repair_request,
+        chat_payload={"use_mentor": False},
+        model_response={
+            "model": "biber-dev-core-v1",
+            "mentor_used": False,
+            "content": json.dumps(
+                {
+                    "edits": [
+                        {
+                            "path": "src/app.py",
+                            "old_text": "return 1",
+                            "new_text": "return 2",
+                            "expected_replacements": 1,
+                        }
+                    ]
+                }
+            ),
+        },
+    )
+
+    assert attempt["repair_output_contract"]["source"] == (
+        "biber_repair_output_contract_v1"
+    )
+    assert attempt["extraction_hint"]["ready_for_extraction"] is True
+    assert attempt["extraction_hint"]["json_values_found"] == 1
+    assert attempt["extraction_hint"]["next_command"] == "extract-repair-edits"
+    assert attempt["next_workflow"][1] == (
+        "convert_response_to_bounded_plan_edit_payload"
+    )
+
+
 def test_run_attempt_repair_accepts_prepared_repair_request(
     monkeypatch,
     tmp_path: Path,
@@ -1338,14 +1410,19 @@ def test_run_attempt_repair_accepts_prepared_repair_request(
     )
     result = json.loads(output)
 
-    assert captured["payload"]["messages"][0]["content"] == (
+    assert captured["payload"]["messages"][0]["content"].startswith(
         "Fix the prepared Rust repair."
     )
+    assert "Output contract:" in captured["payload"]["messages"][0]["content"]
     assert captured["payload"]["language"] == "Rust"
     assert captured["payload"]["runtime_profile_ids"] == ["rust-xriq-codegen"]
     assert result["repair_request"]["source_artifact"] == (
         "/workspace/outputs/failure-mvp-loop.json"
     )
+    assert result["repair_request"]["repair_output_contract"]["source"] == (
+        "biber_repair_output_contract_v1"
+    )
+    assert result["repair_output_contract"]["next_command"] == "extract-repair-edits"
     assert result["repair_content"] == "Prepared repair proposal."
 
 
