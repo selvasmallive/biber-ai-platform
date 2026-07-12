@@ -14,6 +14,8 @@ use xriq_core::{
     Address, AddressError, Block, BlockHeader, BlockValidationError, Environment, GenesisConfig,
     GenesisConfigError, Hash32, ParentHeaderView, SignatureBytes, Transaction,
     TransactionValidationContext, TransactionValidationError, XriqAmount,
+    PUBLIC_TESTNET_FAUCET_ADDRESS, PUBLIC_TESTNET_FAUCET_DRIP_BASE_UNITS,
+    PUBLIC_TESTNET_FAUCET_MAX_BALANCE_BASE_UNITS,
 };
 use xriq_crypto::{
     account_state_root, block_header_signing_hash, test_only_signature_for_hash, transaction_hash,
@@ -254,6 +256,7 @@ pub enum NodeRunnerError {
     MissingFlag(&'static str),
     UnsupportedEnvironment(String),
     PeerSyncError(String),
+    FaucetRefused(String),
     DuplicateFlag(String),
     UnexpectedArgument(String),
     DraftFileRead { path: String, error: String },
@@ -549,6 +552,7 @@ impl fmt::Display for NodeRunnerError {
                 "unsupported environment {value:?}: only \"local\" and \"staging-devnet\" are allowed; production, mainnet, and public-testnet are not runnable from this build"
             ),
             Self::PeerSyncError(message) => write!(formatter, "peer sync failed: {message}"),
+            Self::FaucetRefused(message) => write!(formatter, "faucet refused: {message}"),
             Self::DuplicateFlag(flag) => write!(formatter, "duplicate flag: {flag}"),
             Self::UnexpectedArgument(argument) => {
                 write!(formatter, "unexpected argument: {argument}")
@@ -631,6 +635,7 @@ impl NodeRunnerError {
             Self::MissingFlag(_) => "missing_flag",
             Self::UnsupportedEnvironment(_) => "unsupported_environment",
             Self::PeerSyncError(_) => "peer_sync_error",
+            Self::FaucetRefused(_) => "faucet_refused",
             Self::DuplicateFlag(_) => "duplicate_flag",
             Self::UnexpectedArgument(_) => "unexpected_argument",
             Self::DraftFileRead { .. } => "draft_file_read",
@@ -683,6 +688,7 @@ pub fn node_help_text() -> String {
         "  xriq-node peer-identity --chain-file <path> [--node-seed <string>] [--alice-balance <base-units>] [--format json]  (read-only compatibility handshake: network, protocol, tip, node id; also at GET /v1/peer/identity)",
         "  xriq-node peer-peers [--peers-file <path>] [--chain-file <path>] [--format json]  (read-only; advertises this node's known peers for discovery; also at GET /v1/peer/peers)",
         "  xriq-node testnet-genesis [--format json]  (read-only; prints the canonical TEST-ONLY public testnet genesis spec and its reproducible genesis_spec_hash)",
+        "  xriq-node faucet-dispense --chain-file <testnet-path> --to <address> [--amount <base-units>] [--max-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <n>] [--format json]  (TEST-ONLY; sends valueless test units from the genesis faucet, balance-capped, and confirms a block)",
         "  xriq-node peer-sync --chain-file <path> (--peer <http://host:port> | --peers-file <path>) [--discover <max-peers>] [--node-seed <string>] [--limit <count>] [--max-rounds <count>] [--alice-balance <base-units>] [--format json]  (follower; handshakes then pulls/validates blocks from one or many peers, discovering more and skipping itself, into the chain file)",
         "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-list --snapshot-root <path> [--limit <count>] [--format text|json]",
@@ -826,6 +832,7 @@ where
         Some("peer-peers") => run_peer_peers_command(&args[1..]),
         Some("peer-sync") => run_peer_sync_command(&args[1..]),
         Some("testnet-genesis") => run_testnet_genesis_command(&args[1..]),
+        Some("faucet-dispense") => run_faucet_dispense_command(&args[1..]),
         Some("transaction-detail") => run_transaction_detail_command(&args[1..]),
         Some("snapshot-list") => run_snapshot_list_command(&args[1..]),
         Some("snapshot-latest") => run_snapshot_latest_command(&args[1..]),
@@ -1855,6 +1862,8 @@ fn node_runner_error_http_status(error: &NodeRunnerError) -> u16 {
         NodeRunnerError::SnapshotNotFound(_) => 404,
         NodeRunnerError::SnapshotTargetExists(_) => 409,
         NodeRunnerError::InvalidSnapshotManifest(_) => 400,
+        // Faucet refusals (over cap or exhausted) are client-visible rate limits.
+        NodeRunnerError::FaucetRefused(_) => 429,
         _ => 500,
     }
 }
@@ -3514,6 +3523,146 @@ fn run_testnet_genesis_command(args: &[String]) -> Result<NodeRunnerOutput, Node
     Ok(NodeRunnerOutput::Json(render_testnet_genesis_json(
         &genesis,
     )))
+}
+
+fn public_testnet_node(
+    chain_file: impl AsRef<Path>,
+) -> Result<XriqNode<FileChainStore>, NodeRunnerError> {
+    let store = FileChainStore::open(chain_file)
+        .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
+    XriqNode::from_genesis_replaying_store(&GenesisConfig::public_testnet(), store)
+        .map_err(NodeRunnerError::Node)
+}
+
+// Dispense valueless test units from the genesis faucet account on the public
+// testnet chain. Rate-limited by a balance cap (chain-derived, so it is
+// deterministic and needs no side state); the transfer is a normal signed
+// transaction confirmed in a freshly produced block. TEST-ONLY, no value.
+//
+// This operates on its own testnet-genesis chain file and is deliberately not
+// wired into the devnet-genesis HTTP server; a genesis-parametrized testnet node
+// (a later increment) will expose it over HTTP with additional IP rate limiting.
+fn run_faucet_dispense_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--to",
+        "--amount",
+        "--max-balance",
+        "--timestamp-ms",
+        "--consensus-round",
+        "--format",
+    ])?;
+    let _ = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let chain_file = flags.required("--chain-file")?;
+    let to = parse_address("--to", flags.required("--to")?)?;
+    let amount = flags
+        .optional("--amount")
+        .map(|value| parse_amount("--amount", value))
+        .transpose()?
+        .unwrap_or_else(|| XriqAmount::from_base_units(PUBLIC_TESTNET_FAUCET_DRIP_BASE_UNITS));
+    let max_balance = flags
+        .optional("--max-balance")
+        .map(|value| parse_amount("--max-balance", value))
+        .transpose()?
+        .unwrap_or_else(|| {
+            XriqAmount::from_base_units(PUBLIC_TESTNET_FAUCET_MAX_BALANCE_BASE_UNITS)
+        });
+    let consensus_round = flags
+        .optional("--consensus-round")
+        .map(|value| parse_u64("--consensus-round", value))
+        .transpose()?
+        .unwrap_or(0);
+
+    let mut node = public_testnet_node(chain_file)?;
+    let faucet_address =
+        Address::parse(PUBLIC_TESTNET_FAUCET_ADDRESS).expect("public testnet faucet address");
+
+    // Abuse control: refuse a recipient already at or above the balance cap.
+    let recipient_balance = node
+        .ledger()
+        .account(&to)
+        .map(|account| account.balance)
+        .unwrap_or(XriqAmount::ZERO);
+    if recipient_balance.base_units() >= max_balance.base_units() {
+        return Err(NodeRunnerError::FaucetRefused(format!(
+            "recipient {} already holds {} base units (cap {})",
+            to.as_str(),
+            recipient_balance.base_units(),
+            max_balance.base_units()
+        )));
+    }
+
+    let faucet_account = node
+        .ledger()
+        .account(&faucet_address)
+        .ok_or_else(|| NodeRunnerError::FaucetRefused("faucet account is unfunded".to_string()))?;
+    let fee = node.ledger().config().min_fee;
+    let sufficient = amount
+        .base_units()
+        .checked_add(fee.base_units())
+        .map(|required| faucet_account.balance.base_units() >= required)
+        .unwrap_or(false);
+    if !sufficient {
+        return Err(NodeRunnerError::FaucetRefused(format!(
+            "faucet balance {} is insufficient for amount {} plus fee {}",
+            faucet_account.balance.base_units(),
+            amount.base_units(),
+            fee.base_units()
+        )));
+    }
+
+    let transfer = PrivateDevnetTransferInput {
+        from: faucet_address.clone(),
+        to: to.clone(),
+        amount,
+        fee,
+        nonce: faucet_account.nonce,
+        expires_at_height: None,
+        timestamp_ms: 0,
+        consensus_round,
+    };
+    let transaction = private_devnet_runner_transaction(&node, &transfer);
+    let transaction_hash = transaction_hash(&transaction);
+    node.submit_transaction_with_canonical_hash(transaction)
+        .map_err(NodeRunnerError::Node)?;
+
+    // A monotonic default timestamp (height-derived) keeps successive faucet
+    // blocks ordered without depending on a wall clock.
+    let height = node.ledger().current_height().saturating_add(1);
+    let timestamp_ms = flags
+        .optional("--timestamp-ms")
+        .map(|value| parse_u64("--timestamp-ms", value))
+        .transpose()?
+        .unwrap_or_else(|| height.saturating_mul(1_000));
+    let produced = node
+        .produce_next_block_with_private_devnet_signature(timestamp_ms, consensus_round)
+        .map_err(NodeRunnerError::Node)?;
+
+    let recipient_new = node
+        .ledger()
+        .account(&to)
+        .map(|account| account.balance.base_units())
+        .unwrap_or(0);
+    let faucet_new = node
+        .ledger()
+        .account(&faucet_address)
+        .map(|account| account.balance.base_units())
+        .unwrap_or(0);
+    let json = format!(
+        "{{\n  \"command\": \"faucet-dispense\",\n  \"warning\": {},\n  \"chain_id\": {},\n  \"to\": {},\n  \"amount_base_units\": {},\n  \"fee_base_units\": {},\n  \"transaction_hash\": {},\n  \"block_height\": {},\n  \"block_hash\": {},\n  \"recipient_balance_base_units\": {},\n  \"faucet_balance_base_units\": {}\n}}",
+        json_string(TESTNET_GENESIS_WARNING),
+        json_string(&node.ledger().config().chain_id),
+        json_string(to.as_str()),
+        json_string(&amount.base_units().to_string()),
+        json_string(&fee.base_units().to_string()),
+        json_string(&hash_hex(transaction_hash)),
+        produced.block.header.height,
+        json_string(&hash_hex(produced.block_hash)),
+        json_string(&recipient_new.to_string()),
+        json_string(&faucet_new.to_string()),
+    );
+    Ok(NodeRunnerOutput::Json(json))
 }
 
 fn run_chain_check_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
@@ -9113,6 +9262,120 @@ mod tests {
             genesis_spec_hash(&testnet),
             genesis_spec_hash(&GenesisConfig::private_devnet())
         );
+    }
+
+    #[test]
+    fn faucet_dispenses_valueless_units_and_confirms() {
+        let chain = temp_store_path();
+        let chain_text = chain.to_string_lossy().to_string();
+        let recipient = "xriqdev1recipient00000000000";
+
+        let out1 = run_node_command([
+            "faucet-dispense",
+            "--chain-file",
+            chain_text.as_str(),
+            "--to",
+            recipient,
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(out1.contains("\"command\": \"faucet-dispense\""));
+        assert!(out1.contains("\"chain_id\": \"xriq-testnet\""));
+        assert!(out1.contains("TEST-ONLY"));
+        assert!(out1.contains("\"amount_base_units\": \"1000\""));
+        assert!(out1.contains("\"fee_base_units\": \"2\""));
+        assert!(out1.contains("\"block_height\": 1"));
+        assert!(out1.contains("\"recipient_balance_base_units\": \"1000\""));
+        // The faucet balance dropped from the genesis allocation.
+        assert!(out1.contains("\"faucet_balance_base_units\": \"999999998998\""));
+
+        // A second dispense to the same recipient increments the faucet nonce,
+        // produces the next block, and tops the recipient up again.
+        let out2 = run_node_command([
+            "faucet-dispense",
+            "--chain-file",
+            chain_text.as_str(),
+            "--to",
+            recipient,
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(out2.contains("\"block_height\": 2"));
+        assert!(out2.contains("\"recipient_balance_base_units\": \"2000\""));
+
+        // The chain persisted: re-opening funds a new recipient at height 3.
+        let out3 = run_node_command([
+            "faucet-dispense",
+            "--chain-file",
+            chain_text.as_str(),
+            "--to",
+            "xriqdev1recipient00000000001",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        assert!(out3.contains("\"block_height\": 3"));
+        assert!(out3.contains("\"recipient_balance_base_units\": \"1000\""));
+
+        let _ = fs::remove_file(chain);
+    }
+
+    #[test]
+    fn faucet_refuses_over_cap_and_when_exhausted() {
+        let chain = temp_store_path();
+        let chain_text = chain.to_string_lossy().to_string();
+        let recipient = "xriqdev1recipient00000000000";
+
+        // First dispense under a low cap succeeds.
+        run_node_command([
+            "faucet-dispense",
+            "--chain-file",
+            chain_text.as_str(),
+            "--to",
+            recipient,
+            "--max-balance",
+            "500",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+        // The recipient now holds 1000 >= the 500 cap, so a repeat is refused.
+        let refused = run_node_command([
+            "faucet-dispense",
+            "--chain-file",
+            chain_text.as_str(),
+            "--to",
+            recipient,
+            "--max-balance",
+            "500",
+            "--format",
+            "json",
+        ]);
+        assert!(matches!(refused, Err(NodeRunnerError::FaucetRefused(_))));
+
+        // Requesting more than the faucet holds is also refused (exhaustion).
+        let fresh = temp_store_path();
+        let fresh_text = fresh.to_string_lossy().to_string();
+        let too_big = run_node_command([
+            "faucet-dispense",
+            "--chain-file",
+            fresh_text.as_str(),
+            "--to",
+            "xriqdev1recipient00000000001",
+            "--amount",
+            "2000000000000",
+            "--format",
+            "json",
+        ]);
+        assert!(matches!(too_big, Err(NodeRunnerError::FaucetRefused(_))));
+
+        let _ = fs::remove_file(chain);
+        let _ = fs::remove_file(fresh);
     }
 
     #[test]

@@ -389,8 +389,26 @@ length-prefixed encoding of every parameter + each account). The golden hash is
 node test (drift = a hard fork) and documented in `docs/XRIQ_TESTNET_CHAINSPEC.md`.
 This defines the genesis only; it does not start a network. Everything stays
 test-only with no monetary value (the chain spec and doc both carry the TEST-ONLY /
-valueless framing). Remaining for milestone 3: the rate-limited valueless faucet
-service, then public testnet nodes and the public explorer/wallet.
+valueless framing).
+Milestone 3 increment 2 added the valueless faucet. `xriq-node faucet-dispense
+--chain-file <testnet-path> --to <address> [--amount N] [--max-balance N]` sends a
+fixed drip (default 1000 base units) of valueless test units from the genesis
+faucet account to a recipient as a normal signed transaction, confirmed in a
+freshly produced block on the public_testnet genesis (its own chain file). Abuse
+control is a chain-derived **balance cap** (default 10000): it refuses a recipient
+already at/above the cap and refuses when the faucet cannot cover amount+fee — a
+deterministic rate limit needing no side state (new `FaucetRefused` error → HTTP
+429). It is deliberately NOT wired into the devnet-genesis HTTP server (that would
+be semantically wrong); a genesis-parametrized testnet node — a later increment —
+will expose the faucet + peer sync over HTTP with additional per-IP rate limiting.
+Faucet policy constants live in xriq-core (`PUBLIC_TESTNET_FAUCET_DRIP_BASE_UNITS`,
+`PUBLIC_TESTNET_FAUCET_MAX_BALANCE_BASE_UNITS`). Covered by two node tests
+(multi-dispense with nonce increment + on-disk persistence across re-opens across
+three blocks; and refusal both over the cap and when the requested amount exceeds
+the faucet balance). `docs/XRIQ_TESTNET_CHAINSPEC.md` documents the faucet.
+Remaining for milestone 3: genesis-parametrized public testnet nodes (HTTP faucet +
+peer sync with per-IP limits) and the public explorer/wallet. Everything stays
+test-only with no monetary value.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

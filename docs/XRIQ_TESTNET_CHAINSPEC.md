@@ -42,8 +42,26 @@ Exactly one account is funded at genesis — the faucet:
 | Faucet | `xriqdev1testnetfaucet00000000` | `1000000000000` | `0` |
 
 The faucet balance is the only source of dispensable test units. It is **not** a
-supply, sale, or distribution; it exists so the (forthcoming) faucet service can
-hand out valueless test units for experimentation.
+supply, sale, or distribution; it exists so the faucet can hand out valueless
+test units for experimentation.
+
+### Faucet dispense
+
+`xriq-node faucet-dispense --chain-file <testnet-path> --to <address>` sends a
+fixed drip of valueless test units from the faucet account to a recipient as a
+normal signed transaction, confirmed in a freshly produced block. Policy:
+
+| Setting | Default | Override |
+| --- | --- | --- |
+| Drip per request | `1000` base units | `--amount` |
+| Recipient balance cap | `10000` base units | `--max-balance` |
+
+Abuse control is a **balance cap**: the faucet refuses a recipient already at or
+above the cap (a chain-derived, deterministic rate limit that needs no side
+state), and refuses when the faucet account cannot cover the amount plus fee.
+The command runs against its own testnet-genesis chain file; an HTTP faucet
+endpoint with additional per-IP rate limiting will arrive with genesis-parametrized
+testnet nodes.
 
 ## Genesis spec hash
 
@@ -60,7 +78,8 @@ new chain (a hard fork). The value is pinned by a golden test in
 
 ## Status
 
-This spec defines the testnet genesis; it does **not** start a public network by
-itself. Running public testnet nodes, the faucet service, and the public
-explorer/wallet are later Phase 3 milestones (see
-`docs/XRIQ_PHASE3_PUBLIC_TESTNET_PLAN.md`), each still test-only with no value.
+This spec defines the testnet genesis and a CLI faucet; it does **not** start a
+public network by itself. Running public testnet nodes (genesis-parametrized,
+exposing the faucet and peer sync over HTTP) and the public explorer/wallet are
+later Phase 3 milestones (see `docs/XRIQ_PHASE3_PUBLIC_TESTNET_PLAN.md`), each
+still test-only with no value.

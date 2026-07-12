@@ -20,6 +20,11 @@ pub const PUBLIC_TESTNET_FEE_SINK_ADDRESS: &str = "xriqdev1testnetfees0000000000
 /// to seed the public testnet faucet; it is not a supply, sale, or distribution.
 pub const PUBLIC_TESTNET_FAUCET_ADDRESS: &str = "xriqdev1testnetfaucet00000000";
 pub const PUBLIC_TESTNET_FAUCET_BALANCE_BASE_UNITS: u128 = 1_000_000_000_000;
+/// Valueless test units dispensed per faucet request.
+pub const PUBLIC_TESTNET_FAUCET_DRIP_BASE_UNITS: u128 = 1_000;
+/// Abuse control: the faucet refuses a recipient whose balance is already at or
+/// above this cap, so it tops up experimenters without unbounded draining.
+pub const PUBLIC_TESTNET_FAUCET_MAX_BALANCE_BASE_UNITS: u128 = 10_000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenesisAccount {
