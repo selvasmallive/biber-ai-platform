@@ -349,6 +349,37 @@ def plan_workspace_edit_local_target(
         raise BiberAgentClientError(str(exc)) from exc
 
 
+def plan_repo_context_local_target(
+    *,
+    target_root: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    ensure_local_src_import_path()
+    from biber_api.repo_context import RepoContextError
+    from biber_api.repo_context import plan_repo_context as local_plan_repo_context
+
+    root = validate_local_target_root(target_root)
+    try:
+        return local_plan_repo_context(
+            root=str(root),
+            instruction=(
+                str(payload["instruction"])
+                if isinstance(payload.get("instruction"), str)
+                else None
+            ),
+            pinned_paths=[
+                str(item) for item in require_list(payload.get("pinned_paths"))
+            ],
+            changed_paths=[
+                str(item) for item in require_list(payload.get("changed_paths"))
+            ],
+            max_files=int(payload.get("max_files") or 12),
+            max_scan_files=int(payload.get("max_scan_files") or 2000),
+        )
+    except (RepoContextError, TypeError, ValueError) as exc:
+        raise BiberAgentClientError(str(exc)) from exc
+
+
 def apply_workspace_edit_plan_local_target(
     *,
     target_root: Path,
@@ -14475,6 +14506,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     mvp_loop.add_argument("--instruction", required=True)
     mvp_loop.add_argument("--pinned-path", action="append", default=None)
     mvp_loop.add_argument("--changed-path", action="append", default=None)
+    mvp_loop.add_argument(
+        "--local-target-root",
+        help=(
+            "Run context, edit, test, and diagnosis steps directly against this "
+            "local repo root without requiring a live BIBER API. GitHub save/PR "
+            "steps still use the API."
+        ),
+    )
     mvp_loop.add_argument("--max-context-files", type=int)
     mvp_loop.add_argument("--max-scan-files", type=int)
     mvp_loop.add_argument("--runtime-profile-id", action="append", default=None)
@@ -16989,8 +17028,18 @@ def run(args: argparse.Namespace) -> str:
             "apply-repair-edits requires --approve before any files can be changed."
         )
 
-    api_key = resolve_api_key(args.api_key)
-    base_url = args.base_url.rstrip("/")
+    mvp_loop_uses_only_local_steps = (
+        args.command == "mvp-loop"
+        and bool(args.local_target_root)
+        and not args.save_github_path
+        and not args.create_pr
+    )
+    if mvp_loop_uses_only_local_steps:
+        api_key = ""
+        base_url = args.base_url.rstrip("/")
+    else:
+        api_key = resolve_api_key(args.api_key)
+        base_url = args.base_url.rstrip("/")
     if args.command == "attempt-repair":
         artifact_path = Path(args.artifact)
         artifact = load_json_artifact(
@@ -17466,7 +17515,12 @@ def run(args: argparse.Namespace) -> str:
     if args.command == "mvp-loop":
         steps: dict[str, Any] = {}
         runtime_profile_ids = dedupe_strings(args.runtime_profile_id)
-        if runtime_profile_ids:
+        target_root: Path | None = None
+        target_root_source: str | None = None
+        if args.local_target_root:
+            target_root = validate_local_target_root(Path(args.local_target_root))
+            target_root_source = "cli_local_target_root"
+        if runtime_profile_ids and target_root is None:
             capabilities = fetch_capabilities(
                 base_url=base_url,
                 api_key=api_key,
@@ -17476,18 +17530,27 @@ def run(args: argparse.Namespace) -> str:
                 capabilities=capabilities,
                 runtime_profile_ids=runtime_profile_ids,
             )
-        context_plan = plan_repo_context(
-            base_url=base_url,
-            api_key=api_key,
-            payload=build_repo_context_payload(
-                instruction=args.instruction,
-                pinned_paths=args.pinned_path,
-                changed_paths=args.changed_path,
-                max_files=args.max_context_files,
-                max_scan_files=args.max_scan_files,
-            ),
-            timeout_seconds=args.timeout_seconds,
+        context_payload = build_repo_context_payload(
+            instruction=args.instruction,
+            pinned_paths=args.pinned_path,
+            changed_paths=args.changed_path,
+            max_files=args.max_context_files,
+            max_scan_files=args.max_scan_files,
         )
+        if target_root is not None:
+            context_plan = plan_repo_context_local_target(
+                target_root=target_root,
+                payload=context_payload,
+            )
+            context_mode = "local_target_root"
+        else:
+            context_plan = plan_repo_context(
+                base_url=base_url,
+                api_key=api_key,
+                payload=context_payload,
+                timeout_seconds=args.timeout_seconds,
+            )
+            context_mode = "api_workspace_root"
         steps["context_plan"] = context_plan
 
         selected_context_paths = [
@@ -17496,9 +17559,13 @@ def run(args: argparse.Namespace) -> str:
         summary: dict[str, Any] = {
             "ok": True,
             "instruction": args.instruction,
+            "context_mode": context_mode,
             "selected_context_paths": selected_context_paths,
             "steps": steps,
         }
+        if target_root is not None:
+            summary["target_root"] = str(target_root)
+            summary["target_root_source"] = target_root_source
         if runtime_profile_ids is not None:
             summary["runtime_profile_ids"] = runtime_profile_ids
 
@@ -17512,13 +17579,22 @@ def run(args: argparse.Namespace) -> str:
                 edits=edits,
                 max_files=args.max_edit_files,
             )
-            edit_plan = plan_workspace_edit(
-                base_url=base_url,
-                api_key=api_key,
-                payload=edit_payload,
-                timeout_seconds=args.timeout_seconds,
-            )
+            if target_root is not None:
+                edit_plan = plan_workspace_edit_local_target(
+                    target_root=target_root,
+                    payload=edit_payload,
+                )
+                edit_mode = "local_target_root"
+            else:
+                edit_plan = plan_workspace_edit(
+                    base_url=base_url,
+                    api_key=api_key,
+                    payload=edit_payload,
+                    timeout_seconds=args.timeout_seconds,
+                )
+                edit_mode = "api_workspace_root"
             steps["edit_plan"] = edit_plan
+            summary["edit_mode"] = edit_mode
             summary["edit_plan_hash"] = edit_plan.get("plan_hash")
             if edit_plan.get("ok") is not True:
                 summary["ok"] = False
@@ -17528,16 +17604,23 @@ def run(args: argparse.Namespace) -> str:
                     raise BiberAgentClientError(
                         "mvp-loop edit plan returned an invalid plan_hash."
                     )
-                edit_apply = apply_workspace_edit_plan(
-                    base_url=base_url,
-                    api_key=api_key,
-                    payload=build_workspace_edit_payload(
-                        edits=edits,
-                        max_files=args.max_edit_files,
-                        plan_hash=plan_hash,
-                    ),
-                    timeout_seconds=args.timeout_seconds,
+                edit_apply_payload = build_workspace_edit_payload(
+                    edits=edits,
+                    max_files=args.max_edit_files,
+                    plan_hash=plan_hash,
                 )
+                if target_root is not None:
+                    edit_apply = apply_workspace_edit_plan_local_target(
+                        target_root=target_root,
+                        payload=edit_apply_payload,
+                    )
+                else:
+                    edit_apply = apply_workspace_edit_plan(
+                        base_url=base_url,
+                        api_key=api_key,
+                        payload=edit_apply_payload,
+                        timeout_seconds=args.timeout_seconds,
+                    )
                 steps["edit_apply"] = edit_apply
                 if edit_apply.get("ok") is not True:
                     summary["ok"] = False
@@ -17545,27 +17628,43 @@ def run(args: argparse.Namespace) -> str:
             raise BiberAgentClientError("--apply-edits requires --edit-json or --edits-file.")
 
         if args.test_id:
-            test_run = run_allowlisted_test(
-                base_url=base_url,
-                api_key=api_key,
-                payload=build_test_run_payload(
-                    test_id=args.test_id,
-                    dry_run=args.test_dry_run,
-                ),
-                timeout_seconds=args.timeout_seconds,
+            test_payload = build_test_run_payload(
+                test_id=args.test_id,
+                dry_run=args.test_dry_run,
             )
-            steps["test_run"] = test_run
-            summary["test_ok"] = test_run.get("ok")
-            if test_run.get("executed") is True and test_run.get("ok") is False:
-                diagnosis = diagnose_test_failure(
+            if target_root is not None:
+                test_run = run_allowlisted_test_local_target(
+                    target_root=target_root,
+                    payload=test_payload,
+                )
+                test_mode = "local_target_root"
+            else:
+                test_run = run_allowlisted_test(
                     base_url=base_url,
                     api_key=api_key,
-                    payload=build_diagnosis_payload_from_test_run(
-                        test_run,
-                        max_context_lines=args.max_context_lines,
-                    ),
+                    payload=test_payload,
                     timeout_seconds=args.timeout_seconds,
                 )
+                test_mode = "api_workspace_root"
+            steps["test_run"] = test_run
+            summary["test_mode"] = test_mode
+            summary["test_ok"] = test_run.get("ok")
+            if test_run.get("executed") is True and test_run.get("ok") is False:
+                if target_root is not None:
+                    diagnosis = diagnose_test_failure_local(
+                        test_run,
+                        max_context_lines=args.max_context_lines,
+                    )
+                else:
+                    diagnosis = diagnose_test_failure(
+                        base_url=base_url,
+                        api_key=api_key,
+                        payload=build_diagnosis_payload_from_test_run(
+                            test_run,
+                            max_context_lines=args.max_context_lines,
+                        ),
+                        timeout_seconds=args.timeout_seconds,
+                    )
                 steps["test_diagnosis"] = diagnosis
                 summary["diagnosis_summary"] = diagnosis.get("summary")
                 summary["ok"] = False

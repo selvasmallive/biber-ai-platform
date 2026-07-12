@@ -153,11 +153,57 @@ The base local coding model can be restored by running the Vast bootstrap/start
 scripts. Repo-adapted LoRA behavior is not available unless adapter artifacts
 are restored or retrained.
 
+## CPU-Local MVP Loop
+
+Before provisioning a GPU, continue BIBER orchestration work locally. The agent
+client can now run the cheap workflow directly against a local repository root
+without a live BIBER API:
+
+```bash
+python scripts/biber_agent_client.py --json mvp-loop \
+  --instruction "Plan or validate a narrow code change." \
+  --local-target-root /path/to/repo \
+  --changed-path src/example.py \
+  --test-id python-compileall-api \
+  --test-dry-run \
+  --output /tmp/biber-mvp-loop.json
+```
+
+With `--local-target-root`, context selection, edit planning/apply, test
+execution, and diagnosis use local source code. GitHub save and PR creation
+still require the BIBER API because those are server-backed integrations.
+
 Do not run QLoRA or any training command just because a session says
 "continue." Training is appropriate only after the BIBER eval/review pipeline
 shows a concrete repeatable model gap, the reviewed dataset is ready, and a
 current GPU runtime is available. Keep source-level BIBER orchestration work
 CPU/local-first until training is actually needed.
+
+## When Vast GPU Credentials Are Needed
+
+Do not collect or paste Vast credentials for routine BIBER source work. They are
+needed only when a future step explicitly requires one of these:
+
+- start or inspect a live Vast instance
+- bootstrap `/workspace/biber-ai-platform`
+- run vLLM/local-model inference through the BIBER API
+- run batch evals on the GPU
+- start a QLoRA/training job
+- restore adapters or Hugging Face cache artifacts to a new volume
+
+When that point arrives, collect these details from Vast.ai and provide them to
+the session without pasting secret key values into chat:
+
+- instance id
+- copied SSH connection command from the instance SSH/connect screen
+- SSH private-key path on this workstation, if not the default
+- whether the instance has a persistent volume attached
+- whether the Vast CLI is already authenticated locally
+
+If CLI automation is required, create a Vast API key in the Vast console Keys
+page and store it locally with `vastai set api-key YOUR_API_KEY` or in a local
+environment variable. Do not commit it, paste it into docs, or include it in
+training data.
 
 ## Cost-Control Rules
 

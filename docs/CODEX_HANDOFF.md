@@ -17,6 +17,14 @@ allowlisted commands for Python pytest, Cargo, npm check/test/build, and Docker
 Compose config. Verification used local compile checks plus direct no-pytest
 metadata validations; full pytest was not run because the local bundled Python
 runtime does not have `pytest` installed.
+Second BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py mvp-loop` now supports `--local-target-root`,
+which runs context planning, safe workspace edit plan/apply, allowlisted test
+execution, and diagnosis directly against a local repo without resolving a
+BIBER API key. GitHub save/PR remains server-backed and still requires the API.
+Verified with `compileall` and a temporary-repo no-server smoke that changed a
+Python file through the local edit-plan/apply path and wrote a local MVP-loop
+artifact.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

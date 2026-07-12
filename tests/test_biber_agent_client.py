@@ -12207,3 +12207,185 @@ def test_run_mvp_loop_json_chains_safe_workflow(monkeypatch, tmp_path: Path) -> 
         "repo": "biber",
         "draft": True,
     }
+
+
+def test_run_mvp_loop_local_target_chains_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    target_root = tmp_path / "target-repo"
+    target_root.mkdir()
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local mvp-loop should not resolve an API key")
+
+    def fake_plan_repo_context_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        captured["context_target_root"] = target_root
+        captured["context_payload"] = payload
+        return {
+            "selected_paths": ["README.md"],
+            "detected_project_types": ["python"],
+            "candidates": [],
+            "skipped": [],
+            "stack_profiles": [{"id": "python"}],
+            "summary": "Detected python.",
+        }
+
+    def fake_plan_workspace_edit_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        captured["edit_plan_target_root"] = target_root
+        captured["edit_plan_payload"] = payload
+        return {
+            "ok": True,
+            "plan_hash": "e" * 64,
+            "planned": [{"path": "generated/a.txt"}],
+            "rejected": [],
+            "files_touched": 1,
+            "summary": "Planned 1 edit.",
+        }
+
+    def fake_apply_workspace_edit_plan_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        captured["edit_apply_target_root"] = target_root
+        captured["edit_apply_payload"] = payload
+        return {
+            "ok": True,
+            "plan_hash": "e" * 64,
+            "applied": [{"path": "generated/a.txt", "changed": True}],
+            "files_touched": 1,
+            "summary": "Applied 1 edit.",
+        }
+
+    def fake_run_allowlisted_test_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        captured["test_target_root"] = target_root
+        captured["test_payload"] = payload
+        return {
+            "test_id": "python-pytest",
+            "label": "Python pytest",
+            "description": "Run pytest.",
+            "cwd": str(target_root),
+            "command": ["python", "-m", "pytest", "-q"],
+            "timeout_seconds": 300,
+            "executed": True,
+            "ok": False,
+            "exit_code": 1,
+            "timed_out": False,
+            "duration_ms": 10,
+            "stdout": "E   AssertionError\n",
+            "stderr": "",
+            "stdout_truncated": False,
+            "stderr_truncated": False,
+        }
+
+    def fake_diagnose_test_failure_local(
+        test_run: dict[str, object],
+        *,
+        max_context_lines: int | None,
+    ) -> dict[str, object]:
+        captured["diagnosis_test_run"] = test_run
+        captured["diagnosis_max_context_lines"] = max_context_lines
+        return {
+            "has_failure": True,
+            "primary_category": "assertion_failure",
+            "detected_stack": "python",
+            "signals": [],
+            "relevant_output": "E   AssertionError",
+            "suggested_next_actions": [],
+            "summary": "Detected assertion_failure in python output with 1 signal.",
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(
+        client,
+        "plan_repo_context_local_target",
+        fake_plan_repo_context_local_target,
+    )
+    monkeypatch.setattr(
+        client,
+        "plan_workspace_edit_local_target",
+        fake_plan_workspace_edit_local_target,
+    )
+    monkeypatch.setattr(
+        client,
+        "apply_workspace_edit_plan_local_target",
+        fake_apply_workspace_edit_plan_local_target,
+    )
+    monkeypatch.setattr(
+        client,
+        "run_allowlisted_test_local_target",
+        fake_run_allowlisted_test_local_target,
+    )
+    monkeypatch.setattr(
+        client,
+        "diagnose_test_failure_local",
+        fake_diagnose_test_failure_local,
+    )
+
+    edit_json = json.dumps(
+        {"path": "generated/a.txt", "new_text": "hello\n", "create_if_missing": True}
+    )
+    output_path = tmp_path / "artifacts" / "local-mvp-loop.json"
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "mvp-loop",
+                "--instruction",
+                "Fix a Python test failure.",
+                "--local-target-root",
+                str(target_root),
+                "--changed-path",
+                "src/app.py",
+                "--runtime-profile-id",
+                "api-error-response",
+                "--edit-json",
+                edit_json,
+                "--apply-edits",
+                "--test-id",
+                "python-pytest",
+                "--max-context-lines",
+                "20",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["ok"] is False
+    assert result["context_mode"] == "local_target_root"
+    assert result["edit_mode"] == "local_target_root"
+    assert result["test_mode"] == "local_target_root"
+    assert result["target_root"] == str(target_root.resolve())
+    assert result["target_root_source"] == "cli_local_target_root"
+    assert result["runtime_profile_ids"] == ["api-error-response"]
+    assert result["selected_context_paths"] == ["README.md"]
+    assert json.loads(output_path.read_text(encoding="utf-8")) == result
+    assert captured["context_target_root"] == target_root.resolve()
+    assert captured["edit_apply_payload"] == {
+        "edits": [
+            {
+                "path": "generated/a.txt",
+                "new_text": "hello\n",
+                "create_if_missing": True,
+            }
+        ],
+        "plan_hash": "e" * 64,
+    }
+    assert captured["test_payload"] == {"test_id": "python-pytest"}
+    assert captured["diagnosis_max_context_lines"] == 20
