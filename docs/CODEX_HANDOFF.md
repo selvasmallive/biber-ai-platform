@@ -442,6 +442,24 @@ produce/submit mutations. The HTTP faucet still has no per-IP limit (the chain-d
 balance cap is the limiter). Remaining for milestone 3: those few routes + optional
 per-IP faucet limiting, and the public explorer/wallet. Everything stays test-only
 with no monetary value.
+Milestone 3 increment 6 added the Testnet Faucet UI to the explorer/wallet app
+(`xriq/apps/explorer-ui`). A new `src/faucet.tsx` `TestnetFaucetPanel` (wired into
+`App.tsx` after `WalletShell`) lets a user enter a PUBLIC address and request
+valueless test units; it does client-side address validation and calls a new
+`requestTestnetFaucet` api client function that `POST`s `/api/v1/faucet?to=<addr>`
+(accepted statuses 200/201) and renders the dispense result (chain, amount,
+recipient balance, block height). It is TEST-ONLY / valueless-labeled and
+non-custodial: only a public address is entered — the wallet key-safety guard
+(which regex-forbids "private key"/"seed phrase"/etc. across all UI source) passes,
+so the copy says "this page never handles wallet secrets" rather than naming the
+forbidden terms. The static check (`scripts/check-static.mjs`) was extended with
+faucet markers (file, api route `/api/v1/faucet?`, `requestTestnetFaucet`,
+`TestnetFaucetResponse`, UI strings) + a forbidden-term scan of `faucet.tsx`.
+`npm run check` (all contract checks incl. key-safety) and `npm run build`
+(tsc + vite) pass. IMPORTANT: the UI targets `/api/v1/faucet` on xriq-api, which
+does NOT yet have that route — the node exposes `POST /v1/faucet` but xriq-api must
+add a proxy route for the button to function end-to-end (the remaining backend
+wiring). Everything stays test-only with no monetary value.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

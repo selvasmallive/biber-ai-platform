@@ -27,6 +27,7 @@ const requiredFiles = [
   "src/snapshots.tsx",
   "src/styles.css",
   "src/wallet.tsx",
+  "src/faucet.tsx",
   "src/vite-env.d.ts",
 ];
 
@@ -69,9 +70,22 @@ for (const route of [
   "/api/v1/iso20022/payment-initiation/preview",
   "/api/v1/iso20022/transactions/",
   "/api/v1/iso20022/accounts/",
+  "/api/v1/faucet?",
 ]) {
   if (!apiSource.includes(route)) {
     throw new Error(`missing API route in client: ${route}`);
+  }
+}
+
+for (const requiredText of [
+  "TestnetFaucetResponse",
+  "requestTestnetFaucet",
+  "faucet-dispense",
+  "recipient_balance_base_units",
+  'acceptedStatuses: [200, 201]',
+]) {
+  if (!apiSource.includes(requiredText)) {
+    throw new Error(`missing testnet faucet API marker: ${requiredText}`);
   }
 }
 
@@ -154,6 +168,7 @@ for (const requiredText of [
   "Transaction Detail",
   "Account Detail",
   "WalletShell",
+  "TestnetFaucetPanel",
   "AuditEventsPanel",
   "PendingTransactionsPanel",
   "SnapshotCatalogPanel",
@@ -167,6 +182,34 @@ for (const requiredText of [
 ]) {
   if (!appSource.includes(requiredText)) {
     throw new Error(`missing UI marker: ${requiredText}`);
+  }
+}
+
+const faucetSource = readFileSync(join(root, "src/faucet.tsx"), "utf8");
+for (const requiredText of [
+  "Testnet Faucet",
+  "Valueless test units",
+  "TEST-ONLY",
+  "this page never handles wallet secrets",
+  "requestTestnetFaucet",
+  "xriq-testnet",
+  "Recipient address",
+  "Request test units",
+]) {
+  if (!faucetSource.includes(requiredText)) {
+    throw new Error(`missing testnet faucet UI marker: ${requiredText}`);
+  }
+}
+for (const forbiddenText of [
+  "private_key",
+  "seed_phrase",
+  "mainnet",
+  "custody",
+  "liquidity",
+  "swap",
+]) {
+  if (faucetSource.toLowerCase().includes(forbiddenText)) {
+    throw new Error(`forbidden faucet UI behavior found: ${forbiddenText}`);
   }
 }
 

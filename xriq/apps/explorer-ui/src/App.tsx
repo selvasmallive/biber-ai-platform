@@ -14,6 +14,7 @@ import {
 } from "./api";
 import { AdminStatusPanel } from "./admin";
 import { AuditEventsPanel } from "./audit";
+import { TestnetFaucetPanel } from "./faucet";
 import { IsoPreviewPanel } from "./iso";
 import { PendingTransactionsPanel } from "./mempool";
 import { SnapshotCatalogPanel } from "./snapshots";
@@ -387,6 +388,7 @@ function App() {
           activeAccountAddress={activeAccountAddress}
           onAccountSelect={(address) => setSelectedAccountAddress(address)}
         />
+        <TestnetFaucetPanel apiBaseUrl={apiBaseUrl} snapshot={snapshot} />
         <IsoPreviewPanel
           apiBaseUrl={apiBaseUrl}
           transactionHash={activeTransactionHash}

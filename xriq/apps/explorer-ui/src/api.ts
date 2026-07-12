@@ -1436,6 +1436,36 @@ export function validateLocalWalletSendAcceptedContract(
   return errors;
 }
 
+// Testnet faucet: request valueless test units for a public address. TEST-ONLY.
+// The response mirrors the node's faucet-dispense command output.
+export interface TestnetFaucetResponse {
+  command: "faucet-dispense";
+  warning: string;
+  chain_id: string;
+  to: string;
+  amount_base_units: string;
+  fee_base_units: string;
+  transaction_hash: string;
+  block_height: number;
+  block_hash: string;
+  recipient_balance_base_units: string;
+  faucet_balance_base_units: string;
+}
+
+// POST /api/v1/faucet is a testnet-only, valueless dispense. Only a public
+// address is sent; no keys, seeds, or signatures are ever transmitted.
+export async function requestTestnetFaucet(
+  baseUrl: string,
+  address: string,
+): Promise<TestnetFaucetResponse> {
+  const params = new URLSearchParams({ to: address });
+  return fetchJson<TestnetFaucetResponse>(
+    normalizeBaseUrl(baseUrl),
+    `/api/v1/faucet?${params.toString()}`,
+    { method: "POST", acceptedStatuses: [200, 201] },
+  );
+}
+
 export async function loadIsoPaymentInitiationPreview(
   baseUrl: string,
   txHash: string,
