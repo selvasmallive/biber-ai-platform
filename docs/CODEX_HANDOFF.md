@@ -355,11 +355,27 @@ run tolerant (advertised peers may be unreachable). Covered by
 (advertises a file, and empty without one), and
 `peer_sync_discovers_and_syncs_from_learned_peer` (a follower given only an empty
 seed node A that advertises block-holder B learns B via discovery and syncs the
-block from it: `peers_discovered=1`, `peers_reachable=2`, tip reached). Remaining
-for milestone 2: stable per-node ids so the handshake can also authenticate *who*
-a peer is (not just its network/protocol). Next milestone (3): the testnet
-chain/genesis and a valueless faucet. Everything stays test-only with no public
-economics.
+block from it: `peers_discovered=1`, `peers_reachable=2`, tip reached).
+Milestone 2 increment 3 added stable per-node ids, completing the identity story.
+A node derives a deterministic `node_id` (`xriqnode1` + 16 bytes of a
+domain-separated SHA-256 of its `--node-seed`, via a new public
+`xriq_crypto::digest`); it is reported (or `null`) in the `peer-identity` handshake
+and plumbed through `PrivateDevnetHttpServerConfig.node_seed` +
+`serve-readonly`/`serve-private --node-seed`. `peer-sync` gained `--node-seed`
+(its own id) and, having refactored the per-peer step into a single handshake
+(`handshake_peer`) followed by a pull (`pull_from_peer`), now **skips any peer that
+reports the follower's own id as self** (never fatal, even in strict mode) — so
+discovery looping back to a node's own address is harmless. The summary carries the
+follower's own `node_id`, `peers_skipped_self`, and each synced peer's `node_id`.
+Note this id is test-only: the seed is not a keypair and the id is self-reported,
+not cryptographically proven (production identity needs real keys, a later phase).
+Covered by `derive_node_id_is_stable_and_seed_specific`, the extended
+`peer_identity_endpoint_reports_network_and_protocol` (null vs derived id), and
+`peer_sync_skips_self_by_node_id` (a follower with a self-peer listed first skips it
+and still syncs the block from the real leader: `peers_skipped_self=1`,
+`peers_reachable=1`, tip reached). Milestone 2 (peer identity + discovery) is now
+functionally complete. Next milestone (3): the testnet chain/genesis and a valueless
+faucet. Everything stays test-only with no public economics.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

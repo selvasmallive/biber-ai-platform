@@ -188,6 +188,13 @@ pub fn block_hash(block: &Block) -> Hash32 {
     block_header_hash(&block.header)
 }
 
+/// SHA-256 digest of arbitrary bytes. Exposed for deriving stable identifiers
+/// (for example peer node ids) outside the canonical block/transaction hashing;
+/// callers should domain-separate their input to avoid cross-purpose collisions.
+pub fn digest(bytes: &[u8]) -> Hash32 {
+    sha256_hash(bytes)
+}
+
 fn canonical_preamble(domain: &[u8]) -> Vec<u8> {
     let mut output = Vec::new();
     encode_bytes(domain, &mut output);

@@ -141,6 +141,9 @@ pub struct PrivateDevnetHttpServerConfig {
     /// Optional path to a peers file this node advertises at
     /// `GET /v1/peer/peers` so followers can discover other peers.
     pub peers_file: Option<String>,
+    /// Optional seed from which this node derives its stable `node_id`,
+    /// reported in the `GET /v1/peer/identity` handshake.
+    pub node_seed: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -677,9 +680,9 @@ pub fn node_help_text() -> String {
         "  xriq-node transaction-list --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node peer-blocks-export --chain-file <path> [--from-height <height>] [--limit <count>] [--alice-balance <base-units>] [--format json]  (read-only; serves validated blocks for peer sync, also at GET /v1/peer/blocks)",
-        "  xriq-node peer-identity --chain-file <path> [--alice-balance <base-units>] [--format json]  (read-only compatibility handshake: network, protocol, tip; also at GET /v1/peer/identity)",
+        "  xriq-node peer-identity --chain-file <path> [--node-seed <string>] [--alice-balance <base-units>] [--format json]  (read-only compatibility handshake: network, protocol, tip, node id; also at GET /v1/peer/identity)",
         "  xriq-node peer-peers [--peers-file <path>] [--chain-file <path>] [--format json]  (read-only; advertises this node's known peers for discovery; also at GET /v1/peer/peers)",
-        "  xriq-node peer-sync --chain-file <path> (--peer <http://host:port> | --peers-file <path>) [--discover <max-peers>] [--limit <count>] [--max-rounds <count>] [--alice-balance <base-units>] [--format json]  (follower; handshakes then pulls/validates blocks from one or many peers, optionally discovering more, into the chain file)",
+        "  xriq-node peer-sync --chain-file <path> (--peer <http://host:port> | --peers-file <path>) [--discover <max-peers>] [--node-seed <string>] [--limit <count>] [--max-rounds <count>] [--alice-balance <base-units>] [--format json]  (follower; handshakes then pulls/validates blocks from one or many peers, discovering more and skipping itself, into the chain file)",
         "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-list --snapshot-root <path> [--limit <count>] [--format text|json]",
         "  xriq-node snapshot-latest --snapshot-root <path> [--format text|json]",
@@ -688,8 +691,8 @@ pub fn node_help_text() -> String {
         "  xriq-node snapshot-check --snapshot-dir <path> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-export --chain-file <path> --snapshot-dir <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-import --snapshot-dir <path> --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
-        "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>] [--snapshot-root <path>] [--peers-file <path>]",
-        "  xriq-node serve-private --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>] [--snapshot-root <path>] [--peers-file <path>]",
+        "  xriq-node serve-readonly --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>] [--snapshot-root <path>] [--peers-file <path>] [--node-seed <string>]",
+        "  xriq-node serve-private --chain-file <path> [--alice-balance <base-units>] [--bind <ip:port>] [--pending-file <path>] [--snapshot-root <path>] [--peers-file <path>] [--node-seed <string>]",
         "",
         "Warning: this runner is for private devnet tests only. It does not start a public network.",
     ]
@@ -845,6 +848,7 @@ pub fn parse_private_devnet_http_server_config(
         "--snapshot-root",
         "--alice-balance",
         "--peers-file",
+        "--node-seed",
         "--environment",
     ])?;
     // Validate the optional environment profile fail-closed; the server stays
@@ -862,6 +866,7 @@ pub fn parse_private_devnet_http_server_config(
         .map(|value| parse_amount("--alice-balance", value))
         .transpose()?;
     let peers_file = flags.optional("--peers-file").map(str::to_string);
+    let node_seed = flags.optional("--node-seed").map(str::to_string);
     Ok(PrivateDevnetHttpServerConfig {
         bind,
         chain_file,
@@ -870,6 +875,7 @@ pub fn parse_private_devnet_http_server_config(
         alice_balance,
         allow_transaction_submission,
         peers_file,
+        node_seed,
     })
 }
 
@@ -971,8 +977,13 @@ pub fn private_devnet_http_response_with_body(
             runner_json_http_response(args)
         }
         "/v1/peer/identity" => {
-            // Read-only compatibility handshake: network, protocol, and tip.
-            runner_json_http_response(private_devnet_http_runner_args("peer-identity", config))
+            // Read-only compatibility handshake: network, protocol, tip, node id.
+            let mut args = private_devnet_http_runner_args("peer-identity", config);
+            if let Some(node_seed) = &config.node_seed {
+                args.push("--node-seed".to_string());
+                args.push(node_seed.clone());
+            }
+            runner_json_http_response(args)
         }
         "/v1/peer/peers" => {
             // Read-only discovery: advertise this node's configured peer set.
@@ -3031,10 +3042,24 @@ fn peer_http_get(base_url: &str, path_and_query: &str) -> Result<String, NodeRun
 const PEER_NETWORK: &str = "xriq-devnet";
 const PEER_PROTOCOL: &str = "xriq-peer-blocks-v1";
 
+// Derive a stable, deterministic node id from a seed. This is a test-only
+// identifier (the seed is not a keypair and the id is self-reported, not
+// cryptographically proven); it exists so peers can be named and a node can
+// recognize itself during discovery. Domain-separated to avoid collisions.
+fn derive_node_id(seed: &str) -> String {
+    let hash = xriq_crypto::digest(format!("xriq-node-id:{seed}").as_bytes());
+    let mut id = String::from("xriqnode1");
+    for byte in &hash.as_bytes()[..16] {
+        write!(id, "{byte:02x}").expect("write to String");
+    }
+    id
+}
+
 struct PeerIdentity {
     network: String,
     protocol: String,
     current_height: u64,
+    node_id: Option<String>,
 }
 
 fn parse_peer_identity_response(body: &str) -> Result<PeerIdentity, NodeRunnerError> {
@@ -3049,10 +3074,13 @@ fn parse_peer_identity_response(body: &str) -> Result<PeerIdentity, NodeRunnerEr
     let current_height = extract_json_u64(body, "current_height").ok_or_else(|| {
         NodeRunnerError::PeerSyncError("peer identity missing current_height".to_string())
     })?;
+    // node_id is optional: a peer started without a --node-seed reports null.
+    let node_id = extract_json_string(body, "node_id").map(str::to_string);
     Ok(PeerIdentity {
         network,
         protocol,
         current_height,
+        node_id,
     })
 }
 
@@ -3134,21 +3162,27 @@ struct SinglePeerSyncOutcome {
     peer_current_height: u64,
 }
 
-// Handshake with one peer, then pull-and-import its blocks until caught up or
-// max_rounds is reached. Every imported block is fully re-validated before
-// commit (see import_peer_blocks); the handshake refuses mismatched peers.
-fn sync_from_peer<S: ChainStore>(
-    node: &mut XriqNode<S>,
-    peer: &str,
-    limit: usize,
-    max_rounds: usize,
-) -> Result<SinglePeerSyncOutcome, NodeRunnerError> {
+// Handshake with one peer: fetch its identity and refuse a mismatched
+// network/protocol before any blocks are exchanged.
+fn handshake_peer(peer: &str) -> Result<PeerIdentity, NodeRunnerError> {
     let identity = parse_peer_identity_response(&peer_http_get(peer, "/v1/peer/identity")?)?;
     if let Some(reason) = peer_compatibility_error(&identity) {
         return Err(NodeRunnerError::PeerSyncError(reason));
     }
+    Ok(identity)
+}
+
+// Pull-and-import a compatible peer's blocks until caught up or max_rounds is
+// reached. Every imported block is fully re-validated before commit (see
+// import_peer_blocks).
+fn pull_from_peer<S: ChainStore>(
+    node: &mut XriqNode<S>,
+    peer: &str,
+    limit: usize,
+    max_rounds: usize,
+    mut peer_current_height: u64,
+) -> Result<SinglePeerSyncOutcome, NodeRunnerError> {
     let mut applied = 0usize;
-    let mut peer_current_height = identity.current_height;
     let mut rounds = 0usize;
     while rounds < max_rounds {
         rounds += 1;
@@ -3182,6 +3216,7 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
         "--peer",
         "--peers-file",
         "--discover",
+        "--node-seed",
         "--alice-balance",
         "--limit",
         "--max-rounds",
@@ -3190,6 +3225,9 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
     let _ = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
     let pending_file = flags.optional("--pending-file").unwrap_or("");
+    // The follower's own id (from its --node-seed), used to recognize and skip
+    // itself if discovery ever surfaces its own address.
+    let own_node_id = flags.optional("--node-seed").map(derive_node_id);
     let alice_balance = flags
         .optional("--alice-balance")
         .map(|value| parse_amount("--alice-balance", value))
@@ -3260,15 +3298,49 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
     let mut reachable = 0usize;
     let mut peer_current_height = 0u64;
     let mut peer_reports: Vec<String> = Vec::new();
+    let mut skipped_self = 0usize;
     for peer in &peers {
-        match sync_from_peer(&mut node, peer, limit, max_rounds) {
+        // Handshake first so a mismatched or self peer is detected before any
+        // block pull. A skip is never fatal; only a strict single-peer failure is.
+        let identity = match handshake_peer(peer) {
+            Ok(identity) => identity,
+            Err(error) => {
+                if strict {
+                    return Err(error);
+                }
+                peer_reports.push(format!(
+                    "{{ \"peer\": {}, \"status\": \"skipped\", \"reason\": {} }}",
+                    json_string(peer),
+                    json_string(&error.to_string())
+                ));
+                continue;
+            }
+        };
+        if let (Some(own), Some(their)) = (own_node_id.as_deref(), identity.node_id.as_deref()) {
+            if own == their {
+                skipped_self += 1;
+                peer_reports.push(format!(
+                    "{{ \"peer\": {}, \"status\": \"skipped\", \"reason\": {} }}",
+                    json_string(peer),
+                    json_string("peer reports this node's id (self)")
+                ));
+                continue;
+            }
+        }
+        let node_id_field = identity
+            .node_id
+            .as_deref()
+            .map(json_string)
+            .unwrap_or_else(|| "null".to_string());
+        match pull_from_peer(&mut node, peer, limit, max_rounds, identity.current_height) {
             Ok(outcome) => {
                 total_applied += outcome.applied;
                 reachable += 1;
                 peer_current_height = peer_current_height.max(outcome.peer_current_height);
                 peer_reports.push(format!(
-                    "{{ \"peer\": {}, \"status\": \"ok\", \"applied\": {}, \"rounds\": {}, \"peer_current_height\": {} }}",
+                    "{{ \"peer\": {}, \"status\": \"ok\", \"node_id\": {}, \"applied\": {}, \"rounds\": {}, \"peer_current_height\": {} }}",
                     json_string(peer),
+                    node_id_field,
                     outcome.applied,
                     outcome.rounds,
                     outcome.peer_current_height
@@ -3292,9 +3364,13 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
         ));
     }
     let final_height = node.ledger().current_height();
+    let own_node_id_field = own_node_id
+        .as_deref()
+        .map(json_string)
+        .unwrap_or_else(|| "null".to_string());
     let peers_json = peer_reports.join(",\n    ");
     let json = format!(
-        "{{\n  \"command\": \"peer-sync\",\n  \"applied\": {total_applied},\n  \"peers_total\": {},\n  \"peers_discovered\": {discovered},\n  \"peers_reachable\": {reachable},\n  \"current_height\": {final_height},\n  \"peer_current_height\": {peer_current_height},\n  \"peers\": [\n    {peers_json}\n  ]\n}}",
+        "{{\n  \"command\": \"peer-sync\",\n  \"node_id\": {own_node_id_field},\n  \"applied\": {total_applied},\n  \"peers_total\": {},\n  \"peers_discovered\": {discovered},\n  \"peers_reachable\": {reachable},\n  \"peers_skipped_self\": {skipped_self},\n  \"current_height\": {final_height},\n  \"peer_current_height\": {peer_current_height},\n  \"peers\": [\n    {peers_json}\n  ]\n}}",
         peers.len()
     );
     Ok(NodeRunnerOutput::Json(json))
@@ -3306,6 +3382,7 @@ fn run_peer_identity_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRu
         "--chain-file",
         "--pending-file",
         "--alice-balance",
+        "--node-seed",
         "--format",
     ])?;
     let _ = RunnerOutputFormat::parse(flags.optional("--format"))?;
@@ -3317,8 +3394,12 @@ fn run_peer_identity_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRu
         .transpose()?;
     let node = private_devnet_node_with_pending_file(chain_file, pending_file, alice_balance)?;
     let current_height = node.ledger().current_height();
+    let node_id = flags
+        .optional("--node-seed")
+        .map(|seed| json_string(&derive_node_id(seed)))
+        .unwrap_or_else(|| "null".to_string());
     let json = format!(
-        "{{\n  \"command\": \"peer-identity\",\n  \"network\": \"{PEER_NETWORK}\",\n  \"protocol\": \"{PEER_PROTOCOL}\",\n  \"current_height\": {current_height}\n}}"
+        "{{\n  \"command\": \"peer-identity\",\n  \"network\": \"{PEER_NETWORK}\",\n  \"protocol\": \"{PEER_PROTOCOL}\",\n  \"current_height\": {current_height},\n  \"node_id\": {node_id}\n}}"
     );
     Ok(NodeRunnerOutput::Json(json))
 }
@@ -8322,13 +8403,22 @@ mod tests {
     // one discovery fetch per seed when --discover is used), so `count` must
     // match exactly or `join()` would block on an extra accept.
     fn serve_peer_requests(chain_file: String, count: usize) -> (u16, std::thread::JoinHandle<()>) {
-        serve_peer_requests_advertising(chain_file, count, None)
+        serve_peer_requests_full(chain_file, count, None, None)
     }
 
     fn serve_peer_requests_advertising(
         chain_file: String,
         count: usize,
         peers_file: Option<String>,
+    ) -> (u16, std::thread::JoinHandle<()>) {
+        serve_peer_requests_full(chain_file, count, peers_file, None)
+    }
+
+    fn serve_peer_requests_full(
+        chain_file: String,
+        count: usize,
+        peers_file: Option<String>,
+        node_seed: Option<String>,
     ) -> (u16, std::thread::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -8340,6 +8430,7 @@ mod tests {
             alice_balance: Some(XriqAmount::from_base_units(100)),
             allow_transaction_submission: false,
             peers_file,
+            node_seed,
         };
         let handle = std::thread::spawn(move || {
             for _ in 0..count {
@@ -8506,7 +8597,8 @@ mod tests {
         ])
         .unwrap();
 
-        let config = PrivateDevnetHttpServerConfig {
+        // Without a node seed, node_id is null.
+        let anon_config = PrivateDevnetHttpServerConfig {
             bind: "127.0.0.1:8787".to_string(),
             chain_file: path_text,
             pending_file: None,
@@ -8514,6 +8606,20 @@ mod tests {
             alice_balance: Some(XriqAmount::from_base_units(100)),
             allow_transaction_submission: false,
             peers_file: None,
+            node_seed: None,
+        };
+        let anon = private_devnet_http_response(&anon_config, "GET", "/v1/peer/identity");
+        assert_eq!(anon.status_code, 200);
+        assert!(anon.body.contains("\"node_id\": null"));
+        assert!(parse_peer_identity_response(&anon.body)
+            .unwrap()
+            .node_id
+            .is_none());
+
+        // With a node seed, node_id is the derived, stable id.
+        let config = PrivateDevnetHttpServerConfig {
+            node_seed: Some("node-alpha".to_string()),
+            ..anon_config.clone()
         };
         let identity = private_devnet_http_response(&config, "GET", "/v1/peer/identity");
         assert_eq!(identity.status_code, 200);
@@ -8527,6 +8633,10 @@ mod tests {
         // The follower's parser reads exactly this shape and accepts it.
         let parsed = parse_peer_identity_response(&identity.body).unwrap();
         assert!(peer_compatibility_error(&parsed).is_none());
+        assert_eq!(
+            parsed.node_id.as_deref(),
+            Some(derive_node_id("node-alpha").as_str())
+        );
 
         // A peer on a different network or protocol is rejected by the handshake.
         let wrong_network = parse_peer_identity_response(
@@ -8542,6 +8652,107 @@ mod tests {
 
         let _ = fs::remove_file(path);
         let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn derive_node_id_is_stable_and_seed_specific() {
+        let alpha = derive_node_id("alpha");
+        assert_eq!(alpha, derive_node_id("alpha"));
+        assert_ne!(alpha, derive_node_id("beta"));
+        assert!(alpha.starts_with("xriqnode1"));
+        assert_eq!(alpha.len(), "xriqnode1".len() + 32);
+    }
+
+    #[test]
+    fn peer_sync_skips_self_by_node_id() {
+        // Leader B holds the block and has a distinct node id.
+        let leader_path = temp_store_path();
+        let leader_pending = leader_path.with_extension("pending");
+        let leader_text = leader_path.to_string_lossy().to_string();
+        let leader_pending_text = leader_pending.to_string_lossy().to_string();
+
+        run_node_command([
+            "preflight-transfer",
+            "--chain-file",
+            leader_text.as_str(),
+            "--pending-file",
+            leader_pending_text.as_str(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1bobbb00000000000",
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--expires-at-height",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+        let (leader_port, leader_handle) =
+            serve_peer_requests_full(leader_text.clone(), 2, None, Some("node-b".to_string()));
+
+        // Self peer A shares the follower's node seed, so it reports our id and
+        // is skipped after the handshake (one request, no pull).
+        let self_chain = temp_store_path();
+        let self_chain_text = self_chain.to_string_lossy().to_string();
+        let (self_port, self_handle) =
+            serve_peer_requests_full(self_chain_text, 1, None, Some("me".to_string()));
+
+        let peers_file = temp_store_path();
+        let peers_file_text = peers_file.to_string_lossy().to_string();
+        fs::write(
+            &peers_file,
+            format!("http://127.0.0.1:{self_port}\nhttp://127.0.0.1:{leader_port}\n"),
+        )
+        .unwrap();
+
+        let follower_path = temp_store_path();
+        let follower_text = follower_path.to_string_lossy().to_string();
+
+        let synced = run_node_command([
+            "peer-sync",
+            "--chain-file",
+            follower_text.as_str(),
+            "--peers-file",
+            peers_file_text.as_str(),
+            "--node-seed",
+            "me",
+            "--alice-balance",
+            "100",
+            "--max-rounds",
+            "1",
+            "--format",
+            "json",
+        ])
+        .unwrap()
+        .to_string();
+        self_handle.join().unwrap();
+        leader_handle.join().unwrap();
+
+        assert!(synced.contains("\"peers_total\": 2"));
+        assert!(synced.contains("\"peers_skipped_self\": 1"));
+        assert!(synced.contains("\"peers_reachable\": 1"));
+        assert!(synced.contains("\"applied\": 1"));
+        assert!(synced.contains("\"current_height\": 1"));
+        assert!(synced.contains("(self)"));
+        // The follower advertises its own derived id at the top level.
+        assert!(synced.contains(&format!(
+            "\"node_id\": {}",
+            json_string(&derive_node_id("me"))
+        )));
+
+        let _ = fs::remove_file(leader_path);
+        let _ = fs::remove_file(leader_pending);
+        let _ = fs::remove_file(self_chain);
+        let _ = fs::remove_file(peers_file);
+        let _ = fs::remove_file(follower_path);
     }
 
     #[test]
@@ -8685,6 +8896,7 @@ mod tests {
             alice_balance: Some(XriqAmount::from_base_units(100)),
             allow_transaction_submission: false,
             peers_file: Some(peers_text),
+            node_seed: None,
         };
         let advertised = private_devnet_http_response(&config, "GET", "/v1/peer/peers");
         assert_eq!(advertised.status_code, 200);
@@ -10202,6 +10414,7 @@ mod tests {
             alice_balance: Some(XriqAmount::from_base_units(100)),
             allow_transaction_submission: false,
             peers_file: None,
+            node_seed: None,
         };
 
         let health = private_devnet_http_response(&config, "GET", "/health");
@@ -10556,6 +10769,7 @@ mod tests {
             alice_balance: Some(XriqAmount::from_base_units(100)),
             allow_transaction_submission: true,
             peers_file: None,
+            node_seed: None,
         };
         let snapshot_import = private_devnet_http_response_with_body(
             &import_config,
@@ -10616,6 +10830,7 @@ mod tests {
             alice_balance: Some(XriqAmount::from_base_units(100)),
             allow_transaction_submission: true,
             peers_file: None,
+            node_seed: None,
         };
         let submit_draft = [
             "warning=private-devnet-test-identity-only",
