@@ -210,6 +210,10 @@ After apply, run `local-verify-chain` on the apply artifact. It reruns the
 recorded next test locally, can run deterministic local diagnosis on failure,
 and emits a compact `verified` / `still_failing` / `not_executed` chain artifact
 without resolving API credentials.
+If the chain is `still_failing`, run `prepare-local-verify-repair` on that
+artifact. It prepares the next local-model repair request, carries failed edit
+paths as context, records forbidden exact edits when the linked apply artifact
+is available, and remains no-API.
 
 Do not run QLoRA or any training command just because a session says
 "continue." Training is appropriate only after the BIBER eval/review pipeline

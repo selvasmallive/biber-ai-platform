@@ -79,6 +79,11 @@ After apply, run `local-verify-chain` on the apply artifact. It reruns the
 recorded next test against the local target root, optionally diagnoses failures
 locally, and emits a compact `verified` / `still_failing` / `not_executed`
 artifact for the next loop without resolving API credentials.
+If the result is `still_failing`, run `prepare-local-verify-repair` on the
+local verification chain artifact. It creates the next local-model repair
+request, carries the failed edit paths as context, records forbidden exact
+edits when the linked apply artifact is available, and still does not resolve
+API credentials.
 
 ## Vast GPU
 

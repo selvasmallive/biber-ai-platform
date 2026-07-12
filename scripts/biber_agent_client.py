@@ -3866,6 +3866,227 @@ def build_local_repair_verification_chain_result(
     return result
 
 
+def normalize_local_repair_verification_chain_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_local_repair_verification_chain":
+        return dict(payload)
+    body = payload.get("body")
+    if (
+        isinstance(body, dict)
+        and body.get("source") == "biber_local_repair_verification_chain"
+    ):
+        return dict(body)
+    return None
+
+
+def repair_apply_attempted_edits(repair_apply: Mapping[str, Any]) -> list[dict[str, Any]]:
+    apply_payload = require_mapping(repair_apply.get("apply_payload"))
+    edits = [
+        dict(item)
+        for item in require_list(apply_payload.get("edits"))
+        if isinstance(item, Mapping)
+    ]
+    if edits:
+        return edits
+    attempted: list[dict[str, Any]] = []
+    edit_apply = require_mapping(repair_apply.get("edit_apply"))
+    for item in require_list(edit_apply.get("applied")):
+        if not isinstance(item, Mapping):
+            continue
+        path = item.get("path")
+        if isinstance(path, str) and path.strip():
+            attempted.append({"path": path.strip()})
+    return attempted
+
+
+def repair_apply_context_paths(repair_apply: Mapping[str, Any]) -> list[str]:
+    paths: list[str] = []
+    for edit in repair_apply_attempted_edits(repair_apply):
+        path = edit.get("path") or edit.get("file")
+        if isinstance(path, str) and path.strip():
+            paths.append(path.strip())
+    edit_apply = require_mapping(repair_apply.get("edit_apply"))
+    for item in require_list(edit_apply.get("applied")):
+        if not isinstance(item, Mapping):
+            continue
+        path = item.get("path")
+        if isinstance(path, str) and path.strip():
+            paths.append(path.strip())
+    return dedupe_strings(paths) or []
+
+
+def build_local_verification_repair_request(
+    *,
+    path: Path,
+    chain: Mapping[str, Any],
+    repair_apply: Mapping[str, Any] | None,
+    instruction: str | None,
+    max_relevant_output_chars: int,
+    max_context_paths: int | None,
+) -> dict[str, Any]:
+    if max_relevant_output_chars < 1:
+        raise BiberAgentClientError("--max-relevant-output-chars must be at least 1.")
+    if max_context_paths is not None and max_context_paths < 1:
+        raise BiberAgentClientError("--max-context-paths must be at least 1.")
+    if chain.get("chain_status") == "verified" or chain.get("ok") is True:
+        raise BiberAgentClientError(
+            "prepare-local-verify-repair requires a failed local verification chain."
+        )
+
+    verification = require_mapping(chain.get("verification"))
+    test_run = require_mapping(verification.get("test_run"))
+    diagnosis = require_mapping(test_run.get("diagnosis"))
+    attempted_edits = repair_apply_attempted_edits(repair_apply or {})
+    all_context_paths = repair_apply_context_paths(repair_apply or {})
+    selected_context_paths = (
+        all_context_paths[:max_context_paths]
+        if max_context_paths is not None
+        else all_context_paths
+    )
+    relevant_output = (
+        chain.get("relevant_output")
+        or diagnosis.get("relevant_output")
+        or test_run.get("stdout")
+        or test_run.get("stderr")
+        or ""
+    )
+    failure = {
+        "diagnosis_summary": chain.get("diagnosis_summary")
+        or diagnosis.get("summary"),
+        "primary_category": chain.get("primary_category")
+        or diagnosis.get("primary_category"),
+        "detected_stack": chain.get("detected_stack")
+        or diagnosis.get("detected_stack"),
+        "test_id": chain.get("test_id") or verification.get("test_id"),
+        "command": require_list(test_run.get("command")),
+        "exit_code": (
+            chain.get("exit_code")
+            if "exit_code" in chain
+            else test_run.get("exit_code")
+        ),
+        "timed_out": bool(chain.get("timed_out") or test_run.get("timed_out")),
+        "relevant_output": compact_text(
+            relevant_output,
+            max_chars=max_relevant_output_chars,
+        ),
+    }
+    suggested_next_actions = [
+        "The previous approved edit did not pass local verification.",
+        "Do not repeat the failed exact edit unchanged.",
+        "Propose the smallest safe follow-up source edit or return empty edits.",
+    ]
+    repair_instruction = instruction or (
+        "Repair the failed local post-apply verification using the smallest safe "
+        "follow-up source edit."
+    )
+    agent_report = {
+        "source": "biber_local_verification_agent_report_v1",
+        "status": str(chain.get("chain_status") or "still_failing"),
+        "ok": False,
+        "repo": {
+            "target_root": chain.get("target_root"),
+            "branch": None,
+            "head": None,
+            "dirty": None,
+            "status_short": [],
+        },
+        "edit": {
+            "mode": "local_target_root",
+            "plan_hash": chain.get("plan_hash"),
+            "planned_count": len(attempted_edits),
+            "applied_count": len(attempted_edits),
+            "changed_count": len(attempted_edits),
+            "rejected_count": 0,
+            "ok": repair_apply.get("ok") if repair_apply else None,
+        },
+        "test": {
+            "mode": chain.get("test_mode") or verification.get("test_mode"),
+            "test_id": failure.get("test_id"),
+            "executed": chain.get("test_executed"),
+            "ok": chain.get("test_ok"),
+            "exit_code": failure.get("exit_code"),
+            "timed_out": failure.get("timed_out"),
+            "command": " ".join(
+                str(part) for part in require_list(test_run.get("command"))
+            ),
+        },
+        "failure": {
+            "diagnosis_summary": failure.get("diagnosis_summary"),
+            "primary_category": failure.get("primary_category"),
+            "detected_stack": failure.get("detected_stack"),
+        },
+        "next_actions": suggested_next_actions,
+    }
+    repair_output_contract = build_repair_output_contract()
+    repair_prompt = build_repair_prompt(
+        instruction=repair_instruction,
+        original_instruction=None,
+        selected_context_paths=selected_context_paths,
+        failure=failure,
+        suggested_next_actions=suggested_next_actions,
+        agent_report=agent_report,
+        output_contract=repair_output_contract,
+    )
+    if attempted_edits:
+        repair_prompt = "\n\n".join(
+            [
+                repair_prompt.rstrip(),
+                "Previous failed exact edits JSON:",
+                json.dumps(attempted_edits, indent=2, sort_keys=True),
+                "Do not return the same old_text/new_text edit unchanged.",
+            ]
+        )
+
+    repair: dict[str, Any] = {
+        "source": "biber_mvp_loop_repair_request",
+        "repair_loop_version": "mvp-v1",
+        "repair_status": "ready_for_local_model",
+        "training_allowed": False,
+        "source_artifact": str(path),
+        "ok": False,
+        "instruction": repair_instruction,
+        "repair_prompt": repair_prompt,
+        "repair_output_contract": repair_output_contract,
+        "selected_context_paths": selected_context_paths,
+        "selected_context_paths_truncated": len(selected_context_paths)
+        < len(all_context_paths),
+        "agent_report": agent_report,
+        "failure": failure,
+        "suggested_next_actions": suggested_next_actions,
+        "retry_of_failed_verification": True,
+        "retry_of_failed_local_verification": True,
+        "previous_attempt": {
+            "source_artifact": chain.get("source_artifact"),
+            "plan_hash": chain.get("plan_hash"),
+            "attempted_edits": attempted_edits,
+            "verification_status": chain.get("verification_status"),
+        },
+        "forbidden_edits": attempted_edits,
+        "verification_chain": {
+            "chain_status": chain.get("chain_status"),
+            "source_artifact": chain.get("source_artifact"),
+            "target_root": chain.get("target_root"),
+            "test_id": chain.get("test_id"),
+            "test_ok": chain.get("test_ok"),
+        },
+        "next_test_id": failure.get("test_id"),
+        "next_workflow": [
+            "send_repair_prompt_to_local_biber_model",
+            "run_local_repair_chain_with_target_root",
+            "review_local_repair_chain",
+            "apply_only_after_explicit_approval_with_review_artifact",
+            "run_local_verify_chain_again",
+        ],
+    }
+    runtime_profile_ids = normalize_runtime_profile_ids(chain.get("runtime_profile_ids"))
+    if runtime_profile_ids is not None:
+        repair["runtime_profile_ids"] = runtime_profile_ids
+    if chain.get("target_root"):
+        repair["target_root"] = chain.get("target_root")
+    return repair
+
+
 def normalize_repair_test_verification_artifact(
     payload: Mapping[str, Any],
 ) -> dict[str, Any] | None:
@@ -16778,6 +16999,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     local_verify_chain_parser.add_argument("--max-context-lines", type=int)
     local_verify_chain_parser.add_argument("--output")
 
+    prepare_local_verify_repair_parser = subparsers.add_parser(
+        "prepare-local-verify-repair",
+        help=(
+            "Build a local-model repair request from a failed local-verify-chain "
+            "artifact without resolving API auth."
+        ),
+    )
+    prepare_local_verify_repair_parser.add_argument("artifact")
+    prepare_local_verify_repair_parser.add_argument("--instruction")
+    prepare_local_verify_repair_parser.add_argument(
+        "--max-relevant-output-chars",
+        type=int,
+        default=4000,
+    )
+    prepare_local_verify_repair_parser.add_argument("--max-context-paths", type=int)
+    prepare_local_verify_repair_parser.add_argument("--output")
+
     verify_repair_edits_parser = subparsers.add_parser(
         "verify-repair-edits",
         help=(
@@ -18063,6 +18301,44 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(chain, indent=2, sort_keys=True)
             if args.print_json
             else format_local_repair_verification_chain_summary(chain)
+        )
+    if args.command == "prepare-local-verify-repair":
+        artifact_path = Path(args.artifact)
+        artifact = load_json_artifact(
+            str(artifact_path),
+            label="local verification chain artifact",
+        )
+        chain = normalize_local_repair_verification_chain_artifact(artifact)
+        if chain is None:
+            raise BiberAgentClientError(
+                "prepare-local-verify-repair artifact must contain a saved "
+                "local-verify-chain JSON object."
+            )
+        apply_path, repair_apply, apply_error = load_linked_artifact(
+            chain.get("source_artifact"),
+            base_path=artifact_path,
+            label="repair-edit apply artifact",
+            normalizer=normalize_repair_edit_apply_artifact,
+        )
+        repair = build_local_verification_repair_request(
+            path=artifact_path,
+            chain=chain,
+            repair_apply=repair_apply,
+            instruction=args.instruction,
+            max_relevant_output_chars=args.max_relevant_output_chars,
+            max_context_paths=args.max_context_paths,
+        )
+        if apply_path is not None:
+            repair["linked_apply_artifact"] = str(apply_path)
+        if apply_error is not None:
+            repair["linked_apply_artifact_error"] = apply_error
+        if args.output:
+            repair["artifact_path"] = str(Path(args.output))
+            write_json_artifact(repair, args.output)
+        return (
+            json.dumps(repair, indent=2, sort_keys=True)
+            if args.print_json
+            else format_mvp_loop_repair_request_summary(repair)
         )
     if args.command == "extract-repair-edits":
         artifact_path = Path(args.artifact)

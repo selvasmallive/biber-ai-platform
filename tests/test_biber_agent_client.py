@@ -5196,6 +5196,157 @@ def test_run_local_verify_chain_marks_still_failing_with_diagnosis_without_api_k
     assert "do_not_save_or_train_from_unverified_repair" in result["next_workflow"]
 
 
+def test_run_prepare_local_verify_repair_writes_request_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("prepare-local-verify-repair should not resolve an API key")
+
+    apply_path = tmp_path / "repair-edit-apply.json"
+    failed_edit = {
+        "path": "src/app.py",
+        "old_text": "return 1",
+        "new_text": "return 2",
+        "expected_replacements": 1,
+    }
+    apply_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "apply_status": "applied",
+                "ok": True,
+                "plan_hash": "c" * 64,
+                "target_root": str(tmp_path / "target-repo"),
+                "target_root_source": "repair_plan_target_root",
+                "next_test_id": "python-pytest",
+                "apply_payload": {"edits": [failed_edit]},
+                "edit_apply": {
+                    "ok": True,
+                    "applied": [{"path": "src/app.py", "changed": True}],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    chain_path = tmp_path / "local-verify-chain.json"
+    chain_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_local_repair_verification_chain",
+                "chain_status": "still_failing",
+                "ok": False,
+                "training_allowed": False,
+                "auto_applied": False,
+                "auto_saved": False,
+                "apply_allowed": False,
+                "source_artifact": str(apply_path),
+                "plan_hash": "c" * 64,
+                "test_id": "python-pytest",
+                "verification_status": "failed",
+                "test_mode": "local_target_root",
+                "test_executed": True,
+                "test_ok": False,
+                "exit_code": 1,
+                "timed_out": False,
+                "target_root": str(tmp_path / "target-repo"),
+                "diagnosis_summary": "Detected assertion_failure in python output.",
+                "primary_category": "assertion_failure",
+                "detected_stack": "python",
+                "relevant_output": "E AssertionError: expected 2",
+                "verification": {
+                    "source": "biber_mvp_loop_repair_test_verification",
+                    "verification_status": "failed",
+                    "ok": False,
+                    "plan_hash": "c" * 64,
+                    "test_id": "python-pytest",
+                    "test_mode": "local_target_root",
+                    "test_run": {
+                        "test_id": "python-pytest",
+                        "executed": True,
+                        "ok": False,
+                        "exit_code": 1,
+                        "timed_out": False,
+                        "command": ["python", "-m", "pytest", "-q"],
+                        "stdout": "E AssertionError: expected 2\n",
+                        "stderr": "",
+                        "diagnosis": {
+                            "summary": "Detected assertion_failure in python output.",
+                            "primary_category": "assertion_failure",
+                            "detected_stack": "python",
+                            "relevant_output": "E AssertionError: expected 2",
+                        },
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "prepared-local-verify-repair.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "prepare-local-verify-repair",
+                str(chain_path),
+                "--max-context-paths",
+                "1",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert saved == result
+    assert result["source"] == "biber_mvp_loop_repair_request"
+    assert result["repair_status"] == "ready_for_local_model"
+    assert result["training_allowed"] is False
+    assert result["retry_of_failed_verification"] is True
+    assert result["retry_of_failed_local_verification"] is True
+    assert result["selected_context_paths"] == ["src/app.py"]
+    assert result["forbidden_edits"] == [failed_edit]
+    assert result["previous_attempt"]["attempted_edits"] == [failed_edit]
+    assert result["failure"]["test_id"] == "python-pytest"
+    assert result["failure"]["primary_category"] == "assertion_failure"
+    assert result["next_test_id"] == "python-pytest"
+    assert result["linked_apply_artifact"] == str(apply_path)
+    assert "Previous failed exact edits JSON:" in result["repair_prompt"]
+    assert "Do not return the same old_text/new_text edit unchanged." in result[
+        "repair_prompt"
+    ]
+
+
+def test_prepare_local_verify_repair_rejects_verified_chain(tmp_path: Path) -> None:
+    chain_path = tmp_path / "local-verify-chain.json"
+    chain_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_local_repair_verification_chain",
+                "chain_status": "verified",
+                "ok": True,
+                "source_artifact": str(tmp_path / "repair-edit-apply.json"),
+                "verification": {"test_run": {"ok": True}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        client.run(
+            client.parse_args(
+                ["prepare-local-verify-repair", str(chain_path)]
+            )
+        )
+    except client.BiberAgentClientError as exc:
+        assert "failed local verification chain" in str(exc)
+    else:
+        raise AssertionError("expected verified local chain to be rejected")
+
+
 def test_run_verify_repair_edits_can_override_test_id_and_diagnose_failure(
     monkeypatch,
     tmp_path: Path,

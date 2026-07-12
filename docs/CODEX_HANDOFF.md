@@ -95,6 +95,15 @@ failure, and emits a compact `biber_local_repair_verification_chain` artifact
 with `chain_status` of `verified`, `still_failing`, or `not_executed`. It never
 resolves API credentials, never calls the OpenAI mentor, never trains, never
 auto-saves, and never applies files.
+Eleventh BIBER resume checkpoint on the same branch:
+`prepare-local-verify-repair` now converts a failed `local-verify-chain`
+artifact into the next prepared `biber_mvp_loop_repair_request` without API
+auth. It rejects verified chains, loads the linked apply artifact when
+available, carries failed edit paths as selected context, records those exact
+edits as forbidden retry edits, and embeds the strict JSON output contract in
+the next local-model repair prompt. Use it after `local-verify-chain` reports
+`still_failing`, then continue with `local-repair-chain --model-response-file`
+and the existing review/apply/verify gates.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
