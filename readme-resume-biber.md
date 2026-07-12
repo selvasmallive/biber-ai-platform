@@ -202,6 +202,10 @@ does not apply files.
 Before any apply approval, run `review-local-repair-chain` on the combined
 artifact. It is deterministic and local-only, and it summarizes blockers,
 warnings, plan hash, target root, and the next test id.
+After explicit apply approval, run `apply-repair-edits --approve` with
+`--review-artifact` pointing at that accepted review artifact. The apply step
+validates the review status and plan hash before it changes files; local-target
+apply remains no-API when a local target root is recorded or supplied.
 
 Do not run QLoRA or any training command just because a session says
 "continue." Training is appropriate only after the BIBER eval/review pipeline

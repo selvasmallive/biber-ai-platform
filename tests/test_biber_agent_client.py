@@ -4474,6 +4474,207 @@ def test_run_apply_repair_edits_calls_server_apply_after_approval(
     assert result["next_test_id"] == "dotnet-test"
 
 
+def test_run_apply_repair_edits_accepts_ready_review_for_local_target_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    plan_hash = "d" * 64
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local reviewed apply should not resolve an API key")
+
+    def fake_apply_workspace_edit_plan_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        captured["target_root"] = str(target_root)
+        captured["payload"] = payload
+        return {
+            "ok": True,
+            "plan_hash": plan_hash,
+            "applied": [{"path": "src/app.py", "changed": True}],
+            "files_touched": 1,
+            "summary": "Applied 1 workspace edit.",
+        }
+
+    target_root = tmp_path / "target-repo"
+    target_root.mkdir()
+    plan_path = tmp_path / "repair-edit-plan.json"
+    plan_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_plan",
+                "plan_status": "planned",
+                "ok": True,
+                "training_allowed": False,
+                "auto_applied": False,
+                "apply_allowed": False,
+                "plan_hash": plan_hash,
+                "target_root": str(target_root),
+                "next_test_id": "python-pytest",
+                "plan_edit_payload": {
+                    "edits": [
+                        {
+                            "path": "src/app.py",
+                            "old_text": "return 1",
+                            "new_text": "return 2",
+                            "expected_replacements": 1,
+                        }
+                    ],
+                    "max_files": 1,
+                },
+                "edit_plan": {
+                    "ok": True,
+                    "plan_hash": plan_hash,
+                    "planned": [{"path": "src/app.py", "operation": "edit"}],
+                    "rejected": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    review_path = tmp_path / "local-repair-chain-review.json"
+    review_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_local_repair_chain_review",
+                "review_status": "ready_for_explicit_apply_approval",
+                "ok": True,
+                "apply_recommendation": "ready_for_explicit_apply_approval",
+                "training_allowed": False,
+                "auto_applied": False,
+                "apply_allowed": False,
+                "blockers": [],
+                "warnings": [],
+                "plan_hash": plan_hash,
+                "target_root": str(target_root),
+                "next_test_id": "python-pytest",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(
+        client,
+        "apply_workspace_edit_plan_local_target",
+        fake_apply_workspace_edit_plan_local_target,
+    )
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "apply-repair-edits",
+                str(plan_path),
+                "--approve",
+                "--review-artifact",
+                str(review_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert captured["target_root"] == str(target_root.resolve())
+    assert captured["payload"]["plan_hash"] == plan_hash
+    assert result["source"] == "biber_mvp_loop_repair_edit_apply"
+    assert result["apply_status"] == "applied"
+    assert result["pre_apply_review_status"] == (
+        "ready_for_explicit_apply_approval"
+    )
+    assert result["pre_apply_review_artifact"] == str(review_path)
+    assert result["pre_apply_review_gate"]["status"] == "accepted"
+    assert result["pre_apply_review_gate"]["plan_hash"] == plan_hash
+
+
+def test_run_apply_repair_edits_rejects_review_plan_hash_mismatch_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local reviewed apply should not resolve an API key")
+
+    def fake_apply_workspace_edit_plan_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        raise AssertionError("mismatched review must block before apply")
+
+    target_root = tmp_path / "target-repo"
+    target_root.mkdir()
+    plan_path = tmp_path / "repair-edit-plan.json"
+    plan_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_plan",
+                "plan_status": "planned",
+                "ok": True,
+                "plan_hash": "d" * 64,
+                "target_root": str(target_root),
+                "plan_edit_payload": {
+                    "edits": [
+                        {
+                            "path": "src/app.py",
+                            "old_text": "return 1",
+                            "new_text": "return 2",
+                        }
+                    ]
+                },
+                "edit_plan": {
+                    "ok": True,
+                    "plan_hash": "d" * 64,
+                    "planned": [{"path": "src/app.py", "operation": "edit"}],
+                    "rejected": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    review_path = tmp_path / "local-repair-chain-review.json"
+    review_path.write_text(
+        json.dumps(
+            {
+                "source": "biber_local_repair_chain_review",
+                "review_status": "ready_for_explicit_apply_approval",
+                "ok": True,
+                "apply_recommendation": "ready_for_explicit_apply_approval",
+                "training_allowed": False,
+                "auto_applied": False,
+                "apply_allowed": False,
+                "blockers": [],
+                "plan_hash": "e" * 64,
+                "target_root": str(target_root),
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(
+        client,
+        "apply_workspace_edit_plan_local_target",
+        fake_apply_workspace_edit_plan_local_target,
+    )
+
+    try:
+        client.run(
+            client.parse_args(
+                [
+                    "apply-repair-edits",
+                    str(plan_path),
+                    "--approve",
+                    "--review-artifact",
+                    str(review_path),
+                ]
+            )
+        )
+    except client.BiberAgentClientError as exc:
+        assert "plan_hash does not match" in str(exc)
+    else:
+        raise AssertionError("expected mismatched review plan_hash to be rejected")
+
+
 def test_run_show_repair_edit_apply_summarizes_without_api_key(
     monkeypatch,
     tmp_path: Path,

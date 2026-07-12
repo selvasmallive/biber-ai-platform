@@ -77,6 +77,15 @@ the next test id, and only marks the chain
 `ready_for_explicit_apply_approval` when the chain is planned, the extraction
 is ready, the local plan is planned, hashes are valid, and all no-training/
 no-auto-apply guards remain false.
+Ninth BIBER resume checkpoint on the same branch:
+`apply-repair-edits --approve` now accepts `--review-artifact` pointing to a
+saved `review-local-repair-chain` artifact. When supplied, apply validates that
+the review is ok, ready for explicit apply approval, has no blockers, preserves
+the no-training/no-auto-apply/no-pre-apply guard state, and has the same
+64-character plan hash as the repair plan before any file changes occur. The
+apply artifact records the accepted pre-apply review gate. Local-target apply
+also avoids API-key resolution when `--target-root` is supplied or the repair
+plan records a `target_root`.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

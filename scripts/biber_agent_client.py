@@ -3055,6 +3055,25 @@ def resolve_apply_target_root(
     return None, None
 
 
+def apply_repair_edits_has_local_target(args: argparse.Namespace) -> bool:
+    if args.command != "apply-repair-edits" or not args.approve:
+        return False
+    if args.target_root:
+        return True
+    try:
+        artifact = load_json_artifact(
+            str(Path(args.artifact)),
+            label="repair-edit plan artifact",
+        )
+    except BiberAgentClientError:
+        return False
+    plan = normalize_repair_edit_plan_artifact(artifact)
+    if plan is None:
+        return False
+    target_root = plan.get("target_root")
+    return isinstance(target_root, str) and bool(target_root.strip())
+
+
 def resolve_verify_target_root(
     *,
     cli_target_root: str | None,
@@ -3339,6 +3358,107 @@ def review_local_repair_chain(chain: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def normalize_local_repair_chain_review_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_local_repair_chain_review":
+        return dict(payload)
+    body = payload.get("body")
+    if (
+        isinstance(body, dict)
+        and body.get("source") == "biber_local_repair_chain_review"
+    ):
+        return dict(body)
+    return None
+
+
+def normalize_optional_path_text(value: object) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return str(Path(value.strip()).expanduser().resolve())
+
+
+def validate_local_repair_chain_review_for_apply(
+    *,
+    review_path: Path,
+    review: Mapping[str, Any],
+    plan: Mapping[str, Any],
+) -> dict[str, Any]:
+    plan_hash = plan.get("plan_hash")
+    review_plan_hash = review.get("plan_hash")
+    blockers = require_list(review.get("blockers"))
+    if review.get("ok") is not True:
+        raise BiberAgentClientError(
+            "apply-repair-edits --review-artifact requires an ok "
+            "review-local-repair-chain artifact."
+        )
+    if review.get("review_status") != "ready_for_explicit_apply_approval":
+        raise BiberAgentClientError(
+            "apply-repair-edits --review-artifact is not ready for explicit apply approval."
+        )
+    if review.get("apply_recommendation") != "ready_for_explicit_apply_approval":
+        raise BiberAgentClientError(
+            "apply-repair-edits --review-artifact does not recommend explicit apply approval."
+        )
+    if blockers:
+        raise BiberAgentClientError(
+            "apply-repair-edits --review-artifact still has blockers."
+        )
+    if review.get("training_allowed") is True:
+        raise BiberAgentClientError(
+            "apply-repair-edits --review-artifact unexpectedly allows training."
+        )
+    if review.get("auto_applied") is True:
+        raise BiberAgentClientError(
+            "apply-repair-edits --review-artifact unexpectedly auto-applied edits."
+        )
+    if review.get("apply_allowed") is True:
+        raise BiberAgentClientError(
+            "apply-repair-edits --review-artifact must be pre-apply only."
+        )
+    if not isinstance(plan_hash, str) or len(plan_hash) != 64:
+        raise BiberAgentClientError(
+            "apply-repair-edits requires a repair edit plan artifact with a valid plan_hash."
+        )
+    if review_plan_hash != plan_hash:
+        raise BiberAgentClientError(
+            "apply-repair-edits --review-artifact plan_hash does not match the repair plan."
+        )
+
+    plan_target_root = normalize_optional_path_text(plan.get("target_root"))
+    review_target_root = normalize_optional_path_text(review.get("target_root"))
+    if plan_target_root and review_target_root and plan_target_root != review_target_root:
+        raise BiberAgentClientError(
+            "apply-repair-edits --review-artifact target_root does not match the repair plan."
+        )
+    plan_next_test_id = plan.get("next_test_id")
+    review_next_test_id = review.get("next_test_id")
+    if (
+        isinstance(plan_next_test_id, str)
+        and plan_next_test_id
+        and isinstance(review_next_test_id, str)
+        and review_next_test_id
+        and plan_next_test_id != review_next_test_id
+    ):
+        raise BiberAgentClientError(
+            "apply-repair-edits --review-artifact next_test_id does not match the repair plan."
+        )
+
+    return {
+        "status": "accepted",
+        "review_artifact": str(review_path),
+        "review_status": review.get("review_status"),
+        "apply_recommendation": review.get("apply_recommendation"),
+        "plan_hash": plan_hash,
+        "target_root": review.get("target_root"),
+        "next_test_id": review.get("next_test_id"),
+        "blockers": [],
+        "warnings": [
+            str(item) for item in require_list(review.get("warnings"))
+        ],
+    }
+
+
 def normalize_repair_edit_plan_artifact(
     payload: Mapping[str, Any],
 ) -> dict[str, Any] | None:
@@ -3473,6 +3593,7 @@ def build_apply_repair_edits_result(
     plan: Mapping[str, Any],
     apply_payload: Mapping[str, Any],
     edit_apply: Mapping[str, Any],
+    review_gate: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     ok = edit_apply.get("ok") is True
     result: dict[str, Any] = {
@@ -3502,6 +3623,10 @@ def build_apply_repair_edits_result(
     if plan.get("target_root"):
         result["target_root"] = plan.get("target_root")
         result["target_root_source"] = plan.get("target_root_source")
+    if review_gate is not None:
+        result["pre_apply_review_gate"] = dict(review_gate)
+        result["pre_apply_review_status"] = review_gate.get("review_status")
+        result["pre_apply_review_artifact"] = review_gate.get("review_artifact")
     return result
 
 
@@ -13110,6 +13235,8 @@ def format_repair_edit_apply_summary(payload: Mapping[str, Any]) -> str:
         f"approval_required: {payload.get('approval_required', True)}",
         f"approval_received: {payload.get('approval_received', False)}",
         f"review_status: {payload.get('review_status', '-')}",
+        f"pre_apply_review_status: {payload.get('pre_apply_review_status', '-')}",
+        f"pre_apply_review_artifact: {payload.get('pre_apply_review_artifact', '-')}",
         f"plan_mode: {payload.get('plan_mode', '-')}",
         f"target_root: {payload.get('target_root', '-')}",
         f"plan_hash: {payload.get('plan_hash', '-')}",
@@ -16519,6 +16646,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "target_root recorded by plan-repair-edits when present."
         ),
     )
+    apply_repair_edits_parser.add_argument(
+        "--review-artifact",
+        help=(
+            "Optional review-local-repair-chain artifact that must be ready "
+            "and match the repair plan hash before apply proceeds."
+        ),
+    )
     apply_repair_edits_parser.add_argument("--output")
 
     verify_repair_edits_parser = subparsers.add_parser(
@@ -17848,7 +17982,8 @@ def run(args: argparse.Namespace) -> str:
         and not args.save_github_path
         and not args.create_pr
     )
-    if mvp_loop_uses_only_local_steps:
+    apply_repair_edits_uses_only_local_steps = apply_repair_edits_has_local_target(args)
+    if mvp_loop_uses_only_local_steps or apply_repair_edits_uses_only_local_steps:
         api_key = ""
         base_url = args.base_url.rstrip("/")
     else:
@@ -17925,6 +18060,24 @@ def run(args: argparse.Namespace) -> str:
                 "apply-repair-edits artifact must contain a saved repair-edit plan JSON object."
             )
         apply_payload = build_apply_repair_edits_payload(plan)
+        review_gate: dict[str, Any] | None = None
+        if args.review_artifact:
+            review_path = Path(args.review_artifact)
+            review_artifact = load_json_artifact(
+                str(review_path),
+                label="local repair chain review artifact",
+            )
+            review = normalize_local_repair_chain_review_artifact(review_artifact)
+            if review is None:
+                raise BiberAgentClientError(
+                    "apply-repair-edits --review-artifact must contain a saved "
+                    "review-local-repair-chain JSON object."
+                )
+            review_gate = validate_local_repair_chain_review_for_apply(
+                review_path=review_path,
+                review=review,
+                plan=plan,
+            )
         target_root, _target_root_source = resolve_apply_target_root(
             cli_target_root=args.target_root,
             plan=plan,
@@ -17946,6 +18099,7 @@ def run(args: argparse.Namespace) -> str:
             plan=plan,
             apply_payload=apply_payload,
             edit_apply=edit_apply,
+            review_gate=review_gate,
         )
         if args.output:
             result["artifact_path"] = str(Path(args.output))

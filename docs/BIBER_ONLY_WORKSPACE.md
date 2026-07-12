@@ -71,6 +71,10 @@ an API key and always stops before apply.
 Then run `review-local-repair-chain` on that combined artifact before asking
 for explicit apply approval. The review is deterministic, no-API, and reports
 blockers, warnings, plan hash, target root, and the next test id.
+If apply is explicitly approved, pass the accepted review artifact to
+`apply-repair-edits --approve --review-artifact ...`. The apply command checks
+that the review is ready and that its plan hash matches the repair plan before
+it changes files.
 
 ## Vast GPU
 
