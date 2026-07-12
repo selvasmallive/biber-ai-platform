@@ -679,19 +679,19 @@ pub fn node_help_text() -> String {
     [
         "xriq-node private-devnet commands:",
         "  All commands accept an optional [--environment local|staging-devnet] profile (default local; production/mainnet/public-testnet are rejected).",
-        "  xriq-node status --chain-file <path> [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node status --chain-file <path> [--network devnet|testnet] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node chain-check --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node produce-transfer-block --chain-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node produce-draft-block --chain-file <path> --draft-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node produce-pending-block --chain-file <path> --pending-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node preflight-transfer --chain-file <path> --pending-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
-        "  xriq-node explorer-overview --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
-        "  xriq-node block-list --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
+        "  xriq-node explorer-overview --chain-file <path> [--network devnet|testnet] [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
+        "  xriq-node block-list --chain-file <path> [--network devnet|testnet] [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node block-detail --chain-file <path> (--height <height|latest>|--block-hash <64-hex>) [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node account-list --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
-        "  xriq-node account-detail --chain-file <path> --address <address> [--alice-balance <base-units>] [--format text|json]",
-        "  xriq-node account-transactions --chain-file <path> --address <address> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
-        "  xriq-node transaction-list --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
+        "  xriq-node account-detail --chain-file <path> --address <address> [--network devnet|testnet] [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node account-transactions --chain-file <path> --address <address> [--network devnet|testnet] [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
+        "  xriq-node transaction-list --chain-file <path> [--network devnet|testnet] [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node peer-blocks-export --chain-file <path> [--from-height <height>] [--limit <count>] [--network devnet|testnet] [--alice-balance <base-units>] [--format json]  (read-only; serves validated blocks for peer sync, also at GET /v1/peer/blocks)",
         "  xriq-node peer-identity --chain-file <path> [--node-seed <string>] [--network devnet|testnet] [--alice-balance <base-units>] [--format json]  (read-only compatibility handshake: network, protocol, tip, node id; also at GET /v1/peer/identity)",
@@ -986,6 +986,7 @@ pub fn private_devnet_http_response_with_body(
         }
         "/v1/explorer/overview" => {
             let mut args = private_devnet_http_runner_args("explorer-overview", config);
+            push_network_arg(&mut args, config);
             if let Some(limit) = query_value(query, "limit") {
                 args.push("--limit".to_string());
                 args.push(limit.to_string());
@@ -1040,6 +1041,7 @@ pub fn private_devnet_http_response_with_body(
         }
         "/v1/transactions" => {
             let mut args = private_devnet_http_runner_args("transaction-list", config);
+            push_network_arg(&mut args, config);
             if let Some(limit) = query_value(query, "limit") {
                 args.push("--limit".to_string());
                 args.push(limit.to_string());
@@ -1061,6 +1063,7 @@ pub fn private_devnet_http_response_with_body(
                 .filter(|address| !address.is_empty())
             {
                 let mut args = private_devnet_http_runner_args("account-transactions", config);
+                push_network_arg(&mut args, config);
                 args.push("--address".to_string());
                 args.push(address.to_string());
                 if let Some(limit) = query_value(query, "limit") {
@@ -2722,9 +2725,16 @@ pub fn private_devnet_file_explorer_overview_data(
     alice_balance: Option<XriqAmount>,
     limit: usize,
 ) -> Result<(ExplorerOverview, Vec<ExplorerBlockSummary>), NodeError> {
+    runner_file_explorer_overview_data(chain_file, RunnerGenesis::Devnet(alice_balance), limit)
+}
+
+fn runner_file_explorer_overview_data(
+    chain_file: impl AsRef<Path>,
+    genesis: RunnerGenesis,
+    limit: usize,
+) -> Result<(ExplorerOverview, Vec<ExplorerBlockSummary>), NodeError> {
     let store = FileChainStore::open(chain_file).map_err(NodeError::Storage)?;
-    let genesis = private_devnet_runner_genesis(alice_balance);
-    let node = XriqNode::from_genesis_replaying_store(&genesis, store)?;
+    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)?;
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
     Ok((explorer.overview(), explorer.latest_blocks(limit)))
 }
@@ -2907,11 +2917,24 @@ pub fn private_devnet_file_account_transactions_data(
     address: Address,
     limit: usize,
 ) -> Result<Vec<ExplorerAccountTransaction>, NodeRunnerError> {
+    runner_file_account_transactions_data(
+        chain_file,
+        RunnerGenesis::Devnet(alice_balance),
+        address,
+        limit,
+    )
+}
+
+fn runner_file_account_transactions_data(
+    chain_file: impl AsRef<Path>,
+    genesis: RunnerGenesis,
+    address: Address,
+    limit: usize,
+) -> Result<Vec<ExplorerAccountTransaction>, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    let genesis = private_devnet_runner_genesis(alice_balance);
-    let node =
-        XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?;
+    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)
+        .map_err(NodeRunnerError::Node)?;
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
     Ok(explorer.account_transactions(&address, limit))
 }
@@ -2931,11 +2954,18 @@ pub fn private_devnet_file_latest_transactions_data(
     alice_balance: Option<XriqAmount>,
     limit: usize,
 ) -> Result<Vec<ExplorerConfirmedTransaction>, NodeRunnerError> {
+    runner_file_latest_transactions_data(chain_file, RunnerGenesis::Devnet(alice_balance), limit)
+}
+
+fn runner_file_latest_transactions_data(
+    chain_file: impl AsRef<Path>,
+    genesis: RunnerGenesis,
+    limit: usize,
+) -> Result<Vec<ExplorerConfirmedTransaction>, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    let genesis = private_devnet_runner_genesis(alice_balance);
-    let node =
-        XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?;
+    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)
+        .map_err(NodeRunnerError::Node)?;
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
     Ok(explorer.latest_transactions(limit))
 }
@@ -3843,34 +3873,32 @@ fn run_chain_check_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunn
 
 fn run_explorer_overview_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
-    flags.reject_unknown(&["--chain-file", "--alice-balance", "--limit", "--format"])?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--alice-balance",
+        "--network",
+        "--limit",
+        "--format",
+    ])?;
     let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
-    let alice_balance = flags
-        .optional("--alice-balance")
-        .map(|value| parse_amount("--alice-balance", value))
-        .transpose()?;
+    let genesis = parse_runner_genesis(&flags)?;
     let limit = flags
         .optional("--limit")
         .map(|value| parse_usize("--limit", value))
         .transpose()?
         .unwrap_or(10);
+    let (overview, latest_blocks) = runner_file_explorer_overview_data(chain_file, genesis, limit)
+        .map_err(NodeRunnerError::Node)?;
     Ok(match output_format {
         RunnerOutputFormat::Text => {
-            private_devnet_file_explorer_overview(chain_file, alice_balance, limit)
-                .map(NodeRunnerOutput::ExplorerOverview)
-                .map_err(NodeRunnerError::Node)?
+            NodeRunnerOutput::ExplorerOverview(render_overview(&overview, &latest_blocks))
         }
-        RunnerOutputFormat::Json => {
-            let (overview, latest_blocks) =
-                private_devnet_file_explorer_overview_data(chain_file, alice_balance, limit)
-                    .map_err(NodeRunnerError::Node)?;
-            NodeRunnerOutput::Json(render_explorer_overview_json(
-                "explorer-overview",
-                &overview,
-                &latest_blocks,
-            ))
-        }
+        RunnerOutputFormat::Json => NodeRunnerOutput::Json(render_explorer_overview_json(
+            "explorer-overview",
+            &overview,
+            &latest_blocks,
+        )),
     })
 }
 
@@ -4030,70 +4058,60 @@ fn run_account_transactions_command(args: &[String]) -> Result<NodeRunnerOutput,
     flags.reject_unknown(&[
         "--chain-file",
         "--alice-balance",
+        "--network",
         "--address",
         "--limit",
         "--format",
     ])?;
     let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
-    let alice_balance = flags
-        .optional("--alice-balance")
-        .map(|value| parse_amount("--alice-balance", value))
-        .transpose()?;
+    let genesis = parse_runner_genesis(&flags)?;
     let address = parse_address("--address", flags.required("--address")?)?;
     let limit = flags
         .optional("--limit")
         .map(|value| parse_usize("--limit", value))
         .transpose()?
         .unwrap_or(25);
+    let transactions =
+        runner_file_account_transactions_data(chain_file, genesis, address.clone(), limit)?;
     Ok(match output_format {
-        RunnerOutputFormat::Text => {
-            private_devnet_file_account_transactions(chain_file, alice_balance, address, limit)
-                .map(NodeRunnerOutput::AccountTransactions)?
-        }
-        RunnerOutputFormat::Json => {
-            let transactions = private_devnet_file_account_transactions_data(
-                chain_file,
-                alice_balance,
-                address.clone(),
-                limit,
-            )?;
-            NodeRunnerOutput::Json(render_account_transactions_json(
-                "account-transactions",
-                &address,
-                &transactions,
-            ))
-        }
+        RunnerOutputFormat::Text => NodeRunnerOutput::AccountTransactions(
+            render_account_transactions(&address, &transactions),
+        ),
+        RunnerOutputFormat::Json => NodeRunnerOutput::Json(render_account_transactions_json(
+            "account-transactions",
+            &address,
+            &transactions,
+        )),
     })
 }
 
 fn run_transaction_list_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
-    flags.reject_unknown(&["--chain-file", "--alice-balance", "--limit", "--format"])?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--alice-balance",
+        "--network",
+        "--limit",
+        "--format",
+    ])?;
     let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
-    let alice_balance = flags
-        .optional("--alice-balance")
-        .map(|value| parse_amount("--alice-balance", value))
-        .transpose()?;
+    let genesis = parse_runner_genesis(&flags)?;
     let limit = flags
         .optional("--limit")
         .map(|value| parse_usize("--limit", value))
         .transpose()?
         .unwrap_or(25);
+    let transactions = runner_file_latest_transactions_data(chain_file, genesis, limit)?;
     Ok(match output_format {
         RunnerOutputFormat::Text => {
-            private_devnet_file_latest_transactions(chain_file, alice_balance, limit)
-                .map(NodeRunnerOutput::TransactionList)?
+            NodeRunnerOutput::TransactionList(render_latest_transactions(&transactions))
         }
-        RunnerOutputFormat::Json => {
-            let transactions =
-                private_devnet_file_latest_transactions_data(chain_file, alice_balance, limit)?;
-            NodeRunnerOutput::Json(render_transaction_list_json(
-                "transaction-list",
-                &transactions,
-            ))
-        }
+        RunnerOutputFormat::Json => NodeRunnerOutput::Json(render_transaction_list_json(
+            "transaction-list",
+            &transactions,
+        )),
     })
 }
 
@@ -9679,6 +9697,30 @@ mod tests {
         );
         assert_eq!(account.status_code, 200);
         assert!(account.body.contains("\"balance_base_units\": \"1000\""));
+
+        // Activity views also serve the testnet chain: the faucet transfer shows
+        // up in the overview, the transaction list, and the recipient's history.
+        let overview = private_devnet_http_response(&config, "GET", "/v1/explorer/overview");
+        assert_eq!(overview.status_code, 200);
+        assert!(overview.body.contains("\"command\": \"explorer-overview\""));
+
+        let transactions = private_devnet_http_response(&config, "GET", "/v1/transactions");
+        assert_eq!(transactions.status_code, 200);
+        assert!(transactions
+            .body
+            .contains("\"command\": \"transaction-list\""));
+        assert!(transactions.body.contains("xriqdev1recipient00000000000"));
+
+        let history = private_devnet_http_response(
+            &config,
+            "GET",
+            "/v1/accounts/xriqdev1recipient00000000000/transactions",
+        );
+        assert_eq!(history.status_code, 200);
+        assert!(history
+            .body
+            .contains("\"command\": \"account-transactions\""));
+        assert!(history.body.contains("xriqdev1recipient00000000000"));
 
         let _ = fs::remove_file(chain);
     }

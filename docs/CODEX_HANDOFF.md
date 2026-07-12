@@ -426,13 +426,22 @@ status/blocks/accounts. A new `POST /v1/faucet?to=<address>` route (serve-privat
 testnet only; 501 read-only, 400 not-testnet, 400 missing `to`) dispenses via
 `faucet-dispense` (FaucetRefused → 429). Covered by
 `testnet_read_routes_serve_testnet_genesis` and
-`http_faucet_dispenses_on_testnet_serve_private`. SCOPE: the long-tail read routes
-(snapshots, drafts, mempool detail, tx/block detail, account transactions, explorer
-overview) and produce/submit mutations remain devnet-genesis (same shim pattern
-applies when needed); the HTTP faucet has no per-IP limit yet (the chain-derived
-balance cap is the limiter). Remaining for milestone 3: those remaining routes +
-optional per-IP faucet limiting, and the public explorer/wallet. Everything stays
-test-only with no monetary value.
+`http_faucet_dispenses_on_testnet_serve_private`.
+Milestone 3 increment 5 extended the shim to the explorer "activity" read routes:
+`explorer-overview`, `transaction-list`, and `account-transactions` commands gained
+`--network` (genesis-aware `runner_file_*` cores + `Devnet` shims), and the
+`/v1/explorer/overview`, `/v1/transactions`, and `/v1/accounts/{addr}/transactions`
+routes pass `--network testnet` through. With increments 3-5 a testnet node now
+serves status, blocks, block list, account detail, overview, transaction list, and
+account history on the testnet chain — plus the HTTP faucet. The
+`testnet_read_routes_serve_testnet_genesis` test was extended to assert the faucet
+transfer appears in the overview, transaction list, and recipient history. SCOPE
+remaining as devnet-genesis: block-detail (3 leaf variants: by-height/by-hash/latest),
+mempool detail + transaction detail (both touch the pending/draft cascade), and the
+produce/submit mutations. The HTTP faucet still has no per-IP limit (the chain-derived
+balance cap is the limiter). Remaining for milestone 3: those few routes + optional
+per-IP faucet limiting, and the public explorer/wallet. Everything stays test-only
+with no monetary value.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,
