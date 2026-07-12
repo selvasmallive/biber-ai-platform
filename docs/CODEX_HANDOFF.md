@@ -116,12 +116,22 @@ file.
 Thirteenth BIBER resume checkpoint on the same branch:
 `scripts/biber_local_repair_loop_smoke.py` now provides a narrow no-API
 confidence check for the local repair loop. It creates a temporary target repo,
-uses a supplied local model-response fixture, and runs
+uses a temporary local model-command fixture, and runs
 `prepare-repair -> local-repair-chain -> review-local-repair-chain ->
 apply-repair-edits --approve --review-artifact -> local-verify-chain ->
 local-repair-loop-status`. It requires no BIBER API, OpenAI mentor, Vast GPU,
 or training credentials, and cleans up temp files unless `--keep-temp` is
 provided.
+Fourteenth BIBER resume checkpoint on the same branch:
+`local-repair-chain` now supports a swappable local model provider through
+`--model-command`. The command receives a JSON repair request on stdin and may
+print raw model text, strict JSON edits, or JSON with a string `content` field.
+The command path records `model_response_source.source = local_model_command`,
+still avoids BIBER API auth, keeps OpenAI mentor disabled, does not train, and
+does not apply files. `local-repair-loop-status` now includes a
+`model_command_alternative` next-step command when a prepared repair request is
+ready. The no-API smoke now exercises the command-provider path with a
+temporary fixture provider.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

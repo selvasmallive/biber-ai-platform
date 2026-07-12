@@ -68,6 +68,20 @@ For an offline/local-model response, use `local-repair-chain` with
 `--model-response-file` and optional `--target-root`. It creates a combined
 repair request, attempt, extraction, and local plan artifact without resolving
 an API key and always stops before apply.
+For a swappable local provider, `local-repair-chain` can also use
+`--model-command`. The command receives a JSON repair request on stdin and may
+print raw model text, strict JSON edits, or a JSON object with a string
+`content` field. On Windows, prefer a JSON array command form:
+
+```bash
+python scripts/biber_agent_client.py --json local-repair-chain prepared-repair.json \
+  --model-command "[\"python\",\"scripts/local_model_provider.py\"]" \
+  --target-root /path/to/repo \
+  --output /tmp/local-repair-chain.json
+```
+
+This keeps Qwen2.5, Qwen3, llama.cpp, vLLM wrappers, and future local runners
+swappable without enabling OpenAI mentor, API auth, GPU training, or file apply.
 Then run `review-local-repair-chain` on that combined artifact before asking
 for explicit apply approval. The review is deterministic, no-API, and reports
 blockers, warnings, plan hash, target root, and the next test id.
@@ -94,8 +108,9 @@ python scripts/biber_local_repair_loop_smoke.py
 ```
 
 The smoke creates a temporary target repo, runs prepare/local-chain/review/
-guarded-apply/verify/status with a supplied local model-response fixture, and
-does not require BIBER API, OpenAI, Vast GPU, or training credentials.
+guarded-apply/verify/status with a temporary local model-command provider
+fixture, and does not require BIBER API, OpenAI, Vast GPU, or training
+credentials.
 
 ## Vast GPU
 

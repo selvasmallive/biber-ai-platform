@@ -1612,6 +1612,106 @@ def test_run_local_repair_chain_plans_with_local_target_without_api_key(
     assert result["repair_edit_plan"]["apply_allowed"] is False
 
 
+def test_run_local_repair_chain_accepts_model_command_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local-repair-chain command should not resolve an API key")
+
+    def fake_plan_workspace_edit_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        captured["target_root"] = str(target_root)
+        captured["payload"] = payload
+        return {
+            "ok": True,
+            "plan_hash": "c" * 64,
+            "planned": [{"path": "src/app.py", "operation": "edit"}],
+            "rejected": [],
+            "files_touched": 1,
+            "total_new_bytes": 8,
+            "summary": "Planned 1 edit.",
+        }
+
+    provider = tmp_path / "provider.py"
+    provider.write_text(
+        "import json\n"
+        "import sys\n"
+        "request = json.load(sys.stdin)\n"
+        "assert request['source'] == 'biber_local_model_command_request'\n"
+        "assert request['mentor_used'] is False\n"
+        "content = {'edits': [{'path': 'src/app.py', 'old_text': 'return 1', 'new_text': 'return 2'}]}\n"
+        "print(json.dumps({'content': json.dumps(content)}))\n",
+        encoding="utf-8",
+    )
+    target_root = tmp_path / "target-repo"
+    target_root.mkdir()
+    failure = tmp_path / "failure-mvp-loop.json"
+    failure.write_text(
+        json.dumps(
+            {
+                "ok": False,
+                "instruction": "Fix a Python assertion failure.",
+                "steps": {
+                    "test_run": {
+                        "ok": False,
+                        "test_id": "python-pytest",
+                        "command": ["python", "-m", "pytest", "-q"],
+                        "exit_code": 1,
+                        "timed_out": False,
+                        "stdout": "E   AssertionError: expected 2\n",
+                    },
+                    "test_diagnosis": {
+                        "primary_category": "assertion_failure",
+                        "detected_stack": "python",
+                        "summary": "Detected assertion_failure in python output.",
+                    },
+                },
+                "selected_context_paths": ["src/app.py", "tests/test_app.py"],
+                "test_ok": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(
+        client,
+        "plan_workspace_edit_local_target",
+        fake_plan_workspace_edit_local_target,
+    )
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "local-repair-chain",
+                str(failure),
+                "--model-command",
+                json.dumps([sys.executable, str(provider)]),
+                "--model-command-timeout-seconds",
+                "10",
+                "--target-root",
+                str(target_root),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert captured["target_root"] == str(target_root.resolve())
+    assert result["chain_status"] == "planned"
+    assert result["model_response_source"]["source"] == "local_model_command"
+    assert result["model_response_source"]["stdout_format"] == "json"
+    assert result["repair_attempt"]["model_response"]["local_response_source"][
+        "source"
+    ] == "local_model_command"
+    assert result["repair_edit_extraction"]["edits"][0]["path"] == "src/app.py"
+
+
 def test_run_review_local_repair_chain_marks_ready_without_api_key(
     monkeypatch,
     tmp_path: Path,
@@ -5440,12 +5540,52 @@ def test_run_local_repair_loop_status_points_failed_verify_to_retry_without_api_
     assert str(artifact) in result["next_step"]["command"]
 
 
+def test_run_local_repair_loop_status_includes_model_command_alternative(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local-repair-loop-status should not resolve an API key")
+
+    artifact = tmp_path / "prepared-repair.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_request",
+                "repair_status": "prepared",
+                "ok": True,
+                "target_root": str(tmp_path / "target-repo"),
+                "next_test_id": "python-pytest",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "local-repair-loop-status",
+                str(tmp_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["current"]["artifact_type"] == "repair_request"
+    assert result["next_step"]["action"] == "run_local_repair_chain"
+    assert "--model-response-file" in result["next_step"]["command"]
+    assert "--model-command" in result["next_step"]["model_command_alternative"]
+
+
 def test_local_repair_loop_smoke_script_documents_no_api_chain() -> None:
     script = ROOT / "scripts" / "biber_local_repair_loop_smoke.py"
     text = script.read_text(encoding="utf-8")
 
     assert "prepare-repair" in text
     assert "local-repair-chain" in text
+    assert "--model-command" in text
     assert "review-local-repair-chain" in text
     assert "apply-repair-edits" in text
     assert "local-verify-chain" in text

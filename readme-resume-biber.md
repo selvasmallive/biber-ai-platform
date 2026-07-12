@@ -199,6 +199,20 @@ If the model response is produced outside the live BIBER API, use
 `local-repair-chain --model-response-file ... --target-root ...` to build the
 attempt, extraction, and optional local plan artifact without API auth. It still
 does not apply files.
+For a swappable local model runner, use `--model-command` instead of
+`--model-response-file`. The command receives a JSON repair request on stdin
+and may print raw model text, strict JSON edits, or a JSON object with a string
+`content` field. On Windows, prefer JSON array command syntax:
+
+```bash
+python scripts/biber_agent_client.py --json local-repair-chain prepared-repair.json \
+  --model-command "[\"python\",\"scripts/local_model_provider.py\"]" \
+  --target-root /path/to/repo \
+  --output /tmp/local-repair-chain.json
+```
+
+This is the preferred bridge for Qwen2.5 now, Qwen3 later, or any future local
+provider wrapper while OpenAI mentor stays disabled by default.
 Before any apply approval, run `review-local-repair-chain` on the combined
 artifact. It is deterministic and local-only, and it summarizes blockers,
 warnings, plan hash, target root, and the next test id.
@@ -224,8 +238,8 @@ python scripts/biber_local_repair_loop_smoke.py
 ```
 
 It creates a temporary target repo, drives prepare/local-chain/review/
-guarded-apply/verify/status with a supplied local model-response fixture, and
-requires no GPU, OpenAI, or BIBER API credentials.
+guarded-apply/verify/status with a temporary local model-command provider
+fixture, and requires no GPU, OpenAI, or BIBER API credentials.
 
 Do not run QLoRA or any training command just because a session says
 "continue." Training is appropriate only after the BIBER eval/review pipeline

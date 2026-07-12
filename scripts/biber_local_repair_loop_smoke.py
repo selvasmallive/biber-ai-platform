@@ -100,6 +100,29 @@ def create_failure_artifact(path: Path, target_root: Path) -> None:
     )
 
 
+def create_fixture_model_provider(path: Path) -> None:
+    path.write_text(
+        "import json\n"
+        "import sys\n"
+        "\n"
+        "request = json.load(sys.stdin)\n"
+        "if request.get('source') != 'biber_local_model_command_request':\n"
+        "    raise SystemExit('unexpected request source')\n"
+        "content = {\n"
+        "    'edits': [\n"
+        "        {\n"
+        "            'path': 'src/app.py',\n"
+        "            'old_text': 'return 1',\n"
+        "            'new_text': 'return 2',\n"
+        "            'expected_replacements': 1,\n"
+        "        }\n"
+        "    ]\n"
+        "}\n"
+        "print(json.dumps({'model': request.get('model'), 'content': json.dumps(content)}))\n",
+        encoding="utf-8",
+    )
+
+
 def run_smoke(work_root: Path) -> dict[str, Any]:
     repo_root = Path(__file__).resolve().parents[1]
     artifact_dir = work_root / "artifacts"
@@ -109,7 +132,7 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
 
     failure = artifact_dir / "failure-mvp-loop.json"
     prepared = artifact_dir / "prepared-repair.json"
-    model_response = artifact_dir / "model-response.json"
+    model_provider = work_root / "fixture-local-model-provider.py"
     local_chain = artifact_dir / "local-repair-chain.json"
     local_review = artifact_dir / "local-repair-chain-review.json"
     repair_plan = artifact_dir / "repair-edit-plan.json"
@@ -118,6 +141,7 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
     loop_status = artifact_dir / "local-repair-loop-status.json"
 
     create_failure_artifact(failure, target_root)
+    create_fixture_model_provider(model_provider)
     run_client(
         repo_root,
         artifact_dir,
@@ -126,26 +150,15 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
         "--output",
         str(prepared),
     )
-    write_json(
-        model_response,
-        {
-            "edits": [
-                {
-                    "path": "src/app.py",
-                    "old_text": "return 1",
-                    "new_text": "return 2",
-                    "expected_replacements": 1,
-                }
-            ]
-        },
-    )
     chain = run_client(
         repo_root,
         artifact_dir,
         "local-repair-chain",
         str(prepared),
-        "--model-response-file",
-        str(model_response),
+        "--model-command",
+        json.dumps([sys.executable, str(model_provider)]),
+        "--model-command-timeout-seconds",
+        "30",
         "--target-root",
         str(target_root),
         "--output",
@@ -202,6 +215,8 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
             == "ready_for_explicit_apply_approval"
             and apply_result.get("apply_status") == "applied"
             and verification.get("chain_status") == "verified"
+            and (chain.get("model_response_source") or {}).get("source")
+            == "local_model_command"
             and "return 2" in final_source
         ),
         "training_allowed": False,
@@ -214,10 +229,13 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
         "chain_status": verification.get("chain_status"),
         "verification_ok": verification.get("ok") is True,
         "status_next_action": (status.get("next_step") or {}).get("action"),
+        "model_response_source": (chain.get("model_response_source") or {}).get(
+            "source"
+        ),
         "artifacts": {
             "failure": str(failure),
             "prepared": str(prepared),
-            "model_response": str(model_response),
+            "model_provider": str(model_provider),
             "local_chain": str(local_chain),
             "local_review": str(local_review),
             "repair_plan": str(repair_plan),

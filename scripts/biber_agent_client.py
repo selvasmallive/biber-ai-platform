@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import urllib.error
@@ -878,6 +879,26 @@ def load_text_argument(
         except OSError as exc:
             raise BiberAgentClientError(f"Could not read {label}-file {path}: {exc}") from exc
     return value or ""
+
+
+def parse_local_model_command(command: str) -> list[str]:
+    command = command.strip()
+    if not command:
+        raise BiberAgentClientError("--model-command cannot be empty.")
+    if command.startswith("["):
+        parts = parse_json_list(command, label="--model-command")
+        if not all(isinstance(part, str) and part.strip() for part in parts):
+            raise BiberAgentClientError(
+                "--model-command JSON array must contain non-empty strings."
+            )
+        return [str(part) for part in parts]
+    try:
+        parts = shlex.split(command, posix=os.name != "nt")
+    except ValueError as exc:
+        raise BiberAgentClientError(f"--model-command could not be parsed: {exc}") from exc
+    if not parts:
+        raise BiberAgentClientError("--model-command cannot be empty.")
+    return parts
 
 
 def write_json_artifact(payload: Mapping[str, Any], output_path: str) -> str:
@@ -3078,6 +3099,119 @@ def apply_repair_edits_has_local_target(args: argparse.Namespace) -> bool:
     return isinstance(target_root, str) and bool(target_root.strip())
 
 
+def build_local_model_command_request(
+    *,
+    repair_request: Mapping[str, Any],
+    model: str | None,
+) -> dict[str, Any]:
+    runtime_profile_ids = normalize_runtime_profile_ids(
+        repair_request.get("runtime_profile_ids")
+    )
+    chat_payload = build_repair_chat_payload(
+        repair_request=repair_request,
+        model=model,
+        max_tokens=None,
+        temperature=0.0,
+        use_mentor=False,
+        runtime_profile_ids=runtime_profile_ids,
+    )
+    return {
+        "source": "biber_local_model_command_request",
+        "repair_loop_version": "mvp-v1",
+        "model": model or "local-command-provider",
+        "mentor_used": False,
+        "training_allowed": False,
+        "api_required": False,
+        "stdin_contract": "json",
+        "stdout_contract": "raw model text or JSON object with a string content field",
+        "repair_request": dict(repair_request),
+        "chat_payload": chat_payload,
+        "response_guidance": {
+            "preferred": {"edits": [{"path": "...", "old_text": "...", "new_text": "..."}]},
+            "accepted_stdout": [
+                "raw repair text",
+                "JSON object with content/text/repair_content",
+                "JSON object or array that is itself the model response",
+            ],
+        },
+    }
+
+
+def normalize_local_model_command_stdout(stdout: str) -> tuple[str, dict[str, Any]]:
+    content = stdout.strip()
+    if not content:
+        raise BiberAgentClientError("--model-command produced empty stdout.")
+    metadata: dict[str, Any] = {
+        "stdout_format": "raw_text",
+        "stdout_json_keys": [],
+    }
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        return content, metadata
+    metadata["stdout_format"] = "json"
+    if isinstance(parsed, dict):
+        metadata["stdout_json_keys"] = sorted(str(key) for key in parsed)
+        for key in ("content", "text", "repair_content"):
+            value = parsed.get(key)
+            if isinstance(value, str) and value.strip():
+                metadata["content_field"] = key
+                return value, metadata
+        return json.dumps(parsed, sort_keys=True), metadata
+    if isinstance(parsed, list):
+        metadata["stdout_format"] = "json_array"
+        return json.dumps(parsed, sort_keys=True), metadata
+    return str(parsed), metadata
+
+
+def run_local_model_command(
+    *,
+    command: str,
+    request: Mapping[str, Any],
+    timeout_seconds: float,
+) -> tuple[str, dict[str, Any]]:
+    if timeout_seconds <= 0:
+        raise BiberAgentClientError("--model-command-timeout-seconds must be greater than 0.")
+    command_parts = parse_local_model_command(command)
+    request_text = json.dumps(request, indent=2, sort_keys=True)
+    try:
+        completed = subprocess.run(
+            command_parts,
+            input=request_text,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=timeout_seconds,
+        )
+    except FileNotFoundError as exc:
+        raise BiberAgentClientError(
+            f"--model-command executable not found: {command_parts[0]}"
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise BiberAgentClientError(
+            f"--model-command timed out after {timeout_seconds} seconds."
+        ) from exc
+    except OSError as exc:
+        raise BiberAgentClientError(f"--model-command failed to start: {exc}") from exc
+    stderr_snippet = completed.stderr.strip()[:1000]
+    if completed.returncode != 0:
+        suffix = f" stderr: {stderr_snippet}" if stderr_snippet else ""
+        raise BiberAgentClientError(
+            f"--model-command exited with code {completed.returncode}.{suffix}"
+        )
+    content, output_metadata = normalize_local_model_command_stdout(completed.stdout)
+    metadata = {
+        "source": "local_model_command",
+        "command": command_parts,
+        "exit_code": completed.returncode,
+        "timeout_seconds": timeout_seconds,
+        "stderr_snippet": stderr_snippet,
+        "request_source": request.get("source"),
+        **output_metadata,
+    }
+    return content, metadata
+
+
 def resolve_verify_target_root(
     *,
     cli_target_root: str | None,
@@ -3137,6 +3271,7 @@ def build_local_repair_chain_result(
     source_path: Path,
     repair_request: Mapping[str, Any],
     model_response_text: str,
+    model_response_source: Mapping[str, Any] | None,
     model: str | None,
     max_edits: int,
     max_files: int | None,
@@ -3163,6 +3298,9 @@ def build_local_repair_chain_result(
         "content": content,
         "mentor_used": False,
         "local_supplied": True,
+        "local_response_source": dict(
+            model_response_source or {"source": "local_supplied_response"}
+        ),
     }
     repair_attempt = build_repair_attempt_result(
         repair_request=repair_request,
@@ -3220,6 +3358,9 @@ def build_local_repair_chain_result(
         "auto_applied": False,
         "apply_allowed": False,
         "mentor_used": False,
+        "model_response_source": dict(
+            model_response_source or {"source": "local_supplied_response"}
+        ),
         "repair_request": dict(repair_request),
         "repair_attempt": repair_attempt,
         "repair_edit_extraction": extraction,
@@ -4264,6 +4405,7 @@ def local_repair_loop_next_step(
     path = str(current.get("path") or "")
     target_root = current.get("target_root") or "<TARGET_ROOT>"
     model_response_path = directory / "model-response.json"
+    model_command_placeholder = '["python","scripts/local_model_provider.py"]'
 
     if artifact_type == "mvp_loop":
         if current.get("ok") is True:
@@ -4301,6 +4443,23 @@ def local_repair_loop_next_step(
                     path,
                     "--model-response-file",
                     model_response_path,
+                    "--target-root",
+                    target_root,
+                    "--output",
+                    local_loop_output_path(directory, "local-repair-chain.json"),
+                ]
+            ),
+            "model_command_alternative": format_cli_command(
+                [
+                    "python",
+                    "scripts/biber_agent_client.py",
+                    "--json",
+                    "local-repair-chain",
+                    path,
+                    "--model-command",
+                    model_command_placeholder,
+                    "--model-command-timeout-seconds",
+                    120,
                     "--target-root",
                     target_root,
                     "--output",
@@ -4377,6 +4536,23 @@ def local_repair_loop_next_step(
                     "<REPAIR_REQUEST_ARTIFACT>",
                     "--model-response-file",
                     model_response_path,
+                    "--target-root",
+                    target_root,
+                    "--output",
+                    local_loop_output_path(directory, "local-repair-chain.json"),
+                ]
+            ),
+            "model_command_alternative": format_cli_command(
+                [
+                    "python",
+                    "scripts/biber_agent_client.py",
+                    "--json",
+                    "local-repair-chain",
+                    "<REPAIR_REQUEST_ARTIFACT>",
+                    "--model-command",
+                    model_command_placeholder,
+                    "--model-command-timeout-seconds",
+                    120,
                     "--target-root",
                     target_root,
                     "--output",
@@ -14113,6 +14289,7 @@ def format_local_repair_loop_status_summary(payload: Mapping[str, Any]) -> str:
     current = require_mapping(payload.get("current"))
     next_step = require_mapping(payload.get("next_step"))
     command = next_step.get("command")
+    model_command_alternative = next_step.get("model_command_alternative")
     lines = [
         "BIBER local repair loop status",
         f"directory: {payload.get('directory', '-')}",
@@ -14134,6 +14311,8 @@ def format_local_repair_loop_status_summary(payload: Mapping[str, Any]) -> str:
         f"next_reason: {next_step.get('reason', '-')}",
         f"next_command: {command or '-'}",
     ]
+    if model_command_alternative:
+        lines.append(f"model_command_alternative: {model_command_alternative}")
     return "\n".join(lines)
 
 
@@ -17392,6 +17571,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     local_repair_chain.add_argument("--model")
     local_repair_chain.add_argument("--model-response")
     local_repair_chain.add_argument("--model-response-file")
+    local_repair_chain.add_argument(
+        "--model-command",
+        help=(
+            "Optional local provider command. It receives a JSON repair request on "
+            "stdin and may print raw model text or JSON with a string content field."
+        ),
+    )
+    local_repair_chain.add_argument(
+        "--model-command-timeout-seconds",
+        type=float,
+        default=120.0,
+    )
     local_repair_chain.add_argument("--max-edits", type=int, default=3)
     local_repair_chain.add_argument("--max-files", type=int)
     local_repair_chain.add_argument(
@@ -18710,11 +18901,39 @@ def run(args: argparse.Namespace) -> str:
             max_relevant_output_chars=args.max_relevant_output_chars,
             max_context_paths=args.max_context_paths,
         )
-        model_response_text = load_text_argument(
-            value=args.model_response,
-            file_path=args.model_response_file,
-            label="--model-response",
+        response_source_count = sum(
+            1
+            for value in (args.model_response, args.model_response_file, args.model_command)
+            if value
         )
+        if response_source_count != 1:
+            raise BiberAgentClientError(
+                "local-repair-chain requires exactly one of --model-response, "
+                "--model-response-file, or --model-command."
+            )
+        if args.model_command:
+            local_model_request = build_local_model_command_request(
+                repair_request=repair_request,
+                model=args.model,
+            )
+            model_response_text, model_response_source = run_local_model_command(
+                command=args.model_command,
+                request=local_model_request,
+                timeout_seconds=args.model_command_timeout_seconds,
+            )
+        else:
+            model_response_text = load_text_argument(
+                value=args.model_response,
+                file_path=args.model_response_file,
+                label="--model-response",
+            )
+            model_response_source = {
+                "source": (
+                    "local_model_response_file"
+                    if args.model_response_file
+                    else "local_model_response_inline"
+                )
+            }
         target_root = (
             validate_local_target_root(Path(args.target_root))
             if args.target_root
@@ -18724,6 +18943,7 @@ def run(args: argparse.Namespace) -> str:
             source_path=artifact_path,
             repair_request=repair_request,
             model_response_text=model_response_text,
+            model_response_source=model_response_source,
             model=args.model,
             max_edits=args.max_edits,
             max_files=args.max_files,
