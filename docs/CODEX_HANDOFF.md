@@ -61,6 +61,13 @@ the keys accepted by `extract-repair-edits`. The hint records whether response
 content exists, how many JSON values were detected, and the next commands
 (`extract-repair-edits`, then `plan-repair-edits`). OpenAI mentor remains off
 by default and file apply remains guarded.
+Seventh BIBER resume checkpoint on the same branch:
+`local-repair-chain` now supports a no-API guided repair sequence from a failed
+`mvp-loop` or prepared repair request plus `--model-response`/
+`--model-response-file`. It builds the repair request, local supplied attempt,
+edit extraction, and optionally a local plan when `--target-root` is supplied.
+It never resolves a BIBER API key, never calls the OpenAI mentor, never trains,
+and never applies files.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

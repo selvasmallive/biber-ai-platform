@@ -64,6 +64,10 @@ requested later through the separate repair-attempt path.
 `attempt-repair` artifacts include `repair_output_contract` and
 `extraction_hint` so the next local step can call `extract-repair-edits` and
 then `plan-repair-edits` without guessing the expected model-output shape.
+For an offline/local-model response, use `local-repair-chain` with
+`--model-response-file` and optional `--target-root`. It creates a combined
+repair request, attempt, extraction, and local plan artifact without resolving
+an API key and always stops before apply.
 
 ## Vast GPU
 

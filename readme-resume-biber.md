@@ -195,6 +195,10 @@ default.
 After `attempt-repair`, use the saved artifact's `repair_output_contract` and
 `extraction_hint` to move into `extract-repair-edits` and `plan-repair-edits`.
 The model is expected to return strict JSON first; apply remains manual/guarded.
+If the model response is produced outside the live BIBER API, use
+`local-repair-chain --model-response-file ... --target-root ...` to build the
+attempt, extraction, and optional local plan artifact without API auth. It still
+does not apply files.
 
 Do not run QLoRA or any training command just because a session says
 "continue." Training is appropriate only after the BIBER eval/review pipeline

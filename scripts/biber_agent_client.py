@@ -3109,6 +3109,116 @@ def build_plan_repair_edits_result(
     return result
 
 
+def build_local_repair_chain_result(
+    *,
+    source_path: Path,
+    repair_request: Mapping[str, Any],
+    model_response_text: str,
+    model: str | None,
+    max_edits: int,
+    max_files: int | None,
+    target_root: Path | None,
+) -> dict[str, Any]:
+    content = model_response_text.strip()
+    if not content:
+        raise BiberAgentClientError(
+            "local-repair-chain requires --model-response or --model-response-file."
+        )
+    runtime_profile_ids = normalize_runtime_profile_ids(
+        repair_request.get("runtime_profile_ids")
+    )
+    chat_payload = build_repair_chat_payload(
+        repair_request=repair_request,
+        model=model,
+        max_tokens=None,
+        temperature=0.0,
+        use_mentor=False,
+        runtime_profile_ids=runtime_profile_ids,
+    )
+    model_response = {
+        "model": model or "local-supplied-response",
+        "content": content,
+        "mentor_used": False,
+        "local_supplied": True,
+    }
+    repair_attempt = build_repair_attempt_result(
+        repair_request=repair_request,
+        chat_payload=chat_payload,
+        model_response=model_response,
+    )
+    repair_attempt["artifact_ref"] = "local_repair_chain.repair_attempt"
+    extraction = extract_repair_edits(
+        path=source_path,
+        payload=repair_attempt,
+        max_edits=max_edits,
+        max_files=max_files,
+    )
+    extraction["source_artifact"] = "local_repair_chain.repair_attempt"
+    extraction["artifact_ref"] = "local_repair_chain.repair_edit_extraction"
+
+    plan_result: dict[str, Any] | None = None
+    plan_skipped_reason: str | None = None
+    if target_root is not None and extraction.get("ok") is True:
+        plan_payload = build_plan_repair_edits_payload(extraction, max_files=max_files)
+        edit_plan = plan_workspace_edit_local_target(
+            target_root=target_root,
+            payload=plan_payload,
+        )
+        plan_result = build_plan_repair_edits_result(
+            extraction_path=Path("local_repair_chain.repair_edit_extraction"),
+            extraction=extraction,
+            plan_payload=plan_payload,
+            edit_plan=edit_plan,
+            plan_mode="local_target_root",
+            target_root=target_root,
+            target_root_source="cli_target_root",
+        )
+    elif target_root is not None:
+        plan_skipped_reason = "no_valid_edits"
+    else:
+        plan_skipped_reason = "target_root_not_supplied"
+
+    chain_status = (
+        "planned"
+        if plan_result is not None and plan_result.get("ok") is True
+        else "plan_rejected"
+        if plan_result is not None
+        else "extracted"
+        if extraction.get("ok") is True
+        else "no_valid_edits"
+    )
+    result: dict[str, Any] = {
+        "source": "biber_local_repair_chain",
+        "repair_loop_version": "mvp-v1",
+        "source_artifact": str(source_path),
+        "chain_status": chain_status,
+        "ok": chain_status in {"planned", "extracted"},
+        "training_allowed": False,
+        "auto_applied": False,
+        "apply_allowed": False,
+        "mentor_used": False,
+        "repair_request": dict(repair_request),
+        "repair_attempt": repair_attempt,
+        "repair_edit_extraction": extraction,
+        "next_test_id": repair_request.get("next_test_id"),
+        "next_workflow": [
+            "review_local_repair_chain",
+            "run_plan_repair_edits_with_target_root_if_not_already_planned",
+            "apply_only_after_human_or_policy_approval",
+            "rerun_next_test_id",
+            "diagnose_again_if_still_failing",
+        ],
+    }
+    if plan_result is not None:
+        result["repair_edit_plan"] = plan_result
+    if plan_skipped_reason is not None:
+        result["plan_skipped_reason"] = plan_skipped_reason
+    if target_root is not None:
+        result["target_root"] = str(target_root)
+        result["target_root_source"] = "cli_target_root"
+    return result
+
+
 def normalize_repair_edit_plan_artifact(
     payload: Mapping[str, Any],
 ) -> dict[str, Any] | None:
@@ -12799,6 +12909,38 @@ def format_repair_edit_plan_artifact_list_summary(payload: Mapping[str, Any]) ->
     return "\n".join(lines)
 
 
+def format_local_repair_chain_summary(payload: Mapping[str, Any]) -> str:
+    extraction = require_mapping(payload.get("repair_edit_extraction"))
+    plan = require_mapping(payload.get("repair_edit_plan"))
+    edit_plan = require_mapping(plan.get("edit_plan"))
+    planned = [
+        item for item in require_list(edit_plan.get("planned")) if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER local repair chain",
+        f"chain_status: {payload.get('chain_status', '-')}",
+        f"ok: {payload.get('ok')}",
+        f"training_allowed: {payload.get('training_allowed', False)}",
+        f"auto_applied: {payload.get('auto_applied', False)}",
+        f"apply_allowed: {payload.get('apply_allowed', False)}",
+        f"source_artifact: {payload.get('source_artifact', '-')}",
+        f"extraction_status: {extraction.get('extraction_status', '-')}",
+        f"edits: {len(require_list(extraction.get('edits')))}",
+        f"rejected: {len(require_list(extraction.get('rejected')))}",
+        f"json_values_found: {extraction.get('json_values_found', 0)}",
+        f"plan_status: {plan.get('plan_status', '-') if plan else '-'}",
+        f"plan_hash: {plan.get('plan_hash', '-') if plan else '-'}",
+        f"target_root: {payload.get('target_root', '-')}",
+        f"plan_skipped_reason: {payload.get('plan_skipped_reason', '-')}",
+        f"next_test_id: {payload.get('next_test_id') or '-'}",
+        f"artifact_path: {payload.get('artifact_path', '-')}",
+    ]
+    if planned:
+        lines.append(f"planned ({len(planned)}):")
+        lines.extend(f"- {item.get('path', '-')}" for item in planned[:8])
+    return "\n".join(lines)
+
+
 def format_repair_edit_apply_summary(payload: Mapping[str, Any]) -> str:
     edit_apply = require_mapping(payload.get("edit_apply"))
     applied = [
@@ -16131,6 +16273,29 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     attempt_repair.add_argument("--output")
 
+    local_repair_chain = subparsers.add_parser(
+        "local-repair-chain",
+        help=(
+            "Run the local repair chain from a failed mvp-loop or prepared "
+            "repair request plus supplied model response, extracting edits and "
+            "optionally planning them locally without calling the BIBER API."
+        ),
+    )
+    local_repair_chain.add_argument("artifact")
+    local_repair_chain.add_argument("--instruction")
+    local_repair_chain.add_argument("--max-relevant-output-chars", type=int, default=4000)
+    local_repair_chain.add_argument("--max-context-paths", type=int)
+    local_repair_chain.add_argument("--model")
+    local_repair_chain.add_argument("--model-response")
+    local_repair_chain.add_argument("--model-response-file")
+    local_repair_chain.add_argument("--max-edits", type=int, default=3)
+    local_repair_chain.add_argument("--max-files", type=int)
+    local_repair_chain.add_argument(
+        "--target-root",
+        help="Optional local repository root for plan validation. No apply occurs.",
+    )
+    local_repair_chain.add_argument("--output")
+
     extract_repair_edits_parser = subparsers.add_parser(
         "extract-repair-edits",
         help=(
@@ -17356,6 +17521,46 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(repair, indent=2, sort_keys=True)
             if args.print_json
             else format_mvp_loop_repair_request_summary(repair)
+        )
+    if args.command == "local-repair-chain":
+        artifact_path = Path(args.artifact)
+        artifact = load_json_artifact(
+            str(artifact_path),
+            label="mvp-loop or repair request artifact",
+        )
+        repair_request = build_or_load_repair_request(
+            path=artifact_path,
+            artifact=artifact,
+            instruction=args.instruction,
+            max_relevant_output_chars=args.max_relevant_output_chars,
+            max_context_paths=args.max_context_paths,
+        )
+        model_response_text = load_text_argument(
+            value=args.model_response,
+            file_path=args.model_response_file,
+            label="--model-response",
+        )
+        target_root = (
+            validate_local_target_root(Path(args.target_root))
+            if args.target_root
+            else None
+        )
+        chain = build_local_repair_chain_result(
+            source_path=artifact_path,
+            repair_request=repair_request,
+            model_response_text=model_response_text,
+            model=args.model,
+            max_edits=args.max_edits,
+            max_files=args.max_files,
+            target_root=target_root,
+        )
+        if args.output:
+            chain["artifact_path"] = str(Path(args.output))
+            write_json_artifact(chain, args.output)
+        return (
+            json.dumps(chain, indent=2, sort_keys=True)
+            if args.print_json
+            else format_local_repair_chain_summary(chain)
         )
     if args.command == "extract-repair-edits":
         artifact_path = Path(args.artifact)
