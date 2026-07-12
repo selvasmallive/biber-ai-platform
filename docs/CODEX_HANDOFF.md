@@ -30,6 +30,15 @@ Dedicated BIBER-only sparse checkout created at
 `biber/mvp-resume-20260712`. It intentionally excludes `xriq/`, `infra/`,
 `deploy/`, XRIQ docs, and XRIQ scripts. Future BIBER sessions should prefer
 that folder and start with `docs/BIBER_ONLY_WORKSPACE.md`.
+Third BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py mvp-loop` now supports `--include-git-state`
+with `--local-target-root`. This records local Git availability, branch, short
+HEAD, dirty status, and `git status --short` in the MVP-loop artifact before
+edits/tests run, without resolving a BIBER API key. Use it for repo work so
+future safe-edit/test flows have explicit branch/dirty boundaries. Verified in
+the BIBER-only sparse checkout with `compileall` using a temporary pycache
+prefix, a no-server local `mvp-loop --include-git-state` smoke, and the direct
+CLI guard that rejects `--include-git-state` without `--local-target-root`.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

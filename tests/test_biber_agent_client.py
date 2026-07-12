@@ -12389,3 +12389,92 @@ def test_run_mvp_loop_local_target_chains_without_api_key(
     }
     assert captured["test_payload"] == {"test_id": "python-pytest"}
     assert captured["diagnosis_max_context_lines"] == 20
+
+
+def test_run_mvp_loop_local_target_can_include_git_state_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    target_root = tmp_path / "target-repo"
+    target_root.mkdir()
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local mvp-loop git state should not resolve an API key")
+
+    def fake_git_status_local_target(target_root: Path) -> dict[str, object]:
+        return {
+            "available": True,
+            "target_root": str(target_root),
+            "branch": "feature/biber",
+            "head": "abc1234",
+            "dirty": True,
+            "status_short": [" M src/app.py", "?? notes.md"],
+            "modified_count": 1,
+            "untracked_count": 1,
+        }
+
+    def fake_plan_repo_context_local_target(
+        *,
+        target_root: Path,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        return {
+            "selected_paths": ["src/app.py"],
+            "detected_project_types": ["python"],
+            "candidates": [],
+            "skipped": [],
+            "summary": "Selected Python context.",
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "git_status_local_target", fake_git_status_local_target)
+    monkeypatch.setattr(
+        client,
+        "plan_repo_context_local_target",
+        fake_plan_repo_context_local_target,
+    )
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "mvp-loop",
+                "--instruction",
+                "Inspect changed Python file.",
+                "--local-target-root",
+                str(target_root),
+                "--include-git-state",
+                "--changed-path",
+                "src/app.py",
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["ok"] is True
+    assert result["context_mode"] == "local_target_root"
+    assert result["git_dirty"] is True
+    assert result["git_branch"] == "feature/biber"
+    assert result["git_head"] == "abc1234"
+    assert result["steps"]["git_state"]["status_short"] == [
+        " M src/app.py",
+        "?? notes.md",
+    ]
+
+
+def test_run_mvp_loop_git_state_requires_local_target_root() -> None:
+    try:
+        client.run(
+            client.parse_args(
+                [
+                    "mvp-loop",
+                    "--instruction",
+                    "Inspect current repo.",
+                    "--include-git-state",
+                ]
+            )
+        )
+    except client.BiberAgentClientError as exc:
+        assert "--include-git-state requires --local-target-root" in str(exc)
+    else:
+        raise AssertionError("Expected --include-git-state to require local target root")

@@ -43,6 +43,7 @@ Prefer the CPU-local agent-client path before using a live API:
 python scripts/biber_agent_client.py --json mvp-loop \
   --instruction "Plan or validate a narrow code change." \
   --local-target-root /path/to/repo \
+  --include-git-state \
   --changed-path src/example.py \
   --test-id python-compileall-api \
   --test-dry-run \
@@ -51,6 +52,8 @@ python scripts/biber_agent_client.py --json mvp-loop \
 
 With `--local-target-root`, context planning, safe edit plan/apply, test
 execution, and diagnosis are local. GitHub save/PR remains server-backed.
+Use `--include-git-state` for repo work so the artifact records the local
+branch, short HEAD, dirty status, and `git status --short` before edits/tests.
 
 ## Vast GPU
 

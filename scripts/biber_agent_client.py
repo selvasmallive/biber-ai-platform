@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
@@ -307,6 +307,78 @@ def validate_local_target_root(target_root: Path) -> Path:
             f"Repair edit target root is not a directory: {resolved}"
         )
     return resolved
+
+
+def _run_git_local_target(
+    target_root: Path,
+    args: Sequence[str],
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", "-C", str(target_root), *args],
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=10,
+    )
+
+
+def _git_output_or_none(target_root: Path, args: Sequence[str]) -> str | None:
+    completed = _run_git_local_target(target_root, args)
+    if completed.returncode != 0:
+        return None
+    output = completed.stdout.strip()
+    return output or None
+
+
+def git_status_local_target(target_root: Path) -> dict[str, Any]:
+    root = validate_local_target_root(target_root)
+    try:
+        inside = _run_git_local_target(root, ["rev-parse", "--is-inside-work-tree"])
+    except FileNotFoundError:
+        return {
+            "available": False,
+            "reason": "git_unavailable",
+            "target_root": str(root),
+        }
+    except (subprocess.SubprocessError, OSError) as exc:
+        return {
+            "available": False,
+            "reason": "git_status_failed",
+            "target_root": str(root),
+            "error": str(exc),
+        }
+    if inside.returncode != 0 or inside.stdout.strip().lower() != "true":
+        return {
+            "available": False,
+            "reason": "not_git_repo",
+            "target_root": str(root),
+        }
+    try:
+        branch = _git_output_or_none(root, ["branch", "--show-current"])
+        head = _git_output_or_none(root, ["rev-parse", "--short", "HEAD"])
+        status = _run_git_local_target(root, ["status", "--short"])
+    except (subprocess.SubprocessError, OSError) as exc:
+        return {
+            "available": False,
+            "reason": "git_status_failed",
+            "target_root": str(root),
+            "error": str(exc),
+        }
+    status_lines = (
+        [line.rstrip() for line in status.stdout.splitlines() if line.strip()]
+        if status.returncode == 0
+        else []
+    )
+    return {
+        "available": True,
+        "target_root": str(root),
+        "branch": branch,
+        "head": head,
+        "dirty": bool(status_lines),
+        "status_short": status_lines,
+        "modified_count": sum(1 for line in status_lines if not line.startswith("??")),
+        "untracked_count": sum(1 for line in status_lines if line.startswith("??")),
+    }
 
 
 def ensure_local_src_import_path() -> None:
@@ -14514,6 +14586,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "steps still use the API."
         ),
     )
+    mvp_loop.add_argument(
+        "--include-git-state",
+        action="store_true",
+        help=(
+            "With --local-target-root, record branch, HEAD, and dirty status in "
+            "the loop artifact before edits/tests run."
+        ),
+    )
     mvp_loop.add_argument("--max-context-files", type=int)
     mvp_loop.add_argument("--max-scan-files", type=int)
     mvp_loop.add_argument("--runtime-profile-id", action="append", default=None)
@@ -17027,6 +17107,14 @@ def run(args: argparse.Namespace) -> str:
         raise BiberAgentClientError(
             "apply-repair-edits requires --approve before any files can be changed."
         )
+    if (
+        args.command == "mvp-loop"
+        and args.include_git_state
+        and not args.local_target_root
+    ):
+        raise BiberAgentClientError(
+            "mvp-loop --include-git-state requires --local-target-root."
+        )
 
     mvp_loop_uses_only_local_steps = (
         args.command == "mvp-loop"
@@ -17530,6 +17618,10 @@ def run(args: argparse.Namespace) -> str:
                 capabilities=capabilities,
                 runtime_profile_ids=runtime_profile_ids,
             )
+        git_state: dict[str, Any] | None = None
+        if args.include_git_state and target_root is not None:
+            git_state = git_status_local_target(target_root)
+            steps["git_state"] = git_state
         context_payload = build_repo_context_payload(
             instruction=args.instruction,
             pinned_paths=args.pinned_path,
@@ -17566,6 +17658,10 @@ def run(args: argparse.Namespace) -> str:
         if target_root is not None:
             summary["target_root"] = str(target_root)
             summary["target_root_source"] = target_root_source
+        if git_state is not None:
+            summary["git_dirty"] = git_state.get("dirty")
+            summary["git_branch"] = git_state.get("branch")
+            summary["git_head"] = git_state.get("head")
         if runtime_profile_ids is not None:
             summary["runtime_profile_ids"] = runtime_profile_ids
 

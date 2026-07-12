@@ -173,6 +173,7 @@ without a live BIBER API:
 python scripts/biber_agent_client.py --json mvp-loop \
   --instruction "Plan or validate a narrow code change." \
   --local-target-root /path/to/repo \
+  --include-git-state \
   --changed-path src/example.py \
   --test-id python-compileall-api \
   --test-dry-run \
@@ -182,6 +183,8 @@ python scripts/biber_agent_client.py --json mvp-loop \
 With `--local-target-root`, context selection, edit planning/apply, test
 execution, and diagnosis use local source code. GitHub save and PR creation
 still require the BIBER API because those are server-backed integrations.
+Use `--include-git-state` on local repo work so MVP-loop artifacts capture the
+branch, short HEAD, dirty flag, and `git status --short` before edits/tests.
 
 Do not run QLoRA or any training command just because a session says
 "continue." Training is appropriate only after the BIBER eval/review pipeline
