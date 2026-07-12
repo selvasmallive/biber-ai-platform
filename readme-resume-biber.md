@@ -188,6 +188,10 @@ branch, short HEAD, dirty flag, and `git status --short` before edits/tests.
 Use the artifact's `agent_report` field as the stable, compact status surface:
 it records repo state, selected context, edit counts, test result, failure
 summary, and next actions without needing to scrape terminal output.
+For a failed MVP loop, run `prepare-repair` before calling any model. The
+repair request now carries `agent_report` forward and embeds it in the bounded
+local-model repair prompt, while keeping OpenAI mentor optional and off by
+default.
 
 Do not run QLoRA or any training command just because a session says
 "continue." Training is appropriate only after the BIBER eval/review pipeline

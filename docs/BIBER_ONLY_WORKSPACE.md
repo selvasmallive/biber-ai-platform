@@ -57,6 +57,10 @@ branch, short HEAD, dirty status, and `git status --short` before edits/tests.
 Each MVP-loop artifact includes `agent_report`, a compact machine-readable
 status summary with repo state, selected context, edit counts, test result,
 failure summary, and next actions for the following narrow step.
+When an MVP-loop artifact fails, run `prepare-repair` first. It preserves
+`agent_report` in the repair request and includes the report in the bounded
+local-model repair prompt, with OpenAI mentor still disabled unless explicitly
+requested later through the separate repair-attempt path.
 
 ## Vast GPU
 

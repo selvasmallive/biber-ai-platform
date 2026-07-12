@@ -1306,10 +1306,52 @@ def build_repair_prompt(
     selected_context_paths: list[str],
     failure: Mapping[str, Any],
     suggested_next_actions: list[str],
+    agent_report: Mapping[str, Any] | None = None,
 ) -> str:
     context_lines = "\n".join(f"- {path}" for path in selected_context_paths) or "- none"
     action_lines = "\n".join(f"- {action}" for action in suggested_next_actions) or "- none"
     command = " ".join(str(part) for part in require_list(failure.get("command"))) or "-"
+    report = require_mapping(agent_report)
+    report_repo = require_mapping(report.get("repo"))
+    report_edit = require_mapping(report.get("edit"))
+    report_test = require_mapping(report.get("test"))
+    report_failure = require_mapping(report.get("failure"))
+    report_next_actions = [
+        str(action) for action in require_list(report.get("next_actions"))
+    ]
+    report_lines = [
+        f"- status: {report.get('status', '-')}",
+        (
+            "- repo: "
+            f"branch={report_repo.get('branch') or '-'} "
+            f"head={report_repo.get('head') or '-'} "
+            f"dirty={report_repo.get('dirty')}"
+        ),
+        (
+            "- edit: "
+            f"planned={report_edit.get('planned_count', 0)} "
+            f"applied={report_edit.get('applied_count', 0)} "
+            f"changed={report_edit.get('changed_count', 0)} "
+            f"rejected={report_edit.get('rejected_count', 0)}"
+        ),
+        (
+            "- test: "
+            f"id={report_test.get('test_id') or '-'} "
+            f"executed={report_test.get('executed')} "
+            f"ok={report_test.get('ok')} "
+            f"exit_code={report_test.get('exit_code')}"
+        ),
+    ]
+    if report_failure:
+        report_lines.append(
+            "- failure: "
+            f"stack={report_failure.get('detected_stack') or '-'} "
+            f"category={report_failure.get('primary_category') or '-'}"
+        )
+    if report_next_actions:
+        report_lines.append("- next_actions:")
+        report_lines.extend(f"  - {action}" for action in report_next_actions[:5])
+    report_text = "\n".join(report_lines) if report else "- not available"
     return "\n".join(
         [
             "BIBER deterministic repair request.",
@@ -1332,6 +1374,9 @@ def build_repair_prompt(
             "",
             "Selected repository context paths:",
             context_lines,
+            "",
+            "Agent report:",
+            report_text,
             "",
             "Failed test:",
             f"- test_id: {failure.get('test_id') or '-'}",
@@ -1373,6 +1418,9 @@ def build_mvp_loop_repair_request(
     steps = require_mapping(payload.get("steps"))
     test_run = require_mapping(steps.get("test_run"))
     diagnosis = require_mapping(steps.get("test_diagnosis"))
+    agent_report = require_mapping(payload.get("agent_report"))
+    if not agent_report:
+        agent_report = build_mvp_loop_agent_report(payload)
     all_context_paths = [
         str(item) for item in require_list(payload.get("selected_context_paths"))
     ]
@@ -1390,6 +1438,12 @@ def build_mvp_loop_repair_request(
     suggested_next_actions = [
         str(item) for item in require_list(diagnosis.get("suggested_next_actions"))
     ]
+    if not suggested_next_actions:
+        suggested_next_actions = [
+            str(item)
+            for item in require_list(agent_report.get("next_actions"))
+            if str(item).strip()
+        ]
     failure = {
         "diagnosis_summary": payload.get("diagnosis_summary")
         or diagnosis.get("summary"),
@@ -1414,6 +1468,7 @@ def build_mvp_loop_repair_request(
         selected_context_paths=selected_context_paths,
         failure=failure,
         suggested_next_actions=suggested_next_actions,
+        agent_report=agent_report,
     )
     repair: dict[str, Any] = {
         "source": "biber_mvp_loop_repair_request",
@@ -1427,6 +1482,7 @@ def build_mvp_loop_repair_request(
         "selected_context_paths": selected_context_paths,
         "selected_context_paths_truncated": len(selected_context_paths)
         < len(all_context_paths),
+        "agent_report": agent_report,
         "failure": failure,
         "suggested_next_actions": suggested_next_actions,
         "next_test_id": test_run.get("test_id"),
@@ -12198,6 +12254,17 @@ def format_mvp_loop_repair_request_summary(payload: Mapping[str, Any]) -> str:
     )
     if runtime_profile_ids:
         lines.append(f"runtime_profiles: {', '.join(runtime_profile_ids)}")
+    agent_report = require_mapping(payload.get("agent_report"))
+    if agent_report:
+        repo = require_mapping(agent_report.get("repo"))
+        lines.append(f"agent_report_status: {agent_report.get('status', '-')}")
+        if repo:
+            lines.append(
+                "agent_report_repo: "
+                f"branch={repo.get('branch') or '-'} "
+                f"head={repo.get('head') or '-'} "
+                f"dirty={repo.get('dirty')}"
+            )
     return "\n".join(lines)
 
 

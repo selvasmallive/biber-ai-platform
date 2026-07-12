@@ -872,9 +872,88 @@ def test_build_mvp_loop_repair_request_extracts_failure_context(tmp_path: Path) 
     assert repair["failure"]["test_id"] == "dotnet-test"
     assert repair["failure"]["primary_category"] == "compile_error"
     assert repair["failure"]["relevant_output"].endswith("; expected\n")
+    assert repair["agent_report"]["status"] == "test_failed"
+    assert "Agent report:" in repair["repair_prompt"]
+    assert "- status: test_failed" in repair["repair_prompt"]
     assert "Fix the API compile error." in repair["repair_prompt"]
     assert "Fix compiler diagnostics first." in repair["repair_prompt"]
     assert repair["next_test_id"] == "dotnet-test"
+
+
+def test_build_mvp_loop_repair_request_uses_agent_report_context(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "failure-mvp-loop.json"
+    payload = {
+        "ok": False,
+        "instruction": "Repair a Python test failure.",
+        "agent_report": {
+            "source": "biber_mvp_loop_agent_report_v1",
+            "status": "test_failed",
+            "repo": {
+                "target_root": str(tmp_path),
+                "branch": "feature/biber",
+                "head": "abc1234",
+                "dirty": True,
+                "status_short": [" M src/app.py"],
+            },
+            "edit": {
+                "planned_count": 1,
+                "rejected_count": 0,
+                "applied_count": 1,
+                "changed_count": 1,
+            },
+            "test": {
+                "test_id": "python-pytest",
+                "executed": True,
+                "ok": False,
+                "exit_code": 1,
+            },
+            "failure": {
+                "diagnosis_summary": "Detected assertion_failure in python output.",
+                "primary_category": "assertion_failure",
+                "detected_stack": "python",
+            },
+            "next_actions": ["Repair the assertion failure, then rerun python-pytest."],
+        },
+        "steps": {
+            "test_run": {
+                "ok": False,
+                "test_id": "python-pytest",
+                "command": ["python", "-m", "pytest", "-q"],
+                "exit_code": 1,
+                "timed_out": False,
+                "stdout": "E   AssertionError: expected 2\n",
+            },
+            "test_diagnosis": {
+                "primary_category": "assertion_failure",
+                "detected_stack": "python",
+                "summary": "Detected assertion_failure in python output.",
+            },
+        },
+        "selected_context_paths": ["src/app.py", "tests/test_app.py"],
+        "test_ok": False,
+    }
+
+    repair = client.build_mvp_loop_repair_request(
+        path=artifact,
+        payload=payload,
+        instruction=None,
+        max_relevant_output_chars=120,
+        max_context_paths=None,
+    )
+    summary = client.format_mvp_loop_repair_request_summary(repair)
+
+    assert repair["agent_report"] == payload["agent_report"]
+    assert repair["suggested_next_actions"] == [
+        "Repair the assertion failure, then rerun python-pytest."
+    ]
+    assert "branch=feature/biber head=abc1234 dirty=True" in repair["repair_prompt"]
+    assert "- edit: planned=1 applied=1 changed=1 rejected=0" in repair["repair_prompt"]
+    assert "- test: id=python-pytest executed=True ok=False exit_code=1" in repair["repair_prompt"]
+    assert "Repair the assertion failure, then rerun python-pytest." in repair["repair_prompt"]
+    assert "agent_report_status: test_failed" in summary
+    assert "agent_report_repo: branch=feature/biber head=abc1234 dirty=True" in summary
 
 
 def test_build_mvp_loop_repair_request_keeps_runtime_profiles(

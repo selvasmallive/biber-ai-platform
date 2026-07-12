@@ -46,6 +46,13 @@ edit plan/apply counts, test result, diagnosis/failure summary, and suggested
 next actions. `show-mvp-loop` displays this report in concise text. Future
 sessions should prefer `agent_report` over scraping terminal output when
 deciding the next local BIBER coding-assistant step.
+Fifth BIBER resume checkpoint on the same branch:
+`prepare-repair` now preserves `agent_report` from failed `mvp-loop` artifacts
+and embeds the report into the bounded deterministic local-model repair prompt.
+If an older failed artifact lacks `agent_report`, the client derives it from
+the existing steps. This keeps the local repair bridge CPU-only and
+OpenAI-mentor-off by default while giving the local provider explicit repo,
+edit, test, failure, and next-action context.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
