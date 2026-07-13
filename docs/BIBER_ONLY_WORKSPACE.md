@@ -88,6 +88,16 @@ wrapper. Set `BIBER_LOCAL_OPENAI_BASE_URL` to the local endpoint base URL
 `BIBER_LOCAL_OPENAI_MODEL` to the served model or LoRA alias. If the endpoint
 requires a token, put it in `BIBER_LOCAL_OPENAI_API_KEY`; do not paste it into
 chat or commit it.
+To check whether a live OpenAI-compatible provider is reachable without
+sending a repair request or chat completion, run:
+
+```bash
+python scripts/biber_live_provider_readiness.py --model biber-dev-core-v1
+```
+
+Add `--require-ready --require-model` when you want the command to exit nonzero
+unless `/v1/models` is reachable and the requested model/adapter alias is
+listed.
 To verify the wrapper without a GPU or live model endpoint, run:
 
 ```bash
@@ -123,9 +133,9 @@ python scripts/biber_local_confidence_smoke.py
 ```
 
 This combined smoke runs the mocked local OpenAI-compatible provider HTTP smoke
-and the local repair-loop smoke together. It is the preferred pre-live-provider
-gate before asking for Vast GPU credentials or pointing BIBER at a real local
-Qwen/vLLM endpoint.
+the mocked live-provider readiness smoke, and the local repair-loop smoke
+together. It is the preferred pre-live-provider gate before asking for Vast GPU
+credentials or pointing BIBER at a real local Qwen/vLLM endpoint.
 
 To run only the repair-loop smoke:
 

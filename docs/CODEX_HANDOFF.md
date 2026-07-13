@@ -159,6 +159,17 @@ for the local repair-loop flow. It emits one compact
 OpenAI mentor, no API auth, and no training. Future sessions should run this
 combined smoke before requesting Vast GPU credentials or pointing the local
 repair loop at a live Qwen/vLLM endpoint.
+Eighteenth BIBER resume checkpoint on the same branch:
+`scripts/biber_live_provider_readiness.py` now checks live OpenAI-compatible
+provider readiness through `GET /v1/models` only. It records endpoint
+reachability, optional auth env presence, requested model/adapter alias
+availability, and explicitly reports that no repair request, no chat
+completion, no OpenAI mentor, and no training were used. Default behavior is
+report-only; use `--require-ready --require-model` when a live endpoint is
+expected to be available. `scripts/biber_live_provider_readiness_smoke.py`
+verifies that path against a localhost `/v1/models` mock, and
+`scripts/biber_local_confidence_smoke.py` now includes that mocked readiness
+smoke alongside the provider wrapper and repair-loop smokes.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

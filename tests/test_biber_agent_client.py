@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import biber_agent_client as client  # noqa: E402
+import biber_live_provider_readiness as live_readiness  # noqa: E402
 import biber_local_openai_provider as local_provider  # noqa: E402
 
 
@@ -130,6 +131,36 @@ def test_local_openai_provider_extracts_content_and_metadata() -> None:
     assert output["usage"] == {"prompt_tokens": 10, "completion_tokens": 4}
 
 
+def test_live_provider_readiness_helpers_parse_models() -> None:
+    assert live_readiness.normalize_models_url("http://127.0.0.1:8001/v1") == (
+        "http://127.0.0.1:8001/v1/models"
+    )
+    assert live_readiness.normalize_models_url("http://127.0.0.1:8001") == (
+        "http://127.0.0.1:8001/v1/models"
+    )
+    assert live_readiness.extract_model_ids(
+        {
+            "object": "list",
+            "data": [
+                {"id": "qwen-smoke"},
+                {"id": "biber-dev-core-v1"},
+                {"id": "qwen-smoke"},
+            ],
+        }
+    ) == ["biber-dev-core-v1", "qwen-smoke"]
+
+
+def test_live_provider_readiness_smoke_script_uses_models_mock() -> None:
+    script = ROOT / "scripts" / "biber_live_provider_readiness_smoke.py"
+    text = script.read_text(encoding="utf-8")
+
+    assert "ThreadingHTTPServer" in text
+    assert "/v1/models" in text
+    assert "Bearer readiness-smoke-token" in text
+    assert "repair_request_sent" in text
+    assert "chat_completion_sent" in text
+
+
 def test_local_openai_provider_smoke_script_uses_mock_http() -> None:
     script = ROOT / "scripts" / "biber_local_openai_provider_smoke.py"
     text = script.read_text(encoding="utf-8")
@@ -146,6 +177,7 @@ def test_local_confidence_smoke_runs_provider_and_repair_smokes() -> None:
     text = script.read_text(encoding="utf-8")
 
     assert "biber_local_openai_provider_smoke.py" in text
+    assert "biber_live_provider_readiness_smoke.py" in text
     assert "biber_local_repair_loop_smoke.py" in text
     assert "biber_local_confidence_smoke" in text
     assert '"external_network_required": False' in text

@@ -74,6 +74,12 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             pycache_root=pycache_root,
             timeout_seconds=timeout_seconds,
         )
+        readiness = run_smoke_script(
+            repo_root=repo_root,
+            script_name="biber_live_provider_readiness_smoke.py",
+            pycache_root=pycache_root,
+            timeout_seconds=timeout_seconds,
+        )
         repair_loop = run_smoke_script(
             repo_root=repo_root,
             script_name="biber_local_repair_loop_smoke.py",
@@ -83,6 +89,7 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
 
     checks = [
         compact_check("local_openai_provider_http", provider),
+        compact_check("live_provider_readiness_mock", readiness),
         compact_check("local_repair_loop", repair_loop),
     ]
     summary = {
@@ -99,6 +106,12 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             "request_model": provider.get("request_model"),
             "response_model": provider.get("response_model"),
             "content_edit_paths": provider.get("content_edit_paths"),
+        },
+        "readiness": {
+            "request_path": readiness.get("request_path"),
+            "requested_model": readiness.get("requested_model"),
+            "model_available": readiness.get("model_available"),
+            "available_model_count": readiness.get("available_model_count"),
         },
         "repair_loop": {
             "chain_status": repair_loop.get("chain_status"),

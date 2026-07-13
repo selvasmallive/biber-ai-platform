@@ -218,15 +218,23 @@ provider wrapper while OpenAI mentor stays disabled by default.
 `BIBER_LOCAL_OPENAI_BASE_URL` (default `http://127.0.0.1:8001/v1`),
 `BIBER_LOCAL_OPENAI_MODEL` for the served model/adapter alias, and optional
 `BIBER_LOCAL_OPENAI_API_KEY` only if the local endpoint requires auth.
+To check a live provider without sending a real repair/chat request:
+
+```bash
+python scripts/biber_live_provider_readiness.py --model biber-dev-core-v1
+```
+
+Use `--require-ready --require-model` only when the live endpoint is expected
+to be running and you want a nonzero exit if it is not ready.
 Before using a live GPU/model endpoint, run the combined local confidence smoke:
 
 ```bash
 python scripts/biber_local_confidence_smoke.py
 ```
 
-That combined smoke runs both the mocked local OpenAI-compatible provider HTTP
-path and the no-API local repair-loop path. Prefer it before requesting Vast
-credentials or live model access.
+That combined smoke runs the mocked local OpenAI-compatible provider HTTP path,
+the mocked readiness path, and the no-API local repair-loop path. Prefer it
+before requesting Vast credentials or live model access.
 
 To run only the provider wrapper smoke:
 
