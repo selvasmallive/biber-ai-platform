@@ -491,6 +491,23 @@ from the query and calls `public_testnet_file_faucet_dispense(config.chain_file,
 returning 201 on success / 429 on FaucetRefused / 400 on bad address, plus the
 config test-literal updates. The UI already accepts 201 so it works once enabled;
 displaying the disabled 403 nicely is optional polish. Everything stays test-only.
+Milestone 3 increment 8 Parts 2-3 completed the functional enablement in xriq-api
+main.rs: an `--enable-local-testnet-faucet` flag threaded through `RequestConfig`,
+`ServeConfig`, and `LocalApiRuntime` (struct + parse + construction + the 4 runtime
+test literals); dispatch checks in both `run_request` and the serve loop
+(`local_api_http_response`); and a `maybe_local_testnet_faucet_http_response` /
+`local_testnet_faucet_http_response` handler that reads `to` from the query and
+calls the node core `public_testnet_file_faucet_dispense(chain_file, ...)` on the
+TESTNET genesis, returning **201** on success (`render_faucet_dispense_json`),
+**429** on `FaucetRefused` (over cap / exhausted), and **400** on missing/invalid
+address. The faucet runs on its own testnet chain file and returns a self-contained
+result, so the devnet read-model service is NOT refreshed after it (429 added to the
+error-reason map). Verified by `local_testnet_faucet_dispenses_when_enabled`
+(xriq-api: 80 tests) — two dispenses give heights 1,2 / balances 1000,2000, and
+missing/invalid recipients are 400. END-TO-END: run xriq-api with
+`--enable-local-testnet-faucet true` against a testnet chain file and the explorer
+UI faucet button (which already accepts 201) dispenses valueless test units. This
+closes the faucet loop functionally. Everything stays test-only, no monetary value.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

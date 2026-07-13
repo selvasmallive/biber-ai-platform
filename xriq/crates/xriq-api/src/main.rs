@@ -32,6 +32,7 @@ use xriq_iso20022::{
 };
 use xriq_node::{
     private_devnet_file_produce_pending_block, private_devnet_file_submit_pending_transfer_body,
+    public_testnet_file_faucet_dispense, render_faucet_dispense_json, NodeRunnerError,
     PrivateDevnetPendingTransactionDetail, ProducedPendingBlockStatus,
 };
 use xriq_storage::{ChainStore, FileChainStore};
@@ -47,6 +48,7 @@ const ENABLE_LOCAL_BLOCK_PRODUCTION_FLAG: &str = "--enable-local-block-productio
 const ENABLE_LOCAL_WALLET_SUBMIT_FLAG: &str = "--enable-local-wallet-submit";
 const ENABLE_LOCAL_WALLET_SEND_FLAG: &str = "--enable-local-wallet-send";
 const ENABLE_LOCAL_WALLET_SIGNED_SUBMIT_FLAG: &str = "--enable-local-wallet-submit-signed";
+const FAUCET_ROUTE: &str = "/api/v1/faucet";
 const LOCAL_BLOCK_PRODUCTION_ACCEPTED_CODE: &str = "block_production_accepted_local_only";
 const LOCAL_WALLET_SUBMIT_ACCEPTED_CODE: &str = "wallet_submit_accepted_local_only";
 const LOCAL_WALLET_SEND_ACCEPTED_CODE: &str = "wallet_send_accepted_local_only";
@@ -163,6 +165,13 @@ fn run_request(args: &[&str]) -> Result<String, String> {
             config.alice_balance,
         );
     }
+    if response.is_none() && config.enable_local_testnet_faucet {
+        response = maybe_local_testnet_faucet_http_response(
+            config.method,
+            config.target,
+            config.chain_file,
+        );
+    }
     let response = response
         .unwrap_or_else(|| product_api_http_response(&service, config.method, config.target));
 
@@ -190,6 +199,7 @@ fn run_serve_readonly(args: &[&str]) -> Result<String, String> {
         enable_local_wallet_send: config.enable_local_wallet_send,
         enable_local_wallet_signed_submit: config.enable_local_wallet_signed_submit,
         enable_local_block_production: config.enable_local_block_production,
+        enable_local_testnet_faucet: config.enable_local_testnet_faucet,
     };
     let mut runtime = runtime;
     let listener = TcpListener::bind(config.bind)
@@ -258,6 +268,7 @@ struct LocalApiRuntime<'a> {
     enable_local_wallet_send: bool,
     enable_local_wallet_signed_submit: bool,
     enable_local_block_production: bool,
+    enable_local_testnet_faucet: bool,
 }
 
 fn handle_connection(
@@ -366,6 +377,16 @@ fn local_api_http_response(
             if let Some(error) = refresh_runtime_after_local_mutation(runtime, &response) {
                 return error;
             }
+            return response;
+        }
+    }
+
+    if runtime.enable_local_testnet_faucet {
+        // The faucet runs on the testnet genesis (its own chain file) and returns
+        // a self-contained result; the devnet read-model service is not refreshed.
+        if let Some(response) =
+            maybe_local_testnet_faucet_http_response(method, target, &runtime.chain_file)
+        {
             return response;
         }
     }
@@ -2096,6 +2117,50 @@ fn render_local_wallet_send_accepted_response(
     }
 }
 
+// Functional testnet faucet: when explicitly enabled, dispense valueless test
+// units by calling the node's testnet faucet core on the configured chain file
+// (which must be a testnet chain). TEST-ONLY. Balance-cap rate limited by the
+// node core; FaucetRefused maps to 429.
+fn maybe_local_testnet_faucet_http_response(
+    method: &str,
+    target: &str,
+    chain_file: &str,
+) -> Option<ApiHttpResponse> {
+    let (path, query) = split_http_target(target);
+    if method != "POST" || path != FAUCET_ROUTE {
+        return None;
+    }
+    Some(local_testnet_faucet_http_response(query, chain_file))
+}
+
+fn local_testnet_faucet_http_response(query: Option<&str>, chain_file: &str) -> ApiHttpResponse {
+    let to = match required_query_param_any(query, &["to"]) {
+        Ok(value) => value,
+        Err(error) => return local_api_error_response(400, "bad_request", &error),
+    };
+    let address = match Address::parse(to) {
+        Ok(address) => address,
+        Err(_) => {
+            return local_api_error_response(
+                400,
+                "invalid_address",
+                "to must be a valid xriqdev1 address",
+            )
+        }
+    };
+    match public_testnet_file_faucet_dispense(chain_file, address, None, None, None, 0) {
+        Ok(outcome) => ApiHttpResponse {
+            status_code: 201,
+            reason: "Created",
+            body: render_faucet_dispense_json(&outcome),
+        },
+        Err(NodeRunnerError::FaucetRefused(message)) => {
+            local_api_error_response(429, "faucet_refused", &message)
+        }
+        Err(error) => local_api_error_response(400, "faucet_error", &error.to_string()),
+    }
+}
+
 fn maybe_local_block_production_http_response(
     service: &XriqApiService,
     method: &str,
@@ -3033,6 +3098,7 @@ fn local_api_error_response(status_code: u16, code: &str, message: &str) -> ApiH
         400 => "Bad Request",
         404 => "Not Found",
         405 => "Method Not Allowed",
+        429 => "Too Many Requests",
         503 => "Service Unavailable",
         _ => "Error",
     };
@@ -6650,6 +6716,7 @@ struct RequestConfig<'a> {
     enable_local_wallet_send: bool,
     enable_local_wallet_signed_submit: bool,
     enable_local_block_production: bool,
+    enable_local_testnet_faucet: bool,
 }
 
 impl<'a> RequestConfig<'a> {
@@ -6666,6 +6733,7 @@ impl<'a> RequestConfig<'a> {
             "--enable-local-wallet-send",
             "--enable-local-wallet-submit-signed",
             "--enable-local-block-production",
+            "--enable-local-testnet-faucet",
         ])?;
         Ok(Self {
             chain_file: flags.required("--chain-file")?,
@@ -6695,6 +6763,11 @@ impl<'a> RequestConfig<'a> {
             enable_local_block_production: flags
                 .optional("--enable-local-block-production")
                 .map(|value| parse_bool_flag("--enable-local-block-production", value))
+                .transpose()?
+                .unwrap_or(false),
+            enable_local_testnet_faucet: flags
+                .optional("--enable-local-testnet-faucet")
+                .map(|value| parse_bool_flag("--enable-local-testnet-faucet", value))
                 .transpose()?
                 .unwrap_or(false),
         })
@@ -6821,6 +6894,7 @@ struct ServeConfig<'a> {
     enable_local_wallet_send: bool,
     enable_local_wallet_signed_submit: bool,
     enable_local_block_production: bool,
+    enable_local_testnet_faucet: bool,
 }
 
 impl<'a> ServeConfig<'a> {
@@ -6836,6 +6910,7 @@ impl<'a> ServeConfig<'a> {
             "--enable-local-wallet-send",
             "--enable-local-wallet-submit-signed",
             "--enable-local-block-production",
+            "--enable-local-testnet-faucet",
             "--postgres-docker-container",
             "--postgres-database",
             "--postgres-database-url-env",
@@ -6873,6 +6948,11 @@ impl<'a> ServeConfig<'a> {
             enable_local_block_production: flags
                 .optional("--enable-local-block-production")
                 .map(|value| parse_bool_flag("--enable-local-block-production", value))
+                .transpose()?
+                .unwrap_or(false),
+            enable_local_testnet_faucet: flags
+                .optional("--enable-local-testnet-faucet")
+                .map(|value| parse_bool_flag("--enable-local-testnet-faucet", value))
                 .transpose()?
                 .unwrap_or(false),
         })
@@ -7141,6 +7221,44 @@ mod tests {
             .unwrap()
             .as_nanos();
         std::env::temp_dir().join(format!("xriq-api-{label}-{nanos}.bin"))
+    }
+
+    #[test]
+    fn local_testnet_faucet_dispenses_when_enabled() {
+        let chain = temp_store_path("faucet-functional");
+        let chain_str = chain.to_string_lossy().to_string();
+
+        // TEST-ONLY functional dispense: 201, valueless test units, testnet chain.
+        let dispensed =
+            local_testnet_faucet_http_response(Some("to=xriqdev1recipient00000000000"), &chain_str);
+        assert_eq!(dispensed.status_code, 201);
+        assert!(dispensed.body.contains("\"command\": \"faucet-dispense\""));
+        assert!(dispensed.body.contains("\"chain_id\": \"xriq-testnet\""));
+        assert!(dispensed.body.contains("\"block_height\": 1"));
+        assert!(dispensed
+            .body
+            .contains("\"recipient_balance_base_units\": \"1000\""));
+
+        // A second dispense confirms the next block and persists to the file.
+        let again =
+            local_testnet_faucet_http_response(Some("to=xriqdev1recipient00000000000"), &chain_str);
+        assert_eq!(again.status_code, 201);
+        assert!(again.body.contains("\"block_height\": 2"));
+        assert!(again
+            .body
+            .contains("\"recipient_balance_base_units\": \"2000\""));
+
+        // Missing / invalid recipient are 400s (no dispense).
+        assert_eq!(
+            local_testnet_faucet_http_response(None, &chain_str).status_code,
+            400
+        );
+        assert_eq!(
+            local_testnet_faucet_http_response(Some("to=nope"), &chain_str).status_code,
+            400
+        );
+
+        let _ = std::fs::remove_file(chain);
     }
 
     fn pending_transfer_body() -> String {
@@ -7763,6 +7881,7 @@ mod tests {
             enable_local_wallet_send: false,
             enable_local_wallet_signed_submit: true,
             enable_local_block_production: false,
+            enable_local_testnet_faucet: false,
         };
         let target = wallet_signed_submit_preview_target("local-signed-submit-server-1");
 
@@ -7856,6 +7975,7 @@ mod tests {
             enable_local_wallet_send: false,
             enable_local_wallet_signed_submit: false,
             enable_local_block_production: false,
+            enable_local_testnet_faucet: false,
         };
         let target = wallet_submit_target(
             "local-wallet-server-1",
@@ -8014,6 +8134,7 @@ mod tests {
             enable_local_wallet_send: true,
             enable_local_wallet_signed_submit: false,
             enable_local_block_production: false,
+            enable_local_testnet_faucet: false,
         };
         let target = wallet_send_target("local-wallet-send-server-1", PRIVATE_DEVNET_TEST_SENDER);
 
@@ -8187,6 +8308,7 @@ mod tests {
             enable_local_wallet_send: false,
             enable_local_wallet_signed_submit: false,
             enable_local_block_production: true,
+            enable_local_testnet_faucet: false,
         };
         let target = "/api/v1/blocks/produce?local_request_id=local-test-postgres-1&producer=xriqdev1author00000000000&max_transactions=4&timestamp_ms=2000";
 
