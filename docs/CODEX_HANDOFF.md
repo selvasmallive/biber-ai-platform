@@ -508,6 +508,19 @@ missing/invalid recipients are 400. END-TO-END: run xriq-api with
 `--enable-local-testnet-faucet true` against a testnet chain file and the explorer
 UI faucet button (which already accepts 201) dispenses valueless test units. This
 closes the faucet loop functionally. Everything stays test-only, no monetary value.
+Milestone 3 increment 9 added per-IP faucet rate limiting to the xriq-api serving
+loop (a secondary abuse control on top of the chain-derived balance cap). A
+`FaucetRateLimiter` (sliding window per client IP; default 5 requests / 60s, a
+`BTreeMap<ip, Vec<timestamp_ms>>`) lives on `LocalApiRuntime`; `handle_connection`
+extracts the client IP from `stream.peer_addr()` and threads it through
+`local_api_http_response(runtime, method, target, client_ip)` (all call sites
+updated). Before a serve-loop faucet dispense, `check_and_record(ip, now_ms)` (now
+from SystemTime) is consulted; over-limit returns 429 `faucet_rate_limited` without
+dispensing. The limiter is serve-loop only (the one-shot `run_request` CLI path has
+no persistent state). Verified by `faucet_rate_limiter_bounds_per_ip_bursts` (a
+deterministic unit test with explicit timestamps: 2/window allowed, 3rd denied,
+other IPs independent, window slide re-allows) — xriq-api: 81 tests. Optional
+future polish: expose the window/max as serve flags. Everything stays test-only.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

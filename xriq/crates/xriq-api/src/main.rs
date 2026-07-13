@@ -200,6 +200,7 @@ fn run_serve_readonly(args: &[&str]) -> Result<String, String> {
         enable_local_wallet_signed_submit: config.enable_local_wallet_signed_submit,
         enable_local_block_production: config.enable_local_block_production,
         enable_local_testnet_faucet: config.enable_local_testnet_faucet,
+        faucet_rate_limiter: FaucetRateLimiter::default(),
     };
     let mut runtime = runtime;
     let listener = TcpListener::bind(config.bind)
@@ -258,6 +259,51 @@ fn build_service(
     Ok(service)
 }
 
+const FAUCET_RATE_LIMIT_MAX_PER_WINDOW: usize = 5;
+const FAUCET_RATE_LIMIT_WINDOW_MS: u64 = 60_000;
+
+// Per-IP faucet rate limiter for the serving loop (a sliding window per client
+// address). This is a secondary abuse control on top of the chain-derived
+// balance cap; it bounds burst requests from a single IP.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct FaucetRateLimiter {
+    max_per_window: usize,
+    window_ms: u64,
+    hits: BTreeMap<String, Vec<u64>>,
+}
+
+impl FaucetRateLimiter {
+    fn new(max_per_window: usize, window_ms: u64) -> Self {
+        Self {
+            max_per_window,
+            window_ms,
+            hits: BTreeMap::new(),
+        }
+    }
+
+    /// Returns true if the request is allowed (and records it); false if the IP
+    /// has reached its per-window limit.
+    fn check_and_record(&mut self, ip: &str, now_ms: u64) -> bool {
+        let window_ms = self.window_ms;
+        let entries = self.hits.entry(ip.to_string()).or_default();
+        entries.retain(|&recorded| now_ms.saturating_sub(recorded) < window_ms);
+        if entries.len() >= self.max_per_window {
+            return false;
+        }
+        entries.push(now_ms);
+        true
+    }
+}
+
+impl Default for FaucetRateLimiter {
+    fn default() -> Self {
+        Self::new(
+            FAUCET_RATE_LIMIT_MAX_PER_WINDOW,
+            FAUCET_RATE_LIMIT_WINDOW_MS,
+        )
+    }
+}
+
 struct LocalApiRuntime<'a> {
     service: XriqApiService,
     postgres_read_model: Option<PostgresReadModelConfig<'a>>,
@@ -269,6 +315,7 @@ struct LocalApiRuntime<'a> {
     enable_local_wallet_signed_submit: bool,
     enable_local_block_production: bool,
     enable_local_testnet_faucet: bool,
+    faucet_rate_limiter: FaucetRateLimiter,
 }
 
 fn handle_connection(
@@ -283,6 +330,10 @@ fn handle_connection(
         return Ok(());
     }
 
+    let client_ip = stream
+        .peer_addr()
+        .map(|address| address.ip().to_string())
+        .unwrap_or_default();
     let request = std::str::from_utf8(&buffer[..bytes_read])
         .map_err(|error| format!("request was not valid UTF-8: {error}"))?;
     let first_line = request
@@ -290,7 +341,7 @@ fn handle_connection(
         .next()
         .ok_or_else(|| "request was empty".to_string())?;
     let response = match parse_http_request_line(first_line) {
-        Ok((method, target)) => local_api_http_response(runtime, method, target),
+        Ok((method, target)) => local_api_http_response(runtime, method, target, &client_ip),
         Err(message) => bad_request_response(&message),
     };
 
@@ -306,6 +357,7 @@ fn local_api_http_response(
     runtime: &mut LocalApiRuntime<'_>,
     method: &str,
     target: &str,
+    client_ip: &str,
 ) -> ApiHttpResponse {
     if let Some(response) = maybe_postgres_read_model_http_response(
         runtime.postgres_read_model.as_ref(),
@@ -382,6 +434,25 @@ fn local_api_http_response(
     }
 
     if runtime.enable_local_testnet_faucet {
+        let (path, _) = split_http_target(target);
+        if method == "POST" && path == FAUCET_ROUTE {
+            // Secondary abuse control: bound bursts per client IP (the balance
+            // cap in the node core is the primary limiter).
+            let now_ms = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|elapsed| elapsed.as_millis() as u64)
+                .unwrap_or(0);
+            if !runtime
+                .faucet_rate_limiter
+                .check_and_record(client_ip, now_ms)
+            {
+                return local_api_error_response(
+                    429,
+                    "faucet_rate_limited",
+                    "per-IP faucet rate limit exceeded; try again later",
+                );
+            }
+        }
         // The faucet runs on the testnet genesis (its own chain file) and returns
         // a self-contained result; the devnet read-model service is not refreshed.
         if let Some(response) =
@@ -7261,6 +7332,19 @@ mod tests {
         let _ = std::fs::remove_file(chain);
     }
 
+    #[test]
+    fn faucet_rate_limiter_bounds_per_ip_bursts() {
+        let mut limiter = FaucetRateLimiter::new(2, 1_000);
+        // Two requests from one IP inside the window are allowed; the third is not.
+        assert!(limiter.check_and_record("10.0.0.1", 0));
+        assert!(limiter.check_and_record("10.0.0.1", 100));
+        assert!(!limiter.check_and_record("10.0.0.1", 200));
+        // A different IP has its own independent budget.
+        assert!(limiter.check_and_record("10.0.0.2", 200));
+        // Once the window slides past the earlier hits, the IP is allowed again.
+        assert!(limiter.check_and_record("10.0.0.1", 1_200));
+    }
+
     fn pending_transfer_body() -> String {
         [
             "warning=private-devnet-test-identity-only",
@@ -7882,16 +7966,18 @@ mod tests {
             enable_local_wallet_signed_submit: true,
             enable_local_block_production: false,
             enable_local_testnet_faucet: false,
+            faucet_rate_limiter: FaucetRateLimiter::default(),
         };
         let target = wallet_signed_submit_preview_target("local-signed-submit-server-1");
 
-        let response = local_api_http_response(&mut runtime, "POST", &target);
+        let response = local_api_http_response(&mut runtime, "POST", &target, "127.0.0.1");
 
         assert_eq!(response.status_code, 201);
         assert!(response
             .body
             .contains("\"code\": \"signed_submit_accepted_local_only\""));
-        let mempool = local_api_http_response(&mut runtime, "GET", "/api/v1/mempool?limit=5");
+        let mempool =
+            local_api_http_response(&mut runtime, "GET", "/api/v1/mempool?limit=5", "127.0.0.1");
         assert_eq!(mempool.status_code, 200);
         assert!(mempool.body.contains("\"pending_count\": 1"));
         assert!(mempool
@@ -7976,6 +8062,7 @@ mod tests {
             enable_local_wallet_signed_submit: false,
             enable_local_block_production: false,
             enable_local_testnet_faucet: false,
+            faucet_rate_limiter: FaucetRateLimiter::default(),
         };
         let target = wallet_submit_target(
             "local-wallet-server-1",
@@ -7983,13 +8070,14 @@ mod tests {
             PRIVATE_DEVNET_TEST_SENDER,
         );
 
-        let response = local_api_http_response(&mut runtime, "POST", &target);
+        let response = local_api_http_response(&mut runtime, "POST", &target, "127.0.0.1");
 
         assert_eq!(response.status_code, 201);
         assert!(response
             .body
             .contains("\"code\": \"wallet_submit_accepted_local_only\""));
-        let mempool = local_api_http_response(&mut runtime, "GET", "/api/v1/mempool?limit=5");
+        let mempool =
+            local_api_http_response(&mut runtime, "GET", "/api/v1/mempool?limit=5", "127.0.0.1");
         assert_eq!(mempool.status_code, 200);
         assert!(mempool.body.contains("\"pending_count\": 1"));
         assert!(mempool.body.contains("xriqdev1carol00000000000"));
@@ -8135,16 +8223,18 @@ mod tests {
             enable_local_wallet_signed_submit: false,
             enable_local_block_production: false,
             enable_local_testnet_faucet: false,
+            faucet_rate_limiter: FaucetRateLimiter::default(),
         };
         let target = wallet_send_target("local-wallet-send-server-1", PRIVATE_DEVNET_TEST_SENDER);
 
-        let response = local_api_http_response(&mut runtime, "POST", &target);
+        let response = local_api_http_response(&mut runtime, "POST", &target, "127.0.0.1");
 
         assert_eq!(response.status_code, 201);
         assert!(response
             .body
             .contains("\"code\": \"wallet_send_accepted_local_only\""));
-        let mempool = local_api_http_response(&mut runtime, "GET", "/api/v1/mempool?limit=5");
+        let mempool =
+            local_api_http_response(&mut runtime, "GET", "/api/v1/mempool?limit=5", "127.0.0.1");
         assert_eq!(mempool.status_code, 200);
         assert!(mempool.body.contains("\"pending_count\": 1"));
         assert!(mempool.body.contains("xriqdev1carol00000000000"));
@@ -8309,10 +8399,11 @@ mod tests {
             enable_local_wallet_signed_submit: false,
             enable_local_block_production: true,
             enable_local_testnet_faucet: false,
+            faucet_rate_limiter: FaucetRateLimiter::default(),
         };
         let target = "/api/v1/blocks/produce?local_request_id=local-test-postgres-1&producer=xriqdev1author00000000000&max_transactions=4&timestamp_ms=2000";
 
-        let response = local_api_http_response(&mut runtime, "POST", target);
+        let response = local_api_http_response(&mut runtime, "POST", target, "127.0.0.1");
 
         assert_eq!(response.status_code, 201);
         assert!(response
