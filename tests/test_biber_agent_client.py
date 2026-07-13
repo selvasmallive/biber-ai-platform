@@ -141,6 +141,18 @@ def test_local_openai_provider_smoke_script_uses_mock_http() -> None:
     assert '"gpu_required": False' in text
 
 
+def test_local_confidence_smoke_runs_provider_and_repair_smokes() -> None:
+    script = ROOT / "scripts" / "biber_local_confidence_smoke.py"
+    text = script.read_text(encoding="utf-8")
+
+    assert "biber_local_openai_provider_smoke.py" in text
+    assert "biber_local_repair_loop_smoke.py" in text
+    assert "biber_local_confidence_smoke" in text
+    assert '"external_network_required": False' in text
+    assert '"gpu_required": False' in text
+    assert '"training_allowed": False' in text
+
+
 def test_format_capabilities_summary_includes_presets_and_tests() -> None:
     output = client.format_capabilities_summary(sample_capabilities())
 

@@ -119,6 +119,17 @@ state, and prints the next exact no-API command to run.
 For a quick end-to-end local confidence check after changing this workflow, run:
 
 ```bash
+python scripts/biber_local_confidence_smoke.py
+```
+
+This combined smoke runs the mocked local OpenAI-compatible provider HTTP smoke
+and the local repair-loop smoke together. It is the preferred pre-live-provider
+gate before asking for Vast GPU credentials or pointing BIBER at a real local
+Qwen/vLLM endpoint.
+
+To run only the repair-loop smoke:
+
+```bash
 python scripts/biber_local_repair_loop_smoke.py
 ```
 

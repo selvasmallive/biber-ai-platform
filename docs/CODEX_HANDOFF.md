@@ -150,6 +150,15 @@ wrapper against a temporary localhost OpenAI-compatible mock. It posts through
 path, model override, optional bearer-token header, returned `content` edits,
 and no-mentor/no-training/no-GPU metadata. Run this smoke before using a live
 Vast/vLLM/Qwen endpoint so the wrapper contract is proven locally first.
+Seventeenth BIBER resume checkpoint on the same branch:
+`scripts/biber_local_confidence_smoke.py` now runs the two no-GPU local
+confidence checks together: `biber_local_openai_provider_smoke.py` for the
+OpenAI-compatible local provider wrapper and `biber_local_repair_loop_smoke.py`
+for the local repair-loop flow. It emits one compact
+`biber_local_confidence_smoke` summary with no external network, no GPU, no
+OpenAI mentor, no API auth, and no training. Future sessions should run this
+combined smoke before requesting Vast GPU credentials or pointing the local
+repair loop at a live Qwen/vLLM endpoint.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
