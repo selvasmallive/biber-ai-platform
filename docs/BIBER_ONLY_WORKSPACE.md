@@ -35,6 +35,10 @@ keep OpenAI mentor optional and disabled by default, and prefer CPU-local
 workflow improvements before asking for GPU credentials.
 ```
 
+When a live local-model provider is actually needed, read
+`docs/BIBER_LIVE_PROVIDER_RUNBOOK.md` before asking the user for Vast/GPU
+connection details.
+
 ## Local MVP Loop
 
 Prefer the CPU-local agent-client path before using a live API:
@@ -132,7 +136,7 @@ For a quick end-to-end local confidence check after changing this workflow, run:
 python scripts/biber_local_confidence_smoke.py
 ```
 
-This combined smoke runs the mocked local OpenAI-compatible provider HTTP smoke
+This combined smoke runs the mocked local OpenAI-compatible provider HTTP smoke,
 the mocked live-provider readiness smoke, and the local repair-loop smoke
 together. It is the preferred pre-live-provider gate before asking for Vast GPU
 credentials or pointing BIBER at a real local Qwen/vLLM endpoint.
@@ -152,3 +156,5 @@ credentials.
 
 Do not ask for Vast credentials for ordinary source work. Ask only when a step
 requires live model serving, batch evals, adapter restore, or QLoRA/training.
+Use `docs/BIBER_LIVE_PROVIDER_RUNBOOK.md` for the exact questions and readiness
+commands when that point arrives.

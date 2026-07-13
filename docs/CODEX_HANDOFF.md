@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
 
 ## Current Goal
 
@@ -170,6 +170,16 @@ expected to be available. `scripts/biber_live_provider_readiness_smoke.py`
 verifies that path against a localhost `/v1/models` mock, and
 `scripts/biber_local_confidence_smoke.py` now includes that mocked readiness
 smoke alongside the provider wrapper and repair-loop smokes.
+Nineteenth BIBER resume checkpoint on the same branch:
+`docs/BIBER_LIVE_PROVIDER_RUNBOOK.md` now records the live-provider/Vast
+decision path. Future sessions should stay CPU/local by default, run
+`scripts/biber_local_confidence_smoke.py` first, and ask for Vast/GPU metadata
+only when the next BIBER step requires live local-model inference, batch evals,
+adapter/cache restore, QLoRA/training after reviewed readiness, or live
+provider debugging. The runbook lists exactly what metadata to ask for, how to
+avoid secret values in chat, the preferred SSH tunnel shape, the
+`biber_live_provider_readiness.py --require-ready --require-model` gate, and
+the guarded `local-repair-chain --model-command` flow after readiness passes.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

@@ -35,11 +35,13 @@ Primary files to read first:
 
 1. `docs/CODEX_HANDOFF.md`
 2. `readme-resume-biber.md`
-3. `readme-reinstantiate.md` if local runtime artifacts were backed up and
+3. `docs/BIBER_LIVE_PROVIDER_RUNBOOK.md` if live local-model provider or Vast
+   GPU connection details are needed.
+4. `readme-reinstantiate.md` if local runtime artifacts were backed up and
    should be uploaded to a new GPU/volume.
-4. `README.md`
-5. `docs/VAST_DIRECT_DEPLOY.md`
-6. `xriq/README.md`
+5. `README.md`
+6. `docs/VAST_DIRECT_DEPLOY.md`
+7. `xriq/README.md`
 
 ## What Is Not Preserved If The Vast Volume Is Destroyed
 
@@ -289,6 +291,13 @@ needed only when a future step explicitly requires one of these:
 - run batch evals on the GPU
 - start a QLoRA/training job
 - restore adapters or Hugging Face cache artifacts to a new volume
+
+Before asking for those details, read `docs/BIBER_LIVE_PROVIDER_RUNBOOK.md` and
+run:
+
+```bash
+python scripts/biber_local_confidence_smoke.py
+```
 
 When that point arrives, collect these details from Vast.ai and provide them to
 the session without pasting secret key values into chat:
