@@ -88,6 +88,15 @@ wrapper. Set `BIBER_LOCAL_OPENAI_BASE_URL` to the local endpoint base URL
 `BIBER_LOCAL_OPENAI_MODEL` to the served model or LoRA alias. If the endpoint
 requires a token, put it in `BIBER_LOCAL_OPENAI_API_KEY`; do not paste it into
 chat or commit it.
+To verify the wrapper without a GPU or live model endpoint, run:
+
+```bash
+python scripts/biber_local_openai_provider_smoke.py
+```
+
+The smoke starts a temporary localhost `/v1/chat/completions` mock, confirms
+the wrapper sends the expected OpenAI-compatible payload and optional bearer
+token, and verifies the returned `content` JSON can carry repair edits.
 Then run `review-local-repair-chain` on that combined artifact before asking
 for explicit apply approval. The review is deterministic, no-API, and reports
 blockers, warnings, plan hash, target root, and the next test id.

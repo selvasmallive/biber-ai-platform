@@ -218,6 +218,14 @@ provider wrapper while OpenAI mentor stays disabled by default.
 `BIBER_LOCAL_OPENAI_BASE_URL` (default `http://127.0.0.1:8001/v1`),
 `BIBER_LOCAL_OPENAI_MODEL` for the served model/adapter alias, and optional
 `BIBER_LOCAL_OPENAI_API_KEY` only if the local endpoint requires auth.
+Before using a live GPU/model endpoint, run the mocked local HTTP smoke:
+
+```bash
+python scripts/biber_local_openai_provider_smoke.py
+```
+
+It starts a temporary localhost `/v1/chat/completions` mock and verifies the
+wrapper request/response path without external network, OpenAI, or GPU access.
 Before any apply approval, run `review-local-repair-chain` on the combined
 artifact. It is deterministic and local-only, and it summarizes blockers,
 warnings, plan hash, target root, and the next test id.

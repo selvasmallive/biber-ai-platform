@@ -130,6 +130,17 @@ def test_local_openai_provider_extracts_content_and_metadata() -> None:
     assert output["usage"] == {"prompt_tokens": 10, "completion_tokens": 4}
 
 
+def test_local_openai_provider_smoke_script_uses_mock_http() -> None:
+    script = ROOT / "scripts" / "biber_local_openai_provider_smoke.py"
+    text = script.read_text(encoding="utf-8")
+
+    assert "ThreadingHTTPServer" in text
+    assert "/v1/chat/completions" in text
+    assert "Bearer smoke-token" in text
+    assert '"external_network_required": False' in text
+    assert '"gpu_required": False' in text
+
+
 def test_format_capabilities_summary_includes_presets_and_tests() -> None:
     output = client.format_capabilities_summary(sample_capabilities())
 

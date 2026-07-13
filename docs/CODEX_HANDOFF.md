@@ -143,6 +143,13 @@ model-command JSON from stdin, calls a local OpenAI-compatible
 `BIBER_LOCAL_OPENAI_API_KEY` is optional for endpoints that require auth. This
 adds no OpenAI mentor use, no training, no auto-apply, and no GPU requirement
 for source work.
+Sixteenth BIBER resume checkpoint on the same branch:
+`scripts/biber_local_openai_provider_smoke.py` now verifies the provider
+wrapper against a temporary localhost OpenAI-compatible mock. It posts through
+`scripts/biber_local_openai_provider.py`, confirms the `/v1/chat/completions`
+path, model override, optional bearer-token header, returned `content` edits,
+and no-mentor/no-training/no-GPU metadata. Run this smoke before using a live
+Vast/vLLM/Qwen endpoint so the wrapper contract is proven locally first.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
