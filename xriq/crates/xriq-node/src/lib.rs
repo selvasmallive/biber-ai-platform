@@ -3716,45 +3716,39 @@ fn public_testnet_node(
     runner_node(chain_file, RunnerGenesis::Testnet)
 }
 
-// Dispense valueless test units from the genesis faucet account on the public
-// testnet chain. Rate-limited by a balance cap (chain-derived, so it is
-// deterministic and needs no side state); the transfer is a normal signed
-// transaction confirmed in a freshly produced block. TEST-ONLY, no value.
-//
-// This operates on its own testnet-genesis chain file and is deliberately not
-// wired into the devnet-genesis HTTP server; a genesis-parametrized testnet node
-// (a later increment) will expose it over HTTP with additional IP rate limiting.
-fn run_faucet_dispense_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
-    let flags = RunnerFlagParser::parse(args)?;
-    flags.reject_unknown(&[
-        "--chain-file",
-        "--to",
-        "--amount",
-        "--max-balance",
-        "--timestamp-ms",
-        "--consensus-round",
-        "--format",
-    ])?;
-    let _ = RunnerOutputFormat::parse(flags.optional("--format"))?;
-    let chain_file = flags.required("--chain-file")?;
-    let to = parse_address("--to", flags.required("--to")?)?;
-    let amount = flags
-        .optional("--amount")
-        .map(|value| parse_amount("--amount", value))
-        .transpose()?
+/// Result of a public testnet faucet dispense: a confirmed valueless transfer
+/// from the genesis faucet account to a recipient.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FaucetDispenseOutcome {
+    pub chain_id: String,
+    pub to: Address,
+    pub amount: XriqAmount,
+    pub fee: XriqAmount,
+    pub transaction_hash: Hash32,
+    pub block_height: u64,
+    pub block_hash: Hash32,
+    pub recipient_balance: XriqAmount,
+    pub faucet_balance: XriqAmount,
+}
+
+/// Dispense valueless test units from the genesis faucet account on the public
+/// testnet chain file, confirming the transfer in a freshly produced block.
+/// Rate-limited by a balance cap (chain-derived, so it is deterministic and
+/// needs no side state). TEST-ONLY, no monetary value. This is the reusable core
+/// behind the `faucet-dispense` command and the xriq-api faucet route.
+pub fn public_testnet_file_faucet_dispense(
+    chain_file: impl AsRef<Path>,
+    to: Address,
+    amount: Option<XriqAmount>,
+    max_balance: Option<XriqAmount>,
+    timestamp_ms: Option<u64>,
+    consensus_round: u64,
+) -> Result<FaucetDispenseOutcome, NodeRunnerError> {
+    let amount = amount
         .unwrap_or_else(|| XriqAmount::from_base_units(PUBLIC_TESTNET_FAUCET_DRIP_BASE_UNITS));
-    let max_balance = flags
-        .optional("--max-balance")
-        .map(|value| parse_amount("--max-balance", value))
-        .transpose()?
-        .unwrap_or_else(|| {
-            XriqAmount::from_base_units(PUBLIC_TESTNET_FAUCET_MAX_BALANCE_BASE_UNITS)
-        });
-    let consensus_round = flags
-        .optional("--consensus-round")
-        .map(|value| parse_u64("--consensus-round", value))
-        .transpose()?
-        .unwrap_or(0);
+    let max_balance = max_balance.unwrap_or_else(|| {
+        XriqAmount::from_base_units(PUBLIC_TESTNET_FAUCET_MAX_BALANCE_BASE_UNITS)
+    });
 
     let mut node = public_testnet_node(chain_file)?;
     let faucet_address =
@@ -3812,39 +3806,96 @@ fn run_faucet_dispense_command(args: &[String]) -> Result<NodeRunnerOutput, Node
     // A monotonic default timestamp (height-derived) keeps successive faucet
     // blocks ordered without depending on a wall clock.
     let height = node.ledger().current_height().saturating_add(1);
-    let timestamp_ms = flags
-        .optional("--timestamp-ms")
-        .map(|value| parse_u64("--timestamp-ms", value))
-        .transpose()?
-        .unwrap_or_else(|| height.saturating_mul(1_000));
+    let timestamp_ms = timestamp_ms.unwrap_or_else(|| height.saturating_mul(1_000));
     let produced = node
         .produce_next_block_with_private_devnet_signature(timestamp_ms, consensus_round)
         .map_err(NodeRunnerError::Node)?;
 
-    let recipient_new = node
+    let recipient_balance = node
         .ledger()
         .account(&to)
-        .map(|account| account.balance.base_units())
-        .unwrap_or(0);
-    let faucet_new = node
+        .map(|account| account.balance)
+        .unwrap_or(XriqAmount::ZERO);
+    let faucet_balance = node
         .ledger()
         .account(&faucet_address)
-        .map(|account| account.balance.base_units())
-        .unwrap_or(0);
-    let json = format!(
+        .map(|account| account.balance)
+        .unwrap_or(XriqAmount::ZERO);
+    Ok(FaucetDispenseOutcome {
+        chain_id: node.ledger().config().chain_id.clone(),
+        to,
+        amount,
+        fee,
+        transaction_hash,
+        block_height: produced.block.header.height,
+        block_hash: produced.block_hash,
+        recipient_balance,
+        faucet_balance,
+    })
+}
+
+/// The `faucet-dispense` JSON shape, shared by the CLI command output.
+pub fn render_faucet_dispense_json(outcome: &FaucetDispenseOutcome) -> String {
+    format!(
         "{{\n  \"command\": \"faucet-dispense\",\n  \"warning\": {},\n  \"chain_id\": {},\n  \"to\": {},\n  \"amount_base_units\": {},\n  \"fee_base_units\": {},\n  \"transaction_hash\": {},\n  \"block_height\": {},\n  \"block_hash\": {},\n  \"recipient_balance_base_units\": {},\n  \"faucet_balance_base_units\": {}\n}}",
         json_string(TESTNET_GENESIS_WARNING),
-        json_string(&node.ledger().config().chain_id),
-        json_string(to.as_str()),
-        json_string(&amount.base_units().to_string()),
-        json_string(&fee.base_units().to_string()),
-        json_string(&hash_hex(transaction_hash)),
-        produced.block.header.height,
-        json_string(&hash_hex(produced.block_hash)),
-        json_string(&recipient_new.to_string()),
-        json_string(&faucet_new.to_string()),
-    );
-    Ok(NodeRunnerOutput::Json(json))
+        json_string(&outcome.chain_id),
+        json_string(outcome.to.as_str()),
+        json_string(&outcome.amount.base_units().to_string()),
+        json_string(&outcome.fee.base_units().to_string()),
+        json_string(&hash_hex(outcome.transaction_hash)),
+        outcome.block_height,
+        json_string(&hash_hex(outcome.block_hash)),
+        json_string(&outcome.recipient_balance.base_units().to_string()),
+        json_string(&outcome.faucet_balance.base_units().to_string()),
+    )
+}
+
+// Dispense valueless test units from the genesis faucet account on the public
+// testnet chain. TEST-ONLY, no value. Delegates to the reusable core.
+fn run_faucet_dispense_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
+    let flags = RunnerFlagParser::parse(args)?;
+    flags.reject_unknown(&[
+        "--chain-file",
+        "--to",
+        "--amount",
+        "--max-balance",
+        "--timestamp-ms",
+        "--consensus-round",
+        "--format",
+    ])?;
+    let _ = RunnerOutputFormat::parse(flags.optional("--format"))?;
+    let chain_file = flags.required("--chain-file")?;
+    let to = parse_address("--to", flags.required("--to")?)?;
+    let amount = flags
+        .optional("--amount")
+        .map(|value| parse_amount("--amount", value))
+        .transpose()?;
+    let max_balance = flags
+        .optional("--max-balance")
+        .map(|value| parse_amount("--max-balance", value))
+        .transpose()?;
+    let timestamp_ms = flags
+        .optional("--timestamp-ms")
+        .map(|value| parse_u64("--timestamp-ms", value))
+        .transpose()?;
+    let consensus_round = flags
+        .optional("--consensus-round")
+        .map(|value| parse_u64("--consensus-round", value))
+        .transpose()?
+        .unwrap_or(0);
+
+    let outcome = public_testnet_file_faucet_dispense(
+        chain_file,
+        to,
+        amount,
+        max_balance,
+        timestamp_ms,
+        consensus_round,
+    )?;
+    Ok(NodeRunnerOutput::Json(render_faucet_dispense_json(
+        &outcome,
+    )))
 }
 
 fn run_chain_check_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {

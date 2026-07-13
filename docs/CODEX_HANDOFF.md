@@ -477,6 +477,20 @@ command), a `maybe_local_testnet_faucet_http_response` + `--enable-local-testnet
 flag in xriq-api main.rs, a TESTNET chain-file config for the api (it currently
 opens a devnet chain via `alice_balance`), and a small UI tweak to accept/display
 the 403 refusal. Everything stays test-only with no monetary value.
+Milestone 3 increment 8 (functional-enablement Part 1) extracted the faucet core
+into a reusable pub node fn: `xriq_node::public_testnet_file_faucet_dispense(chain_file,
+to, amount, max_balance, timestamp_ms, consensus_round) -> Result<FaucetDispenseOutcome,
+NodeRunnerError>` plus a pub `render_faucet_dispense_json`; `run_faucet_dispense_command`
+is now a thin flag-parsing wrapper over it (behavior unchanged, faucet tests pass).
+This is the reusable core xriq-api will call. REMAINING for functional dispensing
+(the api-side wiring, its own increment): add `enable_local_testnet_faucet` to the
+main.rs config structs (`LocalApiRuntime` at ~251, the run-config, `RequestConfig`
+at ~6642) + flag parse (`--enable-local-testnet-faucet`) + the dispatch check
+(~line 156) + a `maybe_local_testnet_faucet_http_response` handler that reads `to`
+from the query and calls `public_testnet_file_faucet_dispense(config.chain_file, ...)`
+returning 201 on success / 429 on FaucetRefused / 400 on bad address, plus the
+config test-literal updates. The UI already accepts 201 so it works once enabled;
+displaying the disabled 403 nicely is optional polish. Everything stays test-only.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,
