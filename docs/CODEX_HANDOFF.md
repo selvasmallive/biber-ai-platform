@@ -521,6 +521,20 @@ no persistent state). Verified by `faucet_rate_limiter_bounds_per_ip_bursts` (a
 deterministic unit test with explicit timestamps: 2/window allowed, 3rd denied,
 other IPs independent, window slide re-allows) — xriq-api: 81 tests. Optional
 future polish: expose the window/max as serve flags. Everything stays test-only.
+Milestone 3 increment 10 parametrized the block-detail read route for testnet.
+The three block-detail leaves (by-height/by-hash/latest) now share one genesis-aware
+core `runner_file_block_detail_data(chain_file, genesis, BlockDetailSelector)` (enum
+Height|Hash|Latest); the existing `pub private_devnet_file_block_detail_*_data` stay
+as `Devnet(alice_balance)` delegates (signatures unchanged, so xriq-api is
+unaffected). `run_block_detail_command` gained `--network` and collapsed its 6
+branches into build-selector → fetch-once → render; the `/v1/blocks/{id}` route
+passes `--network testnet`. Covered by extending `testnet_read_routes_serve_testnet_genesis`
+(GET /v1/blocks/1 and /v1/blocks/latest report the testnet block at height 1) —
+xriq-node: 74 tests. A testnet node now serves status, block list, block detail,
+account detail, overview, transaction list, and account history on the testnet
+chain (plus the faucet). Remaining devnet-only read routes: mempool detail and
+transaction detail (both touch the pending/draft cascade). Everything stays
+test-only.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

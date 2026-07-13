@@ -687,7 +687,7 @@ pub fn node_help_text() -> String {
         "  xriq-node preflight-transfer --chain-file <path> --pending-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node explorer-overview --chain-file <path> [--network devnet|testnet] [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node block-list --chain-file <path> [--network devnet|testnet] [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
-        "  xriq-node block-detail --chain-file <path> (--height <height|latest>|--block-hash <64-hex>) [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node block-detail --chain-file <path> (--height <height|latest>|--block-hash <64-hex>) [--network devnet|testnet] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node account-list --chain-file <path> [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node account-detail --chain-file <path> --address <address> [--network devnet|testnet] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node account-transactions --chain-file <path> --address <address> [--network devnet|testnet] [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
@@ -1089,6 +1089,7 @@ pub fn private_devnet_http_response_with_body(
                 .filter(|block_id| !block_id.is_empty())
             {
                 let mut args = private_devnet_http_runner_args("block-detail", config);
+                push_network_arg(&mut args, config);
                 if block_id == "latest" {
                     args.push("--height".to_string());
                     args.push("latest".to_string());
@@ -2778,20 +2779,42 @@ pub fn private_devnet_file_block_detail(
     Ok(render_block_detail(&detail))
 }
 
+// Which block a detail lookup targets. Shared by the by-height/by-hash/latest
+// block-detail paths so one genesis-aware core serves all three.
+enum BlockDetailSelector {
+    Height(u64),
+    Hash(Hash32),
+    Latest,
+}
+
+fn runner_file_block_detail_data(
+    chain_file: impl AsRef<Path>,
+    genesis: RunnerGenesis,
+    selector: BlockDetailSelector,
+) -> Result<ExplorerBlockDetail, NodeRunnerError> {
+    let store = FileChainStore::open(chain_file)
+        .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
+    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)
+        .map_err(NodeRunnerError::Node)?;
+    let explorer = ExplorerService::new(node.rpc_service(), node.store());
+    match selector {
+        BlockDetailSelector::Height(height) => explorer.block_by_height(height),
+        BlockDetailSelector::Hash(hash) => explorer.block_by_hash(&hash),
+        BlockDetailSelector::Latest => explorer.latest_block(),
+    }
+    .map_err(NodeRunnerError::Explorer)
+}
+
 pub fn private_devnet_file_block_detail_data(
     chain_file: impl AsRef<Path>,
     alice_balance: Option<XriqAmount>,
     height: u64,
 ) -> Result<ExplorerBlockDetail, NodeRunnerError> {
-    let store = FileChainStore::open(chain_file)
-        .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    let genesis = private_devnet_runner_genesis(alice_balance);
-    let node =
-        XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?;
-    let explorer = ExplorerService::new(node.rpc_service(), node.store());
-    explorer
-        .block_by_height(height)
-        .map_err(NodeRunnerError::Explorer)
+    runner_file_block_detail_data(
+        chain_file,
+        RunnerGenesis::Devnet(alice_balance),
+        BlockDetailSelector::Height(height),
+    )
 }
 
 pub fn private_devnet_file_block_detail_by_hash(
@@ -2809,15 +2832,11 @@ pub fn private_devnet_file_block_detail_by_hash_data(
     alice_balance: Option<XriqAmount>,
     block_hash: Hash32,
 ) -> Result<ExplorerBlockDetail, NodeRunnerError> {
-    let store = FileChainStore::open(chain_file)
-        .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    let genesis = private_devnet_runner_genesis(alice_balance);
-    let node =
-        XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?;
-    let explorer = ExplorerService::new(node.rpc_service(), node.store());
-    explorer
-        .block_by_hash(&block_hash)
-        .map_err(NodeRunnerError::Explorer)
+    runner_file_block_detail_data(
+        chain_file,
+        RunnerGenesis::Devnet(alice_balance),
+        BlockDetailSelector::Hash(block_hash),
+    )
 }
 
 pub fn private_devnet_file_latest_block_detail(
@@ -2832,13 +2851,11 @@ pub fn private_devnet_file_latest_block_detail_data(
     chain_file: impl AsRef<Path>,
     alice_balance: Option<XriqAmount>,
 ) -> Result<ExplorerBlockDetail, NodeRunnerError> {
-    let store = FileChainStore::open(chain_file)
-        .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    let genesis = private_devnet_runner_genesis(alice_balance);
-    let node =
-        XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?;
-    let explorer = ExplorerService::new(node.rpc_service(), node.store());
-    explorer.latest_block().map_err(NodeRunnerError::Explorer)
+    runner_file_block_detail_data(
+        chain_file,
+        RunnerGenesis::Devnet(alice_balance),
+        BlockDetailSelector::Latest,
+    )
 }
 
 pub fn private_devnet_file_account_list(
@@ -3984,16 +4001,14 @@ fn run_block_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRun
     flags.reject_unknown(&[
         "--chain-file",
         "--alice-balance",
+        "--network",
         "--height",
         "--block-hash",
         "--format",
     ])?;
     let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
-    let alice_balance = flags
-        .optional("--alice-balance")
-        .map(|value| parse_amount("--alice-balance", value))
-        .transpose()?;
+    let genesis = parse_runner_genesis(&flags)?;
     let height_raw = flags.optional("--height");
     let block_hash = flags
         .optional("--block-hash")
@@ -4016,43 +4031,18 @@ fn run_block_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRun
         (None, None) => return Err(NodeRunnerError::MissingFlag("--height")),
         _ => {}
     }
+    let selector = match (height, block_hash, latest) {
+        (Some(height), None, false) => BlockDetailSelector::Height(height),
+        (None, Some(block_hash), false) => BlockDetailSelector::Hash(block_hash),
+        (None, None, true) => BlockDetailSelector::Latest,
+        _ => unreachable!("block detail selector already validated"),
+    };
+    let detail = runner_file_block_detail_data(chain_file, genesis, selector)?;
     Ok(match output_format {
-        RunnerOutputFormat::Text => match (height, block_hash, latest) {
-            (Some(height), None, false) => {
-                private_devnet_file_block_detail(chain_file, alice_balance, height)
-                    .map(NodeRunnerOutput::BlockDetail)?
-            }
-            (None, Some(block_hash), false) => {
-                private_devnet_file_block_detail_by_hash(chain_file, alice_balance, block_hash)
-                    .map(NodeRunnerOutput::BlockDetail)?
-            }
-            (None, None, true) => {
-                private_devnet_file_latest_block_detail(chain_file, alice_balance)
-                    .map(NodeRunnerOutput::BlockDetail)?
-            }
-            _ => unreachable!("block detail selector already validated"),
-        },
-        RunnerOutputFormat::Json => match (height, block_hash, latest) {
-            (Some(height), None, false) => {
-                let detail =
-                    private_devnet_file_block_detail_data(chain_file, alice_balance, height)?;
-                NodeRunnerOutput::Json(render_block_detail_json("block-detail", &detail))
-            }
-            (None, Some(block_hash), false) => {
-                let detail = private_devnet_file_block_detail_by_hash_data(
-                    chain_file,
-                    alice_balance,
-                    block_hash,
-                )?;
-                NodeRunnerOutput::Json(render_block_detail_json("block-detail", &detail))
-            }
-            (None, None, true) => {
-                let detail =
-                    private_devnet_file_latest_block_detail_data(chain_file, alice_balance)?;
-                NodeRunnerOutput::Json(render_block_detail_json("block-detail", &detail))
-            }
-            _ => unreachable!("block detail selector already validated"),
-        },
+        RunnerOutputFormat::Text => NodeRunnerOutput::BlockDetail(render_block_detail(&detail)),
+        RunnerOutputFormat::Json => {
+            NodeRunnerOutput::Json(render_block_detail_json("block-detail", &detail))
+        }
     })
 }
 
@@ -9740,6 +9730,15 @@ mod tests {
         assert_eq!(blocks.status_code, 200);
         assert!(blocks.body.contains("\"command\": \"block-list\""));
         assert!(blocks.body.contains("\"height\": 1"));
+
+        // Block detail (by height and latest) serves the testnet chain.
+        let block = private_devnet_http_response(&config, "GET", "/v1/blocks/1");
+        assert_eq!(block.status_code, 200);
+        assert!(block.body.contains("\"command\": \"block-detail\""));
+        assert!(block.body.contains("\"height\": 1"));
+        let latest = private_devnet_http_response(&config, "GET", "/v1/blocks/latest");
+        assert_eq!(latest.status_code, 200);
+        assert!(latest.body.contains("\"height\": 1"));
 
         let account = private_devnet_http_response(
             &config,
