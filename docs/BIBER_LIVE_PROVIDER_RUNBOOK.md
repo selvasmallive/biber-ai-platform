@@ -103,6 +103,12 @@ python scripts/biber_agent_client.py --json local-repair-chain prepared-repair.j
   --output /tmp/local-repair-chain.json
 ```
 
+The provider wrapper resolves logical BIBER model IDs such as
+`biber-dev-core-v1` through the local registry/env defaults before it sends the
+OpenAI-compatible request. If a live endpoint must use a specific served alias,
+set `BIBER_LOCAL_OPENAI_MODEL` or pass `--model <served-alias>` inside the
+model-command JSON array.
+
 Continue with the existing deterministic gates:
 
 ```bash

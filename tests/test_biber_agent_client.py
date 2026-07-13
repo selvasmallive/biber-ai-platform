@@ -101,6 +101,83 @@ def test_local_openai_provider_builds_chat_payload() -> None:
     }
 
 
+def test_local_openai_provider_maps_stable_logical_model_to_provider_alias(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("BIBER_MODEL_REGISTRY_JSON", raising=False)
+    monkeypatch.delenv("BIBER_LOCAL_OPENAI_MODEL", raising=False)
+    monkeypatch.setenv("BIBER_LOCAL_MODEL_NAME", "qwen-stable-alias")
+    request = {
+        "source": "biber_local_model_command_request",
+        "model": "biber-dev-core-v1",
+        "chat_payload": {
+            "model": "biber-dev-core-v1",
+            "messages": [{"role": "user", "content": "Return JSON edits."}],
+        },
+    }
+
+    payload, selection = local_provider.build_chat_provider_request(
+        request,
+        model=None,
+        base_url=None,
+        max_tokens=None,
+        temperature=None,
+    )
+
+    assert payload["model"] == "qwen-stable-alias"
+    assert selection["logical_model"] == "biber-dev-core-v1"
+    assert selection["provider_model"] == "qwen-stable-alias"
+    assert selection["selection_source"] == "default:stable-model"
+
+
+def test_local_openai_provider_routes_enabled_candidate_from_registry_json(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("BIBER_LOCAL_OPENAI_MODEL", raising=False)
+    monkeypatch.delenv("BIBER_LOCAL_OPENAI_BASE_URL", raising=False)
+    monkeypatch.setenv(
+        "BIBER_MODEL_REGISTRY_JSON",
+        json.dumps(
+            {
+                "models": [
+                    {
+                        "id": "biber-dev-core-v2-candidate",
+                        "lifecycle": "candidate",
+                        "provider_id": "candidate-vllm",
+                        "provider_type": "openai-compatible-chat",
+                        "base_url": "http://candidate.local/v1",
+                        "provider_model": "qwen3-coder-candidate",
+                        "enabled": True,
+                        "aliases": ["candidate"],
+                    }
+                ]
+            }
+        ),
+    )
+    request = {
+        "source": "biber_local_model_command_request",
+        "model": "candidate",
+        "chat_payload": {
+            "model": "candidate",
+            "messages": [{"role": "user", "content": "Return JSON edits."}],
+        },
+    }
+
+    payload, selection = local_provider.build_chat_provider_request(
+        request,
+        model=None,
+        base_url=None,
+        max_tokens=None,
+        temperature=None,
+    )
+
+    assert payload["model"] == "qwen3-coder-candidate"
+    assert selection["logical_model"] == "biber-dev-core-v2-candidate"
+    assert selection["provider_id"] == "candidate-vllm"
+    assert selection["base_url"] == "http://candidate.local/v1"
+    assert selection["selection_source"] == "env:BIBER_MODEL_REGISTRY_JSON"
+
+
 def test_local_openai_provider_extracts_content_and_metadata() -> None:
     response = {
         "model": "qwen-local-alias",

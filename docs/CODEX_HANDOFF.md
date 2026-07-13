@@ -180,6 +180,19 @@ provider debugging. The runbook lists exactly what metadata to ask for, how to
 avoid secret values in chat, the preferred SSH tunnel shape, the
 `biber_live_provider_readiness.py --require-ready --require-model` gate, and
 the guarded `local-repair-chain --model-command` flow after readiness passes.
+Twentieth BIBER resume checkpoint on the same branch:
+`scripts/biber_local_openai_provider.py` now resolves logical BIBER model IDs
+before sending an OpenAI-compatible provider request. Without an explicit
+`--model` or `BIBER_LOCAL_OPENAI_MODEL`, `biber-dev-core-v1` maps through the
+local registry/env defaults to the served provider alias such as
+`biber-dev-core`, and enabled candidate registry entries can route
+`biber-dev-core-v2-candidate` to a future Qwen3/provider alias. The provider
+output now records `provider_selection` metadata with the logical model,
+provider model, base URL, lifecycle, provider id/type, and selection source.
+`scripts/biber_local_openai_provider_smoke.py` now verifies this mapping with
+a no-network dry run in addition to the localhost mock HTTP call. This keeps
+providers swappable and reduces the risk of sending logical API model IDs
+directly to vLLM when the live endpoint expects a served alias.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

@@ -91,7 +91,12 @@ wrapper. Set `BIBER_LOCAL_OPENAI_BASE_URL` to the local endpoint base URL
 (default `http://127.0.0.1:8001/v1`) and optionally
 `BIBER_LOCAL_OPENAI_MODEL` to the served model or LoRA alias. If the endpoint
 requires a token, put it in `BIBER_LOCAL_OPENAI_API_KEY`; do not paste it into
-chat or commit it.
+chat or commit it. Without an explicit `--model` or
+`BIBER_LOCAL_OPENAI_MODEL`, the wrapper resolves logical BIBER IDs such as
+`biber-dev-core-v1` and `biber-dev-core-v2-candidate` through the local model
+registry/env defaults before sending the provider request, so the live endpoint
+receives the served alias (for example `biber-dev-core`) instead of the logical
+API model ID.
 To check whether a live OpenAI-compatible provider is reachable without
 sending a repair request or chat completion, run:
 

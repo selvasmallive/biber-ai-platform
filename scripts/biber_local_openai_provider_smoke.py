@@ -131,6 +131,39 @@ def run_provider(
         )
 
 
+def run_provider_dry_run(
+    *,
+    repo_root: Path,
+    base_url: str,
+    request_payload: dict[str, Any],
+) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env.pop("BIBER_MODEL_REGISTRY_JSON", None)
+    env.pop("BIBER_LOCAL_OPENAI_MODEL", None)
+    env.pop("BIBER_CANDIDATE_MODEL_ENABLED", None)
+    env["BIBER_LOCAL_MODEL_NAME"] = "qwen-stable-registry-smoke"
+    with tempfile.TemporaryDirectory(
+        prefix="biber-local-openai-provider-dry-run-pycache-"
+    ) as tmp:
+        env["PYTHONPYCACHEPREFIX"] = tmp
+        return subprocess.run(
+            [
+                sys.executable,
+                str(repo_root / "scripts" / "biber_local_openai_provider.py"),
+                "--base-url",
+                base_url,
+                "--timeout-seconds",
+                "10",
+                "--dry-run",
+            ],
+            input=json.dumps(request_payload),
+            capture_output=True,
+            check=False,
+            env=env,
+            text=True,
+        )
+
+
 def run_smoke() -> dict[str, Any]:
     repo_root = Path(__file__).resolve().parents[1]
     requests: list[dict[str, Any]] = []
@@ -146,6 +179,11 @@ def run_smoke() -> dict[str, Any]:
             base_url=base_url,
             request_payload=request_payload,
         )
+        dry_run_completed = run_provider_dry_run(
+            repo_root=repo_root,
+            base_url=base_url,
+            request_payload=request_payload,
+        )
     finally:
         server.shutdown()
         server.server_close()
@@ -156,9 +194,17 @@ def run_smoke() -> dict[str, Any]:
             "provider wrapper failed: "
             f"stdout={completed.stdout!r} stderr={completed.stderr!r}"
         )
+    if dry_run_completed.returncode != 0:
+        raise RuntimeError(
+            "provider wrapper dry run failed: "
+            f"stdout={dry_run_completed.stdout!r} stderr={dry_run_completed.stderr!r}"
+        )
     output = json.loads(completed.stdout)
+    dry_run_output = json.loads(dry_run_completed.stdout)
     if not isinstance(output, dict):
         raise RuntimeError("provider wrapper did not return a JSON object")
+    if not isinstance(dry_run_output, dict):
+        raise RuntimeError("provider wrapper dry run did not return a JSON object")
     if len(requests) != 1:
         raise RuntimeError(f"expected exactly one mock request, got {len(requests)}")
     recorded = requests[0]
@@ -169,6 +215,10 @@ def run_smoke() -> dict[str, Any]:
         for edit in content.get("edits", [])
         if isinstance(edit, dict)
     ]
+    dry_run_payload = json.loads(str(dry_run_output.get("content") or "{}"))
+    dry_selection = dry_run_output.get("provider_selection")
+    if not isinstance(dry_selection, dict):
+        dry_selection = {}
     summary = {
         "source": "biber_local_openai_provider_http_smoke",
         "ok": (
@@ -181,6 +231,10 @@ def run_smoke() -> dict[str, Any]:
             and output.get("training_allowed") is False
             and output.get("api_required") is False
             and edit_paths == ["src/app.py"]
+            and dry_run_payload.get("model") == "qwen-stable-registry-smoke"
+            and dry_selection.get("logical_model") == "biber-dev-core-v1"
+            and dry_selection.get("provider_model") == "qwen-stable-registry-smoke"
+            and dry_selection.get("selection_source") == "default:stable-model"
         ),
         "external_network_required": False,
         "gpu_required": False,
@@ -192,6 +246,8 @@ def run_smoke() -> dict[str, Any]:
         "response_model": output.get("response_model"),
         "auth_header_present": bool(recorded.get("authorization")),
         "content_edit_paths": edit_paths,
+        "registry_resolution_model": dry_run_payload.get("model"),
+        "registry_resolution_source": dry_selection.get("selection_source"),
     }
     if not summary["ok"]:
         raise RuntimeError(json.dumps(summary, indent=2, sort_keys=True))
