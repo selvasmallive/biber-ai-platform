@@ -268,6 +268,17 @@ available, including hint status, detected stack, primary category, and the
 local no-API repair workflow. This gives the swappable local model provider the
 same structured failure packet exposed by `show-mvp-loop` and
 `local-repair-loop-status`, without enabling OpenAI mentor, GPU, or training.
+Twenty-ninth BIBER resume checkpoint on the same branch:
+`scripts/biber_local_mvp_loop_full_repair_smoke.py` now proves the full
+CPU-local coding-assistant loop from a real failed `mvp-loop` artifact:
+`mvp-loop -> prepare-repair -> local-repair-chain --model-command ->
+review-local-repair-chain -> apply-repair-edits --approve --review-artifact ->
+local-verify-chain -> local-repair-loop-status`. It uses a temporary fixture
+local model provider, verifies the repair hint is present in the bounded prompt,
+applies only through the existing review gate, and verifies the final code with
+the allowlisted test. `scripts/biber_local_confidence_smoke.py` now includes
+this full repair smoke. This remains CPU-local and does not call OpenAI mentor,
+train, use GPU, or require paid APIs.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

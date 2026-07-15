@@ -167,6 +167,9 @@ the mocked live-provider readiness smoke, the local MVP-loop edit-review smoke,
 the local MVP-loop failure/repair-hint smoke, and the local repair-loop smoke
 together. It is the preferred pre-live-provider gate before asking for Vast GPU
 credentials or pointing BIBER at a real local Qwen/vLLM endpoint.
+It also includes the full local MVP-loop repair smoke, which starts from a real
+failed local `mvp-loop` artifact and walks through local-model repair, review,
+guarded apply, verification, and status without API credentials.
 
 To run only the local MVP-loop edit-review smoke:
 
@@ -191,6 +194,20 @@ The smoke creates a temporary target repo with a Python syntax failure, runs
 `prepare-repair` to prove the hint is preserved for the next local-model repair
 step and included in the bounded repair prompt. It does not require BIBER API,
 OpenAI, Vast GPU, or training credentials.
+
+To run only the full local MVP-loop repair smoke:
+
+```bash
+python scripts/biber_local_mvp_loop_full_repair_smoke.py
+```
+
+The smoke creates a temporary target repo with a Python syntax failure and runs
+the full local coding-assistant path:
+`mvp-loop -> prepare-repair -> local-repair-chain --model-command ->
+review-local-repair-chain -> apply-repair-edits --approve --review-artifact ->
+local-verify-chain -> local-repair-loop-status`. It uses a fixture
+model-command provider and does not require BIBER API, OpenAI, Vast GPU, or
+training credentials.
 
 To run only the repair-loop smoke:
 
