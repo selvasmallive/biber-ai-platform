@@ -288,6 +288,15 @@ style through the existing plan-hash guarded apply path. This was added to both
 `src/biber_api/workspace_edit.py` and legacy `app/workspace_edit.py`, and the
 full local MVP repair smoke now uses a CRLF fixture to exercise it. This
 remains CPU-local and does not call OpenAI mentor, train, or use GPU.
+Thirty-first BIBER resume checkpoint on the same branch:
+failed saved MVP-loop artifacts now include an explicit
+`agent_report.repair_hint.next_command` when `mvp-loop --output` is used. The
+command points at the first no-API repair step:
+`prepare-repair <saved-mvp-loop-artifact> --output <prepared-repair.json>`.
+`show-mvp-loop` surfaces this as `repair_next_command`, and the local failure
+smoke verifies the hint. This is a usability/status improvement only; it does
+not call a model, enable OpenAI mentor, use GPU, train, apply files, or save to
+GitHub.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

@@ -1179,6 +1179,24 @@ def step_command_text(step: Mapping[str, Any]) -> str | None:
     return " ".join(command)
 
 
+def mvp_loop_prepare_repair_command(artifact_path: object) -> str | None:
+    if not artifact_path:
+        return None
+    source = Path(str(artifact_path))
+    output = source.with_name("prepared-repair.json")
+    return format_cli_command(
+        [
+            "python",
+            "scripts/biber_agent_client.py",
+            "--json",
+            "prepare-repair",
+            source,
+            "--output",
+            output,
+        ]
+    )
+
+
 def build_mvp_loop_repair_hint(
     *,
     test_run: Mapping[str, Any],
@@ -1292,6 +1310,11 @@ def build_mvp_loop_agent_report(payload: Mapping[str, Any]) -> dict[str, Any]:
         diagnosis=diagnosis,
         next_actions=deduped_next_actions,
     )
+    if repair_hint is not None and payload.get("artifact_path"):
+        next_command = mvp_loop_prepare_repair_command(payload.get("artifact_path"))
+        if next_command:
+            repair_hint = dict(repair_hint)
+            repair_hint["next_command"] = next_command
     report = {
         "source": "biber_mvp_loop_agent_report_v1",
         "status": status,
@@ -13726,6 +13749,8 @@ def format_mvp_loop_summary(payload: Mapping[str, Any]) -> str:
                 f"stack={repair_hint.get('detected_stack') or '-'} "
                 f"next={','.join(str(item) for item in require_list(repair_hint.get('next_workflow'))[:3]) or '-'}"
             )
+            if repair_hint.get("next_command"):
+                lines.append(f"- repair_next_command: {repair_hint.get('next_command')}")
         next_actions = [str(item) for item in require_list(report.get("next_actions"))]
         if next_actions:
             lines.append("agent_next_actions:")
@@ -20119,10 +20144,12 @@ def run(args: argparse.Namespace) -> str:
         elif args.pr_head or args.pr_title or args.pr_body or args.pr_body_file:
             raise BiberAgentClientError("PR arguments require --create-pr.")
 
+        if args.output:
+            summary["artifact_path"] = str(Path(args.output))
+
         summary["agent_report"] = build_mvp_loop_agent_report(summary)
 
         if args.output:
-            summary["artifact_path"] = str(Path(args.output))
             write_json_artifact(summary, args.output)
 
         return (

@@ -80,6 +80,9 @@ no-API repair packet: test id, command, exit/timing fields, failure category,
 detected stack, relevant output preview, suggested next actions, and the
 expected local repair workflow. Prefer this hint over re-parsing raw stdout
 when preparing the next local-model repair step.
+When the failed MVP-loop is saved with `--output`, the repair hint also includes
+a `next_command` for the first no-API repair step:
+`prepare-repair <mvp-loop-artifact> --output <prepared-repair.json>`.
 When an MVP-loop artifact fails, run `prepare-repair` first. It preserves
 `agent_report` in the repair request and includes the report in the bounded
 local-model repair prompt, with OpenAI mentor still disabled unless explicitly

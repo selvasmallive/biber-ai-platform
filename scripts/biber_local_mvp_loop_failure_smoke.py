@@ -118,6 +118,7 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
     repair_prompt = str(repair_request.get("repair_prompt") or "")
 
     next_workflow = [str(item) for item in repair_hint.get("next_workflow", [])]
+    next_command = str(repair_hint.get("next_command") or "")
     summary = {
         "source": "biber_local_mvp_loop_failure_smoke",
         "ok": (
@@ -131,6 +132,9 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
             and repair_hint.get("test_id") == "python-compileall-api"
             and bool(repair_hint.get("primary_category"))
             and "prepare-repair" in next_workflow
+            and "prepare-repair" in next_command
+            and str(mvp_output_path) in next_command
+            and str(repair_output_path) in next_command
             and repair_request.get("repair_status") == "ready_for_local_model"
             and prepared_hint.get("status") == "ready_for_prepare_repair"
             and "repair_hint: status=ready_for_prepare_repair" in repair_prompt
@@ -153,6 +157,7 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
         "repair_prompt_has_hint": (
             "repair_hint: status=ready_for_prepare_repair" in repair_prompt
         ),
+        "repair_hint_next_command": next_command,
         "next_workflow": next_workflow,
     }
     if not summary["ok"]:

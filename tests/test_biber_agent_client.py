@@ -681,6 +681,11 @@ def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
                         "local-repair-chain",
                         "review-local-repair-chain",
                     ],
+                    "next_command": (
+                        "python scripts/biber_agent_client.py --json prepare-repair "
+                        "/workspace/outputs/biber-mvp-loop.json --output "
+                        "/workspace/outputs/prepared-repair.json"
+                    ),
                 },
                 "next_actions": ["Review the failing test output."],
             },
@@ -710,6 +715,11 @@ def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
         "- repair_hint: status=ready_for_prepare_repair "
         "category=compile_error stack=dotnet "
         "next=prepare-repair,local-repair-chain,review-local-repair-chain"
+    ) in output
+    assert (
+        "- repair_next_command: python scripts/biber_agent_client.py --json "
+        "prepare-repair /workspace/outputs/biber-mvp-loop.json --output "
+        "/workspace/outputs/prepared-repair.json"
     ) in output
     assert "- Review the failing test output." in output
 
@@ -14100,6 +14110,12 @@ def test_run_mvp_loop_local_target_chains_without_api_key(
         "local-repair-chain",
         "review-local-repair-chain",
     ]
+    assert "prepare-repair" in result["agent_report"]["repair_hint"]["next_command"]
+    assert str(output_path) in result["agent_report"]["repair_hint"]["next_command"]
+    assert (
+        str(output_path.with_name("prepared-repair.json"))
+        in result["agent_report"]["repair_hint"]["next_command"]
+    )
     assert result["agent_report"]["next_actions"] == [
         "Review the failing test output and prepare a bounded repair edit."
     ]
