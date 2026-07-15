@@ -80,6 +80,12 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             pycache_root=pycache_root,
             timeout_seconds=timeout_seconds,
         )
+        mvp_loop = run_smoke_script(
+            repo_root=repo_root,
+            script_name="biber_local_mvp_loop_smoke.py",
+            pycache_root=pycache_root,
+            timeout_seconds=timeout_seconds,
+        )
         repair_loop = run_smoke_script(
             repo_root=repo_root,
             script_name="biber_local_repair_loop_smoke.py",
@@ -90,6 +96,7 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
     checks = [
         compact_check("local_openai_provider_http", provider),
         compact_check("live_provider_readiness_mock", readiness),
+        compact_check("local_mvp_loop", mvp_loop),
         compact_check("local_repair_loop", repair_loop),
     ]
     summary = {
@@ -113,6 +120,14 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             "model_available": readiness.get("model_available"),
             "available_model_count": readiness.get("available_model_count"),
         },
+        "mvp_loop": {
+            "agent_report_status": mvp_loop.get("agent_report_status"),
+            "edit_review_status": mvp_loop.get("edit_review_status"),
+            "edit_ready_for_apply": mvp_loop.get("edit_ready_for_apply"),
+            "edit_planned_count": mvp_loop.get("edit_planned_count"),
+            "edit_applied_count": mvp_loop.get("edit_applied_count"),
+            "test_ok": mvp_loop.get("test_ok"),
+        },
         "repair_loop": {
             "chain_status": repair_loop.get("chain_status"),
             "verification_ok": repair_loop.get("verification_ok"),
@@ -128,8 +143,8 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Run BIBER's local provider HTTP smoke and local repair-loop smoke "
-            "as one no-GPU confidence gate."
+            "Run BIBER's local provider, readiness, local MVP-loop, and "
+            "local repair-loop smokes as one no-GPU confidence gate."
         )
     )
     parser.add_argument("--output", help="Optional path for the confidence summary JSON.")

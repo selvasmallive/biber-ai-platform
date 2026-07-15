@@ -222,6 +222,19 @@ prompt report snippet also includes the edit review status when present, so
 local repair attempts can distinguish hash-guarded-ready plans from blocked
 plans without opening the full edit-plan payload. This remains CPU-local and
 does not call OpenAI mentor, train, or use GPU.
+Twenty-fourth BIBER resume checkpoint on the same branch:
+`scripts/biber_local_mvp_loop_smoke.py` now provides a no-API local MVP-loop
+confidence check. It creates a temporary target repo, runs
+`mvp-loop --local-target-root` with two guarded local edits, applies them
+through the hash-guarded local path, and verifies that `agent_report.edit`
+contains the deterministic workspace edit review metadata
+(`review_status=ready_for_hash_guarded_apply`, ready for apply, edit counts,
+and warnings). `scripts/biber_local_confidence_smoke.py` now includes this
+MVP-loop smoke alongside the mocked local provider, mocked readiness, and local
+repair-loop smokes. Future BIBER-only sessions should run the combined
+confidence smoke before requesting Vast/GPU credentials or using a live local
+model provider. This remains CPU-local and does not call OpenAI mentor, train,
+or use GPU.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
