@@ -58,7 +58,7 @@ def create_target_repo(target_root: Path) -> None:
     (target_root / "app").mkdir(parents=True)
     (target_root / "src").mkdir(parents=True)
     (target_root / "app" / "__init__.py").write_text("", encoding="utf-8")
-    (target_root / "src" / "app.py").write_bytes(b"def answer(:\n    return 1\n")
+    (target_root / "src" / "app.py").write_bytes(b"def answer(:\r\n    return 1\r\n")
     (target_root / "README.md").write_text(
         "# Full repair fixture repo\n",
         encoding="utf-8",

@@ -58,6 +58,27 @@ def test_workspace_edit_replaces_exact_text(tmp_path: Path) -> None:
     assert target.read_text(encoding="utf-8") == "def add(a, b):\n    return int(a) + int(b)\n"
 
 
+def test_workspace_edit_matches_lf_old_text_against_crlf_file(tmp_path: Path) -> None:
+    target = tmp_path / "src" / "example.py"
+    target.parent.mkdir()
+    target.write_bytes(b"def answer():\r\n    return 1\r\n")
+
+    result = apply_workspace_edit(
+        path="src/example.py",
+        old_text="def answer():\n    return 1\n",
+        new_text="def answer():\n    return 2\n",
+        expected_replacements=1,
+        create_if_missing=False,
+        dry_run=False,
+        settings=make_settings(tmp_path),
+    )
+
+    assert result["path"] == "src/example.py"
+    assert result["changed"] is True
+    assert result["replacements"] == 1
+    assert target.read_bytes() == b"def answer():\r\n    return 2\r\n"
+
+
 def test_workspace_edit_dry_run_does_not_write(tmp_path: Path) -> None:
     target = tmp_path / "README.md"
     target.write_text("old value\n", encoding="utf-8")

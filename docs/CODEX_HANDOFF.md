@@ -279,6 +279,15 @@ applies only through the existing review gate, and verifies the final code with
 the allowlisted test. `scripts/biber_local_confidence_smoke.py` now includes
 this full repair smoke. This remains CPU-local and does not call OpenAI mentor,
 train, use GPU, or require paid APIs.
+Thirtieth BIBER resume checkpoint on the same branch:
+workspace edit replacement now tolerates the common LF/CRLF mismatch between a
+local model's `old_text` and a target file's line endings. It only activates
+when exact matching fails and the line-ending-normalized candidate has exactly
+the requested replacement count, then preserves the target file's line-ending
+style through the existing plan-hash guarded apply path. This was added to both
+`src/biber_api/workspace_edit.py` and legacy `app/workspace_edit.py`, and the
+full local MVP repair smoke now uses a CRLF fixture to exercise it. This
+remains CPU-local and does not call OpenAI mentor, train, or use GPU.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

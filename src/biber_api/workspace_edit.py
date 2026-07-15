@@ -387,14 +387,27 @@ def _replace_existing_file(
     if b"\x00" in old_bytes:
         raise WorkspaceEditError(f"Workspace edit target appears to be binary: {candidate.name}")
     current = old_bytes.decode("utf-8", errors="replace")
-    replacements = current.count(old_text)
+    match_old_text = old_text
+    replacement_new_text = new_text
+    replacements = current.count(match_old_text)
+    if replacements != expected_replacements:
+        for candidate_old_text, candidate_new_text in _line_ending_match_candidates(
+            old_text=old_text,
+            new_text=new_text,
+        ):
+            candidate_replacements = current.count(candidate_old_text)
+            if candidate_replacements == expected_replacements:
+                match_old_text = candidate_old_text
+                replacement_new_text = candidate_new_text
+                replacements = candidate_replacements
+                break
     if replacements != expected_replacements:
         raise WorkspaceEditError(
             "Workspace edit replacement count mismatch: "
             f"expected {expected_replacements}, found {replacements}."
         )
 
-    updated = current.replace(old_text, new_text, expected_replacements)
+    updated = current.replace(match_old_text, replacement_new_text, expected_replacements)
     updated_bytes = updated.encode("utf-8")
     if len(updated_bytes) > settings.workspace_edit_max_file_bytes:
         raise WorkspaceEditError(
@@ -415,6 +428,29 @@ def _replace_existing_file(
         old_bytes=old_bytes,
         new_bytes=updated_bytes,
     )
+
+
+def _line_ending_match_candidates(
+    *,
+    old_text: str,
+    new_text: str,
+) -> list[tuple[str, str]]:
+    candidates: list[tuple[str, str]] = []
+    if "\n" in old_text and "\r\n" not in old_text:
+        candidates.append(
+            (
+                old_text.replace("\n", "\r\n"),
+                new_text.replace("\n", "\r\n"),
+            )
+        )
+    if "\r\n" in old_text:
+        candidates.append(
+            (
+                old_text.replace("\r\n", "\n"),
+                new_text.replace("\r\n", "\n"),
+            )
+        )
+    return candidates
 
 
 def _plan_notes(result: dict[str, Any]) -> list[str]:

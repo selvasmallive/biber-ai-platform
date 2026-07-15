@@ -65,6 +65,10 @@ Workspace edit plans include a deterministic `review` block with
 `review_status`, `ready_for_apply`, risk/operation counts, warnings, blockers,
 and required actions. Apply still requires the matching `plan_hash`; the review
 is for safer human/agent inspection before that guarded apply step.
+Workspace edits tolerate the common line-ending mismatch where a local model
+returns LF `old_text` for a CRLF file, but only when the normalized match still
+has the exact expected replacement count. The replacement preserves the target
+file's line-ending style and still uses the normal plan-hash apply guard.
 Each MVP-loop artifact includes `agent_report`, a compact machine-readable
 status summary with repo state, selected context, edit counts, test result,
 failure summary, and next actions for the following narrow step.
