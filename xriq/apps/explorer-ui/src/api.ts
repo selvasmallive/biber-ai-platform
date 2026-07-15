@@ -1452,18 +1452,52 @@ export interface TestnetFaucetResponse {
   faucet_balance_base_units: string;
 }
 
+// Map a faucet error response to a readable message. The disabled (403) body
+// uses a top-level `error` string; rate-limit (429) and bad-request (400) use a
+// nested `error.message` (see xriq-api local_api_error_response).
+function faucetErrorMessage(status: number, data: unknown): string {
+  const body = (data ?? {}) as {
+    error?: string | { message?: string; code?: string };
+    code?: string;
+  };
+  if (status === 403) {
+    const disabled =
+      typeof body.error === "string" ? body.error : body.code;
+    return (
+      disabled ??
+      "Faucet is disabled on this node (start xriq-api with --enable-local-testnet-faucet)."
+    );
+  }
+  if (status === 429) {
+    const nested = typeof body.error === "object" ? body.error?.message : undefined;
+    return nested ?? "Faucet rate limit reached; please try again shortly.";
+  }
+  const message =
+    typeof body.error === "object"
+      ? body.error?.message
+      : typeof body.error === "string"
+        ? body.error
+        : undefined;
+  return message ?? `Faucet request failed (HTTP ${status}).`;
+}
+
 // POST /api/v1/faucet is a testnet-only, valueless dispense. Only a public
-// address is sent; no keys, seeds, or signatures are ever transmitted.
+// address is sent; no keys, seeds, or signatures are ever transmitted. On a
+// disabled node (403) or rate limit (429) this throws a readable message.
 export async function requestTestnetFaucet(
   baseUrl: string,
   address: string,
 ): Promise<TestnetFaucetResponse> {
   const params = new URLSearchParams({ to: address });
-  return fetchJson<TestnetFaucetResponse>(
-    normalizeBaseUrl(baseUrl),
-    `/api/v1/faucet?${params.toString()}`,
-    { method: "POST", acceptedStatuses: [200, 201] },
+  const response = await fetch(
+    `${normalizeBaseUrl(baseUrl)}/api/v1/faucet?${params.toString()}`,
+    { method: "POST", headers: { Accept: "application/json" } },
   );
+  const data: unknown = await response.json().catch(() => null);
+  if (response.status === 200 || response.status === 201) {
+    return data as TestnetFaucetResponse;
+  }
+  throw new Error(faucetErrorMessage(response.status, data));
 }
 
 export async function loadIsoPaymentInitiationPreview(

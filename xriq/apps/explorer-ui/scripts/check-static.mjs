@@ -82,7 +82,7 @@ for (const requiredText of [
   "requestTestnetFaucet",
   "faucet-dispense",
   "recipient_balance_base_units",
-  'acceptedStatuses: [200, 201]',
+  "faucetErrorMessage",
 ]) {
   if (!apiSource.includes(requiredText)) {
     throw new Error(`missing testnet faucet API marker: ${requiredText}`);

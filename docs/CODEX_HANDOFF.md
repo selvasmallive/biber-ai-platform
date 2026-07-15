@@ -548,6 +548,17 @@ Milestone 3 increment 12 exposed the faucet rate-limit as serve flags:
 `serve-readonly --faucet-max-per-window <n> --faucet-window-ms <ms>` (parsed into
 `ServeConfig`, defaulting to 5 / 60000) build the `FaucetRateLimiter` in
 run_serve_readonly instead of `::default()`. xriq-api: 81 tests still pass.
+Milestone 3 increment 13 improved the UI faucet error display. `requestTestnetFaucet`
+now uses `fetch` directly (instead of the throwing `fetchJson`), reads the error body,
+and throws a readable message via `faucetErrorMessage`: 403 → "Faucet is disabled on
+this node (start xriq-api with --enable-local-testnet-faucet)" (the disabled body's
+top-level `error`/`code`), 429 → the rate-limit `error.message`, else `error.message`
+/`error`. The panel already renders `state.error`, so the disabled/rate-limited/
+bad-address states now show meaningful text rather than "HTTP 403". The static check
+marker was updated (`acceptedStatuses: [200, 201]` → `faucetErrorMessage`);
+`npm run check` (incl. key-safety) and `npm run build` pass. With increments 10-13
+the M3 read/faucet polish is essentially done; the only remaining devnet-only read
+route is mempool detail (empty on a testnet node). Everything stays test-only.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,
