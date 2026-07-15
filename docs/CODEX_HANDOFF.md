@@ -532,9 +532,18 @@ passes `--network testnet`. Covered by extending `testnet_read_routes_serve_test
 (GET /v1/blocks/1 and /v1/blocks/latest report the testnet block at height 1) —
 xriq-node: 74 tests. A testnet node now serves status, block list, block detail,
 account detail, overview, transaction list, and account history on the testnet
-chain (plus the faucet). Remaining devnet-only read routes: mempool detail and
-transaction detail (both touch the pending/draft cascade). Everything stays
-test-only.
+chain (plus the faucet).
+Milestone 3 increment 11 parametrized the transaction-detail read route for testnet.
+The confirmed-detail leaf now has a genesis-aware core
+`runner_file_confirmed_transaction_detail(chain, genesis, tx_hash)` (pub
+`private_devnet_file_confirmed_transaction_detail` delegates with Devnet). Testnet
+nodes have no pending drafts, so `run_transaction_detail_command` (now with
+`--network`) and the `transaction_detail_http_response` helper (branches on
+`config.testnet`) do a CONFIRMED-only lookup on the testnet genesis; devnet keeps
+the confirmed + pending/draft cascade. Covered by extending the testnet read test
+(GET /v1/transactions/{hash} returns the faucet transfer's detail). Remaining
+devnet-only read route: mempool detail (empty on a no-pending testnet node anyway;
+touches the with-sources cascade). Everything stays test-only.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

@@ -699,7 +699,7 @@ pub fn node_help_text() -> String {
         "  xriq-node testnet-genesis [--format json]  (read-only; prints the canonical TEST-ONLY public testnet genesis spec and its reproducible genesis_spec_hash)",
         "  xriq-node faucet-dispense --chain-file <testnet-path> --to <address> [--amount <base-units>] [--max-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <n>] [--format json]  (TEST-ONLY; sends valueless test units from the genesis faucet, balance-capped, and confirms a block)",
         "  xriq-node peer-sync --chain-file <path> (--peer <http://host:port> | --peers-file <path>) [--discover <max-peers>] [--node-seed <string>] [--network devnet|testnet] [--limit <count>] [--max-rounds <count>] [--alice-balance <base-units>] [--format json]  (follower; handshakes then pulls/validates blocks from one or many peers on the same network, discovering more and skipping itself, into the chain file)",
-        "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--network devnet|testnet] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-list --snapshot-root <path> [--limit <count>] [--format text|json]",
         "  xriq-node snapshot-latest --snapshot-root <path> [--format text|json]",
         "  xriq-node snapshot-latest-check --snapshot-root <path> [--alice-balance <base-units>] [--format text|json]",
@@ -1857,6 +1857,25 @@ fn transaction_detail_http_response(
     config: &PrivateDevnetHttpServerConfig,
     tx_hash: Hash32,
 ) -> PrivateDevnetHttpResponse {
+    if config.testnet {
+        // Testnet nodes have no pending drafts; only confirmed lookups apply.
+        return match runner_file_confirmed_transaction_detail(
+            &config.chain_file,
+            RunnerGenesis::Testnet,
+            tx_hash,
+        ) {
+            Ok(Some(detail)) => http_json_response(
+                200,
+                render_transaction_detail_json(&PrivateDevnetTransactionDetail::Confirmed(detail)),
+            ),
+            Ok(None) => http_error_response(
+                404,
+                "transaction_not_found",
+                "transaction was not found in confirmed testnet blocks",
+            ),
+            Err(error) => http_error_response(500, "node_error", &format!("node error: {error:?}")),
+        };
+    }
     if let Some(pending_file) = &config.pending_file {
         return match private_devnet_file_transaction_detail_with_pending_file_data(
             &config.chain_file,
@@ -2108,9 +2127,20 @@ pub fn private_devnet_file_confirmed_transaction_detail(
     alice_balance: Option<XriqAmount>,
     tx_hash: Hash32,
 ) -> Result<Option<PrivateDevnetConfirmedTransactionDetail>, NodeError> {
+    runner_file_confirmed_transaction_detail(
+        chain_file,
+        RunnerGenesis::Devnet(alice_balance),
+        tx_hash,
+    )
+}
+
+fn runner_file_confirmed_transaction_detail(
+    chain_file: impl AsRef<Path>,
+    genesis: RunnerGenesis,
+    tx_hash: Hash32,
+) -> Result<Option<PrivateDevnetConfirmedTransactionDetail>, NodeError> {
     let store = FileChainStore::open(chain_file).map_err(NodeError::Storage)?;
-    let genesis = private_devnet_runner_genesis(alice_balance);
-    let node = XriqNode::from_genesis_replaying_store(&genesis, store)?;
+    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)?;
     for record in node.store().blocks_by_height_desc(node.store().len()) {
         for (transaction_index, transaction) in record.block.transactions.iter().enumerate() {
             if transaction_hash(transaction) == tx_hash {
@@ -4193,23 +4223,40 @@ fn run_transaction_detail_command(args: &[String]) -> Result<NodeRunnerOutput, N
         "--chain-file",
         "--draft-file",
         "--alice-balance",
+        "--network",
         "--tx-hash",
         "--format",
     ])?;
     let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
     let draft_file = flags.optional("--draft-file");
-    let alice_balance = flags
-        .optional("--alice-balance")
-        .map(|value| parse_amount("--alice-balance", value))
-        .transpose()?;
+    let genesis = parse_runner_genesis(&flags)?;
     let tx_hash = parse_hash("--tx-hash", flags.required("--tx-hash")?)?;
-    let detail = private_devnet_file_transaction_detail_data(
-        chain_file,
-        draft_file,
-        alice_balance,
-        tx_hash,
-    )?;
+    let detail = match genesis {
+        RunnerGenesis::Devnet(alice_balance) => private_devnet_file_transaction_detail_data(
+            chain_file,
+            draft_file,
+            alice_balance,
+            tx_hash,
+        )?,
+        // Testnet nodes have no pending drafts; only confirmed lookups apply.
+        RunnerGenesis::Testnet => {
+            match runner_file_confirmed_transaction_detail(
+                chain_file,
+                RunnerGenesis::Testnet,
+                tx_hash,
+            )
+            .map_err(NodeRunnerError::Node)?
+            {
+                Some(detail) => PrivateDevnetTransactionDetail::Confirmed(detail),
+                None => {
+                    return Err(NodeRunnerError::Explorer(
+                        ExplorerError::TransactionNotFound,
+                    ))
+                }
+            }
+        }
+    };
     Ok(match output_format {
         RunnerOutputFormat::Text => {
             NodeRunnerOutput::TransactionDetail(render_transaction_detail(&detail))
@@ -9760,6 +9807,17 @@ mod tests {
             .body
             .contains("\"command\": \"transaction-list\""));
         assert!(transactions.body.contains("xriqdev1recipient00000000000"));
+
+        // Transaction detail serves the faucet transfer on the testnet chain.
+        let marker = "\"tx_hash\": \"";
+        let start = transactions.body.find(marker).unwrap() + marker.len();
+        let end = transactions.body[start..].find('"').unwrap() + start;
+        let tx_hash = transactions.body[start..end].to_string();
+        let tx =
+            private_devnet_http_response(&config, "GET", &format!("/v1/transactions/{tx_hash}"));
+        assert_eq!(tx.status_code, 200);
+        assert!(tx.body.contains("\"command\": \"transaction-detail\""));
+        assert!(tx.body.contains(&tx_hash));
 
         let history = private_devnet_http_response(
             &config,
