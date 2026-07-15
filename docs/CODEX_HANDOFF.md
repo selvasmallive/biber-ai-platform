@@ -261,6 +261,12 @@ stack, and the first local repair workflow steps. Future sessions can inspect
 the status output to choose the next no-API repair command without re-parsing
 raw test stdout/stderr. This remains CPU-local and does not call OpenAI
 mentor, train, or use GPU.
+Twenty-eighth BIBER resume checkpoint on the same branch:
+`prepare-repair` repair prompts now include `agent_report.repair_hint` when
+available, including hint status, detected stack, primary category, and the
+local no-API repair workflow. This gives the swappable local model provider the
+same structured failure packet exposed by `show-mvp-loop` and
+`local-repair-loop-status`, without enabling OpenAI mentor, GPU, or training.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

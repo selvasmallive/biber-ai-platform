@@ -79,7 +79,9 @@ when preparing the next local-model repair step.
 When an MVP-loop artifact fails, run `prepare-repair` first. It preserves
 `agent_report` in the repair request and includes the report in the bounded
 local-model repair prompt, with OpenAI mentor still disabled unless explicitly
-requested later through the separate repair-attempt path.
+requested later through the separate repair-attempt path. The prompt includes
+`agent_report.repair_hint` when available so the local model sees the same
+failure category, stack, and no-API workflow guidance exposed by status output.
 `attempt-repair` artifacts include `repair_output_contract` and
 `extraction_hint` so the next local step can call `extract-repair-edits` and
 then `plan-repair-edits` without guessing the expected model-output shape.

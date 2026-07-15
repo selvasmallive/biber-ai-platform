@@ -1433,6 +1433,7 @@ def build_repair_prompt(
     report_edit = require_mapping(report.get("edit"))
     report_test = require_mapping(report.get("test"))
     report_failure = require_mapping(report.get("failure"))
+    report_repair_hint = require_mapping(report.get("repair_hint"))
     report_next_actions = [
         str(action) for action in require_list(report.get("next_actions"))
     ]
@@ -1466,6 +1467,18 @@ def build_repair_prompt(
             "- failure: "
             f"stack={report_failure.get('detected_stack') or '-'} "
             f"category={report_failure.get('primary_category') or '-'}"
+        )
+    if report_repair_hint:
+        workflow = ", ".join(
+            str(item)
+            for item in require_list(report_repair_hint.get("next_workflow"))[:5]
+        )
+        report_lines.append(
+            "- repair_hint: "
+            f"status={report_repair_hint.get('status') or '-'} "
+            f"stack={report_repair_hint.get('detected_stack') or '-'} "
+            f"category={report_repair_hint.get('primary_category') or '-'} "
+            f"next={workflow or '-'}"
         )
     if report_next_actions:
         report_lines.append("- next_actions:")

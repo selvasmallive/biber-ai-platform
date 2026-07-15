@@ -1132,6 +1132,9 @@ def test_build_mvp_loop_repair_request_extracts_failure_context(tmp_path: Path) 
     assert '"edits":[{"path":"src/file.ext"' in repair["repair_prompt"]
     assert "Agent report:" in repair["repair_prompt"]
     assert "- status: test_failed" in repair["repair_prompt"]
+    assert "repair_hint: status=ready_for_prepare_repair" in repair["repair_prompt"]
+    assert "stack=dotnet category=compile_error" in repair["repair_prompt"]
+    assert "next=prepare-repair, local-repair-chain" in repair["repair_prompt"]
     assert "Fix the API compile error." in repair["repair_prompt"]
     assert "Fix compiler diagnostics first." in repair["repair_prompt"]
     assert repair["next_test_id"] == "dotnet-test"
@@ -1171,6 +1174,16 @@ def test_build_mvp_loop_repair_request_uses_agent_report_context(
                 "primary_category": "assertion_failure",
                 "detected_stack": "python",
             },
+            "repair_hint": {
+                "status": "ready_for_prepare_repair",
+                "primary_category": "assertion_failure",
+                "detected_stack": "python",
+                "next_workflow": [
+                    "prepare-repair",
+                    "local-repair-chain",
+                    "review-local-repair-chain",
+                ],
+            },
             "next_actions": ["Repair the assertion failure, then rerun python-pytest."],
         },
         "steps": {
@@ -1208,6 +1221,8 @@ def test_build_mvp_loop_repair_request_uses_agent_report_context(
     assert "branch=feature/biber head=abc1234 dirty=True" in repair["repair_prompt"]
     assert "- edit: planned=1 applied=1 changed=1 rejected=0" in repair["repair_prompt"]
     assert "- test: id=python-pytest executed=True ok=False exit_code=1" in repair["repair_prompt"]
+    assert "repair_hint: status=ready_for_prepare_repair" in repair["repair_prompt"]
+    assert "stack=python category=assertion_failure" in repair["repair_prompt"]
     assert "Repair the assertion failure, then rerun python-pytest." in repair["repair_prompt"]
     assert "agent_report_status: test_failed" in summary
     assert "agent_report_repo: branch=feature/biber head=abc1234 dirty=True" in summary
