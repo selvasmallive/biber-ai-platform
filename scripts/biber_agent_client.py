@@ -1179,6 +1179,59 @@ def step_command_text(step: Mapping[str, Any]) -> str | None:
     return " ".join(command)
 
 
+def build_mvp_loop_repair_hint(
+    *,
+    test_run: Mapping[str, Any],
+    diagnosis: Mapping[str, Any],
+    next_actions: list[str],
+    max_relevant_output_chars: int = 1200,
+) -> dict[str, Any] | None:
+    if not test_run or test_run.get("ok") is not False:
+        return None
+    relevant_output = (
+        diagnosis.get("relevant_output")
+        or test_run.get("stdout")
+        or test_run.get("stderr")
+        or ""
+    )
+    suggested_next_actions = dedupe_strings(
+        [
+            str(item)
+            for item in (
+                require_list(diagnosis.get("suggested_next_actions"))
+                or next_actions
+            )
+            if str(item).strip()
+        ]
+    )
+    return {
+        "source": "biber_mvp_loop_repair_hint_v1",
+        "status": "ready_for_prepare_repair",
+        "api_required": False,
+        "mentor_used": False,
+        "training_allowed": False,
+        "test_id": test_run.get("test_id"),
+        "command": step_command_text(test_run),
+        "exit_code": test_run.get("exit_code"),
+        "timed_out": bool(test_run.get("timed_out")),
+        "diagnosis_summary": diagnosis.get("summary"),
+        "primary_category": diagnosis.get("primary_category"),
+        "detected_stack": diagnosis.get("detected_stack"),
+        "relevant_output": compact_text(
+            relevant_output,
+            max_chars=max_relevant_output_chars,
+        ),
+        "suggested_next_actions": suggested_next_actions or [],
+        "next_workflow": [
+            "prepare-repair",
+            "local-repair-chain",
+            "review-local-repair-chain",
+            "apply-repair-edits-only-after-explicit-approval",
+            "local-verify-chain",
+        ],
+    }
+
+
 def build_mvp_loop_agent_report(payload: Mapping[str, Any]) -> dict[str, Any]:
     steps = require_mapping(payload.get("steps"))
     selected_context_paths = [
@@ -1233,7 +1286,13 @@ def build_mvp_loop_agent_report(payload: Mapping[str, Any]) -> dict[str, Any]:
     elif not test_run:
         next_actions.append("Run an allowlisted test for the selected context.")
 
-    return {
+    deduped_next_actions = dedupe_strings(next_actions) or []
+    repair_hint = build_mvp_loop_repair_hint(
+        test_run=test_run,
+        diagnosis=diagnosis,
+        next_actions=deduped_next_actions,
+    )
+    report = {
         "source": "biber_mvp_loop_agent_report_v1",
         "status": status,
         "ok": payload.get("ok") is True,
@@ -1287,8 +1346,11 @@ def build_mvp_loop_agent_report(payload: Mapping[str, Any]) -> dict[str, Any]:
             "primary_category": diagnosis.get("primary_category"),
             "detected_stack": diagnosis.get("detected_stack"),
         },
-        "next_actions": dedupe_strings(next_actions) or [],
+        "next_actions": deduped_next_actions,
     }
+    if repair_hint is not None:
+        report["repair_hint"] = repair_hint
+    return report
 
 
 def is_failed_mvp_loop_artifact(payload: Mapping[str, Any]) -> bool:
@@ -1299,11 +1361,26 @@ def build_mvp_loop_failure_record(path: Path, payload: Mapping[str, Any]) -> dic
     steps = require_mapping(payload.get("steps"))
     test_run = require_mapping(steps.get("test_run"))
     diagnosis = require_mapping(steps.get("test_diagnosis"))
+    agent_report = require_mapping(payload.get("agent_report"))
+    if not agent_report:
+        agent_report = build_mvp_loop_agent_report(payload)
+    repair_hint = require_mapping(agent_report.get("repair_hint"))
+    if not repair_hint:
+        repair_hint = build_mvp_loop_repair_hint(
+            test_run=test_run,
+            diagnosis=diagnosis,
+            next_actions=[
+                str(item)
+                for item in require_list(agent_report.get("next_actions"))
+                if str(item).strip()
+            ],
+        ) or {}
     runtime_profile_ids = normalize_runtime_profile_ids(
         payload.get("runtime_profile_ids")
     )
     relevant_output = (
-        diagnosis.get("relevant_output")
+        repair_hint.get("relevant_output")
+        or diagnosis.get("relevant_output")
         or test_run.get("stdout")
         or test_run.get("stderr")
         or ""
@@ -1328,6 +1405,7 @@ def build_mvp_loop_failure_record(path: Path, payload: Mapping[str, Any]) -> dic
             "timed_out": bool(test_run.get("timed_out")),
             "relevant_output": compact_text(relevant_output),
         },
+        "repair_hint": repair_hint,
         "next_review_action": "review_failure_before_eval_or_training",
     }
     if runtime_profile_ids is not None:
@@ -1522,6 +1600,20 @@ def build_mvp_loop_repair_request(
     agent_report = require_mapping(payload.get("agent_report"))
     if not agent_report:
         agent_report = build_mvp_loop_agent_report(payload)
+    repair_hint = require_mapping(agent_report.get("repair_hint"))
+    if not repair_hint:
+        repair_hint = build_mvp_loop_repair_hint(
+            test_run=test_run,
+            diagnosis=diagnosis,
+            next_actions=[
+                str(item)
+                for item in require_list(agent_report.get("next_actions"))
+                if str(item).strip()
+            ],
+        ) or {}
+        if repair_hint:
+            agent_report = dict(agent_report)
+            agent_report["repair_hint"] = repair_hint
     all_context_paths = [
         str(item) for item in require_list(payload.get("selected_context_paths"))
     ]
@@ -1531,7 +1623,8 @@ def build_mvp_loop_repair_request(
         else all_context_paths
     )
     relevant_output = (
-        diagnosis.get("relevant_output")
+        repair_hint.get("relevant_output")
+        or diagnosis.get("relevant_output")
         or test_run.get("stdout")
         or test_run.get("stderr")
         or ""
@@ -1539,6 +1632,12 @@ def build_mvp_loop_repair_request(
     suggested_next_actions = [
         str(item) for item in require_list(diagnosis.get("suggested_next_actions"))
     ]
+    if not suggested_next_actions:
+        suggested_next_actions = [
+            str(item)
+            for item in require_list(repair_hint.get("suggested_next_actions"))
+            if str(item).strip()
+        ]
     if not suggested_next_actions:
         suggested_next_actions = [
             str(item)
@@ -1587,6 +1686,7 @@ def build_mvp_loop_repair_request(
         "selected_context_paths_truncated": len(selected_context_paths)
         < len(all_context_paths),
         "agent_report": agent_report,
+        "repair_hint": repair_hint,
         "failure": failure,
         "suggested_next_actions": suggested_next_actions,
         "next_test_id": test_run.get("test_id"),
@@ -13577,6 +13677,15 @@ def format_mvp_loop_summary(payload: Mapping[str, Any]) -> str:
                 f"executed={test.get('executed')} "
                 f"ok={test.get('ok')} "
                 f"exit_code={test.get('exit_code')}"
+            )
+        repair_hint = require_mapping(report.get("repair_hint"))
+        if repair_hint:
+            lines.append(
+                "- repair_hint: "
+                f"status={repair_hint.get('status') or '-'} "
+                f"category={repair_hint.get('primary_category') or '-'} "
+                f"stack={repair_hint.get('detected_stack') or '-'} "
+                f"next={','.join(str(item) for item in require_list(repair_hint.get('next_workflow'))[:3]) or '-'}"
             )
         next_actions = [str(item) for item in require_list(report.get("next_actions"))]
         if next_actions:

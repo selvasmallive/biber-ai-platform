@@ -666,6 +666,16 @@ def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
                     "ok": False,
                     "exit_code": 1,
                 },
+                "repair_hint": {
+                    "status": "ready_for_prepare_repair",
+                    "primary_category": "compile_error",
+                    "detected_stack": "dotnet",
+                    "next_workflow": [
+                        "prepare-repair",
+                        "local-repair-chain",
+                        "review-local-repair-chain",
+                    ],
+                },
                 "next_actions": ["Review the failing test output."],
             },
             "steps": {
@@ -690,6 +700,11 @@ def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
     assert "- repo: branch=feature/biber head=abc1234 dirty=True" in output
     assert "- edit: planned=1 applied=1 changed=1 rejected=0" in output
     assert "- test: id=dotnet-test executed=True ok=False exit_code=1" in output
+    assert (
+        "- repair_hint: status=ready_for_prepare_repair "
+        "category=compile_error stack=dotnet "
+        "next=prepare-repair,local-repair-chain,review-local-repair-chain"
+    ) in output
     assert "- Review the failing test output." in output
 
 
@@ -1041,6 +1056,15 @@ def test_run_export_mvp_failures_writes_review_jsonl_without_api_key(
     assert rows[0]["source_artifact"] == str(failure)
     assert rows[0]["failure"]["test_id"] == "dotnet-test"
     assert rows[0]["failure"]["primary_category"] == "compile_error"
+    assert rows[0]["repair_hint"]["status"] == "ready_for_prepare_repair"
+    assert rows[0]["repair_hint"]["api_required"] is False
+    assert rows[0]["repair_hint"]["training_allowed"] is False
+    assert rows[0]["repair_hint"]["primary_category"] == "compile_error"
+    assert rows[0]["repair_hint"]["next_workflow"][:3] == [
+        "prepare-repair",
+        "local-repair-chain",
+        "review-local-repair-chain",
+    ]
     assert rows[0]["selected_context_paths"] == ["README.md", "src/App.cs"]
 
 
@@ -1089,6 +1113,14 @@ def test_build_mvp_loop_repair_request_extracts_failure_context(tmp_path: Path) 
     assert repair["failure"]["primary_category"] == "compile_error"
     assert repair["failure"]["relevant_output"].endswith("; expected\n")
     assert repair["agent_report"]["status"] == "test_failed"
+    assert repair["repair_hint"]["status"] == "ready_for_prepare_repair"
+    assert repair["repair_hint"]["primary_category"] == "compile_error"
+    assert repair["repair_hint"]["test_id"] == "dotnet-test"
+    assert repair["repair_hint"]["next_workflow"][:3] == [
+        "prepare-repair",
+        "local-repair-chain",
+        "review-local-repair-chain",
+    ]
     assert repair["repair_output_contract"]["source"] == (
         "biber_repair_output_contract_v1"
     )
@@ -13921,6 +13953,23 @@ def test_run_mvp_loop_local_target_chains_without_api_key(
     assert result["agent_report"]["test"]["test_id"] == "python-pytest"
     assert result["agent_report"]["test"]["ok"] is False
     assert result["agent_report"]["failure"]["primary_category"] == "assertion_failure"
+    assert result["agent_report"]["repair_hint"]["status"] == "ready_for_prepare_repair"
+    assert result["agent_report"]["repair_hint"]["api_required"] is False
+    assert result["agent_report"]["repair_hint"]["mentor_used"] is False
+    assert result["agent_report"]["repair_hint"]["training_allowed"] is False
+    assert result["agent_report"]["repair_hint"]["test_id"] == "python-pytest"
+    assert result["agent_report"]["repair_hint"]["primary_category"] == (
+        "assertion_failure"
+    )
+    assert result["agent_report"]["repair_hint"]["detected_stack"] == "python"
+    assert result["agent_report"]["repair_hint"]["relevant_output"] == (
+        "E   AssertionError"
+    )
+    assert result["agent_report"]["repair_hint"]["next_workflow"][:3] == [
+        "prepare-repair",
+        "local-repair-chain",
+        "review-local-repair-chain",
+    ]
     assert result["agent_report"]["next_actions"] == [
         "Review the failing test output and prepare a bounded repair edit."
     ]

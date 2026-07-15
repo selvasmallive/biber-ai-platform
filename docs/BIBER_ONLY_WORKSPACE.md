@@ -71,6 +71,11 @@ failure summary, and next actions for the following narrow step.
 The report's `edit` section carries workspace edit review metadata when the
 plan provides it, including `review_status`, `ready_for_apply`, risk/operation
 counts, warnings, and blockers.
+When a local MVP-loop test fails, `agent_report.repair_hint` provides a compact
+no-API repair packet: test id, command, exit/timing fields, failure category,
+detected stack, relevant output preview, suggested next actions, and the
+expected local repair workflow. Prefer this hint over re-parsing raw stdout
+when preparing the next local-model repair step.
 When an MVP-loop artifact fails, run `prepare-repair` first. It preserves
 `agent_report` in the repair request and includes the report in the bounded
 local-model repair prompt, with OpenAI mentor still disabled unless explicitly
