@@ -250,7 +250,8 @@ Twenty-sixth BIBER resume checkpoint on the same branch:
 MVP-loop path end to end without API credentials. It creates a temporary target
 repo with a Python syntax failure, runs `mvp-loop --local-target-root`, checks
 `agent_report.repair_hint`, and then runs `prepare-repair` to prove the hint is
-preserved for the next local-model repair request. The combined
+preserved for the next local-model repair request and included in the bounded
+repair prompt. The combined
 `scripts/biber_local_confidence_smoke.py` now runs both MVP-loop success and
 failure smokes before the local repair-loop smoke. This remains CPU-local and
 does not call OpenAI mentor, train, or use GPU.

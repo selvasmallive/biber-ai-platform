@@ -5947,6 +5947,7 @@ def test_local_mvp_loop_failure_smoke_script_documents_repair_hint() -> None:
     assert "--local-target-root" in text
     assert "agent_report" in text
     assert "repair_hint" in text
+    assert "repair_prompt_has_hint" in text
     assert "ready_for_prepare_repair" in text
     assert '"api_required": False' in text
     assert '"gpu_required": False' in text

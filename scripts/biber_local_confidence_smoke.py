@@ -142,6 +142,7 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             "detected_stack": mvp_loop_failure.get("detected_stack"),
             "test_ok": mvp_loop_failure.get("test_ok"),
             "repair_status": mvp_loop_failure.get("repair_status"),
+            "repair_prompt_has_hint": mvp_loop_failure.get("repair_prompt_has_hint"),
         },
         "repair_loop": {
             "chain_status": repair_loop.get("chain_status"),

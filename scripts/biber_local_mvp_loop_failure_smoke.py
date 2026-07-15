@@ -115,6 +115,7 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
     prepared_hint = repair_request.get("repair_hint")
     if not isinstance(prepared_hint, dict):
         raise RuntimeError("prepared repair did not include repair_hint")
+    repair_prompt = str(repair_request.get("repair_prompt") or "")
 
     next_workflow = [str(item) for item in repair_hint.get("next_workflow", [])]
     summary = {
@@ -132,6 +133,8 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
             and "prepare-repair" in next_workflow
             and repair_request.get("repair_status") == "ready_for_local_model"
             and prepared_hint.get("status") == "ready_for_prepare_repair"
+            and "repair_hint: status=ready_for_prepare_repair" in repair_prompt
+            and "category=compile_error" in repair_prompt
         ),
         "external_network_required": False,
         "gpu_required": False,
@@ -147,6 +150,9 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
         "detected_stack": repair_hint.get("detected_stack"),
         "test_ok": mvp_result.get("test_ok"),
         "repair_status": repair_request.get("repair_status"),
+        "repair_prompt_has_hint": (
+            "repair_hint: status=ready_for_prepare_repair" in repair_prompt
+        ),
         "next_workflow": next_workflow,
     }
     if not summary["ok"]:
