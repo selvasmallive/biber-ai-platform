@@ -61,6 +61,10 @@ branch, short HEAD, dirty status, and `git status --short` before edits/tests.
 Repo-context and safe-edit paths must stay workspace-relative; Windows
 drive-relative paths are rejected, and repo-context scanning skips symlinked
 entries so local context does not follow links outside the target repo.
+Workspace edit plans include a deterministic `review` block with
+`review_status`, `ready_for_apply`, risk/operation counts, warnings, blockers,
+and required actions. Apply still requires the matching `plan_hash`; the review
+is for safer human/agent inspection before that guarded apply step.
 Each MVP-loop artifact includes `agent_report`, a compact machine-readable
 status summary with repo state, selected context, edit counts, test result,
 failure summary, and next actions for the following narrow step.

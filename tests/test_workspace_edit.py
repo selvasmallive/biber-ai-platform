@@ -202,6 +202,14 @@ def test_workspace_edit_plan_validates_multiple_files_without_writing(
     assert plan["planned"][0]["operation"] == "replace"
     assert plan["planned"][1]["operation"] == "create"
     assert plan["planned"][1]["risk_level"] == "medium"
+    assert plan["review"]["review_status"] == "ready_for_hash_guarded_apply"
+    assert plan["review"]["ready_for_apply"] is True
+    assert plan["review"]["plan_hash"] == plan["plan_hash"]
+    assert plan["review"]["operation_counts"] == {"replace": 1, "create": 1}
+    assert plan["review"]["risk_counts"]["low"] == 1
+    assert plan["review"]["risk_counts"]["medium"] == 1
+    assert plan["review"]["warnings"] == ["creates_new_file:generated/notes.md"]
+    assert plan["review"]["required_actions"] == ["apply_with_matching_plan_hash"]
     assert target.read_text(encoding="utf-8") == "def add(a, b):\n    return a + b\n"
     assert not (tmp_path / "generated" / "notes.md").exists()
 
@@ -301,6 +309,13 @@ def test_workspace_edit_plan_reports_rejected_edits(tmp_path: Path) -> None:
     assert len(plan["rejected"]) == 2
     assert "replacement count mismatch" in plan["rejected"][0]["error"]
     assert "not allowed" in plan["rejected"][1]["error"]
+    assert plan["review"]["review_status"] == "blocked"
+    assert plan["review"]["ready_for_apply"] is False
+    assert plan["review"]["hard_blockers"] == [
+        "no_planned_edits",
+        "rejected_edits_present",
+    ]
+    assert plan["review"]["required_actions"] == ["fix_rejected_or_empty_edit_plan"]
 
 
 def test_workspace_edit_endpoint_applies_change(tmp_path: Path) -> None:

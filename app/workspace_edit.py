@@ -177,7 +177,71 @@ def plan_workspace_edits(
         ),
     }
     plan["plan_hash"] = workspace_edit_plan_hash(plan)
+    plan["review"] = review_workspace_edit_plan(plan)
     return plan
+
+
+def review_workspace_edit_plan(plan: dict[str, Any]) -> dict[str, Any]:
+    planned = [
+        item for item in plan.get("planned", []) if isinstance(item, dict)
+    ]
+    rejected = [
+        item for item in plan.get("rejected", []) if isinstance(item, dict)
+    ]
+    risk_counts = {"low": 0, "medium": 0, "high": 0}
+    operation_counts = {"replace": 0, "create": 0}
+    warnings: list[str] = []
+    hard_blockers: list[str] = []
+
+    for item in planned:
+        risk = str(item.get("risk_level") or "unknown")
+        if risk not in risk_counts:
+            risk_counts[risk] = 0
+        risk_counts[risk] += 1
+        operation = str(item.get("operation") or "unknown")
+        if operation not in operation_counts:
+            operation_counts[operation] = 0
+        operation_counts[operation] += 1
+        if operation == "create":
+            warnings.append(f"creates_new_file:{item.get('path', '-')}")
+        if int(item.get("replacements") or 0) > 1:
+            warnings.append(f"multiple_replacements:{item.get('path', '-')}")
+        if item.get("changed") is False:
+            warnings.append(f"no_content_change:{item.get('path', '-')}")
+
+    if not planned:
+        hard_blockers.append("no_planned_edits")
+    if rejected:
+        hard_blockers.append("rejected_edits_present")
+
+    ready_for_apply = bool(plan.get("ok")) and not hard_blockers
+    return {
+        "source": "biber_workspace_edit_plan_review",
+        "ok": ready_for_apply,
+        "review_status": (
+            "ready_for_hash_guarded_apply" if ready_for_apply else "blocked"
+        ),
+        "ready_for_apply": ready_for_apply,
+        "plan_hash": plan.get("plan_hash"),
+        "planned_count": len(planned),
+        "rejected_count": len(rejected),
+        "files_touched": int(plan.get("files_touched") or 0),
+        "total_new_bytes": int(plan.get("total_new_bytes") or 0),
+        "risk_counts": risk_counts,
+        "operation_counts": operation_counts,
+        "warnings": list(dict.fromkeys(warnings)),
+        "hard_blockers": hard_blockers,
+        "required_actions": (
+            ["apply_with_matching_plan_hash"]
+            if ready_for_apply
+            else ["fix_rejected_or_empty_edit_plan"]
+        ),
+        "affected_paths": [
+            str(item.get("path"))
+            for item in planned
+            if isinstance(item.get("path"), str)
+        ],
+    }
 
 
 def apply_workspace_edit_plan(

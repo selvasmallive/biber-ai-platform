@@ -16121,11 +16121,19 @@ def format_workspace_edit_plan_summary(payload: Mapping[str, Any]) -> str:
         for item in require_list(payload.get("rejected"))
         if isinstance(item, dict)
     ]
+    review = payload.get("review")
+    review_payload = review if isinstance(review, Mapping) else {}
+    ready_for_apply = review_payload.get("ready_for_apply")
+    ready_for_apply_text = (
+        str(ready_for_apply) if isinstance(ready_for_apply, bool) else "-"
+    )
     lines = [
         "BIBER workspace edit plan",
         f"ok: {bool(payload.get('ok'))}",
         f"plan_hash: {payload.get('plan_hash', '-')}",
         f"summary: {payload.get('summary', '-')}",
+        f"review_status: {review_payload.get('review_status', '-')}",
+        f"ready_for_apply: {ready_for_apply_text}",
         f"planned ({len(planned)}):",
     ]
     lines.extend(
@@ -16141,6 +16149,16 @@ def format_workspace_edit_plan_summary(payload: Mapping[str, Any]) -> str:
             f"- {item.get('path', '-')} error={item.get('error', '-')}"
             for item in rejected
         )
+    warnings = [str(item) for item in require_list(review_payload.get("warnings"))]
+    hard_blockers = [
+        str(item) for item in require_list(review_payload.get("hard_blockers"))
+    ]
+    if warnings:
+        lines.append("review_warnings:")
+        lines.extend(f"- {warning}" for warning in warnings[:8])
+    if hard_blockers:
+        lines.append("review_hard_blockers:")
+        lines.extend(f"- {blocker}" for blocker in hard_blockers[:8])
     return "\n".join(lines)
 
 

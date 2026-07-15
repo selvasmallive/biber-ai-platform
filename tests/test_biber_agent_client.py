@@ -478,6 +478,12 @@ def test_format_workspace_edit_plan_and_apply_summaries() -> None:
                 }
             ],
             "rejected": [],
+            "review": {
+                "review_status": "ready_for_hash_guarded_apply",
+                "ready_for_apply": True,
+                "warnings": ["creates_new_file:docs/a.md"],
+                "hard_blockers": [],
+            },
         }
     )
     apply_output = client.format_workspace_edit_apply_summary(
@@ -490,6 +496,9 @@ def test_format_workspace_edit_plan_and_apply_summaries() -> None:
     )
 
     assert "BIBER workspace edit plan" in plan_output
+    assert "review_status: ready_for_hash_guarded_apply" in plan_output
+    assert "ready_for_apply: True" in plan_output
+    assert "creates_new_file:docs/a.md" in plan_output
     assert "docs/a.md operation=create" in plan_output
     assert "BIBER workspace edit apply" in apply_output
     assert "docs/a.md changed=True" in apply_output

@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-07-13
+Last updated: 2026-07-15
 
 ## Current Goal
 
@@ -203,6 +203,16 @@ and the legacy `app/workspace_edit.py` now apply the same OS-independent
 drive-prefix rejection for edit targets. Focused tests cover repo-context drive
 rejection, symlink-scan skipping when symlinks are available, and workspace-edit
 drive rejection. No GPU, OpenAI mentor, training, or API auth is involved.
+Twenty-second BIBER resume checkpoint on the same branch:
+workspace edit plans now include a deterministic `review` block in
+`src/biber_api/workspace_edit.py` and the legacy `app/workspace_edit.py`.
+The review reports `review_status`, `ready_for_apply`, plan hash, planned and
+rejected counts, risk and operation counts, warnings, hard blockers, required
+actions, and affected paths. This does not change the existing plan hash or
+apply behavior: file apply still requires a clean plan and matching
+`plan_hash`. `scripts/biber_agent_client.py` now displays the review status,
+readiness, warnings, and blockers in the concise workspace-edit plan summary.
+Focused tests cover ready multi-file plans and blocked rejected plans.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
