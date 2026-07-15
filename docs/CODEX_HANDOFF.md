@@ -213,6 +213,15 @@ apply behavior: file apply still requires a clean plan and matching
 `plan_hash`. `scripts/biber_agent_client.py` now displays the review status,
 readiness, warnings, and blockers in the concise workspace-edit plan summary.
 Focused tests cover ready multi-file plans and blocked rejected plans.
+Twenty-third BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py` now propagates workspace edit plan review
+metadata into `agent_report.edit`. Local MVP-loop artifacts can now report
+`review_status`, `ready_for_apply`, risk and operation counts, warnings, and
+hard blockers alongside planned/applied/changed edit counts. The bounded repair
+prompt report snippet also includes the edit review status when present, so
+local repair attempts can distinguish hash-guarded-ready plans from blocked
+plans without opening the full edit-plan payload. This remains CPU-local and
+does not call OpenAI mentor, train, or use GPU.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

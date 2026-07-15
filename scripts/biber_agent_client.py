@@ -1189,6 +1189,7 @@ def build_mvp_loop_agent_report(payload: Mapping[str, Any]) -> dict[str, Any]:
     edit_apply = require_mapping(steps.get("edit_apply"))
     test_run = require_mapping(steps.get("test_run"))
     diagnosis = require_mapping(steps.get("test_diagnosis"))
+    edit_review = require_mapping(edit_plan.get("review"))
 
     planned = [
         item for item in require_list(edit_plan.get("planned")) if isinstance(item, dict)
@@ -1260,6 +1261,16 @@ def build_mvp_loop_agent_report(payload: Mapping[str, Any]) -> dict[str, Any]:
             "applied_count": len(applied),
             "changed_count": len(changed),
             "ok": edit_apply.get("ok") if edit_apply else edit_plan.get("ok"),
+            "review_status": edit_review.get("review_status"),
+            "ready_for_apply": edit_review.get("ready_for_apply"),
+            "risk_counts": edit_review.get("risk_counts") or {},
+            "operation_counts": edit_review.get("operation_counts") or {},
+            "warnings": [
+                str(item) for item in require_list(edit_review.get("warnings"))
+            ],
+            "hard_blockers": [
+                str(item) for item in require_list(edit_review.get("hard_blockers"))
+            ],
         },
         "test": {
             "mode": payload.get("test_mode"),
@@ -1360,7 +1371,9 @@ def build_repair_prompt(
             f"planned={report_edit.get('planned_count', 0)} "
             f"applied={report_edit.get('applied_count', 0)} "
             f"changed={report_edit.get('changed_count', 0)} "
-            f"rejected={report_edit.get('rejected_count', 0)}"
+            f"rejected={report_edit.get('rejected_count', 0)} "
+            f"review={report_edit.get('review_status') or '-'} "
+            f"ready_for_apply={report_edit.get('ready_for_apply')}"
         ),
         (
             "- test: "

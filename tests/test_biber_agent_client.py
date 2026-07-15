@@ -13751,6 +13751,16 @@ def test_run_mvp_loop_local_target_chains_without_api_key(
             "rejected": [],
             "files_touched": 1,
             "summary": "Planned 1 edit.",
+            "review": {
+                "review_status": "ready_for_hash_guarded_apply",
+                "ready_for_apply": True,
+                "risk_counts": {"low": 0, "medium": 1, "high": 0},
+                "operation_counts": {"replace": 0, "create": 1},
+                "warnings": ["creates_new_file:generated/a.txt"],
+                "hard_blockers": [],
+                "required_actions": ["apply_with_matching_plan_hash"],
+                "affected_paths": ["generated/a.txt"],
+            },
         }
 
     def fake_apply_workspace_edit_plan_local_target(
@@ -13881,6 +13891,16 @@ def test_run_mvp_loop_local_target_chains_without_api_key(
     assert result["agent_report"]["edit"]["planned_count"] == 1
     assert result["agent_report"]["edit"]["applied_count"] == 1
     assert result["agent_report"]["edit"]["changed_count"] == 1
+    assert result["agent_report"]["edit"]["review_status"] == (
+        "ready_for_hash_guarded_apply"
+    )
+    assert result["agent_report"]["edit"]["ready_for_apply"] is True
+    assert result["agent_report"]["edit"]["risk_counts"]["medium"] == 1
+    assert result["agent_report"]["edit"]["operation_counts"]["create"] == 1
+    assert result["agent_report"]["edit"]["warnings"] == [
+        "creates_new_file:generated/a.txt"
+    ]
+    assert result["agent_report"]["edit"]["hard_blockers"] == []
     assert result["agent_report"]["test"]["test_id"] == "python-pytest"
     assert result["agent_report"]["test"]["ok"] is False
     assert result["agent_report"]["failure"]["primary_category"] == "assertion_failure"

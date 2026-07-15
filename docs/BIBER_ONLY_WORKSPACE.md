@@ -68,6 +68,9 @@ is for safer human/agent inspection before that guarded apply step.
 Each MVP-loop artifact includes `agent_report`, a compact machine-readable
 status summary with repo state, selected context, edit counts, test result,
 failure summary, and next actions for the following narrow step.
+The report's `edit` section carries workspace edit review metadata when the
+plan provides it, including `review_status`, `ready_for_apply`, risk/operation
+counts, warnings, and blockers.
 When an MVP-loop artifact fails, run `prepare-repair` first. It preserves
 `agent_report` in the repair request and includes the report in the bounded
 local-model repair prompt, with OpenAI mentor still disabled unless explicitly
