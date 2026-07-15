@@ -200,7 +200,10 @@ fn run_serve_readonly(args: &[&str]) -> Result<String, String> {
         enable_local_wallet_signed_submit: config.enable_local_wallet_signed_submit,
         enable_local_block_production: config.enable_local_block_production,
         enable_local_testnet_faucet: config.enable_local_testnet_faucet,
-        faucet_rate_limiter: FaucetRateLimiter::default(),
+        faucet_rate_limiter: FaucetRateLimiter::new(
+            config.faucet_max_per_window,
+            config.faucet_window_ms,
+        ),
     };
     let mut runtime = runtime;
     let listener = TcpListener::bind(config.bind)
@@ -6966,6 +6969,8 @@ struct ServeConfig<'a> {
     enable_local_wallet_signed_submit: bool,
     enable_local_block_production: bool,
     enable_local_testnet_faucet: bool,
+    faucet_max_per_window: usize,
+    faucet_window_ms: u64,
 }
 
 impl<'a> ServeConfig<'a> {
@@ -6982,6 +6987,8 @@ impl<'a> ServeConfig<'a> {
             "--enable-local-wallet-submit-signed",
             "--enable-local-block-production",
             "--enable-local-testnet-faucet",
+            "--faucet-max-per-window",
+            "--faucet-window-ms",
             "--postgres-docker-container",
             "--postgres-database",
             "--postgres-database-url-env",
@@ -7026,6 +7033,26 @@ impl<'a> ServeConfig<'a> {
                 .map(|value| parse_bool_flag("--enable-local-testnet-faucet", value))
                 .transpose()?
                 .unwrap_or(false),
+            faucet_max_per_window: flags
+                .optional("--faucet-max-per-window")
+                .map(|value| {
+                    value.parse::<usize>().map_err(|_| {
+                        format!(
+                            "--faucet-max-per-window must be a non-negative integer, got {value:?}"
+                        )
+                    })
+                })
+                .transpose()?
+                .unwrap_or(FAUCET_RATE_LIMIT_MAX_PER_WINDOW),
+            faucet_window_ms: flags
+                .optional("--faucet-window-ms")
+                .map(|value| {
+                    value.parse::<u64>().map_err(|_| {
+                        format!("--faucet-window-ms must be a non-negative integer, got {value:?}")
+                    })
+                })
+                .transpose()?
+                .unwrap_or(FAUCET_RATE_LIMIT_WINDOW_MS),
         })
     }
 }

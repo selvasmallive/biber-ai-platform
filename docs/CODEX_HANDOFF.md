@@ -544,6 +544,10 @@ the confirmed + pending/draft cascade. Covered by extending the testnet read tes
 (GET /v1/transactions/{hash} returns the faucet transfer's detail). Remaining
 devnet-only read route: mempool detail (empty on a no-pending testnet node anyway;
 touches the with-sources cascade). Everything stays test-only.
+Milestone 3 increment 12 exposed the faucet rate-limit as serve flags:
+`serve-readonly --faucet-max-per-window <n> --faucet-window-ms <ms>` (parsed into
+`ServeConfig`, defaulting to 5 / 60000) build the `FaucetRateLimiter` in
+run_serve_readonly instead of `::default()`. xriq-api: 81 tests still pass.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,
