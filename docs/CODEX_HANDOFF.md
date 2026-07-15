@@ -568,6 +568,23 @@ pool). xriq-node: 74 tests. ALL explorer read routes (status, blocks, block deta
 accounts, account history, overview, transaction list, transaction detail, mempool)
 now serve the testnet genesis on a testnet node; M3 (public testnet) is feature-complete
 for a hardened, test-only faucet + full explorer experience. Everything stays test-only.
+Two forward-looking DESIGN/PLAN docs were then added (design gates, no code/cloud
+executed): `docs/XRIQ_PRODUCTION_CRYPTO_MIGRATION.md` designs the Ed25519
+(`ed25519-dalek`) replacement of `TestOnlySignatureVerifier` — signing hashes
+unchanged, a `SignatureScheme` trait seam, key→address derivation + genesis
+`authority_pubkey` (regenerates the spec hash), non-custodial client-side wallet
+signing, and a 6-phase CI-green plan ending in the mandated AI security review;
+it flags that adding the crate needs crates.io access (not doable in the offline
+sandbox) and that a half-done swap is worse than none, so it is DESIGN ONLY.
+`docs/XRIQ_GCP_TESTNET_TOPOLOGY.md` plans deploying the peer-sync network as a GCP
+multi-node testnet (a seed producer+faucet VM + N follower VMs running
+`peer-sync --network testnet` on a systemd timer), extending `infra/gcp` (a gated
+`testnet` module, VPC-internal :8899 only, no public ingress) and `deploy/gcp`
+(new systemd units), with an operator apply-runbook. BOUNDARIES REAFFIRMED: I author
+IaC/runbooks and design docs; the operator/Codex runs `terraform apply`/`gcloud`
+(no cloud mutations or secrets by me, needs explicit cloud approval); the testnet
+runs test-only signatures and must never bear value; real crypto + legal + security
+audit remain hard gates before any value-bearing use. Everything stays test-only.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,
