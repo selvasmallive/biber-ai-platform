@@ -1,0 +1,13 @@
+[Unit]
+Description=XRIQ testnet follower peer-sync (pull validated blocks from the seed)
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStartPre=-/usr/bin/docker rm -f xriq-peer-sync
+ExecStart=/usr/local/bin/xriq-peer-sync-run.sh
+
+[Install]
+WantedBy=multi-user.target

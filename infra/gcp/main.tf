@@ -105,6 +105,25 @@ module "compute" {
   depends_on = [time_sleep.wait_for_apis]
 }
 
+module "testnet" {
+  source = "./modules/testnet"
+  count  = var.enable_testnet ? 1 : 0
+
+  project_id            = var.project_id
+  name_prefix           = local.name_prefix
+  zone                  = var.zone
+  network_id            = module.network.network_id
+  subnet_id             = module.network.subnet_id
+  machine_type          = var.testnet_machine_type
+  ssh_user              = var.ssh_user
+  ssh_public_key        = var.ssh_public_key
+  service_account_email = module.security.workload_service_account_email
+  labels                = local.labels
+  follower_count        = var.testnet_follower_count
+
+  depends_on = [time_sleep.wait_for_apis]
+}
+
 module "edge" {
   source = "./modules/edge"
   count  = var.enable_public_edge ? 1 : 0

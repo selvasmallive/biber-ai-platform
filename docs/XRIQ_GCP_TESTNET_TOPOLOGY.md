@@ -49,9 +49,10 @@ produces blocks + runs the faucet, and N follower nodes that stay in sync via
   do not produce; they validate every imported block (network isolation via the
   `xriq-testnet` chain id + protocol handshake already enforced).
 
-## Terraform (extend `infra/gcp`)
+## Terraform (`infra/gcp`)
 
-Add a `modules/testnet` (or reuse `modules/compute` with `count`) that provisions:
+`modules/testnet` is authored and wired into the root (gated by `enable_testnet`,
+default false); `terraform validate` passes. It provisions:
 
 - `google_compute_instance` × (1 seed + `var.follower_count` followers), private
   IP only (no external IP; IAP SSH as today), each running `deploy/gcp/vm-bootstrap.sh`.
@@ -66,21 +67,39 @@ Add a `modules/testnet` (or reuse `modules/compute` with `count`) that provision
 Keep the `enable_budget` gate and the git-tracked-only guard conventions used by
 the existing `infra/gcp` and `scripts/xriq_gcp_*_check.py`.
 
-## systemd units (add under `deploy/gcp`)
+## systemd units (`deploy/gcp`)
 
-- `xriq-testnet-node.service` — `xriq-node serve-readonly --network testnet
-  --chain-file /var/lib/xriq/testnet/chain.bin --bind 0.0.0.0:8899
-  [--node-seed <per-vm-seed>] [--peers-file /etc/xriq/testnet-peers]`.
-- `xriq-peer-sync.service` + `.timer` (followers) — `xriq-node peer-sync
-  --network testnet --chain-file …/chain.bin --peer http://<seed>:8899
-  --max-rounds 64` on a short interval (e.g. every 15s), mirroring the existing
-  `xriq-indexer.timer` pattern.
-- `xriq-testnet-faucet.service` (seed, optional) — `xriq-api serve-readonly
-  --network testnet --enable-local-testnet-faucet true
-  --faucet-max-per-window 5 --faucet-window-ms 60000 --chain-file …/chain.bin`.
-- `xriq-testnet-producer.timer` (seed, opt-in) — produces blocks (e.g. via
-  `faucet-dispense` to a burn/sink address, or a future dedicated produce loop),
-  reusing the opt-in pattern of the existing `xriq-producer.timer`.
+Shipped and CI-linted (these fully work with the current binaries):
+
+- `xriq-testnet-node.service` + `bin/xriq-testnet-node-run.sh` — `xriq-node
+  serve-readonly --network testnet --chain-file /data/testnet/chain.bin --bind
+  0.0.0.0:8899` (extra `--node-seed`/`--peers-file` via `XRIQ_TESTNET_NODE_FLAGS`).
+  Serves the testnet read routes and the peer endpoints. Runs on seed + followers.
+- `xriq-peer-sync.service` + `.timer` + `bin/xriq-peer-sync-run.sh` (followers) —
+  `xriq-node peer-sync --network testnet --chain-file … --peer
+  $XRIQ_TESTNET_SEED_URL --max-rounds 64`, a one-shot fired every 15s by the timer
+  (mirrors the `xriq-indexer.timer` pattern).
+
+Env vars are in `deploy/gcp/xriq.env.example` (`XRIQ_TESTNET_*`). The seed URL
+comes from the terraform `testnet_seed_internal_ip` output.
+
+### Faucet over HTTP — deferred (known limitation)
+
+A `xriq-api serve-readonly --network testnet --enable-local-testnet-faucet` unit is
+NOT shipped yet. The functional faucet route works, but `xriq-api`'s startup
+`build_service` builds its read-model with the **devnet** genesis (it is not
+testnet-parametrized). It succeeds on a fresh/empty testnet chain but would fail to
+**restart** once testnet blocks exist (replaying testnet blocks under the devnet
+genesis). Making the api read-model testnet-aware (thread `--network` through
+`build_service`) is the follow-up that unblocks a robust always-on faucet unit.
+Until then the faucet can be run as a short-lived dispense (`xriq-node
+faucet-dispense --chain-file … --to …`) driven on-demand or by a timer on the seed.
+
+### Producer
+
+The seed advances the chain by dispensing (e.g. an opt-in
+`xriq-testnet-producer.timer` running `faucet-dispense` to a sink address) or a
+future dedicated produce loop, reusing the opt-in pattern of `xriq-producer.timer`.
 
 Peer/producer keys and any operator credentials live only in Secret Manager /
 gitignored files — never committed (same rule as the staging-devnet DB password).

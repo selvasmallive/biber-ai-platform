@@ -161,6 +161,24 @@ variable "enable_public_edge" {
   default     = false
 }
 
+variable "enable_testnet" {
+  description = "Provision the multi-node XRIQ testnet (a seed producer+faucet VM and follower peer-sync VMs). Default false; opt in explicitly. TEST-ONLY: nodes are VPC-internal (no public ingress) and run the test-only signature scheme with no monetary value."
+  type        = bool
+  default     = false
+}
+
+variable "testnet_machine_type" {
+  description = "Compute Engine machine type for each testnet node VM."
+  type        = string
+  default     = "e2-small"
+}
+
+variable "testnet_follower_count" {
+  description = "Number of follower nodes that peer-sync from the seed."
+  type        = number
+  default     = 1
+}
+
 variable "api_domain" {
   description = "Fully-qualified domain for the public API edge (required when enable_public_edge is true). Its DNS A record must point at the edge IP output before the managed certificate provisions."
   type        = string

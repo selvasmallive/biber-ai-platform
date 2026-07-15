@@ -44,3 +44,13 @@ output "edge_api_url" {
   description = "Public API URL when the edge is enabled."
   value       = var.enable_public_edge ? module.edge[0].api_url : null
 }
+
+output "testnet_seed_internal_ip" {
+  description = "Internal IP of the testnet seed node (point followers' peer-sync --peer http://<ip>:8899 here). Null when the testnet is disabled."
+  value       = var.enable_testnet ? module.testnet[0].seed_internal_ip : null
+}
+
+output "testnet_follower_internal_ips" {
+  description = "Internal IPs of the testnet follower nodes. Empty when the testnet is disabled."
+  value       = var.enable_testnet ? module.testnet[0].follower_internal_ips : []
+}

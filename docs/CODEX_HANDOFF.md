@@ -585,6 +585,26 @@ IaC/runbooks and design docs; the operator/Codex runs `terraform apply`/`gcloud`
 (no cloud mutations or secrets by me, needs explicit cloud approval); the testnet
 runs test-only signatures and must never bear value; real crypto + legal + security
 audit remain hard gates before any value-bearing use. Everything stays test-only.
+Confirmed the sandbox CAN fetch crates (a scratch `cargo fetch` of `ed25519-dalek =
+"2"` pulled its whole tree, exit 0), so crypto Phase 1 is viable in-environment; not
+started (it is a large security-critical migration awaiting an explicit go).
+Then authored the GCP multi-node testnet IaC + deploy units (author-only; the
+operator runs `terraform apply`). `infra/gcp/modules/testnet` provisions a seed VM +
+`testnet_follower_count` follower VMs (private, no external IP) and a firewall
+allowing peer/read HTTP :8899 ONLY between testnet-tagged nodes (no public ingress);
+wired into the root gated by `enable_testnet` (default false) with
+`testnet_machine_type`/`testnet_follower_count` vars + `testnet_seed_internal_ip`/
+`testnet_follower_internal_ips` outputs. `terraform fmt`+`validate` pass. Deploy
+units under `deploy/gcp`: `xriq-testnet-node.service` (+ `bin/xriq-testnet-node-run.sh`,
+`serve-readonly --network testnet` on :8899, seed+followers) and
+`xriq-peer-sync.service`/`.timer` (+ `bin/xriq-peer-sync-run.sh`, `peer-sync
+--network testnet --peer $XRIQ_TESTNET_SEED_URL` every 15s on followers), plus
+`XRIQ_TESTNET_*` in `xriq.env.example`. KNOWN LIMITATION documented: an always-on
+HTTP faucet unit is NOT shipped because `xriq-api build_service` builds its
+read-model on the DEVNET genesis (not testnet-parametrized) and would fail to
+restart once testnet blocks exist; the fix (thread `--network` through
+`build_service`) is the follow-up, and until then the faucet runs as an on-demand
+`xriq-node faucet-dispense`. Nothing applied to cloud; test-only, no value.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,
