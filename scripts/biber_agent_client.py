@@ -534,7 +534,7 @@ def diagnose_test_failure_local(
             if isinstance(part, str)
         ],
         test_id=str(payload.get("test_id") or ""),
-        max_context_lines=max_context_lines,
+        max_context_lines=max_context_lines if max_context_lines is not None else 80,
     )
 
 

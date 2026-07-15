@@ -158,9 +158,9 @@ python scripts/biber_local_confidence_smoke.py
 
 This combined smoke runs the mocked local OpenAI-compatible provider HTTP smoke,
 the mocked live-provider readiness smoke, the local MVP-loop edit-review smoke,
-and the local repair-loop smoke together. It is the preferred pre-live-provider
-gate before asking for Vast GPU credentials or pointing BIBER at a real local
-Qwen/vLLM endpoint.
+the local MVP-loop failure/repair-hint smoke, and the local repair-loop smoke
+together. It is the preferred pre-live-provider gate before asking for Vast GPU
+credentials or pointing BIBER at a real local Qwen/vLLM endpoint.
 
 To run only the local MVP-loop edit-review smoke:
 
@@ -173,6 +173,17 @@ with two guarded local edits, applies them through the hash-guarded local path,
 and verifies that `agent_report.edit` exposes the deterministic workspace edit
 review metadata. It does not require BIBER API, OpenAI, Vast GPU, or training
 credentials.
+
+To run only the local MVP-loop failure/repair-hint smoke:
+
+```bash
+python scripts/biber_local_mvp_loop_failure_smoke.py
+```
+
+The smoke creates a temporary target repo with a Python syntax failure, runs
+`mvp-loop --local-target-root`, verifies `agent_report.repair_hint`, and runs
+`prepare-repair` to prove the hint is preserved for the next local-model repair
+step. It does not require BIBER API, OpenAI, Vast GPU, or training credentials.
 
 To run only the repair-loop smoke:
 

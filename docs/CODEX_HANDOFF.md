@@ -245,6 +245,15 @@ propagates or derives it for older failed artifacts. Future sessions should
 prefer this hint over raw stdout scraping when preparing the next bounded
 local-model repair step. This remains CPU-local and does not call OpenAI
 mentor, train, or use GPU.
+Twenty-sixth BIBER resume checkpoint on the same branch:
+`scripts/biber_local_mvp_loop_failure_smoke.py` now verifies the failed
+MVP-loop path end to end without API credentials. It creates a temporary target
+repo with a Python syntax failure, runs `mvp-loop --local-target-root`, checks
+`agent_report.repair_hint`, and then runs `prepare-repair` to prove the hint is
+preserved for the next local-model repair request. The combined
+`scripts/biber_local_confidence_smoke.py` now runs both MVP-loop success and
+failure smokes before the local repair-loop smoke. This remains CPU-local and
+does not call OpenAI mentor, train, or use GPU.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

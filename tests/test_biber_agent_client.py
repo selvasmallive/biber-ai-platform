@@ -258,6 +258,9 @@ def test_local_confidence_smoke_runs_provider_and_repair_smokes() -> None:
     assert "biber_local_mvp_loop_smoke.py" in text
     assert "local_mvp_loop" in text
     assert '"mvp_loop"' in text
+    assert "biber_local_mvp_loop_failure_smoke.py" in text
+    assert "local_mvp_loop_failure" in text
+    assert '"mvp_loop_failure"' in text
     assert "biber_local_repair_loop_smoke.py" in text
     assert "biber_local_confidence_smoke" in text
     assert '"external_network_required": False' in text
@@ -5841,6 +5844,21 @@ def test_local_mvp_loop_smoke_script_documents_local_edit_review() -> None:
     assert "--apply-edits" in text
     assert "agent_report" in text
     assert "ready_for_hash_guarded_apply" in text
+    assert '"api_required": False' in text
+    assert '"gpu_required": False' in text
+    assert '"training_allowed": False' in text
+
+
+def test_local_mvp_loop_failure_smoke_script_documents_repair_hint() -> None:
+    script = ROOT / "scripts" / "biber_local_mvp_loop_failure_smoke.py"
+    text = script.read_text(encoding="utf-8")
+
+    assert "mvp-loop" in text
+    assert "prepare-repair" in text
+    assert "--local-target-root" in text
+    assert "agent_report" in text
+    assert "repair_hint" in text
+    assert "ready_for_prepare_repair" in text
     assert '"api_required": False' in text
     assert '"gpu_required": False' in text
     assert '"training_allowed": False' in text
