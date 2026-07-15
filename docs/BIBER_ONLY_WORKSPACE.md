@@ -150,6 +150,10 @@ API credentials.
 When resuming from an artifact directory, run `local-repair-loop-status` first.
 It scans local JSON artifacts, identifies the newest known BIBER repair-loop
 state, and prints the next exact no-API command to run.
+For failed MVP-loop and prepared repair artifacts, the status output surfaces
+the repair-hint status, primary failure category, detected stack, and first
+local repair workflow steps so future sessions can resume without scraping raw
+test output.
 For a quick end-to-end local confidence check after changing this workflow, run:
 
 ```bash

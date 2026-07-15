@@ -4432,6 +4432,11 @@ def local_repair_loop_artifact_record(
 
     repair_request = normalize_mvp_loop_repair_request_artifact(payload)
     if repair_request is not None:
+        agent_report = require_mapping(repair_request.get("agent_report"))
+        repair_hint = require_mapping(repair_request.get("repair_hint"))
+        if not repair_hint:
+            repair_hint = require_mapping(agent_report.get("repair_hint"))
+        failure = require_mapping(repair_request.get("failure"))
         return {
             "path": str(path),
             "artifact_type": "repair_request",
@@ -4441,6 +4446,14 @@ def local_repair_loop_artifact_record(
             "plan_hash": None,
             "test_id": repair_request.get("next_test_id"),
             "target_root": repair_request.get("target_root"),
+            "repair_hint_status": repair_hint.get("status"),
+            "primary_category": repair_hint.get("primary_category")
+            or failure.get("primary_category"),
+            "detected_stack": repair_hint.get("detected_stack")
+            or failure.get("detected_stack"),
+            "repair_next_workflow": [
+                str(item) for item in require_list(repair_hint.get("next_workflow"))
+            ],
             "modified_epoch": modified_epoch,
         }
 
@@ -4474,6 +4487,11 @@ def local_repair_loop_artifact_record(
 
     mvp_loop = normalize_mvp_loop_artifact(payload)
     if mvp_loop is not None:
+        agent_report = require_mapping(mvp_loop.get("agent_report"))
+        if not agent_report:
+            agent_report = build_mvp_loop_agent_report(mvp_loop)
+        repair_hint = require_mapping(agent_report.get("repair_hint"))
+        failure = require_mapping(agent_report.get("failure"))
         return {
             "path": str(path),
             "artifact_type": "mvp_loop",
@@ -4485,6 +4503,14 @@ def local_repair_loop_artifact_record(
                 require_mapping(mvp_loop.get("steps")).get("test_run")
             ).get("test_id"),
             "target_root": mvp_loop.get("target_root"),
+            "repair_hint_status": repair_hint.get("status"),
+            "primary_category": repair_hint.get("primary_category")
+            or failure.get("primary_category"),
+            "detected_stack": repair_hint.get("detected_stack")
+            or failure.get("detected_stack"),
+            "repair_next_workflow": [
+                str(item) for item in require_list(repair_hint.get("next_workflow"))
+            ],
             "modified_epoch": modified_epoch,
         }
 
@@ -14433,6 +14459,22 @@ def format_local_repair_loop_status_summary(payload: Mapping[str, Any]) -> str:
         f"next_reason: {next_step.get('reason', '-')}",
         f"next_command: {command or '-'}",
     ]
+    if (
+        current.get("repair_hint_status")
+        or current.get("primary_category")
+        or current.get("detected_stack")
+    ):
+        workflow = ",".join(
+            str(item)
+            for item in require_list(current.get("repair_next_workflow"))[:3]
+        )
+        lines.append(
+            "repair_hint: "
+            f"status={current.get('repair_hint_status') or '-'} "
+            f"category={current.get('primary_category') or '-'} "
+            f"stack={current.get('detected_stack') or '-'} "
+            f"next={workflow or '-'}"
+        )
     if model_command_alternative:
         lines.append(f"model_command_alternative: {model_command_alternative}")
     return "\n".join(lines)

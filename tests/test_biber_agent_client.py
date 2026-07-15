@@ -5685,6 +5685,80 @@ def test_prepare_local_verify_repair_rejects_verified_chain(tmp_path: Path) -> N
         raise AssertionError("expected verified local chain to be rejected")
 
 
+def test_run_local_repair_loop_status_surfaces_mvp_repair_hint_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local-repair-loop-status should not resolve an API key")
+
+    artifact = tmp_path / "failed-mvp-loop.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "ok": False,
+                "test_ok": False,
+                "target_root": str(tmp_path / "target-repo"),
+                "steps": {
+                    "test_run": {
+                        "test_id": "python-compileall-api",
+                        "ok": False,
+                        "exit_code": 1,
+                        "timed_out": False,
+                        "command": ["python", "-m", "compileall", "app", "src"],
+                        "stdout": "SyntaxError: invalid syntax\n",
+                    },
+                    "test_diagnosis": {
+                        "summary": "Detected compile_error in python output.",
+                        "primary_category": "compile_error",
+                        "detected_stack": "python",
+                        "relevant_output": "SyntaxError: invalid syntax\n",
+                    },
+                },
+                "agent_report": {
+                    "source": "biber_mvp_loop_agent_report_v1",
+                    "status": "test_failed",
+                    "repair_hint": {
+                        "status": "ready_for_prepare_repair",
+                        "primary_category": "compile_error",
+                        "detected_stack": "python",
+                        "next_workflow": [
+                            "prepare-repair",
+                            "local-repair-chain",
+                            "review-local-repair-chain",
+                        ],
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(["--json", "local-repair-loop-status", str(tmp_path)])
+    )
+    result = json.loads(output)
+    summary = client.format_local_repair_loop_status_summary(result)
+
+    assert result["current"]["artifact_type"] == "mvp_loop"
+    assert result["current"]["repair_hint_status"] == "ready_for_prepare_repair"
+    assert result["current"]["primary_category"] == "compile_error"
+    assert result["current"]["detected_stack"] == "python"
+    assert result["current"]["repair_next_workflow"][:3] == [
+        "prepare-repair",
+        "local-repair-chain",
+        "review-local-repair-chain",
+    ]
+    assert result["next_step"]["action"] == "prepare_repair"
+    assert "prepare-repair" in result["next_step"]["command"]
+    assert (
+        "repair_hint: status=ready_for_prepare_repair "
+        "category=compile_error stack=python "
+        "next=prepare-repair,local-repair-chain,review-local-repair-chain"
+    ) in summary
+
+
 def test_run_local_repair_loop_status_points_apply_to_verify_without_api_key(
     monkeypatch,
     tmp_path: Path,
