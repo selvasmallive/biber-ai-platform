@@ -692,7 +692,7 @@ pub fn node_help_text() -> String {
         "  xriq-node account-detail --chain-file <path> --address <address> [--network devnet|testnet] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node account-transactions --chain-file <path> --address <address> [--network devnet|testnet] [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node transaction-list --chain-file <path> [--network devnet|testnet] [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
-        "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
+        "  xriq-node mempool-detail --chain-file <path> [--draft-file <path>] [--pending-file <path>] [--network devnet|testnet] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node peer-blocks-export --chain-file <path> [--from-height <height>] [--limit <count>] [--network devnet|testnet] [--alice-balance <base-units>] [--format json]  (read-only; serves validated blocks for peer sync, also at GET /v1/peer/blocks)",
         "  xriq-node peer-identity --chain-file <path> [--node-seed <string>] [--network devnet|testnet] [--alice-balance <base-units>] [--format json]  (read-only compatibility handshake: network, protocol, tip, node id; also at GET /v1/peer/identity)",
         "  xriq-node peer-peers [--peers-file <path>] [--network devnet|testnet] [--chain-file <path>] [--format json]  (read-only; advertises this node's known peers for discovery; also at GET /v1/peer/peers)",
@@ -977,13 +977,16 @@ pub fn private_devnet_http_response_with_body(
             }
         },
         "/v1/chain/check" => chain_check_http_response(config),
-        "/v1/mempool" => {
-            if let Some(pending_file) = &config.pending_file {
+        "/v1/mempool" => match &config.pending_file {
+            Some(pending_file) if !config.testnet => {
                 pending_mempool_http_response(config, pending_file)
-            } else {
-                runner_json_http_response(private_devnet_http_runner_args("mempool-detail", config))
             }
-        }
+            _ => {
+                let mut args = private_devnet_http_runner_args("mempool-detail", config);
+                push_network_arg(&mut args, config);
+                runner_json_http_response(args)
+            }
+        },
         "/v1/explorer/overview" => {
             let mut args = private_devnet_http_runner_args("explorer-overview", config);
             push_network_arg(&mut args, config);
@@ -3068,6 +3071,20 @@ where
     Ok(explorer.mempool())
 }
 
+// Genesis-aware mempool detail with no pending/draft sources — the testnet path,
+// where nodes carry no persistent pending pool (so this is always empty).
+fn runner_file_mempool_detail_data(
+    chain_file: impl AsRef<Path>,
+    genesis: RunnerGenesis,
+) -> Result<ExplorerMempoolDetail, NodeRunnerError> {
+    let store = FileChainStore::open(chain_file)
+        .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
+    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)
+        .map_err(NodeRunnerError::Node)?;
+    let explorer = ExplorerService::new(node.rpc_service(), node.store());
+    Ok(explorer.mempool())
+}
+
 fn run_status_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
     flags.reject_unknown(&["--chain-file", "--alice-balance", "--network", "--format"])?;
@@ -4193,22 +4210,28 @@ fn run_mempool_detail_command(args: &[String]) -> Result<NodeRunnerOutput, NodeR
         "--draft-file",
         "--pending-file",
         "--alice-balance",
+        "--network",
         "--format",
     ])?;
     let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
     let chain_file = flags.required("--chain-file")?;
     let draft_file = flags.optional("--draft-file");
     let pending_file = flags.optional("--pending-file");
-    let alice_balance = flags
-        .optional("--alice-balance")
-        .map(|value| parse_amount("--alice-balance", value))
-        .transpose()?;
-    let detail = private_devnet_file_mempool_detail_with_sources_data(
-        chain_file,
-        draft_file,
-        pending_file,
-        alice_balance,
-    )?;
+    let genesis = parse_runner_genesis(&flags)?;
+    let detail = match genesis {
+        RunnerGenesis::Devnet(alice_balance) => {
+            private_devnet_file_mempool_detail_with_sources_data(
+                chain_file,
+                draft_file,
+                pending_file,
+                alice_balance,
+            )?
+        }
+        // Testnet nodes carry no pending drafts/pool, so the mempool is empty.
+        RunnerGenesis::Testnet => {
+            runner_file_mempool_detail_data(chain_file, RunnerGenesis::Testnet)?
+        }
+    };
     Ok(match output_format {
         RunnerOutputFormat::Text => NodeRunnerOutput::MempoolDetail(render_mempool(&detail)),
         RunnerOutputFormat::Json => {
@@ -9800,6 +9823,12 @@ mod tests {
         let overview = private_devnet_http_response(&config, "GET", "/v1/explorer/overview");
         assert_eq!(overview.status_code, 200);
         assert!(overview.body.contains("\"command\": \"explorer-overview\""));
+
+        // Mempool detail serves the testnet chain and is empty (no pending pool).
+        let mempool = private_devnet_http_response(&config, "GET", "/v1/mempool");
+        assert_eq!(mempool.status_code, 200);
+        assert!(mempool.body.contains("\"command\": \"mempool-detail\""));
+        assert!(mempool.body.contains("\"pending_count\": 0"));
 
         let transactions = private_devnet_http_response(&config, "GET", "/v1/transactions");
         assert_eq!(transactions.status_code, 200);

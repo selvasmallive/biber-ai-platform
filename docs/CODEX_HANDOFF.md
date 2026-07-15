@@ -556,9 +556,18 @@ top-level `error`/`code`), 429 → the rate-limit `error.message`, else `error.m
 /`error`. The panel already renders `state.error`, so the disabled/rate-limited/
 bad-address states now show meaningful text rather than "HTTP 403". The static check
 marker was updated (`acceptedStatuses: [200, 201]` → `faucetErrorMessage`);
-`npm run check` (incl. key-safety) and `npm run build` pass. With increments 10-13
-the M3 read/faucet polish is essentially done; the only remaining devnet-only read
-route is mempool detail (empty on a testnet node). Everything stays test-only.
+`npm run check` (incl. key-safety) and `npm run build` pass.
+Milestone 3 increment 14 converted the last read route — mempool detail — to testnet.
+A genesis-aware `runner_file_mempool_detail_data(chain, genesis)` (no pending/draft
+sources) backs the testnet path; `run_mempool_detail_command` gained `--network`
+(testnet → the no-sources core, devnet → the existing with-sources cascade) and the
+`/v1/mempool` route bypasses the devnet pending branch + passes `--network testnet`
+when the server is testnet. Covered by extending the testnet read test (GET /v1/mempool
+→ 200, `mempool-detail`, `pending_count: 0` — empty, as testnet nodes carry no pending
+pool). xriq-node: 74 tests. ALL explorer read routes (status, blocks, block detail,
+accounts, account history, overview, transaction list, transaction detail, mempool)
+now serve the testnet genesis on a testnet node; M3 (public testnet) is feature-complete
+for a hardened, test-only faucet + full explorer experience. Everything stays test-only.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,
