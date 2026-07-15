@@ -386,7 +386,7 @@ def _resolve_edit_path(raw_path: str, root_path: Path) -> Path:
         raise WorkspaceEditError("Workspace edit path is empty or invalid.")
 
     requested = Path(raw_path)
-    if requested.is_absolute() or requested.drive:
+    if requested.is_absolute() or requested.drive or _has_windows_drive_prefix(raw_path):
         raise WorkspaceEditError(f"Workspace edit path must be workspace-relative: {raw_path}")
     if _is_denied_edit_path(requested):
         raise WorkspaceEditError(f"Workspace edit path is not allowed: {raw_path}")
@@ -409,6 +409,10 @@ def _is_denied_edit_path(path: Path) -> bool:
         or name in DENIED_NAMES
         or any(name.endswith(suffix) for suffix in DENIED_EDIT_SUFFIXES)
     )
+
+
+def _has_windows_drive_prefix(raw_path: str) -> bool:
+    return len(raw_path) >= 2 and raw_path[0].isalpha() and raw_path[1] == ":"
 
 
 def _result(

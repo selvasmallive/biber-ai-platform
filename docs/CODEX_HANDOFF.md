@@ -193,6 +193,16 @@ provider model, base URL, lifecycle, provider id/type, and selection source.
 a no-network dry run in addition to the localhost mock HTTP call. This keeps
 providers swappable and reduces the risk of sending logical API model IDs
 directly to vLLM when the live endpoint expects a served alias.
+Twenty-first BIBER resume checkpoint on the same branch:
+repo-context and safe-edit path handling have a narrow local hardening pass.
+`src/biber_api/repo_context.py` and the legacy `app/repo_context.py` now reject
+Windows drive-relative paths such as `C:secret.txt` on every OS and skip
+symlinked files/directories during repo scanning so context selection cannot
+wander outside the target repo through a linked folder. `src/biber_api/workspace_edit.py`
+and the legacy `app/workspace_edit.py` now apply the same OS-independent
+drive-prefix rejection for edit targets. Focused tests cover repo-context drive
+rejection, symlink-scan skipping when symlinks are available, and workspace-edit
+drive rejection. No GPU, OpenAI mentor, training, or API auth is involved.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

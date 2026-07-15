@@ -112,6 +112,23 @@ def test_workspace_edit_rejects_path_escape(tmp_path: Path) -> None:
         raise AssertionError("Expected path escape to be rejected")
 
 
+def test_workspace_edit_rejects_windows_drive_relative_path(tmp_path: Path) -> None:
+    try:
+        apply_workspace_edit(
+            path="C:outside.txt",
+            old_text="old",
+            new_text="new",
+            expected_replacements=1,
+            create_if_missing=False,
+            dry_run=False,
+            settings=make_settings(tmp_path),
+        )
+    except WorkspaceEditError as exc:
+        assert "workspace-relative" in str(exc)
+    else:
+        raise AssertionError("Expected drive-relative path to be rejected")
+
+
 def test_workspace_edit_rejects_secret_path(tmp_path: Path) -> None:
     try:
         apply_workspace_edit(

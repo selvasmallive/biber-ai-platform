@@ -348,7 +348,7 @@ def _resolve_requested_path(raw_path: str, root_path: Path) -> Path:
         raise RepoContextError("Repo context path is empty or invalid.")
 
     requested = Path(raw_path)
-    if requested.is_absolute():
+    if requested.is_absolute() or requested.drive or _has_windows_drive_prefix(raw_path):
         raise RepoContextError(f"Repo context path must be workspace-relative: {raw_path}")
     if _is_denied_path(requested):
         raise RepoContextError(f"Repo context path is not allowed: {raw_path}")
@@ -374,6 +374,10 @@ def _is_denied_path(path: Path) -> bool:
         or name in DENIED_NAMES
         or any(name.endswith(suffix) for suffix in DENIED_SUFFIXES)
     )
+
+
+def _has_windows_drive_prefix(raw_path: str) -> bool:
+    return len(raw_path) >= 2 and raw_path[0].isalpha() and raw_path[1] == ":"
 
 
 def _read_context_file(candidate: Path, *, root_path: Path, max_bytes: int) -> tuple[str, int]:
@@ -539,6 +543,8 @@ def _iter_repo_files(root_path: Path, *, max_scan_files: int) -> list[Path]:
             try:
                 relative = child.relative_to(root_path)
             except ValueError:
+                continue
+            if child.is_symlink():
                 continue
             if _is_denied_path(relative):
                 continue

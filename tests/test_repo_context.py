@@ -361,3 +361,38 @@ def test_chat_service_injects_repo_context_into_local_prompt(tmp_path: Path) -> 
     assert model_id == "biber-dev-core-v1"
     assert "--- FILE: xriq/wallet.rs" in system_prompt
     assert "pub fn sign" in system_prompt
+
+
+def test_repo_context_rejects_windows_drive_relative_path(tmp_path: Path) -> None:
+    with pytest.raises(RepoContextError, match="workspace-relative"):
+        build_repo_context_message(
+            ["C:secret.txt"],
+            root=str(tmp_path),
+            max_files=4,
+            max_bytes_per_file=1000,
+            max_total_bytes=1000,
+        )
+
+
+def test_repo_context_scan_does_not_follow_symlinked_directories(
+    tmp_path: Path,
+) -> None:
+    local_readme = tmp_path / "README.md"
+    local_readme.write_text("local repo\n", encoding="utf-8")
+    outside = tmp_path.parent / f"{tmp_path.name}-outside"
+    outside.mkdir(exist_ok=True)
+    (outside / "outside.py").write_text("SECRET = 'outside'\n", encoding="utf-8")
+    link = tmp_path / "linked-outside"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are unavailable in this environment")
+
+    plan = plan_repo_context(
+        root=str(tmp_path),
+        instruction="outside secret",
+        max_files=8,
+    )
+
+    assert "README.md" in plan["selected_paths"]
+    assert all("linked-outside" not in path for path in plan["selected_paths"])
