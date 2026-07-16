@@ -743,6 +743,20 @@ def test_run_github_dry_runs_do_not_resolve_api_key(
     assert pr_result["artifact_path"] == str(pr_artifact)
     assert json.loads(pr_artifact.read_text(encoding="utf-8")) == pr_result
 
+    save_summary = client.run(
+        client.parse_args(["show-github-dry-run", str(save_artifact)])
+    )
+    pr_summary = client.run(
+        client.parse_args(["show-github-dry-run", str(pr_artifact)])
+    )
+
+    assert "BIBER GitHub save dry-run" in save_summary
+    assert "github_request_sent: False" in save_summary
+    assert "path: generated/example.ts" in save_summary
+    assert "BIBER GitHub pull request dry-run" in pr_summary
+    assert "github_request_sent: False" in pr_summary
+    assert "head: biber/generated-example" in pr_summary
+
 
 def test_run_mvp_loop_can_include_github_dry_run_without_api_key(
     monkeypatch,

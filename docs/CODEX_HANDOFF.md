@@ -352,6 +352,12 @@ standalone `scripts/biber_agent_client.py save-github --dry-run` and
 previews can be saved as JSON artifacts. The dry-runs still avoid API-key
 resolution, GitHub requests, OpenAI mentor calls, GPU, and training; live
 server-backed save/PR behavior remains unchanged.
+Thirty-eighth BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py show-github-dry-run <artifact>` now summarizes
+saved standalone GitHub dry-run artifacts for both save and PR payloads. It
+validates the artifact source and uses the existing dry-run formatters, without
+resolving API credentials or calling GitHub, OpenAI mentor, GPU, training, or
+live model endpoints.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

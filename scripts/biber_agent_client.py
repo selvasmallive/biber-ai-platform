@@ -16638,6 +16638,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Optional JSON artifact path for dry-run output.",
     )
 
+    show_github_dry_run = subparsers.add_parser(
+        "show-github-dry-run",
+        help="Summarize a saved save-github/create-pr --dry-run JSON artifact.",
+    )
+    show_github_dry_run.add_argument("artifact")
+
     mvp_loop = subparsers.add_parser(
         "mvp-loop",
         help=(
@@ -18073,6 +18079,28 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def run(args: argparse.Namespace) -> str:
+    if args.command == "show-github-dry-run":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="GitHub dry-run artifact",
+        )
+        source = artifact.get("source")
+        if source == "biber_github_save_dry_run":
+            return (
+                json.dumps(artifact, indent=2, sort_keys=True)
+                if args.print_json
+                else format_github_save_dry_run_summary(artifact)
+            )
+        if source == "biber_github_pull_request_dry_run":
+            return (
+                json.dumps(artifact, indent=2, sort_keys=True)
+                if args.print_json
+                else format_github_pull_request_dry_run_summary(artifact)
+            )
+        raise BiberAgentClientError(
+            "GitHub dry-run artifact must have source "
+            "biber_github_save_dry_run or biber_github_pull_request_dry_run."
+        )
     if args.command == "show-mvp-loop":
         artifact = load_json_artifact(args.artifact, label="mvp-loop artifact")
         normalized = normalize_mvp_loop_artifact(artifact)
