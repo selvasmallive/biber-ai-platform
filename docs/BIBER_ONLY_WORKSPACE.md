@@ -176,6 +176,16 @@ For a quick end-to-end local confidence check after changing this workflow, run:
 python scripts/biber_local_confidence_smoke.py
 ```
 
+To save the confidence result and summarize it later without rerunning the full
+gate:
+
+```bash
+python scripts/biber_local_confidence_smoke.py \
+  --output /workspace/outputs/biber-local-confidence-smoke.json
+python scripts/biber_agent_client.py show-confidence-smoke \
+  /workspace/outputs/biber-local-confidence-smoke.json
+```
+
 This combined smoke runs the mocked local OpenAI-compatible provider HTTP smoke,
 the mocked live-provider readiness smoke, the local MVP-loop edit-review smoke,
 the local MVP-loop failure/repair-hint smoke, the real-checkout MVP-loop

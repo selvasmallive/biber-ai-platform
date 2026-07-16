@@ -496,6 +496,10 @@ python scripts/biber_agent_client.py mvp-loop \
   --output /workspace/outputs/biber-mvp-loop.json
 python scripts/biber_agent_client.py show-mvp-loop \
   /workspace/outputs/biber-mvp-loop.json
+python scripts/biber_local_confidence_smoke.py \
+  --output /workspace/outputs/biber-local-confidence-smoke.json
+python scripts/biber_agent_client.py show-confidence-smoke \
+  /workspace/outputs/biber-local-confidence-smoke.json
 python scripts/biber_agent_client.py list-mvp-loops \
   /workspace/outputs \
   --limit 10

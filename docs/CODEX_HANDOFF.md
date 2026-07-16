@@ -374,6 +374,14 @@ standalone GitHub dry-run artifact workflow end to end:
 `github_dry_run_artifacts` summary. This remains CPU-local and does not resolve
 API credentials or call GitHub, OpenAI mentor, GPU, training, the BIBER API, or
 live model endpoints.
+Forty-first BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py show-confidence-smoke <artifact>` now summarizes
+saved `scripts/biber_local_confidence_smoke.py --output` artifacts without
+rerunning the full gate. It reports total/failed checks, no-API/no-GPU/no-mentor
+flags, MVP-loop status, verified repair/GitHub dry-run status, standalone
+GitHub dry-run artifact status, and repair-loop status. This is CPU-local and
+does not resolve API credentials or call GitHub, OpenAI mentor, GPU, training,
+the BIBER API, or live model endpoints.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

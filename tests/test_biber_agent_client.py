@@ -283,6 +283,72 @@ def test_local_confidence_smoke_runs_provider_and_repair_smokes() -> None:
     assert '"training_allowed": False' in text
 
 
+def test_run_show_confidence_smoke_summarizes_saved_artifact(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "confidence-smoke.json"
+    payload = {
+        "source": "biber_local_confidence_smoke",
+        "ok": True,
+        "api_required": False,
+        "gpu_required": False,
+        "mentor_used": False,
+        "training_allowed": False,
+        "checks": [
+            {
+                "name": "local_openai_provider_http",
+                "source": "biber_local_openai_provider_http_smoke",
+                "ok": True,
+            },
+            {
+                "name": "local_github_dry_run_artifacts",
+                "source": "biber_local_github_dry_run_artifacts_smoke",
+                "ok": True,
+            },
+        ],
+        "mvp_loop": {
+            "agent_report_status": "ok",
+            "edit_review_status": "ready_for_hash_guarded_apply",
+            "test_ok": True,
+        },
+        "mvp_loop_full_repair": {
+            "verification_status": "verified",
+            "status_next_action": "human_review_verified_fix",
+        },
+        "verified_repair_github_dry_run": {
+            "github_request_sent": False,
+            "mvp_loop_github_dry_run": True,
+        },
+        "github_dry_run_artifacts": {
+            "matched": 2,
+            "dry_run_types": ["pull_request", "save"],
+            "github_request_sent": False,
+        },
+        "repair_loop": {
+            "chain_status": "verified",
+            "verification_ok": True,
+        },
+    }
+    artifact.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+
+    output = client.run(
+        client.parse_args(["show-confidence-smoke", str(artifact)])
+    )
+    result = json.loads(
+        client.run(client.parse_args(["--json", "show-confidence-smoke", str(artifact)]))
+    )
+
+    assert result["source"] == "biber_local_confidence_smoke"
+    assert result["failed_checks"] == []
+    assert "BIBER local confidence smoke" in output
+    assert "checks: 2" in output
+    assert "failed_checks: 0" in output
+    assert "gpu_required: False" in output
+    assert "local_github_dry_run_artifacts" in output
+    assert "github_dry_run_artifacts: matched=2" in output
+    assert "repair_loop: chain_status=verified" in output
+
+
 def test_format_capabilities_summary_includes_presets_and_tests() -> None:
     output = client.format_capabilities_summary(sample_capabilities())
 

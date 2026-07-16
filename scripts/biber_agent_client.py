@@ -13895,6 +13895,108 @@ def format_github_dry_run_artifact_list_summary(payload: Mapping[str, Any]) -> s
     return "\n".join(lines)
 
 
+def normalize_confidence_smoke_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") != "biber_local_confidence_smoke":
+        return None
+    checks = [
+        dict(check)
+        for check in require_list(payload.get("checks"))
+        if isinstance(check, dict)
+    ]
+    return {
+        **dict(payload),
+        "checks": checks,
+        "failed_checks": [
+            check
+            for check in checks
+            if check.get("ok") is not True
+        ],
+    }
+
+
+def format_confidence_smoke_artifact_summary(payload: Mapping[str, Any]) -> str:
+    checks = [
+        item
+        for item in require_list(payload.get("checks"))
+        if isinstance(item, dict)
+    ]
+    failed_checks = [
+        item
+        for item in require_list(payload.get("failed_checks"))
+        if isinstance(item, dict)
+    ]
+    github_dry_run_artifacts = require_mapping(
+        payload.get("github_dry_run_artifacts")
+    )
+    verified_repair_github = require_mapping(
+        payload.get("verified_repair_github_dry_run")
+    )
+    mvp_loop = require_mapping(payload.get("mvp_loop"))
+    mvp_loop_full_repair = require_mapping(payload.get("mvp_loop_full_repair"))
+    repair_loop = require_mapping(payload.get("repair_loop"))
+
+    lines = [
+        "BIBER local confidence smoke",
+        f"ok: {payload.get('ok') is True}",
+        f"checks: {len(checks)}",
+        f"failed_checks: {len(failed_checks)}",
+        f"api_required: {payload.get('api_required') is True}",
+        f"gpu_required: {payload.get('gpu_required') is True}",
+        f"mentor_used: {payload.get('mentor_used') is True}",
+        f"training_allowed: {payload.get('training_allowed') is True}",
+    ]
+    for check in checks:
+        lines.append(
+            " ".join(
+                [
+                    f"- {check.get('name', '-')}",
+                    f"ok={check.get('ok')}",
+                    f"source={check.get('source', '-')}",
+                ]
+            )
+        )
+    if failed_checks:
+        lines.append("failed_check_names:")
+        lines.extend(f"- {check.get('name', '-')}" for check in failed_checks)
+    if mvp_loop:
+        lines.append(
+            "mvp_loop: "
+            f"status={mvp_loop.get('agent_report_status', '-')} "
+            f"edit_review={mvp_loop.get('edit_review_status', '-')} "
+            f"test_ok={mvp_loop.get('test_ok')}"
+        )
+    if mvp_loop_full_repair:
+        lines.append(
+            "mvp_loop_full_repair: "
+            f"verification={mvp_loop_full_repair.get('verification_status', '-')} "
+            f"next={mvp_loop_full_repair.get('status_next_action', '-')}"
+        )
+    if verified_repair_github:
+        lines.append(
+            "verified_repair_github_dry_run: "
+            f"github_request_sent={verified_repair_github.get('github_request_sent')} "
+            f"mvp_loop_github_dry_run={verified_repair_github.get('mvp_loop_github_dry_run')}"
+        )
+    if github_dry_run_artifacts:
+        lines.append(
+            "github_dry_run_artifacts: "
+            f"matched={github_dry_run_artifacts.get('matched', 0)} "
+            f"types={','.join(str(item) for item in require_list(github_dry_run_artifacts.get('dry_run_types')))} "
+            f"github_request_sent={github_dry_run_artifacts.get('github_request_sent')}"
+        )
+    if repair_loop:
+        lines.append(
+            "repair_loop: "
+            f"chain_status={repair_loop.get('chain_status', '-')} "
+            f"verification_ok={repair_loop.get('verification_ok')}"
+        )
+    if payload.get("artifact_path"):
+        lines.append(f"artifact_path: {payload.get('artifact_path')}")
+    return "\n".join(lines)
+
+
 def format_mvp_loop_summary(payload: Mapping[str, Any]) -> str:
     steps = require_mapping(payload.get("steps"))
     lines = [
@@ -16796,6 +16898,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     list_github_dry_runs.add_argument("--limit", type=int, default=20)
     list_github_dry_runs.add_argument("--output")
 
+    show_confidence_smoke = subparsers.add_parser(
+        "show-confidence-smoke",
+        help="Summarize a saved biber_local_confidence_smoke.py JSON artifact.",
+    )
+    show_confidence_smoke.add_argument("artifact")
+
     mvp_loop = subparsers.add_parser(
         "mvp-loop",
         help=(
@@ -18266,6 +18374,22 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
             else format_github_dry_run_artifact_list_summary(artifacts)
+        )
+    if args.command == "show-confidence-smoke":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="confidence smoke artifact",
+        )
+        normalized = normalize_confidence_smoke_artifact(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "confidence smoke artifact must have source "
+                "biber_local_confidence_smoke."
+            )
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_confidence_smoke_artifact_summary(normalized)
         )
     if args.command == "show-mvp-loop":
         artifact = load_json_artifact(args.artifact, label="mvp-loop artifact")
