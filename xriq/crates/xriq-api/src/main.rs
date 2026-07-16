@@ -25,7 +25,7 @@ use xriq_core::{
     PRIVATE_DEVNET_MIN_FEE_BASE_UNITS,
 };
 use xriq_crypto::transaction_hash;
-use xriq_indexer::index_private_devnet_store;
+use xriq_indexer::{index_private_devnet_store, index_public_testnet_store};
 use xriq_iso20022::{
     account_statement_preview, payment_initiation_preview, payment_status_preview,
     XriqIsoAccountHistory, XriqIsoAccountTransaction, XriqIsoTransaction,
@@ -123,7 +123,12 @@ where
 fn run_request(args: &[&str]) -> Result<String, String> {
     let config = RequestConfig::parse(args)?;
     eprintln!("xriq-api request environment={}", config.environment);
-    let service = build_service(config.chain_file, config.pending_file, config.alice_balance)?;
+    let service = build_service(
+        config.chain_file,
+        config.pending_file,
+        config.alice_balance,
+        config.testnet,
+    )?;
     let mut response = None;
     if config.enable_local_wallet_submit {
         response = maybe_local_wallet_submit_http_response(
@@ -188,7 +193,12 @@ fn run_request_postgres(args: &[&str]) -> Result<String, String> {
 
 fn run_serve_readonly(args: &[&str]) -> Result<String, String> {
     let config = ServeConfig::parse(args)?;
-    let service = build_service(config.chain_file, config.pending_file, config.alice_balance)?;
+    let service = build_service(
+        config.chain_file,
+        config.pending_file,
+        config.alice_balance,
+        config.testnet,
+    )?;
     let runtime = LocalApiRuntime {
         service,
         postgres_read_model: config.postgres_read_model,
@@ -235,6 +245,7 @@ fn build_service(
     chain_file: &str,
     pending_file: Option<&str>,
     alice_balance: Option<XriqAmount>,
+    testnet: bool,
 ) -> Result<XriqApiService, String> {
     if !Path::new(chain_file).exists() {
         return Err(format!(
@@ -243,20 +254,29 @@ fn build_service(
     }
     let store = FileChainStore::open(chain_file)
         .map_err(|error| format!("could not open chain file {chain_file}: {error:?}"))?;
-    let snapshot = index_private_devnet_store(&store, alice_balance)
-        .map_err(|error| format!("index replay failed: {error}"))?;
+    // Testnet nodes replay under the public testnet genesis and carry no pending
+    // pool; devnet keeps the alice-funded genesis + pending file.
+    let snapshot = if testnet {
+        index_public_testnet_store(&store)
+    } else {
+        index_private_devnet_store(&store, alice_balance)
+    }
+    .map_err(|error| format!("index replay failed: {error}"))?;
     let expected_chain_id = snapshot.chain_id.clone();
     let mut service = XriqApiService::new(snapshot);
-    if let Some(pending_file) = pending_file {
-        let pending_path = Path::new(pending_file);
-        if pending_path.exists() {
-            let pending_text = fs::read_to_string(pending_path)
-                .map_err(|error| format!("could not read pending file {pending_file}: {error}"))?;
-            let pending_entries =
-                pending_mempool_entries_from_tsv(&pending_text, &expected_chain_id).map_err(
-                    |error| format!("could not parse pending file {pending_file}: {error}"),
-                )?;
-            service = service.with_pending_mempool_entries(pending_entries);
+    if !testnet {
+        if let Some(pending_file) = pending_file {
+            let pending_path = Path::new(pending_file);
+            if pending_path.exists() {
+                let pending_text = fs::read_to_string(pending_path).map_err(|error| {
+                    format!("could not read pending file {pending_file}: {error}")
+                })?;
+                let pending_entries =
+                    pending_mempool_entries_from_tsv(&pending_text, &expected_chain_id).map_err(
+                        |error| format!("could not parse pending file {pending_file}: {error}"),
+                    )?;
+                service = service.with_pending_mempool_entries(pending_entries);
+            }
         }
     }
     Ok(service)
@@ -475,10 +495,13 @@ fn refresh_runtime_after_local_mutation(
     if response.status_code != 201 {
         return None;
     }
+    // Only devnet mutations (wallet/block-production) trigger a refresh; the
+    // testnet faucet path returns without refreshing, so this is always devnet.
     match build_service(
         &runtime.chain_file,
         runtime.pending_file.as_deref(),
         runtime.alice_balance,
+        false,
     ) {
         Ok(service) => {
             runtime.service = service;
@@ -6791,6 +6814,7 @@ struct RequestConfig<'a> {
     enable_local_wallet_signed_submit: bool,
     enable_local_block_production: bool,
     enable_local_testnet_faucet: bool,
+    testnet: bool,
 }
 
 impl<'a> RequestConfig<'a> {
@@ -6803,6 +6827,7 @@ impl<'a> RequestConfig<'a> {
             "--method",
             "--target",
             "--environment",
+            "--network",
             "--enable-local-wallet-submit",
             "--enable-local-wallet-send",
             "--enable-local-wallet-submit-signed",
@@ -6844,6 +6869,7 @@ impl<'a> RequestConfig<'a> {
                 .map(|value| parse_bool_flag("--enable-local-testnet-faucet", value))
                 .transpose()?
                 .unwrap_or(false),
+            testnet: parse_network_testnet(&flags)?,
         })
     }
 }
@@ -6971,6 +6997,7 @@ struct ServeConfig<'a> {
     enable_local_testnet_faucet: bool,
     faucet_max_per_window: usize,
     faucet_window_ms: u64,
+    testnet: bool,
 }
 
 impl<'a> ServeConfig<'a> {
@@ -6982,6 +7009,7 @@ impl<'a> ServeConfig<'a> {
             "--alice-balance",
             "--bind",
             "--environment",
+            "--network",
             "--enable-local-wallet-submit",
             "--enable-local-wallet-send",
             "--enable-local-wallet-submit-signed",
@@ -7053,6 +7081,7 @@ impl<'a> ServeConfig<'a> {
                 })
                 .transpose()?
                 .unwrap_or(FAUCET_RATE_LIMIT_WINDOW_MS),
+            testnet: parse_network_testnet(&flags)?,
         })
     }
 }
@@ -7062,6 +7091,18 @@ fn parse_bool_flag(flag: &'static str, value: &str) -> Result<bool, String> {
         "true" | "1" | "yes" => Ok(true),
         "false" | "0" | "no" => Ok(false),
         _ => Err(format!("{flag} must be true or false, got {value:?}")),
+    }
+}
+
+// `--network devnet|testnet` (default devnet). Returns true for testnet, which
+// makes the read-model replay under the public testnet genesis.
+fn parse_network_testnet(flags: &FlagParser) -> Result<bool, String> {
+    match flags.optional("--network") {
+        None | Some("devnet") => Ok(false),
+        Some("testnet") => Ok(true),
+        Some(other) => Err(format!(
+            "--network must be devnet or testnet, got {other:?}"
+        )),
     }
 }
 
@@ -7360,6 +7401,29 @@ mod tests {
     }
 
     #[test]
+    fn build_service_is_testnet_aware() {
+        let chain = temp_store_path("build-service-testnet");
+        let chain_str = chain.to_string_lossy().to_string();
+        // Produce a testnet block via the faucet.
+        let dispensed =
+            local_testnet_faucet_http_response(Some("to=xriqdev1recipient00000000000"), &chain_str);
+        assert_eq!(dispensed.status_code, 201);
+
+        // Testnet build_service replays the testnet chain (chain_id xriq-testnet,
+        // height 1) and can be rebuilt (restart) without failing — the fix that
+        // unblocks an always-on testnet faucet/read service.
+        let service = build_service(&chain_str, None, None, true).unwrap();
+        assert_eq!(service.network().network, "xriq-testnet");
+        assert_eq!(service.network().current_height, 1);
+        assert!(build_service(&chain_str, None, None, true).is_ok());
+
+        // Building the same testnet chain as devnet fails (genesis/chain-id mismatch).
+        assert!(build_service(&chain_str, None, None, false).is_err());
+
+        let _ = std::fs::remove_file(chain);
+    }
+
+    #[test]
     fn faucet_rate_limiter_bounds_per_ip_bursts() {
         let mut limiter = FaucetRateLimiter::new(2, 1_000);
         // Two requests from one IP inside the window are allowed; the third is not.
@@ -7438,6 +7502,7 @@ mod tests {
             &path_text,
             Some(&pending_text),
             Some(XriqAmount::from_base_units(100)),
+            false,
         )
         .unwrap();
         (path, pending_path, service)
@@ -8076,6 +8141,7 @@ mod tests {
             &path_text,
             Some(&pending_text),
             Some(XriqAmount::from_base_units(100)),
+            false,
         )
         .unwrap();
         let mut runtime = LocalApiRuntime {
@@ -8237,6 +8303,7 @@ mod tests {
             &path_text,
             Some(&pending_text),
             Some(XriqAmount::from_base_units(100)),
+            false,
         )
         .unwrap();
         let mut runtime = LocalApiRuntime {
@@ -8411,6 +8478,7 @@ mod tests {
             &path_text,
             Some(&pending_text),
             Some(XriqAmount::from_base_units(100)),
+            false,
         )
         .unwrap();
         let mut runtime = LocalApiRuntime {

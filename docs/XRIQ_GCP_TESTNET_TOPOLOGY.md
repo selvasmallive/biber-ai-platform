@@ -83,17 +83,22 @@ Shipped and CI-linted (these fully work with the current binaries):
 Env vars are in `deploy/gcp/xriq.env.example` (`XRIQ_TESTNET_*`). The seed URL
 comes from the terraform `testnet_seed_internal_ip` output.
 
-### Faucet over HTTP — deferred (known limitation)
+### Faucet + read API over HTTP (seed)
 
-A `xriq-api serve-readonly --network testnet --enable-local-testnet-faucet` unit is
-NOT shipped yet. The functional faucet route works, but `xriq-api`'s startup
-`build_service` builds its read-model with the **devnet** genesis (it is not
-testnet-parametrized). It succeeds on a fresh/empty testnet chain but would fail to
-**restart** once testnet blocks exist (replaying testnet blocks under the devnet
-genesis). Making the api read-model testnet-aware (thread `--network` through
-`build_service`) is the follow-up that unblocks a robust always-on faucet unit.
-Until then the faucet can be run as a short-lived dispense (`xriq-node
-faucet-dispense --chain-file … --to …`) driven on-demand or by a timer on the seed.
+`xriq-api serve-readonly --network testnet --enable-local-testnet-faucet` now ships
+as `xriq-testnet-faucet.service` (+ `bin/xriq-testnet-faucet-run.sh`), because
+`build_service` is testnet-aware: it replays the public testnet genesis and
+**restarts cleanly** with testnet blocks present. It serves the faucet
+(`POST /api/v1/faucet`, balance-cap + per-IP rate limited) plus the read API on
+`:8091`. Faucet policy via `XRIQ_TESTNET_FAUCET_MAX_PER_WINDOW` /
+`_WINDOW_MS`.
+
+Operational note: the seed's `xriq-node serve-readonly` (peer/read `:8899`) and
+`xriq-api` faucet (`:8091`) both read `/data/testnet/chain.bin`, and the faucet
+appends blocks on dispense. `FileChainStore` is append-only and readers replay on
+each open (per request), so a reader that races an in-progress append simply retries
+on the next request/tick — acceptable for a TEST-ONLY testnet. Treat the faucet as
+the seed's single chain-file writer.
 
 ### Producer
 

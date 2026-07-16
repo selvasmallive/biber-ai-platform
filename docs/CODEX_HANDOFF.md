@@ -605,6 +605,20 @@ read-model on the DEVNET genesis (not testnet-parametrized) and would fail to
 restart once testnet blocks exist; the fix (thread `--network` through
 `build_service`) is the follow-up, and until then the faucet runs as an on-demand
 `xriq-node faucet-dispense`. Nothing applied to cloud; test-only, no value.
+FOLLOW-UP DONE: `xriq-api build_service` is now testnet-aware. xriq-indexer gained
+`index_public_testnet_store` (+ a private `index_store_with_genesis` shared with
+`index_private_devnet_store`); `build_service(chain, pending, alice_balance, testnet)`
+replays the public testnet genesis and skips the (devnet-only) pending file when
+testnet. `RequestConfig`/`ServeConfig` gained `--network devnet|testnet`
+(`parse_network_testnet`) threaded to `build_service`; the mutation-refresh path is
+always devnet (false). Verified by `build_service_is_testnet_aware` (a testnet chain
+replays as `xriq-testnet`/height 1, **restarts** cleanly, and building it as devnet
+fails) — xriq-api: 82 tests. This unblocked the always-on faucet unit, now shipped:
+`deploy/gcp/systemd/xriq-testnet-faucet.service` (+ `bin/xriq-testnet-faucet-run.sh`,
+`xriq-api serve-readonly --network testnet --enable-local-testnet-faucet` on :8091,
+After=xriq-testnet-node.service) with `XRIQ_TESTNET_FAUCET_*` in xriq.env.example;
+the topology doc documents the seed's single-writer/append-only chain-file note.
+Everything stays test-only, nothing applied to cloud.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

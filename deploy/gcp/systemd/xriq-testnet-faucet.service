@@ -1,0 +1,16 @@
+[Unit]
+Description=XRIQ testnet faucet + read API (serve-readonly --network testnet, TEST-ONLY)
+After=docker.service network-online.target xriq-testnet-node.service
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/docker rm -f xriq-testnet-faucet
+ExecStart=/usr/local/bin/xriq-testnet-faucet-run.sh
+ExecStop=-/usr/bin/docker stop xriq-testnet-faucet
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

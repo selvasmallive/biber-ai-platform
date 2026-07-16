@@ -234,8 +234,22 @@ pub fn index_private_devnet_store<S: ChainStore>(
     store: &S,
     alice_balance: Option<XriqAmount>,
 ) -> Result<IndexedChainSnapshot, IndexReplayError> {
-    let genesis = private_devnet_indexer_genesis(alice_balance);
-    let replay = replay_private_devnet_store(store, &genesis)?;
+    index_store_with_genesis(store, &private_devnet_indexer_genesis(alice_balance))
+}
+
+/// Index a store replayed under the public testnet genesis. TEST-ONLY chain with
+/// no monetary value; the snapshot's `chain_id` is `xriq-testnet`.
+pub fn index_public_testnet_store<S: ChainStore>(
+    store: &S,
+) -> Result<IndexedChainSnapshot, IndexReplayError> {
+    index_store_with_genesis(store, &GenesisConfig::public_testnet())
+}
+
+fn index_store_with_genesis<S: ChainStore>(
+    store: &S,
+    genesis: &GenesisConfig,
+) -> Result<IndexedChainSnapshot, IndexReplayError> {
+    let replay = replay_private_devnet_store(store, genesis)?;
     let (read_model, summary) =
         index_chain_snapshot(store, &replay.ledger).map_err(IndexReplayError::Indexer)?;
     Ok(IndexedChainSnapshot {
