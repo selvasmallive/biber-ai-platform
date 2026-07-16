@@ -587,6 +587,31 @@ def test_combine_cli_paths_merges_flags_and_path_files(tmp_path: Path) -> None:
     assert combined == ["README.md", "src/app.py", "tests/test_app.py"]
 
 
+def test_combine_cli_paths_rejects_nul_byte_in_path_file(tmp_path: Path) -> None:
+    path_file = tmp_path / "paths.txt"
+    path_file.write_text("src/app.py\nbad\x00path.py\n", encoding="utf-8")
+
+    try:
+        client.combine_cli_paths([], str(path_file), label="--changed-paths-file")
+    except client.BiberAgentClientError as exc:
+        assert "--changed-paths-file" in str(exc)
+        assert "contains a NUL byte" in str(exc)
+    else:
+        raise AssertionError("Expected NUL byte path-list entries to be rejected")
+
+
+def test_combine_cli_paths_reports_unreadable_path_file(tmp_path: Path) -> None:
+    missing_file = tmp_path / "missing-paths.txt"
+
+    try:
+        client.combine_cli_paths([], str(missing_file), label="--pinned-paths-file")
+    except client.BiberAgentClientError as exc:
+        assert "--pinned-paths-file" in str(exc)
+        assert str(missing_file) in str(exc)
+    else:
+        raise AssertionError("Expected missing path-list files to be rejected")
+
+
 def test_format_repo_context_summary_lists_selected_paths_and_profiles() -> None:
     output = client.format_repo_context_summary(
         {

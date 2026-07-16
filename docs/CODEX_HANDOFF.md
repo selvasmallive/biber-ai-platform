@@ -398,6 +398,8 @@ and NUL bytes are rejected before any request or local context scan. This keeps
 larger BIBER repo-context selections easier to drive from generated artifact
 lists while staying CPU-local for `mvp-loop --local-target-root`; no GPU,
 training, OpenAI mentor, external paid API, or credential rotation is involved.
+Follow-up coverage verifies inline/file path merging plus NUL-byte and missing
+path-list file rejection before a context payload is sent or scanned locally.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
