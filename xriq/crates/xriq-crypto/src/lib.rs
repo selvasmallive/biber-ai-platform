@@ -8,8 +8,11 @@
 //! primitive is NOT yet wired into the node/consensus/wallet, and this crate still
 //! provides no production key custody.
 
+use core::fmt::Write as _;
 use sha2::{Digest, Sha256};
-use xriq_core::{AccountStateEntry, Block, BlockHeader, Hash32, SignatureBytes, Transaction};
+use xriq_core::{
+    AccountStateEntry, Address, Block, BlockHeader, Hash32, SignatureBytes, Transaction,
+};
 
 const DOMAIN_TRANSACTION_SIGNING: &[u8] = b"xriq:v1:transaction:signing";
 const DOMAIN_TRANSACTION_HASH: &[u8] = b"xriq:v1:transaction:hash";
@@ -183,6 +186,28 @@ pub fn ed25519_sign_hash(
             .to_bytes()
             .to_vec(),
     )
+}
+
+const ED25519_ADDRESS_DOMAIN: &[u8] = b"xriq:v1:ed25519-address";
+const ED25519_ADDRESS_PREFIX: &str = "xriqdev1";
+const ED25519_ADDRESS_PAYLOAD_BYTES: usize = 20;
+
+/// Derive a canonical address from an Ed25519 public key: the `xriqdev1` prefix
+/// plus 20 bytes of a domain-separated SHA-256 of the key as lowercase hex (a 40
+/// char payload). The address is a pure function of the public key — verifiable
+/// offline — which is how a signature will later be checked against the `from`
+/// address. Part of the production-crypto migration (Phase 2); not yet used for
+/// on-chain identity. See `docs/XRIQ_PRODUCTION_CRYPTO_MIGRATION.md`.
+pub fn ed25519_address(public_key: &[u8; 32]) -> Address {
+    let mut preimage = Vec::with_capacity(ED25519_ADDRESS_DOMAIN.len() + public_key.len());
+    preimage.extend_from_slice(ED25519_ADDRESS_DOMAIN);
+    preimage.extend_from_slice(public_key);
+    let hash = digest(&preimage);
+    let mut value = String::from(ED25519_ADDRESS_PREFIX);
+    for byte in &hash.as_bytes()[..ED25519_ADDRESS_PAYLOAD_BYTES] {
+        write!(value, "{byte:02x}").expect("writing hex to String cannot fail");
+    }
+    Address::parse(&value).expect("derived ed25519 address is a valid xriq address")
 }
 
 pub fn transaction_signing_bytes(transaction: &Transaction) -> Vec<u8> {
@@ -361,6 +386,8 @@ mod tests {
     use xriq_core::{
         AccountStateEntry, Address, Block, BlockHeader, SignatureBytes, Transaction, XriqAmount,
     };
+
+    const ED25519_ADDRESS_GOLDEN: &str = "xriqdev1397e043c1939ff954726c0f3657a7a5093b33b89";
 
     fn address(label: &str) -> Address {
         Address::parse(&format!("xriqdev1{label}00000000000")).unwrap()
@@ -612,5 +639,28 @@ mod tests {
             ed25519_sign_hash(&a, message),
             ed25519_sign_hash(&b, message)
         );
+    }
+
+    #[test]
+    fn ed25519_address_is_key_derived_deterministic_and_valid() {
+        let public_key = ed25519_public_key(&ed25519_signing_key_from_seed([5u8; 32]));
+        let address = ed25519_address(&public_key);
+
+        // A pure function of the public key (deterministic).
+        assert_eq!(ed25519_address(&public_key), address);
+
+        // A different key yields a different address.
+        let other_key = ed25519_public_key(&ed25519_signing_key_from_seed([6u8; 32]));
+        assert_ne!(ed25519_address(&other_key), address);
+
+        // Canonical format: xriqdev1 prefix + 40 hex-char (20-byte) payload that
+        // round-trips through Address parsing.
+        assert!(address.as_str().starts_with("xriqdev1"));
+        assert_eq!(address.as_str().len(), "xriqdev1".len() + 40);
+        assert_eq!(Address::parse(address.as_str()).unwrap(), address);
+
+        // Golden vector: the derivation is stable across builds (a change here is
+        // a deliberate address-scheme change).
+        assert_eq!(ed25519_address(&[0u8; 32]).as_str(), ED25519_ADDRESS_GOLDEN);
     }
 }

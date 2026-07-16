@@ -111,8 +111,17 @@ new key-handling anti-patterns.
    malformed-length inputs (no panic), and determinism. It slots into the crate's
    existing `SignatureAlgorithm::Ed25519` / `SignatureEnvelope { public_key }`
    agility scaffolding. NOT yet wired into node/consensus/wallet.
-2. **Address derivation.** Implement key→address; add genesis `authority_pubkey`;
-   regenerate the testnet `genesis_spec_hash` golden.
+2. **Address derivation.** — **primitive DONE (2a).** `xriq_crypto::ed25519_address(
+   &[u8; 32]) -> Address` = `xriqdev1` + 20 bytes of a domain-separated
+   (`xriq:v1:ed25519-address`) SHA-256 of the key as lowercase hex (a pure,
+   offline-verifiable function of the public key), with a pinned golden vector +
+   determinism/format tests. REMAINING (2b): add genesis `authority_pubkey`
+   (fixed pubkey per network) and set `authority`/`fee_sink` to the key-derived
+   addresses, then regenerate the testnet `genesis_spec_hash` golden + chainspec
+   doc. 2b is a coordinated genesis change that alters testnet chain identity, so
+   it is its own step (xriq-core holds the pubkey + pre-derived address constants;
+   an xriq-crypto test asserts `ed25519_address(pubkey) == authority`, since
+   xriq-core cannot depend on xriq-crypto).
 3. **Wire verification (devnet behind a flag).** Node/consensus/faucet accept a
    `SignatureScheme`; add `--signature-scheme test-only|ed25519`. Keep default
    `test-only` so nothing breaks; add ed25519 end-to-end tests.

@@ -636,6 +636,21 @@ ed25519, wallet client-side signing, then the mandated AI security review) are i
 `docs/XRIQ_PRODUCTION_CRYPTO_MIGRATION.md`. No custom crypto; audited crate only;
 still no key custody; real crypto + legal + security audit remain hard gates before
 any value-bearing use. Everything stays test-only.
+CRYPTO PHASE 2a DONE (key→address derivation primitive): `xriq_crypto::ed25519_address(
+&[u8; 32]) -> Address` = `xriqdev1` + 20 bytes of a domain-separated
+(`xriq:v1:ed25519-address`) SHA-256 of the public key as lowercase hex (a 40-char
+payload) — a pure, offline-verifiable function of the key, how a signature will
+later be checked against a `from`/authority address. Covered by
+`ed25519_address_is_key_derived_deterministic_and_valid` (determinism, distinct
+keys → distinct addresses, xriqdev1 format + Address round-trip, and a pinned golden
+`ed25519_address(&[0;32]) == xriqdev1397e043c1939ff954726c0f3657a7a5093b33b89`) —
+xriq-crypto: 14 tests. Still NON-WIRED. REMAINING Phase 2b (its own step, changes
+testnet chain identity): add genesis `authority_pubkey` (fixed per network), set
+`authority`/`fee_sink` to key-derived addresses, regenerate the testnet
+`genesis_spec_hash` golden + `docs/XRIQ_TESTNET_CHAINSPEC.md`; xriq-core holds the
+pubkey + pre-derived address constants and an xriq-crypto test binds them
+(`ed25519_address(pubkey) == authority`) since core can't depend on crypto.
+Everything stays test-only.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,
