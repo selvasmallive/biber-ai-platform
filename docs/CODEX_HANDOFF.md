@@ -346,6 +346,12 @@ Thirty-sixth BIBER resume checkpoint on the same branch:
 the standalone GitHub dry-runs and the end-to-end local MVP-loop GitHub handoff
 preview. This is CPU-local and does not call GitHub, OpenAI mentor, GPU,
 training, the BIBER API, or live model endpoints.
+Thirty-seventh BIBER resume checkpoint on the same branch:
+standalone `scripts/biber_agent_client.py save-github --dry-run` and
+`create-pr --dry-run` now accept `--output` so their no-credential payload
+previews can be saved as JSON artifacts. The dry-runs still avoid API-key
+resolution, GitHub requests, OpenAI mentor calls, GPU, and training; live
+server-backed save/PR behavior remains unchanged.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

@@ -58,7 +58,8 @@ With `--local-target-root`, context planning, safe edit plan/apply, test
 execution, and diagnosis are local. GitHub save/PR remains server-backed.
 Use `save-github --dry-run` and `create-pr --dry-run` to inspect the exact
 GitHub payload locally before enabling server-backed credentials or sending any
-GitHub request. Use `mvp-loop --github-dry-run` when you want the same payload
+GitHub request. Add `--output` when you want those standalone dry-runs saved as
+JSON artifacts. Use `mvp-loop --github-dry-run` when you want the same payload
 inspection inside a local MVP-loop artifact without resolving API credentials.
 Use `--include-git-state` for repo work so the artifact records the local
 branch, short HEAD, dirty status, and `git status --short` before edits/tests.

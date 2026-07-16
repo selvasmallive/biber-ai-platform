@@ -664,6 +664,8 @@ def test_run_github_dry_runs_do_not_resolve_api_key(
 
     body_file = tmp_path / "pr-body.md"
     body_file.write_text("Dry-run PR body.\n", encoding="utf-8")
+    save_artifact = tmp_path / "save-dry-run.json"
+    pr_artifact = tmp_path / "pr-dry-run.json"
     monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
 
     save_output = client.run(
@@ -687,6 +689,8 @@ def test_run_github_dry_runs_do_not_resolve_api_key(
                 "--create-branch-if-missing",
                 "--commit-message",
                 "Save generated BIBER example",
+                "--output",
+                str(save_artifact),
             ]
         )
     )
@@ -700,6 +704,8 @@ def test_run_github_dry_runs_do_not_resolve_api_key(
     assert save_result["target"]["owner"] == "acme"
     assert save_result["target"]["repo"] == "biber-generated"
     assert save_result["content_bytes"] == len("export const ok = true;\n".encode("utf-8"))
+    assert save_result["artifact_path"] == str(save_artifact)
+    assert json.loads(save_artifact.read_text(encoding="utf-8")) == save_result
 
     pr_output = client.run(
         client.parse_args(
@@ -719,6 +725,8 @@ def test_run_github_dry_runs_do_not_resolve_api_key(
                 "acme",
                 "--repo",
                 "biber-generated",
+                "--output",
+                str(pr_artifact),
             ]
         )
     )
@@ -732,6 +740,8 @@ def test_run_github_dry_runs_do_not_resolve_api_key(
     assert pr_result["pull_request"]["base"] == "main"
     assert pr_result["pull_request"]["draft"] is True
     assert pr_result["body_bytes"] == len("Dry-run PR body.\n".encode("utf-8"))
+    assert pr_result["artifact_path"] == str(pr_artifact)
+    assert json.loads(pr_artifact.read_text(encoding="utf-8")) == pr_result
 
 
 def test_run_mvp_loop_can_include_github_dry_run_without_api_key(

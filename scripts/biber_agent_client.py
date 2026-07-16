@@ -16611,6 +16611,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Build and print the GitHub save payload without resolving API auth.",
     )
+    save_github.add_argument(
+        "--output",
+        help="Optional JSON artifact path for dry-run output.",
+    )
 
     create_pr = subparsers.add_parser(
         "create-pr",
@@ -16628,6 +16632,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--dry-run",
         action="store_true",
         help="Build and print the pull-request payload without resolving API auth.",
+    )
+    create_pr.add_argument(
+        "--output",
+        help="Optional JSON artifact path for dry-run output.",
     )
 
     mvp_loop = subparsers.add_parser(
@@ -19516,6 +19524,9 @@ def run(args: argparse.Namespace) -> str:
                 commit_message=args.commit_message,
             )
         )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
         return (
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
@@ -19541,6 +19552,9 @@ def run(args: argparse.Namespace) -> str:
                 draft=not args.ready,
             )
         )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
         return (
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
