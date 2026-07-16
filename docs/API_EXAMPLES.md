@@ -500,6 +500,10 @@ python scripts/biber_local_confidence_smoke.py \
   --output /workspace/outputs/biber-local-confidence-smoke.json
 python scripts/biber_agent_client.py show-confidence-smoke \
   /workspace/outputs/biber-local-confidence-smoke.json
+python scripts/biber_agent_client.py list-confidence-smokes \
+  /workspace/outputs \
+  --pattern "*confidence-smoke*.json" \
+  --output /workspace/outputs/biber-local-confidence-smoke-list.json
 python scripts/biber_agent_client.py list-mvp-loops \
   /workspace/outputs \
   --limit 10

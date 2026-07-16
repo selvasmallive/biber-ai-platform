@@ -382,6 +382,13 @@ flags, MVP-loop status, verified repair/GitHub dry-run status, standalone
 GitHub dry-run artifact status, and repair-loop status. This is CPU-local and
 does not resolve API credentials or call GitHub, OpenAI mentor, GPU, training,
 the BIBER API, or live model endpoints.
+Forty-second BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py list-confidence-smokes <directory>` now scans
+saved `biber_local_confidence_smoke.py --output` artifacts, sorts newest first,
+supports `--failed-only`, and can save its own list with `--output`. Use it to
+resume from local confidence artifacts without rerunning the full gate. This is
+CPU-local and does not resolve API credentials or call GitHub, OpenAI mentor,
+GPU, training, the BIBER API, or live model endpoints.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

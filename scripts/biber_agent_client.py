@@ -13916,6 +13916,96 @@ def normalize_confidence_smoke_artifact(
     }
 
 
+def summarize_confidence_smoke_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    normalized = normalize_confidence_smoke_artifact(payload)
+    if normalized is None:
+        return None
+    checks = require_list(normalized.get("checks"))
+    failed_checks = require_list(normalized.get("failed_checks"))
+    github_dry_run_artifacts = require_mapping(
+        normalized.get("github_dry_run_artifacts")
+    )
+    summary = {
+        "path": str(path),
+        "source": normalized.get("source"),
+        "ok": normalized.get("ok") is True,
+        "checks": len(checks),
+        "failed_checks": len(failed_checks),
+        "api_required": normalized.get("api_required") is True,
+        "gpu_required": normalized.get("gpu_required") is True,
+        "mentor_used": normalized.get("mentor_used") is True,
+        "training_allowed": normalized.get("training_allowed") is True,
+        "github_dry_run_artifacts_matched": github_dry_run_artifacts.get(
+            "matched",
+            0,
+        ),
+        "modified_epoch": path.stat().st_mtime,
+    }
+    if normalized.get("artifact_path"):
+        summary["artifact_path"] = normalized.get("artifact_path")
+    return summary
+
+
+def list_confidence_smoke_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    failed_only: bool = False,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            f"Confidence smoke artifact directory does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            f"Confidence smoke artifact path is not a directory: {root}"
+        )
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="confidence smoke artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        summary = summarize_confidence_smoke_artifact(path, raw_payload)
+        if summary is None:
+            continue
+        if failed_only and summary.get("ok") is True:
+            continue
+        artifacts.append(summary)
+
+    artifacts.sort(key=lambda item: float(item.get("modified_epoch") or 0.0), reverse=True)
+    failed_count = sum(1 for item in artifacts if item.get("ok") is not True)
+    return {
+        "source": "biber_local_confidence_smoke_artifact_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "failed_only": failed_only,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "failed": failed_count,
+        "api_required": False,
+        "gpu_required": False,
+        "mentor_used": False,
+        "training_allowed": False,
+        "artifacts": artifacts[:limit],
+    }
+
+
 def format_confidence_smoke_artifact_summary(payload: Mapping[str, Any]) -> str:
     checks = [
         item
@@ -13994,6 +14084,39 @@ def format_confidence_smoke_artifact_summary(payload: Mapping[str, Any]) -> str:
         )
     if payload.get("artifact_path"):
         lines.append(f"artifact_path: {payload.get('artifact_path')}")
+    return "\n".join(lines)
+
+
+def format_confidence_smoke_artifact_list_summary(payload: Mapping[str, Any]) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER local confidence smoke artifacts ({len(artifacts)})",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"failed_only: {payload.get('failed_only', False)}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"failed: {payload.get('failed', 0)}",
+        f"gpu_required: {payload.get('gpu_required') is True}",
+        f"api_required: {payload.get('api_required') is True}",
+    ]
+    for artifact in artifacts:
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"ok={artifact.get('ok')}",
+                    f"checks={artifact.get('checks', 0)}",
+                    f"failed_checks={artifact.get('failed_checks', 0)}",
+                    f"gpu_required={artifact.get('gpu_required')}",
+                    f"api_required={artifact.get('api_required')}",
+                ]
+            )
+        )
     return "\n".join(lines)
 
 
@@ -16904,6 +17027,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     show_confidence_smoke.add_argument("artifact")
 
+    list_confidence_smokes = subparsers.add_parser(
+        "list-confidence-smokes",
+        help="List saved biber_local_confidence_smoke.py JSON artifacts.",
+    )
+    list_confidence_smokes.add_argument("directory")
+    list_confidence_smokes.add_argument("--pattern", default="*confidence*.json")
+    list_confidence_smokes.add_argument("--limit", type=int, default=20)
+    list_confidence_smokes.add_argument("--failed-only", action="store_true")
+    list_confidence_smokes.add_argument("--output")
+
     mvp_loop = subparsers.add_parser(
         "mvp-loop",
         help=(
@@ -18390,6 +18523,21 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(normalized, indent=2, sort_keys=True)
             if args.print_json
             else format_confidence_smoke_artifact_summary(normalized)
+        )
+    if args.command == "list-confidence-smokes":
+        artifacts = list_confidence_smoke_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            failed_only=args.failed_only,
+        )
+        if args.output:
+            artifacts["artifact_path"] = str(Path(args.output))
+            write_json_artifact(artifacts, args.output)
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_confidence_smoke_artifact_list_summary(artifacts)
         )
     if args.command == "show-mvp-loop":
         artifact = load_json_artifact(args.artifact, label="mvp-loop artifact")

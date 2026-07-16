@@ -287,6 +287,8 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
     tmp_path: Path,
 ) -> None:
     artifact = tmp_path / "confidence-smoke.json"
+    failed_artifact = tmp_path / "confidence-smoke-failed.json"
+    list_artifact = tmp_path / "confidence-smoke-list.json"
     payload = {
         "source": "biber_local_confidence_smoke",
         "ok": True,
@@ -330,6 +332,26 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
         },
     }
     artifact.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    failed_payload = {
+        **payload,
+        "ok": False,
+        "checks": [
+            {
+                "name": "local_openai_provider_http",
+                "source": "biber_local_openai_provider_http_smoke",
+                "ok": True,
+            },
+            {
+                "name": "local_repair_loop",
+                "source": "biber_local_repair_loop_smoke",
+                "ok": False,
+            },
+        ],
+    }
+    failed_artifact.write_text(
+        json.dumps(failed_payload, sort_keys=True),
+        encoding="utf-8",
+    )
 
     output = client.run(
         client.parse_args(["show-confidence-smoke", str(artifact)])
@@ -347,6 +369,59 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
     assert "local_github_dry_run_artifacts" in output
     assert "github_dry_run_artifacts: matched=2" in output
     assert "repair_loop: chain_status=verified" in output
+
+    list_result = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "list-confidence-smokes",
+                    str(tmp_path),
+                    "--pattern",
+                    "*confidence-smoke*.json",
+                    "--output",
+                    str(list_artifact),
+                ]
+            )
+        )
+    )
+    failed_only = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "list-confidence-smokes",
+                    str(tmp_path),
+                    "--pattern",
+                    "*confidence-smoke*.json",
+                    "--failed-only",
+                ]
+            )
+        )
+    )
+    list_summary = client.run(
+        client.parse_args(
+            [
+                "list-confidence-smokes",
+                str(tmp_path),
+                "--pattern",
+                "*confidence-smoke*.json",
+            ]
+        )
+    )
+
+    assert list_result["source"] == "biber_local_confidence_smoke_artifact_list"
+    assert list_result["matched"] == 2
+    assert list_result["failed"] == 1
+    assert list_result["gpu_required"] is False
+    assert list_result["api_required"] is False
+    assert list_result["artifact_path"] == str(list_artifact)
+    assert json.loads(list_artifact.read_text(encoding="utf-8")) == list_result
+    assert failed_only["matched"] == 1
+    assert failed_only["artifacts"][0]["ok"] is False
+    assert "BIBER local confidence smoke artifacts (2)" in list_summary
+    assert "failed: 1" in list_summary
+    assert "gpu_required: False" in list_summary
 
 
 def test_format_capabilities_summary_includes_presets_and_tests() -> None:
