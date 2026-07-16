@@ -212,6 +212,10 @@ python scripts/biber_agent_client.py show-github-dry-run \
   /workspace/outputs/github-save-dry-run.json
 python scripts/biber_agent_client.py show-github-dry-run \
   /workspace/outputs/github-pr-dry-run.json
+python scripts/biber_agent_client.py list-github-dry-runs \
+  /workspace/outputs \
+  --pattern "*github-*-dry-run.json" \
+  --output /workspace/outputs/github-dry-run-list.json
 python scripts/biber_agent_client.py save-github \
   --path generated/example.ts \
   --content-file generated/example.ts \

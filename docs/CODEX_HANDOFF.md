@@ -358,6 +358,13 @@ saved standalone GitHub dry-run artifacts for both save and PR payloads. It
 validates the artifact source and uses the existing dry-run formatters, without
 resolving API credentials or calling GitHub, OpenAI mentor, GPU, training, or
 live model endpoints.
+Thirty-ninth BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py list-github-dry-runs <directory>` now scans saved
+standalone GitHub dry-run JSON artifacts, accepts only the
+`biber_github_save_dry_run` and `biber_github_pull_request_dry_run` source
+types, sorts newest first, and can save the list with `--output`. This remains
+CPU-local and does not resolve API credentials or call GitHub, OpenAI mentor,
+GPU, training, the BIBER API, or live model endpoints.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

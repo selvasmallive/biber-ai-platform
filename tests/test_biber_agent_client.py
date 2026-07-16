@@ -666,6 +666,7 @@ def test_run_github_dry_runs_do_not_resolve_api_key(
     body_file.write_text("Dry-run PR body.\n", encoding="utf-8")
     save_artifact = tmp_path / "save-dry-run.json"
     pr_artifact = tmp_path / "pr-dry-run.json"
+    list_artifact = tmp_path / "github-dry-run-list.json"
     monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
 
     save_output = client.run(
@@ -756,6 +757,46 @@ def test_run_github_dry_runs_do_not_resolve_api_key(
     assert "BIBER GitHub pull request dry-run" in pr_summary
     assert "github_request_sent: False" in pr_summary
     assert "head: biber/generated-example" in pr_summary
+
+    list_output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "list-github-dry-runs",
+                str(tmp_path),
+                "--pattern",
+                "*-dry-run.json",
+                "--output",
+                str(list_artifact),
+            ]
+        )
+    )
+    list_result = json.loads(list_output)
+    dry_run_types = {
+        item["dry_run_type"] for item in list_result["artifacts"]
+    }
+
+    assert list_result["source"] == "biber_github_dry_run_artifact_list"
+    assert list_result["matched"] == 2
+    assert list_result["github_request_sent"] is False
+    assert dry_run_types == {"save", "pull_request"}
+    assert list_result["artifact_path"] == str(list_artifact)
+    assert json.loads(list_artifact.read_text(encoding="utf-8")) == list_result
+
+    list_summary = client.run(
+        client.parse_args(
+            [
+                "list-github-dry-runs",
+                str(tmp_path),
+                "--pattern",
+                "*-dry-run.json",
+            ]
+        )
+    )
+    assert "BIBER GitHub dry-run artifacts (2)" in list_summary
+    assert "github_request_sent: False" in list_summary
+    assert "type=save" in list_summary
+    assert "type=pull_request" in list_summary
 
 
 def test_run_mvp_loop_can_include_github_dry_run_without_api_key(

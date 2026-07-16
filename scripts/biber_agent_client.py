@@ -13752,6 +13752,149 @@ def format_github_pull_request_dry_run_summary(payload: Mapping[str, Any]) -> st
     )
 
 
+def summarize_github_dry_run_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    source = payload.get("source")
+    if source == "biber_github_save_dry_run":
+        target = payload.get("target")
+        if not isinstance(target, dict):
+            return None
+        summary = {
+            "path": str(path),
+            "source": source,
+            "dry_run_type": "save",
+            "dry_run": payload.get("dry_run") is True,
+            "api_required": payload.get("api_required") is True,
+            "github_request_sent": payload.get("github_request_sent") is True,
+            "target_path": target.get("path"),
+            "owner": target.get("owner"),
+            "repo": target.get("repo"),
+            "branch": target.get("branch"),
+            "content_bytes": int(payload.get("content_bytes") or 0),
+            "modified_epoch": path.stat().st_mtime,
+        }
+        if payload.get("artifact_path"):
+            summary["artifact_path"] = payload.get("artifact_path")
+        return summary
+    if source == "biber_github_pull_request_dry_run":
+        pull_request = payload.get("pull_request")
+        if not isinstance(pull_request, dict):
+            return None
+        summary = {
+            "path": str(path),
+            "source": source,
+            "dry_run_type": "pull_request",
+            "dry_run": payload.get("dry_run") is True,
+            "api_required": payload.get("api_required") is True,
+            "github_request_sent": payload.get("github_request_sent") is True,
+            "owner": pull_request.get("owner"),
+            "repo": pull_request.get("repo"),
+            "head": pull_request.get("head"),
+            "base": pull_request.get("base"),
+            "title": pull_request.get("title"),
+            "draft": pull_request.get("draft") is True,
+            "body_bytes": int(payload.get("body_bytes") or 0),
+            "modified_epoch": path.stat().st_mtime,
+        }
+        if payload.get("artifact_path"):
+            summary["artifact_path"] = payload.get("artifact_path")
+        return summary
+    return None
+
+
+def list_github_dry_run_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            f"GitHub dry-run artifact directory does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            f"GitHub dry-run artifact path is not a directory: {root}"
+        )
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="GitHub dry-run artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        summary = summarize_github_dry_run_artifact(path, raw_payload)
+        if summary is not None:
+            artifacts.append(summary)
+
+    artifacts.sort(key=lambda item: float(item.get("modified_epoch") or 0.0), reverse=True)
+    return {
+        "source": "biber_github_dry_run_artifact_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "api_required": False,
+        "github_request_sent": False,
+        "training_allowed": False,
+        "artifacts": artifacts[:limit],
+    }
+
+
+def format_github_dry_run_artifact_list_summary(payload: Mapping[str, Any]) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER GitHub dry-run artifacts ({len(artifacts)})",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"github_request_sent: {payload.get('github_request_sent', True)}",
+    ]
+    for artifact in artifacts:
+        if artifact.get("dry_run_type") == "save":
+            lines.append(
+                " ".join(
+                    [
+                        f"- {artifact.get('path', '-')}",
+                        "type=save",
+                        f"target={artifact.get('target_path', '-')}",
+                        f"branch={artifact.get('branch', '-')}",
+                        f"github_request_sent={artifact.get('github_request_sent')}",
+                    ]
+                )
+            )
+        else:
+            lines.append(
+                " ".join(
+                    [
+                        f"- {artifact.get('path', '-')}",
+                        "type=pull_request",
+                        f"head={artifact.get('head', '-')}",
+                        f"base={artifact.get('base', '-')}",
+                        f"github_request_sent={artifact.get('github_request_sent')}",
+                    ]
+                )
+            )
+    return "\n".join(lines)
+
+
 def format_mvp_loop_summary(payload: Mapping[str, Any]) -> str:
     steps = require_mapping(payload.get("steps"))
     lines = [
@@ -16644,6 +16787,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     show_github_dry_run.add_argument("artifact")
 
+    list_github_dry_runs = subparsers.add_parser(
+        "list-github-dry-runs",
+        help="List saved save-github/create-pr --dry-run JSON artifacts.",
+    )
+    list_github_dry_runs.add_argument("directory")
+    list_github_dry_runs.add_argument("--pattern", default="*dry-run*.json")
+    list_github_dry_runs.add_argument("--limit", type=int, default=20)
+    list_github_dry_runs.add_argument("--output")
+
     mvp_loop = subparsers.add_parser(
         "mvp-loop",
         help=(
@@ -18100,6 +18252,20 @@ def run(args: argparse.Namespace) -> str:
         raise BiberAgentClientError(
             "GitHub dry-run artifact must have source "
             "biber_github_save_dry_run or biber_github_pull_request_dry_run."
+        )
+    if args.command == "list-github-dry-runs":
+        artifacts = list_github_dry_run_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+        )
+        if args.output:
+            artifacts["artifact_path"] = str(Path(args.output))
+            write_json_artifact(artifacts, args.output)
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_github_dry_run_artifact_list_summary(artifacts)
         )
     if args.command == "show-mvp-loop":
         artifact = load_json_artifact(args.artifact, label="mvp-loop artifact")
