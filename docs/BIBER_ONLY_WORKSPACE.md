@@ -175,9 +175,10 @@ python scripts/biber_local_confidence_smoke.py
 This combined smoke runs the mocked local OpenAI-compatible provider HTTP smoke,
 the mocked live-provider readiness smoke, the local MVP-loop edit-review smoke,
 the local MVP-loop failure/repair-hint smoke, the real-checkout MVP-loop
-repo-probe dry run, and the local repair-loop smoke together. It is the
-preferred pre-live-provider gate before asking for Vast GPU credentials or
-pointing BIBER at a real local Qwen/vLLM endpoint.
+repo-probe dry run, the verified-repair GitHub dry-run handoff smoke, and the
+local repair-loop smoke together. It is the preferred pre-live-provider gate
+before asking for Vast GPU credentials or pointing BIBER at a real local
+Qwen/vLLM endpoint.
 It also includes the full local MVP-loop repair smoke, which starts from a real
 failed local `mvp-loop` artifact and walks through local-model repair, review,
 guarded apply, verification, and status without API credentials.
@@ -230,6 +231,18 @@ the full local coding-assistant path:
 review-local-repair-chain -> apply-repair-edits --approve --review-artifact ->
 local-verify-chain -> local-repair-loop-status`. It uses a fixture
 model-command provider and does not require BIBER API, OpenAI, Vast GPU, or
+training credentials.
+
+To run only the verified-repair GitHub dry-run handoff smoke:
+
+```bash
+python scripts/biber_local_verified_repair_github_dry_run_smoke.py
+```
+
+The smoke runs the full local MVP-loop repair smoke, points
+`save-github --dry-run` at the verified repaired file, then runs
+`create-pr --dry-run` for the review branch. It verifies no GitHub request was
+sent and does not require BIBER API, GitHub credentials, OpenAI, Vast GPU, or
 training credentials.
 
 To run only the repair-loop smoke:

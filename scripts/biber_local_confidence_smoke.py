@@ -104,6 +104,12 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             pycache_root=pycache_root,
             timeout_seconds=timeout_seconds,
         )
+        verified_repair_github_dry_run = run_smoke_script(
+            repo_root=repo_root,
+            script_name="biber_local_verified_repair_github_dry_run_smoke.py",
+            pycache_root=pycache_root,
+            timeout_seconds=timeout_seconds,
+        )
         repair_loop = run_smoke_script(
             repo_root=repo_root,
             script_name="biber_local_repair_loop_smoke.py",
@@ -118,6 +124,10 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
         compact_check("local_mvp_loop_failure", mvp_loop_failure),
         compact_check("local_mvp_loop_repo_probe", mvp_loop_repo_probe),
         compact_check("local_mvp_loop_full_repair", mvp_loop_full_repair),
+        compact_check(
+            "local_verified_repair_github_dry_run",
+            verified_repair_github_dry_run,
+        ),
         compact_check("local_repair_loop", repair_loop),
     ]
     summary = {
@@ -178,6 +188,28 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             "verification_status": mvp_loop_full_repair.get("verification_status"),
             "status_next_action": mvp_loop_full_repair.get("status_next_action"),
         },
+        "verified_repair_github_dry_run": {
+            "repair_verification_status": verified_repair_github_dry_run.get(
+                "repair_verification_status"
+            ),
+            "save_dry_run_source": verified_repair_github_dry_run.get(
+                "save_dry_run_source"
+            ),
+            "save_target_path": verified_repair_github_dry_run.get("save_target_path"),
+            "save_branch": verified_repair_github_dry_run.get("save_branch"),
+            "pull_request_dry_run_source": verified_repair_github_dry_run.get(
+                "pull_request_dry_run_source"
+            ),
+            "pull_request_head": verified_repair_github_dry_run.get(
+                "pull_request_head"
+            ),
+            "pull_request_draft": verified_repair_github_dry_run.get(
+                "pull_request_draft"
+            ),
+            "github_request_sent": verified_repair_github_dry_run.get(
+                "github_request_sent"
+            ),
+        },
         "repair_loop": {
             "chain_status": repair_loop.get("chain_status"),
             "verification_ok": repair_loop.get("verification_ok"),
@@ -194,8 +226,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Run BIBER's local provider, readiness, local MVP-loop success/failure, "
-            "real-repo probe, full local MVP repair, and local repair-loop smokes "
-            "as one no-GPU confidence gate."
+            "real-repo probe, full local MVP repair, GitHub dry-run handoff, "
+            "and local repair-loop smokes as one no-GPU confidence gate."
         )
     )
     parser.add_argument("--output", help="Optional path for the confidence summary JSON.")
