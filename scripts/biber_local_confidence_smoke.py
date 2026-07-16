@@ -209,6 +209,18 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             "github_request_sent": verified_repair_github_dry_run.get(
                 "github_request_sent"
             ),
+            "mvp_loop_github_dry_run": verified_repair_github_dry_run.get(
+                "mvp_loop_github_dry_run"
+            ),
+            "mvp_loop_github_request_sent": verified_repair_github_dry_run.get(
+                "mvp_loop_github_request_sent"
+            ),
+            "mvp_loop_save_source": verified_repair_github_dry_run.get(
+                "mvp_loop_save_source"
+            ),
+            "mvp_loop_pull_request_source": verified_repair_github_dry_run.get(
+                "mvp_loop_pull_request_source"
+            ),
         },
         "repair_loop": {
             "chain_status": repair_loop.get("chain_status"),

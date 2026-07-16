@@ -337,6 +337,15 @@ artifact carry the full repo-context/edit/test plus save/PR handoff preview
 while keeping the actual GitHub write path server-backed and explicit. This is
 CPU-local and does not call GitHub, OpenAI mentor, GPU, training, or live model
 endpoints.
+Thirty-sixth BIBER resume checkpoint on the same branch:
+`scripts/biber_local_confidence_smoke.py` now carries the integrated
+`mvp-loop --github-dry-run` handoff evidence through its aggregate
+`verified_repair_github_dry_run` summary (`mvp_loop_github_dry_run`,
+`mvp_loop_github_request_sent`, `mvp_loop_save_source`, and
+`mvp_loop_pull_request_source`). This makes the single confidence gate show both
+the standalone GitHub dry-runs and the end-to-end local MVP-loop GitHub handoff
+preview. This is CPU-local and does not call GitHub, OpenAI mentor, GPU,
+training, the BIBER API, or live model endpoints.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

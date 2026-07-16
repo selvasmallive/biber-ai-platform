@@ -243,8 +243,9 @@ python scripts/biber_local_verified_repair_github_dry_run_smoke.py
 The smoke runs the full local MVP-loop repair smoke, points
 `save-github --dry-run` at the verified repaired file, then runs
 `create-pr --dry-run` for the review branch. It verifies no GitHub request was
-sent and does not require BIBER API, GitHub credentials, OpenAI, Vast GPU, or
-training credentials.
+sent. It also verifies the integrated `mvp-loop --github-dry-run` save/PR
+handoff fields. It does not require BIBER API, GitHub credentials, OpenAI, Vast
+GPU, or training credentials.
 
 To run only the repair-loop smoke:
 

@@ -270,6 +270,9 @@ def test_local_confidence_smoke_runs_provider_and_repair_smokes() -> None:
     assert "biber_local_verified_repair_github_dry_run_smoke.py" in text
     assert "local_verified_repair_github_dry_run" in text
     assert '"verified_repair_github_dry_run"' in text
+    assert "mvp_loop_github_dry_run" in text
+    assert "mvp_loop_save_source" in text
+    assert "mvp_loop_pull_request_source" in text
     assert "biber_local_repair_loop_smoke.py" in text
     assert "biber_local_confidence_smoke" in text
     assert '"external_network_required": False' in text
