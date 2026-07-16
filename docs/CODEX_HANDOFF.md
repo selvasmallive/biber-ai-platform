@@ -651,6 +651,24 @@ testnet chain identity): add genesis `authority_pubkey` (fixed per network), set
 pubkey + pre-derived address constants and an xriq-crypto test binds them
 (`ed25519_address(pubkey) == authority`) since core can't depend on crypto.
 Everything stays test-only.
+CRYPTO PHASE 2b DONE (genesis authority_pubkey — a deliberate testnet chain-identity
+change): `GenesisConfig` gained `authority_pubkey: [u8; 32]`. The public testnet
+authority is now KEY-DERIVED: `PUBLIC_TESTNET_AUTHORITY_PUBKEY`
+(`167870e1…95ec`, from the test seed `b"xriq-testnet-authority-test-0001"`) is
+fixed in genesis and `PUBLIC_TESTNET_AUTHORITY_ADDRESS` is now
+`xriqdev186bb85cec1870545c41bb09bca58e6e71a317e3c` = `ed25519_address(pubkey)`,
+bound by the xriq-crypto test `public_testnet_authority_address_is_key_derived`.
+`authority_pubkey` is folded into `genesis_spec_hash` (and shown by
+`testnet-genesis`), so the golden regenerated to
+`8849162ec39e556f0bbf1d60ca0b38ea3f93c9d2bea341c2c21129b10642188b` — updated in the
+node golden test and `docs/XRIQ_TESTNET_CHAINSPEC.md`. Devnet keeps an all-zero
+`authority_pubkey` + the test-only scheme (its `xriqdev1author…` address is
+unchanged, so its producer test suite stays green); `fee_sink` stays a fixed
+non-signing sink. No struct-literal ripple (only the 2 constructors build
+`GenesisConfig`); the whole workspace builds. Tests: xriq-core 24, xriq-crypto 15,
+xriq-node 74. NOT yet used for verification (Phase 3: thread a `SignatureScheme`
+through node/consensus/faucet behind `--signature-scheme`). Everything stays
+test-only; real crypto + legal + security audit remain hard gates before value.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

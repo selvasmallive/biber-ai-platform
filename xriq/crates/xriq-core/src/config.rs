@@ -14,7 +14,19 @@ pub const PUBLIC_TESTNET_CHAIN_ID: &str = "xriq-testnet";
 pub const PUBLIC_TESTNET_MIN_FEE_BASE_UNITS: u128 = 2;
 pub const PUBLIC_TESTNET_MEMPOOL_MAX_TRANSACTIONS: usize = 4096;
 pub const PUBLIC_TESTNET_MAX_TRANSACTIONS_PER_BLOCK: usize = 512;
-pub const PUBLIC_TESTNET_AUTHORITY_ADDRESS: &str = "xriqdev1testnetauthority00000";
+// The testnet block-producer authority is now KEY-DERIVED (production-crypto
+// migration Phase 2b): the address is `ed25519_address(PUBLIC_TESTNET_AUTHORITY_PUBKEY)`
+// (an xriq-crypto test enforces this binding; xriq-core cannot depend on
+// xriq-crypto). The 32-byte public key is fixed in genesis so a producer's block
+// signatures can later be verified against it. TEST-ONLY: the matching key is a
+// well-known test key (from the seed b"xriq-testnet-authority-test-0001") and must
+// never guard value; a real deployment fixes a real operator public key here.
+pub const PUBLIC_TESTNET_AUTHORITY_ADDRESS: &str =
+    "xriqdev186bb85cec1870545c41bb09bca58e6e71a317e3c";
+pub const PUBLIC_TESTNET_AUTHORITY_PUBKEY: [u8; 32] = [
+    0x16, 0x78, 0x70, 0xe1, 0xcf, 0xa8, 0xc8, 0xd6, 0xe2, 0xb2, 0x6d, 0xe0, 0x14, 0xd2, 0x8c, 0xce,
+    0x17, 0x4c, 0x31, 0xa1, 0xfa, 0xff, 0x4c, 0x76, 0x4b, 0x84, 0x3d, 0x90, 0xa5, 0x40, 0x95, 0xec,
+];
 pub const PUBLIC_TESTNET_FEE_SINK_ADDRESS: &str = "xriqdev1testnetfees0000000000";
 /// Genesis-funded faucet account. Its balance is valueless test units used only
 /// to seed the public testnet faucet; it is not a supply, sale, or distribution.
@@ -51,6 +63,10 @@ pub struct GenesisConfig {
     pub min_fee: XriqAmount,
     pub fee_sink: Address,
     pub authority: Address,
+    /// The block-producer authority's Ed25519 public key. Fixed in genesis so
+    /// producer signatures can be verified against it (production-crypto Phase 2b).
+    /// All-zero on devnet, which still uses the test-only signature scheme.
+    pub authority_pubkey: [u8; 32],
     pub mempool_max_transactions: usize,
     pub max_transactions_per_block: usize,
     pub accounts: Vec<GenesisAccount>,
@@ -77,6 +93,8 @@ impl GenesisConfig {
                 .expect("private devnet fee sink address is valid"),
             authority: Address::parse("xriqdev1author00000000000")
                 .expect("private devnet authority address is valid"),
+            // Devnet keeps the test-only signature scheme: no ed25519 authority key.
+            authority_pubkey: [0u8; 32],
             mempool_max_transactions: PRIVATE_DEVNET_MEMPOOL_MAX_TRANSACTIONS,
             max_transactions_per_block: PRIVATE_DEVNET_MAX_TRANSACTIONS_PER_BLOCK,
             accounts: Vec::new(),
@@ -95,6 +113,8 @@ impl GenesisConfig {
                 .expect("public testnet fee sink address is valid"),
             authority: Address::parse(PUBLIC_TESTNET_AUTHORITY_ADDRESS)
                 .expect("public testnet authority address is valid"),
+            // Key-derived authority: address == ed25519_address(this pubkey).
+            authority_pubkey: PUBLIC_TESTNET_AUTHORITY_PUBKEY,
             mempool_max_transactions: PUBLIC_TESTNET_MEMPOOL_MAX_TRANSACTIONS,
             max_transactions_per_block: PUBLIC_TESTNET_MAX_TRANSACTIONS_PER_BLOCK,
             accounts: Vec::new(),

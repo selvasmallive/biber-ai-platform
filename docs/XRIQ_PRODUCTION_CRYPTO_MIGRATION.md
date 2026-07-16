@@ -115,13 +115,18 @@ new key-handling anti-patterns.
    &[u8; 32]) -> Address` = `xriqdev1` + 20 bytes of a domain-separated
    (`xriq:v1:ed25519-address`) SHA-256 of the key as lowercase hex (a pure,
    offline-verifiable function of the public key), with a pinned golden vector +
-   determinism/format tests. REMAINING (2b): add genesis `authority_pubkey`
-   (fixed pubkey per network) and set `authority`/`fee_sink` to the key-derived
-   addresses, then regenerate the testnet `genesis_spec_hash` golden + chainspec
-   doc. 2b is a coordinated genesis change that alters testnet chain identity, so
-   it is its own step (xriq-core holds the pubkey + pre-derived address constants;
-   an xriq-crypto test asserts `ed25519_address(pubkey) == authority`, since
-   xriq-core cannot depend on xriq-crypto).
+   determinism/format tests. **(2b) DONE.** `GenesisConfig` gained
+   `authority_pubkey: [u8; 32]`; the public testnet authority is now key-derived
+   (`PUBLIC_TESTNET_AUTHORITY_PUBKEY` fixed in genesis, `authority` =
+   `ed25519_address(pubkey)` = `xriqdev186bb85c…17e3c`), bound by an xriq-crypto
+   test (`ed25519_address(pubkey) == authority`) since xriq-core cannot depend on
+   xriq-crypto. `authority_pubkey` is folded into `genesis_spec_hash` and surfaced
+   by `testnet-genesis`; the golden regenerated to
+   `8849162ec39e556f0bbf1d60ca0b38ea3f93c9d2bea341c2c21129b10642188b` (node test +
+   chainspec doc updated). Devnet keeps an all-zero `authority_pubkey` and the
+   test-only scheme (its authority address is unchanged, so its large producer
+   test suite stays green). `fee_sink` remains a fixed non-signing sink (no key
+   needed). NOT yet used for verification — that is Phase 3.
 3. **Wire verification (devnet behind a flag).** Node/consensus/faucet accept a
    `SignatureScheme`; add `--signature-scheme test-only|ed25519`. Keep default
    `test-only` so nothing breaks; add ed25519 end-to-end tests.

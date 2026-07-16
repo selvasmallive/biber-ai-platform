@@ -3656,6 +3656,7 @@ fn genesis_spec_hash(genesis: &GenesisConfig) -> Hash32 {
     bytes.extend_from_slice(&genesis.min_fee.base_units().to_le_bytes());
     push_len_prefixed(&mut bytes, genesis.fee_sink.as_str().as_bytes());
     push_len_prefixed(&mut bytes, genesis.authority.as_str().as_bytes());
+    bytes.extend_from_slice(&genesis.authority_pubkey);
     bytes.extend_from_slice(&(genesis.mempool_max_transactions as u64).to_le_bytes());
     bytes.extend_from_slice(&(genesis.max_transactions_per_block as u64).to_le_bytes());
     bytes.extend_from_slice(&(genesis.accounts.len() as u64).to_le_bytes());
@@ -3686,8 +3687,13 @@ fn render_testnet_genesis_json(genesis: &GenesisConfig) -> String {
             .join(",");
         format!("[{items}\n  ]")
     };
+    let authority_pubkey_hex: String = genesis
+        .authority_pubkey
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
     format!(
-        "{{\n  \"command\": \"testnet-genesis\",\n  \"warning\": {},\n  \"chain_id\": {},\n  \"initial_height\": {},\n  \"genesis_block_hash\": {},\n  \"min_fee_base_units\": {},\n  \"fee_sink\": {},\n  \"authority\": {},\n  \"mempool_max_transactions\": {},\n  \"max_transactions_per_block\": {},\n  \"accounts\": {},\n  \"genesis_spec_hash\": {}\n}}",
+        "{{\n  \"command\": \"testnet-genesis\",\n  \"warning\": {},\n  \"chain_id\": {},\n  \"initial_height\": {},\n  \"genesis_block_hash\": {},\n  \"min_fee_base_units\": {},\n  \"fee_sink\": {},\n  \"authority\": {},\n  \"authority_pubkey\": {},\n  \"mempool_max_transactions\": {},\n  \"max_transactions_per_block\": {},\n  \"accounts\": {},\n  \"genesis_spec_hash\": {}\n}}",
         json_string(TESTNET_GENESIS_WARNING),
         json_string(&genesis.chain_id),
         genesis.initial_height,
@@ -3695,6 +3701,7 @@ fn render_testnet_genesis_json(genesis: &GenesisConfig) -> String {
         json_string(&genesis.min_fee.base_units().to_string()),
         json_string(genesis.fee_sink.as_str()),
         json_string(genesis.authority.as_str()),
+        json_string(&authority_pubkey_hex),
         genesis.mempool_max_transactions,
         genesis.max_transactions_per_block,
         accounts_json,
@@ -9538,10 +9545,18 @@ mod tests {
         assert!(json.contains("\"address\": \"xriqdev1testnetfaucet00000000\""));
         assert!(json.contains("\"balance_base_units\": \"1000000000000\""));
         assert!(json.contains("TEST-ONLY"));
+        // The authority is key-derived (production-crypto Phase 2b); its pubkey is
+        // fixed in genesis.
+        assert!(
+            json.contains("\"authority\": \"xriqdev186bb85cec1870545c41bb09bca58e6e71a317e3c\"")
+        );
+        assert!(json.contains(
+            "\"authority_pubkey\": \"167870e1cfa8c8d6e2b26de014d28cce174c31a1faff4c764b843d90a54095ec\""
+        ));
         // Golden fingerprint: independent nodes must reproduce this exact hash.
         // If this assertion fails, the testnet genesis spec changed (a hard fork).
         assert!(json.contains(
-            "\"genesis_spec_hash\": \"af01fa096c41538735cae46a6f9a7cb052bb198b1dd33316f905e46ec7ad1580\""
+            "\"genesis_spec_hash\": \"8849162ec39e556f0bbf1d60ca0b38ea3f93c9d2bea341c2c21129b10642188b\""
         ));
 
         // The fingerprint is deterministic and distinct from the devnet genesis.

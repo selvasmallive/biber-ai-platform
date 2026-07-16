@@ -385,6 +385,7 @@ mod tests {
     use super::*;
     use xriq_core::{
         AccountStateEntry, Address, Block, BlockHeader, SignatureBytes, Transaction, XriqAmount,
+        PUBLIC_TESTNET_AUTHORITY_ADDRESS, PUBLIC_TESTNET_AUTHORITY_PUBKEY,
     };
 
     const ED25519_ADDRESS_GOLDEN: &str = "xriqdev1397e043c1939ff954726c0f3657a7a5093b33b89";
@@ -662,5 +663,16 @@ mod tests {
         // Golden vector: the derivation is stable across builds (a change here is
         // a deliberate address-scheme change).
         assert_eq!(ed25519_address(&[0u8; 32]).as_str(), ED25519_ADDRESS_GOLDEN);
+    }
+
+    #[test]
+    fn public_testnet_authority_address_is_key_derived() {
+        // Binds the genesis authority address to its public key. xriq-core holds
+        // both constants (it cannot depend on xriq-crypto); this test enforces the
+        // invariant `authority == ed25519_address(authority_pubkey)`.
+        assert_eq!(
+            ed25519_address(&PUBLIC_TESTNET_AUTHORITY_PUBKEY).as_str(),
+            PUBLIC_TESTNET_AUTHORITY_ADDRESS
+        );
     }
 }

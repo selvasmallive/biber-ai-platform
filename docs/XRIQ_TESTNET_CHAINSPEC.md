@@ -25,9 +25,17 @@ the same `genesis_spec_hash` to be on the same chain.
 | `genesis_block_hash` | `0000…0000` (all-zero; genesis is the implicit parent of block 1) |
 | `min_fee_base_units` | `2` |
 | `fee_sink` | `xriqdev1testnetfees0000000000` |
-| `authority` | `xriqdev1testnetauthority00000` |
+| `authority` | `xriqdev186bb85cec1870545c41bb09bca58e6e71a317e3c` (key-derived) |
+| `authority_pubkey` | `167870e1cfa8c8d6e2b26de014d28cce174c31a1faff4c764b843d90a54095ec` |
 | `mempool_max_transactions` | `4096` |
 | `max_transactions_per_block` | `512` |
+
+The block-producer `authority` is **key-derived** (production-crypto migration
+Phase 2b): `authority == ed25519_address(authority_pubkey)` (an `xriq-crypto` test
+enforces the binding). The 32-byte `authority_pubkey` is fixed in genesis so a
+producer's block signatures can later be verified against it. **TEST-ONLY:** the
+matching key is a well-known test key (seed `b"xriq-testnet-authority-test-0001"`)
+and must never guard value; a real deployment fixes a real operator public key.
 
 Addresses use the fixed `xriqdev1` address-format prefix (this is the wire
 address format, not a per-network marker); the `xriq-testnet` `chain_id` is what
@@ -69,7 +77,7 @@ the limiter. A testnet node also serves read routes on the testnet chain:
 ## Genesis spec hash
 
 ```
-genesis_spec_hash = af01fa096c41538735cae46a6f9a7cb052bb198b1dd33316f905e46ec7ad1580
+genesis_spec_hash = 8849162ec39e556f0bbf1d60ca0b38ea3f93c9d2bea341c2c21129b10642188b
 ```
 
 The hash is `SHA-256` over a domain-separated (`xriq-genesis-spec:v1`), canonical,
