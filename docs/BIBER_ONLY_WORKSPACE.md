@@ -179,10 +179,10 @@ python scripts/biber_local_confidence_smoke.py
 This combined smoke runs the mocked local OpenAI-compatible provider HTTP smoke,
 the mocked live-provider readiness smoke, the local MVP-loop edit-review smoke,
 the local MVP-loop failure/repair-hint smoke, the real-checkout MVP-loop
-repo-probe dry run, the verified-repair GitHub dry-run handoff smoke, and the
-local repair-loop smoke together. It is the preferred pre-live-provider gate
-before asking for Vast GPU credentials or pointing BIBER at a real local
-Qwen/vLLM endpoint.
+repo-probe dry run, the verified-repair GitHub dry-run handoff smoke, the
+standalone GitHub dry-run artifact smoke, and the local repair-loop smoke
+together. It is the preferred pre-live-provider gate before asking for Vast GPU
+credentials or pointing BIBER at a real local Qwen/vLLM endpoint.
 It also includes the full local MVP-loop repair smoke, which starts from a real
 failed local `mvp-loop` artifact and walks through local-model repair, review,
 guarded apply, verification, and status without API credentials.
@@ -249,6 +249,17 @@ The smoke runs the full local MVP-loop repair smoke, points
 sent. It also verifies the integrated `mvp-loop --github-dry-run` save/PR
 handoff fields. It does not require BIBER API, GitHub credentials, OpenAI, Vast
 GPU, or training credentials.
+
+To run only the standalone GitHub dry-run artifact smoke:
+
+```bash
+python scripts/biber_local_github_dry_run_artifacts_smoke.py
+```
+
+The smoke creates `save-github --dry-run` and `create-pr --dry-run` artifacts,
+runs `show-github-dry-run` on each, and runs `list-github-dry-runs` over the
+artifact directory. It verifies no GitHub request was sent and does not require
+BIBER API, GitHub credentials, OpenAI, Vast GPU, or training credentials.
 
 To run only the repair-loop smoke:
 

@@ -110,6 +110,12 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             pycache_root=pycache_root,
             timeout_seconds=timeout_seconds,
         )
+        github_dry_run_artifacts = run_smoke_script(
+            repo_root=repo_root,
+            script_name="biber_local_github_dry_run_artifacts_smoke.py",
+            pycache_root=pycache_root,
+            timeout_seconds=timeout_seconds,
+        )
         repair_loop = run_smoke_script(
             repo_root=repo_root,
             script_name="biber_local_repair_loop_smoke.py",
@@ -128,6 +134,7 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             "local_verified_repair_github_dry_run",
             verified_repair_github_dry_run,
         ),
+        compact_check("local_github_dry_run_artifacts", github_dry_run_artifacts),
         compact_check("local_repair_loop", repair_loop),
     ]
     summary = {
@@ -222,6 +229,19 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
                 "mvp_loop_pull_request_source"
             ),
         },
+        "github_dry_run_artifacts": {
+            "matched": github_dry_run_artifacts.get("matched"),
+            "scanned": github_dry_run_artifacts.get("scanned"),
+            "dry_run_types": github_dry_run_artifacts.get("dry_run_types"),
+            "github_request_sent": github_dry_run_artifacts.get(
+                "github_request_sent"
+            ),
+            "save_source": github_dry_run_artifacts.get("save_source"),
+            "pull_request_source": github_dry_run_artifacts.get(
+                "pull_request_source"
+            ),
+            "list_source": github_dry_run_artifacts.get("list_source"),
+        },
         "repair_loop": {
             "chain_status": repair_loop.get("chain_status"),
             "verification_ok": repair_loop.get("verification_ok"),
@@ -239,7 +259,8 @@ def parse_args() -> argparse.Namespace:
         description=(
             "Run BIBER's local provider, readiness, local MVP-loop success/failure, "
             "real-repo probe, full local MVP repair, GitHub dry-run handoff, "
-            "and local repair-loop smokes as one no-GPU confidence gate."
+            "GitHub dry-run artifact, and local repair-loop smokes as one "
+            "no-GPU confidence gate."
         )
     )
     parser.add_argument("--output", help="Optional path for the confidence summary JSON.")

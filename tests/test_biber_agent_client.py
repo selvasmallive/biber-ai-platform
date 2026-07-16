@@ -273,6 +273,9 @@ def test_local_confidence_smoke_runs_provider_and_repair_smokes() -> None:
     assert "mvp_loop_github_dry_run" in text
     assert "mvp_loop_save_source" in text
     assert "mvp_loop_pull_request_source" in text
+    assert "biber_local_github_dry_run_artifacts_smoke.py" in text
+    assert "local_github_dry_run_artifacts" in text
+    assert '"github_dry_run_artifacts"' in text
     assert "biber_local_repair_loop_smoke.py" in text
     assert "biber_local_confidence_smoke" in text
     assert '"external_network_required": False' in text
@@ -6246,6 +6249,23 @@ def test_local_verified_repair_github_dry_run_smoke_documents_handoff() -> None:
     assert "mvp_loop_github_dry_run" in text
     assert "biber_github_save_dry_run" in text
     assert "biber_github_pull_request_dry_run" in text
+    assert '"api_required": False' in text
+    assert '"gpu_required": False' in text
+    assert '"training_allowed": False' in text
+
+
+def test_local_github_dry_run_artifacts_smoke_documents_handoff() -> None:
+    script = ROOT / "scripts" / "biber_local_github_dry_run_artifacts_smoke.py"
+    text = script.read_text(encoding="utf-8")
+
+    assert "save-github" in text
+    assert "create-pr" in text
+    assert "show-github-dry-run" in text
+    assert "list-github-dry-runs" in text
+    assert "--dry-run" in text
+    assert "--output" in text
+    assert "github_request_sent" in text
+    assert "biber_github_dry_run_artifact_list" in text
     assert '"api_required": False' in text
     assert '"gpu_required": False' in text
     assert '"training_allowed": False' in text

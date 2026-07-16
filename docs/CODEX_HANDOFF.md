@@ -365,6 +365,15 @@ standalone GitHub dry-run JSON artifacts, accepts only the
 types, sorts newest first, and can save the list with `--output`. This remains
 CPU-local and does not resolve API credentials or call GitHub, OpenAI mentor,
 GPU, training, the BIBER API, or live model endpoints.
+Fortieth BIBER resume checkpoint on the same branch:
+`scripts/biber_local_github_dry_run_artifacts_smoke.py` now proves the
+standalone GitHub dry-run artifact workflow end to end:
+`save-github --dry-run --output`, `create-pr --dry-run --output`,
+`show-github-dry-run`, and `list-github-dry-runs`. The combined
+`scripts/biber_local_confidence_smoke.py` now includes this smoke and reports a
+`github_dry_run_artifacts` summary. This remains CPU-local and does not resolve
+API credentials or call GitHub, OpenAI mentor, GPU, training, the BIBER API, or
+live model endpoints.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
