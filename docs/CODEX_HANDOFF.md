@@ -308,6 +308,15 @@ the single local confidence gate covers mocked provider readiness, local
 MVP-loop success/failure, real repo context/git-state probing, full repair, and
 repair-loop status. This remains CPU-local and does not call OpenAI mentor,
 train, use GPU, require API auth, apply files, or save to GitHub.
+Thirty-third BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py save-github` and `create-pr` now support
+`--dry-run`. These commands build and print the exact GitHub save or pull
+request payload locally before API-key resolution, with
+`github_request_sent=false`, `api_required=false`, and no training/apply side
+effects. Use them to verify target path, branch, owner/repo, PR head/base/title,
+draft mode, and content/body byte counts before enabling the server-backed
+GitHub save/PR flow. This remains CPU-local and does not call GitHub, OpenAI
+mentor, GPU, training, or the BIBER API.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

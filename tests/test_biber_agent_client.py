@@ -649,6 +649,85 @@ def test_build_github_payloads_and_summaries() -> None:
     )
 
 
+def test_run_github_dry_runs_do_not_resolve_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("GitHub dry-run should not resolve an API key")
+
+    body_file = tmp_path / "pr-body.md"
+    body_file.write_text("Dry-run PR body.\n", encoding="utf-8")
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    save_output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "save-github",
+                "--dry-run",
+                "--path",
+                "generated/example.ts",
+                "--content",
+                "export const ok = true;\n",
+                "--owner",
+                "acme",
+                "--repo",
+                "biber-generated",
+                "--branch",
+                "biber/generated-example",
+                "--base-branch",
+                "main",
+                "--create-branch-if-missing",
+                "--commit-message",
+                "Save generated BIBER example",
+            ]
+        )
+    )
+    save_result = json.loads(save_output)
+
+    assert save_result["source"] == "biber_github_save_dry_run"
+    assert save_result["dry_run"] is True
+    assert save_result["api_required"] is False
+    assert save_result["github_request_sent"] is False
+    assert save_result["target"]["path"] == "generated/example.ts"
+    assert save_result["target"]["owner"] == "acme"
+    assert save_result["target"]["repo"] == "biber-generated"
+    assert save_result["content_bytes"] == len("export const ok = true;\n".encode("utf-8"))
+
+    pr_output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "create-pr",
+                "--dry-run",
+                "--head",
+                "biber/generated-example",
+                "--base",
+                "main",
+                "--title",
+                "Save generated BIBER example",
+                "--body-file",
+                str(body_file),
+                "--owner",
+                "acme",
+                "--repo",
+                "biber-generated",
+            ]
+        )
+    )
+    pr_result = json.loads(pr_output)
+
+    assert pr_result["source"] == "biber_github_pull_request_dry_run"
+    assert pr_result["dry_run"] is True
+    assert pr_result["api_required"] is False
+    assert pr_result["github_request_sent"] is False
+    assert pr_result["pull_request"]["head"] == "biber/generated-example"
+    assert pr_result["pull_request"]["base"] == "main"
+    assert pr_result["pull_request"]["draft"] is True
+    assert pr_result["body_bytes"] == len("Dry-run PR body.\n".encode("utf-8"))
+
+
 def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
     output = client.format_mvp_loop_summary(
         {

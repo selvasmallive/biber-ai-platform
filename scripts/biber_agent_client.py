@@ -13675,12 +13675,79 @@ def format_github_save_summary(payload: Mapping[str, Any]) -> str:
     )
 
 
+def build_github_save_dry_run_result(payload: Mapping[str, Any]) -> dict[str, Any]:
+    content = str(payload.get("content") or "")
+    return {
+        "source": "biber_github_save_dry_run",
+        "dry_run": True,
+        "api_required": False,
+        "github_request_sent": False,
+        "training_allowed": False,
+        "auto_applied": False,
+        "target": require_mapping(payload.get("target")),
+        "content_bytes": len(content.encode("utf-8")),
+    }
+
+
+def format_github_save_dry_run_summary(payload: Mapping[str, Any]) -> str:
+    target = require_mapping(payload.get("target"))
+    return "\n".join(
+        [
+            "BIBER GitHub save dry-run",
+            f"dry_run: {payload.get('dry_run', False)}",
+            f"api_required: {payload.get('api_required', True)}",
+            f"github_request_sent: {payload.get('github_request_sent', True)}",
+            f"path: {target.get('path', '-')}",
+            f"owner: {target.get('owner', '-')}",
+            f"repo: {target.get('repo', '-')}",
+            f"branch: {target.get('branch', '-')}",
+            f"base_branch: {target.get('base_branch', '-')}",
+            f"create_branch_if_missing: {target.get('create_branch_if_missing', False)}",
+            f"commit_message: {target.get('commit_message', '-')}",
+            f"content_bytes: {payload.get('content_bytes', 0)}",
+        ]
+    )
+
+
 def format_github_pull_request_summary(payload: Mapping[str, Any]) -> str:
     return "\n".join(
         [
             "BIBER GitHub pull request",
             f"url: {payload.get('url', '-')}",
             f"number: {payload.get('number', '-')}",
+        ]
+    )
+
+
+def build_github_pull_request_dry_run_result(payload: Mapping[str, Any]) -> dict[str, Any]:
+    body = str(payload.get("body") or "")
+    return {
+        "source": "biber_github_pull_request_dry_run",
+        "dry_run": True,
+        "api_required": False,
+        "github_request_sent": False,
+        "training_allowed": False,
+        "auto_applied": False,
+        "pull_request": dict(payload),
+        "body_bytes": len(body.encode("utf-8")),
+    }
+
+
+def format_github_pull_request_dry_run_summary(payload: Mapping[str, Any]) -> str:
+    pull_request = require_mapping(payload.get("pull_request"))
+    return "\n".join(
+        [
+            "BIBER GitHub pull request dry-run",
+            f"dry_run: {payload.get('dry_run', False)}",
+            f"api_required: {payload.get('api_required', True)}",
+            f"github_request_sent: {payload.get('github_request_sent', True)}",
+            f"owner: {pull_request.get('owner', '-')}",
+            f"repo: {pull_request.get('repo', '-')}",
+            f"head: {pull_request.get('head', '-')}",
+            f"base: {pull_request.get('base', '-')}",
+            f"title: {pull_request.get('title', '-')}",
+            f"draft: {pull_request.get('draft', True)}",
+            f"body_bytes: {payload.get('body_bytes', 0)}",
         ]
     )
 
@@ -16536,6 +16603,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--commit-message",
         default="Save BIBER generated code",
     )
+    save_github.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Build and print the GitHub save payload without resolving API auth.",
+    )
 
     create_pr = subparsers.add_parser(
         "create-pr",
@@ -16549,6 +16621,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     create_pr.add_argument("--owner")
     create_pr.add_argument("--repo")
     create_pr.add_argument("--ready", action="store_true", help="Create a non-draft PR.")
+    create_pr.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Build and print the pull-request payload without resolving API auth.",
+    )
 
     mvp_loop = subparsers.add_parser(
         "mvp-loop",
@@ -19406,6 +19483,57 @@ def run(args: argparse.Namespace) -> str:
     ):
         raise BiberAgentClientError(
             "mvp-loop --include-git-state requires --local-target-root."
+        )
+
+    if args.command == "save-github" and args.dry_run:
+        content = load_text_argument(
+            value=args.content,
+            file_path=args.content_file,
+            label="--content",
+        )
+        if not content:
+            raise BiberAgentClientError("GitHub save requires --content or --content-file.")
+        result = build_github_save_dry_run_result(
+            build_github_save_payload(
+                path=args.path,
+                content=content,
+                owner=args.owner,
+                repo=args.repo,
+                branch=args.branch,
+                base_branch=args.base_branch,
+                create_branch_if_missing=args.create_branch_if_missing,
+                commit_message=args.commit_message,
+            )
+        )
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_github_save_dry_run_summary(result)
+        )
+
+    if args.command == "create-pr" and args.dry_run:
+        if args.head == args.base:
+            raise BiberAgentClientError("PR head and base branches must differ.")
+        body = load_text_argument(
+            value=args.body,
+            file_path=args.body_file,
+            label="--body",
+        )
+        result = build_github_pull_request_dry_run_result(
+            build_github_pull_request_payload(
+                head=args.head,
+                base=args.base,
+                title=args.title,
+                body=body,
+                owner=args.owner,
+                repo=args.repo,
+                draft=not args.ready,
+            )
+        )
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_github_pull_request_dry_run_summary(result)
         )
 
     mvp_loop_uses_only_local_steps = (
