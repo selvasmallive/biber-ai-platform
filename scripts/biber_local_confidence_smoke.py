@@ -92,6 +92,12 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             pycache_root=pycache_root,
             timeout_seconds=timeout_seconds,
         )
+        mvp_loop_repo_probe = run_smoke_script(
+            repo_root=repo_root,
+            script_name="biber_local_mvp_loop_repo_probe_smoke.py",
+            pycache_root=pycache_root,
+            timeout_seconds=timeout_seconds,
+        )
         mvp_loop_full_repair = run_smoke_script(
             repo_root=repo_root,
             script_name="biber_local_mvp_loop_full_repair_smoke.py",
@@ -110,6 +116,7 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
         compact_check("live_provider_readiness_mock", readiness),
         compact_check("local_mvp_loop", mvp_loop),
         compact_check("local_mvp_loop_failure", mvp_loop_failure),
+        compact_check("local_mvp_loop_repo_probe", mvp_loop_repo_probe),
         compact_check("local_mvp_loop_full_repair", mvp_loop_full_repair),
         compact_check("local_repair_loop", repair_loop),
     ]
@@ -151,6 +158,16 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             "repair_status": mvp_loop_failure.get("repair_status"),
             "repair_prompt_has_hint": mvp_loop_failure.get("repair_prompt_has_hint"),
         },
+        "mvp_loop_repo_probe": {
+            "agent_report_status": mvp_loop_repo_probe.get("agent_report_status"),
+            "git_branch": mvp_loop_repo_probe.get("git_branch"),
+            "git_dirty": mvp_loop_repo_probe.get("git_dirty"),
+            "selected_context_paths": mvp_loop_repo_probe.get("selected_context_paths"),
+            "detected_project_types": mvp_loop_repo_probe.get("detected_project_types"),
+            "test_id": mvp_loop_repo_probe.get("test_id"),
+            "test_executed": mvp_loop_repo_probe.get("test_executed"),
+            "repo_status_unchanged": mvp_loop_repo_probe.get("repo_status_unchanged"),
+        },
         "mvp_loop_full_repair": {
             "agent_report_status": mvp_loop_full_repair.get("agent_report_status"),
             "repair_hint_status": mvp_loop_full_repair.get("repair_hint_status"),
@@ -177,8 +194,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Run BIBER's local provider, readiness, local MVP-loop success/failure, "
-            "full local MVP repair, and local repair-loop smokes as one no-GPU "
-            "confidence gate."
+            "real-repo probe, full local MVP repair, and local repair-loop smokes "
+            "as one no-GPU confidence gate."
         )
     )
     parser.add_argument("--output", help="Optional path for the confidence summary JSON.")

@@ -261,6 +261,9 @@ def test_local_confidence_smoke_runs_provider_and_repair_smokes() -> None:
     assert "biber_local_mvp_loop_failure_smoke.py" in text
     assert "local_mvp_loop_failure" in text
     assert '"mvp_loop_failure"' in text
+    assert "biber_local_mvp_loop_repo_probe_smoke.py" in text
+    assert "local_mvp_loop_repo_probe" in text
+    assert '"mvp_loop_repo_probe"' in text
     assert "biber_local_mvp_loop_full_repair_smoke.py" in text
     assert "local_mvp_loop_full_repair" in text
     assert '"mvp_loop_full_repair"' in text
@@ -5962,6 +5965,22 @@ def test_local_mvp_loop_failure_smoke_script_documents_repair_hint() -> None:
     assert "repair_hint" in text
     assert "repair_prompt_has_hint" in text
     assert "ready_for_prepare_repair" in text
+    assert '"api_required": False' in text
+    assert '"gpu_required": False' in text
+    assert '"training_allowed": False' in text
+
+
+def test_local_mvp_loop_repo_probe_smoke_documents_real_repo_dry_run() -> None:
+    script = ROOT / "scripts" / "biber_local_mvp_loop_repo_probe_smoke.py"
+    text = script.read_text(encoding="utf-8")
+
+    assert "mvp-loop" in text
+    assert "--local-target-root" in text
+    assert "--include-git-state" in text
+    assert "--test-dry-run" in text
+    assert "repo_status_unchanged" in text
+    assert "scripts/biber_agent_client.py" in text
+    assert "docs/BIBER_ONLY_WORKSPACE.md" in text
     assert '"api_required": False' in text
     assert '"gpu_required": False' in text
     assert '"training_allowed": False' in text

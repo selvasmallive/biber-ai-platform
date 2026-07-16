@@ -297,6 +297,17 @@ command points at the first no-API repair step:
 smoke verifies the hint. This is a usability/status improvement only; it does
 not call a model, enable OpenAI mentor, use GPU, train, apply files, or save to
 GitHub.
+Thirty-second BIBER resume checkpoint on the same branch:
+`scripts/biber_local_mvp_loop_repo_probe_smoke.py` now runs a real-checkout
+dry-run probe against the BIBER sparse checkout itself. It calls
+`mvp-loop --local-target-root <repo> --include-git-state` with changed-path
+hints and `--test-dry-run`, verifies context selection, branch/head/dirty
+capture, dry-run test reporting, and that repo status is unchanged by the
+probe. `scripts/biber_local_confidence_smoke.py` now includes this probe, so
+the single local confidence gate covers mocked provider readiness, local
+MVP-loop success/failure, real repo context/git-state probing, full repair, and
+repair-loop status. This remains CPU-local and does not call OpenAI mentor,
+train, use GPU, require API auth, apply files, or save to GitHub.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
