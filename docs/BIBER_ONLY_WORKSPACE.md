@@ -49,6 +49,7 @@ python scripts/biber_agent_client.py --json mvp-loop \
   --local-target-root /path/to/repo \
   --include-git-state \
   --changed-path src/example.py \
+  --changed-paths-file /tmp/biber-changed-paths.txt \
   --test-id python-compileall-api \
   --test-dry-run \
   --output /tmp/biber-mvp-loop.json
@@ -56,6 +57,10 @@ python scripts/biber_agent_client.py --json mvp-loop \
 
 With `--local-target-root`, context planning, safe edit plan/apply, test
 execution, and diagnosis are local. GitHub save/PR remains server-backed.
+For larger changes, pass newline-delimited path lists with
+`--pinned-paths-file` and `--changed-paths-file`; blank lines and `#` comments
+are ignored, and the file entries are appended after any repeated
+`--pinned-path` or `--changed-path` flags.
 Use `save-github --dry-run` and `create-pr --dry-run` to inspect the exact
 GitHub payload locally before enabling server-backed credentials or sending any
 GitHub request. Add `--output` when you want those standalone dry-runs saved as

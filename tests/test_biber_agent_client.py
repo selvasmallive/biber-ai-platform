@@ -564,6 +564,29 @@ def test_build_repo_context_payload_omits_unset_values() -> None:
     }
 
 
+def test_combine_cli_paths_merges_flags_and_path_files(tmp_path: Path) -> None:
+    path_file = tmp_path / "paths.txt"
+    path_file.write_text(
+        "\n".join(
+            [
+                "# ignored comment",
+                "src/app.py",
+                "",
+                "tests/test_app.py",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    combined = client.combine_cli_paths(
+        ["README.md"],
+        str(path_file),
+        label="--changed-paths-file",
+    )
+
+    assert combined == ["README.md", "src/app.py", "tests/test_app.py"]
+
+
 def test_format_repo_context_summary_lists_selected_paths_and_profiles() -> None:
     output = client.format_repo_context_summary(
         {
@@ -13596,8 +13619,18 @@ def test_run_get_session_json_uses_client_workflow(monkeypatch) -> None:
     assert json.loads(output)["id"] == "session-1"
 
 
-def test_run_plan_context_json_uses_client_workflow(monkeypatch) -> None:
+def test_run_plan_context_json_uses_client_workflow(monkeypatch, tmp_path: Path) -> None:
     captured: dict[str, object] = {}
+    pinned_paths_file = tmp_path / "pinned-paths.txt"
+    pinned_paths_file.write_text(
+        "# docs\nREADME.md\n",
+        encoding="utf-8",
+    )
+    changed_paths_file = tmp_path / "changed-paths.txt"
+    changed_paths_file.write_text(
+        "\n# source\nsrc/app.py\n",
+        encoding="utf-8",
+    )
 
     def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
         return "test-key"
@@ -13645,9 +13678,13 @@ def test_run_plan_context_json_uses_client_workflow(monkeypatch) -> None:
             "--instruction",
             "Plan docs update.",
             "--pinned-path",
-            "README.md",
+            "docs/CODEX_HANDOFF.md",
+            "--pinned-paths-file",
+            str(pinned_paths_file),
             "--changed-path",
             "docs/API_EXAMPLES.md",
+            "--changed-paths-file",
+            str(changed_paths_file),
             "--max-files",
             "4",
         ]
@@ -13659,8 +13696,8 @@ def test_run_plan_context_json_uses_client_workflow(monkeypatch) -> None:
     assert captured["api_key"] == "test-key"
     assert captured["payload"] == {
         "instruction": "Plan docs update.",
-        "pinned_paths": ["README.md"],
-        "changed_paths": ["docs/API_EXAMPLES.md"],
+        "pinned_paths": ["docs/CODEX_HANDOFF.md", "README.md"],
+        "changed_paths": ["docs/API_EXAMPLES.md", "src/app.py"],
         "max_files": 4,
     }
     assert json.loads(output)["selected_paths"] == ["README.md"]
@@ -14565,8 +14602,11 @@ def test_run_mvp_loop_local_target_can_include_git_state_without_api_key(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
+    captured: dict[str, object] = {}
     target_root = tmp_path / "target-repo"
     target_root.mkdir()
+    changed_paths_file = tmp_path / "changed-paths.txt"
+    changed_paths_file.write_text("# changed\nsrc/app.py\n", encoding="utf-8")
 
     def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
         raise AssertionError("local mvp-loop git state should not resolve an API key")
@@ -14588,6 +14628,7 @@ def test_run_mvp_loop_local_target_can_include_git_state_without_api_key(
         target_root: Path,
         payload: dict[str, object],
     ) -> dict[str, object]:
+        captured["context_payload"] = payload
         return {
             "selected_paths": ["src/app.py"],
             "detected_project_types": ["python"],
@@ -14615,7 +14656,9 @@ def test_run_mvp_loop_local_target_can_include_git_state_without_api_key(
                 str(target_root),
                 "--include-git-state",
                 "--changed-path",
-                "src/app.py",
+                "README.md",
+                "--changed-paths-file",
+                str(changed_paths_file),
             ]
         )
     )
@@ -14633,6 +14676,10 @@ def test_run_mvp_loop_local_target_can_include_git_state_without_api_key(
     assert result["agent_report"]["next_actions"] == [
         "Review local git dirty state before commit or PR.",
         "Run an allowlisted test for the selected context.",
+    ]
+    assert captured["context_payload"]["changed_paths"] == [
+        "README.md",
+        "src/app.py",
     ]
     assert result["steps"]["git_state"]["status_short"] == [
         " M src/app.py",

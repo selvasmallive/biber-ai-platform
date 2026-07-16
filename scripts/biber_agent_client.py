@@ -819,6 +819,38 @@ def build_repo_context_payload(
     return payload
 
 
+def load_path_list_file(path_file: str | None, *, label: str) -> list[str]:
+    if not path_file:
+        return []
+    path = Path(path_file)
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except OSError as exc:
+        raise BiberAgentClientError(f"Could not read {label} {path}: {exc}") from exc
+    paths: list[str] = []
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if "\x00" in stripped:
+            raise BiberAgentClientError(
+                f"{label} {path}:{line_number} contains a NUL byte."
+            )
+        paths.append(stripped)
+    return paths
+
+
+def combine_cli_paths(
+    values: list[str] | None,
+    file_path: str | None,
+    *,
+    label: str,
+) -> list[str] | None:
+    combined = list(values or [])
+    combined.extend(load_path_list_file(file_path, label=label))
+    return combined or None
+
+
 def format_repo_context_summary(payload: Mapping[str, Any]) -> str:
     selected_paths = [str(path) for path in require_list(payload.get("selected_paths"))]
     detected_project_types = [
@@ -16905,6 +16937,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     plan_context.add_argument("--instruction")
     plan_context.add_argument("--pinned-path", action="append", default=None)
     plan_context.add_argument("--changed-path", action="append", default=None)
+    plan_context.add_argument(
+        "--pinned-paths-file",
+        help="Newline-delimited pinned repo-context paths. Blank lines and # comments are ignored.",
+    )
+    plan_context.add_argument(
+        "--changed-paths-file",
+        help="Newline-delimited changed repo-context paths. Blank lines and # comments are ignored.",
+    )
     plan_context.add_argument("--max-files", type=int)
     plan_context.add_argument("--max-scan-files", type=int)
 
@@ -17047,6 +17087,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     mvp_loop.add_argument("--instruction", required=True)
     mvp_loop.add_argument("--pinned-path", action="append", default=None)
     mvp_loop.add_argument("--changed-path", action="append", default=None)
+    mvp_loop.add_argument(
+        "--pinned-paths-file",
+        help="Newline-delimited pinned repo-context paths. Blank lines and # comments are ignored.",
+    )
+    mvp_loop.add_argument(
+        "--changed-paths-file",
+        help="Newline-delimited changed repo-context paths. Blank lines and # comments are ignored.",
+    )
     mvp_loop.add_argument(
         "--local-target-root",
         help=(
@@ -20348,8 +20396,16 @@ def run(args: argparse.Namespace) -> str:
     if args.command == "plan-context":
         payload = build_repo_context_payload(
             instruction=args.instruction,
-            pinned_paths=args.pinned_path,
-            changed_paths=args.changed_path,
+            pinned_paths=combine_cli_paths(
+                args.pinned_path,
+                args.pinned_paths_file,
+                label="--pinned-paths-file",
+            ),
+            changed_paths=combine_cli_paths(
+                args.changed_path,
+                args.changed_paths_file,
+                label="--changed-paths-file",
+            ),
             max_files=args.max_files,
             max_scan_files=args.max_scan_files,
         )
@@ -20555,8 +20611,16 @@ def run(args: argparse.Namespace) -> str:
             steps["git_state"] = git_state
         context_payload = build_repo_context_payload(
             instruction=args.instruction,
-            pinned_paths=args.pinned_path,
-            changed_paths=args.changed_path,
+            pinned_paths=combine_cli_paths(
+                args.pinned_path,
+                args.pinned_paths_file,
+                label="--pinned-paths-file",
+            ),
+            changed_paths=combine_cli_paths(
+                args.changed_path,
+                args.changed_paths_file,
+                label="--changed-paths-file",
+            ),
             max_files=args.max_context_files,
             max_scan_files=args.max_scan_files,
         )

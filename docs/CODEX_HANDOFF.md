@@ -389,6 +389,15 @@ supports `--failed-only`, and can save its own list with `--output`. Use it to
 resume from local confidence artifacts without rerunning the full gate. This is
 CPU-local and does not resolve API credentials or call GitHub, OpenAI mentor,
 GPU, training, the BIBER API, or live model endpoints.
+Forty-third BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py plan-context` and `mvp-loop` now support
+`--pinned-paths-file` and `--changed-paths-file` for newline-delimited
+repo-context path hints. Blank lines and `#` comments are ignored, file entries
+are appended after repeated inline `--pinned-path` / `--changed-path` flags,
+and NUL bytes are rejected before any request or local context scan. This keeps
+larger BIBER repo-context selections easier to drive from generated artifact
+lists while staying CPU-local for `mvp-loop --local-target-root`; no GPU,
+training, OpenAI mentor, external paid API, or credential rotation is involved.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

@@ -430,8 +430,11 @@ python scripts/biber_agent_client.py get-session <session-id>
 python scripts/biber_agent_client.py plan-context \
   --instruction "Fix the WeatherController forecast route." \
   --pinned-path README.md \
+  --pinned-paths-file /workspace/outputs/biber-pinned-paths.txt \
   --changed-path src/Example.Api/Controllers/WeatherController.cs \
+  --changed-paths-file /workspace/outputs/biber-changed-paths.txt \
   --max-files 8
+# The path-list files are newline-delimited; blank lines and # comments are ignored.
 python scripts/biber_agent_client.py plan-edit \
   --edit-json '{"path":"generated/notes.md","new_text":"planned note\n","create_if_missing":true}' \
   --max-files 2
@@ -477,7 +480,9 @@ python scripts/biber_agent_client.py create-pr \
 python scripts/biber_agent_client.py mvp-loop \
   --instruction "Fix the WeatherController forecast route." \
   --pinned-path README.md \
+  --pinned-paths-file /workspace/outputs/biber-pinned-paths.txt \
   --changed-path src/Example.Api/Controllers/WeatherController.cs \
+  --changed-paths-file /workspace/outputs/biber-changed-paths.txt \
   --max-context-files 8 \
   --runtime-profile-id rust-xriq-codegen \
   --edits-file /workspace/outputs/planned-edits.json \
