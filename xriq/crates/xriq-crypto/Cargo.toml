@@ -7,5 +7,6 @@ repository.workspace = true
 description = "XRIQ canonical hashing and crypto-agility boundaries."
 
 [dependencies]
+ed25519-dalek = "2"
 sha2 = "0.10.8"
 xriq-core = { path = "../xriq-core" }

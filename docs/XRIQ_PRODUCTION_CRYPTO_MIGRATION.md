@@ -103,10 +103,14 @@ new key-handling anti-patterns.
 
 ## Phased plan (each phase is CI-green and reviewable)
 
-1. **Deps + primitives.** Add `ed25519-dalek` (updates `Cargo.lock`; requires
-   crates.io access — not doable in the offline sandbox, so this phase runs where
-   network is available). Add `PublicKey`/`Keypair` types + `Ed25519Scheme` with
-   unit tests (sign/verify/tamper vectors).
+1. **Deps + primitives.** — **DONE.** Added `ed25519-dalek = "2"` to `xriq-crypto`
+   (Cargo.lock updated) and an `Ed25519Verifier` (`verify_hash(msg, pubkey, sig)`
+   via `verify_strict`) plus test/key-management helpers
+   (`ed25519_signing_key_from_seed`, `ed25519_public_key`, `ed25519_sign_hash`).
+   Unit tests cover sign/verify round-trip, tampered message/signature, wrong key,
+   malformed-length inputs (no panic), and determinism. It slots into the crate's
+   existing `SignatureAlgorithm::Ed25519` / `SignatureEnvelope { public_key }`
+   agility scaffolding. NOT yet wired into node/consensus/wallet.
 2. **Address derivation.** Implement key→address; add genesis `authority_pubkey`;
    regenerate the testnet `genesis_spec_hash` golden.
 3. **Wire verification (devnet behind a flag).** Node/consensus/faucet accept a

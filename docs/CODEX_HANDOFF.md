@@ -619,6 +619,23 @@ fails) — xriq-api: 82 tests. This unblocked the always-on faucet unit, now shi
 After=xriq-testnet-node.service) with `XRIQ_TESTNET_FAUCET_*` in xriq.env.example;
 the topology doc documents the seed's single-writer/append-only chain-file note.
 Everything stays test-only, nothing applied to cloud.
+CRYPTO PHASE 1 DONE (production-crypto migration): added `ed25519-dalek = "2"` to
+`xriq-crypto` (Cargo.lock updated — the sandbox fetched it fine) and an
+`Ed25519Verifier` (`verify_hash(message_hash, public_key, signature)` using
+`verify_strict`, malformed inputs → InvalidSignature, never panic) plus
+test/key-management helpers `ed25519_signing_key_from_seed` / `ed25519_public_key`
+/ `ed25519_sign_hash`. It slots into the crate's pre-existing
+`SignatureAlgorithm::Ed25519` + `SignatureEnvelope { public_key }` agility
+scaffolding. Covered by `ed25519_sign_verify_roundtrip_and_rejects_tampering`
+(round-trip + tampered message/sig + wrong key + malformed lengths + empty) and
+`ed25519_keys_and_signatures_are_deterministic` — xriq-crypto: 13 tests. This is a
+NON-WIRED primitive (coexists with `TestOnlySignatureVerifier`); the remaining
+migration phases (key→address, thread a `SignatureScheme` through node/consensus/
+faucet behind `--signature-scheme`, real producer/faucet keys, flip testnet to
+ed25519, wallet client-side signing, then the mandated AI security review) are in
+`docs/XRIQ_PRODUCTION_CRYPTO_MIGRATION.md`. No custom crypto; audited crate only;
+still no key custody; real crypto + legal + security audit remain hard gates before
+any value-bearing use. Everything stays test-only.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

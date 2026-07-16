@@ -2,8 +2,11 @@
 //!
 //! This crate uses reviewed hashing primitives from dependencies and keeps the
 //! current fake private-devnet signature behavior behind an explicit test-only
-//! verifier. It does not provide production key custody or production signature
-//! verification yet.
+//! verifier. It now also provides a production Ed25519 verification primitive
+//! (`Ed25519Verifier`, via the audited `ed25519-dalek`) as Phase 1 of the
+//! production-crypto migration (`docs/XRIQ_PRODUCTION_CRYPTO_MIGRATION.md`); that
+//! primitive is NOT yet wired into the node/consensus/wallet, and this crate still
+//! provides no production key custody.
 
 use sha2::{Digest, Sha256};
 use xriq_core::{AccountStateEntry, Block, BlockHeader, Hash32, SignatureBytes, Transaction};
@@ -117,6 +120,69 @@ pub fn test_only_signature_for_hash(message_hash: Hash32) -> SignatureBytes {
     let mut bytes = TEST_ONLY_SIGNATURE_PREFIX.to_vec();
     bytes.extend_from_slice(message_hash.as_bytes());
     SignatureBytes::new(bytes)
+}
+
+/// Production Ed25519 signature verification (Phase 1 primitive). This is NOT yet
+/// wired into the node/consensus/wallet — it coexists with the test-only verifier
+/// during migration; see `docs/XRIQ_PRODUCTION_CRYPTO_MIGRATION.md`. Backed by the
+/// audited `ed25519-dalek`; no custom cryptography.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Ed25519Verifier;
+
+impl Ed25519Verifier {
+    /// Verify a 64-byte Ed25519 signature over the 32-byte signing hash for the
+    /// given 32-byte public key. Malformed key/signature bytes are rejected as
+    /// `InvalidSignature` (never panic); `verify_strict` rejects known
+    /// malleability / small-order edge cases.
+    pub fn verify_hash(
+        &self,
+        message_hash: Hash32,
+        public_key: &[u8],
+        signature: &SignatureBytes,
+    ) -> Result<(), SignatureVerificationError> {
+        if signature.is_empty() {
+            return Err(SignatureVerificationError::MissingSignature);
+        }
+        let key_bytes: [u8; 32] = public_key
+            .try_into()
+            .map_err(|_| SignatureVerificationError::InvalidSignature)?;
+        let verifying_key = ed25519_dalek::VerifyingKey::from_bytes(&key_bytes)
+            .map_err(|_| SignatureVerificationError::InvalidSignature)?;
+        let sig_bytes: [u8; 64] = signature
+            .as_slice()
+            .try_into()
+            .map_err(|_| SignatureVerificationError::InvalidSignature)?;
+        let signature = ed25519_dalek::Signature::from_bytes(&sig_bytes);
+        verifying_key
+            .verify_strict(message_hash.as_bytes(), &signature)
+            .map_err(|_| SignatureVerificationError::InvalidSignature)
+    }
+}
+
+/// Deterministically derive an Ed25519 signing key from a 32-byte seed. TEST /
+/// key-management helper; a real deployment loads keys from a gitignored key file
+/// or KMS, never from source. TEST-ONLY seeds must never guard value.
+pub fn ed25519_signing_key_from_seed(seed: [u8; 32]) -> ed25519_dalek::SigningKey {
+    ed25519_dalek::SigningKey::from_bytes(&seed)
+}
+
+/// The 32-byte public key for a signing key.
+pub fn ed25519_public_key(signing_key: &ed25519_dalek::SigningKey) -> [u8; 32] {
+    signing_key.verifying_key().to_bytes()
+}
+
+/// Sign a 32-byte signing hash, returning the 64-byte Ed25519 signature.
+pub fn ed25519_sign_hash(
+    signing_key: &ed25519_dalek::SigningKey,
+    message_hash: Hash32,
+) -> SignatureBytes {
+    use ed25519_dalek::Signer;
+    SignatureBytes::new(
+        signing_key
+            .sign(message_hash.as_bytes())
+            .to_bytes()
+            .to_vec(),
+    )
 }
 
 pub fn transaction_signing_bytes(transaction: &Transaction) -> Vec<u8> {
@@ -482,6 +548,69 @@ mod tests {
         assert_eq!(
             TestOnlySignatureVerifier.verify_hash(hash(1), &SignatureBytes::new(Vec::new())),
             Err(SignatureVerificationError::MissingSignature)
+        );
+    }
+
+    #[test]
+    fn ed25519_sign_verify_roundtrip_and_rejects_tampering() {
+        let signing_key = ed25519_signing_key_from_seed([7u8; 32]);
+        let public_key = ed25519_public_key(&signing_key);
+        let message = hash(1);
+        let signature = ed25519_sign_hash(&signing_key, message);
+        let verifier = Ed25519Verifier;
+
+        // A genuine signature verifies.
+        assert_eq!(
+            verifier.verify_hash(message, &public_key, &signature),
+            Ok(())
+        );
+
+        // A different message is rejected.
+        assert_eq!(
+            verifier.verify_hash(hash(2), &public_key, &signature),
+            Err(SignatureVerificationError::InvalidSignature)
+        );
+
+        // The wrong public key is rejected.
+        let other_key = ed25519_public_key(&ed25519_signing_key_from_seed([8u8; 32]));
+        assert_eq!(
+            verifier.verify_hash(message, &other_key, &signature),
+            Err(SignatureVerificationError::InvalidSignature)
+        );
+
+        // A tampered signature (one flipped byte) is rejected.
+        let mut tampered = signature.as_slice().to_vec();
+        tampered[0] ^= 0xff;
+        assert_eq!(
+            verifier.verify_hash(message, &public_key, &SignatureBytes::new(tampered)),
+            Err(SignatureVerificationError::InvalidSignature)
+        );
+
+        // Malformed key/signature lengths are rejected, never a panic.
+        assert_eq!(
+            verifier.verify_hash(message, &public_key[..31], &signature),
+            Err(SignatureVerificationError::InvalidSignature)
+        );
+        assert_eq!(
+            verifier.verify_hash(message, &public_key, &SignatureBytes::new(vec![0u8; 10])),
+            Err(SignatureVerificationError::InvalidSignature)
+        );
+        assert_eq!(
+            verifier.verify_hash(message, &public_key, &SignatureBytes::new(Vec::new())),
+            Err(SignatureVerificationError::MissingSignature)
+        );
+    }
+
+    #[test]
+    fn ed25519_keys_and_signatures_are_deterministic() {
+        // Ed25519 is deterministic: same seed => same key and same signature.
+        let a = ed25519_signing_key_from_seed([3u8; 32]);
+        let b = ed25519_signing_key_from_seed([3u8; 32]);
+        assert_eq!(ed25519_public_key(&a), ed25519_public_key(&b));
+        let message = hash(9);
+        assert_eq!(
+            ed25519_sign_hash(&a, message),
+            ed25519_sign_hash(&b, message)
         );
     }
 }
