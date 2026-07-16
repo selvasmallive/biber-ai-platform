@@ -13771,6 +13771,9 @@ def format_mvp_loop_summary(payload: Mapping[str, Any]) -> str:
         lines.append(f"test_ok: {payload.get('test_ok')}")
     if payload.get("diagnosis_summary"):
         lines.append(f"diagnosis: {payload.get('diagnosis_summary')}")
+    if payload.get("github_dry_run"):
+        lines.append(f"github_dry_run: {payload.get('github_dry_run')}")
+        lines.append(f"github_request_sent: {payload.get('github_request_sent')}")
     if payload.get("github_url"):
         lines.append(f"github_url: {payload.get('github_url')}")
     if payload.get("pull_request_url"):
@@ -16675,6 +16678,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--commit-message",
         default="Save BIBER MVP loop output",
     )
+    mvp_loop.add_argument(
+        "--github-dry-run",
+        action="store_true",
+        help=(
+            "Build GitHub save/PR payloads inside the MVP loop without "
+            "resolving API auth or sending GitHub requests."
+        ),
+    )
     mvp_loop.add_argument("--create-pr", action="store_true")
     mvp_loop.add_argument("--pr-head")
     mvp_loop.add_argument("--pr-base", default="main")
@@ -19539,8 +19550,8 @@ def run(args: argparse.Namespace) -> str:
     mvp_loop_uses_only_local_steps = (
         args.command == "mvp-loop"
         and bool(args.local_target_root)
-        and not args.save_github_path
-        and not args.create_pr
+        and (not args.save_github_path or args.github_dry_run)
+        and (not args.create_pr or args.github_dry_run)
     )
     apply_repair_edits_uses_only_local_steps = apply_repair_edits_has_local_target(args)
     if mvp_loop_uses_only_local_steps or apply_repair_edits_uses_only_local_steps:
@@ -20215,21 +20226,27 @@ def run(args: argparse.Namespace) -> str:
                 raise BiberAgentClientError(
                     "--save-github-path requires --save-content or --save-content-file."
                 )
-            github_save = save_to_github(
-                base_url=base_url,
-                api_key=api_key,
-                payload=build_github_save_payload(
-                    path=args.save_github_path,
-                    content=content,
-                    owner=args.github_owner,
-                    repo=args.github_repo,
-                    branch=args.github_branch,
-                    base_branch=args.github_base_branch,
-                    create_branch_if_missing=args.create_branch_if_missing,
-                    commit_message=args.commit_message,
-                ),
-                timeout_seconds=args.timeout_seconds,
+            github_save_payload = build_github_save_payload(
+                path=args.save_github_path,
+                content=content,
+                owner=args.github_owner,
+                repo=args.github_repo,
+                branch=args.github_branch,
+                base_branch=args.github_base_branch,
+                create_branch_if_missing=args.create_branch_if_missing,
+                commit_message=args.commit_message,
             )
+            if args.github_dry_run:
+                github_save = build_github_save_dry_run_result(github_save_payload)
+                summary["github_dry_run"] = True
+                summary["github_request_sent"] = False
+            else:
+                github_save = save_to_github(
+                    base_url=base_url,
+                    api_key=api_key,
+                    payload=github_save_payload,
+                    timeout_seconds=args.timeout_seconds,
+                )
             steps["github_save"] = github_save
             summary["github_url"] = github_save.get("url")
         elif args.save_content or args.save_content_file:
@@ -20252,20 +20269,28 @@ def run(args: argparse.Namespace) -> str:
                 file_path=args.pr_body_file,
                 label="--pr-body",
             )
-            pull_request = create_github_pull_request(
-                base_url=base_url,
-                api_key=api_key,
-                payload=build_github_pull_request_payload(
-                    head=pr_head,
-                    base=args.pr_base,
-                    title=args.pr_title,
-                    body=pr_body,
-                    owner=args.github_owner,
-                    repo=args.github_repo,
-                    draft=not args.pr_ready,
-                ),
-                timeout_seconds=args.timeout_seconds,
+            pull_request_payload = build_github_pull_request_payload(
+                head=pr_head,
+                base=args.pr_base,
+                title=args.pr_title,
+                body=pr_body,
+                owner=args.github_owner,
+                repo=args.github_repo,
+                draft=not args.pr_ready,
             )
+            if args.github_dry_run:
+                pull_request = build_github_pull_request_dry_run_result(
+                    pull_request_payload
+                )
+                summary["github_dry_run"] = True
+                summary["github_request_sent"] = False
+            else:
+                pull_request = create_github_pull_request(
+                    base_url=base_url,
+                    api_key=api_key,
+                    payload=pull_request_payload,
+                    timeout_seconds=args.timeout_seconds,
+                )
             steps["github_pull_request"] = pull_request
             summary["pull_request_url"] = pull_request.get("url")
             summary["pull_request_number"] = pull_request.get("number")

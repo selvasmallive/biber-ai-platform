@@ -731,6 +731,84 @@ def test_run_github_dry_runs_do_not_resolve_api_key(
     assert pr_result["body_bytes"] == len("Dry-run PR body.\n".encode("utf-8"))
 
 
+def test_run_mvp_loop_can_include_github_dry_run_without_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("local mvp-loop GitHub dry-run should not resolve an API key")
+
+    target_root = tmp_path / "target-repo"
+    target_root.mkdir()
+    (target_root / "README.md").write_text("# Target repo\n", encoding="utf-8")
+    (target_root / "src").mkdir()
+    (target_root / "src" / "app.py").write_text("def answer():\n    return 2\n", encoding="utf-8")
+    save_file = tmp_path / "save.py"
+    save_file.write_text("def answer():\n    return 2\n", encoding="utf-8")
+    pr_body_file = tmp_path / "pr-body.md"
+    pr_body_file.write_text("Dry-run local MVP loop PR.\n", encoding="utf-8")
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "mvp-loop",
+                "--instruction",
+                "Prepare a GitHub dry-run handoff for a verified local change.",
+                "--local-target-root",
+                str(target_root),
+                "--changed-path",
+                "src/app.py",
+                "--save-github-path",
+                "src/app.py",
+                "--save-content-file",
+                str(save_file),
+                "--github-owner",
+                "acme",
+                "--github-repo",
+                "biber-generated",
+                "--github-branch",
+                "biber/local-mvp-loop",
+                "--github-base-branch",
+                "main",
+                "--create-branch-if-missing",
+                "--commit-message",
+                "Save local MVP loop dry-run",
+                "--github-dry-run",
+                "--create-pr",
+                "--pr-title",
+                "Save local MVP loop dry-run",
+                "--pr-body-file",
+                str(pr_body_file),
+            ]
+        )
+    )
+    result = json.loads(output)
+
+    assert result["ok"] is True
+    assert result["context_mode"] == "local_target_root"
+    assert result["github_dry_run"] is True
+    assert result["github_request_sent"] is False
+    assert result["steps"]["github_save"]["source"] == "biber_github_save_dry_run"
+    assert result["steps"]["github_save"]["github_request_sent"] is False
+    assert result["steps"]["github_save"]["target"]["path"] == "src/app.py"
+    assert result["steps"]["github_save"]["target"]["branch"] == "biber/local-mvp-loop"
+    assert result["steps"]["github_pull_request"]["source"] == (
+        "biber_github_pull_request_dry_run"
+    )
+    assert result["steps"]["github_pull_request"]["github_request_sent"] is False
+    assert result["steps"]["github_pull_request"]["pull_request"]["head"] == (
+        "biber/local-mvp-loop"
+    )
+    assert result["steps"]["github_pull_request"]["pull_request"]["draft"] is True
+
+    summary = client.format_mvp_loop_summary(result)
+    assert "github_dry_run: True" in summary
+    assert "github_request_sent: False" in summary
+
+
 def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
     output = client.format_mvp_loop_summary(
         {
@@ -6095,7 +6173,9 @@ def test_local_verified_repair_github_dry_run_smoke_documents_handoff() -> None:
     assert "save-github" in text
     assert "create-pr" in text
     assert "--dry-run" in text
+    assert "--github-dry-run" in text
     assert "github_request_sent" in text
+    assert "mvp_loop_github_dry_run" in text
     assert "biber_github_save_dry_run" in text
     assert "biber_github_pull_request_dry_run" in text
     assert '"api_required": False' in text

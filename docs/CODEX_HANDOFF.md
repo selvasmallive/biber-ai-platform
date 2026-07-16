@@ -327,6 +327,16 @@ sources for both save and PR, target path/branch/head/base/draft metadata, and
 the verified repair status. `scripts/biber_local_confidence_smoke.py` now
 includes this handoff smoke. This remains CPU-local and does not call GitHub,
 OpenAI mentor, GPU, training, the BIBER API, or live model endpoints.
+Thirty-fifth BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py mvp-loop` now supports `--github-dry-run`.
+When combined with `--save-github-path` and/or `--create-pr`, the MVP loop
+builds the same local GitHub save/PR dry-run payloads in its `steps` map and
+sets `github_dry_run=true` plus `github_request_sent=false`, without resolving
+API credentials or sending any GitHub request. This lets a local MVP-loop
+artifact carry the full repo-context/edit/test plus save/PR handoff preview
+while keeping the actual GitHub write path server-backed and explicit. This is
+CPU-local and does not call GitHub, OpenAI mentor, GPU, training, or live model
+endpoints.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

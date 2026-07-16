@@ -123,6 +123,38 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
             "--repo",
             "biber-generated",
         )
+        mvp_handoff = run_client(
+            repo_root,
+            artifact_dir,
+            "mvp-loop",
+            "--instruction",
+            "Prepare a GitHub dry-run handoff for the verified local repair.",
+            "--local-target-root",
+            str(target_root),
+            "--changed-path",
+            "src/app.py",
+            "--save-github-path",
+            "src/app.py",
+            "--save-content-file",
+            str(repaired_file),
+            "--github-owner",
+            "acme",
+            "--github-repo",
+            "biber-generated",
+            "--github-branch",
+            "biber/local-verified-repair",
+            "--github-base-branch",
+            "main",
+            "--create-branch-if-missing",
+            "--commit-message",
+            "Save verified local BIBER repair",
+            "--github-dry-run",
+            "--create-pr",
+            "--pr-title",
+            "Save verified local BIBER repair",
+            "--pr-body-file",
+            str(pr_body),
+        )
 
         save_target = save.get("target")
         if not isinstance(save_target, dict):
@@ -130,6 +162,12 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
         pr_payload = pull_request.get("pull_request")
         if not isinstance(pr_payload, dict):
             pr_payload = {}
+        mvp_save = mvp_handoff.get("steps", {}).get("github_save", {})
+        if not isinstance(mvp_save, dict):
+            mvp_save = {}
+        mvp_pr = mvp_handoff.get("steps", {}).get("github_pull_request", {})
+        if not isinstance(mvp_pr, dict):
+            mvp_pr = {}
 
         summary = {
             "source": "biber_local_verified_repair_github_dry_run_smoke",
@@ -152,6 +190,12 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
                 and pr_payload.get("head") == "biber/local-verified-repair"
                 and pr_payload.get("base") == "main"
                 and pr_payload.get("draft") is True
+                and mvp_handoff.get("github_dry_run") is True
+                and mvp_handoff.get("github_request_sent") is False
+                and mvp_save.get("source") == "biber_github_save_dry_run"
+                and mvp_save.get("github_request_sent") is False
+                and mvp_pr.get("source") == "biber_github_pull_request_dry_run"
+                and mvp_pr.get("github_request_sent") is False
             ),
             "external_network_required": False,
             "gpu_required": False,
@@ -174,6 +218,10 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
             "pull_request_head": pr_payload.get("head"),
             "pull_request_base": pr_payload.get("base"),
             "pull_request_draft": pr_payload.get("draft"),
+            "mvp_loop_github_dry_run": mvp_handoff.get("github_dry_run"),
+            "mvp_loop_github_request_sent": mvp_handoff.get("github_request_sent"),
+            "mvp_loop_save_source": mvp_save.get("source"),
+            "mvp_loop_pull_request_source": mvp_pr.get("source"),
         }
         if not summary["ok"]:
             raise RuntimeError(json.dumps(summary, indent=2, sort_keys=True))
