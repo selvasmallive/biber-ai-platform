@@ -84,6 +84,8 @@ file's line-ending style and still uses the normal plan-hash apply guard.
 Each MVP-loop artifact includes `agent_report`, a compact machine-readable
 status summary with repo state, selected context, edit counts, test result,
 failure summary, and next actions for the following narrow step.
+`show-mvp-loop` surfaces the context/test modes, selected context preview, and
+edit review readiness so saved artifacts can be triaged without opening JSON.
 The report's `edit` section carries workspace edit review metadata when the
 plan provides it, including `review_status`, `ready_for_apply`, risk/operation
 counts, warnings, and blockers.

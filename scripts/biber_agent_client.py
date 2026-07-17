@@ -14178,6 +14178,10 @@ def format_mvp_loop_summary(payload: Mapping[str, Any]) -> str:
         f"selected_context_paths: {len(require_list(payload.get('selected_context_paths')))}",
         f"steps: {', '.join(steps.keys()) if steps else '-'}",
     ]
+    if payload.get("context_mode"):
+        lines.append(f"context_mode: {payload.get('context_mode')}")
+    if payload.get("test_mode"):
+        lines.append(f"test_mode: {payload.get('test_mode')}")
     runtime_profile_ids = normalize_runtime_profile_ids(
         payload.get("runtime_profile_ids")
     )
@@ -14201,6 +14205,7 @@ def format_mvp_loop_summary(payload: Mapping[str, Any]) -> str:
     report = require_mapping(payload.get("agent_report"))
     if report:
         repo = require_mapping(report.get("repo"))
+        context = require_mapping(report.get("context"))
         edit = require_mapping(report.get("edit"))
         test = require_mapping(report.get("test"))
         lines.append("agent_report:")
@@ -14212,17 +14217,38 @@ def format_mvp_loop_summary(payload: Mapping[str, Any]) -> str:
                 f"head={repo.get('head') or '-'} "
                 f"dirty={repo.get('dirty')}"
             )
+        if context:
+            selected_preview = [
+                str(item) for item in require_list(context.get("selected_paths"))[:3]
+            ]
+            lines.append(
+                "- context: "
+                f"mode={context.get('mode') or '-'} "
+                f"selected={context.get('selected_count', 0)} "
+                f"preview={','.join(selected_preview) if selected_preview else '-'}"
+            )
         if edit and any(value is not None for value in edit.values()):
             lines.append(
                 "- edit: "
                 f"planned={edit.get('planned_count', 0)} "
                 f"applied={edit.get('applied_count', 0)} "
                 f"changed={edit.get('changed_count', 0)} "
-                f"rejected={edit.get('rejected_count', 0)}"
+                f"rejected={edit.get('rejected_count', 0)} "
+                f"review={edit.get('review_status') or '-'} "
+                f"ready_for_apply={edit.get('ready_for_apply')}"
             )
+            warnings = [str(item) for item in require_list(edit.get("warnings"))]
+            hard_blockers = [
+                str(item) for item in require_list(edit.get("hard_blockers"))
+            ]
+            if warnings:
+                lines.append(f"- edit_warnings: {', '.join(warnings[:3])}")
+            if hard_blockers:
+                lines.append(f"- edit_blockers: {', '.join(hard_blockers[:3])}")
         if test and any(value is not None for value in test.values()):
             lines.append(
                 "- test: "
+                f"mode={test.get('mode') or '-'} "
                 f"id={test.get('test_id') or '-'} "
                 f"executed={test.get('executed')} "
                 f"ok={test.get('ok')} "

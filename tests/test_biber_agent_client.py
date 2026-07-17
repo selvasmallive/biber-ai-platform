@@ -1090,6 +1090,8 @@ def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
     output = client.format_mvp_loop_summary(
         {
             "ok": False,
+            "context_mode": "local_target_root",
+            "test_mode": "local_target_root",
             "selected_context_paths": ["README.md"],
             "edit_plan_hash": "a" * 64,
             "test_ok": False,
@@ -1100,13 +1102,23 @@ def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
             "agent_report": {
                 "status": "test_failed",
                 "repo": {"branch": "feature/biber", "head": "abc1234", "dirty": True},
+                "context": {
+                    "mode": "local_target_root",
+                    "selected_count": 1,
+                    "selected_paths": ["README.md"],
+                },
                 "edit": {
                     "planned_count": 1,
                     "applied_count": 1,
                     "changed_count": 1,
                     "rejected_count": 0,
+                    "review_status": "ready_for_hash_guarded_apply",
+                    "ready_for_apply": True,
+                    "warnings": ["review before commit"],
+                    "hard_blockers": [],
                 },
                 "test": {
+                    "mode": "local_target_root",
                     "test_id": "dotnet-test",
                     "executed": True,
                     "ok": False,
@@ -1143,14 +1155,24 @@ def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
     assert "BIBER MVP loop" in output
     assert "ok: False" in output
     assert "selected_context_paths: 1" in output
+    assert "context_mode: local_target_root" in output
+    assert "test_mode: local_target_root" in output
     assert "test_ok: False" in output
     assert "pull_request_url: https://github.com/acme/repo/pull/42" in output
     assert "artifact_path: /workspace/outputs/biber-mvp-loop.json" in output
     assert "agent_report:" in output
     assert "- status: test_failed" in output
     assert "- repo: branch=feature/biber head=abc1234 dirty=True" in output
-    assert "- edit: planned=1 applied=1 changed=1 rejected=0" in output
-    assert "- test: id=dotnet-test executed=True ok=False exit_code=1" in output
+    assert "- context: mode=local_target_root selected=1 preview=README.md" in output
+    assert (
+        "- edit: planned=1 applied=1 changed=1 rejected=0 "
+        "review=ready_for_hash_guarded_apply ready_for_apply=True"
+    ) in output
+    assert "- edit_warnings: review before commit" in output
+    assert (
+        "- test: mode=local_target_root id=dotnet-test executed=True "
+        "ok=False exit_code=1"
+    ) in output
     assert (
         "- repair_hint: status=ready_for_prepare_repair "
         "category=compile_error stack=dotnet "

@@ -419,6 +419,14 @@ file changed path, file pinned path, and repo unchanged status), and
 coverage visible from saved confidence artifacts without opening raw JSON.
 This is CPU-local only and does not use GPU, training, OpenAI mentor, external
 paid APIs, or credential rotation.
+Forty-sixth BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py show-mvp-loop` now surfaces local artifact
+operator context directly in the text summary: top-level `context_mode` and
+`test_mode`, agent-report context selected count/path preview, edit
+`review_status`, `ready_for_apply`, warnings, blockers, and test mode. This is
+a display-only CPU-local change to make saved MVP-loop artifacts easier to
+triage without opening JSON; it does not use GPU, training, OpenAI mentor,
+external paid APIs, or credential rotation.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
