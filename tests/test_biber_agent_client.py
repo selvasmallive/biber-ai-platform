@@ -264,6 +264,8 @@ def test_local_confidence_smoke_runs_provider_and_repair_smokes() -> None:
     assert "biber_local_mvp_loop_repo_probe_smoke.py" in text
     assert "local_mvp_loop_repo_probe" in text
     assert '"mvp_loop_repo_probe"' in text
+    assert "path_list_files_used" in text
+    assert "path_file_selected_paths" in text
     assert "biber_local_mvp_loop_full_repair_smoke.py" in text
     assert "local_mvp_loop_full_repair" in text
     assert '"mvp_loop_full_repair"' in text
@@ -6397,10 +6399,15 @@ def test_local_mvp_loop_repo_probe_smoke_documents_real_repo_dry_run() -> None:
     assert "mvp-loop" in text
     assert "--local-target-root" in text
     assert "--include-git-state" in text
+    assert "--changed-paths-file" in text
+    assert "--pinned-paths-file" in text
+    assert "path_list_files_used" in text
+    assert "path_file_selected_paths" in text
     assert "--test-dry-run" in text
     assert "repo_status_unchanged" in text
     assert "scripts/biber_agent_client.py" in text
     assert "docs/BIBER_ONLY_WORKSPACE.md" in text
+    assert "README.md" in text
     assert '"api_required": False' in text
     assert '"gpu_required": False' in text
     assert '"training_allowed": False' in text

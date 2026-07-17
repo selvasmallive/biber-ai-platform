@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 ## Current Goal
 
@@ -400,6 +400,16 @@ lists while staying CPU-local for `mvp-loop --local-target-root`; no GPU,
 training, OpenAI mentor, external paid API, or credential rotation is involved.
 Follow-up coverage verifies inline/file path merging plus NUL-byte and missing
 path-list file rejection before a context payload is sent or scanned locally.
+Forty-fourth BIBER resume checkpoint on the same branch:
+`scripts/biber_local_mvp_loop_repo_probe_smoke.py` now exercises
+`mvp-loop --local-target-root` with one changed path passed inline, one changed
+path passed through `--changed-paths-file`, and one pinned path passed through
+`--pinned-paths-file`. The combined
+`scripts/biber_local_confidence_smoke.py` summary carries
+`path_list_files_used` and `path_file_selected_paths`, so the standard no-GPU
+confidence gate proves the path-list CLI surface through a real local
+repo-context probe. This remains CPU-local and does not use GPU, training,
+OpenAI mentor, external paid APIs, or credential rotation.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

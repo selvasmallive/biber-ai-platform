@@ -179,6 +179,10 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             "agent_report_status": mvp_loop_repo_probe.get("agent_report_status"),
             "git_branch": mvp_loop_repo_probe.get("git_branch"),
             "git_dirty": mvp_loop_repo_probe.get("git_dirty"),
+            "path_list_files_used": mvp_loop_repo_probe.get("path_list_files_used"),
+            "path_file_selected_paths": mvp_loop_repo_probe.get(
+                "path_file_selected_paths"
+            ),
             "selected_context_paths": mvp_loop_repo_probe.get("selected_context_paths"),
             "detected_project_types": mvp_loop_repo_probe.get("detected_project_types"),
             "test_id": mvp_loop_repo_probe.get("test_id"),

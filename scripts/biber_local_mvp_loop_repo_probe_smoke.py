@@ -78,6 +78,13 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
 
     git_before = git_status_short(repo_root)
     mvp_output_path = artifact_dir / "real-repo-mvp-loop-probe.json"
+    pinned_paths_file = artifact_dir / "pinned-paths.txt"
+    pinned_paths_file.write_text("# pinned\nREADME.md\n", encoding="utf-8")
+    changed_paths_file = artifact_dir / "changed-paths.txt"
+    changed_paths_file.write_text(
+        "# changed\ndocs/BIBER_ONLY_WORKSPACE.md\n",
+        encoding="utf-8",
+    )
     mvp_result = run_client(
         repo_root,
         artifact_dir,
@@ -89,8 +96,10 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
         "--include-git-state",
         "--changed-path",
         "scripts/biber_agent_client.py",
-        "--changed-path",
-        "docs/BIBER_ONLY_WORKSPACE.md",
+        "--changed-paths-file",
+        str(changed_paths_file),
+        "--pinned-paths-file",
+        str(pinned_paths_file),
         "--test-id",
         "python-compileall-api",
         "--test-dry-run",
@@ -134,6 +143,7 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
             and git_state.get("available") is True
             and "scripts/biber_agent_client.py" in selected_paths
             and "docs/BIBER_ONLY_WORKSPACE.md" in selected_paths
+            and "README.md" in selected_paths
             and git_before.get("status_short") == git_after.get("status_short")
         ),
         "external_network_required": False,
@@ -145,6 +155,14 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
         "auto_saved": False,
         "target_root": str(repo_root),
         "mvp_artifact": str(mvp_output_path),
+        "path_list_files_used": True,
+        "pinned_paths_file": str(pinned_paths_file),
+        "changed_paths_file": str(changed_paths_file),
+        "path_file_selected_paths": {
+            "inline_changed": "scripts/biber_agent_client.py" in selected_paths,
+            "file_changed": "docs/BIBER_ONLY_WORKSPACE.md" in selected_paths,
+            "file_pinned": "README.md" in selected_paths,
+        },
         "agent_report_status": agent_report.get("status"),
         "git_branch": report_repo.get("branch"),
         "git_dirty": report_repo.get("dirty"),

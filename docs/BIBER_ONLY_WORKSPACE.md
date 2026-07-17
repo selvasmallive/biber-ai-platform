@@ -202,6 +202,8 @@ repo-probe dry run, the verified-repair GitHub dry-run handoff smoke, the
 standalone GitHub dry-run artifact smoke, and the local repair-loop smoke
 together. It is the preferred pre-live-provider gate before asking for Vast GPU
 credentials or pointing BIBER at a real local Qwen/vLLM endpoint.
+The real-checkout repo-probe also verifies that `mvp-loop` accepts
+`--pinned-paths-file` and `--changed-paths-file` in the local path.
 It also includes the full local MVP-loop repair smoke, which starts from a real
 failed local `mvp-loop` artifact and walks through local-model repair, review,
 guarded apply, verification, and status without API credentials.
