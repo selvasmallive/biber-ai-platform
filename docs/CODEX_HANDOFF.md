@@ -410,6 +410,15 @@ path passed through `--changed-paths-file`, and one pinned path passed through
 confidence gate proves the path-list CLI surface through a real local
 repo-context probe. This remains CPU-local and does not use GPU, training,
 OpenAI mentor, external paid APIs, or credential rotation.
+Forty-fifth BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py show-confidence-smoke` now prints the saved
+repo-probe path-list evidence (`path_list_files_used`, inline changed path,
+file changed path, file pinned path, and repo unchanged status), and
+`list-confidence-smokes` carries a compact
+`repo_probe_path_list_files_used` flag per artifact. This makes the path-list
+coverage visible from saved confidence artifacts without opening raw JSON.
+This is CPU-local only and does not use GPU, training, OpenAI mentor, external
+paid APIs, or credential rotation.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

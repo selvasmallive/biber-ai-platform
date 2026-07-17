@@ -13960,6 +13960,7 @@ def summarize_confidence_smoke_artifact(
     github_dry_run_artifacts = require_mapping(
         normalized.get("github_dry_run_artifacts")
     )
+    mvp_loop_repo_probe = require_mapping(normalized.get("mvp_loop_repo_probe"))
     summary = {
         "path": str(path),
         "source": normalized.get("source"),
@@ -13973,6 +13974,9 @@ def summarize_confidence_smoke_artifact(
         "github_dry_run_artifacts_matched": github_dry_run_artifacts.get(
             "matched",
             0,
+        ),
+        "repo_probe_path_list_files_used": (
+            mvp_loop_repo_probe.get("path_list_files_used") is True
         ),
         "modified_epoch": path.stat().st_mtime,
     }
@@ -14056,6 +14060,7 @@ def format_confidence_smoke_artifact_summary(payload: Mapping[str, Any]) -> str:
         payload.get("verified_repair_github_dry_run")
     )
     mvp_loop = require_mapping(payload.get("mvp_loop"))
+    mvp_loop_repo_probe = require_mapping(payload.get("mvp_loop_repo_probe"))
     mvp_loop_full_repair = require_mapping(payload.get("mvp_loop_full_repair"))
     repair_loop = require_mapping(payload.get("repair_loop"))
 
@@ -14088,6 +14093,18 @@ def format_confidence_smoke_artifact_summary(payload: Mapping[str, Any]) -> str:
             f"status={mvp_loop.get('agent_report_status', '-')} "
             f"edit_review={mvp_loop.get('edit_review_status', '-')} "
             f"test_ok={mvp_loop.get('test_ok')}"
+        )
+    if mvp_loop_repo_probe:
+        path_file_selected_paths = require_mapping(
+            mvp_loop_repo_probe.get("path_file_selected_paths")
+        )
+        lines.append(
+            "mvp_loop_repo_probe: "
+            f"path_list_files_used={mvp_loop_repo_probe.get('path_list_files_used')} "
+            f"inline_changed={path_file_selected_paths.get('inline_changed')} "
+            f"file_changed={path_file_selected_paths.get('file_changed')} "
+            f"file_pinned={path_file_selected_paths.get('file_pinned')} "
+            f"repo_status_unchanged={mvp_loop_repo_probe.get('repo_status_unchanged')}"
         )
     if mvp_loop_full_repair:
         lines.append(
@@ -14146,6 +14163,7 @@ def format_confidence_smoke_artifact_list_summary(payload: Mapping[str, Any]) ->
                     f"failed_checks={artifact.get('failed_checks', 0)}",
                     f"gpu_required={artifact.get('gpu_required')}",
                     f"api_required={artifact.get('api_required')}",
+                    f"repo_probe_path_files={artifact.get('repo_probe_path_list_files_used')}",
                 ]
             )
         )

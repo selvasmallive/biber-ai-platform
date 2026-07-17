@@ -315,6 +315,15 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
             "edit_review_status": "ready_for_hash_guarded_apply",
             "test_ok": True,
         },
+        "mvp_loop_repo_probe": {
+            "path_list_files_used": True,
+            "path_file_selected_paths": {
+                "inline_changed": True,
+                "file_changed": True,
+                "file_pinned": True,
+            },
+            "repo_status_unchanged": True,
+        },
         "mvp_loop_full_repair": {
             "verification_status": "verified",
             "status_next_action": "human_review_verified_fix",
@@ -369,6 +378,10 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
     assert "failed_checks: 0" in output
     assert "gpu_required: False" in output
     assert "local_github_dry_run_artifacts" in output
+    assert "mvp_loop_repo_probe: path_list_files_used=True" in output
+    assert "inline_changed=True" in output
+    assert "file_changed=True" in output
+    assert "file_pinned=True" in output
     assert "github_dry_run_artifacts: matched=2" in output
     assert "repair_loop: chain_status=verified" in output
 
@@ -417,12 +430,14 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
     assert list_result["failed"] == 1
     assert list_result["gpu_required"] is False
     assert list_result["api_required"] is False
+    assert list_result["artifacts"][0]["repo_probe_path_list_files_used"] is True
     assert list_result["artifact_path"] == str(list_artifact)
     assert json.loads(list_artifact.read_text(encoding="utf-8")) == list_result
     assert failed_only["matched"] == 1
     assert failed_only["artifacts"][0]["ok"] is False
     assert "BIBER local confidence smoke artifacts (2)" in list_summary
     assert "failed: 1" in list_summary
+    assert "repo_probe_path_files=True" in list_summary
     assert "gpu_required: False" in list_summary
 
 
