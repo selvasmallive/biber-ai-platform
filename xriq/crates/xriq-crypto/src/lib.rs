@@ -210,6 +210,127 @@ pub fn ed25519_address(public_key: &[u8; 32]) -> Address {
     Address::parse(&value).expect("derived ed25519 address is a valid xriq address")
 }
 
+/// A signature scheme: verify a `SignatureEnvelope` (algorithm + public key +
+/// signature) against a message hash. This is the crypto-agility seam of the
+/// production-crypto migration (Phase 3): the node/consensus/faucet select a
+/// scheme (see `SignatureSchemeKind`) and verify through this one interface,
+/// letting the test-only and Ed25519 paths coexist during migration. Not yet
+/// wired into transaction/block verification (that needs a public key on the
+/// Transaction — Phase 3b). See `docs/XRIQ_PRODUCTION_CRYPTO_MIGRATION.md`.
+pub trait SignatureScheme {
+    fn algorithm(&self) -> SignatureAlgorithm;
+    fn verify_envelope(
+        &self,
+        message_hash: Hash32,
+        envelope: &SignatureEnvelope,
+    ) -> Result<(), SignatureVerificationError>;
+}
+
+/// The placeholder scheme — verifies the deterministic test-only signature. NOT
+/// secure; only for `--network devnet` and unit tests.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TestOnlyScheme;
+
+impl SignatureScheme for TestOnlyScheme {
+    fn algorithm(&self) -> SignatureAlgorithm {
+        SignatureAlgorithm::TestOnly
+    }
+
+    fn verify_envelope(
+        &self,
+        message_hash: Hash32,
+        envelope: &SignatureEnvelope,
+    ) -> Result<(), SignatureVerificationError> {
+        if envelope.algorithm != SignatureAlgorithm::TestOnly {
+            return Err(SignatureVerificationError::UnsupportedAlgorithm);
+        }
+        TestOnlySignatureVerifier.verify_hash(message_hash, &envelope.signature)
+    }
+}
+
+/// The production Ed25519 scheme — verifies the envelope's signature against its
+/// public key via the audited `ed25519-dalek`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Ed25519Scheme;
+
+impl SignatureScheme for Ed25519Scheme {
+    fn algorithm(&self) -> SignatureAlgorithm {
+        SignatureAlgorithm::Ed25519
+    }
+
+    fn verify_envelope(
+        &self,
+        message_hash: Hash32,
+        envelope: &SignatureEnvelope,
+    ) -> Result<(), SignatureVerificationError> {
+        if envelope.algorithm != SignatureAlgorithm::Ed25519 {
+            return Err(SignatureVerificationError::UnsupportedAlgorithm);
+        }
+        Ed25519Verifier.verify_hash(message_hash, &envelope.public_key, &envelope.signature)
+    }
+}
+
+/// The signature scheme a node is configured to accept (from
+/// `--signature-scheme test-only|ed25519`). Dispatches envelope verification to
+/// the selected concrete scheme, so the accepted algorithm is a single explicit
+/// choice rather than trusting the envelope's self-declared algorithm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SignatureSchemeKind {
+    TestOnly,
+    Ed25519,
+}
+
+impl SignatureSchemeKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::TestOnly => "test-only",
+            Self::Ed25519 => "ed25519",
+        }
+    }
+
+    /// Parse the `--signature-scheme` flag value.
+    pub fn parse(value: &str) -> Result<Self, SignatureSchemeParseError> {
+        match value {
+            "test-only" => Ok(Self::TestOnly),
+            "ed25519" => Ok(Self::Ed25519),
+            other => Err(SignatureSchemeParseError(other.to_string())),
+        }
+    }
+
+    pub fn algorithm(self) -> SignatureAlgorithm {
+        match self {
+            Self::TestOnly => SignatureAlgorithm::TestOnly,
+            Self::Ed25519 => SignatureAlgorithm::Ed25519,
+        }
+    }
+
+    pub fn verify_envelope(
+        self,
+        message_hash: Hash32,
+        envelope: &SignatureEnvelope,
+    ) -> Result<(), SignatureVerificationError> {
+        match self {
+            Self::TestOnly => TestOnlyScheme.verify_envelope(message_hash, envelope),
+            Self::Ed25519 => Ed25519Scheme.verify_envelope(message_hash, envelope),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignatureSchemeParseError(pub String);
+
+impl core::fmt::Display for SignatureSchemeParseError {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            formatter,
+            "unknown signature scheme {:?}: expected \"test-only\" or \"ed25519\"",
+            self.0
+        )
+    }
+}
+
+impl std::error::Error for SignatureSchemeParseError {}
+
 pub fn transaction_signing_bytes(transaction: &Transaction) -> Vec<u8> {
     let mut output = canonical_preamble(DOMAIN_TRANSACTION_SIGNING);
     encode_transaction_without_signature(transaction, &mut output);
@@ -673,6 +794,97 @@ mod tests {
         assert_eq!(
             ed25519_address(&PUBLIC_TESTNET_AUTHORITY_PUBKEY).as_str(),
             PUBLIC_TESTNET_AUTHORITY_ADDRESS
+        );
+    }
+
+    fn test_only_envelope(message: Hash32) -> SignatureEnvelope {
+        SignatureEnvelope {
+            algorithm: SignatureAlgorithm::TestOnly,
+            public_key: Vec::new(),
+            signature: test_only_signature_for_hash(message),
+        }
+    }
+
+    fn ed25519_envelope(seed: [u8; 32], message: Hash32) -> SignatureEnvelope {
+        let key = ed25519_signing_key_from_seed(seed);
+        SignatureEnvelope {
+            algorithm: SignatureAlgorithm::Ed25519,
+            public_key: ed25519_public_key(&key).to_vec(),
+            signature: ed25519_sign_hash(&key, message),
+        }
+    }
+
+    #[test]
+    fn signature_schemes_verify_matching_envelopes_and_reject_mismatches() {
+        let message = hash(4);
+        let test_env = test_only_envelope(message);
+        let ed_env = ed25519_envelope([9u8; 32], message);
+
+        // Each scheme verifies its own algorithm.
+        assert_eq!(TestOnlyScheme.verify_envelope(message, &test_env), Ok(()));
+        assert_eq!(Ed25519Scheme.verify_envelope(message, &ed_env), Ok(()));
+
+        // Each rejects the other algorithm as unsupported (never mis-verifies).
+        assert_eq!(
+            TestOnlyScheme.verify_envelope(message, &ed_env),
+            Err(SignatureVerificationError::UnsupportedAlgorithm)
+        );
+        assert_eq!(
+            Ed25519Scheme.verify_envelope(message, &test_env),
+            Err(SignatureVerificationError::UnsupportedAlgorithm)
+        );
+
+        // Ed25519 rejects a tampered signature and a wrong message.
+        let mut sig_bytes = ed_env.signature.as_slice().to_vec();
+        sig_bytes[0] ^= 0xff;
+        let tampered = SignatureEnvelope {
+            algorithm: ed_env.algorithm,
+            public_key: ed_env.public_key.clone(),
+            signature: SignatureBytes::new(sig_bytes),
+        };
+        assert_eq!(
+            Ed25519Scheme.verify_envelope(message, &tampered),
+            Err(SignatureVerificationError::InvalidSignature)
+        );
+        assert_eq!(
+            Ed25519Scheme.verify_envelope(hash(5), &ed_env),
+            Err(SignatureVerificationError::InvalidSignature)
+        );
+    }
+
+    #[test]
+    fn signature_scheme_kind_parses_and_dispatches() {
+        assert_eq!(
+            SignatureSchemeKind::parse("test-only"),
+            Ok(SignatureSchemeKind::TestOnly)
+        );
+        assert_eq!(
+            SignatureSchemeKind::parse("ed25519"),
+            Ok(SignatureSchemeKind::Ed25519)
+        );
+        assert!(SignatureSchemeKind::parse("rsa").is_err());
+        assert_eq!(SignatureSchemeKind::TestOnly.as_str(), "test-only");
+        assert_eq!(SignatureSchemeKind::Ed25519.as_str(), "ed25519");
+
+        // The configured kind only accepts its own algorithm's envelopes.
+        let message = hash(7);
+        let test_env = test_only_envelope(message);
+        let ed_env = ed25519_envelope([2u8; 32], message);
+        assert_eq!(
+            SignatureSchemeKind::TestOnly.verify_envelope(message, &test_env),
+            Ok(())
+        );
+        assert_eq!(
+            SignatureSchemeKind::Ed25519.verify_envelope(message, &ed_env),
+            Ok(())
+        );
+        assert_eq!(
+            SignatureSchemeKind::TestOnly.verify_envelope(message, &ed_env),
+            Err(SignatureVerificationError::UnsupportedAlgorithm)
+        );
+        assert_eq!(
+            SignatureSchemeKind::Ed25519.verify_envelope(message, &test_env),
+            Err(SignatureVerificationError::UnsupportedAlgorithm)
         );
     }
 }

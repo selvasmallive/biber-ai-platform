@@ -669,6 +669,26 @@ non-signing sink. No struct-literal ripple (only the 2 constructors build
 xriq-node 74. NOT yet used for verification (Phase 3: thread a `SignatureScheme`
 through node/consensus/faucet behind `--signature-scheme`). Everything stays
 test-only; real crypto + legal + security audit remain hard gates before value.
+CRYPTO PHASE 3a DONE (SignatureScheme seam): `xriq-crypto` gained a
+`SignatureScheme` trait with `TestOnlyScheme` + `Ed25519Scheme` impls (each verifies
+a `SignatureEnvelope { algorithm, public_key, signature }` against a message hash
+and rejects the other algorithm as `UnsupportedAlgorithm`), plus a
+`SignatureSchemeKind { TestOnly, Ed25519 }` selector — `parse` for the future
+`--signature-scheme` flag, `as_str`, `algorithm`, and a `verify_envelope` dispatch
+that only accepts its OWN configured algorithm (never trusts the envelope's
+self-declared one). Covered by `signature_schemes_verify_matching_envelopes_and_reject_mismatches`
+(matching verifies, cross-algorithm → UnsupportedAlgorithm, tampered sig / wrong
+message → InvalidSignature) and `signature_scheme_kind_parses_and_dispatches` —
+xriq-crypto: 17 tests. It reuses the crate's existing `SignatureEnvelope` /
+`SignatureAlgorithm`, so NO Transaction/struct change was needed. REMAINING Phase 3b
+(the large migration): add a `public_key` to `Transaction`/`BlockHeader` (self-
+contained verification — changes the wire format + canonical encoding + re-keys the
+big test suite), thread a `SignatureSchemeKind` (from `--signature-scheme
+test-only|ed25519`, default test-only) through the node/consensus/faucet
+verify+sign call sites, ed25519 end-to-end tests; then Phase 4 real producer/faucet
+keys, Phase 5 flip testnet + wallet client signing, Phase 6 AI security review (hard
+gate). Everything stays test-only; no key custody; real crypto + legal + audit
+remain gates before value.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

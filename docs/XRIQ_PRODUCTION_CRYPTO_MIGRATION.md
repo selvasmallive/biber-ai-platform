@@ -127,9 +127,19 @@ new key-handling anti-patterns.
    test-only scheme (its authority address is unchanged, so its large producer
    test suite stays green). `fee_sink` remains a fixed non-signing sink (no key
    needed). NOT yet used for verification — that is Phase 3.
-3. **Wire verification (devnet behind a flag).** Node/consensus/faucet accept a
-   `SignatureScheme`; add `--signature-scheme test-only|ed25519`. Keep default
-   `test-only` so nothing breaks; add ed25519 end-to-end tests.
+3. **Wire verification (behind a flag).** — **seam DONE (3a).** `xriq-crypto` now
+   has a `SignatureScheme` trait with `TestOnlyScheme` + `Ed25519Scheme` impls
+   (verifying a `SignatureEnvelope` = algorithm + public key + signature), plus a
+   `SignatureSchemeKind { TestOnly, Ed25519 }` selector (`parse` for the
+   `--signature-scheme` flag, `verify_envelope` dispatch that only accepts its own
+   algorithm — it never trusts the envelope's self-declared algorithm). Tests
+   cover matching/mismatched algorithms, tampered signature, wrong message, and
+   flag parsing. REMAINING (3b, the large part): give `Transaction`/`BlockHeader`
+   a `public_key` (so verification is self-contained), thread a
+   `SignatureSchemeKind` (from `--signature-scheme test-only|ed25519`, default
+   `test-only`) through the node/consensus/faucet verify + sign call sites, and add
+   ed25519 end-to-end tests. 3b changes the transaction wire format + canonical
+   encoding and re-keys the large test suite, so it is its own careful migration.
 4. **Real producer + faucet signing.** Block producer and faucet sign with an
    Ed25519 key (test keypair fixed in test vectors, real key via a
    `--producer-key-file` on operator nodes — key files gitignored, never
