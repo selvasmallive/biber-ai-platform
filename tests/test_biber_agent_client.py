@@ -1373,9 +1373,24 @@ def test_run_list_mvp_loops_summarizes_local_artifacts_without_api_key(
             {
                 "ok": True,
                 "artifact_path": str(direct),
+                "context_mode": "local_target_root",
+                "test_mode": "local_target_root",
                 "selected_context_paths": ["README.md"],
                 "steps": {"context_plan": {}, "test_run": {"ok": True}},
                 "test_ok": True,
+                "agent_report": {
+                    "status": "ok",
+                    "context": {
+                        "mode": "local_target_root",
+                        "selected_count": 1,
+                        "selected_paths": ["README.md"],
+                    },
+                    "edit": {
+                        "review_status": "ready_for_hash_guarded_apply",
+                        "ready_for_apply": True,
+                    },
+                    "test": {"mode": "local_target_root"},
+                },
             }
         ),
         encoding="utf-8",
@@ -1406,6 +1421,10 @@ def test_run_list_mvp_loops_summarizes_local_artifacts_without_api_key(
     assert str(direct) in output
     assert str(wrapped) in output
     assert str(noise) not in output
+    assert "status=ok" in output
+    assert "context_mode=local_target_root" in output
+    assert "test_mode=local_target_root" in output
+    assert "edit_review=ready_for_hash_guarded_apply" in output
 
 
 def test_run_list_mvp_loops_json_returns_recent_artifacts(tmp_path: Path) -> None:
@@ -1425,6 +1444,7 @@ def test_run_list_mvp_loops_json_returns_recent_artifacts(tmp_path: Path) -> Non
     assert result["scanned"] == 1
     assert len(result["artifacts"]) == 1
     assert result["artifacts"][0]["path"] == str(direct)
+    assert result["artifacts"][0]["agent_report_status"] == "needs_test"
 
 
 def test_run_list_mvp_loops_failed_only_filters_successes(tmp_path: Path) -> None:

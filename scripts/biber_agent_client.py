@@ -1186,6 +1186,12 @@ def normalize_mvp_loop_repair_request_artifact(
 
 def summarize_mvp_loop_artifact(path: Path, payload: Mapping[str, Any]) -> dict[str, Any]:
     steps = require_mapping(payload.get("steps"))
+    agent_report = require_mapping(payload.get("agent_report"))
+    if not agent_report:
+        agent_report = build_mvp_loop_agent_report(payload)
+    context = require_mapping(agent_report.get("context"))
+    edit = require_mapping(agent_report.get("edit"))
+    test = require_mapping(agent_report.get("test"))
     try:
         modified_epoch = path.stat().st_mtime
     except OSError:
@@ -1194,7 +1200,12 @@ def summarize_mvp_loop_artifact(path: Path, payload: Mapping[str, Any]) -> dict[
         "path": str(path),
         "ok": bool(payload.get("ok")),
         "test_ok": payload.get("test_ok"),
+        "agent_report_status": agent_report.get("status"),
+        "context_mode": payload.get("context_mode") or context.get("mode"),
+        "test_mode": payload.get("test_mode") or test.get("mode"),
         "selected_context_paths": len(require_list(payload.get("selected_context_paths"))),
+        "edit_review_status": edit.get("review_status"),
+        "edit_ready_for_apply": edit.get("ready_for_apply"),
         "steps": list(steps.keys()),
         "modified_epoch": modified_epoch,
     }
@@ -14320,6 +14331,10 @@ def format_mvp_loop_artifact_list_summary(payload: Mapping[str, Any]) -> str:
                     f"- {artifact.get('path', '-')}",
                     f"ok={artifact.get('ok')}",
                     f"test_ok={artifact.get('test_ok')}",
+                    f"status={artifact.get('agent_report_status', '-')}",
+                    f"context_mode={artifact.get('context_mode') or '-'}",
+                    f"test_mode={artifact.get('test_mode') or '-'}",
+                    f"edit_review={artifact.get('edit_review_status') or '-'}",
                     f"selected_context_paths={artifact.get('selected_context_paths', 0)}",
                     f"steps={steps or '-'}",
                 ]

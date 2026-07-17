@@ -427,6 +427,14 @@ operator context directly in the text summary: top-level `context_mode` and
 a display-only CPU-local change to make saved MVP-loop artifacts easier to
 triage without opening JSON; it does not use GPU, training, OpenAI mentor,
 external paid APIs, or credential rotation.
+Forty-seventh BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py list-mvp-loops` now includes per-artifact
+`agent_report_status`, `context_mode`, `test_mode`, edit review status, and
+edit apply readiness in the JSON summary, and the text summary prints the most
+important of those fields. Older artifacts without `agent_report` are handled
+by deriving the compact report from existing step fields. This is display-only
+and CPU-local; it does not use GPU, training, OpenAI mentor, external paid
+APIs, or credential rotation.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
