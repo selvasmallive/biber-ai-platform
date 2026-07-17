@@ -689,6 +689,23 @@ verify+sign call sites, ed25519 end-to-end tests; then Phase 4 real producer/fau
 keys, Phase 5 flip testnet + wallet client signing, Phase 6 AI security review (hard
 gate). Everything stays test-only; no key custody; real crypto + legal + audit
 remain gates before value.
+CRYPTO PHASE 3b STEP 1 DONE (scheme applied to protocol types): `xriq-crypto`
+gained `verify_transaction_with_scheme(scheme, &Transaction, public_key)` and
+`verify_block_header_with_scheme(scheme, &BlockHeader, public_key)` — they build a
+`SignatureEnvelope` from the item's own signature over its canonical
+`transaction_signing_hash`/`block_header_signing_hash` and dispatch under the
+CONFIGURED `SignatureSchemeKind` (never the item's self-declared algorithm), so a
+test-only signature can't pass an ed25519 node and vice versa. `public_key` is a
+caller parameter (empty/unused for test-only, the 32-byte key for ed25519), so this
+is NON-BREAKING — no struct/wire change yet. New tests
+`verify_transaction_with_scheme_accepts_only_the_configured_scheme` and
+`verify_block_header_with_scheme_accepts_only_the_configured_scheme` (real
+ed25519-signed tx/header verify; wrong-key / tampered-body / wrong-scheme →
+InvalidSignature). xriq-crypto: 19 tests. REMAINING 3b (the large part): move
+`public_key` ONTO `Transaction`/`BlockHeader` (self-contained verification — changes
+wire format + canonical encoding + re-keys the big test suite) and thread the
+scheme through the node/consensus/faucet verify+sign call sites + a
+`--signature-scheme` flag; then Phases 4–6 as above.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

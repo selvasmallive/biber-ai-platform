@@ -134,12 +134,23 @@ new key-handling anti-patterns.
    `--signature-scheme` flag, `verify_envelope` dispatch that only accepts its own
    algorithm — it never trusts the envelope's self-declared algorithm). Tests
    cover matching/mismatched algorithms, tampered signature, wrong message, and
-   flag parsing. REMAINING (3b, the large part): give `Transaction`/`BlockHeader`
-   a `public_key` (so verification is self-contained), thread a
+   flag parsing. **(3b, step 1) DONE.** `xriq-crypto` now applies the seam to the
+   real protocol types: `verify_transaction_with_scheme(scheme, &Transaction,
+   public_key)` and `verify_block_header_with_scheme(scheme, &BlockHeader,
+   public_key)` build an envelope from the item's own signature over its canonical
+   signing hash and dispatch under the *configured* scheme (never the item's
+   self-declared algorithm), so a test-only signature can never pass an ed25519
+   node and vice versa. Tests cover a real ed25519-signed transaction/header
+   verifying, plus wrong-key / tampered-body / wrong-scheme rejection
+   (`InvalidSignature`); this is non-breaking — the public key is a caller
+   parameter for now, so no struct/wire change yet. xriq-crypto: 19 tests.
+   REMAINING (3b, the large part): move the `public_key` onto
+   `Transaction`/`BlockHeader` (so verification is self-contained), thread a
    `SignatureSchemeKind` (from `--signature-scheme test-only|ed25519`, default
    `test-only`) through the node/consensus/faucet verify + sign call sites, and add
-   ed25519 end-to-end tests. 3b changes the transaction wire format + canonical
-   encoding and re-keys the large test suite, so it is its own careful migration.
+   ed25519 end-to-end tests. That step changes the transaction wire format +
+   canonical encoding and re-keys the large test suite, so it is its own careful
+   migration.
 4. **Real producer + faucet signing.** Block producer and faucet sign with an
    Ed25519 key (test keypair fixed in test vectors, real key via a
    `--producer-key-file` on operator nodes — key files gitignored, never

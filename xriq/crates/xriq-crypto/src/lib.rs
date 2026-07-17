@@ -385,6 +385,49 @@ pub fn block_header_signing_hash(header: &BlockHeader) -> Hash32 {
     sha256_hash(&block_header_signing_bytes(header))
 }
 
+/// Verify a transaction's signature under an explicitly-selected scheme.
+///
+/// This applies the [`SignatureSchemeKind`] seam to a real [`Transaction`]: the
+/// canonical `transaction_signing_hash` is the signed message, the transaction's
+/// own `signature` bytes are the signature, and `public_key` is the signer's key
+/// (empty and unused for the test-only scheme; the 32-byte Ed25519 public key for
+/// `ed25519`). The accepted algorithm is `scheme` — never the envelope's
+/// self-declared one — so a test-only signature can never pass an ed25519 node and
+/// vice versa.
+///
+/// The `public_key` is supplied by the caller for now; Phase 3b later moves it
+/// onto the `Transaction` so verification is fully self-contained.
+pub fn verify_transaction_with_scheme(
+    scheme: SignatureSchemeKind,
+    transaction: &Transaction,
+    public_key: &[u8],
+) -> Result<(), SignatureVerificationError> {
+    let envelope = SignatureEnvelope {
+        algorithm: scheme.algorithm(),
+        public_key: public_key.to_vec(),
+        signature: transaction.signature.clone(),
+    };
+    scheme.verify_envelope(transaction_signing_hash(transaction), &envelope)
+}
+
+/// Verify a block header's producer signature under an explicitly-selected scheme.
+///
+/// The block-production analogue of [`verify_transaction_with_scheme`]: signs over
+/// `block_header_signing_hash`, using the header's own `signature` and the
+/// caller-supplied producer `public_key` (empty for test-only).
+pub fn verify_block_header_with_scheme(
+    scheme: SignatureSchemeKind,
+    header: &BlockHeader,
+    public_key: &[u8],
+) -> Result<(), SignatureVerificationError> {
+    let envelope = SignatureEnvelope {
+        algorithm: scheme.algorithm(),
+        public_key: public_key.to_vec(),
+        signature: header.signature.clone(),
+    };
+    scheme.verify_envelope(block_header_signing_hash(header), &envelope)
+}
+
 pub fn block_header_bytes(header: &BlockHeader) -> Vec<u8> {
     let mut output = canonical_preamble(DOMAIN_BLOCK_HEADER_HASH);
     encode_header_without_signature(header, &mut output);
@@ -885,6 +928,91 @@ mod tests {
         assert_eq!(
             SignatureSchemeKind::Ed25519.verify_envelope(message, &test_env),
             Err(SignatureVerificationError::UnsupportedAlgorithm)
+        );
+    }
+
+    /// Build a transaction whose `signature` is a real Ed25519 signature over its
+    /// canonical signing hash, returning it alongside the signer's public key.
+    fn ed25519_signed_transaction(seed: [u8; 32]) -> (Transaction, [u8; 32]) {
+        let key = ed25519_signing_key_from_seed(seed);
+        let mut tx = transaction(SignatureBytes::new(Vec::new()));
+        tx.signature = ed25519_sign_hash(&key, transaction_signing_hash(&tx));
+        (tx, ed25519_public_key(&key))
+    }
+
+    fn ed25519_signed_header(seed: [u8; 32]) -> (BlockHeader, [u8; 32]) {
+        let key = ed25519_signing_key_from_seed(seed);
+        let mut header = header(SignatureBytes::new(Vec::new()));
+        header.signature = ed25519_sign_hash(&key, block_header_signing_hash(&header));
+        (header, ed25519_public_key(&key))
+    }
+
+    #[test]
+    fn verify_transaction_with_scheme_accepts_only_the_configured_scheme() {
+        // A test-only-signed transaction verifies under the test-only scheme
+        // (public key unused) and is rejected under ed25519.
+        let test_tx = signed_transaction();
+        assert_eq!(
+            verify_transaction_with_scheme(SignatureSchemeKind::TestOnly, &test_tx, &[]),
+            Ok(())
+        );
+        assert_eq!(
+            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &test_tx, &[0u8; 32]),
+            Err(SignatureVerificationError::InvalidSignature)
+        );
+
+        // An ed25519-signed transaction verifies under ed25519 with the right key.
+        let (ed_tx, pubkey) = ed25519_signed_transaction([11u8; 32]);
+        assert_eq!(
+            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &ed_tx, &pubkey),
+            Ok(())
+        );
+
+        // Wrong public key, tampered body, and the test-only scheme all reject it.
+        let (_, other_pubkey) = ed25519_signed_transaction([12u8; 32]);
+        assert_eq!(
+            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &ed_tx, &other_pubkey),
+            Err(SignatureVerificationError::InvalidSignature)
+        );
+        let mut tampered = ed_tx.clone();
+        tampered.amount = XriqAmount::from_base_units(999);
+        assert_eq!(
+            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &tampered, &pubkey),
+            Err(SignatureVerificationError::InvalidSignature)
+        );
+        assert_eq!(
+            verify_transaction_with_scheme(SignatureSchemeKind::TestOnly, &ed_tx, &[]),
+            Err(SignatureVerificationError::InvalidSignature)
+        );
+    }
+
+    #[test]
+    fn verify_block_header_with_scheme_accepts_only_the_configured_scheme() {
+        let (ed_header, pubkey) = ed25519_signed_header([21u8; 32]);
+        assert_eq!(
+            verify_block_header_with_scheme(SignatureSchemeKind::Ed25519, &ed_header, &pubkey),
+            Ok(())
+        );
+
+        // Tampered header body is rejected.
+        let mut tampered = ed_header.clone();
+        tampered.height += 1;
+        assert_eq!(
+            verify_block_header_with_scheme(SignatureSchemeKind::Ed25519, &tampered, &pubkey),
+            Err(SignatureVerificationError::InvalidSignature)
+        );
+
+        // A test-only-signed header verifies under the test-only scheme only.
+        let mut test_header = header(SignatureBytes::new(Vec::new()));
+        test_header.signature =
+            test_only_signature_for_hash(block_header_signing_hash(&test_header));
+        assert_eq!(
+            verify_block_header_with_scheme(SignatureSchemeKind::TestOnly, &test_header, &[]),
+            Ok(())
+        );
+        assert_eq!(
+            verify_block_header_with_scheme(SignatureSchemeKind::Ed25519, &test_header, &[0u8; 32]),
+            Err(SignatureVerificationError::InvalidSignature)
         );
     }
 }
