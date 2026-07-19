@@ -1448,13 +1448,24 @@ def test_run_list_mvp_loops_summarizes_local_artifacts_without_api_key(
 
 def test_run_list_mvp_loops_json_returns_recent_artifacts(tmp_path: Path) -> None:
     direct = tmp_path / "biber-mvp-loop.json"
+    list_artifact = tmp_path / "mvp-loop-list.json"
     direct.write_text(
         json.dumps({"ok": True, "steps": {"context_plan": {}}, "selected_context_paths": []}),
         encoding="utf-8",
     )
 
     output = client.run(
-        client.parse_args(["--json", "list-mvp-loops", str(tmp_path), "--limit", "1"])
+        client.parse_args(
+            [
+                "--json",
+                "list-mvp-loops",
+                str(tmp_path),
+                "--limit",
+                "1",
+                "--output",
+                str(list_artifact),
+            ]
+        )
     )
     result = json.loads(output)
 
@@ -1465,6 +1476,8 @@ def test_run_list_mvp_loops_json_returns_recent_artifacts(tmp_path: Path) -> Non
     assert result["artifacts"][0]["path"] == str(direct)
     assert result["artifacts"][0]["agent_report_status"] == "needs_test"
     assert result["artifacts"][0]["repair_hint_status"] is None
+    assert result["artifact_path"] == str(list_artifact)
+    assert json.loads(list_artifact.read_text(encoding="utf-8")) == result
 
 
 def test_run_list_mvp_loops_failed_only_filters_successes(tmp_path: Path) -> None:
@@ -6483,8 +6496,10 @@ def test_local_mvp_loop_failure_smoke_script_documents_repair_hint() -> None:
     assert "repair_prompt_has_hint" in text
     assert "list-mvp-loops" in text
     assert "--failed-only" in text
+    assert "--output" in text
     assert "list_repair_hint_status" in text
     assert "list_repair_next_step" in text
+    assert "list_artifact" in text
     assert "ready_for_prepare_repair" in text
     assert '"api_required": False' in text
     assert '"gpu_required": False' in text

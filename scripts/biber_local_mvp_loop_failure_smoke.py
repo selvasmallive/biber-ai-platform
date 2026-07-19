@@ -117,13 +117,21 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
         raise RuntimeError("prepared repair did not include repair_hint")
     repair_prompt = str(repair_request.get("repair_prompt") or "")
 
+    failure_list_output_path = artifact_dir / "failed-mvp-loop-list.json"
     failure_list = run_client(
         repo_root,
         artifact_dir,
         "list-mvp-loops",
         str(artifact_dir),
         "--failed-only",
+        "--output",
+        str(failure_list_output_path),
     )
+    saved_failure_list = json.loads(
+        failure_list_output_path.read_text(encoding="utf-8")
+    )
+    if saved_failure_list != failure_list:
+        raise RuntimeError("list-mvp-loops artifact did not match stdout JSON")
     listed_failures = [
         item
         for item in failure_list.get("artifacts", [])
@@ -161,6 +169,7 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
             and listed_failure.get("repair_detected_stack") == "python"
             and listed_failure.get("repair_next_step") == "prepare-repair"
             and "prepare-repair" in listed_next_command
+            and failure_list.get("artifact_path") == str(failure_list_output_path)
         ),
         "external_network_required": False,
         "gpu_required": False,
@@ -189,6 +198,7 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
         "list_repair_next_command_has_prepare": (
             "prepare-repair" in listed_next_command
         ),
+        "list_artifact": str(failure_list_output_path),
     }
     if not summary["ok"]:
         raise RuntimeError(json.dumps(summary, indent=2, sort_keys=True))

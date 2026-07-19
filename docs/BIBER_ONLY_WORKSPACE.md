@@ -200,6 +200,10 @@ python scripts/biber_agent_client.py list-confidence-smokes \
   /workspace/outputs \
   --pattern "*confidence-smoke*.json" \
   --output /workspace/outputs/biber-local-confidence-smoke-list.json
+python scripts/biber_agent_client.py list-mvp-loops \
+  /workspace/outputs \
+  --failed-only \
+  --output /workspace/outputs/biber-mvp-loop-list.json
 ```
 
 This combined smoke runs the mocked local OpenAI-compatible provider HTTP smoke,
@@ -213,6 +217,8 @@ The real-checkout repo-probe also verifies that `mvp-loop` accepts
 `--pinned-paths-file` and `--changed-paths-file` in the local path.
 `show-confidence-smoke` and `list-confidence-smokes` surface this path-list
 evidence from saved confidence artifacts.
+`list-mvp-loops --output` can save the discovered loop artifacts and repair
+next-step metadata for later resume.
 It also includes the full local MVP-loop repair smoke, which starts from a real
 failed local `mvp-loop` artifact and walks through local-model repair, review,
 guarded apply, verification, and status without API credentials.

@@ -17240,6 +17240,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Only list saved loop artifacts where ok is false or the test failed.",
     )
+    list_mvp_loops.add_argument("--output")
 
     show_repair_attempt = subparsers.add_parser(
         "show-repair-attempt",
@@ -18675,6 +18676,9 @@ def run(args: argparse.Namespace) -> str:
             limit=args.limit,
             failed_only=args.failed_only,
         )
+        if args.output:
+            artifacts["artifact_path"] = str(Path(args.output))
+            write_json_artifact(artifacts, args.output)
         return (
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
