@@ -261,6 +261,9 @@ def test_local_confidence_smoke_runs_provider_and_repair_smokes() -> None:
     assert "biber_local_mvp_loop_failure_smoke.py" in text
     assert "local_mvp_loop_failure" in text
     assert '"mvp_loop_failure"' in text
+    assert "list_failed_artifacts" in text
+    assert "list_repair_hint_status" in text
+    assert "list_repair_next_step" in text
     assert "biber_local_mvp_loop_repo_probe_smoke.py" in text
     assert "local_mvp_loop_repo_probe" in text
     assert '"mvp_loop_repo_probe"' in text
@@ -6478,6 +6481,10 @@ def test_local_mvp_loop_failure_smoke_script_documents_repair_hint() -> None:
     assert "agent_report" in text
     assert "repair_hint" in text
     assert "repair_prompt_has_hint" in text
+    assert "list-mvp-loops" in text
+    assert "--failed-only" in text
+    assert "list_repair_hint_status" in text
+    assert "list_repair_next_step" in text
     assert "ready_for_prepare_repair" in text
     assert '"api_required": False' in text
     assert '"gpu_required": False' in text

@@ -238,8 +238,10 @@ python scripts/biber_local_mvp_loop_failure_smoke.py
 The smoke creates a temporary target repo with a Python syntax failure, runs
 `mvp-loop --local-target-root`, verifies `agent_report.repair_hint`, and runs
 `prepare-repair` to prove the hint is preserved for the next local-model repair
-step and included in the bounded repair prompt. It does not require BIBER API,
-OpenAI, Vast GPU, or training credentials.
+step and included in the bounded repair prompt. It also verifies
+`list-mvp-loops --failed-only` exposes the repair-hint status and next repair
+step from the saved failed artifact. It does not require BIBER API, OpenAI,
+Vast GPU, or training credentials.
 
 To run only the real-checkout MVP-loop repo-probe smoke:
 

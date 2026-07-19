@@ -117,8 +117,23 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
         raise RuntimeError("prepared repair did not include repair_hint")
     repair_prompt = str(repair_request.get("repair_prompt") or "")
 
+    failure_list = run_client(
+        repo_root,
+        artifact_dir,
+        "list-mvp-loops",
+        str(artifact_dir),
+        "--failed-only",
+    )
+    listed_failures = [
+        item
+        for item in failure_list.get("artifacts", [])
+        if isinstance(item, dict)
+    ]
+    listed_failure = listed_failures[0] if listed_failures else {}
+
     next_workflow = [str(item) for item in repair_hint.get("next_workflow", [])]
     next_command = str(repair_hint.get("next_command") or "")
+    listed_next_command = str(listed_failure.get("repair_next_command") or "")
     summary = {
         "source": "biber_local_mvp_loop_failure_smoke",
         "ok": (
@@ -139,6 +154,13 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
             and prepared_hint.get("status") == "ready_for_prepare_repair"
             and "repair_hint: status=ready_for_prepare_repair" in repair_prompt
             and "category=compile_error" in repair_prompt
+            and len(listed_failures) == 1
+            and listed_failure.get("repair_hint_status")
+            == "ready_for_prepare_repair"
+            and listed_failure.get("repair_primary_category") == "compile_error"
+            and listed_failure.get("repair_detected_stack") == "python"
+            and listed_failure.get("repair_next_step") == "prepare-repair"
+            and "prepare-repair" in listed_next_command
         ),
         "external_network_required": False,
         "gpu_required": False,
@@ -159,6 +181,14 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
         ),
         "repair_hint_next_command": next_command,
         "next_workflow": next_workflow,
+        "list_failed_artifacts": len(listed_failures),
+        "list_repair_hint_status": listed_failure.get("repair_hint_status"),
+        "list_repair_primary_category": listed_failure.get("repair_primary_category"),
+        "list_repair_detected_stack": listed_failure.get("repair_detected_stack"),
+        "list_repair_next_step": listed_failure.get("repair_next_step"),
+        "list_repair_next_command_has_prepare": (
+            "prepare-repair" in listed_next_command
+        ),
     }
     if not summary["ok"]:
         raise RuntimeError(json.dumps(summary, indent=2, sort_keys=True))

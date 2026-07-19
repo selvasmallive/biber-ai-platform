@@ -443,6 +443,15 @@ when the artifact has a saved path. The text list prints compact
 `repair_hint` and `repair_next` fields, while the exact command stays in JSON
 for follow-up automation. This remains CPU-local and does not use GPU,
 training, OpenAI mentor, external paid APIs, or credential rotation.
+Forty-ninth BIBER resume checkpoint on the same branch:
+`scripts/biber_local_mvp_loop_failure_smoke.py` now verifies the new
+`list-mvp-loops --failed-only` repair-hint fields against a real saved failed
+MVP-loop artifact, and `scripts/biber_local_confidence_smoke.py` carries the
+list proof in its `mvp_loop_failure` summary (`list_failed_artifacts`,
+`list_repair_hint_status`, and `list_repair_next_step`). The standard no-GPU
+confidence gate now covers failed-artifact discovery plus the first repair
+handoff command path without using GPU, training, OpenAI mentor, external paid
+APIs, or credential rotation.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

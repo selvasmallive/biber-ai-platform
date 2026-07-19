@@ -174,6 +174,11 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             "test_ok": mvp_loop_failure.get("test_ok"),
             "repair_status": mvp_loop_failure.get("repair_status"),
             "repair_prompt_has_hint": mvp_loop_failure.get("repair_prompt_has_hint"),
+            "list_failed_artifacts": mvp_loop_failure.get("list_failed_artifacts"),
+            "list_repair_hint_status": mvp_loop_failure.get(
+                "list_repair_hint_status"
+            ),
+            "list_repair_next_step": mvp_loop_failure.get("list_repair_next_step"),
         },
         "mvp_loop_repo_probe": {
             "agent_report_status": mvp_loop_repo_probe.get("agent_report_status"),
