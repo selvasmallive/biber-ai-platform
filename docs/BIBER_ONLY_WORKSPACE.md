@@ -204,6 +204,8 @@ python scripts/biber_agent_client.py list-mvp-loops \
   /workspace/outputs \
   --failed-only \
   --output /workspace/outputs/biber-mvp-loop-list.json
+python scripts/biber_agent_client.py show-mvp-loop-list \
+  /workspace/outputs/biber-mvp-loop-list.json
 ```
 
 This combined smoke runs the mocked local OpenAI-compatible provider HTTP smoke,
@@ -218,7 +220,8 @@ The real-checkout repo-probe also verifies that `mvp-loop` accepts
 `show-confidence-smoke` and `list-confidence-smokes` surface this path-list
 evidence from saved confidence artifacts.
 `list-mvp-loops --output` can save the discovered loop artifacts and repair
-next-step metadata for later resume.
+next-step metadata for later resume, and `show-mvp-loop-list` summarizes that
+saved list without rerunning the scan.
 It also includes the full local MVP-loop repair smoke, which starts from a real
 failed local `mvp-loop` artifact and walks through local-model repair, review,
 guarded apply, verification, and status without API credentials.
@@ -246,8 +249,9 @@ The smoke creates a temporary target repo with a Python syntax failure, runs
 `prepare-repair` to prove the hint is preserved for the next local-model repair
 step and included in the bounded repair prompt. It also verifies
 `list-mvp-loops --failed-only` exposes the repair-hint status and next repair
-step from the saved failed artifact. It does not require BIBER API, OpenAI,
-Vast GPU, or training credentials.
+step from the saved failed artifact, then verifies `show-mvp-loop-list` can
+read the saved list artifact back. It does not require BIBER API, OpenAI, Vast
+GPU, or training credentials.
 
 To run only the real-checkout MVP-loop repo-probe smoke:
 

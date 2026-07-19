@@ -132,6 +132,14 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
     )
     if saved_failure_list != failure_list:
         raise RuntimeError("list-mvp-loops artifact did not match stdout JSON")
+    shown_failure_list = run_client(
+        repo_root,
+        artifact_dir,
+        "show-mvp-loop-list",
+        str(failure_list_output_path),
+    )
+    if shown_failure_list != saved_failure_list:
+        raise RuntimeError("show-mvp-loop-list output did not match saved list JSON")
     listed_failures = [
         item
         for item in failure_list.get("artifacts", [])
@@ -170,6 +178,7 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
             and listed_failure.get("repair_next_step") == "prepare-repair"
             and "prepare-repair" in listed_next_command
             and failure_list.get("artifact_path") == str(failure_list_output_path)
+            and shown_failure_list.get("source") == "biber_mvp_loop_artifact_list"
         ),
         "external_network_required": False,
         "gpu_required": False,
@@ -199,6 +208,9 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
             "prepare-repair" in listed_next_command
         ),
         "list_artifact": str(failure_list_output_path),
+        "show_list_artifact_ok": (
+            shown_failure_list.get("source") == "biber_mvp_loop_artifact_list"
+        ),
     }
     if not summary["ok"]:
         raise RuntimeError(json.dumps(summary, indent=2, sort_keys=True))

@@ -1173,6 +1173,21 @@ def normalize_mvp_loop_artifact(payload: Mapping[str, Any]) -> dict[str, Any] | 
     return None
 
 
+def normalize_mvp_loop_artifact_list(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_artifact_list":
+        return dict(payload)
+    if isinstance(payload.get("artifacts"), list) and (
+        payload.get("directory") or payload.get("pattern")
+    ):
+        return dict(payload)
+    body = payload.get("body")
+    if isinstance(body, dict):
+        return normalize_mvp_loop_artifact_list(body)
+    return None
+
+
 def normalize_mvp_loop_repair_request_artifact(
     payload: Mapping[str, Any],
 ) -> dict[str, Any] | None:
@@ -13493,6 +13508,7 @@ def list_mvp_loop_artifacts(
 
     artifacts.sort(key=lambda item: float(item.get("modified_epoch") or 0.0), reverse=True)
     return {
+        "source": "biber_mvp_loop_artifact_list",
         "directory": str(root),
         "pattern": pattern,
         "failed_only": failed_only,
@@ -17228,6 +17244,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     show_mvp_loop.add_argument("artifact")
 
+    show_mvp_loop_list = subparsers.add_parser(
+        "show-mvp-loop-list",
+        help="Summarize a saved list-mvp-loops --output JSON artifact.",
+    )
+    show_mvp_loop_list.add_argument("artifact")
+
     list_mvp_loops = subparsers.add_parser(
         "list-mvp-loops",
         help="List saved local mvp-loop JSON artifacts under a directory.",
@@ -18668,6 +18690,20 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(normalized, indent=2, sort_keys=True)
             if args.print_json
             else format_mvp_loop_artifact_summary(normalized)
+        )
+    if args.command == "show-mvp-loop-list":
+        artifact = load_json_artifact(args.artifact, label="mvp-loop list artifact")
+        normalized = normalize_mvp_loop_artifact_list(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "mvp-loop list artifact must contain a saved list-mvp-loops JSON object."
+            )
+        if not normalized.get("artifact_path"):
+            normalized["artifact_path"] = str(Path(args.artifact))
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_mvp_loop_artifact_list_summary(normalized)
         )
     if args.command == "list-mvp-loops":
         artifacts = list_mvp_loop_artifacts(

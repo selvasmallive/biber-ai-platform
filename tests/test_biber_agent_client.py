@@ -264,6 +264,7 @@ def test_local_confidence_smoke_runs_provider_and_repair_smokes() -> None:
     assert "list_failed_artifacts" in text
     assert "list_repair_hint_status" in text
     assert "list_repair_next_step" in text
+    assert "show_list_artifact_ok" in text
     assert "biber_local_mvp_loop_repo_probe_smoke.py" in text
     assert "local_mvp_loop_repo_probe" in text
     assert '"mvp_loop_repo_probe"' in text
@@ -1469,6 +1470,7 @@ def test_run_list_mvp_loops_json_returns_recent_artifacts(tmp_path: Path) -> Non
     )
     result = json.loads(output)
 
+    assert result["source"] == "biber_mvp_loop_artifact_list"
     assert result["directory"] == str(tmp_path)
     assert result["pattern"] == "*mvp-loop*.json"
     assert result["scanned"] == 1
@@ -1478,6 +1480,18 @@ def test_run_list_mvp_loops_json_returns_recent_artifacts(tmp_path: Path) -> Non
     assert result["artifacts"][0]["repair_hint_status"] is None
     assert result["artifact_path"] == str(list_artifact)
     assert json.loads(list_artifact.read_text(encoding="utf-8")) == result
+
+    show_output = client.run(
+        client.parse_args(["show-mvp-loop-list", str(list_artifact)])
+    )
+    show_json = json.loads(
+        client.run(client.parse_args(["--json", "show-mvp-loop-list", str(list_artifact)]))
+    )
+
+    assert show_json == result
+    assert "BIBER MVP loop artifacts (1)" in show_output
+    assert str(direct) in show_output
+    assert "status=needs_test" in show_output
 
 
 def test_run_list_mvp_loops_failed_only_filters_successes(tmp_path: Path) -> None:
@@ -6495,11 +6509,13 @@ def test_local_mvp_loop_failure_smoke_script_documents_repair_hint() -> None:
     assert "repair_hint" in text
     assert "repair_prompt_has_hint" in text
     assert "list-mvp-loops" in text
+    assert "show-mvp-loop-list" in text
     assert "--failed-only" in text
     assert "--output" in text
     assert "list_repair_hint_status" in text
     assert "list_repair_next_step" in text
     assert "list_artifact" in text
+    assert "show_list_artifact_ok" in text
     assert "ready_for_prepare_repair" in text
     assert '"api_required": False' in text
     assert '"gpu_required": False' in text

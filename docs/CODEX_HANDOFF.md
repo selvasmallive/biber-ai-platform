@@ -459,6 +459,14 @@ metadata for saved failed artifacts. The local failure smoke now verifies
 `list-mvp-loops --failed-only --output` by comparing stdout JSON to the saved
 list artifact. This remains CPU-local and does not use GPU, training, OpenAI
 mentor, external paid APIs, or credential rotation.
+Fifty-first BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py show-mvp-loop-list <artifact>` now summarizes a
+saved `list-mvp-loops --output` artifact without rerunning the directory scan.
+Saved list artifacts now include `source=biber_mvp_loop_artifact_list`, and the
+local failure smoke verifies `show-mvp-loop-list` round-trips the saved failed
+artifact list. The combined confidence summary carries `show_list_artifact_ok`
+under `mvp_loop_failure`. This is CPU-local and does not use GPU, training,
+OpenAI mentor, external paid APIs, or credential rotation.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
