@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-07-17
+Last updated: 2026-07-19
 
 ## Current Goal
 
@@ -435,6 +435,14 @@ important of those fields. Older artifacts without `agent_report` are handled
 by deriving the compact report from existing step fields. This is display-only
 and CPU-local; it does not use GPU, training, OpenAI mentor, external paid
 APIs, or credential rotation.
+Forty-eighth BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py list-mvp-loops` now also carries derived repair
+hint fields for failed MVP-loop artifacts: repair hint status, primary failure
+category, detected stack, first repair workflow step, and `repair_next_command`
+when the artifact has a saved path. The text list prints compact
+`repair_hint` and `repair_next` fields, while the exact command stays in JSON
+for follow-up automation. This remains CPU-local and does not use GPU,
+training, OpenAI mentor, external paid APIs, or credential rotation.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

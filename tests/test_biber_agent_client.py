@@ -1403,8 +1403,22 @@ def test_run_list_mvp_loops_summarizes_local_artifacts_without_api_key(
                 "status": 0,
                 "body": {
                     "ok": False,
+                    "artifact_path": str(wrapped),
                     "selected_context_paths": ["README.md", "pyproject.toml"],
-                    "steps": {"context_plan": {}, "test_run": {"ok": False}},
+                    "steps": {
+                        "context_plan": {},
+                        "test_run": {
+                            "ok": False,
+                            "test_id": "python-compileall-api",
+                            "executed": True,
+                            "stdout": "SyntaxError: invalid syntax",
+                        },
+                        "test_diagnosis": {
+                            "primary_category": "compile_error",
+                            "detected_stack": "python",
+                            "summary": "Detected compile_error.",
+                        },
+                    },
                     "test_ok": False,
                 },
             }
@@ -1425,6 +1439,8 @@ def test_run_list_mvp_loops_summarizes_local_artifacts_without_api_key(
     assert "context_mode=local_target_root" in output
     assert "test_mode=local_target_root" in output
     assert "edit_review=ready_for_hash_guarded_apply" in output
+    assert "repair_hint=ready_for_prepare_repair" in output
+    assert "repair_next=prepare-repair" in output
 
 
 def test_run_list_mvp_loops_json_returns_recent_artifacts(tmp_path: Path) -> None:
@@ -1445,6 +1461,7 @@ def test_run_list_mvp_loops_json_returns_recent_artifacts(tmp_path: Path) -> Non
     assert len(result["artifacts"]) == 1
     assert result["artifacts"][0]["path"] == str(direct)
     assert result["artifacts"][0]["agent_report_status"] == "needs_test"
+    assert result["artifacts"][0]["repair_hint_status"] is None
 
 
 def test_run_list_mvp_loops_failed_only_filters_successes(tmp_path: Path) -> None:
@@ -1465,7 +1482,20 @@ def test_run_list_mvp_loops_failed_only_filters_successes(tmp_path: Path) -> Non
         json.dumps(
             {
                 "ok": False,
-                "steps": {"context_plan": {}, "test_run": {"ok": False}},
+                "artifact_path": str(failure),
+                "steps": {
+                    "context_plan": {},
+                    "test_run": {
+                        "ok": False,
+                        "test_id": "python-compileall-api",
+                        "executed": True,
+                        "stdout": "SyntaxError: invalid syntax",
+                    },
+                    "test_diagnosis": {
+                        "primary_category": "compile_error",
+                        "detected_stack": "python",
+                    },
+                },
                 "selected_context_paths": ["README.md"],
                 "test_ok": False,
             }
@@ -1481,6 +1511,11 @@ def test_run_list_mvp_loops_failed_only_filters_successes(tmp_path: Path) -> Non
     assert result["failed_only"] is True
     assert result["scanned"] == 2
     assert [item["path"] for item in result["artifacts"]] == [str(failure)]
+    assert result["artifacts"][0]["repair_hint_status"] == "ready_for_prepare_repair"
+    assert result["artifacts"][0]["repair_primary_category"] == "compile_error"
+    assert result["artifacts"][0]["repair_detected_stack"] == "python"
+    assert result["artifacts"][0]["repair_next_step"] == "prepare-repair"
+    assert "prepare-repair" in result["artifacts"][0]["repair_next_command"]
 
 
 def test_run_export_mvp_failures_writes_review_jsonl_without_api_key(

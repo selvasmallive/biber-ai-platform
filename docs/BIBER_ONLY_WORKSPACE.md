@@ -176,6 +176,8 @@ state, and prints the next exact no-API command to run.
 For MVP-loop artifact directories, `list-mvp-loops` shows compact
 `agent_report_status`, context/test modes, and edit review status per artifact
 so you can quickly choose which saved loop to inspect or repair.
+For failed MVP-loop artifacts, the list JSON also carries repair-hint status,
+category, stack, first repair step, and the exact next command when available.
 For failed MVP-loop and prepared repair artifacts, the status output surfaces
 the repair-hint status, primary failure category, detected stack, and first
 local repair workflow steps so future sessions can resume without scraping raw

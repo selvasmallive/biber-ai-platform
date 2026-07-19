@@ -1192,6 +1192,8 @@ def summarize_mvp_loop_artifact(path: Path, payload: Mapping[str, Any]) -> dict[
     context = require_mapping(agent_report.get("context"))
     edit = require_mapping(agent_report.get("edit"))
     test = require_mapping(agent_report.get("test"))
+    repair_hint = require_mapping(agent_report.get("repair_hint"))
+    next_workflow = [str(item) for item in require_list(repair_hint.get("next_workflow"))]
     try:
         modified_epoch = path.stat().st_mtime
     except OSError:
@@ -1206,9 +1208,15 @@ def summarize_mvp_loop_artifact(path: Path, payload: Mapping[str, Any]) -> dict[
         "selected_context_paths": len(require_list(payload.get("selected_context_paths"))),
         "edit_review_status": edit.get("review_status"),
         "edit_ready_for_apply": edit.get("ready_for_apply"),
+        "repair_hint_status": repair_hint.get("status"),
+        "repair_primary_category": repair_hint.get("primary_category"),
+        "repair_detected_stack": repair_hint.get("detected_stack"),
+        "repair_next_step": next_workflow[0] if next_workflow else None,
         "steps": list(steps.keys()),
         "modified_epoch": modified_epoch,
     }
+    if repair_hint.get("next_command"):
+        summary["repair_next_command"] = repair_hint.get("next_command")
     for key in ("artifact_path", "github_url", "pull_request_url"):
         if payload.get(key):
             summary[key] = payload.get(key)
@@ -14335,6 +14343,8 @@ def format_mvp_loop_artifact_list_summary(payload: Mapping[str, Any]) -> str:
                     f"context_mode={artifact.get('context_mode') or '-'}",
                     f"test_mode={artifact.get('test_mode') or '-'}",
                     f"edit_review={artifact.get('edit_review_status') or '-'}",
+                    f"repair_hint={artifact.get('repair_hint_status') or '-'}",
+                    f"repair_next={artifact.get('repair_next_step') or '-'}",
                     f"selected_context_paths={artifact.get('selected_context_paths', 0)}",
                     f"steps={steps or '-'}",
                 ]
