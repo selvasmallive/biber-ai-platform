@@ -1363,6 +1363,42 @@ def test_run_list_repair_attempts_summarizes_local_artifacts_without_api_key(
     assert "runtime_profiles=rust-xriq-codegen" in output
     assert "training_allowed: False" in output
 
+    list_artifact = tmp_path / "repair-attempt-list.json"
+    json_output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "list-repair-attempts",
+                str(tmp_path),
+                "--ready-only",
+                "--limit",
+                "5",
+                "--output",
+                str(list_artifact),
+            ]
+        )
+    )
+    result = json.loads(json_output)
+    saved = json.loads(list_artifact.read_text(encoding="utf-8"))
+    show_output = client.run(
+        client.parse_args(["show-repair-attempt-list", str(list_artifact)])
+    )
+    show_json = json.loads(
+        client.run(
+            client.parse_args(
+                ["--json", "show-repair-attempt-list", str(list_artifact)]
+            )
+        )
+    )
+
+    assert result["source"] == "biber_mvp_loop_repair_attempt_list"
+    assert result["artifact_path"] == str(list_artifact)
+    assert saved == result
+    assert show_json == result
+    assert "BIBER repair attempt artifacts (1)" in show_output
+    assert str(ready) in show_output
+    assert "ready=True" in show_output
+
 
 def test_run_list_mvp_loops_summarizes_local_artifacts_without_api_key(
     monkeypatch,

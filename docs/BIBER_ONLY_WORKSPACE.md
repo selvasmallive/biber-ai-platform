@@ -222,6 +222,9 @@ evidence from saved confidence artifacts.
 `list-mvp-loops --output` can save the discovered loop artifacts and repair
 next-step metadata for later resume, and `show-mvp-loop-list` summarizes that
 saved list without rerunning the scan.
+After a local repair attempt exists, `list-repair-attempts --output` saves the
+ready-for-edit-review queue and `show-repair-attempt-list` reopens that queue
+without rerunning the directory scan.
 It also includes the full local MVP-loop repair smoke, which starts from a real
 failed local `mvp-loop` artifact and walks through local-model repair, review,
 guarded apply, verification, and status without API credentials.

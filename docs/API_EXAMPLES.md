@@ -535,7 +535,10 @@ python scripts/biber_agent_client.py show-repair-attempt \
 python scripts/biber_agent_client.py list-repair-attempts \
   /workspace/outputs \
   --ready-only \
-  --limit 10
+  --limit 10 \
+  --output /workspace/outputs/biber-mvp-loop-repair-attempt-list.json
+python scripts/biber_agent_client.py show-repair-attempt-list \
+  /workspace/outputs/biber-mvp-loop-repair-attempt-list.json
 python scripts/biber_agent_client.py extract-repair-edits \
   /workspace/outputs/biber-mvp-loop-repair-attempt.json \
   --max-files 2 \

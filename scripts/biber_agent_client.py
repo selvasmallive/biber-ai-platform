@@ -1967,6 +1967,21 @@ def normalize_repair_attempt_artifact(payload: Mapping[str, Any]) -> dict[str, A
     return None
 
 
+def normalize_repair_attempt_artifact_list(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_repair_attempt_list":
+        return dict(payload)
+    if isinstance(payload.get("artifacts"), list) and (
+        payload.get("directory") or payload.get("pattern")
+    ):
+        return dict(payload)
+    body = payload.get("body")
+    if isinstance(body, dict):
+        return normalize_repair_attempt_artifact_list(body)
+    return None
+
+
 def repair_attempt_runtime_profile_ids(payload: Mapping[str, Any]) -> list[str] | None:
     chat_request = require_mapping(payload.get("chat_request"))
     repair_request = require_mapping(payload.get("repair_request"))
@@ -17273,6 +17288,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     show_repair_attempt.add_argument("artifact")
 
+    show_repair_attempt_list = subparsers.add_parser(
+        "show-repair-attempt-list",
+        help="Summarize a saved list-repair-attempts --output JSON artifact.",
+    )
+    show_repair_attempt_list.add_argument("artifact")
+
     list_repair_attempts = subparsers.add_parser(
         "list-repair-attempts",
         help=(
@@ -17284,6 +17305,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     list_repair_attempts.add_argument("--pattern", default="*repair-attempt*.json")
     list_repair_attempts.add_argument("--limit", type=int, default=10)
     list_repair_attempts.add_argument("--ready-only", action="store_true")
+    list_repair_attempts.add_argument("--output")
 
     show_repair_edit_extraction = subparsers.add_parser(
         "show-repair-edit-extraction",
@@ -18732,6 +18754,24 @@ def run(args: argparse.Namespace) -> str:
             if args.print_json
             else format_mvp_loop_repair_attempt_summary(normalized)
         )
+    if args.command == "show-repair-attempt-list":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="repair-attempt list artifact",
+        )
+        normalized = normalize_repair_attempt_artifact_list(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "repair-attempt list artifact must contain a saved "
+                "list-repair-attempts JSON object."
+            )
+        if not normalized.get("artifact_path"):
+            normalized["artifact_path"] = str(Path(args.artifact))
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_attempt_artifact_list_summary(normalized)
+        )
     if args.command == "list-repair-attempts":
         artifacts = list_repair_attempt_artifacts(
             directory=args.directory,
@@ -18739,6 +18779,9 @@ def run(args: argparse.Namespace) -> str:
             limit=args.limit,
             ready_only=args.ready_only,
         )
+        if args.output:
+            artifacts["artifact_path"] = str(Path(args.output))
+            write_json_artifact(artifacts, args.output)
         return (
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
