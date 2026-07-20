@@ -192,6 +192,7 @@ mod tests {
             memo_hash: None,
             expires_at_height: Some(100),
             signature: SignatureBytes::new(vec![1, 2, 3]),
+            public_key: Vec::new(),
         }
     }
 

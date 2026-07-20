@@ -232,6 +232,7 @@ mod tests {
             memo_hash: None,
             expires_at_height: Some(100),
             signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
         };
         tx.signature = test_only_signature_for_hash(transaction_signing_hash(&tx));
         tx

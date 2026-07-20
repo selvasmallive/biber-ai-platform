@@ -142,15 +142,24 @@ new key-handling anti-patterns.
    self-declared algorithm), so a test-only signature can never pass an ed25519
    node and vice versa. Tests cover a real ed25519-signed transaction/header
    verifying, plus wrong-key / tampered-body / wrong-scheme rejection
-   (`InvalidSignature`); this is non-breaking — the public key is a caller
-   parameter for now, so no struct/wire change yet. xriq-crypto: 19 tests.
-   REMAINING (3b, the large part): move the `public_key` onto
-   `Transaction`/`BlockHeader` (so verification is self-contained), thread a
-   `SignatureSchemeKind` (from `--signature-scheme test-only|ed25519`, default
-   `test-only`) through the node/consensus/faucet verify + sign call sites, and add
-   ed25519 end-to-end tests. That step changes the transaction wire format +
-   canonical encoding and re-keys the large test suite, so it is its own careful
-   migration.
+   (`InvalidSignature`). In step 1 the public key was a caller parameter (no
+   struct change). xriq-crypto: 19 tests. **(3b, step 2) DONE.** `Transaction` and
+   `BlockHeader` gained a `public_key: Vec<u8>` field (empty under test-only; the
+   32-byte Ed25519 key once signed), and the two `verify_*_with_scheme` helpers now
+   read the key from the item itself — verification is **self-contained**. This was
+   kept deliberately **additive**: `public_key` is NOT yet in the canonical
+   signing/hash encoding, so no transaction/block/genesis golden changed and the
+   whole workspace stays green (the ~85 struct literals across the workspace gained
+   `public_key: Vec::new()`; the ledger/mempool/consensus/node producer + faucet +
+   API + wallet paths all keep an empty key under the test-only scheme). The
+   storage / JSON / pending-record codecs do not persist the field yet — they set
+   it empty on decode (flagged in-code). REMAINING (3b, the large part): fold
+   `public_key` into the canonical signing + hash encoding (self-contained *and*
+   bound — the wire-format change that re-keys every golden and updates the
+   storage/pending-record/JSON codecs), thread a `SignatureSchemeKind` (from
+   `--signature-scheme test-only|ed25519`, default `test-only`) through the
+   node/consensus/faucet verify + sign call sites, and add ed25519 end-to-end
+   tests. Those remain separate, careful steps.
 4. **Real producer + faucet signing.** Block producer and faucet sign with an
    Ed25519 key (test keypair fixed in test vectors, real key via a
    `--producer-key-file` on operator nodes — key files gitignored, never

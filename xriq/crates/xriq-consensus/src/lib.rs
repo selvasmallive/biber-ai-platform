@@ -88,6 +88,7 @@ impl SingleAuthorityProducer {
             producer: self.config.producer.clone(),
             consensus_round: input.consensus_round,
             signature: input.signature,
+            public_key: Vec::new(),
         };
 
         Ok(Block {
@@ -160,6 +161,7 @@ mod tests {
             memo_hash: None,
             expires_at_height: Some(100),
             signature: SignatureBytes::new(vec![1, 2, 3]),
+            public_key: Vec::new(),
         }
     }
 

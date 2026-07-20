@@ -12,6 +12,12 @@ pub struct BlockHeader {
     pub producer: Address,
     pub consensus_round: u64,
     pub signature: SignatureBytes,
+    /// The block producer's public key, for self-contained signature
+    /// verification. Empty under the test-only scheme; the 32-byte Ed25519
+    /// public key once signed by the production scheme. Part of the
+    /// production-crypto migration (Phase 3b); see
+    /// `docs/XRIQ_PRODUCTION_CRYPTO_MIGRATION.md`.
+    pub public_key: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,6 +105,7 @@ mod tests {
             producer: producer(),
             consensus_round: 0,
             signature: SignatureBytes::new(vec![1, 2, 3]),
+            public_key: Vec::new(),
         }
     }
 

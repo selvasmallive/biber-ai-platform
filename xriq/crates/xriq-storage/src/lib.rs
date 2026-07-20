@@ -308,6 +308,9 @@ fn read_header(cursor: &mut Cursor<&[u8]>) -> Result<BlockHeader, StorageError> 
         producer: read_address(cursor)?,
         consensus_round: read_u64(cursor)?,
         signature: read_signature(cursor)?,
+        // Not persisted in the storage format yet; wired in a later Phase 3b step
+        // alongside the canonical encoding. See XRIQ_PRODUCTION_CRYPTO_MIGRATION.md.
+        public_key: Vec::new(),
     })
 }
 
@@ -337,6 +340,9 @@ fn read_transaction(cursor: &mut Cursor<&[u8]>) -> Result<Transaction, StorageEr
         memo_hash: read_option_hash(cursor)?,
         expires_at_height: read_option_u64(cursor)?,
         signature: read_signature(cursor)?,
+        // Not persisted in the storage format yet; wired in a later Phase 3b step
+        // alongside the canonical encoding. See XRIQ_PRODUCTION_CRYPTO_MIGRATION.md.
+        public_key: Vec::new(),
     })
 }
 
@@ -516,6 +522,7 @@ mod tests {
             memo_hash: Some(hash(3)),
             expires_at_height: Some(100),
             signature: SignatureBytes::new(vec![1, 2, 3]),
+            public_key: Vec::new(),
         }
     }
 
@@ -532,6 +539,7 @@ mod tests {
                 producer: address("author"),
                 consensus_round: 0,
                 signature: SignatureBytes::new(vec![9]),
+                public_key: Vec::new(),
             },
             transactions: vec![transaction()],
         }

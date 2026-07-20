@@ -4683,6 +4683,7 @@ fn private_devnet_runner_transaction<S: ChainStore>(
         memo_hash: None,
         expires_at_height: transfer.expires_at_height,
         signature: SignatureBytes::new(Vec::new()),
+        public_key: Vec::new(),
     };
     transaction.signature = test_only_signature_for_hash(transaction_signing_hash(&transaction));
     transaction
@@ -5257,6 +5258,9 @@ fn parse_pending_transaction_record(line: &str) -> Result<(Hash32, Transaction),
         memo_hash: None,
         expires_at_height,
         signature,
+        // Not carried in the pending-record format yet; wired in a later Phase 3b
+        // step alongside the canonical encoding.
+        public_key: Vec::new(),
     };
     if transaction_hash(&transaction) != tx_hash {
         return Err(NodeRunnerError::InvalidPendingRecord(line.to_string()));
@@ -7449,6 +7453,7 @@ impl<S: ChainStore> XriqNode<S> {
             producer: self.producer.config().producer.clone(),
             consensus_round,
             signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
         };
         let signature = test_only_signature_for_hash(block_header_signing_hash(&header));
         self.produce_next_block_with_canonical_roots(ProduceNextBlockCanonicalRootsInput {
@@ -7815,6 +7820,7 @@ mod tests {
             memo_hash: None,
             expires_at_height: Some(100),
             signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
         };
         tx.signature = test_only_signature_for_hash(transaction_signing_hash(&tx));
         tx
@@ -7896,6 +7902,7 @@ mod tests {
             producer: node.producer.config().producer.clone(),
             consensus_round: 0,
             signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
         };
         test_only_signature_for_hash(block_header_signing_hash(&header))
     }

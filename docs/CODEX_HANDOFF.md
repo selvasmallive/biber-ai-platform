@@ -706,6 +706,27 @@ InvalidSignature). xriq-crypto: 19 tests. REMAINING 3b (the large part): move
 wire format + canonical encoding + re-keys the big test suite) and thread the
 scheme through the node/consensus/faucet verify+sign call sites + a
 `--signature-scheme` flag; then Phases 4–6 as above.
+CRYPTO PHASE 3b STEP 2 DONE (public_key on the structs, self-contained verify):
+`Transaction` and `BlockHeader` gained `pub public_key: Vec<u8>` (empty under
+test-only; the 32-byte Ed25519 key once signed), and the two `verify_*_with_scheme`
+helpers now READ the key from the item itself (their `public_key` parameter was
+dropped) — verification is self-contained. Kept deliberately ADDITIVE: `public_key`
+is NOT in the canonical signing/hash encoding, so NO transaction/block/genesis
+golden changed and the ENTIRE workspace still builds + tests green. The ~85
+`Transaction {`/`BlockHeader {` struct literals across all crates (core, crypto,
+mempool, ledger, consensus, storage, indexer+postgres, explorer, rpc, node, api,
+wallet) gained `public_key: Vec::new()`; producer/faucet/API/wallet paths keep an
+empty key under test-only. Storage `read_header`/`read_transaction`, the node
+pending-record parser, and JSON codecs do NOT persist `public_key` yet — they set
+it empty on decode (flagged with in-code comments); round-trip stays lossless while
+the key is always empty. Full workspace test counts unchanged (xriq-crypto 19,
+xriq-node 74, xriq-api 82, ...); fmt clean; pre-existing clippy warnings only.
+REMAINING 3b: (a) fold `public_key` into the canonical signing + hash encoding (the
+wire-format change that re-keys every golden and updates the
+storage/pending-record/JSON codecs), (b) thread `SignatureSchemeKind` +
+`--signature-scheme test-only|ed25519` (default test-only) through node/consensus/
+faucet verify+sign, (c) ed25519 end-to-end test through the real node import path;
+then Phases 4–6.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

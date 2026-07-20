@@ -29,6 +29,12 @@ pub struct Transaction {
     pub memo_hash: Option<Hash32>,
     pub expires_at_height: Option<u64>,
     pub signature: SignatureBytes,
+    /// The signer's public key, for self-contained signature verification.
+    /// Empty under the test-only scheme (which needs no key); the 32-byte
+    /// Ed25519 public key once signed by the production scheme. Part of the
+    /// production-crypto migration (Phase 3b); see
+    /// `docs/XRIQ_PRODUCTION_CRYPTO_MIGRATION.md`.
+    pub public_key: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,6 +136,7 @@ mod tests {
             memo_hash: None,
             expires_at_height: Some(100),
             signature: SignatureBytes::new(vec![1, 2, 3]),
+            public_key: Vec::new(),
         }
     }
 

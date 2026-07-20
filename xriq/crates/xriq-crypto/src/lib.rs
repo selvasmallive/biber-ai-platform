@@ -395,16 +395,15 @@ pub fn block_header_signing_hash(header: &BlockHeader) -> Hash32 {
 /// self-declared one — so a test-only signature can never pass an ed25519 node and
 /// vice versa.
 ///
-/// The `public_key` is supplied by the caller for now; Phase 3b later moves it
-/// onto the `Transaction` so verification is fully self-contained.
+/// Verification is self-contained: the signer's `public_key` is read from the
+/// transaction itself (empty and unused under the test-only scheme).
 pub fn verify_transaction_with_scheme(
     scheme: SignatureSchemeKind,
     transaction: &Transaction,
-    public_key: &[u8],
 ) -> Result<(), SignatureVerificationError> {
     let envelope = SignatureEnvelope {
         algorithm: scheme.algorithm(),
-        public_key: public_key.to_vec(),
+        public_key: transaction.public_key.clone(),
         signature: transaction.signature.clone(),
     };
     scheme.verify_envelope(transaction_signing_hash(transaction), &envelope)
@@ -413,16 +412,15 @@ pub fn verify_transaction_with_scheme(
 /// Verify a block header's producer signature under an explicitly-selected scheme.
 ///
 /// The block-production analogue of [`verify_transaction_with_scheme`]: signs over
-/// `block_header_signing_hash`, using the header's own `signature` and the
-/// caller-supplied producer `public_key` (empty for test-only).
+/// `block_header_signing_hash`, using the header's own `signature` and its own
+/// producer `public_key` (empty for test-only).
 pub fn verify_block_header_with_scheme(
     scheme: SignatureSchemeKind,
     header: &BlockHeader,
-    public_key: &[u8],
 ) -> Result<(), SignatureVerificationError> {
     let envelope = SignatureEnvelope {
         algorithm: scheme.algorithm(),
-        public_key: public_key.to_vec(),
+        public_key: header.public_key.clone(),
         signature: header.signature.clone(),
     };
     scheme.verify_envelope(block_header_signing_hash(header), &envelope)
@@ -574,6 +572,7 @@ mod tests {
             memo_hash: Some(hash(3)),
             expires_at_height: Some(100),
             signature,
+            public_key: Vec::new(),
         }
     }
 
@@ -595,6 +594,7 @@ mod tests {
             producer: address("author"),
             consensus_round: 0,
             signature,
+            public_key: Vec::new(),
         }
     }
 
@@ -932,65 +932,69 @@ mod tests {
     }
 
     /// Build a transaction whose `signature` is a real Ed25519 signature over its
-    /// canonical signing hash, returning it alongside the signer's public key.
-    fn ed25519_signed_transaction(seed: [u8; 32]) -> (Transaction, [u8; 32]) {
+    /// canonical signing hash, with its `public_key` set to the signer's key.
+    fn ed25519_signed_transaction(seed: [u8; 32]) -> Transaction {
         let key = ed25519_signing_key_from_seed(seed);
         let mut tx = transaction(SignatureBytes::new(Vec::new()));
         tx.signature = ed25519_sign_hash(&key, transaction_signing_hash(&tx));
-        (tx, ed25519_public_key(&key))
+        tx.public_key = ed25519_public_key(&key).to_vec();
+        tx
     }
 
-    fn ed25519_signed_header(seed: [u8; 32]) -> (BlockHeader, [u8; 32]) {
+    fn ed25519_signed_header(seed: [u8; 32]) -> BlockHeader {
         let key = ed25519_signing_key_from_seed(seed);
         let mut header = header(SignatureBytes::new(Vec::new()));
         header.signature = ed25519_sign_hash(&key, block_header_signing_hash(&header));
-        (header, ed25519_public_key(&key))
+        header.public_key = ed25519_public_key(&key).to_vec();
+        header
     }
 
     #[test]
     fn verify_transaction_with_scheme_accepts_only_the_configured_scheme() {
         // A test-only-signed transaction verifies under the test-only scheme
-        // (public key unused) and is rejected under ed25519.
+        // (empty public key, unused) and is rejected under ed25519.
         let test_tx = signed_transaction();
         assert_eq!(
-            verify_transaction_with_scheme(SignatureSchemeKind::TestOnly, &test_tx, &[]),
+            verify_transaction_with_scheme(SignatureSchemeKind::TestOnly, &test_tx),
             Ok(())
         );
         assert_eq!(
-            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &test_tx, &[0u8; 32]),
+            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &test_tx),
             Err(SignatureVerificationError::InvalidSignature)
         );
 
-        // An ed25519-signed transaction verifies under ed25519 with the right key.
-        let (ed_tx, pubkey) = ed25519_signed_transaction([11u8; 32]);
+        // An ed25519-signed transaction carries its own key and verifies under
+        // ed25519.
+        let ed_tx = ed25519_signed_transaction([11u8; 32]);
         assert_eq!(
-            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &ed_tx, &pubkey),
+            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &ed_tx),
             Ok(())
         );
 
         // Wrong public key, tampered body, and the test-only scheme all reject it.
-        let (_, other_pubkey) = ed25519_signed_transaction([12u8; 32]);
+        let mut wrong_key = ed_tx.clone();
+        wrong_key.public_key = ed25519_signed_transaction([12u8; 32]).public_key;
         assert_eq!(
-            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &ed_tx, &other_pubkey),
+            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &wrong_key),
             Err(SignatureVerificationError::InvalidSignature)
         );
         let mut tampered = ed_tx.clone();
         tampered.amount = XriqAmount::from_base_units(999);
         assert_eq!(
-            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &tampered, &pubkey),
+            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &tampered),
             Err(SignatureVerificationError::InvalidSignature)
         );
         assert_eq!(
-            verify_transaction_with_scheme(SignatureSchemeKind::TestOnly, &ed_tx, &[]),
+            verify_transaction_with_scheme(SignatureSchemeKind::TestOnly, &ed_tx),
             Err(SignatureVerificationError::InvalidSignature)
         );
     }
 
     #[test]
     fn verify_block_header_with_scheme_accepts_only_the_configured_scheme() {
-        let (ed_header, pubkey) = ed25519_signed_header([21u8; 32]);
+        let ed_header = ed25519_signed_header([21u8; 32]);
         assert_eq!(
-            verify_block_header_with_scheme(SignatureSchemeKind::Ed25519, &ed_header, &pubkey),
+            verify_block_header_with_scheme(SignatureSchemeKind::Ed25519, &ed_header),
             Ok(())
         );
 
@@ -998,7 +1002,7 @@ mod tests {
         let mut tampered = ed_header.clone();
         tampered.height += 1;
         assert_eq!(
-            verify_block_header_with_scheme(SignatureSchemeKind::Ed25519, &tampered, &pubkey),
+            verify_block_header_with_scheme(SignatureSchemeKind::Ed25519, &tampered),
             Err(SignatureVerificationError::InvalidSignature)
         );
 
@@ -1007,11 +1011,11 @@ mod tests {
         test_header.signature =
             test_only_signature_for_hash(block_header_signing_hash(&test_header));
         assert_eq!(
-            verify_block_header_with_scheme(SignatureSchemeKind::TestOnly, &test_header, &[]),
+            verify_block_header_with_scheme(SignatureSchemeKind::TestOnly, &test_header),
             Ok(())
         );
         assert_eq!(
-            verify_block_header_with_scheme(SignatureSchemeKind::Ed25519, &test_header, &[0u8; 32]),
+            verify_block_header_with_scheme(SignatureSchemeKind::Ed25519, &test_header),
             Err(SignatureVerificationError::InvalidSignature)
         );
     }

@@ -741,6 +741,7 @@ mod tests {
             memo_hash: None,
             expires_at_height: Some(100),
             signature: SignatureBytes::new(vec![1, 2, 3]),
+            public_key: Vec::new(),
         }
     }
 
@@ -770,6 +771,7 @@ mod tests {
                 producer: address("author"),
                 consensus_round: 0,
                 signature: SignatureBytes::new(vec![9]),
+                public_key: Vec::new(),
             },
             transactions,
         }
@@ -824,6 +826,7 @@ mod tests {
             producer: genesis.authority,
             consensus_round: 0,
             signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
         };
         header.signature = test_only_signature_for_hash(block_header_signing_hash(&header));
         let mut store = InMemoryChainStore::new();

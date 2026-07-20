@@ -434,6 +434,7 @@ pub fn build_test_transfer(request: TransferRequest) -> TransferDraft {
         memo_hash: None,
         expires_at_height: request.expires_at_height,
         signature: SignatureBytes::new(Vec::new()),
+        public_key: Vec::new(),
     };
     transaction.signature = test_only_signature_for_hash(transaction_signing_hash(&transaction));
     TransferDraft {

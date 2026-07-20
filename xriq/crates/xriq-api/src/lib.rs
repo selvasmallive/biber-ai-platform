@@ -828,6 +828,7 @@ pub fn verify_signed_submit_envelope_preview(
         memo_hash: None,
         expires_at_height: Some(expires_at_height),
         signature: SignatureBytes::new(Vec::new()),
+        public_key: Vec::new(),
     };
     let signing_hash = xriq_crypto::transaction_signing_hash(&transaction);
     let expected_signing_hash = hash_hex(signing_hash);
@@ -2060,6 +2061,7 @@ fn parse_pending_mempool_entry(
         memo_hash: None,
         expires_at_height,
         signature: SignatureBytes::new(signature),
+        public_key: Vec::new(),
     };
     let computed_hash = hash_hex(transaction_hash(&transaction));
     if computed_hash != tx_hash {
@@ -3780,6 +3782,7 @@ mod tests {
             memo_hash: None,
             expires_at_height: Some(100),
             signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
         };
         transaction.signature =
             test_only_signature_for_hash(transaction_signing_hash(&transaction));
