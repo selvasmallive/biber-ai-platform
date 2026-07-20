@@ -153,13 +153,24 @@ new key-handling anti-patterns.
    `public_key: Vec::new()`; the ledger/mempool/consensus/node producer + faucet +
    API + wallet paths all keep an empty key under the test-only scheme). The
    storage / JSON / pending-record codecs do not persist the field yet — they set
-   it empty on decode (flagged in-code). REMAINING (3b, the large part): fold
-   `public_key` into the canonical signing + hash encoding (self-contained *and*
-   bound — the wire-format change that re-keys every golden and updates the
-   storage/pending-record/JSON codecs), thread a `SignatureSchemeKind` (from
+   it empty on decode (flagged in-code). **(3b, step 3 — canonical encoding) DONE.**
+   `public_key` is now folded into `encode_transaction_without_signature` /
+   `encode_header_without_signature`, so it is part of BOTH the signing hash and
+   the item hash — a signature is now cryptographically **bound** to the key that
+   produced it (a crypto test asserts changing `public_key` changes both hashes;
+   the ed25519 helpers had to set the key *before* signing, which the change
+   surfaced). The persistence/wire codecs were updated to carry it: the storage
+   binary codec (`write_byte_vec`/`read_vec`), and the node + API pending-record
+   TSV format (`public_key` added as a field, placed *before* the always-present
+   `signature` so an empty key can't become a trailing tab a line-trimming reader
+   drops). Every shifted golden was regenerated deterministically: the api
+   signed-submit signing/tx-hash fixtures, the main.rs URL fixtures, and the six
+   `fixtures/private-devnet/*.json` node/wallet fixtures (hash-only diffs). Full
+   workspace: 325 tests green; fmt clean; genesis_spec_hash is config-only so it
+   did NOT move. REMAINING (3b): thread a `SignatureSchemeKind` (from
    `--signature-scheme test-only|ed25519`, default `test-only`) through the
-   node/consensus/faucet verify + sign call sites, and add ed25519 end-to-end
-   tests. Those remain separate, careful steps.
+   node/consensus/faucet verify + sign call sites, and add an ed25519 end-to-end
+   test through the real node import path. Those remain separate, careful steps.
 4. **Real producer + faucet signing.** Block producer and faucet sign with an
    Ed25519 key (test keypair fixed in test vectors, real key via a
    `--producer-key-file` on operator nodes — key files gitignored, never

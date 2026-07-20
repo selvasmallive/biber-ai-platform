@@ -464,6 +464,9 @@ fn encode_transaction_without_signature(transaction: &Transaction, output: &mut 
     encode_u64(transaction.nonce, output);
     encode_option_hash(transaction.memo_hash, output);
     encode_option_u64(transaction.expires_at_height, output);
+    // The signer's public key is part of the signed body, so a signature is bound
+    // to the key that produced it (empty under the test-only scheme).
+    encode_bytes(&transaction.public_key, output);
 }
 
 fn encode_header_without_signature(header: &BlockHeader, output: &mut Vec<u8>) {
@@ -476,6 +479,9 @@ fn encode_header_without_signature(header: &BlockHeader, output: &mut Vec<u8>) {
     encode_u64(header.timestamp_ms, output);
     encode_string(header.producer.as_str(), output);
     encode_u64(header.consensus_round, output);
+    // The producer's public key is part of the signed body (empty under the
+    // test-only scheme).
+    encode_bytes(&header.public_key, output);
 }
 
 fn encode_signature(signature: &SignatureBytes, output: &mut Vec<u8>) {
@@ -640,6 +646,32 @@ mod tests {
             transaction_signing_hash(&second)
         );
         assert_ne!(transaction_hash(&first), transaction_hash(&second));
+    }
+
+    #[test]
+    fn public_key_is_bound_into_transaction_and_header_hashes() {
+        // The public key is part of the signed body: changing it changes both the
+        // signing hash and the item hash, so a signature is bound to its key.
+        let first = signed_transaction();
+        let mut second = first.clone();
+        second.public_key = vec![7u8; 32];
+        assert_ne!(
+            transaction_signing_hash(&first),
+            transaction_signing_hash(&second)
+        );
+        assert_ne!(transaction_hash(&first), transaction_hash(&second));
+
+        let first_header = header(SignatureBytes::new(vec![1]));
+        let mut second_header = first_header.clone();
+        second_header.public_key = vec![7u8; 32];
+        assert_ne!(
+            block_header_signing_hash(&first_header),
+            block_header_signing_hash(&second_header)
+        );
+        assert_ne!(
+            block_header_bytes(&first_header),
+            block_header_bytes(&second_header)
+        );
     }
 
     #[test]
@@ -936,16 +968,18 @@ mod tests {
     fn ed25519_signed_transaction(seed: [u8; 32]) -> Transaction {
         let key = ed25519_signing_key_from_seed(seed);
         let mut tx = transaction(SignatureBytes::new(Vec::new()));
-        tx.signature = ed25519_sign_hash(&key, transaction_signing_hash(&tx));
+        // public_key is part of the signed body, so it must be set before signing.
         tx.public_key = ed25519_public_key(&key).to_vec();
+        tx.signature = ed25519_sign_hash(&key, transaction_signing_hash(&tx));
         tx
     }
 
     fn ed25519_signed_header(seed: [u8; 32]) -> BlockHeader {
         let key = ed25519_signing_key_from_seed(seed);
         let mut header = header(SignatureBytes::new(Vec::new()));
-        header.signature = ed25519_sign_hash(&key, block_header_signing_hash(&header));
+        // public_key is part of the signed body, so it must be set before signing.
         header.public_key = ed25519_public_key(&key).to_vec();
+        header.signature = ed25519_sign_hash(&key, block_header_signing_hash(&header));
         header
     }
 

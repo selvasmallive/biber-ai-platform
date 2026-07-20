@@ -5207,6 +5207,10 @@ fn render_pending_transaction_record(tx_hash: Hash32, transaction: &Transaction)
             .expires_at_height
             .map(|height| height.to_string())
             .unwrap_or_else(|| "null".to_string()),
+        // public_key before signature so the always-present signature stays the
+        // trailing field (an empty public_key would otherwise be a trailing tab a
+        // line-trimming reader drops).
+        bytes_hex(&transaction.public_key),
         bytes_hex(transaction.signature.as_slice()),
     ]
     .join("\t")
@@ -5214,7 +5218,7 @@ fn render_pending_transaction_record(tx_hash: Hash32, transaction: &Transaction)
 
 fn parse_pending_transaction_record(line: &str) -> Result<(Hash32, Transaction), NodeRunnerError> {
     let parts: Vec<&str> = line.split('\t').collect();
-    if parts.len() != 11 {
+    if parts.len() != 12 {
         return Err(NodeRunnerError::InvalidPendingRecord(line.to_string()));
     }
     if parts[0] != "xriq-pending-transaction-v1" {
@@ -5232,7 +5236,9 @@ fn parse_pending_transaction_record(line: &str) -> Result<(Hash32, Transaction),
                 .map_err(|_| NodeRunnerError::InvalidPendingRecord(line.to_string()))?,
         ),
     };
-    let signature = parse_hex_bytes(parts[10])
+    let public_key = parse_hex_bytes(parts[10])
+        .map_err(|_| NodeRunnerError::InvalidPendingRecord(line.to_string()))?;
+    let signature = parse_hex_bytes(parts[11])
         .map(SignatureBytes::new)
         .map_err(|_| NodeRunnerError::InvalidPendingRecord(line.to_string()))?;
     let transaction = Transaction {
@@ -5258,9 +5264,7 @@ fn parse_pending_transaction_record(line: &str) -> Result<(Hash32, Transaction),
         memo_hash: None,
         expires_at_height,
         signature,
-        // Not carried in the pending-record format yet; wired in a later Phase 3b
-        // step alongside the canonical encoding.
-        public_key: Vec::new(),
+        public_key,
     };
     if transaction_hash(&transaction) != tx_hash {
         return Err(NodeRunnerError::InvalidPendingRecord(line.to_string()));

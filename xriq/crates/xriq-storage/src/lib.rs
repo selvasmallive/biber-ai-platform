@@ -293,6 +293,7 @@ fn write_header(output: &mut Vec<u8>, header: &BlockHeader) -> Result<(), Storag
     write_address(output, &header.producer)?;
     write_u64(output, header.consensus_round);
     write_signature(output, &header.signature)?;
+    write_byte_vec(output, &header.public_key)?;
     Ok(())
 }
 
@@ -308,9 +309,7 @@ fn read_header(cursor: &mut Cursor<&[u8]>) -> Result<BlockHeader, StorageError> 
         producer: read_address(cursor)?,
         consensus_round: read_u64(cursor)?,
         signature: read_signature(cursor)?,
-        // Not persisted in the storage format yet; wired in a later Phase 3b step
-        // alongside the canonical encoding. See XRIQ_PRODUCTION_CRYPTO_MIGRATION.md.
-        public_key: Vec::new(),
+        public_key: read_vec(cursor)?,
     })
 }
 
@@ -325,6 +324,7 @@ fn write_transaction(output: &mut Vec<u8>, tx: &Transaction) -> Result<(), Stora
     write_option_hash(output, tx.memo_hash);
     write_option_u64(output, tx.expires_at_height);
     write_signature(output, &tx.signature)?;
+    write_byte_vec(output, &tx.public_key)?;
     Ok(())
 }
 
@@ -340,9 +340,7 @@ fn read_transaction(cursor: &mut Cursor<&[u8]>) -> Result<Transaction, StorageEr
         memo_hash: read_option_hash(cursor)?,
         expires_at_height: read_option_u64(cursor)?,
         signature: read_signature(cursor)?,
-        // Not persisted in the storage format yet; wired in a later Phase 3b step
-        // alongside the canonical encoding. See XRIQ_PRODUCTION_CRYPTO_MIGRATION.md.
-        public_key: Vec::new(),
+        public_key: read_vec(cursor)?,
     })
 }
 
@@ -441,6 +439,12 @@ fn read_address(cursor: &mut Cursor<&[u8]>) -> Result<Address, StorageError> {
 fn write_signature(output: &mut Vec<u8>, signature: &SignatureBytes) -> Result<(), StorageError> {
     write_u32(output, checked_len(signature.as_slice().len())?);
     output.extend_from_slice(signature.as_slice());
+    Ok(())
+}
+
+fn write_byte_vec(output: &mut Vec<u8>, value: &[u8]) -> Result<(), StorageError> {
+    write_u32(output, checked_len(value.len())?);
+    output.extend_from_slice(value);
     Ok(())
 }
 

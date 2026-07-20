@@ -2005,10 +2005,10 @@ fn parse_pending_mempool_entry(
     expected_chain_id: &str,
 ) -> Result<MempoolEntryResponse, PendingMempoolParseError> {
     let parts = line.split('\t').collect::<Vec<_>>();
-    if parts.len() != 11 {
+    if parts.len() != 12 {
         return Err(PendingMempoolParseError::new(
             line_number,
-            "expected 11 tab-separated pending record fields",
+            "expected 12 tab-separated pending record fields",
         ));
     }
     if parts[0] != "xriq-pending-transaction-v1" {
@@ -2046,7 +2046,10 @@ fn parse_pending_mempool_entry(
         "null" => None,
         value => Some(parse_u64_field(value, "expires_at_height", line_number)?),
     };
-    let signature = parse_hex_bytes(parts[10]).ok_or_else(|| {
+    let public_key = parse_hex_bytes(parts[10]).ok_or_else(|| {
+        PendingMempoolParseError::new(line_number, "public_key must be lowercase hex bytes")
+    })?;
+    let signature = parse_hex_bytes(parts[11]).ok_or_else(|| {
         PendingMempoolParseError::new(line_number, "signature must be lowercase hex bytes")
     })?;
 
@@ -2061,7 +2064,7 @@ fn parse_pending_mempool_entry(
         memo_hash: None,
         expires_at_height,
         signature: SignatureBytes::new(signature),
-        public_key: Vec::new(),
+        public_key,
     };
     let computed_hash = hash_hex(transaction_hash(&transaction));
     if computed_hash != tx_hash {
@@ -3797,6 +3800,7 @@ mod tests {
             transaction.fee.base_units().to_string(),
             transaction.nonce.to_string(),
             transaction.expires_at_height.unwrap().to_string(),
+            bytes_hex(&transaction.public_key),
             bytes_hex(transaction.signature.as_slice()),
         ]
         .join("\t")
@@ -3811,9 +3815,9 @@ mod tests {
     }
 
     const SIGNED_SUBMIT_SIGNING_HASH: &str =
-        "3c0f7f54bca53ad4c49ff98ba9ba2930ac6147a3cb510ead3265c894fcf1850b";
+        "dabb964e58a91b7cea297abc60ea5d5c68ce0dd061e2496aec0c85273a63250f";
     const SIGNED_SUBMIT_TX_HASH: &str =
-        "628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7";
+        "30c3f853919514d7cb2985f9e670ba6d7bf92663795143269a354f0d408f4a92";
 
     fn valid_signed_submit_envelope() -> SignedSubmitEnvelopeInput<'static> {
         SignedSubmitEnvelopeInput {

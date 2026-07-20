@@ -727,6 +727,29 @@ storage/pending-record/JSON codecs), (b) thread `SignatureSchemeKind` +
 `--signature-scheme test-only|ed25519` (default test-only) through node/consensus/
 faucet verify+sign, (c) ed25519 end-to-end test through the real node import path;
 then Phases 4–6.
+CRYPTO PHASE 3b STEP 3 DONE (canonical encoding — the wire-format change):
+`public_key` is now encoded in `encode_transaction_without_signature` /
+`encode_header_without_signature` (xriq-crypto), so it is part of BOTH the signing
+hash and the item hash — a signature is cryptographically BOUND to its key. New
+crypto test `public_key_is_bound_into_transaction_and_header_hashes`; the ed25519
+test helpers now set the key BEFORE signing (the encoding change surfaced that
+ordering requirement). Persistence/wire codecs updated to carry the key: storage
+binary codec (added `write_byte_vec`, `read_vec` on read for both header + tx), and
+the node + API pending-record TSV format — `public_key` added as a field placed
+BEFORE the always-present `signature` (an empty key as the trailing field would be
+a trailing tab that the API's `raw_line.trim()` drops; putting signature last keeps
+it trim-safe). Both node and API render+parse updated (field count 11->12, indices
+public_key=10, signature=11). Regenerated goldens (all deterministic, hash-only
+diffs): api signed-submit `SIGNED_SUBMIT_SIGNING_HASH`=dabb964e...,
+`SIGNED_SUBMIT_TX_HASH`=30c3f853...; main.rs URL fixtures (old 3c0f7f54/628ac258 ->
+new); and the 6 `fixtures/private-devnet/*.json` (node-produce-transfer-block,
+node-block-detail-transfer, node-produce-pending-block, node-preflight-transfer,
+wallet-transfer-submit, wallet-send-pending). genesis_spec_hash is config-only so
+it did NOT move (8849162e... unchanged). Full workspace: 325 tests green, fmt clean,
+no new clippy. NOTE: api snapshot() mock BLOCK_HASH/TX_HASH consts are static
+self-consistent display data (not recomputed) and were intentionally left as-is.
+REMAINING 3b: (b) thread `SignatureSchemeKind` + `--signature-scheme` flag through
+node/consensus/faucet verify+sign, (c) ed25519 end-to-end test; then Phases 4-6.
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

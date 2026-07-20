@@ -7460,13 +7460,13 @@ mod tests {
 
     fn wallet_signed_submit_target(local_request_id: &str) -> String {
         format!(
-            "/api/v1/wallet/transfers/submit-signed?local_request_id={local_request_id}&transaction_signing_hash=3c0f7f54bca53ad4c49ff98ba9ba2930ac6147a3cb510ead3265c894fcf1850b&transaction_hash=628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7&signature_algorithm=xriq-dev-test-only"
+            "/api/v1/wallet/transfers/submit-signed?local_request_id={local_request_id}&transaction_signing_hash=dabb964e58a91b7cea297abc60ea5d5c68ce0dd061e2496aec0c85273a63250f&transaction_hash=30c3f853919514d7cb2985f9e670ba6d7bf92663795143269a354f0d408f4a92&signature_algorithm=xriq-dev-test-only"
         )
     }
 
     fn wallet_signed_submit_preview_target(local_request_id: &str) -> String {
         format!(
-            "/api/v1/wallet/transfers/submit-signed?local_request_id={local_request_id}&format_version=xriq-local-signed-transfer-envelope-v1&version=1&chain_id=xriq-devnet&from_address=xriqdev1alice00000000000&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=1&expires_at_height=100&transaction_signing_hash=3c0f7f54bca53ad4c49ff98ba9ba2930ac6147a3cb510ead3265c894fcf1850b&transaction_hash=628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7&signature_algorithm=test-only&signature_encoding=test-only-prefix-plus-signing-hash"
+            "/api/v1/wallet/transfers/submit-signed?local_request_id={local_request_id}&format_version=xriq-local-signed-transfer-envelope-v1&version=1&chain_id=xriq-devnet&from_address=xriqdev1alice00000000000&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=1&expires_at_height=100&transaction_signing_hash=dabb964e58a91b7cea297abc60ea5d5c68ce0dd061e2496aec0c85273a63250f&transaction_hash=30c3f853919514d7cb2985f9e670ba6d7bf92663795143269a354f0d408f4a92&signature_algorithm=test-only&signature_encoding=test-only-prefix-plus-signing-hash"
         )
     }
 
@@ -7825,11 +7825,11 @@ mod tests {
         assert!(verified.verified);
         assert_eq!(
             verified.transaction_signing_hash,
-            "3c0f7f54bca53ad4c49ff98ba9ba2930ac6147a3cb510ead3265c894fcf1850b"
+            "dabb964e58a91b7cea297abc60ea5d5c68ce0dd061e2496aec0c85273a63250f"
         );
         assert_eq!(
             verified.transaction_hash,
-            "628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7"
+            "30c3f853919514d7cb2985f9e670ba6d7bf92663795143269a354f0d408f4a92"
         );
         assert_eq!(service.mempool(usize::MAX).pending_count, 0);
 
@@ -7875,7 +7875,7 @@ mod tests {
             service
                 .clone()
                 .with_pending_mempool_entries(vec![xriq_api::MempoolEntryResponse {
-                    tx_hash: "628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7"
+                    tx_hash: "30c3f853919514d7cb2985f9e670ba6d7bf92663795143269a354f0d408f4a92"
                         .to_string(),
                     from_address: "xriqdev1alice00000000000".to_string(),
                     to_address: "xriqdev1carol00000000000".to_string(),
@@ -7941,10 +7941,10 @@ mod tests {
         assert!(response.contains("\"verifier\": \"TestOnlySignatureVerifier\""));
         assert!(response.contains("\"verified\": true"));
         assert!(response.contains(
-            "\"transaction_signing_hash\": \"3c0f7f54bca53ad4c49ff98ba9ba2930ac6147a3cb510ead3265c894fcf1850b\""
+            "\"transaction_signing_hash\": \"dabb964e58a91b7cea297abc60ea5d5c68ce0dd061e2496aec0c85273a63250f\""
         ));
         assert!(response.contains(
-            "\"tx_hash\": \"628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7\""
+            "\"tx_hash\": \"30c3f853919514d7cb2985f9e670ba6d7bf92663795143269a354f0d408f4a92\""
         ));
         assert!(response.contains("\"before_count\": 0"));
         assert!(response.contains("\"after_count\": 1"));
@@ -7962,7 +7962,7 @@ mod tests {
         let pending_text = fs::read_to_string(&pending_path).unwrap();
         assert!(pending_text.contains("xriq-pending-transaction-v1"));
         assert!(pending_text
-            .contains("628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7"));
+            .contains("30c3f853919514d7cb2985f9e670ba6d7bf92663795143269a354f0d408f4a92"));
         assert!(pending_text.contains("xriqdev1carol00000000000"));
 
         let _ = fs::remove_file(path);
@@ -8074,7 +8074,7 @@ mod tests {
         assert!(mempool.body.contains("\"pending_count\": 1"));
         assert!(mempool
             .body
-            .contains("628ac2587bbae121654089ffb42cd1e2b1a59384c8e9b9206c925873783d40f7"));
+            .contains("30c3f853919514d7cb2985f9e670ba6d7bf92663795143269a354f0d408f4a92"));
         assert!(mempool.body.contains("xriqdev1carol00000000000"));
 
         let _ = fs::remove_file(path);
