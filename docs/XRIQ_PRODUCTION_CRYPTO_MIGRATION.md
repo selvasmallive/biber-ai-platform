@@ -167,10 +167,25 @@ new key-handling anti-patterns.
    signed-submit signing/tx-hash fixtures, the main.rs URL fixtures, and the six
    `fixtures/private-devnet/*.json` node/wallet fixtures (hash-only diffs). Full
    workspace: 325 tests green; fmt clean; genesis_spec_hash is config-only so it
-   did NOT move. REMAINING (3b): thread a `SignatureSchemeKind` (from
-   `--signature-scheme test-only|ed25519`, default `test-only`) through the
-   node/consensus/faucet verify + sign call sites, and add an ed25519 end-to-end
-   test through the real node import path. Those remain separate, careful steps.
+   did NOT move. **(3b, step 4 — scheme threading + flag) DONE.** `XriqNode` now
+   carries a `signature_scheme: SignatureSchemeKind` (default `TestOnly`, set via a
+   `with_signature_scheme` builder so no constructor signature changed) and its
+   three verify sites — `submit_transaction`, and peer-block-import transaction +
+   header verification — call `verify_transaction_with_scheme` /
+   `verify_block_header_with_scheme` under that scheme instead of a hardcoded
+   `TestOnlySignatureVerifier`. A `--signature-scheme test-only|ed25519` runner flag
+   (default `test-only`, via `parse_signature_scheme` → new
+   `NodeRunnerError::InvalidSignatureScheme`) is wired into the peer-sync follower
+   command and applied to its node. A node test asserts the default is `TestOnly`,
+   that an `Ed25519` node rejects a test-only signature (`InvalidSignature`), and
+   that a genuine ed25519-signed transaction (key set *before* signing) verifies and
+   submits. Signing still uses the test-only scheme, so `ed25519` today means
+   "require ed25519 on verify" (test-only-signed blocks are then correctly
+   rejected); real ed25519 *signing* is Phase 4. 326 tests green. REMAINING (3b):
+   an ed25519 end-to-end test through the full peer block-import path (produce →
+   persist → reload → import under `--signature-scheme ed25519`), and extending the
+   scheme to the indexer/rpc verify sites (currently still test-only; harmless
+   because the node already enforced the scheme on import). Small, focused steps.
 4. **Real producer + faucet signing.** Block producer and faucet sign with an
    Ed25519 key (test keypair fixed in test vectors, real key via a
    `--producer-key-file` on operator nodes — key files gitignored, never

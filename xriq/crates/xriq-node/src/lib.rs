@@ -20,7 +20,8 @@ use xriq_core::{
 use xriq_crypto::{
     account_state_root, block_header_signing_hash, test_only_signature_for_hash, transaction_hash,
     transaction_signing_hash, transactions_root as canonical_transactions_root,
-    SignatureVerificationError, TestOnlySignatureVerifier,
+    verify_block_header_with_scheme, verify_transaction_with_scheme, SignatureSchemeKind,
+    SignatureVerificationError,
 };
 use xriq_explorer::{
     render_account_detail, render_account_transactions, render_accounts, render_block_detail,
@@ -261,6 +262,7 @@ pub enum NodeRunnerError {
     PeerSyncError(String),
     FaucetRefused(String),
     InvalidNetwork(String),
+    InvalidSignatureScheme(String),
     DuplicateFlag(String),
     UnexpectedArgument(String),
     DraftFileRead { path: String, error: String },
@@ -324,6 +326,11 @@ pub struct XriqNode<S: ChainStore> {
     producer: SingleAuthorityProducer,
     store: S,
     latest_block_hash: Hash32,
+    /// The signature scheme this node requires when verifying submitted
+    /// transactions and imported block/transaction signatures (from
+    /// `--signature-scheme`, default test-only). Signing still uses the test-only
+    /// scheme until Phase 4 provides real producer/faucet keys.
+    signature_scheme: SignatureSchemeKind,
 }
 
 impl fmt::Display for NodeStatus {
@@ -561,6 +568,10 @@ impl fmt::Display for NodeRunnerError {
                 formatter,
                 "invalid network {value:?}: expected \"devnet\" or \"testnet\""
             ),
+            Self::InvalidSignatureScheme(value) => write!(
+                formatter,
+                "invalid signature scheme {value:?}: expected \"test-only\" or \"ed25519\""
+            ),
             Self::DuplicateFlag(flag) => write!(formatter, "duplicate flag: {flag}"),
             Self::UnexpectedArgument(argument) => {
                 write!(formatter, "unexpected argument: {argument}")
@@ -645,6 +656,7 @@ impl NodeRunnerError {
             Self::PeerSyncError(_) => "peer_sync_error",
             Self::FaucetRefused(_) => "faucet_refused",
             Self::InvalidNetwork(_) => "invalid_network",
+            Self::InvalidSignatureScheme(_) => "invalid_signature_scheme",
             Self::DuplicateFlag(_) => "duplicate_flag",
             Self::UnexpectedArgument(_) => "unexpected_argument",
             Self::DraftFileRead { .. } => "draft_file_read",
@@ -1962,6 +1974,7 @@ fn node_runner_error_http_status(error: &NodeRunnerError) -> u16 {
         // Faucet refusals (over cap or exhausted) are client-visible rate limits.
         NodeRunnerError::FaucetRefused(_) => 429,
         NodeRunnerError::InvalidNetwork(_) => 400,
+        NodeRunnerError::InvalidSignatureScheme(_) => 400,
         _ => 500,
     }
 }
@@ -3411,6 +3424,7 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
         "--discover",
         "--node-seed",
         "--network",
+        "--signature-scheme",
         "--alice-balance",
         "--limit",
         "--max-rounds",
@@ -3423,6 +3437,7 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
     // itself if discovery ever surfaces its own address.
     let own_node_id = flags.optional("--node-seed").map(derive_node_id);
     let genesis = parse_runner_genesis(&flags)?;
+    let signature_scheme = parse_signature_scheme(&flags)?;
     let limit = flags
         .optional("--limit")
         .map(|value| parse_usize("--limit", value))
@@ -3484,7 +3499,8 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
     }
     let strict = strict && discover_cap.is_none();
 
-    let mut node = open_peer_node(chain_file, pending_file, genesis)?;
+    let mut node =
+        open_peer_node(chain_file, pending_file, genesis)?.with_signature_scheme(signature_scheme);
     // The follower's own network is its chain id; peers on a different network
     // (e.g. devnet vs testnet) are rejected by the handshake.
     let own_network = node.ledger().config().chain_id.clone();
@@ -3763,6 +3779,20 @@ fn parse_runner_genesis(flags: &RunnerFlagParser) -> Result<RunnerGenesis, NodeR
         }
         Some("testnet") => Ok(RunnerGenesis::Testnet),
         Some(other) => Err(NodeRunnerError::InvalidNetwork(other.to_string())),
+    }
+}
+
+// Read `--signature-scheme test-only|ed25519` (default test-only) into the scheme
+// a node requires when verifying signatures. Signing stays test-only until Phase 4
+// provides real producer/faucet keys, so `ed25519` currently means "verify
+// imported signatures as ed25519" (test-only-signed blocks are then rejected).
+fn parse_signature_scheme(
+    flags: &RunnerFlagParser,
+) -> Result<SignatureSchemeKind, NodeRunnerError> {
+    match flags.optional("--signature-scheme") {
+        None => Ok(SignatureSchemeKind::TestOnly),
+        Some(value) => SignatureSchemeKind::parse(value)
+            .map_err(|error| NodeRunnerError::InvalidSignatureScheme(error.0)),
     }
 }
 
@@ -7289,7 +7319,19 @@ impl<S: ChainStore> XriqNode<S> {
             producer,
             store,
             latest_block_hash,
+            signature_scheme: SignatureSchemeKind::TestOnly,
         }
+    }
+
+    /// Select the signature scheme this node requires when verifying signatures.
+    /// Defaults to `TestOnly`; set to `Ed25519` for testnet nodes.
+    pub fn with_signature_scheme(mut self, scheme: SignatureSchemeKind) -> Self {
+        self.signature_scheme = scheme;
+        self
+    }
+
+    pub fn signature_scheme(&self) -> SignatureSchemeKind {
+        self.signature_scheme
     }
 
     pub fn from_genesis(genesis: &GenesisConfig, store: S) -> Result<Self, GenesisConfigError> {
@@ -7366,8 +7408,7 @@ impl<S: ChainStore> XriqNode<S> {
         };
         tx.validate_basic(&context)
             .map_err(NodeError::Transaction)?;
-        TestOnlySignatureVerifier
-            .verify_transaction(&tx)
+        verify_transaction_with_scheme(self.signature_scheme, &tx)
             .map_err(NodeError::TransactionSignature)?;
         self.mempool
             .insert(tx_hash, tx)
@@ -7693,8 +7734,7 @@ impl<S: ChainStore> XriqNode<S> {
             });
         }
         for transaction in &block.transactions {
-            TestOnlySignatureVerifier
-                .verify_transaction(transaction)
+            verify_transaction_with_scheme(self.signature_scheme, transaction)
                 .map_err(NodeError::TransactionSignature)?;
         }
         let expected_transactions_root = canonical_transactions_root(&block.transactions);
@@ -7718,8 +7758,7 @@ impl<S: ChainStore> XriqNode<S> {
                 actual: block.header.state_root,
             });
         }
-        TestOnlySignatureVerifier
-            .verify_block_header(&block.header)
+        verify_block_header_with_scheme(self.signature_scheme, &block.header)
             .map_err(NodeError::BlockSignature)?;
         next_ledger.set_current_height(block.header.height);
         Ok(next_ledger)
@@ -7976,6 +8015,44 @@ mod tests {
             .map(|offset| value_start + offset)
             .expect("json string field closes");
         parse_hash_hex(&json[value_start..value_end]).expect("json field is hash hex")
+    }
+
+    #[test]
+    fn signature_scheme_defaults_to_test_only_and_gates_verification() {
+        use xriq_crypto::{
+            ed25519_public_key, ed25519_sign_hash, ed25519_signing_key_from_seed,
+            SignatureSchemeKind, SignatureVerificationError,
+        };
+
+        // Default scheme is test-only, and a test-only-signed transaction submits.
+        let mut default_node = node();
+        assert_eq!(
+            default_node.signature_scheme(),
+            SignatureSchemeKind::TestOnly
+        );
+        default_node
+            .submit_transaction(hash(1), transaction(address("alice"), 0, 25, 2))
+            .unwrap();
+
+        // Under the ed25519 scheme, that same test-only signature is rejected.
+        let mut ed_node = node().with_signature_scheme(SignatureSchemeKind::Ed25519);
+        assert_eq!(ed_node.signature_scheme(), SignatureSchemeKind::Ed25519);
+        assert_eq!(
+            ed_node.submit_transaction(hash(1), transaction(address("alice"), 0, 25, 2)),
+            Err(NodeError::TransactionSignature(
+                SignatureVerificationError::InvalidSignature
+            ))
+        );
+
+        // A genuine ed25519-signed transaction (key set before signing, since the
+        // public key is part of the signed body) verifies under the ed25519 node.
+        let key = ed25519_signing_key_from_seed([3u8; 32]);
+        let mut ed_tx = transaction(address("alice"), 0, 25, 2);
+        ed_tx.public_key = ed25519_public_key(&key).to_vec();
+        ed_tx.signature = ed25519_sign_hash(&key, transaction_signing_hash(&ed_tx));
+        ed_node
+            .submit_transaction(transaction_hash(&ed_tx), ed_tx)
+            .unwrap();
     }
 
     #[test]

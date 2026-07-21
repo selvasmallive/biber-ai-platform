@@ -750,6 +750,30 @@ no new clippy. NOTE: api snapshot() mock BLOCK_HASH/TX_HASH consts are static
 self-consistent display data (not recomputed) and were intentionally left as-is.
 REMAINING 3b: (b) thread `SignatureSchemeKind` + `--signature-scheme` flag through
 node/consensus/faucet verify+sign, (c) ed25519 end-to-end test; then Phases 4-6.
+CRYPTO PHASE 3b STEP 4 DONE (scheme threading + --signature-scheme flag):
+`XriqNode<S>` gained `signature_scheme: SignatureSchemeKind` (default TestOnly, set
+via a `with_signature_scheme(scheme)` builder so NO constructor signature changed —
+`new`/`from_genesis`/`from_genesis_replaying_store` all default TestOnly). Its three
+verify sites now use the configured scheme: `submit_transaction` (tx submission) and
+peer-block-import's per-transaction + header verification call
+`verify_transaction_with_scheme` / `verify_block_header_with_scheme` instead of the
+hardcoded `TestOnlySignatureVerifier` (that import was removed from xriq-node). New
+runner flag `--signature-scheme test-only|ed25519` (default test-only) parsed by
+`parse_signature_scheme(&flags)` -> new `NodeRunnerError::InvalidSignatureScheme`
+(Display + code `invalid_signature_scheme` + http 400 arms added); wired into
+`run_peer_sync_command` (added to its reject_unknown allow-list) and applied to the
+follower node via `.with_signature_scheme(...)`. New node test
+`signature_scheme_defaults_to_test_only_and_gates_verification`: default is
+TestOnly; an Ed25519 node rejects a test-only sig (InvalidSignature); a genuine
+ed25519-signed tx (public_key set BEFORE signing) verifies + submits. SIGNING still
+test-only, so `ed25519` currently = "require ed25519 on verify" (test-only blocks
+then rejected); real ed25519 signing is Phase 4. Workspace: 326 tests green, fmt
+clean, no new clippy. REMAINING 3b: (c) full peer block-import ed25519 e2e (produce
+-> persist -> reload -> import under --signature-scheme ed25519); optionally extend
+the scheme to the xriq-indexer (lib 636/661) + xriq-rpc (168) verify sites, still
+test-only (harmless: the node already enforced the scheme on import). Then Phase 4
+(real producer/faucet ed25519 keys via --producer-key-file), Phase 5 (flip testnet
+default + wallet client-side signing), Phase 6 (AI security review, hard gate).
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,
