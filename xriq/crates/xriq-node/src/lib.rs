@@ -12359,6 +12359,70 @@ mod tests {
     }
 
     #[test]
+    fn ed25519_signed_block_imports_and_applies_end_to_end_under_ed25519_scheme() {
+        use xriq_crypto::{
+            ed25519_public_key, ed25519_sign_hash, ed25519_signing_key_from_seed,
+            SignatureSchemeKind,
+        };
+
+        let mut producer = node().with_signature_scheme(SignatureSchemeKind::Ed25519);
+        let mut follower = node().with_signature_scheme(SignatureSchemeKind::Ed25519);
+
+        // A genuine ed25519-signed transaction (public key set BEFORE signing,
+        // since it is part of the signed body) that the ed25519 producer accepts.
+        let tx_key = ed25519_signing_key_from_seed([7u8; 32]);
+        let mut tx = transaction(address("alice"), 0, 25, 2);
+        tx.public_key = ed25519_public_key(&tx_key).to_vec();
+        tx.signature = ed25519_sign_hash(&tx_key, transaction_signing_hash(&tx));
+        producer.submit_transaction_with_canonical_hash(tx).unwrap();
+
+        // Produce a block with canonical roots, then re-sign its header with
+        // ed25519 (roots are unaffected: the signature is not in the signing hash,
+        // and the public key is set before the header is signed).
+        let produced = producer
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
+            .unwrap();
+        let mut block = produced.block;
+        let producer_key = ed25519_signing_key_from_seed([8u8; 32]);
+        block.header.public_key = ed25519_public_key(&producer_key).to_vec();
+        block.header.signature =
+            ed25519_sign_hash(&producer_key, block_header_signing_hash(&block.header));
+
+        // The ed25519 follower verifies the ed25519 transaction + header and
+        // applies the block through the real import path.
+        let imported_hash = follower.import_block_with_canonical_hash(block).unwrap();
+        assert_eq!(follower.latest_block_hash(), imported_hash);
+        assert_eq!(follower.ledger().current_height(), 1);
+        assert_eq!(follower.store().len(), 1);
+
+        // Sanity: a test-only follower rejects the same ed25519-signed block's
+        // header, confirming the scheme is what gates acceptance.
+        let mut test_only_follower = node();
+        let produced2 = {
+            let mut p = node().with_signature_scheme(SignatureSchemeKind::Ed25519);
+            let tx_key2 = ed25519_signing_key_from_seed([7u8; 32]);
+            let mut tx2 = transaction(address("alice"), 0, 25, 2);
+            tx2.public_key = ed25519_public_key(&tx_key2).to_vec();
+            tx2.signature = ed25519_sign_hash(&tx_key2, transaction_signing_hash(&tx2));
+            p.submit_transaction_with_canonical_hash(tx2).unwrap();
+            let mut prod = p
+                .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&p))
+                .unwrap();
+            prod.block.header.public_key = ed25519_public_key(&producer_key).to_vec();
+            prod.block.header.signature =
+                ed25519_sign_hash(&producer_key, block_header_signing_hash(&prod.block.header));
+            prod.block
+        };
+        assert_eq!(
+            test_only_follower.import_block_with_canonical_hash(produced2),
+            Err(NodeError::TransactionSignature(
+                SignatureVerificationError::InvalidSignature
+            ))
+        );
+        assert_eq!(test_only_follower.store().len(), 0);
+    }
+
+    #[test]
     fn rejects_peer_block_with_wrong_parent_without_mutating_state() {
         let mut producer = node();
         let mut follower = node();

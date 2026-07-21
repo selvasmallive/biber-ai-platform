@@ -774,6 +774,23 @@ the scheme to the xriq-indexer (lib 636/661) + xriq-rpc (168) verify sites, stil
 test-only (harmless: the node already enforced the scheme on import). Then Phase 4
 (real producer/faucet ed25519 keys via --producer-key-file), Phase 5 (flip testnet
 default + wallet client-side signing), Phase 6 (AI security review, hard gate).
+CRYPTO PHASE 3b STEP 5 DONE (ed25519 end-to-end import test) -- PHASE 3b COMPLETE:
+node test `ed25519_signed_block_imports_and_applies_end_to_end_under_ed25519_scheme`
+drives the real import path: an ed25519 producer accepts an ed25519-signed tx,
+produces a canonical-roots block, its header is re-signed with ed25519 (roots
+unaffected -- signature not in signing hash, key set before signing), and an ed25519
+follower verifies both tx + header and applies via import_block_with_canonical_hash
+(height advances, store gains the block). Same block rejected by a test-only follower
+(TransactionSignature(InvalidSignature)). Workspace: 327 tests green, fmt clean, no
+new clippy. Phase 3b is now COMPLETE -- verification is fully scheme-aware end-to-end
+(submit + peer import), bound by a self-contained on-chain public_key, flag-selectable
+via --signature-scheme. Optional non-blocking polish: extend the scheme to the
+xriq-indexer (lib 636/661) + xriq-rpc (168) verify sites (still test-only; harmless).
+NEXT: Phase 4 -- real producer/faucet ed25519 signing (test keypair in vectors, real
+key via --producer-key-file, key files gitignored), which is what lets a node run
+fully under --signature-scheme ed25519 (producer signs ed25519 so its own blocks
+pass). Then Phase 5 (flip testnet default + wallet client-side ed25519 signing),
+Phase 6 (AI security review, hard gate before any value-bearing use).
 The user provided a master engineering roadmap, recorded as
 `docs/XRIQ_PRODUCTION_READINESS_ROADMAP.md` (v1.0): 19 engineering phases (core
 blockchain/consensus/crypto, networking, storage, non-custodial wallet, RPC,

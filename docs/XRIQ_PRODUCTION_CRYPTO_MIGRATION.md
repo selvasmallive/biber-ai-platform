@@ -181,11 +181,22 @@ new key-handling anti-patterns.
    that a genuine ed25519-signed transaction (key set *before* signing) verifies and
    submits. Signing still uses the test-only scheme, so `ed25519` today means
    "require ed25519 on verify" (test-only-signed blocks are then correctly
-   rejected); real ed25519 *signing* is Phase 4. 326 tests green. REMAINING (3b):
-   an ed25519 end-to-end test through the full peer block-import path (produce →
-   persist → reload → import under `--signature-scheme ed25519`), and extending the
-   scheme to the indexer/rpc verify sites (currently still test-only; harmless
-   because the node already enforced the scheme on import). Small, focused steps.
+   rejected); real ed25519 *signing* is Phase 4. 326 tests green. **(3b, step 5 —
+   ed25519 end-to-end import) DONE.**
+   `ed25519_signed_block_imports_and_applies_end_to_end_under_ed25519_scheme` drives
+   the real import path: an ed25519 producer accepts an ed25519-signed transaction,
+   produces a canonical-roots block, the header is re-signed with ed25519 (roots
+   unaffected — the signature is not in the signing hash, and the key is set before
+   signing), and an ed25519 follower verifies both the transaction and the header
+   and applies the block (`import_block_with_canonical_hash` → height advances,
+   store gains the block). The same block is rejected by a test-only follower
+   (`TransactionSignature(InvalidSignature)`), confirming the scheme is what gates
+   acceptance. 327 tests green. **Phase 3b is now complete** — the verification
+   pipeline is fully scheme-aware end-to-end (submit + peer import), bound by a
+   self-contained on-chain public key, and flag-selectable. REMAINING (optional
+   polish, not blocking): extend the scheme to the indexer/rpc verify sites
+   (currently still test-only; harmless because the node already enforced the
+   scheme on import).
 4. **Real producer + faucet signing.** Block producer and faucet sign with an
    Ed25519 key (test keypair fixed in test vectors, real key via a
    `--producer-key-file` on operator nodes — key files gitignored, never
