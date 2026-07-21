@@ -13332,3 +13332,37 @@ ed25519 signing + submit-signed path (the xriq-api signed-submit route already
 exists; wire the browser wallet to sign locally and POST the signed envelope). Then
 Phase 6 (AI security review, hard gate before any value-bearing use; also legal
 review gate).
+CRYPTO PHASE 5b DONE (public-testnet default flipped to ed25519): testnet nodes now
+verify AND produce ed25519 by default (devnet unchanged, byte-identical). New
+per-network default signer runner_default_producer_signer(selection): Testnet ->
+SchemeSigner::ed25519(ed25519_signing_key_from_seed(PUBLIC_TESTNET_AUTHORITY_SEED)),
+Devnet -> TestOnly. PUBLIC_TESTNET_AUTHORITY_SEED = *b"xriq-testnet-authority-test-0001"
+(32 bytes; its pubkey is xriq_core::PUBLIC_TESTNET_AUTHORITY_PUBKEY; TEST-ONLY,
+published on purpose, never guards value). XriqNode::from_genesis_replaying_store now
+delegates to new from_genesis_replaying_store_with_producer_signer which applies
+.with_signature_scheme(signer.scheme())+.with_producer_signer(signer) BEFORE the
+stored-block replay (replay_stored_block verifies sigs via validate_next_block_state
+under the scheme, so it must be set first). runner_node + the 9 runner_file_* read
+helpers (the `from_genesis_replaying_store(&runner_genesis(genesis), store)` sites)
+switched to the signer variant with runner_default_producer_signer(genesis). Flags
+made NETWORK-AWARE: parse_signature_scheme(flags, selection) and new
+parse_producer_signer_with_default(flags, default) default to the network default;
+explicit --signature-scheme/--producer-key-file override. peer-sync passes genesis to
+parse_signature_scheme; faucet default + faucet command default became the authority
+signer (so xriq-api's faucet caller also produces ed25519). INDEXER made scheme-aware
+(REQUIRED -- it re-verifies testnet blocks): new indexed_genesis_scheme(genesis) ->
+Ed25519 when genesis.authority_pubkey != [0;32] else TestOnly; replay_private_devnet_block
+uses verify_transaction_with_scheme/verify_block_header_with_scheme (dropped
+TestOnlySignatureVerifier import). Fixtures: none changed (testnet has no committed
+chain fixtures; faucet/read tests produce+verify same-scheme). Test
+public_testnet_defaults_to_ed25519_producer_matching_genesis_authority: testnet
+default signer pubkey == genesis authority pubkey (binds the seed), devnet=test-only,
+testnet faucet-dispense with NO key file yields an ed25519 block (header+tx) verifying
+under ed25519. Workspace: 334 tests green, fmt clean, no new clippy. REMAINING Phase
+5: (5c) BROWSER wallet client-side ed25519 signing + submit-signed path -- the CLI
+wallet already signs client-side (5a), the xriq-api signed-submit route exists; wire
+the explorer/browser wallet to sign locally with @noble/ed25519 and POST the signed
+envelope (keep scripts/check-wallet-key-safety.mjs guard: no server-side keys).
+OPTIONAL: make the xriq-rpc submit verify site (lib ~168, still TestOnlySignatureVerifier)
+scheme-aware too (only matters if rpc is used on testnet). Then Phase 6 (AI security
+review, hard gate before any value-bearing use; also legal review gate).

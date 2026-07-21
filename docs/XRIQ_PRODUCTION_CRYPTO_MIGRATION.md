@@ -267,6 +267,32 @@ new key-handling anti-patterns.
    only); real per-account signing is Phase 5 (wallet client-side signing).
 5. **Flip testnet default to ed25519**; keep test-only for pure unit tests only.
    Migrate the wallet to client-side ed25519 signing + submit-signed path.
+   **(5b — testnet default flipped to ed25519) DONE.** Public-testnet nodes now
+   verify AND produce ed25519 out of the box (devnet unchanged). Mechanism: a
+   per-network default signer `runner_default_producer_signer(selection)` — ed25519
+   from the well-known authority seed (`PUBLIC_TESTNET_AUTHORITY_SEED =
+   *b"xriq-testnet-authority-test-0001"`, whose public key is the genesis
+   `PUBLIC_TESTNET_AUTHORITY_PUBKEY`; TEST-ONLY, published on purpose, never guards
+   value) for the testnet, test-only for devnet. `XriqNode::
+   from_genesis_replaying_store` gained a `_with_producer_signer` variant that
+   applies the scheme + signer BEFORE the stored-block replay (so ed25519 stored
+   blocks verify during replay); `runner_node` and the ~9 `runner_file_*` read
+   helpers use it with the network default. The `--signature-scheme` /
+   `--producer-key-file` flags became **network-aware** (absent → the network
+   default; explicit value overrides), and the faucet default became the authority
+   signer. The **indexer** read-model re-verification is now scheme-aware too
+   (`indexed_genesis_scheme` picks ed25519 when `genesis.authority_pubkey` is
+   non-zero) — required, since it re-verifies the now-ed25519 testnet blocks.
+   Test `public_testnet_defaults_to_ed25519_producer_matching_genesis_authority`:
+   the testnet default signer's public key equals the genesis authority pubkey
+   (binding the seed), devnet stays test-only, and a testnet faucet dispense with no
+   key file produces an ed25519 block (header + transaction) verifying under ed25519.
+   334 tests green; fmt clean; no new clippy. REMAINING Phase 5: (5c) browser-wallet
+   client-side ed25519 signing + submit-signed path (the CLI wallet already signs
+   client-side; the xriq-api signed-submit route exists — wire the browser wallet to
+   sign locally with `@noble/ed25519` and POST the signed envelope, keeping the
+   key-safety guard). Optionally make the xriq-rpc submit verify site scheme-aware
+   too (still test-only; only matters if rpc is used on testnet).
    **(5a — wallet client-side signing) DONE.** `xriq-wallet` `build_test_transfer`
    now delegates to a new `build_transfer_with_signer(request, &SchemeSigner)` that
    signs the transaction locally via the signer; a `--signing-key-file <path>` flag

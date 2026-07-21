@@ -14,8 +14,8 @@ use xriq_core::{
 };
 use xriq_crypto::{
     account_state_root, block_hash as canonical_block_hash, transaction_hash,
-    transactions_root as canonical_transactions_root, SignatureVerificationError,
-    TestOnlySignatureVerifier,
+    transactions_root as canonical_transactions_root, verify_block_header_with_scheme,
+    verify_transaction_with_scheme, SignatureSchemeKind, SignatureVerificationError,
 };
 use xriq_ledger::{LedgerError, LedgerState};
 use xriq_storage::{ChainStore, StoredBlock};
@@ -596,12 +596,25 @@ fn replay_private_devnet_store<S: ChainStore>(
     })
 }
 
+// The signature scheme a genesis' blocks are verified under: ed25519 when the
+// genesis fixes a real authority public key (the public testnet), test-only when it
+// does not (the devnet, whose `authority_pubkey` is all-zero). Mirrors the node's
+// per-network default so the read-model re-verification matches block production.
+fn indexed_genesis_scheme(genesis: &GenesisConfig) -> SignatureSchemeKind {
+    if genesis.authority_pubkey == [0u8; 32] {
+        SignatureSchemeKind::TestOnly
+    } else {
+        SignatureSchemeKind::Ed25519
+    }
+}
+
 fn replay_private_devnet_block(
     ledger: &mut LedgerState,
     genesis: &GenesisConfig,
     parent_block_hash: Hash32,
     record: &StoredBlock,
 ) -> Result<(), IndexReplayError> {
+    let scheme = indexed_genesis_scheme(genesis);
     let expected_hash = canonical_block_hash(&record.block);
     if record.block_hash != expected_hash {
         return Err(IndexReplayError::WrongStoredBlockHash {
@@ -633,8 +646,7 @@ fn replay_private_devnet_block(
         });
     }
     for transaction in &record.block.transactions {
-        TestOnlySignatureVerifier
-            .verify_transaction(transaction)
+        verify_transaction_with_scheme(scheme, transaction)
             .map_err(IndexReplayError::TransactionSignature)?;
     }
     let expected_transactions_root = canonical_transactions_root(&record.block.transactions);
@@ -658,8 +670,7 @@ fn replay_private_devnet_block(
             actual: hash_hex(record.block.header.state_root),
         });
     }
-    TestOnlySignatureVerifier
-        .verify_block_header(&record.block.header)
+    verify_block_header_with_scheme(scheme, &record.block.header)
         .map_err(IndexReplayError::BlockSignature)?;
     next_ledger.set_current_height(record.block.header.height);
     *ledger = next_ledger;

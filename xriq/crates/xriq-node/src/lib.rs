@@ -2154,7 +2154,11 @@ fn runner_file_status(
     genesis: RunnerGenesis,
 ) -> Result<NodeStatus, NodeError> {
     let store = FileChainStore::open(chain_file).map_err(NodeError::Storage)?;
-    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)?;
+    let node = XriqNode::from_genesis_replaying_store_with_producer_signer(
+        &runner_genesis(genesis),
+        store,
+        runner_default_producer_signer(genesis),
+    )?;
     Ok(node_status(&node))
 }
 
@@ -2176,7 +2180,11 @@ fn runner_file_confirmed_transaction_detail(
     tx_hash: Hash32,
 ) -> Result<Option<PrivateDevnetConfirmedTransactionDetail>, NodeError> {
     let store = FileChainStore::open(chain_file).map_err(NodeError::Storage)?;
-    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)?;
+    let node = XriqNode::from_genesis_replaying_store_with_producer_signer(
+        &runner_genesis(genesis),
+        store,
+        runner_default_producer_signer(genesis),
+    )?;
     for record in node.store().blocks_by_height_desc(node.store().len()) {
         for (transaction_index, transaction) in record.block.transactions.iter().enumerate() {
             if transaction_hash(transaction) == tx_hash {
@@ -2869,7 +2877,11 @@ fn runner_file_explorer_overview_data(
     limit: usize,
 ) -> Result<(ExplorerOverview, Vec<ExplorerBlockSummary>), NodeError> {
     let store = FileChainStore::open(chain_file).map_err(NodeError::Storage)?;
-    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)?;
+    let node = XriqNode::from_genesis_replaying_store_with_producer_signer(
+        &runner_genesis(genesis),
+        store,
+        runner_default_producer_signer(genesis),
+    )?;
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
     Ok((explorer.overview(), explorer.latest_blocks(limit)))
 }
@@ -2898,8 +2910,12 @@ fn runner_file_block_list_data(
 ) -> Result<Vec<ExplorerBlockSummary>, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)
-        .map_err(NodeRunnerError::Node)?;
+    let node = XriqNode::from_genesis_replaying_store_with_producer_signer(
+        &runner_genesis(genesis),
+        store,
+        runner_default_producer_signer(genesis),
+    )
+    .map_err(NodeRunnerError::Node)?;
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
     Ok(explorer.latest_blocks(limit))
 }
@@ -2928,8 +2944,12 @@ fn runner_file_block_detail_data(
 ) -> Result<ExplorerBlockDetail, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)
-        .map_err(NodeRunnerError::Node)?;
+    let node = XriqNode::from_genesis_replaying_store_with_producer_signer(
+        &runner_genesis(genesis),
+        store,
+        runner_default_producer_signer(genesis),
+    )
+    .map_err(NodeRunnerError::Node)?;
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
     match selector {
         BlockDetailSelector::Height(height) => explorer.block_by_height(height),
@@ -3039,8 +3059,12 @@ fn runner_file_account_detail_data(
 ) -> Result<ExplorerAccountDetail, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)
-        .map_err(NodeRunnerError::Node)?;
+    let node = XriqNode::from_genesis_replaying_store_with_producer_signer(
+        &runner_genesis(genesis),
+        store,
+        runner_default_producer_signer(genesis),
+    )
+    .map_err(NodeRunnerError::Node)?;
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
     explorer
         .account(&address)
@@ -3084,8 +3108,12 @@ fn runner_file_account_transactions_data(
 ) -> Result<Vec<ExplorerAccountTransaction>, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)
-        .map_err(NodeRunnerError::Node)?;
+    let node = XriqNode::from_genesis_replaying_store_with_producer_signer(
+        &runner_genesis(genesis),
+        store,
+        runner_default_producer_signer(genesis),
+    )
+    .map_err(NodeRunnerError::Node)?;
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
     Ok(explorer.account_transactions(&address, limit))
 }
@@ -3115,8 +3143,12 @@ fn runner_file_latest_transactions_data(
 ) -> Result<Vec<ExplorerConfirmedTransaction>, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)
-        .map_err(NodeRunnerError::Node)?;
+    let node = XriqNode::from_genesis_replaying_store_with_producer_signer(
+        &runner_genesis(genesis),
+        store,
+        runner_default_producer_signer(genesis),
+    )
+    .map_err(NodeRunnerError::Node)?;
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
     Ok(explorer.latest_transactions(limit))
 }
@@ -3180,8 +3212,12 @@ fn runner_file_mempool_detail_data(
 ) -> Result<ExplorerMempoolDetail, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    let node = XriqNode::from_genesis_replaying_store(&runner_genesis(genesis), store)
-        .map_err(NodeRunnerError::Node)?;
+    let node = XriqNode::from_genesis_replaying_store_with_producer_signer(
+        &runner_genesis(genesis),
+        store,
+        runner_default_producer_signer(genesis),
+    )
+    .map_err(NodeRunnerError::Node)?;
     let explorer = ExplorerService::new(node.rpc_service(), node.store());
     Ok(explorer.mempool())
 }
@@ -3525,7 +3561,7 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
     // itself if discovery ever surfaces its own address.
     let own_node_id = flags.optional("--node-seed").map(derive_node_id);
     let genesis = parse_runner_genesis(&flags)?;
-    let signature_scheme = parse_signature_scheme(&flags)?;
+    let signature_scheme = parse_signature_scheme(&flags, genesis)?;
     let limit = flags
         .optional("--limit")
         .map(|value| parse_usize("--limit", value))
@@ -3842,6 +3878,26 @@ fn runner_genesis(selection: RunnerGenesis) -> GenesisConfig {
     }
 }
 
+// The well-known TEST-ONLY signing seed whose public key is the fixed public-testnet
+// authority (`PUBLIC_TESTNET_AUTHORITY_PUBKEY`); see `xriq-core` config. It is
+// published on purpose for this valueless network and MUST never guard value — a
+// real deployment supplies an operator key via `--producer-key-file` and never a
+// seed baked into source. An xriq-crypto test binds this seed to the genesis pubkey.
+const PUBLIC_TESTNET_AUTHORITY_SEED: [u8; 32] = *b"xriq-testnet-authority-test-0001";
+
+// The default producer signer for a network: ed25519 (the well-known authority key)
+// on the public testnet, so testnet nodes verify AND produce ed25519 out of the box;
+// test-only on devnet, keeping the devnet suite byte-identical. An explicit
+// `--producer-key-file` overrides this.
+fn runner_default_producer_signer(selection: RunnerGenesis) -> SchemeSigner {
+    match selection {
+        RunnerGenesis::Devnet(_) => SchemeSigner::TestOnly,
+        RunnerGenesis::Testnet => {
+            SchemeSigner::ed25519(ed25519_signing_key_from_seed(PUBLIC_TESTNET_AUTHORITY_SEED))
+        }
+    }
+}
+
 // Open a file-backed node on the selected genesis (no pending-transaction
 // replay). Used by peer and faucet commands, which read/sync stored blocks.
 fn runner_node(
@@ -3850,8 +3906,12 @@ fn runner_node(
 ) -> Result<XriqNode<FileChainStore>, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    XriqNode::from_genesis_replaying_store(&runner_genesis(selection), store)
-        .map_err(NodeRunnerError::Node)
+    XriqNode::from_genesis_replaying_store_with_producer_signer(
+        &runner_genesis(selection),
+        store,
+        runner_default_producer_signer(selection),
+    )
+    .map_err(NodeRunnerError::Node)
 }
 
 // Read `--network devnet|testnet` (default devnet, which also reads
@@ -3870,15 +3930,15 @@ fn parse_runner_genesis(flags: &RunnerFlagParser) -> Result<RunnerGenesis, NodeR
     }
 }
 
-// Read `--signature-scheme test-only|ed25519` (default test-only) into the scheme
-// a node requires when verifying signatures. Signing stays test-only until Phase 4
-// provides real producer/faucet keys, so `ed25519` currently means "verify
-// imported signatures as ed25519" (test-only-signed blocks are then rejected).
+// Read `--signature-scheme test-only|ed25519` into the scheme a node requires when
+// verifying signatures. Absent → the network default (ed25519 on the public testnet,
+// test-only on devnet); an explicit flag overrides it.
 fn parse_signature_scheme(
     flags: &RunnerFlagParser,
+    selection: RunnerGenesis,
 ) -> Result<SignatureSchemeKind, NodeRunnerError> {
     match flags.optional("--signature-scheme") {
-        None => Ok(SignatureSchemeKind::TestOnly),
+        None => Ok(runner_default_producer_signer(selection).scheme()),
         Some(value) => SignatureSchemeKind::parse(value)
             .map_err(|error| NodeRunnerError::InvalidSignatureScheme(error.0)),
     }
@@ -3890,8 +3950,17 @@ fn parse_signature_scheme(
 // gitignored; never commit them. This is a TEST-ONLY network, so seeds guard no
 // value — a real deployment would load from a KMS/HSM, not a plaintext seed file.
 fn parse_producer_signer(flags: &RunnerFlagParser) -> Result<SchemeSigner, NodeRunnerError> {
+    parse_producer_signer_with_default(flags, SchemeSigner::TestOnly)
+}
+
+// As `parse_producer_signer`, but absent `--producer-key-file` yields `default`
+// (a network's default signer) instead of always the test-only signer.
+fn parse_producer_signer_with_default(
+    flags: &RunnerFlagParser,
+    default: SchemeSigner,
+) -> Result<SchemeSigner, NodeRunnerError> {
     let Some(path) = flags.optional("--producer-key-file") else {
-        return Ok(SchemeSigner::TestOnly);
+        return Ok(default);
     };
     let contents =
         std::fs::read_to_string(path).map_err(|error| NodeRunnerError::ProducerKeyFileRead {
@@ -3966,7 +4035,7 @@ pub fn public_testnet_file_faucet_dispense(
         max_balance,
         timestamp_ms,
         consensus_round,
-        SchemeSigner::TestOnly,
+        runner_default_producer_signer(RunnerGenesis::Testnet),
     )
 }
 
@@ -4127,7 +4196,10 @@ fn run_faucet_dispense_command(args: &[String]) -> Result<NodeRunnerOutput, Node
         .map(|value| parse_u64("--consensus-round", value))
         .transpose()?
         .unwrap_or(0);
-    let producer_signer = parse_producer_signer(&flags)?;
+    let producer_signer = parse_producer_signer_with_default(
+        &flags,
+        runner_default_producer_signer(RunnerGenesis::Testnet),
+    )?;
 
     let outcome = public_testnet_file_faucet_dispense_with_producer_signer(
         chain_file,
@@ -7523,7 +7595,26 @@ impl<S: ChainStore> XriqNode<S> {
         genesis: &GenesisConfig,
         store: S,
     ) -> Result<Self, NodeError> {
-        let mut node = Self::from_genesis(genesis, store).map_err(NodeError::Genesis)?;
+        Self::from_genesis_replaying_store_with_producer_signer(
+            genesis,
+            store,
+            SchemeSigner::TestOnly,
+        )
+    }
+
+    /// As `from_genesis_replaying_store`, but the node uses `producer_signer` for
+    /// signing and its scheme for verification, applied BEFORE the stored blocks are
+    /// replayed — so ed25519-signed stored blocks verify under the ed25519 scheme
+    /// during replay (a test-only node would reject them).
+    pub fn from_genesis_replaying_store_with_producer_signer(
+        genesis: &GenesisConfig,
+        store: S,
+        producer_signer: SchemeSigner,
+    ) -> Result<Self, NodeError> {
+        let mut node = Self::from_genesis(genesis, store)
+            .map_err(NodeError::Genesis)?
+            .with_signature_scheme(producer_signer.scheme())
+            .with_producer_signer(producer_signer);
         let Some(latest_record) = node.store.latest_block() else {
             node.verify_replayed_chain_state(genesis)?;
             return Ok(node);
@@ -8465,6 +8556,62 @@ mod tests {
         let _ = fs::remove_file(&chain_path);
         let _ = fs::remove_file(&pending_path);
         let _ = fs::remove_file(&key_path);
+    }
+
+    #[test]
+    fn public_testnet_defaults_to_ed25519_producer_matching_genesis_authority() {
+        use xriq_core::PUBLIC_TESTNET_AUTHORITY_PUBKEY;
+        use xriq_crypto::{
+            verify_block_header_with_scheme, verify_transaction_with_scheme, SignatureSchemeKind,
+        };
+
+        // The testnet default signer is the well-known authority key (binding the
+        // PUBLIC_TESTNET_AUTHORITY_SEED constant to the genesis pubkey); devnet stays
+        // test-only.
+        let testnet_signer = runner_default_producer_signer(RunnerGenesis::Testnet);
+        assert_eq!(testnet_signer.scheme(), SignatureSchemeKind::Ed25519);
+        assert_eq!(
+            testnet_signer.public_key(),
+            PUBLIC_TESTNET_AUTHORITY_PUBKEY.to_vec()
+        );
+        assert_eq!(
+            runner_default_producer_signer(RunnerGenesis::Devnet(None)).scheme(),
+            SignatureSchemeKind::TestOnly
+        );
+
+        // A testnet faucet dispense with no --producer-key-file produces an ed25519
+        // block signed by the authority key, out of the box.
+        let chain = temp_store_path();
+        run_node_command([
+            "faucet-dispense",
+            "--chain-file",
+            chain.to_string_lossy().as_ref(),
+            "--to",
+            "xriqdev1recipient00000000000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+        let store = FileChainStore::open(&chain).unwrap();
+        let record = store.latest_block().unwrap();
+        assert_eq!(
+            record.block.header.public_key,
+            PUBLIC_TESTNET_AUTHORITY_PUBKEY.to_vec()
+        );
+        assert_eq!(
+            verify_block_header_with_scheme(SignatureSchemeKind::Ed25519, &record.block.header),
+            Ok(())
+        );
+        assert_eq!(record.block.transactions.len(), 1);
+        assert_eq!(
+            verify_transaction_with_scheme(
+                SignatureSchemeKind::Ed25519,
+                &record.block.transactions[0]
+            ),
+            Ok(())
+        );
+
+        let _ = fs::remove_file(&chain);
     }
 
     #[test]
