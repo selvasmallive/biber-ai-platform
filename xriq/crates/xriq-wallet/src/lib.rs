@@ -7,7 +7,8 @@ use std::{fmt, fs};
 
 use xriq_core::{Address, AddressError, Hash32, SignatureBytes, Transaction, XriqAmount};
 use xriq_crypto::{
-    test_only_signature_for_hash, transaction_hash, transaction_signing_hash, SignatureAlgorithm,
+    ed25519_signing_key_from_seed, transaction_hash, transaction_signing_hash, SchemeSigner,
+    SignatureAlgorithm,
 };
 use xriq_node::{
     private_devnet_file_account_detail_data, private_devnet_file_account_list_data,
@@ -222,6 +223,11 @@ pub enum WalletError {
         signer_address: Address,
         from_address: Address,
     },
+    SigningKeyFileRead {
+        path: String,
+        error: String,
+    },
+    InvalidSigningKeyFile(String),
     Node(String),
 }
 
@@ -262,6 +268,12 @@ impl fmt::Display for WalletError {
                 formatter,
                 "signer label {signer_label} resolves to {signer_address}, not transfer sender {from_address}"
             ),
+            Self::SigningKeyFileRead { path, error } => {
+                write!(formatter, "failed to read signing key file {path:?}: {error}")
+            }
+            Self::InvalidSigningKeyFile(message) => {
+                write!(formatter, "invalid signing key file: {message}")
+            }
             Self::Node(message) => write!(formatter, "node error: {message}"),
         }
     }
@@ -368,7 +380,7 @@ pub fn help_text() -> String {
         "  xriq-wallet submit --chain-file <path> --pending-file <path> --transfer-file <path> [--alice-balance <base-units>] [--format text|json]",
         "  xriq-wallet send --chain-file <path> --pending-file <path> --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number|auto> [--alice-balance <base-units>] [--expires-at-height <height>] [--format text|json]",
         "  xriq-wallet tx status --chain-file <path> --tx-hash <64-hex> [--draft-file <path>|--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
-        "  xriq-wallet transfer --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number|auto> [--chain-file <path>] [--alice-balance <base-units>] [--expires-at-height <height>] [--format text|json]",
+        "  xriq-wallet transfer --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number|auto> [--chain-file <path>] [--alice-balance <base-units>] [--expires-at-height <height>] [--signing-key-file <path>] [--format text|json]",
         "  xriq-wallet signed-transfer --chain-id <id> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number|auto> --signer-label <lowercase-label> [--chain-file <path>] [--alice-balance <base-units>] [--expires-at-height <height>] [--format text|json]",
         "",
         "Warning: this wallet is for private devnet tests only and does not manage real keys.",
@@ -423,6 +435,18 @@ pub fn generate_test_identity(label: &str) -> Result<TestIdentity, WalletError> 
 }
 
 pub fn build_test_transfer(request: TransferRequest) -> TransferDraft {
+    build_transfer_with_signer(request, &SchemeSigner::TestOnly)
+}
+
+/// Build a transfer draft signed locally with `signer` — the non-custodial signing
+/// path: the private key stays with the caller (a `--signing-key-file`) and the
+/// transaction is signed client-side; nothing but the signed transaction leaves the
+/// wallet. The test-only signer is byte-identical to the historical draft; an
+/// `SchemeSigner::ed25519(key)` produces a real self-signed ed25519 transfer.
+pub fn build_transfer_with_signer(
+    request: TransferRequest,
+    signer: &SchemeSigner,
+) -> TransferDraft {
     let mut transaction = Transaction {
         version: Transaction::SUPPORTED_VERSION,
         chain_id: request.chain_id,
@@ -436,7 +460,7 @@ pub fn build_test_transfer(request: TransferRequest) -> TransferDraft {
         signature: SignatureBytes::new(Vec::new()),
         public_key: Vec::new(),
     };
-    transaction.signature = test_only_signature_for_hash(transaction_signing_hash(&transaction));
+    signer.sign_transaction(&mut transaction);
     TransferDraft {
         transaction,
         warning: TEST_IDENTITY_WARNING,
@@ -826,10 +850,12 @@ fn run_transfer_command(args: &[String]) -> Result<WalletOutput, WalletError> {
         "--chain-file",
         "--alice-balance",
         "--expires-at-height",
+        "--signing-key-file",
         "--format",
     ])?;
     let output_format = WalletOutputFormat::parse(flags.optional("--format"))?;
-    let draft = build_test_transfer(transfer_request_from_flags(&flags)?);
+    let signer = parse_wallet_signer(&flags)?;
+    let draft = build_transfer_with_signer(transfer_request_from_flags(&flags)?, &signer);
     Ok(match output_format {
         WalletOutputFormat::Text => WalletOutput::TransferDraft(draft),
         WalletOutputFormat::Json => WalletOutput::TransferSubmitJson(draft),
@@ -954,6 +980,40 @@ fn hex_nibble(byte: u8) -> Result<u8, ()> {
         b'A'..=b'F' => Ok(byte - b'A' + 10),
         _ => Err(()),
     }
+}
+
+fn parse_seed_hex(value: &str) -> Result<[u8; 32], ()> {
+    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(());
+    }
+    let mut seed = [0u8; 32];
+    for (index, byte) in seed.iter_mut().enumerate() {
+        let high = hex_nibble(value.as_bytes()[index * 2])?;
+        let low = hex_nibble(value.as_bytes()[index * 2 + 1])?;
+        *byte = (high << 4) | low;
+    }
+    Ok(seed)
+}
+
+// Read `--signing-key-file <path>` into the signer the wallet signs with. The file
+// holds the 32-byte Ed25519 seed as 64 lowercase hex characters (trailing
+// whitespace ignored). Absent → the test-only signer. The key stays local: only the
+// signed transaction leaves the wallet (non-custodial). TEST-ONLY network; a real
+// wallet derives keys from a mnemonic / hardware device, not a plaintext seed file.
+fn parse_wallet_signer(flags: &FlagParser) -> Result<SchemeSigner, WalletError> {
+    let Some(path) = flags.optional("--signing-key-file") else {
+        return Ok(SchemeSigner::TestOnly);
+    };
+    let contents = fs::read_to_string(path).map_err(|error| WalletError::SigningKeyFileRead {
+        path: path.to_string(),
+        error: error.to_string(),
+    })?;
+    let seed = parse_seed_hex(contents.trim()).map_err(|_| {
+        WalletError::InvalidSigningKeyFile(
+            "key must be 32 bytes (64 lowercase hex characters)".to_string(),
+        )
+    })?;
+    Ok(SchemeSigner::ed25519(ed25519_signing_key_from_seed(seed)))
 }
 
 fn is_valid_label(label: &str) -> bool {
@@ -1935,6 +1995,7 @@ mod tests {
         fs,
         time::{SystemTime, UNIX_EPOCH},
     };
+    use xriq_crypto::test_only_signature_for_hash;
 
     fn alice() -> Address {
         Address::parse("xriqdev1alice00000000000").unwrap()
@@ -2004,6 +2065,68 @@ mod tests {
             .expect("time moved backwards")
             .as_nanos();
         std::env::temp_dir().join(format!("xriq-wallet-pending-{nanos}.tsv"))
+    }
+
+    #[test]
+    fn transfer_signs_client_side_with_ed25519_key_or_defaults_to_test_only() {
+        use xriq_crypto::{
+            ed25519_public_key, ed25519_signing_key_from_seed, verify_transaction_with_scheme,
+            SignatureSchemeKind,
+        };
+
+        let request = TransferRequest {
+            chain_id: "xriq-devnet".to_string(),
+            from: alice(),
+            to: bob(),
+            amount: XriqAmount::from_base_units(25),
+            fee: XriqAmount::from_base_units(2),
+            nonce: 0,
+            expires_at_height: Some(100),
+        };
+
+        // Default (test-only) draft is byte-identical to the historical path.
+        let test_draft = build_test_transfer(request.clone());
+        assert!(test_draft.transaction.public_key.is_empty());
+        assert_eq!(
+            test_draft.transaction.signature,
+            test_only_signature_for_hash(transaction_signing_hash(&test_draft.transaction))
+        );
+
+        // Client-side ed25519 signing records the signer's public key and produces
+        // a self-contained transaction that verifies under the ed25519 scheme.
+        let key = ed25519_signing_key_from_seed([2u8; 32]);
+        let signed = build_transfer_with_signer(request, &SchemeSigner::ed25519(key.clone()));
+        assert_eq!(
+            signed.transaction.public_key,
+            ed25519_public_key(&key).to_vec()
+        );
+        assert_eq!(
+            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &signed.transaction),
+            Ok(())
+        );
+
+        // --signing-key-file loads the ed25519 signer; absent -> test-only.
+        let key_path = temp_chain_path().with_extension("key");
+        let mut seed_hex = String::new();
+        for byte in [2u8; 32] {
+            seed_hex.push_str(&format!("{byte:02x}"));
+        }
+        fs::write(&key_path, format!("{seed_hex}\n")).unwrap();
+        let flags = FlagParser::parse(&[
+            "--signing-key-file".to_string(),
+            key_path.to_string_lossy().to_string(),
+        ])
+        .unwrap();
+        assert_eq!(
+            parse_wallet_signer(&flags).unwrap().public_key(),
+            ed25519_public_key(&key).to_vec()
+        );
+        let empty = FlagParser::parse(&[]).unwrap();
+        assert_eq!(
+            parse_wallet_signer(&empty).unwrap().scheme(),
+            SignatureSchemeKind::TestOnly
+        );
+        let _ = fs::remove_file(&key_path);
     }
 
     #[test]

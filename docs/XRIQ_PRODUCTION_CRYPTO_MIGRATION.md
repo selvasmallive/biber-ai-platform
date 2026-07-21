@@ -267,6 +267,24 @@ new key-handling anti-patterns.
    only); real per-account signing is Phase 5 (wallet client-side signing).
 5. **Flip testnet default to ed25519**; keep test-only for pure unit tests only.
    Migrate the wallet to client-side ed25519 signing + submit-signed path.
+   **(5a — wallet client-side signing) DONE.** `xriq-wallet` `build_test_transfer`
+   now delegates to a new `build_transfer_with_signer(request, &SchemeSigner)` that
+   signs the transaction locally via the signer; a `--signing-key-file <path>` flag
+   on the `transfer` command (`parse_wallet_signer`, 64-hex seed → `SchemeSigner::
+   ed25519`) makes signing **non-custodial** — the key stays in the operator's file,
+   the wallet signs client-side, and only the signed transaction leaves the wallet.
+   New `WalletError::{SigningKeyFileRead, InvalidSigningKeyFile}`. Default (no flag)
+   is the test-only self-sign, byte-identical to before (golden-neutral). Test
+   `transfer_signs_client_side_with_ed25519_key_or_defaults_to_test_only`: default
+   draft matches the historical signature; an ed25519 key records the signer's
+   public key and the transaction verifies under the ed25519 scheme; the key file
+   loads (absent → test-only). 333 tests green; fmt clean; no new clippy. This is
+   the CLI wallet; the **browser wallet** must sign locally with a vetted client
+   library (`@noble/ed25519`) — a separate UI step. REMAINING Phase 5: (5b) flip the
+   public-testnet default to ed25519 (genesis/producer/faucet run ed25519 by
+   default, with operator keys), and (5c) the browser-wallet client-side signing +
+   submit-signed path. Accounts still can't fully self-serve until the testnet
+   default flips and the browser wallet signs locally.
 6. **AI-assisted security review** (Claude + Codex) of consensus/crypto/replay/
    serialization per roadmap Phase 8; record in `SECURITY_REVIEW.md`. Only after
    this may any value-bearing use be *considered* (still gated by legal review).

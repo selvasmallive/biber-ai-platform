@@ -13307,3 +13307,28 @@ faucet run with real keys; genesis/wallet default to ed25519) + migrate the wall
 client-side ed25519 signing (submit-signed path), so accounts sign their own txs
 rather than the node self-signing. Then Phase 6 (AI security review, hard gate before
 any value-bearing use; still also gated by legal review).
+CRYPTO PHASE 5a DONE (wallet client-side ed25519 signing): xriq-wallet
+build_test_transfer now delegates to new build_transfer_with_signer(request,
+&SchemeSigner) which signs the tx locally via signer.sign_transaction. New
+--signing-key-file <path> flag on the `transfer` command (parse_wallet_signer:
+reads 64-hex ed25519 seed from a file, trims whitespace -> SchemeSigner::ed25519;
+absent -> TestOnly) -> non-custodial: the key stays local, only the signed tx leaves
+the wallet. New WalletError::{SigningKeyFileRead{path,error}, InvalidSigningKeyFile}
++ Display arms; added parse_seed_hex (mirrors parse_hash_hex via hex_nibble).
+test_only_signature_for_hash moved from crate-level import into the test module
+(only tests used it; transaction_signing_hash stays -- used by render at lib 1030/1113).
+Default = test-only self-sign = byte-identical (golden-neutral; wallet fixtures
+unchanged). Test transfer_signs_client_side_with_ed25519_key_or_defaults_to_test_only:
+default draft matches historical test-only signature; ed25519 signer records pubkey +
+tx verifies under Ed25519; --signing-key-file loads the key, absent -> test-only.
+transfer usage string updated. Workspace: 333 tests green, fmt clean, no new clippy.
+This is the CLI wallet; the BROWSER wallet (explorer UI) must sign locally with a
+vetted client lib (@noble/ed25519) -- separate UI step, still enforced by
+scripts/check-wallet-key-safety.mjs (no server-side keys). REMAINING Phase 5: (5b)
+flip public-testnet default to ed25519 -- genesis/producer/faucet run ed25519 by
+default (operator provides producer/faucet keys; testnet node verifies ed25519 by
+default); keep test-only for devnet + unit tests. (5c) browser-wallet client-side
+ed25519 signing + submit-signed path (the xriq-api signed-submit route already
+exists; wire the browser wallet to sign locally and POST the signed envelope). Then
+Phase 6 (AI security review, hard gate before any value-bearing use; also legal
+review gate).
