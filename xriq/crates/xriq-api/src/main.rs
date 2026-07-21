@@ -753,6 +753,8 @@ impl<'a> LocalWalletSignedSubmitPreviewRequest<'a> {
                     algorithm: query_param(query, "signature_algorithm")
                         .or_else(|| query_param(query, "algorithm")),
                     signature_encoding: query_param(query, "signature_encoding"),
+                    public_key: query_param(query, "public_key"),
+                    signature: query_param(query, "signature"),
                 }),
             },
         })

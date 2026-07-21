@@ -58,6 +58,12 @@ pub const SIGNED_SUBMIT_FORMAT_VERSION: &str = "xriq-local-signed-transfer-envel
 pub const SIGNED_SUBMIT_TEST_SIGNATURE_ALGORITHM: &str = "test-only";
 pub const SIGNED_SUBMIT_TEST_SIGNATURE_ENCODING: &str = "test-only-prefix-plus-signing-hash";
 pub const SIGNED_SUBMIT_TEST_VERIFIER: &str = "TestOnlySignatureVerifier";
+/// Ed25519 signed-submit: the browser/CLI wallet signs the signing hash locally and
+/// supplies its public key + 64-byte signature (lowercase hex). Non-custodial: no
+/// key ever reaches the server.
+pub const SIGNED_SUBMIT_ED25519_SIGNATURE_ALGORITHM: &str = "ed25519";
+pub const SIGNED_SUBMIT_ED25519_SIGNATURE_ENCODING: &str = "ed25519-hex";
+pub const SIGNED_SUBMIT_ED25519_VERIFIER: &str = "Ed25519Verifier";
 pub const BLOCK_PRODUCTION_AUDIT_RESOURCE_TYPE: &str = "block_production";
 pub const BLOCK_PRODUCTION_AUDIT_ACTION: &str = "block_production_attempt";
 pub const BLOCK_PRODUCTION_AUDIT_EVENT_ID: &str = "block-production:local_request_id";
@@ -676,6 +682,12 @@ pub struct SignedSubmitHashesInput<'a> {
 pub struct SignedSubmitSignatureEnvelopeInput<'a> {
     pub algorithm: Option<&'a str>,
     pub signature_encoding: Option<&'a str>,
+    /// Ed25519 only: the signer's 32-byte public key as lowercase hex. Required for
+    /// the `ed25519` algorithm; ignored for `test-only`.
+    pub public_key: Option<&'a str>,
+    /// Ed25519 only: the 64-byte signature over the signing hash as lowercase hex.
+    /// Required for `ed25519`; ignored for `test-only` (which is reconstructed).
+    pub signature: Option<&'a str>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -767,19 +779,28 @@ pub fn verify_signed_submit_envelope_preview(
         signed_submit_required_hash(hashes.transaction_hash, "hashes.transaction_hash")?;
     let signature_algorithm =
         signed_submit_required_str(signature.algorithm, "signature_envelope.algorithm")?;
-    if signature_algorithm != SIGNED_SUBMIT_TEST_SIGNATURE_ALGORITHM {
-        return Err(signed_submit_refusal(
-            "unsupported_signature_algorithm",
-            400,
-            "UnsupportedSignatureAlgorithm",
-            "signed-submit-unsupported-signature-algorithm:local_request_id",
-        ));
-    }
+    let is_ed25519 = match signature_algorithm {
+        SIGNED_SUBMIT_TEST_SIGNATURE_ALGORITHM => false,
+        SIGNED_SUBMIT_ED25519_SIGNATURE_ALGORITHM => true,
+        _ => {
+            return Err(signed_submit_refusal(
+                "unsupported_signature_algorithm",
+                400,
+                "UnsupportedSignatureAlgorithm",
+                "signed-submit-unsupported-signature-algorithm:local_request_id",
+            ));
+        }
+    };
+    let expected_encoding = if is_ed25519 {
+        SIGNED_SUBMIT_ED25519_SIGNATURE_ENCODING
+    } else {
+        SIGNED_SUBMIT_TEST_SIGNATURE_ENCODING
+    };
     let signature_encoding = signed_submit_required_str(
         signature.signature_encoding,
         "signature_envelope.signature_encoding",
     )?;
-    if signature_encoding != SIGNED_SUBMIT_TEST_SIGNATURE_ENCODING {
+    if signature_encoding != expected_encoding {
         return Err(signed_submit_refusal(
             "invalid_test_signature",
             400,
@@ -787,6 +808,21 @@ pub fn verify_signed_submit_envelope_preview(
             "signed-submit-invalid-signature:local_request_id",
         ));
     }
+    // Ed25519 carries the signer's public key + 64-byte signature (both lowercase
+    // hex); test-only carries neither and is reconstructed server-side.
+    let (public_key_bytes, ed25519_signature_bytes) = if is_ed25519 {
+        let public_key_hex =
+            signed_submit_required_str(signature.public_key, "signature_envelope.public_key")?;
+        let public_key =
+            parse_hex_bytes(public_key_hex).ok_or_else(signed_submit_invalid_signature)?;
+        let signature_hex =
+            signed_submit_required_str(signature.signature, "signature_envelope.signature")?;
+        let signature_bytes =
+            parse_hex_bytes(signature_hex).ok_or_else(signed_submit_invalid_signature)?;
+        (public_key, signature_bytes)
+    } else {
+        (Vec::new(), Vec::new())
+    };
 
     if nonce < state.sender_chain_nonce {
         return Err(signed_submit_refusal(
@@ -828,7 +864,7 @@ pub fn verify_signed_submit_envelope_preview(
         memo_hash: None,
         expires_at_height: Some(expires_at_height),
         signature: SignatureBytes::new(Vec::new()),
-        public_key: Vec::new(),
+        public_key: public_key_bytes,
     };
     let signing_hash = xriq_crypto::transaction_signing_hash(&transaction);
     let expected_signing_hash = hash_hex(signing_hash);
@@ -841,7 +877,26 @@ pub fn verify_signed_submit_envelope_preview(
         ));
     }
 
-    transaction.signature = xriq_crypto::test_only_signature_for_hash(signing_hash);
+    let (result_algorithm, result_verifier) = if is_ed25519 {
+        // The wallet signed the signing hash locally and supplied the signature; the
+        // key never reached the server. Verify it under the ed25519 scheme.
+        transaction.signature = SignatureBytes::new(ed25519_signature_bytes);
+        xriq_crypto::verify_transaction_with_scheme(
+            xriq_crypto::SignatureSchemeKind::Ed25519,
+            &transaction,
+        )
+        .map_err(|_| signed_submit_invalid_signature())?;
+        (
+            SIGNED_SUBMIT_ED25519_SIGNATURE_ALGORITHM,
+            SIGNED_SUBMIT_ED25519_VERIFIER,
+        )
+    } else {
+        transaction.signature = xriq_crypto::test_only_signature_for_hash(signing_hash);
+        (
+            SIGNED_SUBMIT_TEST_SIGNATURE_ALGORITHM,
+            SIGNED_SUBMIT_TEST_VERIFIER,
+        )
+    };
     let expected_transaction_hash = hash_hex(transaction_hash(&transaction));
     if expected_transaction_hash != submitted_transaction_hash {
         return Err(signed_submit_refusal(
@@ -858,10 +913,19 @@ pub fn verify_signed_submit_envelope_preview(
         mutation: "none",
         transaction_signing_hash: expected_signing_hash,
         transaction_hash: expected_transaction_hash,
-        signature_algorithm: SIGNED_SUBMIT_TEST_SIGNATURE_ALGORITHM,
-        verifier: SIGNED_SUBMIT_TEST_VERIFIER,
+        signature_algorithm: result_algorithm,
+        verifier: result_verifier,
         verified: true,
     })
+}
+
+fn signed_submit_invalid_signature() -> SignedSubmitVerificationRefusal {
+    signed_submit_refusal(
+        "invalid_signature",
+        400,
+        "InvalidSignature",
+        "signed-submit-invalid-signature:local_request_id",
+    )
 }
 
 fn signed_submit_required_str<'a>(
@@ -3839,6 +3903,8 @@ mod tests {
             signature_envelope: Some(SignedSubmitSignatureEnvelopeInput {
                 algorithm: Some(SIGNED_SUBMIT_TEST_SIGNATURE_ALGORITHM),
                 signature_encoding: Some(SIGNED_SUBMIT_TEST_SIGNATURE_ENCODING),
+                public_key: None,
+                signature: None,
             }),
         }
     }
@@ -4171,6 +4237,88 @@ mod tests {
             SIGNED_SUBMIT_SIGNING_HASH
         );
         assert_eq!(verified.transaction_hash, SIGNED_SUBMIT_TX_HASH);
+    }
+
+    #[test]
+    fn signed_submit_preview_verifies_a_real_ed25519_signature() {
+        use xriq_crypto::{
+            ed25519_public_key, ed25519_sign_hash, ed25519_signing_key_from_seed,
+            transaction_signing_hash,
+        };
+
+        // Reproduce what a non-custodial wallet does: build the transaction with the
+        // signer's public key, sign the canonical signing hash locally with ed25519.
+        let key = ed25519_signing_key_from_seed([4u8; 32]);
+        let pubkey = ed25519_public_key(&key);
+        let mut tx = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from: Address::parse("xriqdev1alice00000000000").unwrap(),
+            to: Address::parse("xriqdev1carol00000000000").unwrap(),
+            amount: XriqAmount::from_base_units(5),
+            fee: XriqAmount::from_base_units(2),
+            nonce: 1,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: pubkey.to_vec(),
+        };
+        let signing_hash = transaction_signing_hash(&tx);
+        tx.signature = ed25519_sign_hash(&key, signing_hash);
+        let signing_hash_hex = hash_hex(signing_hash);
+        let tx_hash_hex = hash_hex(transaction_hash(&tx));
+        let pubkey_hex = bytes_hex(&pubkey);
+        let signature_hex = bytes_hex(tx.signature.as_slice());
+        let bad_signature_hex = {
+            let mut bytes = tx.signature.as_slice().to_vec();
+            bytes[0] ^= 0xff;
+            bytes_hex(&bytes)
+        };
+
+        let good = SignedSubmitEnvelopeInput {
+            format_version: Some(SIGNED_SUBMIT_FORMAT_VERSION),
+            transaction: Some(SignedSubmitTransactionInput {
+                version: Some(Transaction::SUPPORTED_VERSION),
+                chain_id: Some("xriq-devnet"),
+                from: Some("xriqdev1alice00000000000"),
+                to: Some("xriqdev1carol00000000000"),
+                amount_base_units: Some("5"),
+                fee_base_units: Some("2"),
+                nonce: Some(1),
+                expires_at_height: Some(100),
+            }),
+            hashes: Some(SignedSubmitHashesInput {
+                transaction_signing_hash: Some(signing_hash_hex.as_str()),
+                transaction_hash: Some(tx_hash_hex.as_str()),
+            }),
+            signature_envelope: Some(SignedSubmitSignatureEnvelopeInput {
+                algorithm: Some(SIGNED_SUBMIT_ED25519_SIGNATURE_ALGORITHM),
+                signature_encoding: Some(SIGNED_SUBMIT_ED25519_SIGNATURE_ENCODING),
+                public_key: Some(pubkey_hex.as_str()),
+                signature: Some(signature_hex.as_str()),
+            }),
+        };
+        let pending = [];
+        let verified = verify_signed_submit_envelope_preview(
+            good.clone(),
+            signed_submit_state_context(&pending),
+        )
+        .unwrap();
+        assert_eq!(verified.status, "verified");
+        assert_eq!(
+            verified.signature_algorithm,
+            SIGNED_SUBMIT_ED25519_SIGNATURE_ALGORITHM
+        );
+        assert_eq!(verified.verifier, SIGNED_SUBMIT_ED25519_VERIFIER);
+
+        // A tampered signature is rejected (real verification, not reconstruction).
+        let mut bad = good;
+        bad.signature_envelope.as_mut().unwrap().signature = Some(bad_signature_hex.as_str());
+        let refusal =
+            verify_signed_submit_envelope_preview(bad, signed_submit_state_context(&pending))
+                .unwrap_err();
+        assert_eq!(refusal.code, "invalid_signature");
+        assert_eq!(refusal.mutation, "none");
     }
 
     #[test]

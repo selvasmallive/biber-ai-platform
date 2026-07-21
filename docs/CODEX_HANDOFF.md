@@ -13366,3 +13366,29 @@ envelope (keep scripts/check-wallet-key-safety.mjs guard: no server-side keys).
 OPTIONAL: make the xriq-rpc submit verify site (lib ~168, still TestOnlySignatureVerifier)
 scheme-aware too (only matters if rpc is used on testnet). Then Phase 6 (AI security
 review, hard gate before any value-bearing use; also legal review gate).
+CRYPTO PHASE 5c-1 DONE (signed-submit route accepts real ed25519): xriq-api
+verify_signed_submit_envelope_preview now accepts algorithm="ed25519" with
+signature_encoding="ed25519-hex" plus public_key (32-byte hex) + signature (64-byte
+hex) on SignedSubmitSignatureEnvelopeInput (two new Option<&str> fields; default
+test-only path unchanged/byte-identical). For ed25519 it builds the tx with the
+supplied public_key, checks the client-provided signing hash, and REALLY verifies
+the signature via xriq_crypto::verify_transaction_with_scheme(Ed25519,&tx) (tampered
+-> refusal code "invalid_signature" via new signed_submit_invalid_signature()).
+Returns signature_algorithm="ed25519" + verifier="Ed25519Verifier". New consts
+SIGNED_SUBMIT_ED25519_{SIGNATURE_ALGORITHM,SIGNATURE_ENCODING,VERIFIER}. main.rs
+route parser reads public_key/signature query params. Test
+signed_submit_preview_verifies_a_real_ed25519_signature (locally-signed ed25519 tx
+verifies -> ed25519/Ed25519Verifier; flipped byte -> invalid_signature). The key
+never reaches the server (non-custodial). Workspace: 335 tests green, fmt clean, no
+new clippy. REMAINING 5c-2 (BROWSER/TS -- separate frontend step, NOT done): wire
+xriq/apps/explorer-ui wallet.tsx (currently preview-only,
+warning=private-devnet-preview-only-no-signing-no-submit) to sign the signing hash
+locally with @noble/ed25519 and POST the envelope. Needs: (a) add @noble/ed25519 npm
+dep; (b) a TS reimplementation of the canonical transaction signing-hash encoding
+(domain "xriq:v1:transaction:signing" + length-prefixed fields incl. public_key) OR
+a server "prepare-signing-hash" endpoint so the browser signs a server-computed hash;
+(c) wallet.tsx UI to generate/hold a keypair client-side + call the ed25519
+signed-submit; (d) keep scripts/check-wallet-key-safety.mjs passing (no server-side
+keys, no key literals). The api HTTP surface already parses public_key/signature.
+Then Phase 6 (AI security review, hard gate before any value-bearing use; legal
+review gate too).

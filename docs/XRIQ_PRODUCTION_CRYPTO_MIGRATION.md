@@ -287,12 +287,26 @@ new key-handling anti-patterns.
    the testnet default signer's public key equals the genesis authority pubkey
    (binding the seed), devnet stays test-only, and a testnet faucet dispense with no
    key file produces an ed25519 block (header + transaction) verifying under ed25519.
-   334 tests green; fmt clean; no new clippy. REMAINING Phase 5: (5c) browser-wallet
-   client-side ed25519 signing + submit-signed path (the CLI wallet already signs
-   client-side; the xriq-api signed-submit route exists — wire the browser wallet to
-   sign locally with `@noble/ed25519` and POST the signed envelope, keeping the
-   key-safety guard). Optionally make the xriq-rpc submit verify site scheme-aware
-   too (still test-only; only matters if rpc is used on testnet).
+   334 tests green; fmt clean; no new clippy. **(5c-1 — signed-submit accepts real
+   ed25519) DONE.** The xriq-api signed-submit route previously accepted only
+   `test-only` (reconstructing the signature server-side). It now also accepts
+   `algorithm = "ed25519"` with `signature_encoding = "ed25519-hex"`, a
+   `public_key` (32-byte hex) and a `signature` (64-byte hex) on the envelope. For
+   ed25519 it builds the transaction with the supplied public key, checks the
+   client-provided signing hash, and **verifies the real signature** via
+   `verify_transaction_with_scheme(Ed25519, …)` (a tampered signature →
+   `invalid_signature`). The key never reaches the server (non-custodial); test-only
+   stays byte-identical (golden-neutral). Test
+   `signed_submit_preview_verifies_a_real_ed25519_signature`: a locally ed25519-signed
+   transaction verifies and returns the `ed25519` algorithm + `Ed25519Verifier`; a
+   flipped byte is rejected. 335 tests green; fmt clean; no new clippy. REMAINING
+   (5c-2, browser/TS — separate frontend step): wire the explorer/browser wallet
+   (`xriq/apps/explorer-ui`, currently preview-only) to sign the signing hash locally
+   with `@noble/ed25519` and POST the envelope (`public_key`/`signature` query params
+   are already parsed). This needs a TS reimplementation of the canonical signing-hash
+   encoding (or a server "prepare" step) + the npm dep, and must keep passing
+   `scripts/check-wallet-key-safety.mjs` (no server-side keys). Optional: make the
+   xriq-rpc submit verify site scheme-aware too (still test-only).
    **(5a — wallet client-side signing) DONE.** `xriq-wallet` `build_test_transfer`
    now delegates to a new `build_transfer_with_signer(request, &SchemeSigner)` that
    signs the transaction locally via the signer; a `--signing-key-file <path>` flag
