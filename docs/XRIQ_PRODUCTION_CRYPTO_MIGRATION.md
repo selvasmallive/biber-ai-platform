@@ -228,10 +228,31 @@ new key-handling anti-patterns.
    New test `producer_signer_signs_produced_blocks_under_its_scheme`: an ed25519
    producer node produces a header that records the producer public key, verifies
    under the ed25519 scheme, and imports into a fresh ed25519 follower — a producer
-   now signs ed25519 through the real production path. 329 tests green. REMAINING
-   4c: faucet transfer signing via the signer. 4d: `--producer-key-file` loading
-   (gitignored key file → `SchemeSigner::ed25519`) + wiring the signer into the
-   runner's produce/serve node construction so operators can run an ed25519 producer.
+   now signs ed25519 through the real production path. 329 tests green. **(4d —
+   `--producer-key-file` + runner wiring) DONE.** A `--producer-key-file <path>`
+   flag (parsed by `parse_producer_signer`) loads a 32-byte Ed25519 seed as 64
+   lowercase hex from a gitignored file (`.gitignore`: `*.producer.key`,
+   `*producer-key*.key`, `xriq/**/*.key`, `xriq/**/keys/`) into a
+   `SchemeSigner::ed25519`; absent → the test-only signer. New
+   `NodeRunnerError::{ProducerKeyFileRead, InvalidProducerKeyFile}` cover read /
+   hex / length errors. Wired into `produce-transfer-block`: the loaded signer
+   signs **both** the constructed transfer transaction (via a new
+   `XriqNode::sign_transaction_with_producer_signer`, used by
+   `private_devnet_runner_transaction`, which the faucet dispense path also uses)
+   **and** the block header, and the node verifies under the signer's scheme — a
+   coherent single-scheme producer (all-test-only by default → golden-neutral;
+   all-ed25519 with a key file). A delegate keeps the existing
+   `private_devnet_file_produce_transfer_block` (test-only) for other callers.
+   Tests: `parse_producer_signer_loads_ed25519_key_or_defaults_to_test_only`
+   (default / valid key / bad length / missing file), and end-to-end
+   `produce_transfer_block_signs_with_producer_key_file` (runs the CLI with a key
+   file, reopens the store, and verifies the stored header + transaction under
+   ed25519). 331 tests green; fmt clean; no new clippy. REMAINING 4c: faucet /
+   produce-pending-block ed25519 (the pending path replays txs during node
+   construction, so the scheme must be threaded through
+   `private_devnet_node_with_pending_file` before replay — its own step). NOTE the
+   devnet producer self-signs the sender's transaction (test identity only); real
+   per-account signing is Phase 5 (wallet client-side signing).
 5. **Flip testnet default to ed25519**; keep test-only for pure unit tests only.
    Migrate the wallet to client-side ed25519 signing + submit-signed path.
 6. **AI-assisted security review** (Claude + Codex) of consensus/crypto/replay/

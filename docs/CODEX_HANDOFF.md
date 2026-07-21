@@ -13250,3 +13250,33 @@ produce/serve node construction so operators can actually run an ed25519 produce
 (currently the runner builds nodes without with_producer_signer, so CLI production
 is still test-only). Then Phase 5 (flip testnet default + wallet client signing),
 Phase 6 (AI security review, hard gate).
+CRYPTO PHASE 4d DONE (--producer-key-file + runner wiring): new runner flag
+`--producer-key-file <path>` parsed by parse_producer_signer(&flags) -> loads a
+32-byte ed25519 seed as 64 lowercase hex (trailing whitespace trimmed) from a
+gitignored file into SchemeSigner::ed25519; absent -> SchemeSigner::TestOnly. New
+NodeRunnerError::{ProducerKeyFileRead{path,error}, InvalidProducerKeyFile(String)}
+(Display + code + http-400 arms). .gitignore got *.producer.key / *producer-key*.key
+/ xriq/**/*.key / xriq/**/keys/ (producer seeds are secret, never commit). Wired
+into run_produce_transfer_block_command via a delegate: existing
+private_devnet_file_produce_transfer_block (test-only, other callers unchanged) now
+delegates to new private_devnet_file_produce_transfer_block_with_producer_signer,
+which builds the node with .with_signature_scheme(signer.scheme()) +
+.with_producer_signer(signer). The transfer tx is now signed via new
+XriqNode::sign_transaction_with_producer_signer (used by
+private_devnet_runner_transaction -- which the faucet dispense at
+public_testnet_file_faucet_dispense ALSO uses, so the faucet inherits signer-based
+signing too), so both the tx and the header are signed under one scheme -> a
+coherent single-scheme producer (all-test-only default = golden-neutral; all-ed25519
+with a key file). Removed now-unused crate-level imports
+test_only_signature_for_hash + transaction_signing_hash. Tests:
+parse_producer_signer_loads_ed25519_key_or_defaults_to_test_only (default / valid
+key / wrong length / missing file) and e2e produce_transfer_block_signs_with_producer_key_file
+(runs the CLI produce-transfer-block with a key file, reopens FileChainStore, verifies
+stored header + tx under ed25519). Workspace: 331 tests green, fmt clean, no new
+clippy. REMAINING Phase 4: (4c) produce-pending-block / faucet full ed25519 -- the
+pending path replays txs during node construction (private_devnet_node_with_pending_file),
+so the scheme must be threaded through BEFORE replay (its own careful step); the
+transfer command didn't hit this because it constructs its tx after node build. NOTE
+the devnet producer self-signs the sender's tx (test identity only) -- real
+per-account signing is Phase 5 (wallet client-side ed25519). Then Phase 5 (flip
+testnet default + wallet signing), Phase 6 (AI security review, hard gate).

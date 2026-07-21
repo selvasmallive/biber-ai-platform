@@ -18,7 +18,7 @@ use xriq_core::{
     PUBLIC_TESTNET_FAUCET_MAX_BALANCE_BASE_UNITS,
 };
 use xriq_crypto::{
-    account_state_root, test_only_signature_for_hash, transaction_hash, transaction_signing_hash,
+    account_state_root, ed25519_signing_key_from_seed, transaction_hash,
     transactions_root as canonical_transactions_root, verify_block_header_with_scheme,
     verify_transaction_with_scheme, SchemeSigner, SignatureSchemeKind, SignatureVerificationError,
 };
@@ -269,6 +269,8 @@ pub enum NodeRunnerError {
     FaucetRefused(String),
     InvalidNetwork(String),
     InvalidSignatureScheme(String),
+    ProducerKeyFileRead { path: String, error: String },
+    InvalidProducerKeyFile(String),
     DuplicateFlag(String),
     UnexpectedArgument(String),
     DraftFileRead { path: String, error: String },
@@ -581,6 +583,12 @@ impl fmt::Display for NodeRunnerError {
                 formatter,
                 "invalid signature scheme {value:?}: expected \"test-only\" or \"ed25519\""
             ),
+            Self::ProducerKeyFileRead { path, error } => {
+                write!(formatter, "failed to read producer key file {path:?}: {error}")
+            }
+            Self::InvalidProducerKeyFile(message) => {
+                write!(formatter, "invalid producer key file: {message}")
+            }
             Self::DuplicateFlag(flag) => write!(formatter, "duplicate flag: {flag}"),
             Self::UnexpectedArgument(argument) => {
                 write!(formatter, "unexpected argument: {argument}")
@@ -666,6 +674,8 @@ impl NodeRunnerError {
             Self::FaucetRefused(_) => "faucet_refused",
             Self::InvalidNetwork(_) => "invalid_network",
             Self::InvalidSignatureScheme(_) => "invalid_signature_scheme",
+            Self::ProducerKeyFileRead { .. } => "producer_key_file_read",
+            Self::InvalidProducerKeyFile(_) => "invalid_producer_key_file",
             Self::DuplicateFlag(_) => "duplicate_flag",
             Self::UnexpectedArgument(_) => "unexpected_argument",
             Self::DraftFileRead { .. } => "draft_file_read",
@@ -702,7 +712,7 @@ pub fn node_help_text() -> String {
         "  All commands accept an optional [--environment local|staging-devnet] profile (default local; production/mainnet/public-testnet are rejected).",
         "  xriq-node status --chain-file <path> [--network devnet|testnet] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node chain-check --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
-        "  xriq-node produce-transfer-block --chain-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
+        "  xriq-node produce-transfer-block --chain-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--producer-key-file <path>] [--format text|json]",
         "  xriq-node produce-draft-block --chain-file <path> --draft-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node produce-pending-block --chain-file <path> --pending-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node preflight-transfer --chain-file <path> --pending-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
@@ -1984,6 +1994,7 @@ fn node_runner_error_http_status(error: &NodeRunnerError) -> u16 {
         NodeRunnerError::FaucetRefused(_) => 429,
         NodeRunnerError::InvalidNetwork(_) => 400,
         NodeRunnerError::InvalidSignatureScheme(_) => 400,
+        NodeRunnerError::InvalidProducerKeyFile(_) => 400,
         _ => 500,
     }
 }
@@ -2582,9 +2593,30 @@ pub fn private_devnet_file_produce_transfer_block(
     alice_balance: Option<XriqAmount>,
     transfer: PrivateDevnetTransferInput,
 ) -> Result<ProducedTransferBlockStatus, NodeError> {
+    private_devnet_file_produce_transfer_block_with_producer_signer(
+        chain_file,
+        alice_balance,
+        transfer,
+        SchemeSigner::TestOnly,
+    )
+}
+
+/// Produce a transfer block signing both the constructed transaction and the block
+/// header with `producer_signer` (and verifying under its scheme). The default
+/// (test-only) signer is byte-identical to the historical path; pass a
+/// `SchemeSigner::ed25519(key)` (e.g. from `--producer-key-file`) for a coherent
+/// single-scheme ed25519 devnet producer.
+pub fn private_devnet_file_produce_transfer_block_with_producer_signer(
+    chain_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    transfer: PrivateDevnetTransferInput,
+    producer_signer: SchemeSigner,
+) -> Result<ProducedTransferBlockStatus, NodeError> {
     let store = FileChainStore::open(chain_file).map_err(NodeError::Storage)?;
     let genesis = private_devnet_runner_genesis(alice_balance);
-    let mut node = XriqNode::from_genesis_replaying_store(&genesis, store)?;
+    let mut node = XriqNode::from_genesis_replaying_store(&genesis, store)?
+        .with_signature_scheme(producer_signer.scheme())
+        .with_producer_signer(producer_signer);
     let transaction = private_devnet_runner_transaction(&node, &transfer);
     let transaction_hash = node.submit_transaction_with_canonical_hash(transaction)?;
     let produced = node.produce_next_block_with_private_devnet_signature(
@@ -3805,6 +3837,32 @@ fn parse_signature_scheme(
     }
 }
 
+// Read `--producer-key-file <path>` into the signer the block producer uses. The
+// file holds the 32-byte Ed25519 seed as 64 lowercase hex characters (trailing
+// whitespace ignored). Absent → the test-only signer. Key files are secret and
+// gitignored; never commit them. This is a TEST-ONLY network, so seeds guard no
+// value — a real deployment would load from a KMS/HSM, not a plaintext seed file.
+fn parse_producer_signer(flags: &RunnerFlagParser) -> Result<SchemeSigner, NodeRunnerError> {
+    let Some(path) = flags.optional("--producer-key-file") else {
+        return Ok(SchemeSigner::TestOnly);
+    };
+    let contents =
+        std::fs::read_to_string(path).map_err(|error| NodeRunnerError::ProducerKeyFileRead {
+            path: path.to_string(),
+            error: error.to_string(),
+        })?;
+    let seed_bytes = parse_hex_bytes(contents.trim()).map_err(|_| {
+        NodeRunnerError::InvalidProducerKeyFile("key must be lowercase hex characters".to_string())
+    })?;
+    let seed: [u8; 32] = seed_bytes.as_slice().try_into().map_err(|_| {
+        NodeRunnerError::InvalidProducerKeyFile(format!(
+            "key must be 32 bytes (64 hex chars), got {} bytes",
+            seed_bytes.len()
+        ))
+    })?;
+    Ok(SchemeSigner::ed25519(ed25519_signing_key_from_seed(seed)))
+}
+
 // Open a peer node on the selected genesis. Devnet preserves the exact existing
 // path (including pending replay); testnet reads stored blocks only.
 fn open_peer_node(
@@ -4645,6 +4703,7 @@ fn run_produce_transfer_block_command(
         "--expires-at-height",
         "--timestamp-ms",
         "--consensus-round",
+        "--producer-key-file",
         "--format",
     ])?;
     let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
@@ -4653,6 +4712,7 @@ fn run_produce_transfer_block_command(
         .optional("--alice-balance")
         .map(|value| parse_amount("--alice-balance", value))
         .transpose()?;
+    let producer_signer = parse_producer_signer(&flags)?;
     let transfer = PrivateDevnetTransferInput {
         from: parse_address("--from", flags.required("--from")?)?,
         to: parse_address("--to", flags.required("--to")?)?,
@@ -4674,8 +4734,13 @@ fn run_produce_transfer_block_command(
             .transpose()?
             .unwrap_or(0),
     };
-    let status = private_devnet_file_produce_transfer_block(chain_file, alice_balance, transfer)
-        .map_err(NodeRunnerError::Node)?;
+    let status = private_devnet_file_produce_transfer_block_with_producer_signer(
+        chain_file,
+        alice_balance,
+        transfer,
+        producer_signer,
+    )
+    .map_err(NodeRunnerError::Node)?;
     Ok(match output_format {
         RunnerOutputFormat::Text => NodeRunnerOutput::ProducedTransferBlock(status),
         RunnerOutputFormat::Json => NodeRunnerOutput::Json(
@@ -4724,7 +4789,7 @@ fn private_devnet_runner_transaction<S: ChainStore>(
         signature: SignatureBytes::new(Vec::new()),
         public_key: Vec::new(),
     };
-    transaction.signature = test_only_signature_for_hash(transaction_signing_hash(&transaction));
+    node.sign_transaction_with_producer_signer(&mut transaction);
     transaction
 }
 
@@ -7356,6 +7421,13 @@ impl<S: ChainStore> XriqNode<S> {
         self.producer_signer.scheme()
     }
 
+    /// Sign a runner-constructed transaction with this node's producer signer.
+    /// This is the devnet self-signing path (test identity only): the node signs
+    /// on the sender's behalf under the configured scheme (test-only by default).
+    pub fn sign_transaction_with_producer_signer(&self, transaction: &mut Transaction) {
+        self.producer_signer.sign_transaction(transaction);
+    }
+
     pub fn from_genesis(genesis: &GenesisConfig, store: S) -> Result<Self, GenesisConfigError> {
         genesis.validate()?;
         Ok(Self::new(
@@ -8111,6 +8183,123 @@ mod tests {
             .import_block_with_canonical_hash(produced.block)
             .unwrap();
         assert_eq!(follower.ledger().current_height(), 1);
+    }
+
+    #[test]
+    fn parse_producer_signer_loads_ed25519_key_or_defaults_to_test_only() {
+        use xriq_crypto::{ed25519_public_key, ed25519_signing_key_from_seed, SignatureSchemeKind};
+
+        // Absent flag -> the test-only signer.
+        let flags = RunnerFlagParser::parse(&[]).unwrap();
+        assert_eq!(
+            parse_producer_signer(&flags).unwrap().scheme(),
+            SignatureSchemeKind::TestOnly
+        );
+
+        let key_path = temp_store_path().with_extension("key");
+        let seed = [9u8; 32];
+
+        // Valid 64-hex seed file (trailing newline tolerated) -> ed25519 signer.
+        fs::write(&key_path, format!("{}\n", bytes_hex(&seed))).unwrap();
+        let flags = RunnerFlagParser::parse(&[
+            "--producer-key-file".to_string(),
+            key_path.to_string_lossy().to_string(),
+        ])
+        .unwrap();
+        let signer = parse_producer_signer(&flags).unwrap();
+        assert_eq!(signer.scheme(), SignatureSchemeKind::Ed25519);
+        assert_eq!(
+            signer.public_key(),
+            ed25519_public_key(&ed25519_signing_key_from_seed(seed)).to_vec()
+        );
+
+        // Wrong length -> InvalidProducerKeyFile.
+        fs::write(&key_path, "abcd").unwrap();
+        let flags = RunnerFlagParser::parse(&[
+            "--producer-key-file".to_string(),
+            key_path.to_string_lossy().to_string(),
+        ])
+        .unwrap();
+        assert!(matches!(
+            parse_producer_signer(&flags),
+            Err(NodeRunnerError::InvalidProducerKeyFile(_))
+        ));
+
+        // Missing file -> ProducerKeyFileRead.
+        let flags = RunnerFlagParser::parse(&[
+            "--producer-key-file".to_string(),
+            "does-not-exist-xriq-producer.key".to_string(),
+        ])
+        .unwrap();
+        assert!(matches!(
+            parse_producer_signer(&flags),
+            Err(NodeRunnerError::ProducerKeyFileRead { .. })
+        ));
+
+        let _ = fs::remove_file(&key_path);
+    }
+
+    #[test]
+    fn produce_transfer_block_signs_with_producer_key_file() {
+        use xriq_crypto::{
+            ed25519_public_key, ed25519_signing_key_from_seed, verify_block_header_with_scheme,
+            verify_transaction_with_scheme, SignatureSchemeKind,
+        };
+
+        let chain_path = temp_store_path();
+        let chain_text = chain_path.to_string_lossy().to_string();
+        let key_path = chain_path.with_extension("key");
+        let seed = [6u8; 32];
+        fs::write(&key_path, bytes_hex(&seed)).unwrap();
+
+        run_node_command([
+            "produce-transfer-block",
+            "--chain-file",
+            chain_text.as_str(),
+            "--producer-key-file",
+            key_path.to_string_lossy().as_ref(),
+            "--alice-balance",
+            "100",
+            "--from",
+            "xriqdev1alice00000000000",
+            "--to",
+            "xriqdev1bobbb00000000000",
+            "--amount",
+            "25",
+            "--fee",
+            "2",
+            "--nonce",
+            "0",
+            "--expires-at-height",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+
+        // The stored block is signed by the ed25519 producer key: both the header
+        // and the (self-signed) transaction verify under the ed25519 scheme.
+        let store = FileChainStore::open(&chain_path).unwrap();
+        let record = store.latest_block().unwrap();
+        let expected_public_key = ed25519_public_key(&ed25519_signing_key_from_seed(seed)).to_vec();
+        assert_eq!(record.block.header.public_key, expected_public_key);
+        assert_eq!(
+            verify_block_header_with_scheme(SignatureSchemeKind::Ed25519, &record.block.header),
+            Ok(())
+        );
+        assert_eq!(record.block.transactions.len(), 1);
+        assert_eq!(
+            verify_transaction_with_scheme(
+                SignatureSchemeKind::Ed25519,
+                &record.block.transactions[0]
+            ),
+            Ok(())
+        );
+
+        let _ = fs::remove_file(&chain_path);
+        let _ = fs::remove_file(&key_path);
     }
 
     #[test]

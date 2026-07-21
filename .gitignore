@@ -53,3 +53,10 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 .terraform.lock.hcl
+
+# XRIQ producer / signing key files (secret Ed25519 seeds — never commit).
+# See docs/XRIQ_PRODUCTION_CRYPTO_MIGRATION.md (--producer-key-file).
+*.producer.key
+*producer-key*.key
+xriq/**/*.key
+xriq/**/keys/
