@@ -13197,3 +13197,27 @@ GitHub main branch. Vast may be stopped or terminated; do not assume
 /workspace, vLLM, FastAPI, or live Vast SSH access exists unless I provide a
 fresh Vast instance.
 ```
+CRYPTO PHASE 4a DONE (signing seam): xriq-crypto gained `SchemeSigner` (enum
+`TestOnly` | `Ed25519(Box<ed25519_dalek::SigningKey>)`), the signing counterpart to
+the `SignatureScheme` verify seam. API: `SchemeSigner::ed25519(key)`, `scheme()`,
+`public_key()` (empty for test-only, 32-byte key for ed25519), `sign_hash(hash)`,
+and correct-by-construction `sign_transaction(&mut tx)` / `sign_block_header(&mut
+header)` that set the object's public_key BEFORE signing its canonical hash
+(encapsulating the ordering the encoding change surfaced). Test
+`scheme_signer_produces_signatures_that_verify_under_its_own_scheme`: a signer-signed
+tx/header verifies under verify_*_with_scheme(signer.scheme(),..) and is rejected
+under the other scheme; test-only -> empty key, ed25519 -> records its pubkey.
+xriq-crypto: 21 tests; fmt clean, no clippy. The TestOnly signer is byte-identical to
+the current test_only_signature_for_hash path, so wiring it in is golden-neutral.
+REMAINING Phase 4: (4b) give XriqNode a producer `SchemeSigner` (default TestOnly)
+and route header signing through it -- NOTE the block-production path computes the
+header signature in produce_next_block_with_private_devnet_signature (node lib ~7479)
+and passes it THROUGH produce_next_block_inner which REBUILDS the header, so for
+ed25519 the public_key must be threaded too (cleanest: sign inside the inner builder
+via the signer rather than passing a precomputed signature). Multiple entry points
++ tests pass an explicit `signature` (e.g. produce_input signature vec![9]), so this
+is a careful refactor of that path -- its own step. (4c) faucet transfer signing via
+the signer (node lib ~4688 faucet dispense). (4d) --producer-key-file loading
+(gitignored key file bytes -> ed25519_signing_key_from_seed/SigningKey ->
+SchemeSigner::ed25519; never commit keys). Then Phase 5 (flip testnet default +
+wallet client-side signing), Phase 6 (AI security review, hard gate).

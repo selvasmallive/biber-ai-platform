@@ -426,6 +426,69 @@ pub fn verify_block_header_with_scheme(
     scheme.verify_envelope(block_header_signing_hash(header), &envelope)
 }
 
+/// A key that produces signatures under a specific [`SignatureSchemeKind`] — the
+/// signing counterpart to [`verify_transaction_with_scheme`] /
+/// [`verify_block_header_with_scheme`]. It yields both the `public_key` to place on
+/// the signed object and the `signature`, and its `sign_transaction` /
+/// `sign_block_header` helpers apply them in the correct order (public key first,
+/// because it is part of the signed body).
+///
+/// `TestOnly` holds no key and produces the deterministic, non-secret placeholder
+/// signature; `Ed25519` holds a real signing key. Real deployments load the ed25519
+/// key from a gitignored key file / KMS, never from source.
+pub enum SchemeSigner {
+    TestOnly,
+    Ed25519(Box<ed25519_dalek::SigningKey>),
+}
+
+impl SchemeSigner {
+    /// A signer for a given scheme kind. For `Ed25519`, a signing key must be
+    /// supplied (there is no key material for the test-only scheme).
+    pub fn ed25519(signing_key: ed25519_dalek::SigningKey) -> Self {
+        Self::Ed25519(Box::new(signing_key))
+    }
+
+    /// The scheme this signer produces signatures for.
+    pub fn scheme(&self) -> SignatureSchemeKind {
+        match self {
+            Self::TestOnly => SignatureSchemeKind::TestOnly,
+            Self::Ed25519(_) => SignatureSchemeKind::Ed25519,
+        }
+    }
+
+    /// The public key to record on the signed object (empty for the test-only
+    /// scheme, the 32-byte Ed25519 public key otherwise).
+    pub fn public_key(&self) -> Vec<u8> {
+        match self {
+            Self::TestOnly => Vec::new(),
+            Self::Ed25519(key) => ed25519_public_key(key).to_vec(),
+        }
+    }
+
+    /// Sign a message hash under this signer's scheme.
+    pub fn sign_hash(&self, message_hash: Hash32) -> SignatureBytes {
+        match self {
+            Self::TestOnly => test_only_signature_for_hash(message_hash),
+            Self::Ed25519(key) => ed25519_sign_hash(key, message_hash),
+        }
+    }
+
+    /// Sign a transaction in place: set its `public_key` (part of the signed body)
+    /// then its `signature` over the canonical signing hash. The resulting
+    /// transaction verifies under `verify_transaction_with_scheme(self.scheme(), …)`.
+    pub fn sign_transaction(&self, transaction: &mut Transaction) {
+        transaction.public_key = self.public_key();
+        transaction.signature = self.sign_hash(transaction_signing_hash(transaction));
+    }
+
+    /// Sign a block header in place (the block-production analogue of
+    /// [`sign_transaction`]).
+    pub fn sign_block_header(&self, header: &mut BlockHeader) {
+        header.public_key = self.public_key();
+        header.signature = self.sign_hash(block_header_signing_hash(header));
+    }
+}
+
 pub fn block_header_bytes(header: &BlockHeader) -> Vec<u8> {
     let mut output = canonical_preamble(DOMAIN_BLOCK_HEADER_HASH);
     encode_header_without_signature(header, &mut output);
@@ -1051,6 +1114,54 @@ mod tests {
         assert_eq!(
             verify_block_header_with_scheme(SignatureSchemeKind::Ed25519, &test_header),
             Err(SignatureVerificationError::InvalidSignature)
+        );
+    }
+
+    #[test]
+    fn scheme_signer_produces_signatures_that_verify_under_its_own_scheme() {
+        // Test-only signer: empty public key, verifies under test-only, rejected
+        // under ed25519.
+        let test_signer = SchemeSigner::TestOnly;
+        assert_eq!(test_signer.scheme(), SignatureSchemeKind::TestOnly);
+        assert!(test_signer.public_key().is_empty());
+        let mut tx = transaction(SignatureBytes::new(Vec::new()));
+        test_signer.sign_transaction(&mut tx);
+        assert!(tx.public_key.is_empty());
+        assert_eq!(
+            verify_transaction_with_scheme(SignatureSchemeKind::TestOnly, &tx),
+            Ok(())
+        );
+        assert_eq!(
+            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &tx),
+            Err(SignatureVerificationError::InvalidSignature)
+        );
+
+        // Ed25519 signer: records its public key, verifies under ed25519, rejected
+        // under test-only. sign_transaction/sign_block_header set the key before
+        // signing, so the result is self-contained and verifies.
+        let key = ed25519_signing_key_from_seed([5u8; 32]);
+        let signer = SchemeSigner::ed25519(key.clone());
+        assert_eq!(signer.scheme(), SignatureSchemeKind::Ed25519);
+        assert_eq!(signer.public_key(), ed25519_public_key(&key).to_vec());
+
+        let mut ed_tx = transaction(SignatureBytes::new(Vec::new()));
+        signer.sign_transaction(&mut ed_tx);
+        assert_eq!(ed_tx.public_key, ed25519_public_key(&key).to_vec());
+        assert_eq!(
+            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &ed_tx),
+            Ok(())
+        );
+        assert_eq!(
+            verify_transaction_with_scheme(SignatureSchemeKind::TestOnly, &ed_tx),
+            Err(SignatureVerificationError::InvalidSignature)
+        );
+
+        let mut ed_header = header(SignatureBytes::new(Vec::new()));
+        signer.sign_block_header(&mut ed_header);
+        assert_eq!(ed_header.public_key, ed25519_public_key(&key).to_vec());
+        assert_eq!(
+            verify_block_header_with_scheme(SignatureSchemeKind::Ed25519, &ed_header),
+            Ok(())
         );
     }
 }

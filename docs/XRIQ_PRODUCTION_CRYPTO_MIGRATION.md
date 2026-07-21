@@ -200,7 +200,24 @@ new key-handling anti-patterns.
 4. **Real producer + faucet signing.** Block producer and faucet sign with an
    Ed25519 key (test keypair fixed in test vectors, real key via a
    `--producer-key-file` on operator nodes — key files gitignored, never
-   committed).
+   committed). **(4a — signing seam) DONE.** `xriq-crypto` now has `SchemeSigner`
+   (`TestOnly` | `Ed25519(Box<SigningKey>)`), the signing counterpart to the verify
+   seam: `scheme()`, `public_key()` (empty for test-only, the 32-byte key
+   otherwise), `sign_hash(hash)`, and correct-by-construction `sign_transaction` /
+   `sign_block_header` helpers that set the object's `public_key` *before* signing
+   its canonical hash (encapsulating the ordering the encoding change surfaced).
+   Tested round-trip: a `SchemeSigner`-signed transaction/header verifies under
+   `verify_*_with_scheme(signer.scheme(), …)` and is rejected under the other
+   scheme; test-only yields an empty key, ed25519 records its public key.
+   xriq-crypto: 21 tests. The `TestOnly` signer produces byte-identical output to
+   the current `test_only_signature_for_hash` path, so wiring it in is golden-neutral.
+   REMAINING 4b: give `XriqNode` a producer `SchemeSigner` (default `TestOnly`) and
+   route header signing through it (the block-production path currently computes the
+   header signature in `produce_next_block_with_private_devnet_signature` and passes
+   it *through* `produce_next_block_inner`, which rebuilds the header — so for
+   ed25519 the `public_key` must be threaded too, i.e. sign inside the inner builder
+   via the signer). 4c: faucet transfer signing via the signer. 4d:
+   `--producer-key-file` loading (gitignored key file → `SchemeSigner::ed25519`).
 5. **Flip testnet default to ed25519**; keep test-only for pure unit tests only.
    Migrate the wallet to client-side ed25519 signing + submit-signed path.
 6. **AI-assisted security review** (Claude + Codex) of consensus/crypto/replay/
