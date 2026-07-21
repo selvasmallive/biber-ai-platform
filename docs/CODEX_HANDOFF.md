@@ -13221,3 +13221,32 @@ the signer (node lib ~4688 faucet dispense). (4d) --producer-key-file loading
 (gitignored key file bytes -> ed25519_signing_key_from_seed/SigningKey ->
 SchemeSigner::ed25519; never commit keys). Then Phase 5 (flip testnet default +
 wallet client-side signing), Phase 6 (AI security review, hard gate).
+CRYPTO PHASE 4b DONE (producer signs via SchemeSigner): XriqNode gained
+`producer_signer: SchemeSigner` (default TestOnly; builder `with_producer_signer`,
+accessor `producer_signer_scheme()`). Header signing moved INTO
+produce_next_block_inner: after producer.produce_block builds the block (roots +
+height set), if `sign_with_producer_signer` (new bool on ProduceNextBlockInnerInput)
+is true the node calls `self.producer_signer.sign_block_header(&mut block.header)`
+to stamp public_key + signature BEFORE the block is hashed/stored. Only the
+dedicated entry point produce_next_block_with_private_devnet_signature sets the flag
+true (it now calls inner directly with a non-empty PLACEHOLDER signature -- vec![0]
+-- because consensus produce_block rejects an empty sig with MissingSignature; the
+placeholder is fully replaced by the signer). The explicit-signature paths
+(produce_next_block, produce_next_block_with_canonical_hash/roots) pass
+sign_with_producer_signer:false and are unchanged. Removed the now-dead
+`XriqNode::next_canonical_roots` method (the old private_devnet_signature path).
+SchemeSigner got manual Clone / Debug (redacted, never prints key bytes) / PartialEq
++ Eq (compares scheme + public_key only, never secret bytes) so it fits the
+derive(Debug,Clone,PartialEq,Eq) XriqNode. Default nodes are byte-identical
+(golden-neutral -- no fixtures changed). New node test
+`producer_signer_signs_produced_blocks_under_its_scheme`: an ed25519 producer
+(with_signature_scheme(Ed25519)+with_producer_signer(ed25519 key)) produces a header
+carrying the producer pubkey that verifies under ed25519 and imports into a fresh
+ed25519 follower. Workspace: 329 tests green, fmt clean, no new clippy. REMAINING
+Phase 4: (4c) faucet transfer signing via the signer (node lib ~4688 faucet
+dispense builds+signs the transfer test-only). (4d) --producer-key-file loading
+(gitignored key file -> SchemeSigner::ed25519) + wire the signer into the runner
+produce/serve node construction so operators can actually run an ed25519 producer
+(currently the runner builds nodes without with_producer_signer, so CLI production
+is still test-only). Then Phase 5 (flip testnet default + wallet client signing),
+Phase 6 (AI security review, hard gate).

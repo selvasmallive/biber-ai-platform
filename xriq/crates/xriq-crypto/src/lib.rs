@@ -489,6 +489,35 @@ impl SchemeSigner {
     }
 }
 
+impl Clone for SchemeSigner {
+    fn clone(&self) -> Self {
+        match self {
+            Self::TestOnly => Self::TestOnly,
+            Self::Ed25519(key) => Self::Ed25519(key.clone()),
+        }
+    }
+}
+
+impl core::fmt::Debug for SchemeSigner {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // Never format secret key material.
+        match self {
+            Self::TestOnly => formatter.write_str("SchemeSigner::TestOnly"),
+            Self::Ed25519(_) => formatter.write_str("SchemeSigner::Ed25519(<redacted>)"),
+        }
+    }
+}
+
+impl PartialEq for SchemeSigner {
+    /// Compare by scheme and public key only — public information. The secret key
+    /// bytes are never compared (no key material in equality checks).
+    fn eq(&self, other: &Self) -> bool {
+        self.scheme() == other.scheme() && self.public_key() == other.public_key()
+    }
+}
+
+impl Eq for SchemeSigner {}
+
 pub fn block_header_bytes(header: &BlockHeader) -> Vec<u8> {
     let mut output = canonical_preamble(DOMAIN_BLOCK_HEADER_HASH);
     encode_header_without_signature(header, &mut output);

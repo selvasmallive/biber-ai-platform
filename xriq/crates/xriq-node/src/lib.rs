@@ -11,17 +11,16 @@ use std::{
 
 use xriq_consensus::{BlockProductionError, BlockProductionInput, SingleAuthorityProducer};
 use xriq_core::{
-    Address, AddressError, Block, BlockHeader, BlockValidationError, Environment, GenesisConfig,
+    Address, AddressError, Block, BlockValidationError, Environment, GenesisConfig,
     GenesisConfigError, Hash32, ParentHeaderView, SignatureBytes, Transaction,
     TransactionValidationContext, TransactionValidationError, XriqAmount,
     PUBLIC_TESTNET_FAUCET_ADDRESS, PUBLIC_TESTNET_FAUCET_DRIP_BASE_UNITS,
     PUBLIC_TESTNET_FAUCET_MAX_BALANCE_BASE_UNITS,
 };
 use xriq_crypto::{
-    account_state_root, block_header_signing_hash, test_only_signature_for_hash, transaction_hash,
-    transaction_signing_hash, transactions_root as canonical_transactions_root,
-    verify_block_header_with_scheme, verify_transaction_with_scheme, SignatureSchemeKind,
-    SignatureVerificationError,
+    account_state_root, test_only_signature_for_hash, transaction_hash, transaction_signing_hash,
+    transactions_root as canonical_transactions_root, verify_block_header_with_scheme,
+    verify_transaction_with_scheme, SchemeSigner, SignatureSchemeKind, SignatureVerificationError,
 };
 use xriq_explorer::{
     render_account_detail, render_account_transactions, render_accounts, render_block_detail,
@@ -73,7 +72,14 @@ struct ProduceNextBlockInnerInput {
     block_hash_override: Option<Hash32>,
     timestamp_ms: u64,
     consensus_round: u64,
+    /// The header signature to stamp when `sign_with_producer_signer` is false
+    /// (the caller-controlled path). Ignored when signing via the node's producer
+    /// signer.
     signature: SignatureBytes,
+    /// When true, the produced header is signed by the node's configured
+    /// `producer_signer` (setting its `public_key` + `signature`) after its
+    /// canonical roots and height are set, instead of stamping `signature`.
+    sign_with_producer_signer: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -328,9 +334,12 @@ pub struct XriqNode<S: ChainStore> {
     latest_block_hash: Hash32,
     /// The signature scheme this node requires when verifying submitted
     /// transactions and imported block/transaction signatures (from
-    /// `--signature-scheme`, default test-only). Signing still uses the test-only
-    /// scheme until Phase 4 provides real producer/faucet keys.
+    /// `--signature-scheme`, default test-only).
     signature_scheme: SignatureSchemeKind,
+    /// The signer this node's block producer uses to sign block headers (default
+    /// test-only; ed25519 once a producer key is configured). Its scheme must match
+    /// `signature_scheme` for a node to accept its own produced blocks.
+    producer_signer: SchemeSigner,
 }
 
 impl fmt::Display for NodeStatus {
@@ -7320,6 +7329,7 @@ impl<S: ChainStore> XriqNode<S> {
             store,
             latest_block_hash,
             signature_scheme: SignatureSchemeKind::TestOnly,
+            producer_signer: SchemeSigner::TestOnly,
         }
     }
 
@@ -7332,6 +7342,18 @@ impl<S: ChainStore> XriqNode<S> {
 
     pub fn signature_scheme(&self) -> SignatureSchemeKind {
         self.signature_scheme
+    }
+
+    /// Set the signer the block producer uses to sign headers. Defaults to the
+    /// test-only signer (byte-identical to the placeholder scheme); pass a
+    /// `SchemeSigner::ed25519(key)` for a node that produces ed25519-signed blocks.
+    pub fn with_producer_signer(mut self, signer: SchemeSigner) -> Self {
+        self.producer_signer = signer;
+        self
+    }
+
+    pub fn producer_signer_scheme(&self) -> SignatureSchemeKind {
+        self.producer_signer.scheme()
     }
 
     pub fn from_genesis(genesis: &GenesisConfig, store: S) -> Result<Self, GenesisConfigError> {
@@ -7445,6 +7467,7 @@ impl<S: ChainStore> XriqNode<S> {
             timestamp_ms,
             consensus_round,
             signature,
+            sign_with_producer_signer: false,
         })
     }
 
@@ -7459,6 +7482,7 @@ impl<S: ChainStore> XriqNode<S> {
             timestamp_ms: input.timestamp_ms,
             consensus_round: input.consensus_round,
             signature: input.signature,
+            sign_with_producer_signer: false,
         })
     }
 
@@ -7473,59 +7497,33 @@ impl<S: ChainStore> XriqNode<S> {
             timestamp_ms: input.timestamp_ms,
             consensus_round: input.consensus_round,
             signature: input.signature,
+            sign_with_producer_signer: false,
         })
     }
 
+    /// Produce the next block and sign its header with the node's configured
+    /// `producer_signer` (test-only by default; ed25519 once a producer key is set).
+    /// The header is signed after its canonical roots and height are computed, so
+    /// the signature — and, for ed25519, the recorded `public_key` — bind the final
+    /// header. (The method name is retained for compatibility; the scheme is no
+    /// longer devnet-specific.)
     pub fn produce_next_block_with_private_devnet_signature(
         &mut self,
         timestamp_ms: u64,
         consensus_round: u64,
     ) -> Result<ProducedBlock, NodeError> {
-        let (state_root, transactions_root) = self.next_canonical_roots()?;
-        let height = self
-            .ledger
-            .current_height()
-            .checked_add(1)
-            .ok_or(NodeError::Header(BlockValidationError::HeightOverflow))?;
-        let header = BlockHeader {
-            version: BlockHeader::SUPPORTED_VERSION,
-            chain_id: self.ledger.config().chain_id.clone(),
-            height,
-            previous_block_hash: self.latest_block_hash,
-            state_root,
-            transactions_root,
-            timestamp_ms,
-            producer: self.producer.config().producer.clone(),
-            consensus_round,
-            signature: SignatureBytes::new(Vec::new()),
-            public_key: Vec::new(),
-        };
-        let signature = test_only_signature_for_hash(block_header_signing_hash(&header));
-        self.produce_next_block_with_canonical_roots(ProduceNextBlockCanonicalRootsInput {
+        self.produce_next_block_inner(ProduceNextBlockInnerInput {
+            state_root_override: None,
+            transactions_root_override: None,
+            block_hash_override: None,
             timestamp_ms,
             consensus_round,
-            signature,
+            // Non-empty placeholder to satisfy the producer's non-empty-signature
+            // check; it is fully replaced by the producer signer before the header
+            // is hashed and stored.
+            signature: SignatureBytes::new(vec![0]),
+            sign_with_producer_signer: true,
         })
-    }
-
-    fn next_canonical_roots(&self) -> Result<(Hash32, Hash32), NodeError> {
-        let transactions: Vec<Transaction> = self
-            .mempool
-            .ordered_entries()
-            .into_iter()
-            .take(self.producer.config().max_transactions_per_block)
-            .map(|entry| entry.tx.clone())
-            .collect();
-        let mut next_ledger = self.ledger.clone();
-        for transaction in &transactions {
-            next_ledger
-                .apply_transaction(transaction)
-                .map_err(NodeError::Ledger)?;
-        }
-        Ok((
-            account_state_root(&next_ledger.state_root_entries()),
-            canonical_transactions_root(&transactions),
-        ))
     }
 
     fn produce_next_block_inner(
@@ -7570,10 +7568,16 @@ impl<S: ChainStore> XriqNode<S> {
             consensus_round: input.consensus_round,
             signature: input.signature,
         };
-        let block = self
+        let mut block = self
             .producer
             .produce_block(block_input, transactions)
             .map_err(NodeError::Block)?;
+        if input.sign_with_producer_signer {
+            // Sign the final header (roots + height already set) with the node's
+            // producer signer, which sets its public_key before signing so the
+            // result verifies under the matching scheme.
+            self.producer_signer.sign_block_header(&mut block.header);
+        }
         next_ledger.set_current_height(block.header.height);
         let block_hash = self.append_block_to_store(input.block_hash_override, block.clone())?;
 
@@ -8053,6 +8057,60 @@ mod tests {
         ed_node
             .submit_transaction(transaction_hash(&ed_tx), ed_tx)
             .unwrap();
+    }
+
+    #[test]
+    fn producer_signer_signs_produced_blocks_under_its_scheme() {
+        use xriq_crypto::{
+            ed25519_public_key, ed25519_sign_hash, ed25519_signing_key_from_seed,
+            verify_block_header_with_scheme, SchemeSigner, SignatureSchemeKind,
+        };
+
+        // Default nodes sign with the test-only signer (byte-identical to before).
+        assert_eq!(
+            node().producer_signer_scheme(),
+            SignatureSchemeKind::TestOnly
+        );
+
+        // A node configured with an ed25519 producer key produces ed25519-signed
+        // headers. It also verifies ed25519, so it accepts its own blocks.
+        let producer_key = ed25519_signing_key_from_seed([4u8; 32]);
+        let mut producer = node()
+            .with_signature_scheme(SignatureSchemeKind::Ed25519)
+            .with_producer_signer(SchemeSigner::ed25519(producer_key.clone()));
+        assert_eq!(
+            producer.producer_signer_scheme(),
+            SignatureSchemeKind::Ed25519
+        );
+
+        // Include an ed25519-signed transaction so the whole block is ed25519.
+        let tx_key = ed25519_signing_key_from_seed([5u8; 32]);
+        let mut tx = transaction(address("alice"), 0, 25, 2);
+        tx.public_key = ed25519_public_key(&tx_key).to_vec();
+        tx.signature = ed25519_sign_hash(&tx_key, transaction_signing_hash(&tx));
+        producer.submit_transaction_with_canonical_hash(tx).unwrap();
+
+        let produced = producer
+            .produce_next_block_with_private_devnet_signature(1_000, 0)
+            .unwrap();
+
+        // The producer signed the header with ed25519 (public key recorded), so it
+        // verifies under the ed25519 scheme through the real production path.
+        assert_eq!(
+            produced.block.header.public_key,
+            ed25519_public_key(&producer_key).to_vec()
+        );
+        assert_eq!(
+            verify_block_header_with_scheme(SignatureSchemeKind::Ed25519, &produced.block.header),
+            Ok(())
+        );
+
+        // And the produced block imports into a fresh ed25519 follower.
+        let mut follower = node().with_signature_scheme(SignatureSchemeKind::Ed25519);
+        follower
+            .import_block_with_canonical_hash(produced.block)
+            .unwrap();
+        assert_eq!(follower.ledger().current_height(), 1);
     }
 
     #[test]

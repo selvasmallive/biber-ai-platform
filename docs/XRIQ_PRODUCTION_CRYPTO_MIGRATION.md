@@ -211,13 +211,27 @@ new key-handling anti-patterns.
    scheme; test-only yields an empty key, ed25519 records its public key.
    xriq-crypto: 21 tests. The `TestOnly` signer produces byte-identical output to
    the current `test_only_signature_for_hash` path, so wiring it in is golden-neutral.
-   REMAINING 4b: give `XriqNode` a producer `SchemeSigner` (default `TestOnly`) and
-   route header signing through it (the block-production path currently computes the
-   header signature in `produce_next_block_with_private_devnet_signature` and passes
-   it *through* `produce_next_block_inner`, which rebuilds the header — so for
-   ed25519 the `public_key` must be threaded too, i.e. sign inside the inner builder
-   via the signer). 4c: faucet transfer signing via the signer. 4d:
-   `--producer-key-file` loading (gitignored key file → `SchemeSigner::ed25519`).
+   **(4b — producer signing) DONE.** `XriqNode` gained `producer_signer:
+   SchemeSigner` (default `TestOnly`, set via a `with_producer_signer` builder;
+   `producer_signer_scheme()` accessor). Header signing now happens *inside*
+   `produce_next_block_inner`: after the producer builds the block (canonical roots
+   + height set), the node's `producer_signer.sign_block_header(&mut block.header)`
+   stamps the `public_key` + `signature` before the block is hashed and stored —
+   gated by a `sign_with_producer_signer` flag so only the dedicated signing entry
+   point (`produce_next_block_with_private_devnet_signature`) uses it; the
+   explicit-signature paths (`produce_next_block`, canonical-hash/roots) are
+   unchanged. (`produce_block` rejects an empty signature, so a non-empty placeholder
+   is passed and fully replaced by the signer.) `SchemeSigner` got manual `Clone` /
+   `Debug` (redacted — never prints key bytes) / `PartialEq`+`Eq` (compares scheme +
+   public key only, never secret bytes) so it can live in the derive-heavy node
+   struct. Default nodes stay byte-identical (golden-neutral: all fixtures unchanged).
+   New test `producer_signer_signs_produced_blocks_under_its_scheme`: an ed25519
+   producer node produces a header that records the producer public key, verifies
+   under the ed25519 scheme, and imports into a fresh ed25519 follower — a producer
+   now signs ed25519 through the real production path. 329 tests green. REMAINING
+   4c: faucet transfer signing via the signer. 4d: `--producer-key-file` loading
+   (gitignored key file → `SchemeSigner::ed25519`) + wiring the signer into the
+   runner's produce/serve node construction so operators can run an ed25519 producer.
 5. **Flip testnet default to ed25519**; keep test-only for pure unit tests only.
    Migrate the wallet to client-side ed25519 signing + submit-signed path.
 6. **AI-assisted security review** (Claude + Codex) of consensus/crypto/replay/
