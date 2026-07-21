@@ -247,12 +247,24 @@ new key-handling anti-patterns.
    (default / valid key / bad length / missing file), and end-to-end
    `produce_transfer_block_signs_with_producer_key_file` (runs the CLI with a key
    file, reopens the store, and verifies the stored header + transaction under
-   ed25519). 331 tests green; fmt clean; no new clippy. REMAINING 4c: faucet /
-   produce-pending-block ed25519 (the pending path replays txs during node
-   construction, so the scheme must be threaded through
-   `private_devnet_node_with_pending_file` before replay — its own step). NOTE the
-   devnet producer self-signs the sender's transaction (test identity only); real
-   per-account signing is Phase 5 (wallet client-side signing).
+   ed25519). 331 tests green; fmt clean; no new clippy. **(4c —
+   produce-pending-block + faucet ed25519) DONE. Phase 4 complete.** The
+   `--producer-key-file` flag is now wired into `produce-pending-block` and
+   `faucet-dispense` too. The replay-ordering was handled:
+   `private_devnet_node_with_pending_file_and_producer_signer` applies the scheme +
+   signer *before* the pending records are replayed, so ed25519 pending
+   transactions verify under the ed25519 scheme during replay (a test-only node
+   rejects them). The faucet's `public_testnet_file_faucet_dispense` gained a
+   signer-aware variant (no replay, so the signer is applied after construction).
+   Both use the delegate pattern (existing helpers stay test-only for their
+   xriq-api / other callers). End-to-end test
+   `produce_pending_block_replays_and_signs_ed25519_with_producer_key_file`: an
+   ed25519-signed pending transaction (a distinct "wallet" key) is written to the
+   pending file, the CLI produces a block with `--producer-key-file`, and the
+   reopened store's header (producer key) + transaction (wallet key) both verify
+   under ed25519. 332 tests green; fmt clean; no new clippy. NOTE the devnet
+   producer self-signs the constructed transfer/faucet transaction (test identity
+   only); real per-account signing is Phase 5 (wallet client-side signing).
 5. **Flip testnet default to ed25519**; keep test-only for pure unit tests only.
    Migrate the wallet to client-side ed25519 signing + submit-signed path.
 6. **AI-assisted security review** (Claude + Codex) of consensus/crypto/replay/

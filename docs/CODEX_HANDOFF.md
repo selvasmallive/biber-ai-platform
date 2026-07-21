@@ -13280,3 +13280,30 @@ transfer command didn't hit this because it constructs its tx after node build. 
 the devnet producer self-signs the sender's tx (test identity only) -- real
 per-account signing is Phase 5 (wallet client-side ed25519). Then Phase 5 (flip
 testnet default + wallet signing), Phase 6 (AI security review, hard gate).
+CRYPTO PHASE 4c DONE (produce-pending-block + faucet ed25519) -- PHASE 4 COMPLETE:
+--producer-key-file is now wired into produce-pending-block AND faucet-dispense.
+Replay-ordering solved: private_devnet_node_with_pending_file delegates to new
+private_devnet_node_with_pending_file_and_producer_signer, which applies
+.with_signature_scheme(signer.scheme())+.with_producer_signer(signer) BEFORE the
+pending-record replay loop, so ed25519 pending txs verify under ed25519 during
+replay (test-only node rejects them). produce-pending-block command parses the flag
+and calls new private_devnet_file_produce_pending_block_with_producer_signer. Faucet:
+public_testnet_file_faucet_dispense delegates to new
+public_testnet_file_faucet_dispense_with_producer_signer (no pending replay, so
+signer applied after public_testnet_node construction); run_faucet_dispense_command
+parses --producer-key-file. All via the delegate pattern (existing pub helpers stay
+test-only for xriq-api callers -- api main.rs:2248 faucet + 2363/7493 pending
+unchanged). Usage strings updated for both commands. E2e test
+produce_pending_block_replays_and_signs_ed25519_with_producer_key_file: an
+ed25519-signed pending tx (distinct wallet key) written to the pending file via
+render_pending_transaction_record, CLI produce-pending-block with --producer-key-file,
+reopened FileChainStore verifies stored header (producer key) + tx (wallet key) under
+ed25519. Workspace: 332 tests green, fmt clean, no new clippy. PHASE 4 COMPLETE: an
+operator can now run a fully ed25519 producer/faucet from the CLI (--producer-key-file
++ --signature-scheme is implied by the key file: the node verifies under the signer's
+scheme). NOTE devnet still self-signs the constructed transfer/faucet tx (test
+identity only). NEXT: Phase 5 -- flip the public_testnet default to ed25519 (producer/
+faucet run with real keys; genesis/wallet default to ed25519) + migrate the wallet to
+client-side ed25519 signing (submit-signed path), so accounts sign their own txs
+rather than the node self-signing. Then Phase 6 (AI security review, hard gate before
+any value-bearing use; still also gated by legal review).

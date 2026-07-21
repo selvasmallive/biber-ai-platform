@@ -714,7 +714,7 @@ pub fn node_help_text() -> String {
         "  xriq-node chain-check --chain-file <path> [--pending-file <path>] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node produce-transfer-block --chain-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> --nonce <number> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--producer-key-file <path>] [--format text|json]",
         "  xriq-node produce-draft-block --chain-file <path> --draft-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
-        "  xriq-node produce-pending-block --chain-file <path> --pending-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
+        "  xriq-node produce-pending-block --chain-file <path> --pending-file <path> [--alice-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <number>] [--producer-key-file <path>] [--format text|json]",
         "  xriq-node preflight-transfer --chain-file <path> --pending-file <path> --from <address> --to <address> --amount <base-units> --fee <base-units> [--alice-balance <base-units>] [--expires-at-height <height>] [--timestamp-ms <ms>] [--consensus-round <number>] [--format text|json]",
         "  xriq-node explorer-overview --chain-file <path> [--network devnet|testnet] [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
         "  xriq-node block-list --chain-file <path> [--network devnet|testnet] [--alice-balance <base-units>] [--limit <count>] [--format text|json]",
@@ -728,7 +728,7 @@ pub fn node_help_text() -> String {
         "  xriq-node peer-identity --chain-file <path> [--node-seed <string>] [--network devnet|testnet] [--alice-balance <base-units>] [--format json]  (read-only compatibility handshake: network, protocol, tip, node id; also at GET /v1/peer/identity)",
         "  xriq-node peer-peers [--peers-file <path>] [--network devnet|testnet] [--chain-file <path>] [--format json]  (read-only; advertises this node's known peers for discovery; also at GET /v1/peer/peers)",
         "  xriq-node testnet-genesis [--format json]  (read-only; prints the canonical TEST-ONLY public testnet genesis spec and its reproducible genesis_spec_hash)",
-        "  xriq-node faucet-dispense --chain-file <testnet-path> --to <address> [--amount <base-units>] [--max-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <n>] [--format json]  (TEST-ONLY; sends valueless test units from the genesis faucet, balance-capped, and confirms a block)",
+        "  xriq-node faucet-dispense --chain-file <testnet-path> --to <address> [--amount <base-units>] [--max-balance <base-units>] [--timestamp-ms <ms>] [--consensus-round <n>] [--producer-key-file <path>] [--format json]  (TEST-ONLY; sends valueless test units from the genesis faucet, balance-capped, and confirms a block)",
         "  xriq-node peer-sync --chain-file <path> (--peer <http://host:port> | --peers-file <path>) [--discover <max-peers>] [--node-seed <string>] [--network devnet|testnet] [--limit <count>] [--max-rounds <count>] [--alice-balance <base-units>] [--format json]  (follower; handshakes then pulls/validates blocks from one or many peers on the same network, discovering more and skipping itself, into the chain file)",
         "  xriq-node transaction-detail --chain-file <path> --tx-hash <64-hex> [--draft-file <path>] [--network devnet|testnet] [--alice-balance <base-units>] [--format text|json]",
         "  xriq-node snapshot-list --snapshot-root <path> [--limit <count>] [--format text|json]",
@@ -2510,11 +2510,31 @@ fn private_devnet_node_with_pending_file(
     pending_file: impl AsRef<Path>,
     alice_balance: Option<XriqAmount>,
 ) -> Result<XriqNode<FileChainStore>, NodeRunnerError> {
+    private_devnet_node_with_pending_file_and_producer_signer(
+        chain_file,
+        pending_file,
+        alice_balance,
+        SchemeSigner::TestOnly,
+    )
+}
+
+// As `private_devnet_node_with_pending_file`, but the node uses `producer_signer`
+// for signing and its scheme for verification. The scheme is applied BEFORE the
+// pending records are replayed, so ed25519 pending transactions are verified under
+// the ed25519 scheme during replay (not the default test-only).
+fn private_devnet_node_with_pending_file_and_producer_signer(
+    chain_file: impl AsRef<Path>,
+    pending_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    producer_signer: SchemeSigner,
+) -> Result<XriqNode<FileChainStore>, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
     let genesis = private_devnet_runner_genesis(alice_balance);
-    let mut node =
-        XriqNode::from_genesis_replaying_store(&genesis, store).map_err(NodeRunnerError::Node)?;
+    let mut node = XriqNode::from_genesis_replaying_store(&genesis, store)
+        .map_err(NodeRunnerError::Node)?
+        .with_signature_scheme(producer_signer.scheme())
+        .with_producer_signer(producer_signer);
     let pending_load = read_pending_transaction_records(pending_file.as_ref())?;
     quarantine_corrupt_pending_lines(pending_file.as_ref(), &pending_load)?;
     for (tx_hash, transaction) in pending_load.records {
@@ -2653,8 +2673,35 @@ pub fn private_devnet_file_produce_pending_block(
     timestamp_ms: u64,
     consensus_round: u64,
 ) -> Result<ProducedPendingBlockStatus, NodeRunnerError> {
-    let mut node =
-        private_devnet_node_with_pending_file(chain_file, pending_file.as_ref(), alice_balance)?;
+    private_devnet_file_produce_pending_block_with_producer_signer(
+        chain_file,
+        pending_file,
+        alice_balance,
+        timestamp_ms,
+        consensus_round,
+        SchemeSigner::TestOnly,
+    )
+}
+
+/// Produce a block from the pending file signing the header with `producer_signer`,
+/// verifying the replayed pending transactions under its scheme. The default
+/// (test-only) signer is byte-identical to the historical path; pass a
+/// `SchemeSigner::ed25519(key)` (e.g. from `--producer-key-file`) for an ed25519
+/// producer whose pending transactions were submitted ed25519-signed.
+pub fn private_devnet_file_produce_pending_block_with_producer_signer(
+    chain_file: impl AsRef<Path>,
+    pending_file: impl AsRef<Path>,
+    alice_balance: Option<XriqAmount>,
+    timestamp_ms: u64,
+    consensus_round: u64,
+    producer_signer: SchemeSigner,
+) -> Result<ProducedPendingBlockStatus, NodeRunnerError> {
+    let mut node = private_devnet_node_with_pending_file_and_producer_signer(
+        chain_file,
+        pending_file.as_ref(),
+        alice_balance,
+        producer_signer,
+    )?;
     let produced = node
         .produce_next_block_with_private_devnet_signature(timestamp_ms, consensus_round)
         .map_err(NodeRunnerError::Node)?;
@@ -3912,13 +3959,40 @@ pub fn public_testnet_file_faucet_dispense(
     timestamp_ms: Option<u64>,
     consensus_round: u64,
 ) -> Result<FaucetDispenseOutcome, NodeRunnerError> {
+    public_testnet_file_faucet_dispense_with_producer_signer(
+        chain_file,
+        to,
+        amount,
+        max_balance,
+        timestamp_ms,
+        consensus_round,
+        SchemeSigner::TestOnly,
+    )
+}
+
+/// As `public_testnet_file_faucet_dispense`, but the faucet node signs the dispense
+/// transaction and block header with `producer_signer` (and verifies under its
+/// scheme). Default (test-only) is byte-identical to the historical path; pass a
+/// `SchemeSigner::ed25519(key)` (from `--producer-key-file`) for an ed25519 faucet.
+#[allow(clippy::too_many_arguments)]
+pub fn public_testnet_file_faucet_dispense_with_producer_signer(
+    chain_file: impl AsRef<Path>,
+    to: Address,
+    amount: Option<XriqAmount>,
+    max_balance: Option<XriqAmount>,
+    timestamp_ms: Option<u64>,
+    consensus_round: u64,
+    producer_signer: SchemeSigner,
+) -> Result<FaucetDispenseOutcome, NodeRunnerError> {
     let amount = amount
         .unwrap_or_else(|| XriqAmount::from_base_units(PUBLIC_TESTNET_FAUCET_DRIP_BASE_UNITS));
     let max_balance = max_balance.unwrap_or_else(|| {
         XriqAmount::from_base_units(PUBLIC_TESTNET_FAUCET_MAX_BALANCE_BASE_UNITS)
     });
 
-    let mut node = public_testnet_node(chain_file)?;
+    let mut node = public_testnet_node(chain_file)?
+        .with_signature_scheme(producer_signer.scheme())
+        .with_producer_signer(producer_signer);
     let faucet_address =
         Address::parse(PUBLIC_TESTNET_FAUCET_ADDRESS).expect("public testnet faucet address");
 
@@ -4030,6 +4104,7 @@ fn run_faucet_dispense_command(args: &[String]) -> Result<NodeRunnerOutput, Node
         "--max-balance",
         "--timestamp-ms",
         "--consensus-round",
+        "--producer-key-file",
         "--format",
     ])?;
     let _ = RunnerOutputFormat::parse(flags.optional("--format"))?;
@@ -4052,14 +4127,16 @@ fn run_faucet_dispense_command(args: &[String]) -> Result<NodeRunnerOutput, Node
         .map(|value| parse_u64("--consensus-round", value))
         .transpose()?
         .unwrap_or(0);
+    let producer_signer = parse_producer_signer(&flags)?;
 
-    let outcome = public_testnet_file_faucet_dispense(
+    let outcome = public_testnet_file_faucet_dispense_with_producer_signer(
         chain_file,
         to,
         amount,
         max_balance,
         timestamp_ms,
         consensus_round,
+        producer_signer,
     )?;
     Ok(NodeRunnerOutput::Json(render_faucet_dispense_json(
         &outcome,
@@ -4612,6 +4689,7 @@ fn run_produce_pending_block_command(args: &[String]) -> Result<NodeRunnerOutput
         "--alice-balance",
         "--timestamp-ms",
         "--consensus-round",
+        "--producer-key-file",
         "--format",
     ])?;
     let output_format = RunnerOutputFormat::parse(flags.optional("--format"))?;
@@ -4631,12 +4709,14 @@ fn run_produce_pending_block_command(args: &[String]) -> Result<NodeRunnerOutput
         .map(|value| parse_u64("--consensus-round", value))
         .transpose()?
         .unwrap_or(0);
-    private_devnet_file_produce_pending_block(
+    let producer_signer = parse_producer_signer(&flags)?;
+    private_devnet_file_produce_pending_block_with_producer_signer(
         chain_file,
         pending_file,
         alice_balance,
         timestamp_ms,
         consensus_round,
+        producer_signer,
     )
     .map(|status| match output_format {
         RunnerOutputFormat::Text => NodeRunnerOutput::ProducedPendingBlock(status),
@@ -8299,6 +8379,91 @@ mod tests {
         );
 
         let _ = fs::remove_file(&chain_path);
+        let _ = fs::remove_file(&key_path);
+    }
+
+    #[test]
+    fn produce_pending_block_replays_and_signs_ed25519_with_producer_key_file() {
+        use xriq_crypto::{
+            ed25519_public_key, ed25519_sign_hash, ed25519_signing_key_from_seed,
+            verify_block_header_with_scheme, verify_transaction_with_scheme, SignatureSchemeKind,
+        };
+
+        let chain_path = temp_store_path();
+        let chain_text = chain_path.to_string_lossy().to_string();
+        let pending_path = chain_path.with_extension("pending");
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let key_path = chain_path.with_extension("key");
+        let producer_seed = [8u8; 32];
+        fs::write(&key_path, bytes_hex(&producer_seed)).unwrap();
+
+        // A "wallet" ed25519 key signs alice's pending transaction (distinct from
+        // the producer key). Public key set before signing (part of the body).
+        let wallet_key = ed25519_signing_key_from_seed([3u8; 32]);
+        let mut tx = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from: address("alice"),
+            to: address("bobbb"),
+            amount: XriqAmount::from_base_units(25),
+            fee: XriqAmount::from_base_units(2),
+            nonce: 0,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: ed25519_public_key(&wallet_key).to_vec(),
+        };
+        tx.signature = ed25519_sign_hash(&wallet_key, transaction_signing_hash(&tx));
+        let record = render_pending_transaction_record(transaction_hash(&tx), &tx);
+        fs::write(&pending_path, format!("{record}\n")).unwrap();
+
+        // Produce a pending block as an ed25519 producer. The node applies the
+        // ed25519 scheme BEFORE replaying the pending file, so the ed25519 pending
+        // transaction verifies during replay (a test-only node would reject it).
+        run_node_command([
+            "produce-pending-block",
+            "--chain-file",
+            chain_text.as_str(),
+            "--pending-file",
+            pending_text.as_str(),
+            "--producer-key-file",
+            key_path.to_string_lossy().as_ref(),
+            "--alice-balance",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+
+        // The stored block: ed25519 header (producer key) + the ed25519 pending
+        // transaction (wallet key), both verifying under the ed25519 scheme.
+        let store = FileChainStore::open(&chain_path).unwrap();
+        let stored = store.latest_block().unwrap();
+        assert_eq!(
+            stored.block.header.public_key,
+            ed25519_public_key(&ed25519_signing_key_from_seed(producer_seed)).to_vec()
+        );
+        assert_eq!(
+            verify_block_header_with_scheme(SignatureSchemeKind::Ed25519, &stored.block.header),
+            Ok(())
+        );
+        assert_eq!(stored.block.transactions.len(), 1);
+        assert_eq!(
+            stored.block.transactions[0].public_key,
+            ed25519_public_key(&wallet_key).to_vec()
+        );
+        assert_eq!(
+            verify_transaction_with_scheme(
+                SignatureSchemeKind::Ed25519,
+                &stored.block.transactions[0]
+            ),
+            Ok(())
+        );
+
+        let _ = fs::remove_file(&chain_path);
+        let _ = fs::remove_file(&pending_path);
         let _ = fs::remove_file(&key_path);
     }
 
