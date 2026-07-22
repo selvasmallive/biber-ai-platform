@@ -307,6 +307,23 @@ new key-handling anti-patterns.
    encoding (or a server "prepare" step) + the npm dep, and must keep passing
    `scripts/check-wallet-key-safety.mjs` (no server-side keys). Optional: make the
    xriq-rpc submit verify site scheme-aware too (still test-only).
+   **(5c-2 server side — prepare-signing-hash endpoint) DONE.** Chosen the "server
+   prepare" approach so the browser never reimplements canonical encoding:
+   `prepare_signed_submit_signing_hash(fields, public_key_hex, expected_chain_id) ->
+   { transaction_signing_hash }` (pure computation, no state/mutation/secret),
+   reachable at `GET /api/v1/wallet/transfers/prepare-signing-hash` (gated by the
+   existing signed-submit flag). And `transaction_hash` is now **optional for
+   ed25519** on submit — the server derives it from the wallet-supplied signature —
+   so the browser flow is: keygen → `prepare` (get the hash) → sign locally →
+   `submit-signed` with fields + public_key + signature (+ signing hash). Tests:
+   `prepare_signing_hash_matches_the_canonical_hash_for_ed25519_and_test_only`
+   (prepared hash equals the canonical hash, binds the public key, refuses wrong
+   chain), the ed25519 submit test extended to cover the omitted-hash path, and
+   `prepare_signing_hash_route_returns_the_hash_to_sign` (GET route returns the hash,
+   the public key changes it, POST is not matched). 337 tests green; fmt clean; no
+   new clippy; test-only path byte-identical. REMAINING (5c-2 browser/TS — the last
+   frontend piece): rewire `wallet.tsx` to keygen + prepare + sign (`@noble/ed25519`)
+   + submit, keeping `check-wallet-key-safety.mjs` green.
    **(5a — wallet client-side signing) DONE.** `xriq-wallet` `build_test_transfer`
    now delegates to a new `build_transfer_with_signer(request, &SchemeSigner)` that
    signs the transaction locally via the signer; a `--signing-key-file <path>` flag

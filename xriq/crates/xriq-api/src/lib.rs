@@ -775,8 +775,6 @@ pub fn verify_signed_submit_envelope_preview(
         hashes.transaction_signing_hash,
         "hashes.transaction_signing_hash",
     )?;
-    let submitted_transaction_hash =
-        signed_submit_required_hash(hashes.transaction_hash, "hashes.transaction_hash")?;
     let signature_algorithm =
         signed_submit_required_str(signature.algorithm, "signature_envelope.algorithm")?;
     let is_ed25519 = match signature_algorithm {
@@ -824,6 +822,36 @@ pub fn verify_signed_submit_envelope_preview(
         (Vec::new(), Vec::new())
     };
 
+    // Test-only requires the client transaction hash; ed25519 may omit it — the
+    // wallet cannot compute the canonical hash without the encoder, so the server
+    // derives it from the locally-signed transaction the wallet supplied (this is
+    // the "prepare-signing-hash then sign" browser flow).
+    let submitted_transaction_hash = match hashes.transaction_hash {
+        Some(_) => signed_submit_required_hash(hashes.transaction_hash, "hashes.transaction_hash")?
+            .to_string(),
+        None if is_ed25519 => {
+            let preliminary = Transaction {
+                version,
+                chain_id: chain_id.to_string(),
+                from: from.clone(),
+                to: to.clone(),
+                amount,
+                fee,
+                nonce,
+                memo_hash: None,
+                expires_at_height: Some(expires_at_height),
+                signature: SignatureBytes::new(ed25519_signature_bytes.clone()),
+                public_key: public_key_bytes.clone(),
+            };
+            hash_hex(transaction_hash(&preliminary))
+        }
+        None => {
+            return Err(signed_submit_missing_field_refusal(
+                "hashes.transaction_hash",
+            ))
+        }
+    };
+
     if nonce < state.sender_chain_nonce {
         return Err(signed_submit_refusal(
             "stale_nonce",
@@ -843,7 +871,7 @@ pub fn verify_signed_submit_envelope_preview(
     if state
         .pending_transaction_hashes
         .iter()
-        .any(|pending_hash| *pending_hash == submitted_transaction_hash)
+        .any(|pending_hash| *pending_hash == submitted_transaction_hash.as_str())
     {
         return Err(signed_submit_refusal(
             "duplicate_pending_transaction",
@@ -926,6 +954,68 @@ fn signed_submit_invalid_signature() -> SignedSubmitVerificationRefusal {
         "InvalidSignature",
         "signed-submit-invalid-signature:local_request_id",
     )
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignedSubmitPrepareOk {
+    pub endpoint: &'static str,
+    pub transaction_signing_hash: String,
+}
+
+/// Compute the canonical `transaction_signing_hash` for a would-be transaction plus
+/// the signer's `public_key`. This is the server-side "prepare" step of the
+/// non-custodial browser flow: the wallet sends its transaction fields + public key,
+/// receives the exact hash to sign, signs it locally with ed25519, and submits — so
+/// the browser never reimplements the canonical encoding. No signature, no state,
+/// and no mutation are involved. For test-only, `public_key_hex` is omitted.
+pub fn prepare_signed_submit_signing_hash(
+    transaction: SignedSubmitTransactionInput<'_>,
+    public_key_hex: Option<&str>,
+    expected_chain_id: &str,
+) -> Result<SignedSubmitPrepareOk, SignedSubmitVerificationRefusal> {
+    let version = signed_submit_required_u16(transaction.version, "transaction.version")?;
+    let chain_id = signed_submit_required_str(transaction.chain_id, "transaction.chain_id")?;
+    if chain_id != expected_chain_id {
+        return Err(signed_submit_refusal(
+            "wrong_chain_id",
+            400,
+            "WrongChainId",
+            "signed-submit-wrong-chain-id:local_request_id",
+        ));
+    }
+    let from = signed_submit_address(transaction.from, "transaction.from")?;
+    let to = signed_submit_address(transaction.to, "transaction.to")?;
+    let amount = signed_submit_amount(
+        transaction.amount_base_units,
+        "transaction.amount_base_units",
+    )?;
+    let fee = signed_submit_amount(transaction.fee_base_units, "transaction.fee_base_units")?;
+    let nonce = signed_submit_required_u64(transaction.nonce, "transaction.nonce")?;
+    let expires_at_height = signed_submit_required_u64(
+        transaction.expires_at_height,
+        "transaction.expires_at_height",
+    )?;
+    let public_key = match public_key_hex {
+        None => Vec::new(),
+        Some(hex) => parse_hex_bytes(hex).ok_or_else(signed_submit_invalid_signature)?,
+    };
+    let transaction = Transaction {
+        version,
+        chain_id: chain_id.to_string(),
+        from,
+        to,
+        amount,
+        fee,
+        nonce,
+        memo_hash: None,
+        expires_at_height: Some(expires_at_height),
+        signature: SignatureBytes::new(Vec::new()),
+        public_key,
+    };
+    Ok(SignedSubmitPrepareOk {
+        endpoint: SIGNED_SUBMIT_ENDPOINT,
+        transaction_signing_hash: hash_hex(xriq_crypto::transaction_signing_hash(&transaction)),
+    })
 }
 
 fn signed_submit_required_str<'a>(
@@ -4312,13 +4402,101 @@ mod tests {
         assert_eq!(verified.verifier, SIGNED_SUBMIT_ED25519_VERIFIER);
 
         // A tampered signature is rejected (real verification, not reconstruction).
-        let mut bad = good;
+        let mut bad = good.clone();
         bad.signature_envelope.as_mut().unwrap().signature = Some(bad_signature_hex.as_str());
         let refusal =
             verify_signed_submit_envelope_preview(bad, signed_submit_state_context(&pending))
                 .unwrap_err();
         assert_eq!(refusal.code, "invalid_signature");
         assert_eq!(refusal.mutation, "none");
+
+        // The wallet may omit the transaction hash (the prepare-then-sign flow): the
+        // server derives it from the supplied signature and still verifies.
+        let mut omitted = good;
+        omitted.hashes.as_mut().unwrap().transaction_hash = None;
+        let verified_omitted =
+            verify_signed_submit_envelope_preview(omitted, signed_submit_state_context(&pending))
+                .unwrap();
+        assert_eq!(verified_omitted.status, "verified");
+        assert_eq!(verified_omitted.transaction_hash, tx_hash_hex);
+    }
+
+    #[test]
+    fn prepare_signing_hash_matches_the_canonical_hash_for_ed25519_and_test_only() {
+        use xriq_crypto::{
+            ed25519_public_key, ed25519_signing_key_from_seed, transaction_signing_hash,
+        };
+
+        let transaction = SignedSubmitTransactionInput {
+            version: Some(Transaction::SUPPORTED_VERSION),
+            chain_id: Some("xriq-devnet"),
+            from: Some("xriqdev1alice00000000000"),
+            to: Some("xriqdev1carol00000000000"),
+            amount_base_units: Some("5"),
+            fee_base_units: Some("2"),
+            nonce: Some(1),
+            expires_at_height: Some(100),
+        };
+
+        // Test-only (no public key): the prepared hash equals the canonical signing
+        // hash of the empty-key transaction.
+        let expected_test = {
+            let tx = Transaction {
+                version: Transaction::SUPPORTED_VERSION,
+                chain_id: "xriq-devnet".to_string(),
+                from: Address::parse("xriqdev1alice00000000000").unwrap(),
+                to: Address::parse("xriqdev1carol00000000000").unwrap(),
+                amount: XriqAmount::from_base_units(5),
+                fee: XriqAmount::from_base_units(2),
+                nonce: 1,
+                memo_hash: None,
+                expires_at_height: Some(100),
+                signature: SignatureBytes::new(Vec::new()),
+                public_key: Vec::new(),
+            };
+            hash_hex(transaction_signing_hash(&tx))
+        };
+        assert_eq!(
+            prepare_signed_submit_signing_hash(transaction, None, "xriq-devnet")
+                .unwrap()
+                .transaction_signing_hash,
+            expected_test
+        );
+
+        // Ed25519 (with public key): the prepared hash binds the public key, so it
+        // matches the hash the wallet must sign, and differs from the test-only one.
+        let pubkey = ed25519_public_key(&ed25519_signing_key_from_seed([4u8; 32]));
+        let pubkey_hex = bytes_hex(&pubkey);
+        let expected_ed = {
+            let tx = Transaction {
+                version: Transaction::SUPPORTED_VERSION,
+                chain_id: "xriq-devnet".to_string(),
+                from: Address::parse("xriqdev1alice00000000000").unwrap(),
+                to: Address::parse("xriqdev1carol00000000000").unwrap(),
+                amount: XriqAmount::from_base_units(5),
+                fee: XriqAmount::from_base_units(2),
+                nonce: 1,
+                memo_hash: None,
+                expires_at_height: Some(100),
+                signature: SignatureBytes::new(Vec::new()),
+                public_key: pubkey.to_vec(),
+            };
+            hash_hex(transaction_signing_hash(&tx))
+        };
+        let prepared_ed =
+            prepare_signed_submit_signing_hash(transaction, Some(&pubkey_hex), "xriq-devnet")
+                .unwrap()
+                .transaction_signing_hash;
+        assert_eq!(prepared_ed, expected_ed);
+        assert_ne!(prepared_ed, expected_test);
+
+        // Wrong chain id is refused.
+        assert_eq!(
+            prepare_signed_submit_signing_hash(transaction, Some(&pubkey_hex), "xriq-testnet")
+                .unwrap_err()
+                .code,
+            "wrong_chain_id"
+        );
     }
 
     #[test]

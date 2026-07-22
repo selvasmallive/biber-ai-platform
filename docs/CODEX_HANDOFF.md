@@ -13392,3 +13392,31 @@ signed-submit; (d) keep scripts/check-wallet-key-safety.mjs passing (no server-s
 keys, no key literals). The api HTTP surface already parses public_key/signature.
 Then Phase 6 (AI security review, hard gate before any value-bearing use; legal
 review gate too).
+CRYPTO PHASE 5c-2 SERVER SIDE DONE (prepare-signing-hash endpoint + optional tx_hash):
+chose the "server prepare" approach so the browser never reimplements canonical
+encoding. New xriq-api pub fn prepare_signed_submit_signing_hash(transaction:
+SignedSubmitTransactionInput, public_key_hex: Option<&str>, expected_chain_id) ->
+Result<SignedSubmitPrepareOk{endpoint, transaction_signing_hash}, refusal> -- pure
+computation (builds the tx with the public key, returns hash_hex(transaction_signing_hash)),
+no state/mutation/secret. Reachable at GET /api/v1/wallet/transfers/prepare-signing-hash
+(WALLET_SIGNED_SUBMIT_PREPARE_ROUTE) via new
+maybe_local_wallet_signed_submit_prepare_http_response, registered in BOTH dispatch
+sites (request path ~153 and serve runtime ~427), gated by the existing
+enable_local_wallet_signed_submit flag. ALSO: transaction_hash is now OPTIONAL for
+ed25519 on submit -- verify_signed_submit_envelope_preview derives it from the
+wallet-supplied signature (builds a preliminary tx) when hashes.transaction_hash is
+None; test-only still requires it (removed the early required read, added a
+match{Some->required, None if ed25519->derive, None->missing}). submitted_transaction_hash
+is now String (dup-check compare uses .as_str()). Tests: prepare_signing_hash_matches_
+the_canonical_hash_for_ed25519_and_test_only (lib), extended
+signed_submit_preview_verifies_a_real_ed25519_signature to cover omitted tx_hash, and
+prepare_signing_hash_route_returns_the_hash_to_sign (main.rs GET route). Workspace:
+337 tests green, fmt clean, no new clippy, test-only byte-identical. REMAINING 5c-2
+BROWSER/TS (the last frontend piece, NOT done): rewire xriq/apps/explorer-ui
+wallet.tsx (currently preview-only) to: generate/hold an ed25519 keypair client-side,
+GET prepare-signing-hash (fields+public_key) -> signing hash, sign locally with
+@noble/ed25519 (add npm dep), POST submit-signed with fields+public_key+signature
+(+signing hash); keep scripts/check-wallet-key-safety.mjs green (no server-side keys,
+no key literals). The api HTTP surface is fully ready (prepare GET + ed25519
+submit-signed accepting public_key/signature, tx_hash optional). Then Phase 6 (AI
+security review, hard gate before any value-bearing use; also legal review gate).

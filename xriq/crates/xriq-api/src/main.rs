@@ -10,7 +10,8 @@ use std::{
 };
 
 use xriq_api::{
-    local_refusal_audit_events, pending_mempool_entries_from_tsv, product_api_http_response,
+    local_refusal_audit_events, pending_mempool_entries_from_tsv,
+    prepare_signed_submit_signing_hash, product_api_http_response,
     verify_signed_submit_envelope_preview, ApiHttpResponse, LocalRefusalAuditEventResponse,
     SignedSubmitEnvelopeInput, SignedSubmitHashesInput, SignedSubmitSignatureEnvelopeInput,
     SignedSubmitStateContext, SignedSubmitTransactionInput, SignedSubmitVerificationOk,
@@ -148,6 +149,13 @@ fn run_request(args: &[&str]) -> Result<String, String> {
             config.chain_file,
             config.pending_file,
             config.alice_balance,
+        );
+    }
+    if response.is_none() && config.enable_local_wallet_signed_submit {
+        response = maybe_local_wallet_signed_submit_prepare_http_response(
+            &service,
+            config.method,
+            config.target,
         );
     }
     if response.is_none() && config.enable_local_wallet_signed_submit {
@@ -420,6 +428,14 @@ fn local_api_http_response(
             if let Some(error) = refresh_runtime_after_local_mutation(runtime, &response) {
                 return error;
             }
+            return response;
+        }
+    }
+
+    if runtime.enable_local_wallet_signed_submit {
+        if let Some(response) =
+            maybe_local_wallet_signed_submit_prepare_http_response(&runtime.service, method, target)
+        {
             return response;
         }
     }
@@ -786,6 +802,70 @@ impl<'a> LocalWalletSignedSubmitPreviewRequest<'a> {
                 pending_transaction_hashes: &pending_hashes,
             },
         )
+    }
+}
+
+const WALLET_SIGNED_SUBMIT_PREPARE_ROUTE: &str = "/api/v1/wallet/transfers/prepare-signing-hash";
+
+// Read-only: compute the canonical signing hash the wallet must sign for the given
+// transaction fields + public key. No state, no mutation, no secret. This is the
+// server side of the non-custodial browser flow (prepare → sign locally with ed25519
+// → submit-signed), so the browser never reimplements the canonical encoding.
+fn maybe_local_wallet_signed_submit_prepare_http_response(
+    service: &XriqApiService,
+    method: &str,
+    target: &str,
+) -> Option<ApiHttpResponse> {
+    let (path, query) = split_http_target(target);
+    if method != "GET" || path != WALLET_SIGNED_SUBMIT_PREPARE_ROUTE {
+        return None;
+    }
+    let version = match optional_u16_query(query, "version") {
+        Ok(value) => value,
+        Err(error) => return Some(local_api_error_response(400, "bad_request", &error)),
+    };
+    let nonce = match query_param(query, "nonce")
+        .map(|value| parse_u64_query(value, "nonce"))
+        .transpose()
+    {
+        Ok(value) => value,
+        Err(error) => return Some(local_api_error_response(400, "bad_request", &error)),
+    };
+    let expires_at_height = match query_param(query, "expires_at_height")
+        .map(|value| parse_u64_query(value, "expires_at_height"))
+        .transpose()
+    {
+        Ok(value) => value,
+        Err(error) => return Some(local_api_error_response(400, "bad_request", &error)),
+    };
+    let transaction = SignedSubmitTransactionInput {
+        version,
+        chain_id: query_param(query, "chain_id"),
+        from: query_param(query, "from_address").or_else(|| query_param(query, "from")),
+        to: query_param(query, "to_address").or_else(|| query_param(query, "to")),
+        amount_base_units: query_param(query, "amount_base_units")
+            .or_else(|| query_param(query, "amount")),
+        fee_base_units: query_param(query, "fee_base_units").or_else(|| query_param(query, "fee")),
+        nonce,
+        expires_at_height,
+    };
+    let public_key = query_param(query, "public_key");
+    let expected_chain_id = &service.snapshot().chain_id;
+    match prepare_signed_submit_signing_hash(transaction, public_key, expected_chain_id) {
+        Ok(prepared) => Some(ApiHttpResponse {
+            status_code: 200,
+            reason: "OK",
+            body: format!(
+                "{{\n  \"endpoint\": {},\n  \"transaction_signing_hash\": {}\n}}",
+                json_string(prepared.endpoint),
+                json_string(&prepared.transaction_signing_hash)
+            ),
+        }),
+        Err(refusal) => Some(local_api_error_response(
+            refusal.http_status,
+            refusal.code,
+            "prepare-signing-hash rejected the transaction fields",
+        )),
     }
 }
 
@@ -8038,6 +8118,46 @@ mod tests {
             fs::read_to_string(&pending_path).unwrap(),
             base_pending_text
         );
+
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(pending_path);
+    }
+
+    #[test]
+    fn prepare_signing_hash_route_returns_the_hash_to_sign() {
+        let (path, pending_path, service) = confirmed_signed_submit_preview_service("prepare-hash");
+        let path_text = path.to_string_lossy().to_string();
+        let pending_text = pending_path.to_string_lossy().to_string();
+        let mut runtime = LocalApiRuntime {
+            service,
+            postgres_read_model: None,
+            chain_file: path_text,
+            pending_file: Some(pending_text),
+            alice_balance: Some(XriqAmount::from_base_units(100)),
+            enable_local_wallet_submit: false,
+            enable_local_wallet_send: false,
+            enable_local_wallet_signed_submit: true,
+            enable_local_block_production: false,
+            enable_local_testnet_faucet: false,
+            faucet_rate_limiter: FaucetRateLimiter::default(),
+        };
+        let base = "/api/v1/wallet/transfers/prepare-signing-hash?version=1&chain_id=xriq-devnet&from_address=xriqdev1alice00000000000&to_address=xriqdev1carol00000000000&amount_base_units=5&fee_base_units=2&nonce=1&expires_at_height=100";
+        let pubkey_hex = "aa".repeat(32);
+        let with_key = format!("{base}&public_key={pubkey_hex}");
+
+        let response = local_api_http_response(&mut runtime, "GET", &with_key, "127.0.0.1");
+        assert_eq!(response.status_code, 200);
+        assert!(response.body.contains("\"transaction_signing_hash\""));
+
+        // The public key is part of the signed body, so it changes the hash — the
+        // route threads it through to the canonical encoding.
+        let without_key = local_api_http_response(&mut runtime, "GET", base, "127.0.0.1");
+        assert_eq!(without_key.status_code, 200);
+        assert_ne!(without_key.body, response.body);
+
+        // Prepare is read-only (GET); a POST to it is not matched as prepare.
+        let posted = local_api_http_response(&mut runtime, "POST", &with_key, "127.0.0.1");
+        assert_ne!(posted.status_code, 200);
 
         let _ = fs::remove_file(path);
         let _ = fs::remove_file(pending_path);
