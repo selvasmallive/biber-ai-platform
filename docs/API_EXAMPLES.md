@@ -590,7 +590,10 @@ python scripts/biber_agent_client.py show-repair-test-verification \
 python scripts/biber_agent_client.py list-repair-test-verifications \
   /workspace/outputs \
   --passed-only \
-  --limit 10
+  --limit 10 \
+  --output /workspace/outputs/biber-mvp-loop-repair-test-verification-list.json
+python scripts/biber_agent_client.py show-repair-test-verification-list \
+  /workspace/outputs/biber-mvp-loop-repair-test-verification-list.json
 python scripts/biber_agent_client.py export-verified-repair \
   /workspace/outputs/biber-mvp-loop-repair-test-verification.json \
   --output /workspace/outputs/biber-mvp-loop-verified-repairs.jsonl

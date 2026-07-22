@@ -234,6 +234,9 @@ rerunning the directory scan.
 After guarded repair edits are applied, `list-repair-edit-applies --output`
 saves the applied queue and `show-repair-edit-apply-list` reopens that queue
 without rerunning the directory scan.
+After repaired tests are verified, `list-repair-test-verifications --output`
+saves the passed-verification queue and `show-repair-test-verification-list`
+reopens that queue without rerunning the directory scan.
 It also includes the full local MVP-loop repair smoke, which starts from a real
 failed local `mvp-loop` artifact and walks through local-model repair, review,
 guarded apply, verification, and status without API credentials.

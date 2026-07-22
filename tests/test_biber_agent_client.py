@@ -7674,6 +7674,42 @@ def test_run_list_repair_test_verifications_summarizes_without_api_key(
     assert "test_id=python-compileall-api" in output
     assert f"plan_hash={'a' * 64}" in output
 
+    list_artifact = tmp_path / "repair-test-verification-list.json"
+    json_output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "list-repair-test-verifications",
+                str(tmp_path),
+                "--passed-only",
+                "--limit",
+                "5",
+                "--output",
+                str(list_artifact),
+            ]
+        )
+    )
+    result = json.loads(json_output)
+    saved = json.loads(list_artifact.read_text(encoding="utf-8"))
+    show_output = client.run(
+        client.parse_args(["show-repair-test-verification-list", str(list_artifact)])
+    )
+    show_json = json.loads(
+        client.run(
+            client.parse_args(
+                ["--json", "show-repair-test-verification-list", str(list_artifact)]
+            )
+        )
+    )
+
+    assert result["source"] == "biber_mvp_loop_repair_test_verification_list"
+    assert result["artifact_path"] == str(list_artifact)
+    assert saved == result
+    assert show_json == result
+    assert "BIBER repair test verification artifacts (1)" in show_output
+    assert str(passed) in show_output
+    assert "status=passed" in show_output
+
 
 def test_build_verified_repair_review_record_rejects_failed_verification(
     tmp_path: Path,
