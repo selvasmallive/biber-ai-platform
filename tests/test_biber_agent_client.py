@@ -9959,6 +9959,55 @@ def test_run_list_ready_repair_chain_eval_candidate_reviews_without_api_key(
     assert "groups=1" in output
     assert "repo_provenance_ready=1" in output
 
+    list_artifact = tmp_path / "ready-repair-chain-eval-candidate-review-list.json"
+    json_output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "list-ready-repair-chain-eval-candidate-reviews",
+                str(tmp_path),
+                "--ready-only",
+                "--limit",
+                "5",
+                "--output",
+                str(list_artifact),
+            ]
+        )
+    )
+    result = json.loads(json_output)
+    saved = json.loads(list_artifact.read_text(encoding="utf-8"))
+    show_output = client.run(
+        client.parse_args(
+            ["show-ready-repair-chain-eval-candidate-review-list", str(list_artifact)]
+        )
+    )
+    show_json = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "show-ready-repair-chain-eval-candidate-review-list",
+                    str(list_artifact),
+                ]
+            )
+        )
+    )
+
+    assert (
+        result["source"]
+        == "biber_mvp_loop_ready_repair_chain_eval_candidate_review_list"
+    )
+    assert result["artifact_path"] == str(list_artifact)
+    assert saved == result
+    assert show_json == result
+    assert (
+        "BIBER ready repair-chain eval-candidate review artifacts (1)"
+        in show_output
+    )
+    assert str(ready_artifact) in show_output
+    assert "ready_only: True" in show_output
+    assert "repo_provenance_ready=1" in show_output
+
 
 def test_run_record_ready_repair_chain_eval_candidate_decision_without_api_key(
     monkeypatch,

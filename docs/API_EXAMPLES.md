@@ -694,7 +694,10 @@ python scripts/biber_agent_client.py show-ready-repair-chain-eval-candidate-revi
 python scripts/biber_agent_client.py list-ready-repair-chain-eval-candidate-reviews \
   /workspace/outputs \
   --ready-only \
-  --limit 10
+  --limit 10 \
+  --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-candidate-review-list.json
+python scripts/biber_agent_client.py show-ready-repair-chain-eval-candidate-review-list \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-candidate-review-list.json
 # Only record eval-dataset readiness after manual dataset review.
 python scripts/biber_agent_client.py record-ready-repair-chain-eval-candidate-decision \
   /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-candidates.jsonl \
