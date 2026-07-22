@@ -38,6 +38,18 @@ but run the 3B fallback:
 `BIBER_HF_MODEL=Qwen/Qwen2.5-Coder-3B-Instruct BIBER_VLLM_SERVED_MODEL_NAME=biber-dev-core BIBER_LOCAL_MODEL_NAME=biber-dev-core BIBER_MAX_MODEL_LEN=4096 bash scripts/vast_start_direct.sh`,
 then `bash scripts/vast_status_direct.sh` and `bash scripts/vast_test_direct.sh`.
 Do not recreate the volume, rotate credentials, or start training.
+Live GPU checkpoint after the 3B fallback: on 2026-07-22 the Vast instance
+successfully started `Qwen/Qwen2.5-Coder-3B-Instruct` while keeping the served
+alias `biber-dev-core`. Confirmed state from `vast_status_direct.sh` and
+`vast_test_direct.sh`: vLLM pid `12171`, FastAPI pid `13291`, API bind
+`127.0.0.1:8000`, vLLM bind `127.0.0.1:8001`, GPU memory used about
+`14447 MiB / 16311 MiB`, `/health` returned ok, `/v1/runtime` reported
+`mentor_enabled=false`, `/v1/models` listed `biber-dev-core` rooted at
+`Qwen/Qwen2.5-Coder-3B-Instruct`, and the chat smoke returned content `ok`
+with `mentor_used=false`. This checkpoint used no OpenAI mentor call, no
+training, no credential rotation, and no volume rebuild. Next safe BIBER step:
+run the live-provider readiness gate against the local endpoint, then run a
+narrow local repair/provider flow or held-out eval only if needed.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
