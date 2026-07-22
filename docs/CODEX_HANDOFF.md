@@ -17,6 +17,18 @@ bootstrap. `scripts/vast_bootstrap_direct.sh` now defaults to
 `BIBER_VLLM_PACKAGE=vllm==0.10.2` plus
 `BIBER_VLLM_PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu128` so the
 fresh virtualenv uses a CUDA 12.8-compatible vLLM path. Do not start training.
+Follow-up on the same instance: the CUDA 12.8 reinstall succeeded
+(`torch 2.8.0+cu128`, `vllm 0.10.2`), but startup then failed before GPU model
+load because `transformers 5.14.1` removed the tokenizer attribute vLLM 0.10.2
+expects: `Qwen2Tokenizer has no attribute all_special_tokens_extended`. This is
+a package compatibility issue, not OOM, storage, credentials, or model
+rotation. `scripts/vast_bootstrap_direct.sh` now also defaults
+`BIBER_VLLM_TRANSFORMERS_PACKAGE` to `transformers>=4.55.2,<5.0.0` and restores
+`requirements-api.txt` after the vLLM install so Starlette/FastAPI pins stay
+consistent. Next Vast command: pull latest branch, run
+`BIBER_START_AFTER_BOOTSTRAP=false bash scripts/vast_bootstrap_direct.sh`, then
+`BIBER_MAX_MODEL_LEN=4096 bash scripts/vast_start_direct.sh`. Do not recreate
+the volume and do not start training.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is

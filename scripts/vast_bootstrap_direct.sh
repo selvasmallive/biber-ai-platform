@@ -39,10 +39,11 @@ if [ "${BIBER_SKIP_VLLM_INSTALL:-false}" = "true" ]; then
   warn "Skipping vLLM install because BIBER_SKIP_VLLM_INSTALL=true."
 else
   log "Installing or verifying vLLM"
+  VLLM_PACKAGE="${BIBER_VLLM_PACKAGE:-vllm==0.10.2}"
+  VLLM_PYTORCH_INDEX_URL="${BIBER_VLLM_PYTORCH_INDEX_URL:-https://download.pytorch.org/whl/cu128}"
+  VLLM_TRANSFORMERS_PACKAGE="${BIBER_VLLM_TRANSFORMERS_PACKAGE:-transformers>=4.55.2,<5.0.0}"
   if [ "${BIBER_FORCE_VLLM_INSTALL:-false}" = "true" ] \
     || ! "${VENV_DIR}/bin/python" -c 'import vllm' >/dev/null 2>&1; then
-    VLLM_PACKAGE="${BIBER_VLLM_PACKAGE:-vllm==0.10.2}"
-    VLLM_PYTORCH_INDEX_URL="${BIBER_VLLM_PYTORCH_INDEX_URL:-https://download.pytorch.org/whl/cu128}"
     "${VENV_DIR}/bin/pip" install "$VLLM_PACKAGE" --extra-index-url "$VLLM_PYTORCH_INDEX_URL"
   else
     "${VENV_DIR}/bin/python" - <<'PY'
@@ -50,6 +51,10 @@ import vllm
 print(f"vLLM already installed: {vllm.__version__}")
 PY
   fi
+  log "Installing vLLM compatibility pins"
+  "${VENV_DIR}/bin/pip" install "$VLLM_TRANSFORMERS_PACKAGE"
+  log "Restoring API dependency pins after vLLM install"
+  "${VENV_DIR}/bin/pip" install -r "${ROOT_DIR}/requirements-api.txt"
 fi
 
 log "Validating project scaffold"

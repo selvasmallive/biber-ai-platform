@@ -112,12 +112,19 @@ vLLM install to a CUDA 12.8-compatible stack:
 ```text
 BIBER_VLLM_PACKAGE=vllm==0.10.2
 BIBER_VLLM_PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu128
+BIBER_VLLM_TRANSFORMERS_PACKAGE=transformers>=4.55.2,<5.0.0
 ```
 
 This avoids accidentally installing a newer CUDA 13 PyTorch/vLLM stack that
 cannot run on a host driver exposing CUDA 12.8. If that already happened, move
 `/workspace/biber-venv` aside and rerun bootstrap after pulling the latest
 branch.
+
+If vLLM starts but fails with
+`Qwen2Tokenizer has no attribute all_special_tokens_extended`, the runtime has
+pulled an incompatible Transformers 5.x tokenizer API. Pull the latest branch
+and rerun bootstrap once; it will reinstall the compatible Transformers 4.x
+range and restore BIBER API dependency pins before start.
 
 If a restored adapter exists, prefer adapter serving:
 

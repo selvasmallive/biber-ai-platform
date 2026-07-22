@@ -192,6 +192,7 @@ install:
 ```text
 BIBER_VLLM_PACKAGE=vllm==0.10.2
 BIBER_VLLM_PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu128
+BIBER_VLLM_TRANSFORMERS_PACKAGE=transformers>=4.55.2,<5.0.0
 ```
 
 If a previous bootstrap accidentally installed a CUDA 13 PyTorch/vLLM stack,
@@ -203,6 +204,19 @@ bash scripts/vast_stop_direct.sh || true
 mv /workspace/biber-venv "/workspace/biber-venv-cuda13-bad-$(date -u +%Y%m%dT%H%M%SZ)"
 git pull --ff-only origin biber/mvp-resume-20260712
 BIBER_START_AFTER_BOOTSTRAP=false BIBER_FORCE_VLLM_INSTALL=true bash scripts/vast_bootstrap_direct.sh
+BIBER_MAX_MODEL_LEN=4096 bash scripts/vast_start_direct.sh
+```
+
+If vLLM starts but fails with
+`Qwen2Tokenizer has no attribute all_special_tokens_extended`, pull the latest
+branch and rerun bootstrap once. The bootstrap will downgrade Transformers back
+to the compatible 4.x line and restore the BIBER API dependency pins:
+
+```bash
+cd /workspace/biber-ai-platform
+git pull --ff-only origin biber/mvp-resume-20260712
+bash scripts/vast_stop_direct.sh || true
+BIBER_START_AFTER_BOOTSTRAP=false bash scripts/vast_bootstrap_direct.sh
 BIBER_MAX_MODEL_LEN=4096 bash scripts/vast_start_direct.sh
 ```
 
