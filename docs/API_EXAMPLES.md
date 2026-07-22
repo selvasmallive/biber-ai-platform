@@ -741,7 +741,10 @@ python scripts/biber_agent_client.py show-ready-repair-chain-eval-prompts \
 python scripts/biber_agent_client.py list-ready-repair-chain-eval-prompts \
   /workspace/outputs \
   --ready-only \
-  --limit 10
+  --limit 10 \
+  --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-prompt-list.json
+python scripts/biber_agent_client.py show-ready-repair-chain-eval-prompt-list \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-prompt-list.json
 python scripts/biber_agent_client.py review-repair-chain-heldout-eval-results \
   /workspace/outputs/evals/biber-repair-chain-heldout.jsonl \
   --summary /workspace/outputs/evals/biber-repair-chain-heldout.summary.json \

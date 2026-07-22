@@ -569,6 +569,16 @@ summarizes that saved queue without rerunning the directory scan. This is the
 next resumability step before `export-ready-repair-chain-eval-prompts`, and
 remains CPU-local with no GPU, training, OpenAI mentor, external paid API, or
 credential rotation.
+Sixty-fourth BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py list-ready-repair-chain-eval-prompts` now
+supports `--output` and writes saved held-out eval prompt queue JSON with
+`source=biber_mvp_loop_ready_repair_chain_eval_prompt_list` plus
+`artifact_path`. `show-ready-repair-chain-eval-prompt-list <artifact>`
+summarizes that saved queue without rerunning the directory scan. The next
+pipeline action after this checkpoint is the held-out live eval run through a
+GPU/local model endpoint; do not start Vast/GPU work until fresh credentials are
+available. This checkpoint remains CPU-local with no GPU, training, OpenAI
+mentor, external paid API, or credential rotation.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

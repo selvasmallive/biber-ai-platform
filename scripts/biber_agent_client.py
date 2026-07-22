@@ -10596,6 +10596,21 @@ def summarize_ready_repair_chain_eval_prompt_artifact(
     return summary
 
 
+def normalize_ready_repair_chain_eval_prompt_artifact_list(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_ready_repair_chain_eval_prompt_list":
+        return dict(payload)
+    if isinstance(payload.get("artifacts"), list) and (
+        payload.get("directory") or payload.get("pattern")
+    ):
+        return dict(payload)
+    body = payload.get("body")
+    if isinstance(body, dict):
+        return normalize_ready_repair_chain_eval_prompt_artifact_list(body)
+    return None
+
+
 def list_ready_repair_chain_eval_prompt_artifacts(
     *,
     directory: str,
@@ -18232,6 +18247,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=1,
     )
 
+    show_ready_repair_chain_eval_prompt_list = subparsers.add_parser(
+        "show-ready-repair-chain-eval-prompt-list",
+        help=(
+            "Summarize a saved list-ready-repair-chain-eval-prompts --output "
+            "JSON artifact."
+        ),
+    )
+    show_ready_repair_chain_eval_prompt_list.add_argument("artifact")
+
     list_ready_repair_chain_eval_prompts = subparsers.add_parser(
         "list-ready-repair-chain-eval-prompts",
         help=(
@@ -18253,6 +18277,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--ready-only",
         action="store_true",
     )
+    list_ready_repair_chain_eval_prompts.add_argument("--output")
 
     review_repair_chain_heldout_eval_results = subparsers.add_parser(
         "review-repair-chain-heldout-eval-results",
@@ -19975,6 +20000,26 @@ def run(args: argparse.Namespace) -> str:
                 inspection
             )
         )
+    if args.command == "show-ready-repair-chain-eval-prompt-list":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="ready repair-chain eval prompt list artifact",
+        )
+        normalized = normalize_ready_repair_chain_eval_prompt_artifact_list(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "ready repair-chain eval prompt list artifact must contain a "
+                "saved list-ready-repair-chain-eval-prompts JSON object."
+            )
+        if not normalized.get("artifact_path"):
+            normalized["artifact_path"] = str(Path(args.artifact))
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_ready_repair_chain_eval_prompt_artifact_list_summary(
+                normalized
+            )
+        )
     if args.command == "list-ready-repair-chain-eval-prompts":
         artifacts = list_ready_repair_chain_eval_prompt_artifacts(
             directory=args.directory,
@@ -19982,6 +20027,9 @@ def run(args: argparse.Namespace) -> str:
             limit=args.limit,
             ready_only=args.ready_only,
         )
+        if args.output:
+            artifacts["artifact_path"] = str(Path(args.output))
+            write_json_artifact(artifacts, args.output)
         return (
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
