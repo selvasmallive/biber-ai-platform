@@ -564,7 +564,10 @@ python scripts/biber_agent_client.py show-repair-edit-plan \
 python scripts/biber_agent_client.py list-repair-edit-plans \
   /workspace/outputs \
   --planned-only \
-  --limit 10
+  --limit 10 \
+  --output /workspace/outputs/biber-mvp-loop-repair-edit-plan-list.json
+python scripts/biber_agent_client.py show-repair-edit-plan-list \
+  /workspace/outputs/biber-mvp-loop-repair-edit-plan-list.json
 python scripts/biber_agent_client.py apply-repair-edits \
   /workspace/outputs/biber-mvp-loop-repair-edit-plan.json \
   --approve \

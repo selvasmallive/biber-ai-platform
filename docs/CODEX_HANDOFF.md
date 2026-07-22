@@ -483,6 +483,14 @@ Fifty-third BIBER resume checkpoint on the same branch:
 without rerunning the directory scan. This is the next resumability step before
 `plan-repair-edits`, and remains CPU-local with no GPU, training, OpenAI
 mentor, external paid API, or credential rotation.
+Fifty-fourth BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py list-repair-edit-plans` now supports `--output`
+and writes saved repair-plan queue JSON with
+`source=biber_mvp_loop_repair_edit_plan_list` plus `artifact_path`.
+`show-repair-edit-plan-list <artifact>` summarizes that saved planned queue
+without rerunning the directory scan. This is the next resumability step before
+`apply-repair-edits`, and remains CPU-local with no GPU, training, OpenAI
+mentor, external paid API, or credential rotation.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
