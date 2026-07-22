@@ -605,7 +605,10 @@ python scripts/biber_agent_client.py show-verified-repair-review \
 python scripts/biber_agent_client.py list-verified-repair-reviews \
   /workspace/outputs \
   --ready-only \
-  --limit 10
+  --limit 10 \
+  --output /workspace/outputs/biber-mvp-loop-verified-repair-review-list.json
+python scripts/biber_agent_client.py show-verified-repair-review-list \
+  /workspace/outputs/biber-mvp-loop-verified-repair-review-list.json
 python scripts/biber_agent_client.py show-repair-chain \
   --mvp-loop /workspace/outputs/biber-mvp-loop.json \
   --repair /workspace/outputs/biber-mvp-loop-repair.json \

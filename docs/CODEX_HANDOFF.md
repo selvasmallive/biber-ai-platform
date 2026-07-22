@@ -508,6 +508,14 @@ passed-verification queue without rerunning the directory scan. This is the
 next resumability step before `export-verified-repair`, and remains CPU-local
 with no GPU, training, OpenAI mentor, external paid API, or credential
 rotation.
+Fifty-seventh BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py list-verified-repair-reviews` now supports
+`--output` and writes saved human-review queue JSON with
+`source=biber_mvp_loop_verified_repair_review_list` plus `artifact_path`.
+`show-verified-repair-review-list <artifact>` summarizes that saved review
+queue without rerunning the directory scan. This is the next resumability step
+before `show-repair-chain`, and remains CPU-local with no GPU, training,
+OpenAI mentor, external paid API, or credential rotation.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

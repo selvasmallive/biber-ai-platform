@@ -237,6 +237,9 @@ without rerunning the directory scan.
 After repaired tests are verified, `list-repair-test-verifications --output`
 saves the passed-verification queue and `show-repair-test-verification-list`
 reopens that queue without rerunning the directory scan.
+After verified repairs are reviewed, `list-verified-repair-reviews --output`
+saves the human-review queue and `show-verified-repair-review-list` reopens
+that queue without rerunning the directory scan.
 It also includes the full local MVP-loop repair smoke, which starts from a real
 failed local `mvp-loop` artifact and walks through local-model repair, review,
 guarded apply, verification, and status without API credentials.

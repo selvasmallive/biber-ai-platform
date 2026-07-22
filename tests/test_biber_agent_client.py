@@ -8028,6 +8028,42 @@ def test_run_list_verified_repair_reviews_summarizes_without_api_key(
     assert "status=needs_human_review" in output
     assert "groups=1" in output
 
+    list_artifact = tmp_path / "verified-repair-review-list.json"
+    json_output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "list-verified-repair-reviews",
+                str(tmp_path),
+                "--ready-only",
+                "--limit",
+                "5",
+                "--output",
+                str(list_artifact),
+            ]
+        )
+    )
+    result = json.loads(json_output)
+    saved = json.loads(list_artifact.read_text(encoding="utf-8"))
+    show_output = client.run(
+        client.parse_args(["show-verified-repair-review-list", str(list_artifact)])
+    )
+    show_json = json.loads(
+        client.run(
+            client.parse_args(
+                ["--json", "show-verified-repair-review-list", str(list_artifact)]
+            )
+        )
+    )
+
+    assert result["source"] == "biber_mvp_loop_verified_repair_review_list"
+    assert result["artifact_path"] == str(list_artifact)
+    assert saved == result
+    assert show_json == result
+    assert "BIBER verified repair review artifacts (1)" in show_output
+    assert str(ready) in show_output
+    assert "status=needs_human_review" in show_output
+
 
 def test_run_show_repair_chain_summarizes_ready_chain_without_api_key(
     monkeypatch,
