@@ -106,6 +106,19 @@ bash scripts/vast_status_direct.sh
 bash scripts/vast_test_direct.sh
 ```
 
+For CUDA 12.8 Vast hosts, the bootstrap path intentionally pins the default
+vLLM install to a CUDA 12.8-compatible stack:
+
+```text
+BIBER_VLLM_PACKAGE=vllm==0.10.2
+BIBER_VLLM_PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu128
+```
+
+This avoids accidentally installing a newer CUDA 13 PyTorch/vLLM stack that
+cannot run on a host driver exposing CUDA 12.8. If that already happened, move
+`/workspace/biber-venv` aside and rerun bootstrap after pulling the latest
+branch.
+
 If a restored adapter exists, prefer adapter serving:
 
 ```bash

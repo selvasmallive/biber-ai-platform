@@ -186,6 +186,26 @@ For a smaller model:
 BIBER_HF_MODEL=Qwen/Qwen2.5-Coder-3B-Instruct bash scripts/vast_bootstrap_direct.sh
 ```
 
+For CUDA 12.8 Vast hosts, bootstrap defaults vLLM to a CUDA 12.8-compatible
+install:
+
+```text
+BIBER_VLLM_PACKAGE=vllm==0.10.2
+BIBER_VLLM_PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu128
+```
+
+If a previous bootstrap accidentally installed a CUDA 13 PyTorch/vLLM stack,
+move the bad virtualenv aside and rerun bootstrap:
+
+```bash
+cd /workspace/biber-ai-platform
+bash scripts/vast_stop_direct.sh || true
+mv /workspace/biber-venv "/workspace/biber-venv-cuda13-bad-$(date -u +%Y%m%dT%H%M%SZ)"
+git pull --ff-only origin biber/mvp-resume-20260712
+BIBER_START_AFTER_BOOTSTRAP=false BIBER_FORCE_VLLM_INSTALL=true bash scripts/vast_bootstrap_direct.sh
+BIBER_MAX_MODEL_LEN=4096 bash scripts/vast_start_direct.sh
+```
+
 For private or rate-limited Hugging Face models:
 
 ```bash

@@ -4,6 +4,20 @@ Last updated: 2026-07-19
 
 ## Current Goal
 
+2026-07-22 Vast resume note: the new low-cost Vast instance
+`45558024` has `/workspace` mounted on a 500 GB volume and exposes an
+RTX 5060 Ti 16 GB GPU with host driver `570.153.02` / CUDA `12.8`.
+The first fresh bootstrap successfully installed API dependencies and started
+vLLM, but `pip install vllm` pulled a CUDA 13 PyTorch/vLLM stack
+(`vllm 0.25.1`, `torch 2.11.0` with CUDA 13 packages). vLLM failed with
+`RuntimeError: The NVIDIA driver on your system is too old (found version
+12080)`. The fix is not credential or model rotation: pull the latest
+`biber/mvp-resume-20260712`, move `/workspace/biber-venv` aside, and rerun
+bootstrap. `scripts/vast_bootstrap_direct.sh` now defaults to
+`BIBER_VLLM_PACKAGE=vllm==0.10.2` plus
+`BIBER_VLLM_PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu128` so the
+fresh virtualenv uses a CUDA 12.8-compatible vLLM path. Do not start training.
+
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
 now treated as a separate XRIS-Coin project. Keep model providers swappable,
