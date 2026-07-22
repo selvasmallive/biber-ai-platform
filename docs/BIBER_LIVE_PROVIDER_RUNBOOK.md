@@ -28,6 +28,11 @@ requires at least one of these:
 
 Do not ask for GPU details just because the user says "continue."
 
+Before the user rents a new instance, prefer the minimum-cost profile in
+`docs/BIBER_VAST_COST_SAVING_RESUME.md`: one 16 GB NVIDIA GPU, 80-120 GB
+container disk, and a 250-500 GB `/workspace` volume depending on whether old
+model caches/adapters are being restored.
+
 ## What To Ask The User For
 
 Ask for connection metadata, not secret values:
@@ -131,3 +136,11 @@ Keep the failure cheap and local first:
 - rerun `python scripts/biber_live_provider_readiness.py --model <alias>`
 
 Only then ask the user for updated Vast connection metadata.
+
+## Switching GPUs
+
+When moving to another Vast GPU, continue from GitHub branch
+`biber/mvp-resume-20260712` and restore runtime artifacts only if a prior
+volume or local backup is available. Use
+`docs/BIBER_VAST_COST_SAVING_RESUME.md` and `readme-reinstantiate.md` for the
+exact commands. Do not assume old `/workspace` state exists on a fresh GPU.

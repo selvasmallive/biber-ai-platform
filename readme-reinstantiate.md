@@ -46,6 +46,14 @@ biber-logs  about 156 KB
 Choose a volume with extra space for the Python venv, vLLM cache, future
 outputs, and training artifacts.
 
+For the lowest-cost BIBER MVP resume, see
+`docs/BIBER_VAST_COST_SAVING_RESUME.md`. The minimum practical profile for the
+current default 7B coding model is usually one 16 GB NVIDIA GPU, 80-120 GB
+container disk, and a 250-500 GB `/workspace` volume. Use `500 GB` when
+restoring `.hf_home`, adapters, outputs, or datasets; use `250-300 GB` only for
+short live eval/inference sessions where redownloading model cache later is
+acceptable.
+
 After Vast shows the new SSH host and port, set these PowerShell variables on
 your workstation. Adjust `$BackupRoot` to your actual backup folder:
 
@@ -81,6 +89,12 @@ Clone the repo:
 
 ```powershell
 ssh -i $Key -p $NewPort root@$NewHost "cd /workspace && git clone https://github.com/selvasmallive/biber-ai-platform.git && cd biber-ai-platform && git checkout main && git pull --ff-only origin main"
+```
+
+For the current BIBER MVP-only branch, prefer:
+
+```powershell
+ssh -i $Key -p $NewPort root@$NewHost "cd /workspace && git clone https://github.com/selvasmallive/biber-ai-platform.git && cd biber-ai-platform && git checkout biber/mvp-resume-20260712 && git pull --ff-only origin biber/mvp-resume-20260712"
 ```
 
 ## 3. Upload The Local Backup

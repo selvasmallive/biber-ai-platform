@@ -39,9 +39,11 @@ Primary files to read first:
    GPU connection details are needed.
 4. `readme-reinstantiate.md` if local runtime artifacts were backed up and
    should be uploaded to a new GPU/volume.
-5. `README.md`
-6. `docs/VAST_DIRECT_DEPLOY.md`
-7. `xriq/README.md`
+5. `docs/BIBER_VAST_COST_SAVING_RESUME.md` before renting or switching a Vast
+   GPU.
+6. `README.md`
+7. `docs/VAST_DIRECT_DEPLOY.md`
+8. `xriq/README.md`
 
 ## What Is Not Preserved If The Vast Volume Is Destroyed
 
@@ -312,6 +314,24 @@ If CLI automation is required, create a Vast API key in the Vast console Keys
 page and store it locally with `vastai set api-key YOUR_API_KEY` or in a local
 environment variable. Do not commit it, paste it into docs, or include it in
 training data.
+
+## Minimum-Cost Vast Resume
+
+For the current BIBER MVP live eval/inference path, the lowest practical rental
+target is usually:
+
+```text
+1x NVIDIA GPU with 16 GB VRAM
+80-120 GB container disk
+250-300 GB persistent volume for a short session
+500 GB persistent volume when restoring prior model cache/adapters
+32 GB system RAM minimum
+```
+
+Use `docs/BIBER_VAST_COST_SAVING_RESUME.md` as the source of truth when
+switching GPUs. If the old volume or local artifact backup is unavailable,
+future sessions should rebuild from GitHub branch `biber/mvp-resume-20260712`
+and redownload the model cache instead of assuming `/workspace` exists.
 
 ## Cost-Control Rules
 

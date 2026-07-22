@@ -579,6 +579,16 @@ pipeline action after this checkpoint is the held-out live eval run through a
 GPU/local model endpoint; do not start Vast/GPU work until fresh credentials are
 available. This checkpoint remains CPU-local with no GPU, training, OpenAI
 mentor, external paid API, or credential rotation.
+Sixty-fifth BIBER resume checkpoint on the same branch:
+`docs/BIBER_VAST_COST_SAVING_RESUME.md` records the minimum-cost Vast resume
+profile and GPU-switching procedure for BIBER MVP only. Future sessions should
+use one 16 GB NVIDIA GPU as the practical minimum for the current
+`Qwen/Qwen2.5-Coder-7B-Instruct` path, 80-120 GB container disk, and a
+250-500 GB `/workspace` volume depending on whether old `.hf_home`, adapters,
+outputs, or datasets are being restored. `readme-reinstantiate.md`,
+`readme-resume-biber.md`, and `docs/BIBER_LIVE_PROVIDER_RUNBOOK.md` now link to
+that guide. This checkpoint remains CPU-local with no GPU, training, OpenAI
+mentor, external paid API, or credential rotation.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust
