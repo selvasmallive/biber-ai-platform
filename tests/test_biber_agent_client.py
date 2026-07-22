@@ -10866,6 +10866,52 @@ def test_run_list_ready_repair_chain_eval_dataset_validations_without_api_key(
     assert "ok=True" in output
     assert "groups=1" in output
 
+    list_artifact = tmp_path / "ready-repair-chain-eval-dataset-validation-list.json"
+    json_output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "list-ready-repair-chain-eval-dataset-validations",
+                str(tmp_path),
+                "--ok-only",
+                "--limit",
+                "5",
+                "--output",
+                str(list_artifact),
+            ]
+        )
+    )
+    result = json.loads(json_output)
+    saved = json.loads(list_artifact.read_text(encoding="utf-8"))
+    show_output = client.run(
+        client.parse_args(
+            ["show-ready-repair-chain-eval-dataset-validation-list", str(list_artifact)]
+        )
+    )
+    show_json = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "show-ready-repair-chain-eval-dataset-validation-list",
+                    str(list_artifact),
+                ]
+            )
+        )
+    )
+
+    assert (
+        result["source"]
+        == "biber_mvp_loop_ready_repair_chain_eval_dataset_validation_list"
+    )
+    assert result["artifact_path"] == str(list_artifact)
+    assert saved == result
+    assert show_json == result
+    assert "BIBER ready repair-chain eval-dataset validation artifacts (1)" in show_output
+    assert str(ok_artifact) in show_output
+    assert "ok_only: True" in show_output
+    assert "ok=True" in show_output
+
 
 def test_run_export_ready_repair_chain_eval_prompts_without_api_key(
     monkeypatch,

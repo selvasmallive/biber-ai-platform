@@ -260,6 +260,10 @@ After eval-dataset decisions are reviewed,
 eval-dataset decision review queue and
 `show-ready-repair-chain-eval-dataset-decision-review-list` reopens that queue
 without rerunning the directory scan.
+After eval datasets are validated,
+`list-ready-repair-chain-eval-dataset-validations --output` saves the validation
+queue and `show-ready-repair-chain-eval-dataset-validation-list` reopens that
+queue without rerunning the directory scan.
 It also includes the full local MVP-loop repair smoke, which starts from a real
 failed local `mvp-loop` artifact and walks through local-model repair, review,
 guarded apply, verification, and status without API credentials.

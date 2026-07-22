@@ -729,7 +729,10 @@ python scripts/biber_agent_client.py show-ready-repair-chain-eval-dataset-valida
 python scripts/biber_agent_client.py list-ready-repair-chain-eval-dataset-validations \
   /workspace/outputs \
   --ok-only \
-  --limit 10
+  --limit 10 \
+  --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-dataset-validation-list.json
+python scripts/biber_agent_client.py show-ready-repair-chain-eval-dataset-validation-list \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-dataset-validation-list.json
 python scripts/biber_agent_client.py export-ready-repair-chain-eval-prompts \
   /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-dataset.jsonl \
   --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-prompts.jsonl

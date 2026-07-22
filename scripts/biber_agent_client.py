@@ -9873,6 +9873,26 @@ def normalize_ready_repair_chain_eval_dataset_validation_artifact(
     return None
 
 
+def normalize_ready_repair_chain_eval_dataset_validation_artifact_list(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if (
+        payload.get("source")
+        == "biber_mvp_loop_ready_repair_chain_eval_dataset_validation_list"
+    ):
+        return dict(payload)
+    if isinstance(payload.get("artifacts"), list) and (
+        payload.get("directory") or payload.get("pattern")
+    ):
+        return dict(payload)
+    body = payload.get("body")
+    if isinstance(body, dict):
+        return normalize_ready_repair_chain_eval_dataset_validation_artifact_list(
+            body
+        )
+    return None
+
+
 def summarize_ready_repair_chain_eval_dataset_validation_artifact(
     path: Path,
     payload: Mapping[str, Any],
@@ -18151,6 +18171,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     show_ready_repair_chain_eval_dataset_validation.add_argument("artifact")
 
+    show_ready_repair_chain_eval_dataset_validation_list = subparsers.add_parser(
+        "show-ready-repair-chain-eval-dataset-validation-list",
+        help=(
+            "Summarize a saved list-ready-repair-chain-eval-dataset-validations "
+            "--output JSON artifact."
+        ),
+    )
+    show_ready_repair_chain_eval_dataset_validation_list.add_argument("artifact")
+
     list_ready_repair_chain_eval_dataset_validations = subparsers.add_parser(
         "list-ready-repair-chain-eval-dataset-validations",
         help=(
@@ -18172,6 +18201,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--ok-only",
         action="store_true",
     )
+    list_ready_repair_chain_eval_dataset_validations.add_argument("--output")
 
     export_ready_repair_chain_eval_prompts = subparsers.add_parser(
         "export-ready-repair-chain-eval-prompts",
@@ -19882,6 +19912,29 @@ def run(args: argparse.Namespace) -> str:
                 normalized
             )
         )
+    if args.command == "show-ready-repair-chain-eval-dataset-validation-list":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="ready repair-chain eval-dataset validation list artifact",
+        )
+        normalized = normalize_ready_repair_chain_eval_dataset_validation_artifact_list(
+            artifact
+        )
+        if normalized is None:
+            raise BiberAgentClientError(
+                "ready repair-chain eval-dataset validation list artifact must "
+                "contain a saved list-ready-repair-chain-eval-dataset-validations "
+                "JSON object."
+            )
+        if not normalized.get("artifact_path"):
+            normalized["artifact_path"] = str(Path(args.artifact))
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_ready_repair_chain_eval_dataset_validation_artifact_list_summary(
+                normalized
+            )
+        )
     if args.command == "list-ready-repair-chain-eval-dataset-validations":
         artifacts = list_ready_repair_chain_eval_dataset_validation_artifacts(
             directory=args.directory,
@@ -19889,6 +19942,9 @@ def run(args: argparse.Namespace) -> str:
             limit=args.limit,
             ok_only=args.ok_only,
         )
+        if args.output:
+            artifacts["artifact_path"] = str(Path(args.output))
+            write_json_artifact(artifacts, args.output)
         return (
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
