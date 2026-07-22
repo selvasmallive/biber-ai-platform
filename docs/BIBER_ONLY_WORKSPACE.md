@@ -246,6 +246,10 @@ rerunning the directory scan.
 After ready repair-chain reviews exist, `list-ready-repair-chain-reviews --output`
 saves the review queue and `show-ready-repair-chain-review-list` reopens that
 queue without rerunning the directory scan.
+After ready repair-chain decisions are reviewed,
+`list-ready-repair-chain-decision-reviews --output` saves the decision-review
+queue and `show-ready-repair-chain-decision-review-list` reopens that queue
+without rerunning the directory scan.
 It also includes the full local MVP-loop repair smoke, which starts from a real
 failed local `mvp-loop` artifact and walks through local-model repair, review,
 guarded apply, verification, and status without API credentials.

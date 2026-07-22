@@ -8555,6 +8555,24 @@ def normalize_ready_repair_chain_decision_review_artifact(
     return None
 
 
+def normalize_ready_repair_chain_decision_review_artifact_list(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if (
+        payload.get("source")
+        == "biber_mvp_loop_ready_repair_chain_decision_review_list"
+    ):
+        return dict(payload)
+    if isinstance(payload.get("artifacts"), list) and (
+        payload.get("directory") or payload.get("pattern")
+    ):
+        return dict(payload)
+    body = payload.get("body")
+    if isinstance(body, dict):
+        return normalize_ready_repair_chain_decision_review_artifact_list(body)
+    return None
+
+
 def summarize_ready_repair_chain_decision_review_artifact(
     path: Path,
     payload: Mapping[str, Any],
@@ -17859,6 +17877,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     show_ready_repair_chain_decision_review.add_argument("artifact")
 
+    show_ready_repair_chain_decision_review_list = subparsers.add_parser(
+        "show-ready-repair-chain-decision-review-list",
+        help=(
+            "Summarize a saved list-ready-repair-chain-decision-reviews "
+            "--output JSON artifact."
+        ),
+    )
+    show_ready_repair_chain_decision_review_list.add_argument("artifact")
+
     list_ready_repair_chain_decision_reviews = subparsers.add_parser(
         "list-ready-repair-chain-decision-reviews",
         help=(
@@ -17880,6 +17907,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--decision",
         choices=["defer", "reject", "approve_for_eval"],
     )
+    list_ready_repair_chain_decision_reviews.add_argument("--output")
 
     export_ready_repair_chain_eval_candidates = subparsers.add_parser(
         "export-ready-repair-chain-eval-candidates",
@@ -19530,6 +19558,28 @@ def run(args: argparse.Namespace) -> str:
             if args.print_json
             else format_ready_repair_chain_decision_review_summary(normalized)
         )
+    if args.command == "show-ready-repair-chain-decision-review-list":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="ready repair-chain decision review list artifact",
+        )
+        normalized = normalize_ready_repair_chain_decision_review_artifact_list(
+            artifact
+        )
+        if normalized is None:
+            raise BiberAgentClientError(
+                "ready repair-chain decision review list artifact must contain "
+                "a saved list-ready-repair-chain-decision-reviews JSON object."
+            )
+        if not normalized.get("artifact_path"):
+            normalized["artifact_path"] = str(Path(args.artifact))
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_ready_repair_chain_decision_review_artifact_list_summary(
+                normalized
+            )
+        )
     if args.command == "list-ready-repair-chain-decision-reviews":
         artifacts = list_ready_repair_chain_decision_review_artifacts(
             directory=args.directory,
@@ -19537,6 +19587,9 @@ def run(args: argparse.Namespace) -> str:
             limit=args.limit,
             decision=args.decision,
         )
+        if args.output:
+            artifacts["artifact_path"] = str(Path(args.output))
+            write_json_artifact(artifacts, args.output)
         return (
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
