@@ -2558,11 +2558,17 @@ fn private_devnet_node_with_pending_file_and_producer_signer(
         }
         match node.submit_transaction(tx_hash, transaction) {
             Ok(()) => {}
-            // Idempotent replay: a duplicate pending entry (for example a line
-            // written twice by a crash mid-append or a double-write) must not
-            // brick startup. The transaction is already in the mempool, so skip
-            // the duplicate instead of returning an error.
+            // Idempotent replay: a duplicate pending entry (a line written twice by
+            // a crash mid-append or a double-write) must not brick startup — it is
+            // already in the mempool, so skip it.
             Err(NodeError::Mempool(MempoolError::DuplicateTransaction)) => {}
+            // Two distinct pending transactions for the same (from, nonce) — e.g. a
+            // sender who signed the same body twice (each valid ed25519 signature is
+            // a different tx hash, so the API's tx-hash dedup let both through). The
+            // mempool enforces one transaction per (from, nonce); keep the first and
+            // skip the rest instead of failing startup. Only one can apply anyway
+            // (sequential nonce enforcement), so this cannot double-spend.
+            Err(NodeError::Mempool(MempoolError::DuplicateAccountNonce)) => {}
             Err(error) => return Err(NodeRunnerError::Node(error)),
         }
     }
@@ -8657,6 +8663,43 @@ mod tests {
         );
 
         let _ = fs::remove_file(&chain);
+    }
+
+    #[test]
+    fn pending_replay_tolerates_duplicate_account_nonce_without_bricking() {
+        // Two distinct pending transactions from alice with the SAME nonce (different
+        // amounts -> different signatures and tx hashes, so the tx-hash dedup lets
+        // both into the pending file). Replay must keep one and not fail startup.
+        let chain_path = temp_store_path();
+        let pending_path = chain_path.with_extension("pending");
+
+        let record = |amount: u128| {
+            let tx = transaction(address("alice"), 0, amount, 2);
+            render_pending_transaction_record(transaction_hash(&tx), &tx)
+        };
+        fs::write(&pending_path, format!("{}\n{}\n", record(25), record(26))).unwrap();
+
+        run_node_command([
+            "produce-pending-block",
+            "--chain-file",
+            chain_path.to_string_lossy().as_ref(),
+            "--pending-file",
+            pending_path.to_string_lossy().as_ref(),
+            "--alice-balance",
+            "100",
+            "--timestamp-ms",
+            "1000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+
+        // Exactly one of the two duplicate-nonce transactions was applied.
+        let store = FileChainStore::open(&chain_path).unwrap();
+        assert_eq!(store.latest_block().unwrap().block.transactions.len(), 1);
+
+        let _ = fs::remove_file(&chain_path);
+        let _ = fs::remove_file(&pending_path);
     }
 
     #[test]
