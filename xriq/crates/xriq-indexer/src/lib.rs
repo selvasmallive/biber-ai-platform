@@ -13,7 +13,7 @@ use xriq_core::{
     Transaction, XriqAmount,
 };
 use xriq_crypto::{
-    account_state_root, block_hash as canonical_block_hash, transaction_hash,
+    account_state_root, block_hash as canonical_block_hash, ed25519_address, transaction_hash,
     transactions_root as canonical_transactions_root, verify_block_header_with_scheme,
     verify_transaction_with_scheme, SignatureSchemeKind, SignatureVerificationError,
 };
@@ -634,6 +634,19 @@ fn replay_private_devnet_block(
         .validate_against_parent(&parent)
         .map_err(IndexReplayError::Header)?;
     if record.block.header.producer != genesis.authority {
+        return Err(IndexReplayError::UnauthorizedProducer {
+            expected: genesis.authority.to_string(),
+            actual: record.block.header.producer.to_string(),
+        });
+    }
+    // Under ed25519, bind the producer identity to its signing key (the header's
+    // public key must derive the producer address); an address-string match alone is
+    // forgeable. Mirrors the node's block-import check. Test-only skips it.
+    if scheme == SignatureSchemeKind::Ed25519
+        && !<[u8; 32]>::try_from(record.block.header.public_key.as_slice())
+            .map(|key| ed25519_address(&key) == record.block.header.producer)
+            .unwrap_or(false)
+    {
         return Err(IndexReplayError::UnauthorizedProducer {
             expected: genesis.authority.to_string(),
             actual: record.block.header.producer.to_string(),

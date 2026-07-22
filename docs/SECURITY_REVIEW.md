@@ -36,7 +36,7 @@ confirmed directly in the source.
 
 | # | Severity (test-only → value-bearing) | Title | Status |
 |---|---|---|---|
-| 1 | **Info now → CRITICAL if value-bearing** | Signature not bound to claimed identity (`from`/`producer` ↔ `public_key`) | **Open — required before value** |
+| 1 | **Info now → CRITICAL if value-bearing** | Signature not bound to claimed identity (`from`/`producer` ↔ `public_key`) | **Producer↔key FIXED; sender↔key open (needs key-derived accounts)** |
 | 2 | Low now → Medium | Unbounded allocation from unvalidated length/count prefixes (import DoS) | Open — hardening |
 | 3 | Low → High | Browser signs a server-provided signing hash without local recomputation | Open — hardening |
 | 4 | Low → Medium | Mempool dedup keyed on signature-dependent tx hash, not `(from, nonce)` | Open — hardening |
@@ -75,22 +75,26 @@ scheme these paths were forgeable by design. The finding is that the Ed25519 mig
 presents the *appearance* of authentication without the *substance* of identity
 binding.
 
-**Remediation (required before any value-bearing use — its own focused effort):**
+**Remediation:**
 
-- **Producer ↔ key (implementable against the current model):** under the Ed25519
-  scheme, require `ed25519_address(header.public_key) == header.producer` (equivalently
-  `header.public_key == genesis.authority_pubkey`) in `validate_next_block_state`
-  **and** the indexer's `replay_private_devnet_block`, before/with the signature check.
-  Note: the current ed25519 producer/import tests deliberately sign with keys whose
-  address does **not** match the (opaque devnet) producer — enforcing this binding
-  requires reworking those tests to a key-derived-producer genesis, so it is a
-  deliberate change, not a one-line patch.
-- **Sender ↔ key (requires an architectural step):** enforce
-  `ed25519_address(tx.public_key) == tx.from`. This **cannot** be turned on against the
-  current account model — regular accounts (alice, the faucet, recipients) are opaque
-  addresses, not key-derived, so the check would reject every legitimate transaction
-  (including the faucet's own dispense). It needs a prior "key-derived accounts" phase
-  that makes account addresses a function of their public key.
+- **Producer ↔ key — FIXED** (commit following this review). Under the Ed25519 scheme,
+  `validate_next_block_state` (`xriq-node`) and `replay_private_devnet_block`
+  (`xriq-indexer`) now require `ed25519_address(header.public_key) == header.producer`
+  via `producer_public_key_derives_address`; a non-deriving key → `UnauthorizedProducer`
+  before any state mutation. This closes authority-block forgery: an attacker can no
+  longer forge an authority block by copying the public authority address while signing
+  with their own key. The ed25519 producer/import tests were reworked onto a
+  key-derived-authority genesis (`ed25519_authority_genesis`), and a new negative test
+  (`ed25519_block_with_producer_key_not_deriving_the_authority_address_is_rejected`)
+  proves a forged block is rejected. Test-only carries no key and skips the check.
+- **Sender ↔ key — OPEN (requires an architectural step).** Enforcing
+  `ed25519_address(tx.public_key) == tx.from` **cannot** be turned on against the current
+  account model — regular accounts (alice, the faucet, recipients) are opaque addresses,
+  not key-derived, so the check would reject every legitimate transaction (including the
+  faucet's own dispense). It needs a prior "key-derived accounts" phase that makes an
+  account address a function of its public key. Until then, transaction-sender
+  authenticity is NOT enforced under Ed25519 — a hard blocker before any value-bearing
+  use.
 
 ### 2 — Unbounded allocation from unvalidated length/count prefixes (import DoS)
 
@@ -190,8 +194,9 @@ scheme the authentication is not yet real.** This, plus findings 2–4, means:
 
 > **XRIQ must remain test-only and valueless.** Real cryptography is *necessary but
 > not sufficient*. Before any value-bearing use, the following are hard gates:
-> 1. Identity binding (finding 1) — producer↔key now, and a key-derived-accounts phase
->    for sender↔key — plus findings 2–4 remediated and re-reviewed.
+> 1. Identity binding (finding 1) — producer↔key is now **fixed and tested**; sender↔key
+>    still requires a key-derived-accounts phase — plus findings 2–4 remediated and
+>    re-reviewed.
 > 2. An **independent, human, third-party security audit** (this AI-assisted review does
 >    not replace it).
 > 3. **Legal review** per `docs/XRIQ_LEGAL_RISK_REDUCTION.md` /

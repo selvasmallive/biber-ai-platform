@@ -13489,3 +13489,25 @@ value-bearing use. Rust: 337 tests still green (no code changed in Phase 6 -- re
 NEXT (post-review remediation, each its own effort): producer<->key binding + ed25519 test
 rework; key-derived-accounts phase (enables sender<->key); import-DoS length bounding; browser
 client-side hash recompute; mempool dedup by (from,nonce). Then independent audit + legal.
+SECURITY REMEDIATION 1a DONE (producer<->key binding): closed the block-half of the
+review's headline finding. validate_next_block_state (xriq-node) and
+replay_private_devnet_block (xriq-indexer) now, under the Ed25519 scheme, require
+ed25519_address(header.public_key) == header.producer via new helper
+producer_public_key_derives_address(&[u8],&Address) (node) / inline (indexer); a
+non-deriving or non-32-byte key -> UnauthorizedProducer BEFORE any state mutation.
+Test-only skips it (no key, insecure by design). Closes AUTHORITY BLOCK FORGERY (can no
+longer forge an authority block by copying the public authority address while signing
+with your own key). The two ed25519 producer/import tests were reworked onto a
+KEY-DERIVED-AUTHORITY genesis via new test helpers ed25519_authority_genesis(pubkey)
+(sets genesis.authority = ed25519_address(pubkey), authority_pubkey = pubkey, alice
+funded) + ed25519_authority_node(pubkey) (from_genesis + Ed25519 scheme). New negative
+test ed25519_block_with_producer_key_not_deriving_the_authority_address_is_rejected:
+forge with attacker key [99;32] over an authority-address header -> UnauthorizedProducer,
+no state mutation. Imports: added ed25519_address to xriq-node + xriq-indexer crypto
+imports. Workspace: 338 tests green, fmt clean, no new clippy. SECURITY_REVIEW.md updated
+(finding 1 producer<->key = FIXED; sender<->key still OPEN). STILL OPEN (unchanged):
+sender<->key binding (needs KEY-DERIVED ACCOUNTS phase -- can't enforce against opaque
+accounts or it rejects every tx incl the faucet); import-DoS length bounding; browser
+client-side hash recompute; mempool dedup by (from,nonce); + independent human audit +
+legal review. NEXT candidate: the key-derived-accounts phase (enables sender<->key
+binding), or the import-DoS length-prefix bounding (contained, network-facing).

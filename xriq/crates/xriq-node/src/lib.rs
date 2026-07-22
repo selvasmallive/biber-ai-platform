@@ -18,7 +18,7 @@ use xriq_core::{
     PUBLIC_TESTNET_FAUCET_MAX_BALANCE_BASE_UNITS,
 };
 use xriq_crypto::{
-    account_state_root, ed25519_signing_key_from_seed, transaction_hash,
+    account_state_root, ed25519_address, ed25519_signing_key_from_seed, transaction_hash,
     transactions_root as canonical_transactions_root, verify_block_header_with_scheme,
     verify_transaction_with_scheme, SchemeSigner, SignatureSchemeKind, SignatureVerificationError,
 };
@@ -3896,6 +3896,16 @@ fn runner_default_producer_signer(selection: RunnerGenesis) -> SchemeSigner {
             SchemeSigner::ed25519(ed25519_signing_key_from_seed(PUBLIC_TESTNET_AUTHORITY_SEED))
         }
     }
+}
+
+// True if `public_key` is a 32-byte Ed25519 key whose derived address equals
+// `producer`. Binds an ed25519 block's producer identity to its signing key, so an
+// attacker cannot forge an authority block by copying the (public) authority address
+// while signing with their own key.
+fn producer_public_key_derives_address(public_key: &[u8], producer: &Address) -> bool {
+    <[u8; 32]>::try_from(public_key)
+        .map(|key| &ed25519_address(&key) == producer)
+        .unwrap_or(false)
 }
 
 // Open a file-backed node on the selected genesis (no pending-transaction
@@ -7973,6 +7983,19 @@ impl<S: ChainStore> XriqNode<S> {
         if block.header.producer != self.producer.config().producer {
             return Err(NodeError::UnauthorizedProducer);
         }
+        // Under ed25519, bind the producer identity to its signing key: the header's
+        // public key must derive the producer address, so only the holder of the
+        // authority key can produce authority blocks (an address-string match alone
+        // is forgeable — the address is public). Test-only carries no key and is
+        // insecure by design, so it skips this.
+        if self.signature_scheme == SignatureSchemeKind::Ed25519
+            && !producer_public_key_derives_address(
+                &block.header.public_key,
+                &block.header.producer,
+            )
+        {
+            return Err(NodeError::UnauthorizedProducer);
+        }
         let max_transactions = self.producer.config().max_transactions_per_block;
         if block.transactions.len() > max_transactions {
             return Err(NodeError::TooManyBlockTransactions {
@@ -8210,6 +8233,26 @@ mod tests {
         XriqNode::from_genesis(&genesis, InMemoryChainStore::new()).unwrap()
     }
 
+    // A devnet-shaped genesis whose authority is KEY-DERIVED from `authority_pubkey`
+    // (address == ed25519_address(authority_pubkey)), with alice funded. Used by the
+    // ed25519 producer/import tests so a block signed by the authority key satisfies
+    // the producer↔key binding.
+    fn ed25519_authority_genesis(authority_pubkey: [u8; 32]) -> GenesisConfig {
+        let mut genesis = GenesisConfig::private_devnet();
+        genesis.authority = ed25519_address(&authority_pubkey);
+        genesis.authority_pubkey = authority_pubkey;
+        genesis.with_account(address("alice"), XriqAmount::from_base_units(100), 0)
+    }
+
+    fn ed25519_authority_node(authority_pubkey: [u8; 32]) -> XriqNode<InMemoryChainStore> {
+        XriqNode::from_genesis(
+            &ed25519_authority_genesis(authority_pubkey),
+            InMemoryChainStore::new(),
+        )
+        .unwrap()
+        .with_signature_scheme(SignatureSchemeKind::Ed25519)
+    }
+
     fn node_state_root<S: ChainStore>(node: &XriqNode<S>) -> Hash32 {
         xriq_crypto::account_state_root(&node.ledger().state_root_entries())
     }
@@ -8318,8 +8361,9 @@ mod tests {
         // A node configured with an ed25519 producer key produces ed25519-signed
         // headers. It also verifies ed25519, so it accepts its own blocks.
         let producer_key = ed25519_signing_key_from_seed([4u8; 32]);
-        let mut producer = node()
-            .with_signature_scheme(SignatureSchemeKind::Ed25519)
+        // Key-derived-authority genesis so producer == ed25519_address(producer_key),
+        // as required by the producer↔key binding.
+        let mut producer = ed25519_authority_node(ed25519_public_key(&producer_key))
             .with_producer_signer(SchemeSigner::ed25519(producer_key.clone()));
         assert_eq!(
             producer.producer_signer_scheme(),
@@ -8348,8 +8392,9 @@ mod tests {
             Ok(())
         );
 
-        // And the produced block imports into a fresh ed25519 follower.
-        let mut follower = node().with_signature_scheme(SignatureSchemeKind::Ed25519);
+        // And the produced block imports into a fresh ed25519 follower on the same
+        // key-derived-authority genesis.
+        let mut follower = ed25519_authority_node(ed25519_public_key(&producer_key));
         follower
             .import_block_with_canonical_hash(produced.block)
             .unwrap();
@@ -12919,66 +12964,90 @@ mod tests {
 
     #[test]
     fn ed25519_signed_block_imports_and_applies_end_to_end_under_ed25519_scheme() {
-        use xriq_crypto::{
-            ed25519_public_key, ed25519_sign_hash, ed25519_signing_key_from_seed,
-            SignatureSchemeKind,
-        };
+        use xriq_crypto::{ed25519_public_key, ed25519_sign_hash, ed25519_signing_key_from_seed};
 
-        let mut producer = node().with_signature_scheme(SignatureSchemeKind::Ed25519);
-        let mut follower = node().with_signature_scheme(SignatureSchemeKind::Ed25519);
+        // Key-derived authority: producer address == ed25519_address(producer_key),
+        // so a block signed by the authority key satisfies the producer↔key binding.
+        let producer_key = ed25519_signing_key_from_seed([8u8; 32]);
+        let authority_pubkey = ed25519_public_key(&producer_key);
+        let mut producer = ed25519_authority_node(authority_pubkey);
+        let mut follower = ed25519_authority_node(authority_pubkey);
 
-        // A genuine ed25519-signed transaction (public key set BEFORE signing,
-        // since it is part of the signed body) that the ed25519 producer accepts.
+        // A genuine ed25519-signed transaction from a funded account (public key set
+        // BEFORE signing, since it is part of the signed body).
         let tx_key = ed25519_signing_key_from_seed([7u8; 32]);
         let mut tx = transaction(address("alice"), 0, 25, 2);
         tx.public_key = ed25519_public_key(&tx_key).to_vec();
         tx.signature = ed25519_sign_hash(&tx_key, transaction_signing_hash(&tx));
         producer.submit_transaction_with_canonical_hash(tx).unwrap();
 
-        // Produce a block with canonical roots, then re-sign its header with
-        // ed25519 (roots are unaffected: the signature is not in the signing hash,
-        // and the public key is set before the header is signed).
+        // Produce a block with canonical roots, then re-sign its header with the
+        // authority key (roots are unaffected: the signature is not in the signing
+        // hash, and the public key is set before the header is signed).
         let produced = producer
             .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&producer))
             .unwrap();
         let mut block = produced.block;
-        let producer_key = ed25519_signing_key_from_seed([8u8; 32]);
-        block.header.public_key = ed25519_public_key(&producer_key).to_vec();
+        block.header.public_key = authority_pubkey.to_vec();
         block.header.signature =
             ed25519_sign_hash(&producer_key, block_header_signing_hash(&block.header));
 
-        // The ed25519 follower verifies the ed25519 transaction + header and
-        // applies the block through the real import path.
-        let imported_hash = follower.import_block_with_canonical_hash(block).unwrap();
+        // The ed25519 follower verifies the ed25519 transaction, the header signature,
+        // AND the producer↔key binding, then applies the block via the real import path.
+        let imported_hash = follower
+            .import_block_with_canonical_hash(block.clone())
+            .unwrap();
         assert_eq!(follower.latest_block_hash(), imported_hash);
         assert_eq!(follower.ledger().current_height(), 1);
         assert_eq!(follower.store().len(), 1);
 
-        // Sanity: a test-only follower rejects the same ed25519-signed block's
-        // header, confirming the scheme is what gates acceptance.
-        let mut test_only_follower = node();
-        let produced2 = {
-            let mut p = node().with_signature_scheme(SignatureSchemeKind::Ed25519);
-            let tx_key2 = ed25519_signing_key_from_seed([7u8; 32]);
-            let mut tx2 = transaction(address("alice"), 0, 25, 2);
-            tx2.public_key = ed25519_public_key(&tx_key2).to_vec();
-            tx2.signature = ed25519_sign_hash(&tx_key2, transaction_signing_hash(&tx2));
-            p.submit_transaction_with_canonical_hash(tx2).unwrap();
-            let mut prod = p
-                .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&p))
-                .unwrap();
-            prod.block.header.public_key = ed25519_public_key(&producer_key).to_vec();
-            prod.block.header.signature =
-                ed25519_sign_hash(&producer_key, block_header_signing_hash(&prod.block.header));
-            prod.block
-        };
+        // Sanity: a test-only follower on the same genesis rejects the ed25519 block
+        // (its transaction signature isn't a valid test-only signature), confirming
+        // the scheme is what gates acceptance.
+        let mut test_only_follower = XriqNode::from_genesis(
+            &ed25519_authority_genesis(authority_pubkey),
+            InMemoryChainStore::new(),
+        )
+        .unwrap();
         assert_eq!(
-            test_only_follower.import_block_with_canonical_hash(produced2),
+            test_only_follower.import_block_with_canonical_hash(block),
             Err(NodeError::TransactionSignature(
                 SignatureVerificationError::InvalidSignature
             ))
         );
         assert_eq!(test_only_follower.store().len(), 0);
+    }
+
+    #[test]
+    fn ed25519_block_with_producer_key_not_deriving_the_authority_address_is_rejected() {
+        use xriq_crypto::{ed25519_public_key, ed25519_sign_hash, ed25519_signing_key_from_seed};
+
+        // Legit authority key and a DIFFERENT attacker key.
+        let authority_key = ed25519_signing_key_from_seed([8u8; 32]);
+        let authority_pubkey = ed25519_public_key(&authority_key);
+        let attacker_key = ed25519_signing_key_from_seed([99u8; 32]);
+
+        let mut producer = ed25519_authority_node(authority_pubkey)
+            .with_producer_signer(SchemeSigner::ed25519(authority_key.clone()));
+        let produced = producer
+            .produce_next_block_with_private_devnet_signature(1_000, 0)
+            .unwrap();
+
+        // Forge: keep the authority `producer` address but re-sign the header with the
+        // attacker's own key (address != producer). The signature is internally valid
+        // over the attacker's key, so only the producer↔key binding stops it.
+        let mut forged = produced.block;
+        forged.header.public_key = ed25519_public_key(&attacker_key).to_vec();
+        forged.header.signature =
+            ed25519_sign_hash(&attacker_key, block_header_signing_hash(&forged.header));
+
+        let mut follower = ed25519_authority_node(authority_pubkey);
+        assert_eq!(
+            follower.import_block_with_canonical_hash(forged),
+            Err(NodeError::UnauthorizedProducer)
+        );
+        assert_eq!(follower.store().len(), 0);
+        assert_eq!(follower.ledger().current_height(), 0);
     }
 
     #[test]
