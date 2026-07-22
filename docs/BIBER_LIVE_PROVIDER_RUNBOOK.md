@@ -114,6 +114,14 @@ OpenAI-compatible request. If a live endpoint must use a specific served alias,
 set `BIBER_LOCAL_OPENAI_MODEL` or pass `--model <served-alias>` inside the
 model-command JSON array.
 
+For live repair checks, regenerate the prepared repair request after pulling
+the latest branch. `prepare-repair` now embeds bounded exact source snippets
+from the local target root when they are available, and the provider wrapper
+prepends a strict JSON-only repair system prompt. Do not reuse older prepared
+repair artifacts that only list paths; small local models may invent edits when
+they cannot see exact file content. If no exact source snippet is available,
+the expected safe model response is `{"edits":[]}`.
+
 Continue with the existing deterministic gates:
 
 ```bash

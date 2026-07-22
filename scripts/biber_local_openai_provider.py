@@ -19,6 +19,16 @@ REQUEST_SOURCE = "biber_local_model_command_request"
 STABLE_MODEL_ID = "biber-dev-core-v1"
 CANDIDATE_MODEL_ID = "biber-dev-core-v2-candidate"
 DEFAULT_PROVIDER_MODEL = "biber-dev-core"
+STRICT_REPAIR_SYSTEM_PROMPT = (
+    "You are BIBER's local repair-edit provider. Return exactly one strict JSON "
+    'object and nothing else. The preferred shape is {"edits":[{"path":"...",'
+    '"old_text":"...","new_text":"...","expected_replacements":1}]}. Do not use '
+    "Markdown fences, commentary, or explanations. Use only paths and exact "
+    "source snippets provided in the request. old_text must be copied exactly "
+    'from the request context. If exact old_text is unavailable, the target file '
+    'content is unclear, or no safe edit exists, return exactly {"edits":[]}. '
+    "Never invent file contents, APIs, paths, credentials, or tests."
+)
 
 
 class LocalProviderError(RuntimeError):
@@ -307,6 +317,21 @@ def require_request(payload: Mapping[str, Any]) -> dict[str, Any]:
     return dict(chat_payload)
 
 
+def build_guarded_messages(messages: list[Any]) -> list[dict[str, str]]:
+    guarded: list[dict[str, str]] = [
+        {"role": "system", "content": STRICT_REPAIR_SYSTEM_PROMPT}
+    ]
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        role = str(message.get("role") or "").strip()
+        content = str(message.get("content") or "")
+        if role == "system" and STRICT_REPAIR_SYSTEM_PROMPT in content:
+            continue
+        guarded.append({"role": role, "content": content})
+    return guarded
+
+
 def resolve_model(
     *,
     request: Mapping[str, Any],
@@ -355,7 +380,7 @@ def build_chat_provider_request(
     )
     provider_payload: dict[str, Any] = {
         "model": resolved_model,
-        "messages": chat_payload["messages"],
+        "messages": build_guarded_messages(chat_payload["messages"]),
         "temperature": resolved_temperature,
         "stream": False,
     }

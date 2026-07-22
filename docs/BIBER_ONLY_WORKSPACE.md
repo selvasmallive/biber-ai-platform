@@ -154,6 +154,12 @@ python scripts/biber_local_openai_provider_smoke.py
 The smoke starts a temporary localhost `/v1/chat/completions` mock, confirms
 the wrapper sends the expected OpenAI-compatible payload and optional bearer
 token, and verifies the returned `content` JSON can carry repair edits.
+The wrapper also prepends a strict repair system prompt before calling the
+local OpenAI-compatible endpoint. Local models must return one JSON object
+only, must not use Markdown fences/prose, must copy `old_text` exactly from the
+prepared repair source snippets, and must return `{"edits":[]}` instead of
+inventing file contents or paths. Source snippets are bounded and skip
+secret-like files, dependency/cache folders, and symlinks.
 Then run `review-local-repair-chain` on that combined artifact before asking
 for explicit apply approval. The review is deterministic, no-API, and reports
 blockers, warnings, plan hash, target root, and the next test id.

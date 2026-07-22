@@ -77,6 +77,8 @@ def create_fixture_model_provider(path: Path) -> None:
         "prompt = repair.get('repair_prompt') or ''\n"
         "if 'repair_hint: status=ready_for_prepare_repair' not in prompt:\n"
         "    raise SystemExit('repair hint missing from prompt')\n"
+        "if 'BIBER_FILE_CONTENT_START' not in prompt or 'def answer(:' not in prompt:\n"
+        "    raise SystemExit('exact source context missing from prompt')\n"
         "content = {\n"
         "    'edits': [\n"
         "        {\n"
@@ -204,6 +206,8 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
             and mvp_result.get("test_ok") is False
             and repair_hint.get("status") == "ready_for_prepare_repair"
             and "repair_hint: status=ready_for_prepare_repair" in repair_prompt
+            and "BIBER_FILE_CONTENT_START\ndef answer(:" in repair_prompt
+            and repair_request.get("source_context_snippets_available") is True
             and chain.get("chain_status") == "planned"
             and (chain.get("model_response_source") or {}).get("source")
             == "local_model_command"
@@ -230,6 +234,12 @@ def run_smoke(work_root: Path) -> dict[str, Any]:
         "repair_hint_status": repair_hint.get("status"),
         "repair_prompt_has_hint": (
             "repair_hint: status=ready_for_prepare_repair" in repair_prompt
+        ),
+        "repair_prompt_has_source_context": (
+            "BIBER_FILE_CONTENT_START\ndef answer(:" in repair_prompt
+        ),
+        "source_context_snippets_available": repair_request.get(
+            "source_context_snippets_available"
         ),
         "chain_status": chain.get("chain_status"),
         "review_status": review.get("review_status"),

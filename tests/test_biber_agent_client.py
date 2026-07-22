@@ -92,13 +92,13 @@ def test_local_openai_provider_builds_chat_payload() -> None:
         temperature=None,
     )
 
-    assert payload == {
-        "model": "qwen-local-alias",
-        "messages": [{"role": "user", "content": "Return JSON edits."}],
-        "temperature": 0.1,
-        "max_tokens": 256,
-        "stream": False,
-    }
+    assert payload["model"] == "qwen-local-alias"
+    assert payload["temperature"] == 0.1
+    assert payload["max_tokens"] == 256
+    assert payload["stream"] is False
+    assert payload["messages"][0]["role"] == "system"
+    assert "Return exactly one strict JSON object" in payload["messages"][0]["content"]
+    assert payload["messages"][1] == {"role": "user", "content": "Return JSON edits."}
 
 
 def test_local_openai_provider_maps_stable_logical_model_to_provider_alias(
@@ -1740,6 +1740,11 @@ def test_build_mvp_loop_repair_request_uses_agent_report_context(
     tmp_path: Path,
 ) -> None:
     artifact = tmp_path / "failure-mvp-loop.json"
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text(
+        "def answer(:\n    return 1\n",
+        encoding="utf-8",
+    )
     payload = {
         "ok": False,
         "instruction": "Repair a Python test failure.",
@@ -1811,6 +1816,8 @@ def test_build_mvp_loop_repair_request_uses_agent_report_context(
     summary = client.format_mvp_loop_repair_request_summary(repair)
 
     assert repair["agent_report"] == payload["agent_report"]
+    assert repair["source_context_snippets_available"] is True
+    assert repair["source_context_snippets"][0]["path"] == "src/app.py"
     assert repair["suggested_next_actions"] == [
         "Repair the assertion failure, then rerun python-pytest."
     ]
@@ -1820,8 +1827,34 @@ def test_build_mvp_loop_repair_request_uses_agent_report_context(
     assert "repair_hint: status=ready_for_prepare_repair" in repair["repair_prompt"]
     assert "stack=python category=assertion_failure" in repair["repair_prompt"]
     assert "Repair the assertion failure, then rerun python-pytest." in repair["repair_prompt"]
+    assert "Exact source context snippets:" in repair["repair_prompt"]
+    assert "BIBER_FILE_CONTENT_START\ndef answer(:" in repair["repair_prompt"]
+    assert 'return exactly {"edits":[]}' in repair["repair_prompt"]
+    assert "Do not use Markdown fences" in repair["repair_prompt"]
     assert "agent_report_status: test_failed" in summary
     assert "agent_report_repo: branch=feature/biber head=abc1234 dirty=True" in summary
+
+
+def test_repair_source_context_snippets_skip_secret_like_paths(tmp_path: Path) -> None:
+    (tmp_path / "src").mkdir()
+    (tmp_path / "secrets").mkdir()
+    (tmp_path / "src" / "app.py").write_text("def answer():\n    return 1\n", encoding="utf-8")
+    (tmp_path / ".env").write_text("TOKEN=secret\n", encoding="utf-8")
+    (tmp_path / "id_rsa").write_text("PRIVATE KEY\n", encoding="utf-8")
+    (tmp_path / "secrets" / "token.txt").write_text("secret\n", encoding="utf-8")
+
+    snippets = client.build_repair_source_context_snippets(
+        target_root=tmp_path,
+        selected_context_paths=[
+            ".env",
+            "id_rsa",
+            "secrets/token.txt",
+            "src/app.py",
+        ],
+    )
+
+    assert [snippet["path"] for snippet in snippets] == ["src/app.py"]
+    assert "TOKEN" not in json.dumps(snippets)
 
 
 def test_build_mvp_loop_repair_request_keeps_runtime_profiles(

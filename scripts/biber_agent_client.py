@@ -24,6 +24,33 @@ DEFAULT_REPAIR_INSTRUCTION = (
     "Return a concise repair plan with exact file edit suggestions where possible, "
     "then name the test that should be rerun."
 )
+DEFAULT_REPAIR_CONTEXT_SNIPPET_MAX_FILES = 6
+DEFAULT_REPAIR_CONTEXT_SNIPPET_MAX_BYTES = 6000
+REPAIR_CONTEXT_EXCLUDED_PATH_PARTS = {
+    ".git",
+    ".hg",
+    ".svn",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    "node_modules",
+    "dist",
+    "build",
+    "target",
+}
+REPAIR_CONTEXT_SECRET_FILENAMES = {
+    ".env",
+    "authorized_keys",
+    "credentials",
+    "credentials.json",
+    "id_ed25519",
+    "id_rsa",
+    "known_hosts",
+}
+REPAIR_CONTEXT_SECRET_EXTENSIONS = {".key", ".pem", ".p12", ".pfx"}
 
 
 class BiberAgentClientError(RuntimeError):
@@ -1507,12 +1534,16 @@ def build_repair_prompt(
     instruction: str,
     original_instruction: object,
     selected_context_paths: list[str],
+    source_context_snippets: list[Mapping[str, Any]] | None = None,
     failure: Mapping[str, Any],
     suggested_next_actions: list[str],
     agent_report: Mapping[str, Any] | None = None,
     output_contract: Mapping[str, Any] | None = None,
 ) -> str:
     context_lines = "\n".join(f"- {path}" for path in selected_context_paths) or "- none"
+    source_context_text = format_repair_source_context_snippets(
+        source_context_snippets or []
+    )
     action_lines = "\n".join(f"- {action}" for action in suggested_next_actions) or "- none"
     command = " ".join(str(part) for part in require_list(failure.get("command"))) or "-"
     contract = require_mapping(output_contract) or build_repair_output_contract()
@@ -1586,15 +1617,26 @@ def build_repair_prompt(
             "- If the goal says not to change tests, propose only source/implementation edits.",
             "- Preserve the existing project style and use existing APIs/helpers.",
             (
-                '- Return a strict JSON object first: {"edits":[{"path":"...",'
+                "- Use `old_text` only when it is copied exactly from the source "
+                "context snippets below."
+            ),
+            (
+                '- If the exact old_text is unavailable or a safe edit is unclear, '
+                'return exactly {"edits":[]}.'
+            ),
+            (
+                '- Return only a strict JSON object: {"edits":[{"path":"...",'
                 '"old_text":"...","new_text":"...","expected_replacements":1}]}.'
             ),
-            "- Explanations after the JSON edit object are optional.",
+            "- Do not use Markdown fences or prose before or after the JSON object.",
             "",
             f"Original MVP instruction: {original_instruction or '-'}",
             "",
             "Selected repository context paths:",
             context_lines,
+            "",
+            "Exact source context snippets:",
+            source_context_text,
             "",
             "Output contract:",
             contract_text,
@@ -1620,6 +1662,119 @@ def build_repair_prompt(
             str(failure.get("relevant_output") or ""),
         ]
     )
+
+
+def repair_source_context_target_root(
+    payload: Mapping[str, Any],
+    agent_report: Mapping[str, Any],
+) -> Path | None:
+    report_repo = require_mapping(agent_report.get("repo"))
+    raw_target_root = payload.get("target_root") or report_repo.get("target_root")
+    if not isinstance(raw_target_root, str) or not raw_target_root.strip():
+        return None
+    try:
+        root = Path(raw_target_root.strip()).resolve()
+    except OSError:
+        return None
+    return root if root.is_dir() else None
+
+
+def build_repair_source_context_snippets(
+    *,
+    target_root: Path | None,
+    selected_context_paths: list[str],
+    max_files: int = DEFAULT_REPAIR_CONTEXT_SNIPPET_MAX_FILES,
+    max_bytes_per_file: int = DEFAULT_REPAIR_CONTEXT_SNIPPET_MAX_BYTES,
+) -> list[dict[str, Any]]:
+    if target_root is None or max_files < 1 or max_bytes_per_file < 1:
+        return []
+    try:
+        root = target_root.resolve()
+    except OSError:
+        return []
+    snippets: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw_path in selected_context_paths:
+        if len(snippets) >= max_files:
+            break
+        clean_path = safe_repo_relative_path(raw_path)
+        if clean_path is None or clean_path in seen:
+            continue
+        if not repair_source_context_path_allowed(clean_path):
+            continue
+        seen.add(clean_path)
+        candidate_path = root / clean_path
+        if candidate_path.is_symlink():
+            continue
+        file_path = candidate_path.resolve()
+        if file_path != root and root not in file_path.parents:
+            continue
+        if not file_path.is_file() or file_path.is_symlink():
+            continue
+        try:
+            with file_path.open("rb") as handle:
+                raw = handle.read(max_bytes_per_file + 1)
+        except OSError:
+            continue
+        if b"\x00" in raw[:4096]:
+            continue
+        truncated = len(raw) > max_bytes_per_file
+        if truncated:
+            raw = raw[:max_bytes_per_file]
+        text = raw.decode("utf-8", errors="replace")
+        snippets.append(
+            {
+                "path": clean_path,
+                "content": text,
+                "truncated": truncated,
+                "source": "local_target_root",
+                "max_bytes": max_bytes_per_file,
+            }
+        )
+    return snippets
+
+
+def repair_source_context_path_allowed(clean_path: str) -> bool:
+    path_parts = [part.lower() for part in clean_path.split("/") if part]
+    if any(part in REPAIR_CONTEXT_EXCLUDED_PATH_PARTS for part in path_parts):
+        return False
+    filename = path_parts[-1] if path_parts else ""
+    if filename in REPAIR_CONTEXT_SECRET_FILENAMES or filename.startswith(".env."):
+        return False
+    suffix = Path(filename).suffix.lower()
+    if suffix in REPAIR_CONTEXT_SECRET_EXTENSIONS:
+        return False
+    normalized = f"/{'/'.join(path_parts)}/"
+    return "/secrets/" not in normalized and "/credentials/" not in normalized
+
+
+def format_repair_source_context_snippets(
+    snippets: list[Mapping[str, Any]],
+) -> str:
+    if not snippets:
+        return (
+            '- no exact source snippets available; return exactly {"edits":[]} '
+            "unless the required old_text is present elsewhere in this request."
+        )
+    sections: list[str] = []
+    for snippet in snippets:
+        path = str(snippet.get("path") or "-")
+        content = str(snippet.get("content") or "")
+        content = content.replace("BIBER_FILE_CONTENT_START", "[marker removed]")
+        content = content.replace("BIBER_FILE_CONTENT_END", "[marker removed]")
+        if content and not content.endswith("\n"):
+            content += "\n"
+        sections.extend(
+            [
+                f"- path: {path}",
+                "  copy old_text exactly from between these markers:",
+                "BIBER_FILE_CONTENT_START",
+                content.rstrip("\n"),
+                "BIBER_FILE_CONTENT_END",
+                f"  truncated: {bool(snippet.get('truncated'))}",
+            ]
+        )
+    return "\n".join(sections)
 
 
 def build_repair_output_contract() -> dict[str, Any]:
@@ -1760,6 +1915,11 @@ def build_mvp_loop_repair_request(
             max_chars=max_relevant_output_chars,
         ),
     }
+    source_context_root = repair_source_context_target_root(payload, agent_report)
+    source_context_snippets = build_repair_source_context_snippets(
+        target_root=source_context_root,
+        selected_context_paths=selected_context_paths,
+    )
     repair_instruction = instruction or DEFAULT_REPAIR_INSTRUCTION
     runtime_profile_ids = normalize_runtime_profile_ids(
         payload.get("runtime_profile_ids")
@@ -1769,6 +1929,7 @@ def build_mvp_loop_repair_request(
         instruction=repair_instruction,
         original_instruction=payload.get("instruction"),
         selected_context_paths=selected_context_paths,
+        source_context_snippets=source_context_snippets,
         failure=failure,
         suggested_next_actions=suggested_next_actions,
         agent_report=agent_report,
@@ -1787,6 +1948,8 @@ def build_mvp_loop_repair_request(
         "selected_context_paths": selected_context_paths,
         "selected_context_paths_truncated": len(selected_context_paths)
         < len(all_context_paths),
+        "source_context_snippets": source_context_snippets,
+        "source_context_snippets_available": bool(source_context_snippets),
         "agent_report": agent_report,
         "repair_hint": repair_hint,
         "failure": failure,

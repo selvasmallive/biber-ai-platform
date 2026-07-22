@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-07-19
+Last updated: 2026-07-22
 
 ## Current Goal
 
@@ -58,6 +58,29 @@ returned `ok=true`, `endpoint_reachable=true`, `models_endpoint_ok=true`,
 `mentor_used=false`, and `training_allowed=false`. The next narrow step should
 prove the live model-command bridge with one disposable local repair/provider
 flow before using BIBER on a real repo.
+First disposable live 3B repair-flow result: the live endpoint was reachable,
+but `Qwen/Qwen2.5-Coder-3B-Instruct` returned an invented Markdown-fenced edit
+for a different `def main()` file instead of the actual fixture file containing
+`def answer(:`. The deterministic BIBER gates correctly blocked apply:
+`chain_status=plan_rejected`, `review_status=blocked_before_apply`,
+`apply_recommendation=do_not_apply`, planned edits `0`, rejected edits `1`, and
+the rejection was `Workspace edit replacement count mismatch: expected 1, found
+0`. No files were changed, no OpenAI mentor was used, and no training occurred.
+Follow-up source checkpoint: `prepare-repair` now includes bounded exact source
+context snippets from the local target root when available, and
+`scripts/biber_local_openai_provider.py` now prepends a strict repair system
+message telling local models to return JSON only, avoid Markdown/prose, copy
+`old_text` exactly from provided snippets, and return `{"edits":[]}` rather
+than inventing context. Verified locally with `py_compile`,
+`scripts/biber_local_openai_provider_smoke.py`,
+`scripts/biber_local_mvp_loop_full_repair_smoke.py`, and the combined
+`scripts/biber_local_confidence_smoke.py`; pytest was not run because the
+bundled local Python does not include `pytest`. Next Vast step: pull latest
+`biber/mvp-resume-20260712`, recreate the disposable target/prepared repair
+artifacts so the new source snippets are present, then rerun
+`local-repair-chain --model-command '["python","scripts/biber_local_openai_provider.py"]'`
+against `http://127.0.0.1:8001/v1` / `biber-dev-core`. Apply remains blocked
+unless a later review artifact is explicitly approved.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is

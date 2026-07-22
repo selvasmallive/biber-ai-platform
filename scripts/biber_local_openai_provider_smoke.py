@@ -209,6 +209,9 @@ def run_smoke() -> dict[str, Any]:
         raise RuntimeError(f"expected exactly one mock request, got {len(requests)}")
     recorded = requests[0]
     provider_payload = recorded["payload"]
+    messages = provider_payload.get("messages")
+    first_message = messages[0] if isinstance(messages, list) and messages else {}
+    second_message = messages[1] if isinstance(messages, list) and len(messages) > 1 else {}
     content = json.loads(str(output.get("content") or "{}"))
     edit_paths = [
         str(edit.get("path"))
@@ -226,6 +229,12 @@ def run_smoke() -> dict[str, Any]:
             and recorded.get("authorization") == "Bearer smoke-token"
             and provider_payload.get("model") == "qwen-smoke"
             and provider_payload.get("stream") is False
+            and isinstance(first_message, dict)
+            and first_message.get("role") == "system"
+            and "Return exactly one strict JSON object"
+            in str(first_message.get("content") or "")
+            and isinstance(second_message, dict)
+            and second_message.get("role") == "user"
             and output.get("provider") == "openai-compatible-local"
             and output.get("mentor_used") is False
             and output.get("training_allowed") is False
@@ -243,6 +252,12 @@ def run_smoke() -> dict[str, Any]:
         "training_allowed": False,
         "request_path": recorded.get("path"),
         "request_model": provider_payload.get("model"),
+        "strict_json_system_prompt": (
+            isinstance(first_message, dict)
+            and first_message.get("role") == "system"
+            and "Return exactly one strict JSON object"
+            in str(first_message.get("content") or "")
+        ),
         "response_model": output.get("response_model"),
         "auth_header_present": bool(recorded.get("authorization")),
         "content_edit_paths": edit_paths,
