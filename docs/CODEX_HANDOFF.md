@@ -29,6 +29,15 @@ consistent. Next Vast command: pull latest branch, run
 `BIBER_START_AFTER_BOOTSTRAP=false bash scripts/vast_bootstrap_direct.sh`, then
 `BIBER_MAX_MODEL_LEN=4096 bash scripts/vast_start_direct.sh`. Do not recreate
 the volume and do not start training.
+Follow-up after the Transformers fix: vLLM reached real 7B model loading on
+RTX 5060 Ti 16 GB, but failed with CUDA OOM during Torch Inductor/autotuning:
+the process used about `15.48 GiB` of `15.49 GiB` and failed on a `14 MiB`
+allocation. This confirms the 7B BF16 path is too tight on this 16 GB instance.
+The next live-provider step is to keep the served alias stable (`biber-dev-core`)
+but run the 3B fallback:
+`BIBER_HF_MODEL=Qwen/Qwen2.5-Coder-3B-Instruct BIBER_VLLM_SERVED_MODEL_NAME=biber-dev-core BIBER_LOCAL_MODEL_NAME=biber-dev-core BIBER_MAX_MODEL_LEN=4096 bash scripts/vast_start_direct.sh`,
+then `bash scripts/vast_status_direct.sh` and `bash scripts/vast_test_direct.sh`.
+Do not recreate the volume, rotate credentials, or start training.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is

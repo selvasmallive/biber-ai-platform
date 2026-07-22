@@ -5,11 +5,13 @@ Use this guide for BIBER MVP only. Do not use it for XRIQ/XRIS-Coin work.
 ## Minimum Practical Vast Profile
 
 The current BIBER stable path defaults to `Qwen/Qwen2.5-Coder-7B-Instruct`
-served as `biber-dev-core-v1`. For the next live held-out eval and basic
-inference, choose the cheapest reliable instance that meets this floor:
+served as `biber-dev-core-v1` when GPU memory allows it. On 16 GB GPUs, use the
+3B fallback unless a quantized 7B path is deliberately configured. For the next
+live held-out eval and basic inference, choose the cheapest reliable instance
+that meets this floor:
 
 ```text
-GPU: 1x NVIDIA GPU with 16 GB VRAM
+GPU: 1x NVIDIA GPU with 16 GB VRAM for 3B fallback, 24 GB+ preferred for 7B
 Container disk: 80 GB minimum, 120 GB safer
 Persistent volume: 250 GB minimum, 500 GB safer
 System RAM: 32 GB minimum, 64 GB safer
@@ -23,10 +25,12 @@ Good low-cost choices:
 - `1x RTX 4060 Ti 16GB`
 - another 16 GB NVIDIA GPU with recent CUDA support and good reliability
 
-Avoid 8 GB GPUs for the current default 7B path unless deliberately switching
-to a smaller/quantized model such as a 1.5B or 3B coding model. Avoid renting
-`2x` GPUs just for the next held-out eval unless the price is close to `1x`;
-two 16 GB GPUs do not automatically behave like one 32 GB GPU unless serving or
+Treat 16 GB cards as low-cost 3B inference cards for now. The 7B BF16 path can
+fail during vLLM initialization on 16 GB because model weights plus compile/KV
+memory leave almost no headroom. Avoid 8 GB GPUs unless deliberately switching
+to a smaller/quantized model such as a 1.5B coding model. Avoid renting `2x`
+GPUs just for the next held-out eval unless the price is close to `1x`; two 16
+GB GPUs do not automatically behave like one 32 GB GPU unless serving or
 training is configured for multi-GPU parallelism.
 
 ## Storage Choices
@@ -102,6 +106,22 @@ If no volume/backup is available, rebuild from GitHub:
 cd /workspace/biber-ai-platform
 BIBER_START_AFTER_BOOTSTRAP=false bash scripts/vast_bootstrap_direct.sh
 bash scripts/vast_start_direct.sh
+bash scripts/vast_status_direct.sh
+bash scripts/vast_test_direct.sh
+```
+
+If a 16 GB GPU fails the 7B start with CUDA out-of-memory during vLLM/Torch
+Inductor initialization, switch to the 3B fallback while keeping the public
+served alias stable:
+
+```bash
+cd /workspace/biber-ai-platform
+bash scripts/vast_stop_direct.sh || true
+BIBER_HF_MODEL=Qwen/Qwen2.5-Coder-3B-Instruct \
+  BIBER_VLLM_SERVED_MODEL_NAME=biber-dev-core \
+  BIBER_LOCAL_MODEL_NAME=biber-dev-core \
+  BIBER_MAX_MODEL_LEN=4096 \
+  bash scripts/vast_start_direct.sh
 bash scripts/vast_status_direct.sh
 bash scripts/vast_test_direct.sh
 ```

@@ -180,10 +180,16 @@ For a single 16 GB GPU, reduce sequence length:
 BIBER_VLLM_TENSOR_PARALLEL_SIZE=1 BIBER_MAX_MODEL_LEN=4096 bash scripts/vast_start_direct.sh
 ```
 
-For a smaller model:
+If the 7B model still fails on a 16 GB GPU with CUDA out-of-memory during
+vLLM/Torch Inductor initialization, use the 3B fallback while keeping the served
+alias stable:
 
 ```bash
-BIBER_HF_MODEL=Qwen/Qwen2.5-Coder-3B-Instruct bash scripts/vast_bootstrap_direct.sh
+BIBER_HF_MODEL=Qwen/Qwen2.5-Coder-3B-Instruct \
+  BIBER_VLLM_SERVED_MODEL_NAME=biber-dev-core \
+  BIBER_LOCAL_MODEL_NAME=biber-dev-core \
+  BIBER_MAX_MODEL_LEN=4096 \
+  bash scripts/vast_start_direct.sh
 ```
 
 For CUDA 12.8 Vast hosts, bootstrap defaults vLLM to a CUDA 12.8-compatible
