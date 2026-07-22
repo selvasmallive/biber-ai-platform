@@ -321,9 +321,27 @@ new key-handling anti-patterns.
    chain), the ed25519 submit test extended to cover the omitted-hash path, and
    `prepare_signing_hash_route_returns_the_hash_to_sign` (GET route returns the hash,
    the public key changes it, POST is not matched). 337 tests green; fmt clean; no
-   new clippy; test-only path byte-identical. REMAINING (5c-2 browser/TS — the last
-   frontend piece): rewire `wallet.tsx` to keygen + prepare + sign (`@noble/ed25519`)
-   + submit, keeping `check-wallet-key-safety.mjs` green.
+   new clippy; test-only path byte-identical. **(5c-2 browser/TS) DONE.** The
+   explorer wallet now signs locally, non-custodially. The key-safety guard was
+   **reworked** (with the user's explicit approval — it encoded a legal-risk stance)
+   from "no browser signing at all" to "**no custody anti-patterns**": it now forbids
+   persistence (localStorage/sessionStorage/indexedDB/cookies), mnemonic/seed-phrase/
+   keystore/secret-key material, and raw WebCrypto key export; it isolates all
+   private-key references to a single `signing.ts` module (forbidden elsewhere); and
+   it requires affirmative markers `non-custodial` / `ephemeral` / `never persisted
+   or transmitted`. `src/signing.ts` wraps `@noble/ed25519` (v2 async API):
+   `createEphemeralSigner()` returns `{ publicKeyHex, signHashHex() }` — the private
+   key is a fresh in-memory `Uint8Array` held only in a closure, never returned,
+   persisted, or transmitted. `wallet.tsx` gained a `NonCustodialSignSubmitPanel`
+   (gated by `VITE_XRIQ_ENABLE_LOCAL_WALLET_SIGNED_SUBMIT_UI`) that does keygen →
+   `GET prepare-signing-hash` → sign locally → `POST submit-signed` (public key +
+   signature only). Verified: reworked guard passes, `tsc -b` + `vite build` succeed
+   (`@noble/ed25519` bundled), the full `npm run check` suite passes, and a Node
+   round-trip confirms the v2 API (32-byte pubkey, 64-byte signature, verify=true —
+   standard RFC 8032 Ed25519 that `ed25519_dalek` accepts). NOT browser-functionally
+   tested end-to-end (needs a live server + browser). **Phase 5 complete** (pending
+   a live browser smoke test). Then Phase 6 (AI-assisted security review — hard gate,
+   before any value-bearing use; legal review remains a separate gate).
    **(5a — wallet client-side signing) DONE.** `xriq-wallet` `build_test_transfer`
    now delegates to a new `build_transfer_with_signer(request, &SchemeSigner)` that
    signs the transaction locally via the signer; a `--signing-key-file <path>` flag

@@ -13420,3 +13420,30 @@ GET prepare-signing-hash (fields+public_key) -> signing hash, sign locally with
 no key literals). The api HTTP surface is fully ready (prepare GET + ed25519
 submit-signed accepting public_key/signature, tx_hash optional). Then Phase 6 (AI
 security review, hard gate before any value-bearing use; also legal review gate).
+CRYPTO PHASE 5c-2 BROWSER DONE (non-custodial wallet signing) -- PHASE 5 COMPLETE
+(pending a live browser smoke test): the explorer wallet now signs locally. WITH THE
+USER'S EXPLICIT APPROVAL, reworked scripts/check-wallet-key-safety.mjs from "no
+browser signing at all" (its old markers required "no-signing") to NON-CUSTODIAL:
+forbids persistence (localStorage/sessionStorage/indexedDB/document.cookie),
+mnemonic/seed-phrase/keystore/secret-key material, and raw WebCrypto (crypto.subtle/
+exportKey); isolates ALL private-key references to src/signing.ts (KEY_MATERIAL_ALLOWLIST
+-- forbidden in any other src file); requires affirmative markers "non-custodial",
+"ephemeral", "never persisted or transmitted" in wallet.tsx. New src/signing.ts wraps
+@noble/ed25519 v2 (added dep, ^2.3.0): createEphemeralSigner() -> {publicKeyHex,
+signHashHex(hex)} using ed.utils.randomPrivateKey()/getPublicKeyAsync/signAsync (async
+API uses WebCrypto SHA-512 internally, no @noble/hashes needed); the private key is a
+fresh in-memory Uint8Array in a closure, never returned/persisted/transmitted. api.ts:
+Ed25519TransferFields, prepareSignedSubmitSigningHash (GET), submitEd25519SignedTransfer
+(POST, sends public_key+signature only). wallet.tsx: NonCustodialSignSubmitPanel gated
+by VITE_XRIQ_ENABLE_LOCAL_WALLET_SIGNED_SUBMIT_UI -> keygen -> prepare -> sign ->
+submit-signed; SIGNED_SUBMIT_TEST_SENDER=xriqdev1alice00000000000 (server restricts
+signed-submit to devnet+this sender). VERIFIED: reworked guard passes; tsc -b + vite
+build succeed (@noble bundled, 39 modules); full `npm run check` passes; Node round-trip
+confirms @noble v2 API (32B pubkey, 64B sig, verify=true = RFC 8032 Ed25519 that
+ed25519_dalek accepts). NOT browser-functionally-tested end-to-end (no live server+browser
+in this env) -- a live smoke test (serve-readonly with --enable-local-wallet-submit-signed
++ VITE flag on, click Sign & Submit) is the remaining verification. Rust: 337 tests still
+green. PHASE 5 COMPLETE. REMAINING: live browser smoke test of the signing flow; optional
+xriq-rpc verify site scheme-awareness; then Phase 6 (AI-assisted security review of
+consensus/crypto/replay/serialization -- HARD GATE before any value-bearing use, recorded
+in SECURITY_REVIEW.md; legal review is a separate hard gate).

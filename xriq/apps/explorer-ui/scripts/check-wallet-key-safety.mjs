@@ -2,34 +2,49 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
-// Phase 2 wallet UI key-safety guard.
+// Wallet UI key-safety guard — NON-CUSTODIAL edition.
 //
-// Non-negotiable guardrail (see docs/XRIQ_LEGAL_RISK_REDUCTION.md and
-// .github/copilot-instructions.md): the browser wallet/explorer UI must never
-// generate, store, manage, or transmit private keys, seed phrases, mnemonics,
-// raw signatures, or any custody material. All signing stays server-side /
-// CLI-only in the private devnet. This check fails the build if any forbidden
-// pattern appears in the UI source.
+// Guardrail (see docs/XRIQ_LEGAL_RISK_REDUCTION.md and
+// docs/XRIQ_PRODUCTION_CRYPTO_MIGRATION.md Phase 5c): the browser wallet may sign
+// transactions locally with a vetted Ed25519 library, but ONLY non-custodially —
+// the private key is generated in memory, used once, and never persisted or
+// transmitted. This check fails the build if any *custody* anti-pattern appears in
+// the UI source: persistence of key material (localStorage/sessionStorage/
+// indexedDB/cookies), mnemonic/seed-phrase/keystore material, or raw WebCrypto key
+// export. Ephemeral in-memory signing is allowed; custody is not.
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const srcDir = join(root, "src");
 
 const forbiddenPatterns = [
-  { name: "private key", pattern: /private[_\s-]?key/i },
-  { name: "secret key", pattern: /secret[_\s-]?key/i },
-  { name: "seed phrase", pattern: /seed[_\s-]?phrase/i },
-  { name: "mnemonic", pattern: /mnemonic/i },
-  { name: "key pair", pattern: /\bkey\s?pair\b/i },
-  { name: "keystore", pattern: /\bkeystore\b/i },
-  { name: "web crypto subtle", pattern: /crypto\.subtle/i },
-  { name: "generateKey", pattern: /generateKey/i },
+  // Persisting key material in the browser = custody. Forbidden.
   { name: "localStorage", pattern: /\blocalStorage\b/ },
   { name: "sessionStorage", pattern: /\bsessionStorage\b/ },
   { name: "indexedDB", pattern: /indexedDB/i },
   { name: "document.cookie", pattern: /document\.cookie/i },
-  { name: "raw signature", pattern: /raw[_\s-]?signature/i },
-  { name: "sign transaction", pattern: /sign[_]?transaction/i },
+  // HD / persisted custody material. The ephemeral signer is a fresh random key,
+  // never a mnemonic-derived or stored keystore key.
+  { name: "seed phrase", pattern: /seed[_\s-]?phrase/i },
+  { name: "mnemonic", pattern: /mnemonic/i },
+  { name: "keystore", pattern: /\bkeystore\b/i },
+  { name: "secret key", pattern: /secret[_\s-]?key/i },
+  // Raw WebCrypto key handling is not used (we use a vetted Ed25519 library that
+  // keeps the key an ephemeral Uint8Array); forbid it to avoid extractable-key
+  // footguns and keep the signing surface small.
+  { name: "web crypto subtle", pattern: /crypto\.subtle/i },
+  { name: "web crypto exportKey", pattern: /exportKey/i },
 ];
+
+// Only the isolated signing module may reference the ephemeral private key. The
+// rest of the UI handles only public keys and signatures (defense against
+// accidental custody).
+const KEY_MATERIAL_ALLOWLIST = new Set(["signing.ts"]);
+const privateKeyPattern = /private[_\s-]?key/i;
+
+function baseNameOf(file) {
+  const slash = Math.max(file.lastIndexOf("/"), file.lastIndexOf("\\"));
+  return file.slice(slash + 1);
+}
 
 function collectSourceFiles(dir) {
   const out = [];
@@ -51,6 +66,7 @@ if (files.length === 0) {
 
 const violations = [];
 for (const file of files) {
+  const baseName = baseNameOf(file);
   const lines = readFileSync(file, "utf8").split(/\r?\n/);
   lines.forEach((line, index) => {
     for (const { name, pattern } of forbiddenPatterns) {
@@ -58,26 +74,27 @@ for (const file of files) {
         violations.push(`${file}:${index + 1}: forbidden "${name}": ${line.trim()}`);
       }
     }
+    if (!KEY_MATERIAL_ALLOWLIST.has(baseName) && privateKeyPattern.test(line)) {
+      violations.push(
+        `${file}:${index + 1}: private key material outside the isolated signing module: ${line.trim()}`,
+      );
+    }
   });
 }
 
 if (violations.length > 0) {
   throw new Error(
-    "wallet UI key-safety violations (browser must not handle key material):\n" +
+    "wallet UI key-safety violations (browser signing must stay non-custodial):\n" +
       violations.join("\n"),
   );
 }
 
-// Affirmative safety markers: the wallet UI must keep declaring its
-// preview/local-only, no-signing posture so the guarantee stays explicit.
+// Affirmative safety markers: the wallet UI must keep declaring its non-custodial,
+// ephemeral-key posture so the guarantee stays explicit.
 const walletSource = readFileSync(join(srcDir, "wallet.tsx"), "utf8");
-for (const marker of [
-  "private-devnet-preview-only-no-signing-no-submit",
-  "No signing material",
-  "No signing or submission",
-]) {
+for (const marker of ["non-custodial", "ephemeral", "never persisted or transmitted"]) {
   if (!walletSource.includes(marker)) {
-    throw new Error(`wallet UI is missing required safety marker: ${marker}`);
+    throw new Error(`wallet UI is missing required non-custodial safety marker: ${marker}`);
   }
 }
 
@@ -85,10 +102,11 @@ console.log(
   JSON.stringify(
     {
       ok: "xriq-wallet-ui-key-safety",
+      mode: "non-custodial",
       files_scanned: files.length,
       forbidden_patterns: forbiddenPatterns.length,
       guarantee:
-        "no browser-held private keys, seed phrases, mnemonics, raw signatures, or custody material",
+        "ephemeral in-memory Ed25519 key, isolated to the signing module, never persisted or transmitted; only public key + signature leave the wallet",
     },
     null,
     2,

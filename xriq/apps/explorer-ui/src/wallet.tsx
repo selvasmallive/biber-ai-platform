@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AccountSummary,
   AccountHistoryResponse,
+  Ed25519SignedSubmitAcceptedResponse,
+  Ed25519TransferFields,
   ExplorerSnapshot,
   LocalWalletSendAcceptedResponse,
   LocalWalletSendRequest,
@@ -19,8 +21,11 @@ import {
   loadWalletMutationRefusal,
   loadWalletStatus,
   loadWalletTransactionStatus,
+  prepareSignedSubmitSigningHash,
   sendLocalWalletTransfer,
+  submitEd25519SignedTransfer,
 } from "./api";
+import { createEphemeralSigner } from "./signing";
 
 const DEFAULT_RECIPIENT = "xriqdev1bobbb00000000000";
 const MIN_PRIVATE_DEVNET_FEE = 2n;
@@ -28,6 +33,10 @@ const PREVIEW_WARNING = "private-devnet-preview-only-no-signing-no-submit";
 const PREFLIGHT_WARNING = "local-private-devnet-preflight-only";
 const LOCAL_WALLET_SEND_UI_ENABLED =
   import.meta.env.VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI === "true";
+const LOCAL_WALLET_SIGNED_SUBMIT_UI_ENABLED =
+  import.meta.env.VITE_XRIQ_ENABLE_LOCAL_WALLET_SIGNED_SUBMIT_UI === "true";
+// The server signed-submit endpoint accepts only this configured test sender.
+const SIGNED_SUBMIT_TEST_SENDER = "xriqdev1alice00000000000";
 
 const ACTION_GUARD_EXPECTATIONS: Record<
   WalletMutationAction,
@@ -619,6 +628,10 @@ export function WalletShell({
             onSend={() => void handleLocalWalletSend()}
           />
 
+          {LOCAL_WALLET_SIGNED_SUBMIT_UI_ENABLED ? (
+            <NonCustodialSignSubmitPanel apiBaseUrl={apiBaseUrl} />
+          ) : null}
+
           {validation.errors.length > 0 ? (
             <ul className="validationList" aria-label="Wallet preview checks">
               {validation.errors.map((error) => (
@@ -714,6 +727,128 @@ function LocalWalletSendControl({
           <dt>Chain</dt>
           <dd>{data.chain_state.chain_unchanged ? "unchanged" : "changed"}</dd>
         </dl>
+      ) : null}
+    </div>
+  );
+}
+
+// Key-safety marker note (see scripts/check-wallet-key-safety.mjs): the wallet is
+// non-custodial — it signs with an ephemeral in-memory key that is never persisted
+// or transmitted; only the public key and the signature are sent.
+const NON_CUSTODIAL_SIGNING_NOTE =
+  "This wallet is non-custodial: it signs with an ephemeral in-memory Ed25519 key that is never persisted or transmitted — only the public key and the signature are sent to the server.";
+
+function NonCustodialSignSubmitPanel({ apiBaseUrl }: { apiBaseUrl: string }) {
+  // The server signed-submit endpoint is private-devnet + test-sender only.
+  const chainId = "xriq-devnet";
+  const [to, setTo] = useState(DEFAULT_RECIPIENT);
+  const [amount, setAmount] = useState("5");
+  const [fee, setFee] = useState("2");
+  const [nonce, setNonce] = useState("0");
+  const [expiresAtHeight, setExpiresAtHeight] = useState("100");
+  const [status, setStatus] = useState<"idle" | "signing" | "done" | "error">("idle");
+  const [result, setResult] = useState<Ed25519SignedSubmitAcceptedResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSignAndSubmit() {
+    setStatus("signing");
+    setResult(null);
+    setError(null);
+    try {
+      // Fresh ephemeral signer: the key is generated in memory, used once, and
+      // never persisted or transmitted — only its public key and the signature
+      // leave the wallet.
+      const signer = await createEphemeralSigner();
+      const fields: Ed25519TransferFields = {
+        local_request_id: `local-signed-${Date.now()}`,
+        version: "1",
+        chain_id: chainId,
+        from_address: SIGNED_SUBMIT_TEST_SENDER,
+        to_address: to,
+        amount_base_units: amount,
+        fee_base_units: fee,
+        nonce,
+        expires_at_height: expiresAtHeight,
+      };
+      // 1) Ask the server for the canonical hash to sign (sends only the public key).
+      const prepared = await prepareSignedSubmitSigningHash(
+        apiBaseUrl,
+        fields,
+        signer.publicKeyHex,
+      );
+      // 2) Sign the hash locally with the ephemeral key.
+      const signature = await signer.signHashHex(prepared.transaction_signing_hash);
+      // 3) Submit the signed envelope (public key + signature only).
+      const accepted = await submitEd25519SignedTransfer(
+        apiBaseUrl,
+        fields,
+        signer.publicKeyHex,
+        signature,
+        prepared.transaction_signing_hash,
+      );
+      setResult(accepted);
+      setStatus("done");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught));
+      setStatus("error");
+    }
+  }
+
+  const disabled = !LOCAL_WALLET_SIGNED_SUBMIT_UI_ENABLED || status === "signing";
+
+  return (
+    <div className="localWalletSignedSubmit" aria-label="Non-custodial ed25519 sign and submit">
+      <div className="subHeading">
+        <h3>Non-custodial ed25519 sign &amp; submit</h3>
+        <span>
+          {LOCAL_WALLET_SIGNED_SUBMIT_UI_ENABLED ? "feature switch on" : "feature switch off"}
+        </span>
+      </div>
+      <p className="mutedText">{NON_CUSTODIAL_SIGNING_NOTE}</p>
+      <div className="walletFields">
+        <label>
+          From (test sender)
+          <input value={SIGNED_SUBMIT_TEST_SENDER} readOnly />
+        </label>
+        <label>
+          To
+          <input value={to} onChange={(event) => setTo(event.target.value)} />
+        </label>
+        <label>
+          Amount
+          <input value={amount} onChange={(event) => setAmount(event.target.value)} />
+        </label>
+        <label>
+          Fee
+          <input value={fee} onChange={(event) => setFee(event.target.value)} />
+        </label>
+        <label>
+          Nonce
+          <input value={nonce} onChange={(event) => setNonce(event.target.value)} />
+        </label>
+        <label>
+          Expires at height
+          <input
+            value={expiresAtHeight}
+            onChange={(event) => setExpiresAtHeight(event.target.value)}
+          />
+        </label>
+      </div>
+      <div className="walletActions">
+        <button
+          type="button"
+          onClick={() => void handleSignAndSubmit()}
+          disabled={disabled}
+        >
+          Sign &amp; Submit
+        </button>
+        <span>{status}</span>
+      </div>
+      {error ? <p className="errorText">{error}</p> : null}
+      {result ? (
+        <pre className="previewBox" aria-label="Signed submit result">
+          {JSON.stringify(result, null, 2)}
+        </pre>
       ) : null}
     </div>
   );

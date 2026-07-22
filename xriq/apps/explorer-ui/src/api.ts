@@ -929,6 +929,94 @@ export async function sendLocalWalletTransfer(
   return data;
 }
 
+const WALLET_PREPARE_SIGNING_HASH_PATH = "/api/v1/wallet/transfers/prepare-signing-hash";
+const WALLET_SIGNED_SUBMIT_PATH = "/api/v1/wallet/transfers/submit-signed";
+
+export interface Ed25519TransferFields {
+  local_request_id: string;
+  version: string;
+  chain_id: string;
+  from_address: string;
+  to_address: string;
+  amount_base_units: string;
+  fee_base_units: string;
+  nonce: string;
+  expires_at_height: string;
+}
+
+export interface PrepareSigningHashResponse {
+  endpoint: string;
+  transaction_signing_hash: string;
+}
+
+export interface Ed25519SignedSubmitAcceptedResponse {
+  code: string;
+  status: string;
+  signature_algorithm: string;
+  verifier: string;
+  transaction_hash: string;
+  [key: string]: unknown;
+}
+
+// Ask the server for the canonical signing hash to sign, given the transaction
+// fields and the (public) signer key. No key material is sent — only the public
+// key. This lets the wallet sign locally without reimplementing canonical encoding.
+export async function prepareSignedSubmitSigningHash(
+  baseUrl: string,
+  fields: Ed25519TransferFields,
+  publicKeyHex: string,
+): Promise<PrepareSigningHashResponse> {
+  const params = new URLSearchParams({
+    version: fields.version,
+    chain_id: fields.chain_id,
+    from_address: fields.from_address,
+    to_address: fields.to_address,
+    amount_base_units: fields.amount_base_units,
+    fee_base_units: fields.fee_base_units,
+    nonce: fields.nonce,
+    expires_at_height: fields.expires_at_height,
+    public_key: publicKeyHex,
+  });
+  return fetchJson<PrepareSigningHashResponse>(
+    normalizeBaseUrl(baseUrl),
+    `${WALLET_PREPARE_SIGNING_HASH_PATH}?${params.toString()}`,
+    { method: "GET", acceptedStatuses: [200] },
+  );
+}
+
+// Submit a locally-signed ed25519 transfer. The request carries only the public
+// key and the signature — no signing key material is ever transmitted.
+export async function submitEd25519SignedTransfer(
+  baseUrl: string,
+  fields: Ed25519TransferFields,
+  publicKeyHex: string,
+  signatureHex: string,
+  signingHashHex: string,
+): Promise<Ed25519SignedSubmitAcceptedResponse> {
+  const params = new URLSearchParams({
+    local_request_id: fields.local_request_id,
+    format_version: "xriq-local-signed-transfer-envelope-v1",
+    version: fields.version,
+    chain_id: fields.chain_id,
+    from_address: fields.from_address,
+    to_address: fields.to_address,
+    amount_base_units: fields.amount_base_units,
+    fee_base_units: fields.fee_base_units,
+    nonce: fields.nonce,
+    expires_at_height: fields.expires_at_height,
+    transaction_signing_hash: signingHashHex,
+    signature_algorithm: "ed25519",
+    signature_encoding: "ed25519-hex",
+    public_key: publicKeyHex,
+    signature: signatureHex,
+  });
+  return fetchJson<Ed25519SignedSubmitAcceptedResponse>(
+    normalizeBaseUrl(baseUrl),
+    `${WALLET_SIGNED_SUBMIT_PATH}?${params.toString()}`,
+    { method: "POST", acceptedStatuses: [201] },
+  );
+}
+
 export async function loadBlockProductionRefusal(
   baseUrl: string,
 ): Promise<LocalMutationRefusalResponse> {
