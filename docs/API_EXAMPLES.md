@@ -648,7 +648,10 @@ python scripts/biber_agent_client.py show-ready-repair-chain-review \
 python scripts/biber_agent_client.py list-ready-repair-chain-reviews \
   /workspace/outputs \
   --ready-only \
-  --limit 10
+  --limit 10 \
+  --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-review-list.json
+python scripts/biber_agent_client.py show-ready-repair-chain-review-list \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chain-review-list.json
 python scripts/biber_agent_client.py record-ready-repair-chain-decision \
   /workspace/outputs/biber-mvp-loop-ready-repair-chains.jsonl \
   --decision defer \
