@@ -50,6 +50,14 @@ with `mentor_used=false`. This checkpoint used no OpenAI mentor call, no
 training, no credential rotation, and no volume rebuild. Next safe BIBER step:
 run the live-provider readiness gate against the local endpoint, then run a
 narrow local repair/provider flow or held-out eval only if needed.
+Live-provider readiness then passed on the same endpoint:
+`python scripts/biber_live_provider_readiness.py --base-url http://127.0.0.1:8001/v1 --model biber-dev-core --require-ready --require-model`
+returned `ok=true`, `endpoint_reachable=true`, `models_endpoint_ok=true`,
+`model_available=true`, `available_models_preview=["biber-dev-core"]`,
+`repair_request_sent=false`, `chat_completion_sent=false`,
+`mentor_used=false`, and `training_allowed=false`. The next narrow step should
+prove the live model-command bridge with one disposable local repair/provider
+flow before using BIBER on a real repo.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
