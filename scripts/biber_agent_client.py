@@ -4049,6 +4049,21 @@ def normalize_repair_edit_apply_artifact(
     return None
 
 
+def normalize_repair_edit_apply_artifact_list(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_repair_edit_apply_list":
+        return dict(payload)
+    if isinstance(payload.get("artifacts"), list) and (
+        payload.get("directory") or payload.get("pattern")
+    ):
+        return dict(payload)
+    body = payload.get("body")
+    if isinstance(body, dict):
+        return normalize_repair_edit_apply_artifact_list(body)
+    return None
+
+
 def summarize_repair_edit_apply_artifact(
     path: Path,
     payload: Mapping[str, Any],
@@ -17410,6 +17425,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     show_repair_edit_apply.add_argument("artifact")
 
+    show_repair_edit_apply_list = subparsers.add_parser(
+        "show-repair-edit-apply-list",
+        help="Summarize a saved list-repair-edit-applies --output JSON artifact.",
+    )
+    show_repair_edit_apply_list.add_argument("artifact")
+
     list_repair_edit_applies = subparsers.add_parser(
         "list-repair-edit-applies",
         help=(
@@ -17424,6 +17445,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     list_repair_edit_applies.add_argument("--limit", type=int, default=10)
     list_repair_edit_applies.add_argument("--applied-only", action="store_true")
+    list_repair_edit_applies.add_argument("--output")
 
     show_repair_test_verification = subparsers.add_parser(
         "show-repair-test-verification",
@@ -18947,6 +18969,24 @@ def run(args: argparse.Namespace) -> str:
             if args.print_json
             else format_repair_edit_apply_summary(normalized)
         )
+    if args.command == "show-repair-edit-apply-list":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="repair-edit apply list artifact",
+        )
+        normalized = normalize_repair_edit_apply_artifact_list(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "repair-edit apply list artifact must contain a saved "
+                "list-repair-edit-applies JSON object."
+            )
+        if not normalized.get("artifact_path"):
+            normalized["artifact_path"] = str(Path(args.artifact))
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_edit_apply_artifact_list_summary(normalized)
+        )
     if args.command == "list-repair-edit-applies":
         artifacts = list_repair_edit_apply_artifacts(
             directory=args.directory,
@@ -18954,6 +18994,9 @@ def run(args: argparse.Namespace) -> str:
             limit=args.limit,
             applied_only=args.applied_only,
         )
+        if args.output:
+            artifacts["artifact_path"] = str(Path(args.output))
+            write_json_artifact(artifacts, args.output)
         return (
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json

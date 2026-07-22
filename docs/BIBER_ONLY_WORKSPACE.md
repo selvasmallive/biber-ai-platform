@@ -231,6 +231,9 @@ queue without rerunning the directory scan.
 After repair edit plans exist, `list-repair-edit-plans --output` saves the
 planned queue and `show-repair-edit-plan-list` reopens that queue without
 rerunning the directory scan.
+After guarded repair edits are applied, `list-repair-edit-applies --output`
+saves the applied queue and `show-repair-edit-apply-list` reopens that queue
+without rerunning the directory scan.
 It also includes the full local MVP-loop repair smoke, which starts from a real
 failed local `mvp-loop` artifact and walks through local-model repair, review,
 guarded apply, verification, and status without API credentials.

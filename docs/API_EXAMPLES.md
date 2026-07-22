@@ -577,7 +577,10 @@ python scripts/biber_agent_client.py show-repair-edit-apply \
 python scripts/biber_agent_client.py list-repair-edit-applies \
   /workspace/outputs \
   --applied-only \
-  --limit 10
+  --limit 10 \
+  --output /workspace/outputs/biber-mvp-loop-repair-edit-apply-list.json
+python scripts/biber_agent_client.py show-repair-edit-apply-list \
+  /workspace/outputs/biber-mvp-loop-repair-edit-apply-list.json
 python scripts/biber_agent_client.py verify-repair-edits \
   /workspace/outputs/biber-mvp-loop-repair-edit-apply.json \
   --diagnose-on-failure \
