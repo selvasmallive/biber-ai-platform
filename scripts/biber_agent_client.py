@@ -2591,6 +2591,21 @@ def normalize_repair_edit_extraction_artifact(
     return None
 
 
+def normalize_repair_edit_extraction_artifact_list(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_repair_edit_extraction_list":
+        return dict(payload)
+    if isinstance(payload.get("artifacts"), list) and (
+        payload.get("directory") or payload.get("pattern")
+    ):
+        return dict(payload)
+    body = payload.get("body")
+    if isinstance(body, dict):
+        return normalize_repair_edit_extraction_artifact_list(body)
+    return None
+
+
 def normalize_retry_repair_edit_review_artifact(
     payload: Mapping[str, Any],
 ) -> dict[str, Any] | None:
@@ -17316,6 +17331,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     show_repair_edit_extraction.add_argument("artifact")
 
+    show_repair_edit_extraction_list = subparsers.add_parser(
+        "show-repair-edit-extraction-list",
+        help=(
+            "Summarize a saved list-repair-edit-extractions --output JSON artifact."
+        ),
+    )
+    show_repair_edit_extraction_list.add_argument("artifact")
+
     list_repair_edit_extractions = subparsers.add_parser(
         "list-repair-edit-extractions",
         help=(
@@ -17330,6 +17353,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     list_repair_edit_extractions.add_argument("--limit", type=int, default=10)
     list_repair_edit_extractions.add_argument("--ready-only", action="store_true")
+    list_repair_edit_extractions.add_argument("--output")
 
     show_repair_edit_plan = subparsers.add_parser(
         "show-repair-edit-plan",
@@ -18803,6 +18827,24 @@ def run(args: argparse.Namespace) -> str:
             if args.print_json
             else format_repair_edit_extraction_summary(normalized)
         )
+    if args.command == "show-repair-edit-extraction-list":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="repair-edit extraction list artifact",
+        )
+        normalized = normalize_repair_edit_extraction_artifact_list(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "repair-edit extraction list artifact must contain a saved "
+                "list-repair-edit-extractions JSON object."
+            )
+        if not normalized.get("artifact_path"):
+            normalized["artifact_path"] = str(Path(args.artifact))
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_edit_extraction_artifact_list_summary(normalized)
+        )
     if args.command == "list-repair-edit-extractions":
         artifacts = list_repair_edit_extraction_artifacts(
             directory=args.directory,
@@ -18810,6 +18852,9 @@ def run(args: argparse.Namespace) -> str:
             limit=args.limit,
             ready_only=args.ready_only,
         )
+        if args.output:
+            artifacts["artifact_path"] = str(Path(args.output))
+            write_json_artifact(artifacts, args.output)
         return (
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
