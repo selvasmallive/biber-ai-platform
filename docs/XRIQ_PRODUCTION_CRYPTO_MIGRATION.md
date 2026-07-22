@@ -363,6 +363,26 @@ new key-handling anti-patterns.
 6. **AI-assisted security review** (Claude + Codex) of consensus/crypto/replay/
    serialization per roadmap Phase 8; record in `SECURITY_REVIEW.md`. Only after
    this may any value-bearing use be *considered* (still gated by legal review).
+   **DONE — recorded in `docs/SECURITY_REVIEW.md`.** Four independent adversarial
+   reviewers (disjoint surfaces) plus author verification. Outcome: the primitive
+   crypto + encoding + import/replay/serialization plumbing are **sound**
+   (`verify_strict`, injective domain-separated encoding, `public_key`/`chain_id`/
+   `nonce`/`expiry` bound into the signing hash, verify-on-every-path, atomic state,
+   root recomputation, non-custodial key handling all confirmed correct). But all
+   four reviewers independently found the **headline gap**: verification authenticates
+   a signature over the item's own embedded `public_key` and never binds that key to
+   the claimed identity (`ed25519_address(public_key) == from`/`producer` is never
+   checked — confirmed: `ed25519_address` is used only in genesis + tests). Under the
+   Ed25519 scheme this permits authority-block forgery and sender forgery — **nil
+   real impact today** (test-only, valueless, undeployed, opaque accounts) but a hard
+   blocker before value. Lower findings: import-DoS via unvalidated length prefixes,
+   the browser signing a server-computed hash without local recomputation, and
+   mempool dedup keyed on a signature-dependent hash. **HARD GATE:** XRIQ stays
+   test-only and valueless; the remediation (identity binding — producer↔key now,
+   and a key-derived-accounts phase for sender↔key — plus the lower findings), an
+   **independent human audit**, and **legal review** are all gates before any
+   value-bearing use. Remediation is its own focused effort (it reworks the consensus
+   authority model + the ed25519 tests), not part of the review.
 
 ## Test strategy
 

@@ -13447,3 +13447,45 @@ green. PHASE 5 COMPLETE. REMAINING: live browser smoke test of the signing flow;
 xriq-rpc verify site scheme-awareness; then Phase 6 (AI-assisted security review of
 consensus/crypto/replay/serialization -- HARD GATE before any value-bearing use, recorded
 in SECURITY_REVIEW.md; legal review is a separate hard gate).
+CRYPTO PHASE 6 DONE (AI-assisted security review) -- recorded in docs/SECURITY_REVIEW.md.
+Four independent adversarial reviewers (disjoint surfaces: crypto primitives+encoding;
+consensus+import/replay; serialization/codecs+indexer; signed-submit+keys+browser) plus
+author verification. HEADLINE FINDING (all four converged independently, confirmed by
+grep): verify_transaction_with_scheme / verify_block_header_with_scheme authenticate a
+signature over the item's OWN embedded public_key but never bind it to the claimed
+identity -- ed25519_address(public_key) == from/producer is NEVER checked
+(ed25519_address is used only in genesis config + crypto tests; validate_next_block_state
+authorizes the producer by an address-STRING compare only). Under the ed25519 scheme
+(public-testnet default since 5b) this permits AUTHORITY BLOCK FORGERY (set producer=<public
+authority address>, public_key=<attacker key>, sign with own key -> passes) and SENDER
+FORGERY (from=victim, own key -> debits victim). NIL real impact today: test-only,
+valueless, undeployed, and regular accounts are opaque literals (not key-derived). REQUIRED
+FIX before value (its own focused effort -- reworks the auth model + the ed25519 tests, which
+deliberately sign with non-matching keys): (a) producer<->key: under ed25519 require
+ed25519_address(header.public_key)==header.producer (== genesis.authority_pubkey) in
+validate_next_block_state AND indexer replay_private_devnet_block; (b) sender<->key: require
+ed25519_address(tx.public_key)==tx.from -- CANNOT enable against current opaque accounts (would
+reject every tx incl the faucet); needs a prior KEY-DERIVED ACCOUNTS phase. LOWER findings
+(all documented, unfixed): (2) import DoS -- decode_peer_blocks/read_block_record/read_vec
+allocate Vec::with_capacity/vec![0;len] from raw read_u32 before bounds-checking vs remaining
+input (peer count=0xFFFFFFFF -> panic/OOM); fix: bound prefixes vs remaining bytes. (3) browser
+signs the server-provided prepare hash without local recompute (hostile-server substitution);
+fix: recompute canonical hash client-side. (4) mempool dedup keyed on signature-dependent
+transaction_hash not (from,nonce) -> signer-nonce multiplicity. (5) signed-submit selects algo
+from the envelope not the node scheme + test-only path is publicly forgeable (acceptable:
+test-only single-sender flag-gated). (6) --signature-scheme test-only can downgrade a testnet
+follower. (7) memo_hash not in pending TSV (availability only; recompute-gate keeps it sound).
+(8) key-safety guard is a textual lint not a data-flow boundary. CONFIRMED SOUND (positive
+results): verify_strict (malleability/small-order safe, no panics), injective+domain-separated
+encoding, public_key/chain_id/nonce/expiry bound in the signing hash, verify-on-every-import/
+replay-path with scheme-set-before-replay, atomic-on-failure state, root recomputation,
+height/nonce/parent/duplicate handling, placeholder-cannot-survive, scheme code-selected (not
+envelope-trusted) in xriq-crypto, lossless serialization round-trip, injection-resistant
+pending TSV, sound indexer scheme selection, non-custodial signing.ts, strict producer-key-file
+parsing + clearly-scoped published test authority seed. CONCLUSION -- HARD GATE: XRIQ stays
+TEST-ONLY and VALUELESS; identity-binding remediation + lower findings + an INDEPENDENT HUMAN
+third-party audit (this AI review does NOT replace it) + LEGAL review are all gates before ANY
+value-bearing use. Rust: 337 tests still green (no code changed in Phase 6 -- review only).
+NEXT (post-review remediation, each its own effort): producer<->key binding + ed25519 test
+rework; key-derived-accounts phase (enables sender<->key); import-DoS length bounding; browser
+client-side hash recompute; mempool dedup by (from,nonce). Then independent audit + legal.
