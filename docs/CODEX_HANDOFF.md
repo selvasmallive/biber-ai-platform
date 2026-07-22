@@ -516,6 +516,14 @@ Fifty-seventh BIBER resume checkpoint on the same branch:
 queue without rerunning the directory scan. This is the next resumability step
 before `show-repair-chain`, and remains CPU-local with no GPU, training,
 OpenAI mentor, external paid API, or credential rotation.
+Fifty-eighth BIBER resume checkpoint on the same branch:
+`scripts/biber_agent_client.py show-repair-chain-list <artifact>` now
+summarizes a saved `list-repair-chains --output` artifact without rerunning the
+directory scan. `list-repair-chains --output` already wrote
+`source=biber_mvp_loop_repair_chain_list` plus `artifact_path`; this checkpoint
+adds the missing reopen path before `export-ready-repair-chains`. It remains
+CPU-local with no GPU, training, OpenAI mentor, external paid API, or
+credential rotation.
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
 1.1 goal is complete for the local/private end-to-end RC1 baseline: Rust

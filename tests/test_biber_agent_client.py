@@ -8351,6 +8351,20 @@ def test_run_list_repair_chains_filters_ready_artifacts_without_api_key(
     assert result["artifacts"][0]["repo_provenance_ready"] is True
     assert result["artifacts"][0]["repo_provenance"] == ready_payload["repo_provenance"]
 
+    show_json = json.loads(
+        client.run(
+            client.parse_args(["--json", "show-repair-chain-list", str(output_path)])
+        )
+    )
+    show_summary = client.run(
+        client.parse_args(["show-repair-chain-list", str(output_path)])
+    )
+    assert show_json == result
+    assert "BIBER repair chain artifacts" in show_summary
+    assert str(ready_path) in show_summary
+    assert "status=ready_for_human_review" in show_summary
+    assert "repo_provenance_ready=True" in show_summary
+
     summary = client.run(
         client.parse_args(["list-repair-chains", str(tmp_path), "--ready-only"])
     )

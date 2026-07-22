@@ -629,6 +629,8 @@ python scripts/biber_agent_client.py list-repair-chains \
   /workspace/outputs \
   --ready-only \
   --output /workspace/outputs/biber-mvp-loop-repair-chain-list.json
+python scripts/biber_agent_client.py show-repair-chain-list \
+  /workspace/outputs/biber-mvp-loop-repair-chain-list.json
 # The list output reports repo_provenance_ready/repo_provenance_missing, so
 # reviewers can quickly tell whether ready chains have root-plus-commit evidence
 # before attempting eval approval.

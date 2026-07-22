@@ -240,6 +240,9 @@ reopens that queue without rerunning the directory scan.
 After verified repairs are reviewed, `list-verified-repair-reviews --output`
 saves the human-review queue and `show-verified-repair-review-list` reopens
 that queue without rerunning the directory scan.
+After repair-chain summaries exist, `list-repair-chains --output` saves the
+ready-chain queue and `show-repair-chain-list` reopens that queue without
+rerunning the directory scan.
 It also includes the full local MVP-loop repair smoke, which starts from a real
 failed local `mvp-loop` artifact and walks through local-model repair, review,
 guarded apply, verification, and status without API credentials.

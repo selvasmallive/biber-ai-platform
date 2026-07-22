@@ -7803,6 +7803,21 @@ def normalize_repair_chain_summary_artifact(
     return None
 
 
+def normalize_repair_chain_artifact_list(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") == "biber_mvp_loop_repair_chain_list":
+        return dict(payload)
+    if isinstance(payload.get("artifacts"), list) and (
+        payload.get("directory") or payload.get("pattern")
+    ):
+        return dict(payload)
+    body = payload.get("body")
+    if isinstance(body, dict):
+        return normalize_repair_chain_artifact_list(body)
+    return None
+
+
 def summarize_repair_chain_artifact(
     path: Path,
     payload: Mapping[str, Any],
@@ -17708,6 +17723,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     show_repair_chain.add_argument("--source-repo-branch")
     show_repair_chain.add_argument("--output")
 
+    show_repair_chain_list = subparsers.add_parser(
+        "show-repair-chain-list",
+        help="Summarize a saved list-repair-chains --output JSON artifact.",
+    )
+    show_repair_chain_list.add_argument("artifact")
+
     list_repair_chains = subparsers.add_parser(
         "list-repair-chains",
         help=(
@@ -19337,6 +19358,21 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(summary, indent=2, sort_keys=True)
             if args.print_json
             else format_repair_chain_summary(summary)
+        )
+    if args.command == "show-repair-chain-list":
+        artifact = load_json_artifact(args.artifact, label="repair-chain list artifact")
+        normalized = normalize_repair_chain_artifact_list(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "repair-chain list artifact must contain a saved "
+                "list-repair-chains JSON object."
+            )
+        if not normalized.get("artifact_path"):
+            normalized["artifact_path"] = str(Path(args.artifact))
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_repair_chain_artifact_list_summary(normalized)
         )
     if args.command == "list-repair-chains":
         artifacts = list_repair_chain_artifacts(
