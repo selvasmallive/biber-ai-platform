@@ -714,7 +714,10 @@ python scripts/biber_agent_client.py list-ready-repair-chain-eval-dataset-decisi
   /workspace/outputs \
   --decision approve_for_eval_dataset \
   --ready-only \
-  --limit 10
+  --limit 10 \
+  --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-dataset-decision-review-list.json
+python scripts/biber_agent_client.py show-ready-repair-chain-eval-dataset-decision-review-list \
+  /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-dataset-decision-review-list.json
 python scripts/biber_agent_client.py export-ready-repair-chain-eval-dataset \
   /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-dataset-decisions.jsonl \
   --output /workspace/outputs/biber-mvp-loop-ready-repair-chain-eval-dataset.jsonl
