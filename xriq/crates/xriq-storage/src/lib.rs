@@ -220,7 +220,10 @@ fn read_block_record(cursor: &mut Cursor<&[u8]>) -> Result<StoredBlock, StorageE
     let block_hash = read_hash(cursor)?;
     let header = read_header(cursor)?;
     let transaction_count = read_u32(cursor)?;
-    let mut transactions = Vec::with_capacity(transaction_count as usize);
+    // Clamp the pre-allocation to the remaining input (each transaction is >= 1 byte),
+    // so a forged count can't allocate gigabytes; a lie is caught by the reads below.
+    let mut transactions =
+        Vec::with_capacity((transaction_count as usize).min(cursor_remaining(cursor)));
     for _ in 0..transaction_count {
         transactions.push(read_transaction(cursor)?);
     }
@@ -263,11 +266,12 @@ pub fn decode_peer_blocks(bytes: &[u8]) -> Result<Vec<Block>, StorageError> {
         return Err(StorageError::CorruptData);
     }
     let count = read_u32(&mut cursor)?;
-    let mut blocks = Vec::with_capacity(count as usize);
+    let mut blocks = Vec::with_capacity((count as usize).min(cursor_remaining(&cursor)));
     for _ in 0..count {
         let header = read_header(&mut cursor)?;
         let transaction_count = read_u32(&mut cursor)?;
-        let mut transactions = Vec::with_capacity(transaction_count as usize);
+        let mut transactions =
+            Vec::with_capacity((transaction_count as usize).min(cursor_remaining(&cursor)));
         for _ in 0..transaction_count {
             transactions.push(read_transaction(&mut cursor)?);
         }
@@ -488,8 +492,19 @@ fn read_option_u64(cursor: &mut Cursor<&[u8]>) -> Result<Option<u64>, StorageErr
     }
 }
 
+// Bytes left in the cursor. Used to bound length/count prefixes before allocating,
+// so a hostile message with a huge prefix cannot trigger a multi-GB allocation or a
+// capacity-overflow abort before the (short) actual data is read.
+fn cursor_remaining(cursor: &Cursor<&[u8]>) -> usize {
+    (cursor.get_ref().len() as u64).saturating_sub(cursor.position()) as usize
+}
+
 fn read_vec(cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, StorageError> {
     let len = read_u32(cursor)? as usize;
+    // A length longer than the remaining input is corrupt; reject before allocating.
+    if len > cursor_remaining(cursor) {
+        return Err(StorageError::CorruptData);
+    }
     let mut bytes = vec![0; len];
     read_exact(cursor, &mut bytes)?;
     Ok(bytes)
@@ -678,5 +693,29 @@ mod tests {
         );
 
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn decode_peer_blocks_rejects_oversized_prefixes_without_allocating() {
+        // A hostile ~10-byte message with count = u32::MAX must be rejected as
+        // corrupt, NOT trigger a multi-GB / capacity-overflow allocation abort.
+        let mut oversized_count = b"XPB1".to_vec();
+        oversized_count.extend_from_slice(&u32::MAX.to_le_bytes());
+        assert_eq!(
+            decode_peer_blocks(&oversized_count),
+            Err(StorageError::CorruptData)
+        );
+
+        // Same for a per-block transaction_count: a real header followed by a giant
+        // transaction_count and no transactions.
+        let block = block(1, hash(0));
+        let mut oversized_txs = b"XPB1".to_vec();
+        oversized_txs.extend_from_slice(&1u32.to_le_bytes());
+        write_header(&mut oversized_txs, &block.header).unwrap();
+        oversized_txs.extend_from_slice(&u32::MAX.to_le_bytes());
+        assert_eq!(
+            decode_peer_blocks(&oversized_txs),
+            Err(StorageError::CorruptData)
+        );
     }
 }
