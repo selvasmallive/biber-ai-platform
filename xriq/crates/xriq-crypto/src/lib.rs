@@ -646,6 +646,7 @@ mod tests {
     use xriq_core::{
         AccountStateEntry, Address, Block, BlockHeader, SignatureBytes, Transaction, XriqAmount,
         PUBLIC_TESTNET_AUTHORITY_ADDRESS, PUBLIC_TESTNET_AUTHORITY_PUBKEY,
+        PUBLIC_TESTNET_FAUCET_ADDRESS, PUBLIC_TESTNET_FAUCET_PUBKEY,
     };
 
     const ED25519_ADDRESS_GOLDEN: &str = "xriqdev1397e043c1939ff954726c0f3657a7a5093b33b89";
@@ -961,6 +962,21 @@ mod tests {
         assert_eq!(
             ed25519_address(&PUBLIC_TESTNET_AUTHORITY_PUBKEY).as_str(),
             PUBLIC_TESTNET_AUTHORITY_ADDRESS
+        );
+    }
+
+    #[test]
+    fn public_testnet_faucet_address_is_key_derived() {
+        // Key-derived-accounts migration (Phase 2): the faucet account address is a
+        // pure function of its public key, so the account is controlled by its key.
+        assert_eq!(
+            ed25519_address(&PUBLIC_TESTNET_FAUCET_PUBKEY).as_str(),
+            PUBLIC_TESTNET_FAUCET_ADDRESS
+        );
+        // The faucet and authority are distinct identities (separate keys/roles).
+        assert_ne!(
+            PUBLIC_TESTNET_FAUCET_PUBKEY,
+            PUBLIC_TESTNET_AUTHORITY_PUBKEY
         );
     }
 

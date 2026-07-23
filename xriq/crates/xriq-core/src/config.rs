@@ -30,7 +30,18 @@ pub const PUBLIC_TESTNET_AUTHORITY_PUBKEY: [u8; 32] = [
 pub const PUBLIC_TESTNET_FEE_SINK_ADDRESS: &str = "xriqdev1testnetfees0000000000";
 /// Genesis-funded faucet account. Its balance is valueless test units used only
 /// to seed the public testnet faucet; it is not a supply, sale, or distribution.
-pub const PUBLIC_TESTNET_FAUCET_ADDRESS: &str = "xriqdev1testnetfaucet00000000";
+///
+/// KEY-DERIVED (key-derived-accounts migration): the address is
+/// `ed25519_address(PUBLIC_TESTNET_FAUCET_PUBKEY)`, so the faucet account is
+/// controlled by its key (an xriq-crypto test enforces the binding; xriq-core cannot
+/// depend on xriq-crypto). TEST-ONLY: the matching key is a well-known published test
+/// key (from the seed `b"xriq-testnet-faucet-test-0000001"`, held in xriq-node) and
+/// must never guard value. Distinct from the block-producer authority key.
+pub const PUBLIC_TESTNET_FAUCET_ADDRESS: &str = "xriqdev1d438244cf889f4157bed7e932621b1ac69095b8a";
+pub const PUBLIC_TESTNET_FAUCET_PUBKEY: [u8; 32] = [
+    0xdb, 0x68, 0xac, 0x1d, 0x28, 0x72, 0xf7, 0x01, 0xf3, 0x49, 0x1a, 0x9b, 0xd6, 0x1d, 0xe5, 0x27,
+    0x34, 0xd9, 0x94, 0x1a, 0x2c, 0xeb, 0x4a, 0xef, 0xb6, 0x63, 0x4a, 0x36, 0xd7, 0xb0, 0x1d, 0xf2,
+];
 pub const PUBLIC_TESTNET_FAUCET_BALANCE_BASE_UNITS: u128 = 1_000_000_000_000;
 /// Valueless test units dispensed per faucet request.
 pub const PUBLIC_TESTNET_FAUCET_DRIP_BASE_UNITS: u128 = 1_000;

@@ -47,7 +47,13 @@ Exactly one account is funded at genesis — the faucet:
 
 | Account | Address | Balance (base units) | Nonce |
 | --- | --- | --- | --- |
-| Faucet | `xriqdev1testnetfaucet00000000` | `1000000000000` | `0` |
+| Faucet | `xriqdev1d438244cf889f4157bed7e932621b1ac69095b8a` (key-derived) | `1000000000000` | `0` |
+
+The faucet address is now key-derived — `ed25519_address(PUBLIC_TESTNET_FAUCET_PUBKEY)`,
+the public key of the well-known TEST-ONLY faucet seed
+`b"xriq-testnet-faucet-test-0000001"` (held in `xriq-node`, distinct from the
+authority key) — so the faucet account is controlled by its key (key-derived-accounts
+migration; see `docs/XRIQ_KEY_DERIVED_ACCOUNTS.md`).
 
 The faucet balance is the only source of dispensable test units. It is **not** a
 supply, sale, or distribution; it exists so the faucet can hand out valueless
@@ -77,7 +83,7 @@ the limiter. A testnet node also serves read routes on the testnet chain:
 ## Genesis spec hash
 
 ```
-genesis_spec_hash = 8849162ec39e556f0bbf1d60ca0b38ea3f93c9d2bea341c2c21129b10642188b
+genesis_spec_hash = e6c1b31197471f64f99cf1cd349a3aa24f29857b428640a24ed866f06896cf05
 ```
 
 The hash is `SHA-256` over a domain-separated (`xriq-genesis-spec:v1`), canonical,

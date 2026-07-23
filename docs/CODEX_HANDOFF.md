@@ -13567,3 +13567,31 @@ ed25519 tests to key-derived senders; devnet skips. (6) regenerate only ed25519/
 fixtures + update SECURITY_REVIEW (finding 1 fully closed) + re-review. Then independent
 human audit + legal review; XRIQ stays test-only/valueless until all done. NEXT: implement
 step 2 (the additive primitive/identities), then 3-6 in order.
+KEY-DERIVED ACCOUNTS PHASE 2 DONE (faucet identity, additive, no enforcement): the
+public-testnet faucet account is now KEY-DERIVED. xriq-core config.rs:
+PUBLIC_TESTNET_FAUCET_ADDRESS changed opaque "xriqdev1testnetfaucet00000000" ->
+key-derived "xriqdev1d438244cf889f4157bed7e932621b1ac69095b8a"; new
+PUBLIC_TESTNET_FAUCET_PUBKEY:[u8;32] (=[0xdb,0x68,...,0x1d,0xf2]); both re-exported from
+xriq-core lib. xriq-node: new PUBLIC_TESTNET_FAUCET_SEED = *b"xriq-testnet-faucet-test-0000001"
+(32 bytes, published TEST-ONLY, distinct from PUBLIC_TESTNET_AUTHORITY_SEED,
+#[cfg_attr(not(test),allow(dead_code))] since not used for signing until Phase 3).
+Binding tests: xriq-crypto public_testnet_faucet_address_is_key_derived
+(ed25519_address(FAUCET_PUBKEY)==FAUCET_ADDRESS + faucet!=authority pubkey); xriq-node
+public_testnet_faucet_seed_derives_the_genesis_faucet_identity (seed->pubkey->address).
+Regenerated testnet genesis_spec_hash 8849162e... -> e6c1b31197471f64f99cf1cd349a3aa24f29857b428640a24ed866f06896cf05
+(testnet_genesis_command_emits_reproducible_spec address + hash asserts updated;
+docs/XRIQ_TESTNET_CHAINSPEC.md faucet address + hash updated). NO enforcement, faucet
+still signs via producer/authority signer path (sender!=key is fine, no check yet).
+Devnet untouched. Workspace: 342 tests green, fmt clean, no new clippy. NO committed JSON
+fixtures hardcoded the faucet address (faucet tests use the constant), so nothing else
+shifted. REMAINING key-derived-accounts phases: (3) faucet dispenses signed by
+PUBLIC_TESTNET_FAUCET_SEED so ed25519_address(from_key)==faucet from -- change
+private_devnet_runner_transaction/faucet path to sign the faucet tx with the faucet key
+(currently signs with the node producer signer = authority). (4) wallet from =
+ed25519_address(signer pubkey); drop fixed alice sender on ed25519 signed-submit; add the
+deferred key-derived-account genesis test builder + fund a key-derived sender. (5) ENFORCE
+ed25519_address(tx.public_key)==tx.from under ed25519 in submit_transaction +
+validate_next_block_state per-tx loop + indexer replay_private_devnet_block; rework ed25519
+tests to key-derived senders; devnet skips. (6) regenerate ed25519/testnet fixtures + close
+finding 1 in SECURITY_REVIEW + re-review. Then independent human audit + legal. Test-only
+throughout.

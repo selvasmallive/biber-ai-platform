@@ -66,14 +66,18 @@ address of its own signer, not a fixed literal.
 
 1. **Primitive — DONE already.** `ed25519_address(&[u8;32]) -> Address` exists and is
    golden-tested (Phase 2a). No work.
-2. **Well-known key-derived test accounts + genesis builder.** Add published
-   TEST-ONLY seeds for the testnet faucet (and any other funded testnet account), fix
-   their key-derived addresses/pubkeys in `GenesisConfig::public_testnet()`, and add a
-   reusable key-derived-account genesis builder for tests
-   (extend the existing `ed25519_authority_genesis` test helper into a fixture that
-   funds `ed25519_address(seed)` accounts). Additive; regenerates the testnet
-   genesis_spec_hash + testnet fixtures (a deliberate new-chain event). No enforcement
-   yet.
+2. **Well-known key-derived test accounts.** — **DONE.** The public-testnet **faucet
+   account is now key-derived**: `PUBLIC_TESTNET_FAUCET_ADDRESS =
+   ed25519_address(PUBLIC_TESTNET_FAUCET_PUBKEY)` (both fixed in `xriq-core`), the
+   public key of the published TEST-ONLY seed `b"xriq-testnet-faucet-test-0000001"`
+   (`PUBLIC_TESTNET_FAUCET_SEED` in `xriq-node`, distinct from the authority seed).
+   Binding tests enforce the derivation (`public_testnet_faucet_address_is_key_derived`
+   in xriq-crypto; `public_testnet_faucet_seed_derives_the_genesis_faucet_identity` in
+   xriq-node). The testnet `genesis_spec_hash` regenerated to `e6c1b311…` (a deliberate
+   new-chain event; genesis test + chainspec doc updated). Additive: **no enforcement**,
+   and the faucet does not yet sign with this key (Phase 3), so all existing tests
+   stay green (342). The devnet is untouched. (The key-derived-account *genesis test
+   builder* is deferred to Phase 4, where it is first used, to avoid dead code.)
 3. **Faucet signs from its key-derived identity.** Route the faucet dispense so
    `from = PUBLIC_TESTNET_FAUCET_ADDRESS = ed25519_address(faucet_pubkey)` and the
    transaction is signed by the faucet key (so `ed25519_address(from_key) == from`).
