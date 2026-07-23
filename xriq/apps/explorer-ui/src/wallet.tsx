@@ -26,6 +26,7 @@ import {
   submitEd25519SignedTransfer,
 } from "./api";
 import { createEphemeralSigner } from "./signing";
+import { transactionSigningHashHex } from "./canonical";
 
 const DEFAULT_RECIPIENT = "xriqdev1bobbb00000000000";
 const MIN_PRIVATE_DEVNET_FEE = 2n;
@@ -776,6 +777,16 @@ function NonCustodialSignSubmitPanel({ apiBaseUrl }: { apiBaseUrl: string }) {
         fields,
         signer.publicKeyHex,
       );
+      // 1b) Recompute the canonical signing hash locally and refuse to sign unless it
+      // matches the server's — so the wallet signs what it verified, not
+      // server-dictated bytes (defends against a hostile/MITM server substituting a
+      // different transaction).
+      const expectedSigningHash = transactionSigningHashHex(fields, signer.publicKeyHex);
+      if (expectedSigningHash !== prepared.transaction_signing_hash) {
+        throw new Error(
+          "server signing hash does not match the transaction fields — refusing to sign",
+        );
+      }
       // 2) Sign the hash locally with the ephemeral key.
       const signature = await signer.signHashHex(prepared.transaction_signing_hash);
       // 3) Submit the signed envelope (public key + signature only).

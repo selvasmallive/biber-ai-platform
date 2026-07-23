@@ -5,8 +5,9 @@
   "description": "Local private-devnet XRIQ explorer UI.",
   "type": "module",
   "scripts": {
-    "check": "node scripts/check-static.mjs && node scripts/check-wallet-key-safety.mjs && node scripts/check-wallet-submit-accepted-contract.mjs && node scripts/check-wallet-send-accepted-contract.mjs && node scripts/check-wallet-send-ui-control.mjs && node scripts/check-block-production-ui-control.mjs",
+    "check": "node scripts/check-static.mjs && node scripts/check-wallet-key-safety.mjs && node --experimental-strip-types scripts/check-canonical-signing-hash.mjs && node scripts/check-wallet-submit-accepted-contract.mjs && node scripts/check-wallet-send-accepted-contract.mjs && node scripts/check-wallet-send-ui-control.mjs && node scripts/check-block-production-ui-control.mjs",
     "check:wallet-key-safety": "node scripts/check-wallet-key-safety.mjs",
+    "check:canonical-signing-hash": "node --experimental-strip-types scripts/check-canonical-signing-hash.mjs",
     "check:wallet-submit": "node scripts/check-wallet-submit-accepted-contract.mjs",
     "check:wallet-send": "node scripts/check-wallet-send-accepted-contract.mjs",
     "check:wallet-send-ui-live": "node scripts/check-wallet-send-ui-live.mjs",
@@ -22,6 +23,7 @@
   },
   "dependencies": {
     "@noble/ed25519": "^2.3.0",
+    "@noble/hashes": "^2.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
