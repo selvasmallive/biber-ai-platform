@@ -145,6 +145,19 @@ python scripts/biber_live_provider_readiness.py --model biber-dev-core-v1
 Add `--require-ready --require-model` when you want the command to exit nonzero
 unless `/v1/models` is reachable and the requested model/adapter alias is
 listed.
+To run the proven disposable live repair path as one command on Vast:
+
+```bash
+python scripts/biber_live_provider_repair_smoke.py \
+  --base-url http://127.0.0.1:8001/v1 \
+  --model biber-dev-core
+```
+
+The script creates a disposable target repo, runs the local repair loop through
+the live provider wrapper, applies only to that disposable target after the
+normal review/hash gate is ready, verifies with `python-compileall-api`, and
+does not use OpenAI mentor, training, or GitHub save. Use `--mode mock` for
+local no-GPU validation of the script itself.
 To verify the wrapper without a GPU or live model endpoint, run:
 
 ```bash

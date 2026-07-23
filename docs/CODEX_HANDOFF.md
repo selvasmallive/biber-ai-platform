@@ -101,6 +101,20 @@ no GitHub save occurred, no OpenAI mentor was used, and no training occurred.
 Next narrow BIBER step: promote this disposable proof into a repeatable live
 provider smoke script or saved runbook command before using the live 3B model
 on a non-disposable repository.
+Follow-up source checkpoint: `scripts/biber_live_provider_repair_smoke.py` now
+promotes the disposable proof into one repeatable command. In default `live`
+mode it creates its own disposable target repo, checks `/v1/models` readiness,
+runs `mvp-loop -> prepare-repair -> local-repair-chain --model-command ->
+review-local-repair-chain`, applies only to that disposable target after the
+normal ready review/hash gate, then runs `local-verify-chain`. It records all
+artifacts under the smoke work directory, does not save to GitHub, does not
+use OpenAI mentor, and does not train. `--mode mock` validates the same
+script without a live GPU/model. Local validation passed `py_compile` and
+`python scripts/biber_live_provider_repair_smoke.py --mode mock --cleanup`
+with `ok=true`, `review_status=ready_for_explicit_apply_approval`,
+`apply_status=applied`, `verification_chain_status=verified`, and
+`verification_status=passed`. Next Vast check after pulling the latest branch:
+`python scripts/biber_live_provider_repair_smoke.py --base-url http://127.0.0.1:8001/v1 --model biber-dev-core`.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is

@@ -6739,6 +6739,28 @@ def test_local_mvp_loop_full_repair_smoke_documents_end_to_end_chain() -> None:
     assert '"training_allowed": False' in text
 
 
+def test_live_provider_repair_smoke_documents_disposable_live_flow() -> None:
+    script = ROOT / "scripts" / "biber_live_provider_repair_smoke.py"
+    text = script.read_text(encoding="utf-8")
+
+    assert "biber_live_provider_repair_smoke" in text
+    assert "--mode" in text
+    assert "mock" in text
+    assert "live" in text
+    assert "biber_live_provider_readiness" in text
+    assert "mvp-loop" in text
+    assert "prepare-repair" in text
+    assert "local-repair-chain" in text
+    assert "review-local-repair-chain" in text
+    assert "apply-repair-edits" in text
+    assert "local-verify-chain" in text
+    assert "ready_for_explicit_apply_approval" in text
+    assert "ensure_disposable_target" in text
+    assert '"api_required": False' in text
+    assert '"mentor_used": False' in text
+    assert '"training_allowed": False' in text
+
+
 def test_local_verified_repair_github_dry_run_smoke_documents_handoff() -> None:
     script = ROOT / "scripts" / "biber_local_verified_repair_github_dry_run_smoke.py"
     text = script.read_text(encoding="utf-8")

@@ -99,7 +99,22 @@ send a chat completion, does not use OpenAI mentor, and does not train.
 ## Live Repair-Loop Provider Command
 
 After readiness passes, the local repair loop can use the swappable provider
-wrapper:
+wrapper. Prefer the repeatable disposable smoke first:
+
+```bash
+python scripts/biber_live_provider_repair_smoke.py \
+  --base-url http://127.0.0.1:8001/v1 \
+  --model biber-dev-core
+```
+
+This creates its own disposable target repo under `/workspace/outputs` when
+available, runs readiness, `mvp-loop`, `prepare-repair`,
+`local-repair-chain`, review, guarded apply to that disposable target only,
+and `local-verify-chain`. It records artifacts in the smoke work directory,
+does not use OpenAI mentor, does not train, and does not save to GitHub. Use
+`--mode mock` on a workstation to validate the script without a live GPU/model.
+
+For manual repair-loop checks, run:
 
 ```bash
 python scripts/biber_agent_client.py --json local-repair-chain prepared-repair.json \
