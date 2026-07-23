@@ -115,6 +115,25 @@ with `ok=true`, `review_status=ready_for_explicit_apply_approval`,
 `apply_status=applied`, `verification_chain_status=verified`, and
 `verification_status=passed`. Next Vast check after pulling the latest branch:
 `python scripts/biber_live_provider_repair_smoke.py --base-url http://127.0.0.1:8001/v1 --model biber-dev-core`.
+2026-07-23 Vast one-command live smoke proof: after pulling commit `13c0dc3`,
+`python scripts/biber_live_provider_repair_smoke.py --base-url http://127.0.0.1:8001/v1 --model biber-dev-core`
+passed on the RTX 5060 Ti 16 GB Vast instance. Summary: `ok=true`,
+`readiness_ok=true`, `model=biber-dev-core`, `mode=live`, `gpu_required=true`,
+`live_provider_required=true`, `chain_status=planned`,
+`review_status=ready_for_explicit_apply_approval`,
+`apply_recommendation=ready_for_explicit_apply_approval`, `blockers=[]`,
+`planned=1`, `rejected=0`, `apply_status=applied`,
+`verification_chain_status=verified`, `verification_status=passed`,
+`test_ok=true`, `mentor_used=false`, `training_allowed=false`, and
+`auto_saved=false`. The disposable artifact directory was
+`/workspace/outputs/biber-live-provider-repair-smoke-20260723T074933Z/artifacts`,
+with disposable target root
+`/workspace/outputs/biber-live-provider-repair-smoke-20260723T074933Z/target-repo`.
+No real repo files were edited and no GitHub save occurred. This one-command
+script is now the preferred live 3B readiness/repair proof before attempting
+any non-disposable repo flow. Next narrow BIBER step: add or run a dry-run
+non-disposable repo planning workflow that stops before apply, so BIBER can
+start proving usefulness on real project files without risking file changes.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
