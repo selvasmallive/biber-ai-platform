@@ -13546,3 +13546,24 @@ pending-replay tests). REMAINING (the one big architectural item + external gate
   its dispenses). Keep the test-only devnet (opaque accounts) unchanged.
 - Then: independent human third-party security audit (this AI review does NOT replace it) +
   legal review. XRIQ stays TEST-ONLY and VALUELESS until all of the above.
+KEY-DERIVED ACCOUNTS SCOPED (design gate) -- docs/XRIQ_KEY_DERIVED_ACCOUNTS.md. Closes
+the remaining half of security finding 1 (sender<->key). KEY SCOPING INSIGHT that makes
+it tractable: ONLY ed25519 chains get key-derived accounts; the test-only devnet keeps
+opaque accounts UNCHANGED (that's where the ~303 opaque literals + ~156 address("..")
+calls + most fixtures live -- untouched). Target: on an ed25519 chain an account address
+== ed25519_address(its pubkey); authorize iff ed25519_address(tx.public_key)==tx.from AND
+verify ok. Testnet faucet becomes key-derived (PUBLIC_TESTNET_FAUCET_ADDRESS =
+ed25519_address(faucet_pubkey), signed by a published valueless faucet seed like the
+authority seed; keep faucet key != authority key). 6-phase plan (each CI-green): (1)
+ed25519_address primitive -- DONE. (2) [FIRST STEP] add published faucet test seed +
+key-derived faucet address/pubkey consts in GenesisConfig::public_testnet() + a
+key-derived-account genesis test builder (extend ed25519_authority_genesis); additive,
+regenerates testnet genesis_spec_hash + testnet fixtures, NO enforcement yet. (3) faucet
+signs from its key-derived identity. (4) wallet from = ed25519_address(signer pubkey),
+drop the fixed alice sender on the ed25519 signed-submit path. (5) enforce
+ed25519_address(tx.public_key)==tx.from under ed25519 in submit_transaction +
+validate_next_block_state per-tx loop + indexer replay_private_devnet_block; rework the
+ed25519 tests to key-derived senders; devnet skips. (6) regenerate only ed25519/testnet
+fixtures + update SECURITY_REVIEW (finding 1 fully closed) + re-review. Then independent
+human audit + legal review; XRIQ stays test-only/valueless until all done. NEXT: implement
+step 2 (the additive primitive/identities), then 3-6 in order.
