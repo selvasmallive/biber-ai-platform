@@ -37,9 +37,9 @@ confirmed directly in the source.
 | # | Severity (test-only → value-bearing) | Title | Status |
 |---|---|---|---|
 | 1 | **Info now → CRITICAL if value-bearing** | Signature not bound to claimed identity (`from`/`producer` ↔ `public_key`) | **Producer↔key FIXED; sender↔key open (needs key-derived accounts)** |
-| 2 | Low now → Medium | Unbounded allocation from unvalidated length/count prefixes (import DoS) | Open — hardening |
-| 3 | Low → High | Browser signs a server-provided signing hash without local recomputation | Open — hardening |
-| 4 | Low → Medium | Mempool dedup keyed on signature-dependent tx hash, not `(from, nonce)` | Open — hardening |
+| 2 | Low now → Medium | Unbounded allocation from unvalidated length/count prefixes (import DoS) | **FIXED** (bounds prefixes vs remaining input) |
+| 3 | Low → High | Browser signs a server-provided signing hash without local recomputation | **FIXED** (browser recomputes + verifies) |
+| 4 | Low → Medium | Mempool dedup keyed on signature-dependent tx hash, not `(from, nonce)` | **Addressed** (mempool already enforces `(from,nonce)`; replay made resilient) |
 | 5 | Info | Signed-submit picks algorithm from the envelope, not the node scheme; test-only path is public | Documented (test-only) |
 | 6 | Info | `--signature-scheme test-only` can downgrade a testnet follower's live verification | Documented (operator footgun) |
 | 7 | Info | `memo_hash` not carried in the pending TSV (availability, not soundness) | Open — future-proofing |
@@ -104,8 +104,10 @@ validating them against the remaining input. `import_peer_blocks` feeds peer-sup
 bytes straight in, so a ~10-byte hostile message with `count = 0xFFFFFFFF` triggers a
 capacity-overflow panic or a multi-GB allocation → process abort. `checked_len` on the
 encode side likewise `expect()`s. Not a memory-safety or spoofing issue; a
-denial-of-service on block sync. **Fix:** bound each count/length against the cursor's
-remaining bytes before allocating; return `CorruptData` on over-long prefixes.
+denial-of-service on block sync. **FIXED:** `read_vec` / `read_block_record` /
+`decode_peer_blocks` now bound each length/count against `cursor_remaining()` before
+allocating (`CorruptData` on an over-long byte length; `with_capacity` clamped to the
+bytes left). Test `decode_peer_blocks_rejects_oversized_prefixes_without_allocating`.
 
 ### 3 — Browser signs a server-provided signing hash without local recomputation
 
@@ -114,9 +116,11 @@ The non-custodial wallet asks the server for the `transaction_signing_hash` (the
 recomputation. A hostile server (or MITM over the plain `fetch`) that controls both
 `prepare` and `submit` could get the wallet to sign a different transaction than the
 user intended. Mitigated today by the key being ephemeral, single-use, and bound to no
-funded account (finding 1). **Fix before value:** recompute the canonical signing hash
-in the browser (a vetted encoder) and sign only the locally-computed hash. This is the
-tradeoff that was accepted to avoid a hand-rolled TS canonical encoder.
+funded account (finding 1). **FIXED:** `src/canonical.ts` is a byte-for-byte TS port of
+`transaction_signing_hash` (SHA-256 via `@noble/hashes`); the wallet now recomputes the
+signing hash locally and refuses to sign unless it matches the server's. A golden
+cross-check (`scripts/check-canonical-signing-hash.mjs`, in `npm run check`) verifies the
+TS encoder against the Rust output so it cannot drift.
 
 ### 4 — Mempool dedup keyed on signature-dependent tx hash
 
@@ -125,8 +129,12 @@ canonical Ed25519 signatures for the same body, each a different tx hash, so the
 duplicate-pending check does not prevent multiple pending entries for one
 `(from, nonce)`. `verify_strict` closes classic S-malleability, but not
 signer-chosen-nonce multiplicity. Whether this becomes a double-debit depends on nonce
-enforcement at production. **Fix:** dedup by `(from, nonce)` (or by the signing hash,
-which excludes the signature).
+enforcement at production. **Addressed:** the mempool **already** enforces one
+transaction per `(from, nonce)` (`account_nonces` → `DuplicateAccountNonce`), so a
+double-debit is not possible. The residual gap was that pending replay only tolerated
+`DuplicateTransaction`, so a duplicate-`(from,nonce)` pending file could brick startup;
+replay now also skips `DuplicateAccountNonce` (first-wins). Test
+`pending_replay_tolerates_duplicate_account_nonce_without_bricking`.
 
 ### 5–8 — Informational / documented
 
@@ -188,15 +196,18 @@ list:
 ## Conclusion — HARD GATE
 
 Real Ed25519 cryptography is now correctly built at the primitive and encoding level,
-and the import/replay/serialization plumbing is solid. **However, the migration does
-not yet bind signing keys to on-chain identities (finding 1), so under the Ed25519
-scheme the authentication is not yet real.** This, plus findings 2–4, means:
+and the import/replay/serialization plumbing is solid. Findings 2–4 have been fixed
+(bounded decode allocation; browser client-side signing-hash recomputation; pending
+replay resilient to duplicate `(from,nonce)`), and the producer↔key half of finding 1
+is fixed and tested. **The one remaining substantive gap is the sender↔key half of
+finding 1: under the Ed25519 scheme, transaction senders are still not bound to a key,
+so transaction authentication is not yet real.** This means:
 
 > **XRIQ must remain test-only and valueless.** Real cryptography is *necessary but
 > not sufficient*. Before any value-bearing use, the following are hard gates:
-> 1. Identity binding (finding 1) — producer↔key is now **fixed and tested**; sender↔key
->    still requires a key-derived-accounts phase — plus findings 2–4 remediated and
->    re-reviewed.
+> 1. The **sender↔key binding** (remaining half of finding 1), which requires a
+>    **key-derived-accounts phase** (an account address must be a function of its public
+>    key) — its own focused effort — then re-review.
 > 2. An **independent, human, third-party security audit** (this AI-assisted review does
 >    not replace it).
 > 3. **Legal review** per `docs/XRIQ_LEGAL_RISK_REDUCTION.md` /

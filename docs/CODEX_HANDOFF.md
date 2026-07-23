@@ -13511,3 +13511,38 @@ accounts or it rejects every tx incl the faucet); import-DoS length bounding; br
 client-side hash recompute; mempool dedup by (from,nonce); + independent human audit +
 legal review. NEXT candidate: the key-derived-accounts phase (enables sender<->key
 binding), or the import-DoS length-prefix bounding (contained, network-facing).
+SECURITY REMEDIATION 1b/2/3/4 DONE (3 of the 4 remaining review items). Commits:
+- (finding 2, import DoS) xriq-storage decode_peer_blocks/read_block_record/read_vec now
+  bound each u32 length/count prefix against cursor_remaining() before allocating (new
+  helper) -> CorruptData / clamped with_capacity; a count=0xFFFFFFFF peer message no
+  longer panics/OOMs. Test decode_peer_blocks_rejects_oversized_prefixes_without_allocating.
+- (finding 4, mempool dedup) the mempool ALREADY enforces one tx per (from,nonce)
+  (account_nonces -> DuplicateAccountNonce) so no double-spend; the gap was pending replay
+  only tolerating DuplicateTransaction. private_devnet_node_with_pending_file... replay now
+  also skips DuplicateAccountNonce (first-wins) so a duplicate-nonce pending file can't
+  brick startup. Test pending_replay_tolerates_duplicate_account_nonce_without_bricking.
+- (finding 3, browser signs server-dictated bytes) new explorer-ui src/canonical.ts is a
+  BYTE-FOR-BYTE TS port of xriq-crypto::transaction_signing_hash (domain preamble + LE
+  length-prefixed fields incl public_key, SHA-256 via @noble/hashes@2 -- NO crypto.subtle so
+  the key-safety guard stays green). wallet.tsx recomputes the signing hash locally and
+  refuses to sign unless it == the server's prepare hash. New
+  scripts/check-canonical-signing-hash.mjs (in `npm run check`, run via node
+  --experimental-strip-types importing the real .ts) cross-checks the encoder against TWO
+  Rust-produced goldens (empty-pubkey dabb964e...; ed25519-pubkey ca93ac17... ->
+  610466b3...) so the TS encoder can't drift. tsc + vite build green; full npm run check green.
+SECURITY_REVIEW.md updated: findings 2,3,4 = FIXED/Addressed; finding 1 producer<->key =
+FIXED; ONLY sender<->key remains. Rust: 340 tests green (338 workspace + storage +
+pending-replay tests). REMAINING (the one big architectural item + external gates):
+- FINDING 1 sender<->key binding = KEY-DERIVED ACCOUNTS PHASE. NOT started -- it is a large
+  ripple: every account address must become ed25519_address(its pubkey), changing BOTH
+  genesis configs, the faucet account + its signing, the wallet's `from`, and hundreds of
+  test literals (address("alice")="xriqdev1alice00000000000") + JSON fixtures. Only after
+  accounts are key-derived can you enforce ed25519_address(tx.public_key)==tx.from in
+  submit_transaction + validate_next_block_state per-tx loop + indexer replay. This is its
+  own multi-commit phase; do NOT rush it into consensus code. Approach sketch: (1) add a
+  key-derived-account genesis builder + wallet key-derived addresses; (2) migrate the ed25519
+  tests/fixtures to key-derived senders; (3) add the sender<->key check under ed25519; (4)
+  decide the testnet faucet model (faucet address = ed25519_address(faucet key) that signs
+  its dispenses). Keep the test-only devnet (opaque accounts) unchanged.
+- Then: independent human third-party security audit (this AI review does NOT replace it) +
+  legal review. XRIQ stays TEST-ONLY and VALUELESS until all of the above.
