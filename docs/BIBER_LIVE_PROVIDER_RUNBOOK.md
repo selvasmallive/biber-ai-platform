@@ -128,10 +128,12 @@ This points at a real repo, captures bounded source snippets, asks the
 swappable provider for a JSON edit proposal, reviews the hash-guarded plan, and
 then stops. It must not apply files or save to GitHub. A passing run reports
 `target_is_disposable=false`, `mutation_performed=false`,
-`repo_status_unchanged=true`, `apply_allowed=false`, and
-`review_status=ready_for_explicit_apply_approval`. Treat that artifact as a
-planning/review artifact only; real-repo apply remains a separate explicit
-approval step.
+`repo_status_unchanged=true`, `plan_outcome=planned_for_review`,
+`apply_allowed=false`, and `review_status=ready_for_explicit_apply_approval`.
+If the model returns a safe no-op or unusable edit, the summary exposes
+`plan_outcome`, extraction counts/reasons, and a short model response preview
+for the next prompt-tuning step. Treat all artifacts as planning/review
+artifacts only; real-repo apply remains a separate explicit approval step.
 
 For manual repair-loop checks, run:
 

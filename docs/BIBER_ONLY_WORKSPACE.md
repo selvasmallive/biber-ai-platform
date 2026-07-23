@@ -136,8 +136,11 @@ python scripts/biber_live_provider_real_repo_plan_smoke.py \
 
 Use `--mode mock --cleanup` for the no-GPU/no-network local check. A passing
 result must report `target_is_disposable=false`, `mutation_performed=false`,
-`chain_status=planned`, `review_status=ready_for_explicit_apply_approval`,
-`apply_allowed=false`, and `repo_status_unchanged=true`. Do not apply any
+`plan_outcome=planned_for_review`, `chain_status=planned`,
+`review_status=ready_for_explicit_apply_approval`, `apply_allowed=false`, and
+`repo_status_unchanged=true`. If the live model returns a safe no-op or
+unusable edit, inspect `plan_outcome`, `model_response_content_preview`,
+`extraction_status`, and rejection fields before retrying. Do not apply any
 real-repo plan without a separate explicit apply approval.
 
 This keeps Qwen2.5, Qwen3, llama.cpp, vLLM wrappers, and future local runners

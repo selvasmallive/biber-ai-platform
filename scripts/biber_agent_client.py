@@ -14525,6 +14525,7 @@ def format_confidence_smoke_artifact_summary(payload: Mapping[str, Any]) -> str:
         lines.append(
             "live_provider_real_repo_plan: "
             f"mode={real_repo_plan.get('mode', '-')} "
+            f"outcome={real_repo_plan.get('plan_outcome', '-')} "
             f"review={real_repo_plan.get('review_status', '-')} "
             f"planned={real_repo_plan.get('planned', 0)} "
             f"rejected={real_repo_plan.get('rejected', 0)} "

@@ -337,6 +337,7 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
             "target_is_disposable": False,
             "mutation_performed": False,
             "chain_status": "planned",
+            "plan_outcome": "planned_for_review",
             "review_status": "ready_for_explicit_apply_approval",
             "planned": 1,
             "rejected": 0,
@@ -401,7 +402,7 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
     assert "inline_changed=True" in output
     assert "file_changed=True" in output
     assert "file_pinned=True" in output
-    assert "live_provider_real_repo_plan: mode=mock" in output
+    assert "live_provider_real_repo_plan: mode=mock outcome=planned_for_review" in output
     assert "mutation_performed=False" in output
     assert "github_dry_run_artifacts: matched=2" in output
     assert "repair_loop: chain_status=verified" in output

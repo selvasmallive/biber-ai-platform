@@ -213,6 +213,7 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             "target_is_disposable": real_repo_plan.get("target_is_disposable"),
             "mutation_performed": real_repo_plan.get("mutation_performed"),
             "chain_status": real_repo_plan.get("chain_status"),
+            "plan_outcome": real_repo_plan.get("plan_outcome"),
             "review_status": real_repo_plan.get("review_status"),
             "apply_recommendation": real_repo_plan.get("apply_recommendation"),
             "planned": real_repo_plan.get("planned"),

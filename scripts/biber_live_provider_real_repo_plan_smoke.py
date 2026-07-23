@@ -43,9 +43,14 @@ DEFAULT_CONTEXT_INSTRUCTION = (
     "local-provider edit review."
 )
 DEFAULT_PLAN_INSTRUCTION = (
-    "Plan only, do not apply. Propose the smallest safe documentation wording "
-    f"edit to `{DEFAULT_CHANGED_PATH}` using exact old_text copied from the "
-    "source snippets. Return {\"edits\":[]} if the exact snippet is unavailable."
+    "Plan only, do not apply. This is a smoke test of the real-repo planning "
+    f"bridge. If the exact old_text below appears in `{DEFAULT_CHANGED_PATH}`, "
+    "return exactly one JSON edit using that path, old_text, new_text, and "
+    "expected_replacements=1. If the exact old_text is unavailable, return "
+    "{\"edits\":[]}.\n\n"
+    f"Required path: {DEFAULT_CHANGED_PATH}\n"
+    f"Required old_text:\n{DEFAULT_OLD_TEXT}\n"
+    f"Required new_text:\n{DEFAULT_NEW_TEXT}"
 )
 
 
@@ -299,6 +304,61 @@ def plan_counts(chain: dict[str, Any]) -> tuple[int, int]:
     return len(planned), len(rejected)
 
 
+def compact_preview(value: object, *, max_chars: int = 600) -> str:
+    text = str(value or "")
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 3] + "..."
+
+
+def repair_chain_diagnostics(chain: dict[str, Any]) -> dict[str, Any]:
+    extraction = chain.get("repair_edit_extraction")
+    if not isinstance(extraction, dict):
+        extraction = {}
+    attempt = chain.get("repair_attempt")
+    if not isinstance(attempt, dict):
+        attempt = {}
+    model_response = attempt.get("model_response")
+    if not isinstance(model_response, dict):
+        model_response = {}
+    content = str(model_response.get("content") or "")
+    rejected = [
+        item for item in client.require_list(extraction.get("rejected")) if isinstance(item, dict)
+    ]
+    edits = [
+        item for item in client.require_list(extraction.get("edits")) if isinstance(item, dict)
+    ]
+    if edits:
+        outcome = "planned_for_review"
+    elif rejected:
+        outcome = "blocked_unusable_edits"
+    elif int(extraction.get("json_values_found") or 0) > 0:
+        outcome = "safe_noop_or_empty_edits"
+    elif content.strip():
+        outcome = "blocked_unparseable_model_response"
+    else:
+        outcome = "blocked_empty_model_response"
+    return {
+        "plan_outcome": outcome,
+        "extraction_status": extraction.get("extraction_status"),
+        "extracted_edits": len(edits),
+        "extraction_rejected": len(rejected),
+        "extraction_rejection_reasons": sorted(
+            {
+                str(item.get("reason"))
+                for item in rejected
+                if item.get("reason")
+            }
+        ),
+        "json_values_found": extraction.get("json_values_found"),
+        "unified_diff_candidates_found": extraction.get(
+            "unified_diff_candidates_found"
+        ),
+        "model_response_content_chars": len(content),
+        "model_response_content_preview": compact_preview(content),
+    }
+
+
 def build_summary(
     *,
     args: argparse.Namespace,
@@ -317,6 +377,7 @@ def build_summary(
 ) -> dict[str, Any]:
     planned, rejected = plan_counts(chain)
     plan = chain.get("repair_edit_plan") if isinstance(chain.get("repair_edit_plan"), dict) else {}
+    diagnostics = repair_chain_diagnostics(chain)
     readiness_ok = True if readiness is None else readiness.get("ok") is True
     repo_status_unchanged = git_before.get("status_short") == git_after.get("status_short")
     review_ready = (
@@ -335,6 +396,18 @@ def build_summary(
         and rejected == 0
         and plan.get("apply_allowed") is False
         and repo_status_unchanged
+    )
+    next_action = (
+        "review_plan_artifacts_only_no_apply"
+        if ok
+        else "inspect_model_response_and_prompt_or_retry_with_stricter_instruction"
+        if diagnostics["plan_outcome"]
+        in {
+            "safe_noop_or_empty_edits",
+            "blocked_unparseable_model_response",
+            "blocked_empty_model_response",
+        }
+        else "inspect_rejected_edits_before_retry"
     )
     summary = {
         "source": "biber_live_provider_real_repo_plan_smoke",
@@ -373,6 +446,8 @@ def build_summary(
         "rejected": rejected,
         "plan_hash": review.get("plan_hash"),
         "apply_allowed": plan.get("apply_allowed"),
+        **diagnostics,
+        "next_action": next_action,
         "repo_status_unchanged": repo_status_unchanged,
         "git_before": git_before,
         "git_after": git_after,

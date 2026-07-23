@@ -153,6 +153,27 @@ branch, if the 3B endpoint is still running:
 `python scripts/biber_live_provider_real_repo_plan_smoke.py --base-url http://127.0.0.1:8001/v1 --model biber-dev-core --target-root /workspace/biber-ai-platform`.
 If it passes, review the saved artifacts only; do not apply any real-repo plan
 without a separate explicit apply approval.
+2026-07-23 Vast real-repo plan-only result: after pulling commit `5aca9d2`,
+the user ran the above command on `/workspace/biber-ai-platform`. Readiness
+passed and the repo stayed clean (`repo_status_unchanged=true`,
+`git_before.status_short=[]`, `git_after.status_short=[]`), with no mutation,
+no GitHub request, no OpenAI mentor, and no training. The live 3B model did
+not produce a valid edit plan, so deterministic gates blocked apply:
+`ok=false`, `chain_status=no_valid_edits`, `review_status=blocked_before_apply`,
+`apply_recommendation=do_not_apply`, `planned=0`, `rejected=0`,
+`apply_allowed=null`, and blockers included `no_extracted_edits` and
+`missing_local_plan`. This is a safe guardrail success but not yet useful
+real-repo planning. Follow-up source checkpoint: the default plan-only prompt
+now includes an exact required docs smoke edit instead of an optional wording
+request, and the summary now records `plan_outcome`, `extraction_status`,
+`json_values_found`, `unified_diff_candidates_found`,
+`extraction_rejected`, `extraction_rejection_reasons`,
+`model_response_content_chars`, `model_response_content_preview`, and
+`next_action`. Local mock validation still passes with
+`plan_outcome=planned_for_review`. Next Vast step after pulling the latest
+branch: rerun the same real-repo plan-only command and check whether
+`plan_outcome=planned_for_review`; if not, use the new diagnostic fields to
+tune the prompt, still without applying any real-repo edit.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
