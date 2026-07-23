@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-07-22
+Last updated: 2026-07-23
 
 ## Current Goal
 
@@ -81,6 +81,26 @@ artifacts so the new source snippets are present, then rerun
 `local-repair-chain --model-command '["python","scripts/biber_local_openai_provider.py"]'`
 against `http://127.0.0.1:8001/v1` / `biber-dev-core`. Apply remains blocked
 unless a later review artifact is explicitly approved.
+2026-07-23 live 3B provider proof: after pulling commit `ee02598` on Vast,
+the recreated disposable fixture repair flow succeeded end-to-end. Readiness
+passed against `http://127.0.0.1:8001/v1` with requested model
+`biber-dev-core`. The fresh `prepare-repair` artifact included exact source
+snippets for `src/app.py` and `README.md`; the live 3B model still returned
+Markdown-fenced JSON, but the extractor safely recovered the edit. Review
+reported `review_status=ready_for_explicit_apply_approval`,
+`apply_recommendation=ready_for_explicit_apply_approval`, `blockers=[]`,
+`planned=1`, `rejected=0`, and plan hash
+`f5cc3278cc902a3d328369bc6ad46f6221932247053eb1d857796d989e9c79e8`. The user
+explicitly approved applying that plan to the disposable Vast fixture only.
+`apply-repair-edits --approve --review-artifact ...` applied one edit to
+`/workspace/outputs/biber-live-3b-target-repo-20260723T073233Z/src/app.py`,
+changing `def answer(:` to `def answer():`. `local-verify-chain` then passed
+`python-compileall-api` with `chain_status=verified`, `test_ok=true`,
+`verification_status=passed`, and exit code `0`. No real repo file was edited,
+no GitHub save occurred, no OpenAI mentor was used, and no training occurred.
+Next narrow BIBER step: promote this disposable proof into a repeatable live
+provider smoke script or saved runbook command before using the live 3B model
+on a non-disposable repository.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
