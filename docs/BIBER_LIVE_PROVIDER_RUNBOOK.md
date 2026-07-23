@@ -114,6 +114,25 @@ and `local-verify-chain`. It records artifacts in the smoke work directory,
 does not use OpenAI mentor, does not train, and does not save to GitHub. Use
 `--mode mock` on a workstation to validate the script without a live GPU/model.
 
+After the disposable smoke passes, the first non-disposable live-provider gate
+is plan-only:
+
+```bash
+python scripts/biber_live_provider_real_repo_plan_smoke.py \
+  --base-url http://127.0.0.1:8001/v1 \
+  --model biber-dev-core \
+  --target-root /workspace/biber-ai-platform
+```
+
+This points at a real repo, captures bounded source snippets, asks the
+swappable provider for a JSON edit proposal, reviews the hash-guarded plan, and
+then stops. It must not apply files or save to GitHub. A passing run reports
+`target_is_disposable=false`, `mutation_performed=false`,
+`repo_status_unchanged=true`, `apply_allowed=false`, and
+`review_status=ready_for_explicit_apply_approval`. Treat that artifact as a
+planning/review artifact only; real-repo apply remains a separate explicit
+approval step.
+
 For manual repair-loop checks, run:
 
 ```bash

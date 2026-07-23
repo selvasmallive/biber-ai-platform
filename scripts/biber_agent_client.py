@@ -14370,6 +14370,7 @@ def summarize_confidence_smoke_artifact(
         normalized.get("github_dry_run_artifacts")
     )
     mvp_loop_repo_probe = require_mapping(normalized.get("mvp_loop_repo_probe"))
+    real_repo_plan = require_mapping(normalized.get("live_provider_real_repo_plan"))
     summary = {
         "path": str(path),
         "source": normalized.get("source"),
@@ -14386,6 +14387,10 @@ def summarize_confidence_smoke_artifact(
         ),
         "repo_probe_path_list_files_used": (
             mvp_loop_repo_probe.get("path_list_files_used") is True
+        ),
+        "real_repo_plan_review_status": real_repo_plan.get("review_status"),
+        "real_repo_plan_mutation_performed": (
+            real_repo_plan.get("mutation_performed") is True
         ),
         "modified_epoch": path.stat().st_mtime,
     }
@@ -14470,6 +14475,7 @@ def format_confidence_smoke_artifact_summary(payload: Mapping[str, Any]) -> str:
     )
     mvp_loop = require_mapping(payload.get("mvp_loop"))
     mvp_loop_repo_probe = require_mapping(payload.get("mvp_loop_repo_probe"))
+    real_repo_plan = require_mapping(payload.get("live_provider_real_repo_plan"))
     mvp_loop_full_repair = require_mapping(payload.get("mvp_loop_full_repair"))
     repair_loop = require_mapping(payload.get("repair_loop"))
 
@@ -14514,6 +14520,16 @@ def format_confidence_smoke_artifact_summary(payload: Mapping[str, Any]) -> str:
             f"file_changed={path_file_selected_paths.get('file_changed')} "
             f"file_pinned={path_file_selected_paths.get('file_pinned')} "
             f"repo_status_unchanged={mvp_loop_repo_probe.get('repo_status_unchanged')}"
+        )
+    if real_repo_plan:
+        lines.append(
+            "live_provider_real_repo_plan: "
+            f"mode={real_repo_plan.get('mode', '-')} "
+            f"review={real_repo_plan.get('review_status', '-')} "
+            f"planned={real_repo_plan.get('planned', 0)} "
+            f"rejected={real_repo_plan.get('rejected', 0)} "
+            f"mutation_performed={real_repo_plan.get('mutation_performed')} "
+            f"repo_status_unchanged={real_repo_plan.get('repo_status_unchanged')}"
         )
     if mvp_loop_full_repair:
         lines.append(

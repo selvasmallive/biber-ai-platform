@@ -270,6 +270,10 @@ def test_local_confidence_smoke_runs_provider_and_repair_smokes() -> None:
     assert '"mvp_loop_repo_probe"' in text
     assert "path_list_files_used" in text
     assert "path_file_selected_paths" in text
+    assert "biber_live_provider_real_repo_plan_smoke.py" in text
+    assert "live_provider_real_repo_plan_mock" in text
+    assert '"live_provider_real_repo_plan"' in text
+    assert "mutation_performed" in text
     assert "biber_local_mvp_loop_full_repair_smoke.py" in text
     assert "local_mvp_loop_full_repair" in text
     assert '"mvp_loop_full_repair"' in text
@@ -326,6 +330,17 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
                 "file_changed": True,
                 "file_pinned": True,
             },
+            "repo_status_unchanged": True,
+        },
+        "live_provider_real_repo_plan": {
+            "mode": "mock",
+            "target_is_disposable": False,
+            "mutation_performed": False,
+            "chain_status": "planned",
+            "review_status": "ready_for_explicit_apply_approval",
+            "planned": 1,
+            "rejected": 0,
+            "apply_allowed": False,
             "repo_status_unchanged": True,
         },
         "mvp_loop_full_repair": {
@@ -386,6 +401,8 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
     assert "inline_changed=True" in output
     assert "file_changed=True" in output
     assert "file_pinned=True" in output
+    assert "live_provider_real_repo_plan: mode=mock" in output
+    assert "mutation_performed=False" in output
     assert "github_dry_run_artifacts: matched=2" in output
     assert "repair_loop: chain_status=verified" in output
 

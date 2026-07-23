@@ -122,6 +122,24 @@ python scripts/biber_agent_client.py --json local-repair-chain prepared-repair.j
   --output /tmp/local-repair-chain.json
 ```
 
+Before letting a live provider plan against a non-disposable repo, use the
+plan-only real-repo smoke. It records bounded source snippets, asks the
+swappable provider for JSON edits, reviews the hash-guarded plan, and stops
+before any apply or GitHub save:
+
+```bash
+python scripts/biber_live_provider_real_repo_plan_smoke.py \
+  --base-url http://127.0.0.1:8001/v1 \
+  --model biber-dev-core \
+  --target-root /workspace/biber-ai-platform
+```
+
+Use `--mode mock --cleanup` for the no-GPU/no-network local check. A passing
+result must report `target_is_disposable=false`, `mutation_performed=false`,
+`chain_status=planned`, `review_status=ready_for_explicit_apply_approval`,
+`apply_allowed=false`, and `repo_status_unchanged=true`. Do not apply any
+real-repo plan without a separate explicit apply approval.
+
 This keeps Qwen2.5, Qwen3, llama.cpp, vLLM wrappers, and future local runners
 swappable without enabling OpenAI mentor, API auth, GPU training, or file apply.
 `scripts/biber_local_openai_provider.py` is the stdlib OpenAI-compatible

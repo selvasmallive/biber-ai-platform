@@ -24,11 +24,16 @@ def run_smoke_script(
     script_name: str,
     pycache_root: Path,
     timeout_seconds: float,
+    script_args: list[str] | None = None,
 ) -> dict[str, Any]:
     env = os.environ.copy()
     env["PYTHONPYCACHEPREFIX"] = str(pycache_root / Path(script_name).stem)
     completed = subprocess.run(
-        [sys.executable, str(repo_root / "scripts" / script_name)],
+        [
+            sys.executable,
+            str(repo_root / "scripts" / script_name),
+            *(script_args or []),
+        ],
         cwd=str(repo_root),
         capture_output=True,
         check=False,
@@ -98,6 +103,13 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             pycache_root=pycache_root,
             timeout_seconds=timeout_seconds,
         )
+        real_repo_plan = run_smoke_script(
+            repo_root=repo_root,
+            script_name="biber_live_provider_real_repo_plan_smoke.py",
+            pycache_root=pycache_root,
+            timeout_seconds=timeout_seconds,
+            script_args=["--mode", "mock", "--cleanup"],
+        )
         mvp_loop_full_repair = run_smoke_script(
             repo_root=repo_root,
             script_name="biber_local_mvp_loop_full_repair_smoke.py",
@@ -129,6 +141,7 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
         compact_check("local_mvp_loop", mvp_loop),
         compact_check("local_mvp_loop_failure", mvp_loop_failure),
         compact_check("local_mvp_loop_repo_probe", mvp_loop_repo_probe),
+        compact_check("live_provider_real_repo_plan_mock", real_repo_plan),
         compact_check("local_mvp_loop_full_repair", mvp_loop_full_repair),
         compact_check(
             "local_verified_repair_github_dry_run",
@@ -194,6 +207,18 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             "test_id": mvp_loop_repo_probe.get("test_id"),
             "test_executed": mvp_loop_repo_probe.get("test_executed"),
             "repo_status_unchanged": mvp_loop_repo_probe.get("repo_status_unchanged"),
+        },
+        "live_provider_real_repo_plan": {
+            "mode": real_repo_plan.get("mode"),
+            "target_is_disposable": real_repo_plan.get("target_is_disposable"),
+            "mutation_performed": real_repo_plan.get("mutation_performed"),
+            "chain_status": real_repo_plan.get("chain_status"),
+            "review_status": real_repo_plan.get("review_status"),
+            "apply_recommendation": real_repo_plan.get("apply_recommendation"),
+            "planned": real_repo_plan.get("planned"),
+            "rejected": real_repo_plan.get("rejected"),
+            "apply_allowed": real_repo_plan.get("apply_allowed"),
+            "repo_status_unchanged": real_repo_plan.get("repo_status_unchanged"),
         },
         "mvp_loop_full_repair": {
             "agent_report_status": mvp_loop_full_repair.get("agent_report_status"),

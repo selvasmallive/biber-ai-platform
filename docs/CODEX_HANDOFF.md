@@ -134,6 +134,25 @@ script is now the preferred live 3B readiness/repair proof before attempting
 any non-disposable repo flow. Next narrow BIBER step: add or run a dry-run
 non-disposable repo planning workflow that stops before apply, so BIBER can
 start proving usefulness on real project files without risking file changes.
+Follow-up source checkpoint: `scripts/biber_live_provider_real_repo_plan_smoke.py`
+now provides that first non-disposable gate. It points at a real repo, runs
+local `mvp-loop` context selection with git state and a dry-run allowlisted
+test, builds a clearly labeled `real_repo_plan_only` repair request with
+bounded exact source snippets, asks the swappable provider through
+`local-repair-chain --model-command`, reviews the hash-guarded plan, writes
+artifacts, and stops before apply, verification, training, OpenAI mentor, or
+GitHub save. Mock-mode validation passed with `ok=true`,
+`target_is_disposable=false`, `mutation_performed=false`,
+`chain_status=planned`, `review_status=ready_for_explicit_apply_approval`,
+`planned=1`, `rejected=0`, `apply_allowed=false`, and
+`repo_status_unchanged=true`. The combined
+`python scripts/biber_local_confidence_smoke.py` gate now includes this mock
+real-repo plan check and passed all 10 checks locally with no GPU, no network,
+no OpenAI mentor, and no training. Next Vast command after pulling the latest
+branch, if the 3B endpoint is still running:
+`python scripts/biber_live_provider_real_repo_plan_smoke.py --base-url http://127.0.0.1:8001/v1 --model biber-dev-core --target-root /workspace/biber-ai-platform`.
+If it passes, review the saved artifacts only; do not apply any real-repo plan
+without a separate explicit apply approval.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
