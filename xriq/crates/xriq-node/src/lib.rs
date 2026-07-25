@@ -3898,8 +3898,15 @@ const PUBLIC_TESTNET_AUTHORITY_SEED: [u8; 32] = *b"xriq-testnet-authority-test-0
 // value. Distinct from the block-producer authority seed (separate roles). Not yet
 // used for signing — the faucet begins signing with this key in a later step of the
 // key-derived-accounts migration; see docs/XRIQ_KEY_DERIVED_ACCOUNTS.md.
-#[cfg_attr(not(test), allow(dead_code))]
 const PUBLIC_TESTNET_FAUCET_SEED: [u8; 32] = *b"xriq-testnet-faucet-test-0000001";
+
+// The signer for the public-testnet faucet ACCOUNT (its transactions), keyed by the
+// well-known faucet seed. `ed25519_address(faucet_pubkey) == PUBLIC_TESTNET_FAUCET_ADDRESS`,
+// so a faucet dispense is signed by the key that owns the faucet account. Distinct
+// from the block-producer authority signer (which signs the block header).
+fn public_testnet_faucet_signer() -> SchemeSigner {
+    SchemeSigner::ed25519(ed25519_signing_key_from_seed(PUBLIC_TESTNET_FAUCET_SEED))
+}
 
 // The default producer signer for a network: ed25519 (the well-known authority key)
 // on the public testnet, so testnet nodes verify AND produce ed25519 out of the box;
@@ -4135,7 +4142,13 @@ pub fn public_testnet_file_faucet_dispense_with_producer_signer(
         timestamp_ms: 0,
         consensus_round,
     };
-    let transaction = private_devnet_runner_transaction(&node, &transfer);
+    // The faucet transaction is signed by the FAUCET account's key (not the block
+    // producer's), so `ed25519_address(tx.public_key) == tx.from == faucet address`.
+    let transaction = private_devnet_runner_transaction_signed_by(
+        &node,
+        &transfer,
+        &public_testnet_faucet_signer(),
+    );
     let transaction_hash = transaction_hash(&transaction);
     node.submit_transaction_with_canonical_hash(transaction)
         .map_err(NodeRunnerError::Node)?;
@@ -4954,7 +4967,29 @@ fn private_devnet_runner_transaction<S: ChainStore>(
     node: &XriqNode<S>,
     transfer: &PrivateDevnetTransferInput,
 ) -> Transaction {
-    let mut transaction = Transaction {
+    let mut transaction = runner_transaction_body(node, transfer);
+    node.sign_transaction_with_producer_signer(&mut transaction);
+    transaction
+}
+
+// Build a runner transfer transaction and sign it with an explicit `signer` (rather
+// than the node's producer signer). Used by the faucet so the faucet-account
+// transaction is signed by the FAUCET key — `ed25519_address(faucet_key) == from`.
+fn private_devnet_runner_transaction_signed_by<S: ChainStore>(
+    node: &XriqNode<S>,
+    transfer: &PrivateDevnetTransferInput,
+    signer: &SchemeSigner,
+) -> Transaction {
+    let mut transaction = runner_transaction_body(node, transfer);
+    signer.sign_transaction(&mut transaction);
+    transaction
+}
+
+fn runner_transaction_body<S: ChainStore>(
+    node: &XriqNode<S>,
+    transfer: &PrivateDevnetTransferInput,
+) -> Transaction {
+    Transaction {
         version: Transaction::SUPPORTED_VERSION,
         chain_id: node.ledger().config().chain_id.clone(),
         from: transfer.from.clone(),
@@ -4966,9 +5001,7 @@ fn private_devnet_runner_transaction<S: ChainStore>(
         expires_at_height: transfer.expires_at_height,
         signature: SignatureBytes::new(Vec::new()),
         public_key: Vec::new(),
-    };
-    node.sign_transaction_with_producer_signer(&mut transaction);
-    transaction
+    }
 }
 
 fn render_pending_preflight_transfer_body(transaction: &Transaction) -> String {
@@ -8633,6 +8666,42 @@ mod tests {
             ed25519_address(&pubkey).as_str(),
             PUBLIC_TESTNET_FAUCET_ADDRESS
         );
+    }
+
+    #[test]
+    fn faucet_transaction_is_signed_by_the_faucet_key() {
+        use xriq_core::{PUBLIC_TESTNET_FAUCET_ADDRESS, PUBLIC_TESTNET_FAUCET_PUBKEY};
+        use xriq_crypto::{verify_transaction_with_scheme, SignatureSchemeKind};
+
+        let chain = temp_store_path();
+        run_node_command([
+            "faucet-dispense",
+            "--chain-file",
+            chain.to_string_lossy().as_ref(),
+            "--to",
+            "xriqdev1recipient00000000000",
+            "--format",
+            "json",
+        ])
+        .unwrap();
+
+        let store = FileChainStore::open(&chain).unwrap();
+        let block = store.latest_block().unwrap();
+        let tx = &block.block.transactions[0];
+        // The faucet transaction is signed by the FAUCET key: its public key derives
+        // the faucet `from` address, so it satisfies the sender↔key binding (Phase 5),
+        // while the block header stays signed by the (distinct) producer authority.
+        assert_eq!(tx.public_key, PUBLIC_TESTNET_FAUCET_PUBKEY.to_vec());
+        assert_eq!(tx.from.as_str(), PUBLIC_TESTNET_FAUCET_ADDRESS);
+        assert_eq!(ed25519_address(&PUBLIC_TESTNET_FAUCET_PUBKEY), tx.from);
+        assert_eq!(
+            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, tx),
+            Ok(())
+        );
+        // The block header remains signed by the authority (different key).
+        assert_ne!(block.block.header.public_key, tx.public_key);
+
+        let _ = fs::remove_file(&chain);
     }
 
     #[test]

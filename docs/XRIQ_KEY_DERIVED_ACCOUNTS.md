@@ -78,11 +78,18 @@ address of its own signer, not a fixed literal.
    and the faucet does not yet sign with this key (Phase 3), so all existing tests
    stay green (342). The devnet is untouched. (The key-derived-account *genesis test
    builder* is deferred to Phase 4, where it is first used, to avoid dead code.)
-3. **Faucet signs from its key-derived identity.** Route the faucet dispense so
-   `from = PUBLIC_TESTNET_FAUCET_ADDRESS = ed25519_address(faucet_pubkey)` and the
-   transaction is signed by the faucet key (so `ed25519_address(from_key) == from`).
-   Decide: keep the faucet key distinct from the authority key (recommended — separate
-   roles) — the faucet signs faucet txs, the authority signs block headers.
+3. **Faucet signs from its key-derived identity.** — **DONE.** The faucet dispense
+   transaction is now signed by the **faucet key** (`public_testnet_faucet_signer()`
+   from `PUBLIC_TESTNET_FAUCET_SEED`), via a new
+   `private_devnet_runner_transaction_signed_by(node, transfer, signer)` (the
+   transaction-build was factored into `runner_transaction_body`). So the faucet tx
+   has `from = faucet address`, `public_key = faucet pubkey`, and
+   `ed25519_address(tx.public_key) == tx.from` — it will satisfy the Phase 5
+   sender↔key binding. The **block header stays signed by the producer authority key**
+   (distinct role). Test `faucet_transaction_is_signed_by_the_faucet_key` asserts the
+   tx public key derives the faucet `from`, verifies under ed25519, and differs from
+   the header's (authority) key. Golden-neutral (no faucet test pins tx/block hashes);
+   343 tests green.
 4. **Wallet uses its own derived address.** CLI + browser: the signer's `from` is
    `ed25519_address(signer.public_key)`; drop the fixed `PRIVATE_DEVNET_TEST_SENDER`
    restriction on the ed25519 signed-submit path (the binding check replaces it).

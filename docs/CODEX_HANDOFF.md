@@ -13595,3 +13595,26 @@ validate_next_block_state per-tx loop + indexer replay_private_devnet_block; rew
 tests to key-derived senders; devnet skips. (6) regenerate ed25519/testnet fixtures + close
 finding 1 in SECURITY_REVIEW + re-review. Then independent human audit + legal. Test-only
 throughout.
+KEY-DERIVED ACCOUNTS PHASE 3 DONE (faucet signs from its key-derived identity): the
+public-testnet faucet dispense TRANSACTION is now signed by the FAUCET key
+(public_testnet_faucet_signer() = SchemeSigner::ed25519(from PUBLIC_TESTNET_FAUCET_SEED)),
+not the node's producer/authority signer. New
+private_devnet_runner_transaction_signed_by(node, transfer, &signer) + factored
+runner_transaction_body(); the faucet dispense (public_testnet_file_faucet_dispense_with_producer_signer)
+now calls the _signed_by variant with the faucet signer. Result: faucet tx has from =
+faucet address, public_key = PUBLIC_TESTNET_FAUCET_PUBKEY, ed25519_address(tx.public_key)
+== tx.from (ready for Phase 5). The BLOCK HEADER stays signed by the producer authority
+signer (distinct role/key). Removed the #[cfg_attr(not(test),allow(dead_code))] on the
+faucet seed (now used by public_testnet_faucet_signer). Test
+faucet_transaction_is_signed_by_the_faucet_key (dispense -> reopen store -> tx.public_key
+== faucet pubkey, derives from, verifies ed25519, != header pubkey). Golden-neutral (no
+faucet test pins tx/block hashes). Workspace: 343 tests green, fmt clean, no new clippy.
+REMAINING key-derived-accounts phases: (4) wallet from = ed25519_address(signer pubkey),
+drop the fixed PRIVATE_DEVNET_TEST_SENDER (alice) restriction on the ed25519 signed-submit
+path; add the deferred key-derived-account genesis test builder + fund a key-derived
+sender so a wallet-signed tx can be produced/imported. (5) ENFORCE
+ed25519_address(tx.public_key)==tx.from under ed25519 in submit_transaction +
+validate_next_block_state per-tx loop + indexer replay_private_devnet_block; rework the
+ed25519 tx tests (currently send from opaque alice) to key-derived senders; devnet skips.
+(6) regenerate any ed25519/testnet fixtures + close finding 1 in SECURITY_REVIEW +
+re-review. Then independent human audit + legal. Test-only throughout.
