@@ -26,7 +26,7 @@ import {
   submitEd25519SignedTransfer,
 } from "./api";
 import { createEphemeralSigner } from "./signing";
-import { transactionSigningHashHex } from "./canonical";
+import { ed25519AddressHex, transactionSigningHashHex } from "./canonical";
 
 const DEFAULT_RECIPIENT = "xriqdev1bobbb00000000000";
 const MIN_PRIVATE_DEVNET_FEE = 2n;
@@ -36,8 +36,6 @@ const LOCAL_WALLET_SEND_UI_ENABLED =
   import.meta.env.VITE_XRIQ_ENABLE_LOCAL_WALLET_SEND_UI === "true";
 const LOCAL_WALLET_SIGNED_SUBMIT_UI_ENABLED =
   import.meta.env.VITE_XRIQ_ENABLE_LOCAL_WALLET_SIGNED_SUBMIT_UI === "true";
-// The server signed-submit endpoint accepts only this configured test sender.
-const SIGNED_SUBMIT_TEST_SENDER = "xriqdev1alice00000000000";
 
 const ACTION_GUARD_EXPECTATIONS: Record<
   WalletMutationAction,
@@ -760,11 +758,14 @@ function NonCustodialSignSubmitPanel({ apiBaseUrl }: { apiBaseUrl: string }) {
       // never persisted or transmitted — only its public key and the signature
       // leave the wallet.
       const signer = await createEphemeralSigner();
+      // The sender is the wallet's OWN key-derived address (from == the ed25519
+      // address of its signing key), so the sender is bound to the key that signs.
+      const fromAddress = ed25519AddressHex(signer.publicKeyHex);
       const fields: Ed25519TransferFields = {
         local_request_id: `local-signed-${Date.now()}`,
         version: "1",
         chain_id: chainId,
-        from_address: SIGNED_SUBMIT_TEST_SENDER,
+        from_address: fromAddress,
         to_address: to,
         amount_base_units: amount,
         fee_base_units: fee,
@@ -818,8 +819,8 @@ function NonCustodialSignSubmitPanel({ apiBaseUrl }: { apiBaseUrl: string }) {
       <p className="mutedText">{NON_CUSTODIAL_SIGNING_NOTE}</p>
       <div className="walletFields">
         <label>
-          From (test sender)
-          <input value={SIGNED_SUBMIT_TEST_SENDER} readOnly />
+          From (this wallet's key-derived address)
+          <input value="derived from the ephemeral signing key at sign time" readOnly />
         </label>
         <label>
           To

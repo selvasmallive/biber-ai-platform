@@ -16,10 +16,10 @@ use xriq_api::{
     SignedSubmitEnvelopeInput, SignedSubmitHashesInput, SignedSubmitSignatureEnvelopeInput,
     SignedSubmitStateContext, SignedSubmitTransactionInput, SignedSubmitVerificationOk,
     SignedSubmitVerificationRefusal, XriqApiService, LOCAL_REFUSAL_AUDIT_ACTOR,
-    MEMPOOL_READONLY_WARNING, SIGNED_SUBMIT_ENDPOINT, SNAPSHOT_READONLY_WARNING,
-    WALLET_AUDIT_RESOURCE_TYPE, WALLET_PREVIEW_WARNING, WALLET_SEND_AUDIT_ACTION,
-    WALLET_SEND_AUDIT_RESOURCE_ID, WALLET_SIGNED_SUBMIT_AUDIT_ACTION, WALLET_SUBMIT_AUDIT_ACTION,
-    WALLET_SUBMIT_AUDIT_RESOURCE_ID,
+    MEMPOOL_READONLY_WARNING, SIGNED_SUBMIT_ED25519_SIGNATURE_ALGORITHM, SIGNED_SUBMIT_ENDPOINT,
+    SNAPSHOT_READONLY_WARNING, WALLET_AUDIT_RESOURCE_TYPE, WALLET_PREVIEW_WARNING,
+    WALLET_SEND_AUDIT_ACTION, WALLET_SEND_AUDIT_RESOURCE_ID, WALLET_SIGNED_SUBMIT_AUDIT_ACTION,
+    WALLET_SUBMIT_AUDIT_ACTION, WALLET_SUBMIT_AUDIT_RESOURCE_ID,
 };
 use xriq_core::{
     Address, Environment, Hash32, XriqAmount, PRIVATE_DEVNET_MAX_TRANSACTIONS_PER_BLOCK,
@@ -922,14 +922,25 @@ fn local_wallet_signed_submit_http_response(
         Ok(request) => request,
         Err(response) => return response,
     };
-    if let Some(transaction) = request.envelope.transaction {
-        if let Some(from_address) = transaction.from {
-            if from_address != PRIVATE_DEVNET_TEST_SENDER {
-                return local_api_error_response(
-                    400,
-                    "invalid_sender",
-                    "signed wallet submit is limited to the configured private-devnet Alice test sender",
-                );
+    // The test-only signed-submit path stays limited to the configured Alice test
+    // sender (it authenticates nothing). The ed25519 path allows any key-derived
+    // sender; the sender is bound to its key in `verify_signed_submit_envelope_preview`
+    // (from == ed25519_address(public_key)).
+    let is_ed25519_submit = request
+        .envelope
+        .signature_envelope
+        .and_then(|envelope| envelope.algorithm)
+        == Some(SIGNED_SUBMIT_ED25519_SIGNATURE_ALGORITHM);
+    if !is_ed25519_submit {
+        if let Some(transaction) = request.envelope.transaction {
+            if let Some(from_address) = transaction.from {
+                if from_address != PRIVATE_DEVNET_TEST_SENDER {
+                    return local_api_error_response(
+                        400,
+                        "invalid_sender",
+                        "test-only signed wallet submit is limited to the configured private-devnet Alice test sender",
+                    );
+                }
             }
         }
     }

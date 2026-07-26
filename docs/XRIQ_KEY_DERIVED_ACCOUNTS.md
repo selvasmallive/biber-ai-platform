@@ -90,10 +90,19 @@ address of its own signer, not a fixed literal.
    tx public key derives the faucet `from`, verifies under ed25519, and differs from
    the header's (authority) key. Golden-neutral (no faucet test pins tx/block hashes);
    343 tests green.
-4. **Wallet uses its own derived address.** CLI + browser: the signer's `from` is
-   `ed25519_address(signer.public_key)`; drop the fixed `PRIVATE_DEVNET_TEST_SENDER`
-   restriction on the ed25519 signed-submit path (the binding check replaces it).
-   Fund a key-derived account in the ed25519 test genesis so the wallet can transfer.
+4. **Wallet uses its own derived address.** — **DONE.** The browser wallet's `from`
+   is now `ed25519AddressHex(signer.publicKeyHex)` (new `ed25519_address` TS port in
+   `canonical.ts`, cross-checked against Rust goldens in the check script). The
+   xriq-api signed-submit route's fixed-Alice restriction is now **only** applied to
+   the test-only path; the ed25519 path allows any key-derived sender and **binds it
+   to its key** in `verify_signed_submit_envelope_preview` (`from ==
+   ed25519_address(public_key)`, else `sender_key_mismatch`) — this is the API-layer
+   half of the sender↔key enforcement. Tests: the ed25519 submit test now sends from
+   the key-derived address, and a fully-consistent envelope with a mismatched (victim)
+   `from` is rejected as `sender_key_mismatch`. 343 tests green; browser guard +
+   canonical check + tsc + vite build all pass. (Funding a key-derived sender in a
+   test genesis + the key-derived-account genesis test builder move to Phase 5, where
+   the node-level enforcement and its end-to-end tests need them.)
 5. **Enforce sender↔key.** Under the Ed25519 scheme, add
    `ed25519_address(tx.public_key) == tx.from` (reject empty/non-32-byte, wrong
    address) in `submit_transaction`, the per-transaction loop in

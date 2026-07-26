@@ -906,6 +906,20 @@ pub fn verify_signed_submit_envelope_preview(
     }
 
     let (result_algorithm, result_verifier) = if is_ed25519 {
+        // Bind the sender to its key: `from` must be the address derived from the
+        // signing public key, so a signature over an arbitrary key cannot authorize a
+        // different account (security-review finding 1, sender half).
+        let key_derives_sender = <[u8; 32]>::try_from(transaction.public_key.as_slice())
+            .map(|key| xriq_crypto::ed25519_address(&key) == transaction.from)
+            .unwrap_or(false);
+        if !key_derives_sender {
+            return Err(signed_submit_refusal(
+                "sender_key_mismatch",
+                400,
+                "SenderKeyMismatch",
+                "signed-submit-sender-key-mismatch:local_request_id",
+            ));
+        }
         // The wallet signed the signing hash locally and supplied the signature; the
         // key never reached the server. Verify it under the ed25519 scheme.
         transaction.signature = SignatureBytes::new(ed25519_signature_bytes);
@@ -4332,18 +4346,20 @@ mod tests {
     #[test]
     fn signed_submit_preview_verifies_a_real_ed25519_signature() {
         use xriq_crypto::{
-            ed25519_public_key, ed25519_sign_hash, ed25519_signing_key_from_seed,
+            ed25519_address, ed25519_public_key, ed25519_sign_hash, ed25519_signing_key_from_seed,
             transaction_signing_hash,
         };
 
         // Reproduce what a non-custodial wallet does: build the transaction with the
-        // signer's public key, sign the canonical signing hash locally with ed25519.
+        // signer's public key, from the key-derived sender address, sign the canonical
+        // signing hash locally with ed25519.
         let key = ed25519_signing_key_from_seed([4u8; 32]);
         let pubkey = ed25519_public_key(&key);
+        let from_address = ed25519_address(&pubkey);
         let mut tx = Transaction {
             version: Transaction::SUPPORTED_VERSION,
             chain_id: "xriq-devnet".to_string(),
-            from: Address::parse("xriqdev1alice00000000000").unwrap(),
+            from: from_address.clone(),
             to: Address::parse("xriqdev1carol00000000000").unwrap(),
             amount: XriqAmount::from_base_units(5),
             fee: XriqAmount::from_base_units(2),
@@ -4370,7 +4386,7 @@ mod tests {
             transaction: Some(SignedSubmitTransactionInput {
                 version: Some(Transaction::SUPPORTED_VERSION),
                 chain_id: Some("xriq-devnet"),
-                from: Some("xriqdev1alice00000000000"),
+                from: Some(from_address.as_str()),
                 to: Some("xriqdev1carol00000000000"),
                 amount_base_units: Some("5"),
                 fee_base_units: Some("2"),
@@ -4400,6 +4416,56 @@ mod tests {
             SIGNED_SUBMIT_ED25519_SIGNATURE_ALGORITHM
         );
         assert_eq!(verified.verifier, SIGNED_SUBMIT_ED25519_VERIFIER);
+
+        // Sender↔key binding (the real attack): a fully-consistent envelope whose
+        // `from` is a victim account NOT derived from the signing key. The signing
+        // hash + signature are valid over this body, but the binding rejects it so a
+        // valid signature over an arbitrary key cannot spend from another account.
+        let mut attack_tx = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from: Address::parse("xriqdev1alice00000000000").unwrap(),
+            to: Address::parse("xriqdev1carol00000000000").unwrap(),
+            amount: XriqAmount::from_base_units(5),
+            fee: XriqAmount::from_base_units(2),
+            nonce: 1,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: pubkey.to_vec(),
+        };
+        let attack_signing_hash = transaction_signing_hash(&attack_tx);
+        attack_tx.signature = ed25519_sign_hash(&key, attack_signing_hash);
+        let attack_signing_hex = hash_hex(attack_signing_hash);
+        let attack_tx_hash_hex = hash_hex(transaction_hash(&attack_tx));
+        let attack_signature_hex = bytes_hex(attack_tx.signature.as_slice());
+        let attack = SignedSubmitEnvelopeInput {
+            format_version: Some(SIGNED_SUBMIT_FORMAT_VERSION),
+            transaction: Some(SignedSubmitTransactionInput {
+                version: Some(Transaction::SUPPORTED_VERSION),
+                chain_id: Some("xriq-devnet"),
+                from: Some("xriqdev1alice00000000000"),
+                to: Some("xriqdev1carol00000000000"),
+                amount_base_units: Some("5"),
+                fee_base_units: Some("2"),
+                nonce: Some(1),
+                expires_at_height: Some(100),
+            }),
+            hashes: Some(SignedSubmitHashesInput {
+                transaction_signing_hash: Some(attack_signing_hex.as_str()),
+                transaction_hash: Some(attack_tx_hash_hex.as_str()),
+            }),
+            signature_envelope: Some(SignedSubmitSignatureEnvelopeInput {
+                algorithm: Some(SIGNED_SUBMIT_ED25519_SIGNATURE_ALGORITHM),
+                signature_encoding: Some(SIGNED_SUBMIT_ED25519_SIGNATURE_ENCODING),
+                public_key: Some(pubkey_hex.as_str()),
+                signature: Some(attack_signature_hex.as_str()),
+            }),
+        };
+        let sender_refusal =
+            verify_signed_submit_envelope_preview(attack, signed_submit_state_context(&pending))
+                .unwrap_err();
+        assert_eq!(sender_refusal.code, "sender_key_mismatch");
 
         // A tampered signature is rejected (real verification, not reconstruction).
         let mut bad = good.clone();

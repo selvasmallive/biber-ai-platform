@@ -4,7 +4,7 @@
 // (or, worse, accept a mismatched server hash). The goldens below were produced by
 // the Rust implementation for the fixed transfer fields. Run under Node's type
 // stripping so the .ts encoder is exercised directly (no drift from a re-implementation).
-import { transactionSigningHashHex } from "../src/canonical.ts";
+import { ed25519AddressHex, transactionSigningHashHex } from "../src/canonical.ts";
 
 const fields = {
   version: "1",
@@ -35,6 +35,25 @@ for (const testCase of cases) {
   const actual = transactionSigningHashHex(fields, testCase.publicKeyHex);
   if (actual !== testCase.expected) {
     failures.push(`${testCase.name}: expected ${testCase.expected}, got ${actual}`);
+  }
+}
+
+// ed25519_address must also match the Rust golden (used for the wallet's key-derived
+// sender address). Goldens: the testnet faucet key, and the all-zero key.
+const addressCases = [
+  {
+    publicKeyHex: "db68ac1d2872f701f3491a9bd61de52734d9941a2ceb4aefb6634a36d7b01df2",
+    expected: "xriqdev1d438244cf889f4157bed7e932621b1ac69095b8a",
+  },
+  {
+    publicKeyHex: "0000000000000000000000000000000000000000000000000000000000000000",
+    expected: "xriqdev1397e043c1939ff954726c0f3657a7a5093b33b89",
+  },
+];
+for (const testCase of addressCases) {
+  const actual = ed25519AddressHex(testCase.publicKeyHex);
+  if (actual !== testCase.expected) {
+    failures.push(`ed25519_address(${testCase.publicKeyHex}): expected ${testCase.expected}, got ${actual}`);
   }
 }
 

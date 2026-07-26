@@ -81,6 +81,26 @@ function concat(parts: Uint8Array[]): Uint8Array {
   return out;
 }
 
+const ED25519_ADDRESS_DOMAIN = "xriq:v1:ed25519-address";
+const ED25519_ADDRESS_PREFIX = "xriqdev1";
+const ED25519_ADDRESS_PAYLOAD_BYTES = 20;
+
+/**
+ * Derive an account address from an Ed25519 public key (lowercase hex), matching
+ * `xriq-crypto::ed25519_address`: `xriqdev1` + the first 20 bytes of
+ * SHA-256("xriq:v1:ed25519-address" || pubkey), as lowercase hex. Lets the wallet use
+ * its own key-derived address as the transaction sender.
+ */
+export function ed25519AddressHex(publicKeyHex: string): string {
+  const preimage = concat([utf8(ED25519_ADDRESS_DOMAIN), hexToBytes(publicKeyHex)]);
+  const hash = sha256(preimage);
+  let payload = "";
+  for (let index = 0; index < ED25519_ADDRESS_PAYLOAD_BYTES; index += 1) {
+    payload += hash[index].toString(16).padStart(2, "0");
+  }
+  return ED25519_ADDRESS_PREFIX + payload;
+}
+
 export interface CanonicalTransactionFields {
   version: string;
   chain_id: string;

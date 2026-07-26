@@ -13618,3 +13618,28 @@ validate_next_block_state per-tx loop + indexer replay_private_devnet_block; rew
 ed25519 tx tests (currently send from opaque alice) to key-derived senders; devnet skips.
 (6) regenerate any ed25519/testnet fixtures + close finding 1 in SECURITY_REVIEW +
 re-review. Then independent human audit + legal. Test-only throughout.
+KEY-DERIVED ACCOUNTS PHASE 4 DONE (wallet uses its key-derived sender address + API
+sender<->key binding on the ed25519 signed-submit path): (a) xriq-api main.rs: the
+fixed-Alice sender restriction on the signed-submit route now applies ONLY to the
+test-only path (is_ed25519_submit check via envelope algorithm); the ed25519 path
+allows any key-derived sender. (b) xriq-api lib.rs verify_signed_submit_envelope_preview
+ed25519 branch: added the sender<->key BINDING -- from must == ed25519_address(public_key),
+else refusal code "sender_key_mismatch" (SenderKeyMismatch, 400). This is the API-layer
+half of finding-1 sender enforcement (Phase 5 adds the node/consensus half). (c) browser:
+new ed25519AddressHex(publicKeyHex) in explorer-ui src/canonical.ts (byte-for-byte port of
+ed25519_address: sha256("xriq:v1:ed25519-address"||pubkey)[..20] hex, "xriqdev1" prefix),
+cross-checked in scripts/check-canonical-signing-hash.mjs against 2 Rust goldens (faucet
+db68... -> xriqdev1d438244..., zero -> xriqdev1397e043c...); wallet.tsx now sets
+from_address = ed25519AddressHex(signer.publicKeyHex) (removed unused SIGNED_SUBMIT_TEST_SENDER
++ static From display). Tests: signed_submit_preview_verifies_a_real_ed25519_signature now
+uses the key-derived from + a fully-consistent mismatched-sender attack -> sender_key_mismatch.
+Workspace: 343 Rust tests green, fmt clean, no new clippy; browser guard + canonical check +
+tsc + vite build green. NOTE the browser wallet's ephemeral key-derived address is UNFUNDED
+on the devnet, so an end-to-end signed-submit would fail at the (unfunded) sender -- correct
+behaviour; a real user faucets their address first. REMAINING: (5) node/consensus sender<->key
+enforcement: add ed25519_address(tx.public_key)==tx.from under ed25519 in submit_transaction +
+validate_next_block_state per-tx loop + indexer replay_private_devnet_block; add the deferred
+key-derived-account genesis test builder (ed25519_account_genesis funding ed25519_address(seed))
++ rework the ed25519 tx tests (currently send from opaque alice) to key-derived senders; devnet
+skips. (6) regenerate any ed25519 fixtures + close finding 1 in SECURITY_REVIEW + re-review.
+Then independent human audit + legal. Test-only throughout.
