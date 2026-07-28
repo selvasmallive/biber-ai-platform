@@ -137,6 +137,23 @@ artifacts only; real-repo apply remains a separate explicit approval step.
 The default smoke edit intentionally targets a single exact docs line, because
 small local models may collapse wrapped paragraphs even when they select the
 correct file.
+After the first fixed docs smoke has passed, prefer task-specific exact
+replacement inputs instead of changing script defaults. For example:
+
+```bash
+printf '%s\n' 'old exact line' > /workspace/outputs/biber-old.txt
+printf '%s\n' 'new exact line' > /workspace/outputs/biber-new.txt
+python scripts/biber_live_provider_real_repo_plan_smoke.py \
+  --base-url http://127.0.0.1:8001/v1 \
+  --model biber-dev-core \
+  --target-root /workspace/biber-ai-platform \
+  --required-path docs/BIBER_ONLY_WORKSPACE.md \
+  --required-old-text-file /workspace/outputs/biber-old.txt \
+  --required-new-text-file /workspace/outputs/biber-new.txt
+```
+
+The summary records `required_edit` so reviewers can confirm which path and
+exact replacement were requested before approving any apply.
 When this passes, the summary includes an `explicit_apply_approval` block with
 the reviewed `plan_hash`, `apply_command`, and `verify_command_after_apply`.
 Those commands are a resume aid only. Do not run the apply command unless the

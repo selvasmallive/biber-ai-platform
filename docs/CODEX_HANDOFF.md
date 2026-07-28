@@ -282,6 +282,18 @@ Vast status was clean and up to date:
 live-provider non-disposable real-repo plan/apply/verify/save/sync loop is now
 complete without OpenAI mentor, training, credential rotation, or GitHub auth
 on Vast.
+2026-07-28 source checkpoint after the first live loop: the real-repo
+plan-only smoke has been generalized beyond the one-shot docs default. It now
+accepts `--required-path`, `--required-old-text`,
+`--required-old-text-file`, `--required-new-text`, and
+`--required-new-text-file`, then builds the guarded plan-only prompt from those
+exact values. Mock mode uses the same configured required edit, and summaries
+now include a `required_edit` preview/count block so reviewers can confirm the
+requested path and replacement before any apply approval. The default smoke
+target was advanced to the current saved docs line, but future live tasks
+should prefer explicit `--required-*` arguments rather than code changes. This
+keeps the local model provider swappable while making the next .NET/Java/Rust
+or docs task reusable through the same review/apply/verify gates.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is

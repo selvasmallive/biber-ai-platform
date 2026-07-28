@@ -31,24 +31,14 @@ DEFAULT_TIMEOUT_SECONDS = 180.0
 DEFAULT_CHANGED_PATH = "docs/BIBER_ONLY_WORKSPACE.md"
 DEFAULT_TEST_ID = "python-compileall-api"
 DEFAULT_OLD_TEXT = (
-    "Use this document when continuing BIBER MVP from the sparse checkout at:\n"
-)
-DEFAULT_NEW_TEXT = (
     "Use this document when continuing BIBER MVP from the dedicated sparse checkout at:\n"
 )
-DEFAULT_CONTEXT_INSTRUCTION = (
-    "Select the narrow BIBER-only docs context needed for a safe plan-only "
-    "local-provider edit review."
+DEFAULT_NEW_TEXT = (
+    "Use this document when continuing BIBER MVP from the dedicated BIBER-only sparse checkout at:\n"
 )
-DEFAULT_PLAN_INSTRUCTION = (
-    "Plan only, do not apply. This is a smoke test of the real-repo planning "
-    f"bridge. If the exact old_text below appears in `{DEFAULT_CHANGED_PATH}`, "
-    "return exactly one JSON edit using that path, old_text, new_text, and "
-    "expected_replacements=1. If the exact old_text is unavailable, return "
-    "{\"edits\":[]}.\n\n"
-    f"Required path: {DEFAULT_CHANGED_PATH}\n"
-    f"Required old_text:\n{DEFAULT_OLD_TEXT}\n"
-    f"Required new_text:\n{DEFAULT_NEW_TEXT}"
+DEFAULT_CONTEXT_INSTRUCTION = (
+    "Select the narrow BIBER repo context needed for a safe plan-only "
+    "local-provider edit review. Prioritize the required changed path."
 )
 
 
@@ -69,6 +59,40 @@ def default_output_root() -> Path:
 
 def timestamp() -> str:
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
+def resolve_required_text(
+    *,
+    value: str | None,
+    file_value: str | None,
+    default: str,
+    label: str,
+) -> str:
+    if value is not None and file_value is not None:
+        raise RuntimeError(f"Use either --{label} or --{label}-file, not both.")
+    if file_value is not None:
+        return Path(file_value).read_text(encoding="utf-8")
+    if value is not None:
+        return value
+    return default
+
+
+def build_plan_instruction(
+    *,
+    required_path: str,
+    required_old_text: str,
+    required_new_text: str,
+) -> str:
+    return (
+        "Plan only, do not apply. This is a smoke test of the real-repo planning "
+        f"bridge. If the exact old_text below appears in `{required_path}`, "
+        "return exactly one JSON edit using that path, old_text, new_text, and "
+        "expected_replacements=1. If the exact old_text is unavailable, return "
+        "{\"edits\":[]}.\n\n"
+        f"Required path: {required_path}\n"
+        f"Required old_text:\n{required_old_text}\n"
+        f"Required new_text:\n{required_new_text}"
+    )
 
 
 def run_client(
@@ -143,13 +167,19 @@ def default_model_command(repo_root: Path) -> str:
     )
 
 
-def create_mock_provider(path: Path) -> None:
+def create_mock_provider(
+    *,
+    path: Path,
+    required_path: str,
+    required_old_text: str,
+    required_new_text: str,
+) -> None:
     edit_payload = {
         "edits": [
             {
-                "path": DEFAULT_CHANGED_PATH,
-                "old_text": DEFAULT_OLD_TEXT,
-                "new_text": DEFAULT_NEW_TEXT,
+                "path": required_path,
+                "old_text": required_old_text,
+                "new_text": required_new_text,
                 "expected_replacements": 1,
             }
         ]
@@ -162,10 +192,11 @@ def create_mock_provider(path: Path) -> None:
         "repair = request.get('repair_request') or {}\n"
         "prompt = repair.get('repair_prompt') or ''\n"
         "normalized_prompt = prompt.replace('\\r\\n', '\\n')\n"
-        "old_text = " + repr(DEFAULT_OLD_TEXT) + "\n"
+        "old_text = " + repr(required_old_text) + "\n"
+        "normalized_old_text = old_text.replace('\\r\\n', '\\n')\n"
         "if request.get('source') != 'biber_local_model_command_request':\n"
         "    raise SystemExit('unexpected request source')\n"
-        "if 'BIBER_FILE_CONTENT_START' not in prompt or old_text not in normalized_prompt:\n"
+        "if 'BIBER_FILE_CONTENT_START' not in prompt or normalized_old_text not in normalized_prompt:\n"
         "    raise SystemExit('real repo source context missing from prompt')\n"
         "content = " + repr(json.dumps(edit_payload, sort_keys=True)) + "\n"
         "print(json.dumps({'content': content, 'model': request.get('model')}))\n",
@@ -396,6 +427,9 @@ def build_summary(
     args: argparse.Namespace,
     base_url: str,
     model: str,
+    required_path: str,
+    required_old_text: str,
+    required_new_text: str,
     work_root: Path,
     artifact_dir: Path,
     target_root: Path,
@@ -462,6 +496,13 @@ def build_summary(
         "github_request_sent": False,
         "apply_status": None,
         "verification_status": None,
+        "required_edit": {
+            "path": required_path,
+            "old_text_chars": len(required_old_text),
+            "new_text_chars": len(required_new_text),
+            "old_text_preview": compact_preview(required_old_text),
+            "new_text_preview": compact_preview(required_new_text),
+        },
         "work_root": str(work_root),
         "artifact_dir": str(artifact_dir),
         "target_root": str(target_root),
@@ -550,6 +591,24 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         or os.getenv("BIBER_LOCAL_MODEL_NAME")
         or DEFAULT_MODEL
     )
+    required_path = args.required_path or DEFAULT_CHANGED_PATH
+    required_old_text = resolve_required_text(
+        value=args.required_old_text,
+        file_value=args.required_old_text_file,
+        default=DEFAULT_OLD_TEXT,
+        label="required-old-text",
+    )
+    required_new_text = resolve_required_text(
+        value=args.required_new_text,
+        file_value=args.required_new_text_file,
+        default=DEFAULT_NEW_TEXT,
+        label="required-new-text",
+    )
+    plan_instruction = args.plan_instruction or build_plan_instruction(
+        required_path=required_path,
+        required_old_text=required_old_text,
+        required_new_text=required_new_text,
+    )
     output_root = Path(args.output_root) if args.output_root else default_output_root()
     work_root = output_root / f"biber-real-repo-plan-smoke-{timestamp()}"
     artifact_dir = work_root / "artifacts"
@@ -559,7 +618,12 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     model_command = args.model_command
     if args.mode == "mock":
         mock_provider = work_root / "mock-real-repo-plan-provider.py"
-        create_mock_provider(mock_provider)
+        create_mock_provider(
+            path=mock_provider,
+            required_path=required_path,
+            required_old_text=required_old_text,
+            required_new_text=required_new_text,
+        )
         model_command = json.dumps([sys.executable, str(mock_provider)])
     else:
         readiness = live_readiness.readiness_summary(
@@ -597,7 +661,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "BIBER_LOCAL_OPENAI_MODEL": model,
     }
     git_before = git_status_short(target_root)
-    changed_paths = args.changed_path or [DEFAULT_CHANGED_PATH]
+    changed_paths = args.changed_path or [required_path]
     pinned_paths = args.pinned_path or []
     mvp_args = [
         "mvp-loop",
@@ -631,7 +695,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         target_root=target_root,
         mvp_result=mvp_result,
         mvp_artifact=artifact_dir / "real-repo-mvp-loop.json",
-        instruction=args.plan_instruction,
+        instruction=plan_instruction,
         test_id=args.test_id,
     )
     write_json(artifact_dir / "real-repo-plan-only-repair.json", repair_request)
@@ -670,6 +734,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         args=args,
         base_url=base_url,
         model=model,
+        required_path=required_path,
+        required_old_text=required_old_text,
+        required_new_text=required_new_text,
         work_root=work_root,
         artifact_dir=artifact_dir,
         target_root=target_root,
@@ -718,7 +785,34 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pinned-path", action="append", default=None)
     parser.add_argument("--test-id", default=DEFAULT_TEST_ID)
     parser.add_argument("--context-instruction", default=DEFAULT_CONTEXT_INSTRUCTION)
-    parser.add_argument("--plan-instruction", default=DEFAULT_PLAN_INSTRUCTION)
+    parser.add_argument(
+        "--plan-instruction",
+        help=(
+            "Optional full local-model instruction. Defaults to a guarded "
+            "plan-only instruction built from --required-* values."
+        ),
+    )
+    parser.add_argument(
+        "--required-path",
+        default=DEFAULT_CHANGED_PATH,
+        help="Workspace-relative path the provider should edit when exact old_text is present.",
+    )
+    parser.add_argument(
+        "--required-old-text",
+        help="Exact old_text for the guarded edit. Use the file variant for multiline text.",
+    )
+    parser.add_argument(
+        "--required-old-text-file",
+        help="UTF-8 file containing exact old_text for the guarded edit.",
+    )
+    parser.add_argument(
+        "--required-new-text",
+        help="Exact new_text for the guarded edit. Use the file variant for multiline text.",
+    )
+    parser.add_argument(
+        "--required-new-text-file",
+        help="UTF-8 file containing exact new_text for the guarded edit.",
+    )
     parser.add_argument("--max-context-files", type=int, default=4)
     parser.add_argument("--max-scan-files", type=int, default=2000)
     parser.add_argument(
