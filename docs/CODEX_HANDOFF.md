@@ -294,6 +294,23 @@ target was advanced to the current saved docs line, but future live tasks
 should prefer explicit `--required-*` arguments rather than code changes. This
 keeps the local model provider swappable while making the next .NET/Java/Rust
 or docs task reusable through the same review/apply/verify gates.
+2026-07-28 live parameterized plan checkpoint: the user stayed on the current
+Vast GPU and pulled the latest `biber/mvp-resume-20260712` branch. Running
+`python scripts/biber_live_provider_real_repo_plan_smoke.py --base-url http://127.0.0.1:8001/v1 --model biber-dev-core --target-root /workspace/biber-ai-platform`
+with the new defaults passed with `ok=true`, `chain_status=planned`,
+`plan_outcome=planned_for_review`,
+`review_status=ready_for_explicit_apply_approval`, `planned=1`, `rejected=0`,
+`repo_status_unchanged=true`, `mutation_performed=false`, no GitHub request,
+no OpenAI mentor, and no training. The required edit was
+`docs/BIBER_ONLY_WORKSPACE.md`, changing the opening resume sentence from
+"dedicated sparse checkout" to "dedicated BIBER-only sparse checkout". Latest
+plan hash:
+`1fcc73db3608f448df9e5aa346231e536f1b524a9846714915151d17706fdcd9`.
+Artifacts:
+`/workspace/outputs/biber-real-repo-plan-smoke-20260728T191535Z/artifacts`.
+Next step requires separate explicit approval before running the emitted
+`apply-repair-edits --approve` command, followed immediately by the emitted
+`local-verify-chain` command.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
