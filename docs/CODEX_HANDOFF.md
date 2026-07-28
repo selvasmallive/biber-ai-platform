@@ -235,6 +235,20 @@ real-repo apply for artifacts under
 Next Vast action: run the emitted `apply-repair-edits --approve` command, then
 immediately run the emitted `local-verify-chain` command. Do not run GitHub
 save/PR until verification output is reviewed.
+2026-07-28 verified real-repo apply checkpoint: after the approved apply for
+plan hash `c308cece9390c7cfbb92899b9c95c3038fa9ab5acfb01ebfbf5591f3ac13aac2`,
+the user ran the emitted `local-verify-chain` command on Vast. Verification
+passed with `ok=true`, `chain_status=verified`, `test_executed=true`,
+`test_ok=true`, `verification_status=passed`, and exit code `0`. The test was
+`python-compileall-api`, executing `/venv/main/bin/python -m compileall app src`
+from `/workspace/biber-ai-platform`, and stdout listed `app`, `src`, and
+`src/biber_api`. Apply/save flags stayed safe: `apply_allowed=false`,
+`auto_applied=false`, `auto_saved=false`, and `training_allowed=false`.
+Verification artifact:
+`/workspace/outputs/biber-real-repo-plan-smoke-20260728T094239Z/artifacts/real-repo-local-verify-chain.json`.
+Next step: inspect the Vast git diff/status for the applied docs edit. Only
+save/commit/push or create a PR after the user explicitly requests that GitHub
+save/PR step.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
