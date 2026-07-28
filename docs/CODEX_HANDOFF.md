@@ -249,6 +249,13 @@ Verification artifact:
 Next step: inspect the Vast git diff/status for the applied docs edit. Only
 save/commit/push or create a PR after the user explicitly requests that GitHub
 save/PR step.
+2026-07-28 Vast diff inspection checkpoint: the user ran
+`git status --short` and `git diff -- docs/BIBER_ONLY_WORKSPACE.md` on Vast
+after the verified apply. The Vast working tree showed exactly one modified
+file, `docs/BIBER_ONLY_WORKSPACE.md`, and the diff was the intended one-line
+change from "sparse checkout" to "dedicated sparse checkout" in the opening
+resume sentence. This looks safe to save, but GitHub commit/push still requires
+the user's separate explicit save/PR approval.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
