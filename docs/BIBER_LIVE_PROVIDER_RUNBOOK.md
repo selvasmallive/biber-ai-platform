@@ -134,6 +134,9 @@ If the model returns a safe no-op or unusable edit, the summary exposes
 `plan_outcome`, extraction counts/reasons, and a short model response preview
 for the next prompt-tuning step. Treat all artifacts as planning/review
 artifacts only; real-repo apply remains a separate explicit approval step.
+The default smoke edit intentionally targets a single exact docs line, because
+small local models may collapse wrapped paragraphs even when they select the
+correct file.
 
 For manual repair-loop checks, run:
 

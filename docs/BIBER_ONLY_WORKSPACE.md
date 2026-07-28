@@ -142,6 +142,8 @@ result must report `target_is_disposable=false`, `mutation_performed=false`,
 unusable edit, inspect `plan_outcome`, `model_response_content_preview`,
 `extraction_status`, and rejection fields before retrying. Do not apply any
 real-repo plan without a separate explicit apply approval.
+The default smoke edit uses a single exact docs line so the live 3B provider is
+not judged on preserving wrapped paragraph line breaks.
 
 This keeps Qwen2.5, Qwen3, llama.cpp, vLLM wrappers, and future local runners
 swappable without enabling OpenAI mentor, API auth, GPU training, or file apply.

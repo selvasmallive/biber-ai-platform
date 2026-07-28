@@ -174,6 +174,24 @@ request, and the summary now records `plan_outcome`, `extraction_status`,
 branch: rerun the same real-repo plan-only command and check whether
 `plan_outcome=planned_for_review`; if not, use the new diagnostic fields to
 tune the prompt, still without applying any real-repo edit.
+2026-07-28 Vast retry after commit `85935ba`: the live 3B model improved and
+returned a JSON edit for the correct path, but it collapsed the required
+multi-line paragraph into one line. The deterministic planner rejected it:
+`chain_status=plan_rejected`, `review_status=blocked_before_apply`,
+`apply_recommendation=do_not_apply`, `extracted_edits=1`, `planned=0`,
+`rejected=1`, `repo_status_unchanged=true`, `mutation_performed=false`, no
+GitHub request, no OpenAI mentor, and no training. This confirms the provider
+bridge is reading real repo context, while the current smoke target was too
+sensitive to paragraph wrapping. Follow-up source checkpoint: the default
+plan-only smoke edit now targets a single exact line
+`Use this document when continuing BIBER MVP from the sparse checkout at:`
+and changes it to `Use this document when continuing BIBER MVP from the
+dedicated sparse checkout at:`. The summary now distinguishes
+`blocked_plan_rejected` from `planned_for_review` and includes
+`plan_rejected` plus `plan_rejection_reasons`. Next Vast step after pulling the
+latest branch: rerun the same real-repo plan-only command and expect
+`plan_outcome=planned_for_review`, `chain_status=planned`, `planned=1`,
+`rejected=0`, and `repo_status_unchanged=true`; still do not apply the edit.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is

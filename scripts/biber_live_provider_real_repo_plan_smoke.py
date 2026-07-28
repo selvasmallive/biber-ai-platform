@@ -31,12 +31,10 @@ DEFAULT_TIMEOUT_SECONDS = 180.0
 DEFAULT_CHANGED_PATH = "docs/BIBER_ONLY_WORKSPACE.md"
 DEFAULT_TEST_ID = "python-compileall-api"
 DEFAULT_OLD_TEXT = (
-    "This folder is intentionally filtered so BIBER work does not need to scan or\n"
-    "reason about the separate XRIS-Coin/XRIQ project.\n"
+    "Use this document when continuing BIBER MVP from the sparse checkout at:\n"
 )
 DEFAULT_NEW_TEXT = (
-    "This folder is intentionally filtered so BIBER work can avoid scanning or\n"
-    "reasoning about the separate XRIS-Coin/XRIQ project.\n"
+    "Use this document when continuing BIBER MVP from the dedicated sparse checkout at:\n"
 )
 DEFAULT_CONTEXT_INSTRUCTION = (
     "Select the narrow BIBER-only docs context needed for a safe plan-only "
@@ -321,6 +319,12 @@ def repair_chain_diagnostics(chain: dict[str, Any]) -> dict[str, Any]:
     model_response = attempt.get("model_response")
     if not isinstance(model_response, dict):
         model_response = {}
+    plan = chain.get("repair_edit_plan")
+    if not isinstance(plan, dict):
+        plan = {}
+    edit_plan = plan.get("edit_plan")
+    if not isinstance(edit_plan, dict):
+        edit_plan = {}
     content = str(model_response.get("content") or "")
     rejected = [
         item for item in client.require_list(extraction.get("rejected")) if isinstance(item, dict)
@@ -328,8 +332,18 @@ def repair_chain_diagnostics(chain: dict[str, Any]) -> dict[str, Any]:
     edits = [
         item for item in client.require_list(extraction.get("edits")) if isinstance(item, dict)
     ]
-    if edits:
+    plan_rejected = [
+        item for item in client.require_list(edit_plan.get("rejected")) if isinstance(item, dict)
+    ]
+    plan_planned = [
+        item for item in client.require_list(edit_plan.get("planned")) if isinstance(item, dict)
+    ]
+    if plan_planned:
         outcome = "planned_for_review"
+    elif plan_rejected:
+        outcome = "blocked_plan_rejected"
+    elif edits:
+        outcome = "blocked_extracted_but_not_planned"
     elif rejected:
         outcome = "blocked_unusable_edits"
     elif int(extraction.get("json_values_found") or 0) > 0:
@@ -348,6 +362,24 @@ def repair_chain_diagnostics(chain: dict[str, Any]) -> dict[str, Any]:
                 str(item.get("reason"))
                 for item in rejected
                 if item.get("reason")
+            }
+        ),
+        "plan_rejected": len(plan_rejected),
+        "plan_rejection_reasons": sorted(
+            {
+                str(
+                    item.get("reason")
+                    or item.get("error")
+                    or item.get("message")
+                    or item.get("status")
+                )
+                for item in plan_rejected
+                if (
+                    item.get("reason")
+                    or item.get("error")
+                    or item.get("message")
+                    or item.get("status")
+                )
             }
         ),
         "json_values_found": extraction.get("json_values_found"),
@@ -407,6 +439,8 @@ def build_summary(
             "blocked_unparseable_model_response",
             "blocked_empty_model_response",
         }
+        else "inspect_plan_rejections_or_retry_with_simpler_exact_old_text"
+        if diagnostics["plan_outcome"] == "blocked_plan_rejected"
         else "inspect_rejected_edits_before_retry"
     )
     summary = {
