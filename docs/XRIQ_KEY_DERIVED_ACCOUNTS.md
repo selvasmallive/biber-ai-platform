@@ -125,10 +125,25 @@ address of its own signer, not a fixed literal.
    new warnings). (Deferred to Phase 6: a dedicated ed25519 *indexer*-level negative
    test — the enforcement is present and mirrors the node, but the indexer test harness
    does not yet build ed25519 blocks.)
-6. **Regenerate affected fixtures + re-review.** Regenerate only the ed25519/testnet
-   fixtures whose addresses/hashes change; devnet fixtures are untouched. Update
-   `SECURITY_REVIEW.md` (finding 1 fully closed) and re-run the adversarial review on
-   the changed surfaces.
+6. **Regenerate affected fixtures + re-review.** — **DONE.** No fixtures needed
+   regeneration: Phase 5 changed no genesis addresses (the testnet faucet was already
+   key-derived in Phase 2, and enforcement is behaviour-only), so the testnet
+   `genesis_spec_hash` (`e6c1b311…`) and all golden fixtures are unchanged — the full
+   345-test suite is green, which is the drift check. Added the deferred ed25519
+   **indexer-level** negative test
+   (`replay_rejects_ed25519_transaction_whose_key_does_not_derive_from`): a forged tx
+   whose signature verifies over the attacker's key but claims a victim `from` is
+   rejected by `replay_private_devnet_block` as `UnauthorizedSender`. `SECURITY_REVIEW.md`
+   updated (finding 1 fully closed). **Adversarial re-review of the changed surfaces**
+   focused on the one new value-relevant seam, `fund_runner_ed25519_sender` (test-only
+   minting for key-derived senders): it is reachable **only** from the devnet CLI
+   `produce-transfer-block` / `produce-pending-block` commands, which always use
+   `private_devnet_runner_genesis` (the devnet genesis) and reject `--network`, so it
+   can never mint on the public testnet. The public-testnet faucet uses a separate path
+   (`public_testnet_file_faucet_dispense_*` → `public_testnet_node` with the canonical
+   testnet genesis and a genuinely-funded, key-derived faucet that signs from its own
+   key). No value-minting bypass; the sender↔key binding is enforced consistently at the
+   API, `submit_transaction`, `validate_next_block_state`, and indexer-replay layers.
 
 ## Hard decisions to confirm before coding
 

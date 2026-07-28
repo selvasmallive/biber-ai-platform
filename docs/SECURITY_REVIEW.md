@@ -101,7 +101,17 @@ binding.
   (`ed25519_transaction_whose_key_does_not_derive_from_is_rejected_as_unauthorized_sender`,
   plus the API mismatched-sender attack test). The test-only devnet scheme deliberately
   skips the check (insecure by design; opaque accounts unchanged). Both halves of finding
-  1 (producer↔key and sender↔key) are now closed under Ed25519.
+  1 (producer↔key and sender↔key) are now closed under Ed25519. Enforced too at the
+  indexer-replay layer (`replay_rejects_ed25519_transaction_whose_key_does_not_derive_from`).
+- **Re-review of the sender↔key change surfaces.** The one new value-relevant seam is
+  `fund_runner_ed25519_sender` (test-only minting so a key-derived sender is funded under
+  Ed25519). It is reachable **only** from the devnet CLI `produce-transfer-block` /
+  `produce-pending-block` commands, which always build the devnet genesis
+  (`private_devnet_runner_genesis`) and reject `--network`, so it cannot mint on the
+  public testnet. The public-testnet faucet is a separate path
+  (`public_testnet_file_faucet_dispense_*` → `public_testnet_node` with the canonical
+  testnet genesis and a genuinely-funded, key-derived faucet signing from its own key) —
+  it satisfies the sender↔key binding legitimately, not by auto-minting. No bypass found.
 
 ### 2 — Unbounded allocation from unvalidated length/count prefixes (import DoS)
 

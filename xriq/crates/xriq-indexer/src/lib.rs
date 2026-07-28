@@ -992,4 +992,75 @@ mod tests {
         assert_eq!(snapshot.read_model.transactions.len(), 1);
         assert_eq!(snapshot.read_model.account_balances.len(), 3);
     }
+
+    #[test]
+    fn replay_rejects_ed25519_transaction_whose_key_does_not_derive_from() {
+        use xriq_crypto::{ed25519_public_key, ed25519_sign_hash, ed25519_signing_key_from_seed};
+
+        // Ed25519 genesis: key-derived authority + a funded key-derived victim account.
+        let producer_key = ed25519_signing_key_from_seed([8u8; 32]);
+        let authority_pubkey = ed25519_public_key(&producer_key);
+        let victim_pubkey = ed25519_public_key(&ed25519_signing_key_from_seed([7u8; 32]));
+        let victim = ed25519_address(&victim_pubkey);
+        let mut genesis = GenesisConfig::private_devnet();
+        genesis.authority = ed25519_address(&authority_pubkey);
+        genesis.authority_pubkey = authority_pubkey;
+        let genesis = genesis.with_account(victim.clone(), XriqAmount::from_base_units(100), 0);
+        assert_eq!(indexed_genesis_scheme(&genesis), SignatureSchemeKind::Ed25519);
+
+        // Forge: spend from the victim's `from`, but carry the attacker's own key and a
+        // signature that is internally VALID over that key. The signature verifies, so
+        // only the sender↔key binding — ed25519_address(public_key) == from — stops it.
+        let attacker_key = ed25519_signing_key_from_seed([99u8; 32]);
+        let mut forged = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: genesis.chain_id.clone(),
+            from: victim.clone(),
+            to: address("bobbb"),
+            amount: XriqAmount::from_base_units(25),
+            fee: XriqAmount::from_base_units(2),
+            nonce: 0,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: ed25519_public_key(&attacker_key).to_vec(),
+        };
+        forged.signature = ed25519_sign_hash(&attacker_key, transaction_signing_hash(&forged));
+
+        // A block whose header is signed by the AUTHORITY key (producer↔key OK) so the
+        // sender↔key binding is the only thing that can reject the block.
+        let ledger = LedgerState::from_genesis(&genesis).unwrap();
+        let mut header = BlockHeader {
+            version: BlockHeader::SUPPORTED_VERSION,
+            chain_id: genesis.chain_id.clone(),
+            height: 1,
+            previous_block_hash: Hash32::ZERO,
+            state_root: account_state_root(&ledger.state_root_entries()),
+            transactions_root: canonical_transactions_root(std::slice::from_ref(&forged)),
+            timestamp_ms: 1_001,
+            producer: genesis.authority.clone(),
+            consensus_round: 0,
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: authority_pubkey.to_vec(),
+        };
+        header.signature = ed25519_sign_hash(&producer_key, block_header_signing_hash(&header));
+
+        let mut store = InMemoryChainStore::new();
+        store
+            .append_block_with_canonical_hash(Block {
+                header,
+                transactions: vec![forged],
+            })
+            .unwrap();
+        let record = store.latest_block().unwrap().clone();
+
+        let mut ledger = LedgerState::from_genesis(&genesis).unwrap();
+        assert_eq!(
+            replay_private_devnet_block(&mut ledger, &genesis, Hash32::ZERO, &record),
+            Err(IndexReplayError::UnauthorizedSender {
+                expected: victim.to_string(),
+                actual: ed25519_address(&ed25519_public_key(&attacker_key)).to_string(),
+            })
+        );
+    }
 }

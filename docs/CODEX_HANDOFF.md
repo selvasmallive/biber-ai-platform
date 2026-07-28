@@ -13671,3 +13671,28 @@ node, but indexer test harness doesn't yet build ed25519 blocks); regenerate any
 fixtures whose hashes shift; close finding 1 fully in SECURITY_REVIEW.md + re-run the adversarial
 review on the changed surfaces. Then independent human security audit + legal review (external
 hard gates). Test-only + valueless throughout.
+
+---
+
+KEY-DERIVED ACCOUNTS PHASE 6 (fixtures + re-review) -- DONE. (a) FIXTURES: none needed
+regeneration -- Phase 5 changed no genesis addresses (testnet faucet was already key-derived
+in Phase 2; enforcement is behaviour-only), so genesis_spec_hash (e6c1b311...) and all golden
+fixtures are unchanged; the full 345-test suite green IS the drift check. (b) INDEXER negative
+test added: replay_rejects_ed25519_transaction_whose_key_does_not_derive_from calls
+replay_private_devnet_block directly with an ed25519 genesis (key-derived authority + funded
+key-derived victim) + a forged tx (attacker key [99], victim from) whose sig VERIFIES over the
+attacker key -> rejected as IndexReplayError::UnauthorizedSender. So finding 1's sender<->key
+is now proven at all FOUR layers (API, submit_transaction, validate_next_block_state, indexer
+replay). (c) ADVERSARIAL RE-REVIEW of the changed surfaces: the one new value-relevant seam is
+fund_runner_ed25519_sender (test-only minting to fund a key-derived sender under ed25519).
+Traced ALL callers: reachable ONLY from the devnet CLI produce-transfer-block /
+produce-pending-block commands, which always use private_devnet_runner_genesis (DEVNET genesis)
+and reject --network (verified their reject_unknown lists have no --network) -> CANNOT mint on
+the public testnet. The public testnet faucet is a SEPARATE path
+(public_testnet_file_faucet_dispense_with_producer_signer -> public_testnet_node with the
+canonical public_testnet() genesis + a genuinely-funded key-derived faucet that signs from its
+OWN key via public_testnet_faucet_signer) -> satisfies the sender<->key binding legitimately,
+not by auto-minting. NO value-minting bypass found. SECURITY_REVIEW.md finding 1 fully closed +
+re-review note; XRIQ_KEY_DERIVED_ACCOUNTS.md phases 1-6 all DONE. REMAINING (external hard
+gates, unchanged): independent human third-party security audit + legal review before ANY
+value-bearing use. XRIQ stays TEST-ONLY and VALUELESS throughout.
