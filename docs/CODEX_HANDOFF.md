@@ -263,6 +263,15 @@ to `docs/BIBER_ONLY_WORKSPACE.md` inspected above. Next Vast action: stage only
 that file, commit it with a narrow message, push to
 `origin biber/mvp-resume-20260712`, then confirm the branch is clean and
 up to date.
+2026-07-28 Vast save attempt note: the Vast commit failed because repo-local
+Git author identity was not configured (`Author identity unknown`), then
+`git pull --rebase` was blocked by the staged docs edit, and HTTPS push failed
+because GitHub password authentication is unsupported. The staged Vast change
+remained `M  docs/BIBER_ONLY_WORKSPACE.md`. To avoid adding GitHub credentials
+on Vast, the exact same verified one-line edit was saved from the local
+BIBER-only sparse checkout, where GitHub auth already works. After that push,
+the Vast checkout should be cleaned/synced from the branch rather than trying
+to push over HTTPS.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
