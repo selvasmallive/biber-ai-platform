@@ -272,6 +272,16 @@ on Vast, the exact same verified one-line edit was saved from the local
 BIBER-only sparse checkout, where GitHub auth already works. After that push,
 the Vast checkout should be cleaned/synced from the branch rather than trying
 to push over HTTPS.
+2026-07-28 Vast cleanup/sync checkpoint: the user ran
+`git restore --staged docs/BIBER_ONLY_WORKSPACE.md`, `git restore
+docs/BIBER_ONLY_WORKSPACE.md`, then `git pull --ff-only origin
+biber/mvp-resume-20260712` on Vast. The pull fast-forwarded from `0d644ce` to
+`96bcb67`, bringing in the verified one-line docs edit and handoff notes. Final
+Vast status was clean and up to date:
+`## biber/mvp-resume-20260712...origin/biber/mvp-resume-20260712`. The first
+live-provider non-disposable real-repo plan/apply/verify/save/sync loop is now
+complete without OpenAI mentor, training, credential rotation, or GitHub auth
+on Vast.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
