@@ -256,6 +256,13 @@ file, `docs/BIBER_ONLY_WORKSPACE.md`, and the diff was the intended one-line
 change from "sparse checkout" to "dedicated sparse checkout" in the opening
 resume sentence. This looks safe to save, but GitHub commit/push still requires
 the user's separate explicit save/PR approval.
+2026-07-28 user save approval checkpoint: the user explicitly approved
+committing and pushing the verified Vast real-repo docs edit to branch
+`biber/mvp-resume-20260712`. This approval covers only the one-file Vast change
+to `docs/BIBER_ONLY_WORKSPACE.md` inspected above. Next Vast action: stage only
+that file, commit it with a narrow message, push to
+`origin biber/mvp-resume-20260712`, then confirm the branch is clean and
+up to date.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
