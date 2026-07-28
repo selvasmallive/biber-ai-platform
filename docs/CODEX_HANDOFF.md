@@ -227,6 +227,14 @@ and verify output
 Next step requires the user to explicitly approve applying this exact plan hash
 before running the emitted apply command. After apply, immediately run the
 emitted `local-verify-chain` command before any GitHub save or PR step.
+2026-07-28 user approval checkpoint: the user explicitly approved applying
+plan hash `c308cece9390c7cfbb92899b9c95c3038fa9ab5acfb01ebfbf5591f3ac13aac2`
+from the latest real-repo plan smoke. This approval covers only the guarded
+real-repo apply for artifacts under
+`/workspace/outputs/biber-real-repo-plan-smoke-20260728T094239Z/artifacts`.
+Next Vast action: run the emitted `apply-repair-edits --approve` command, then
+immediately run the emitted `local-verify-chain` command. Do not run GitHub
+save/PR until verification output is reviewed.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
