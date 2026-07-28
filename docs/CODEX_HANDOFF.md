@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-07-23
+Last updated: 2026-07-28
 
 ## Current Goal
 
@@ -192,6 +192,24 @@ dedicated sparse checkout at:`. The summary now distinguishes
 latest branch: rerun the same real-repo plan-only command and expect
 `plan_outcome=planned_for_review`, `chain_status=planned`, `planned=1`,
 `rejected=0`, and `repo_status_unchanged=true`; still do not apply the edit.
+2026-07-28 Vast real-repo plan-only success after commit `ad6b27c`: the user
+pulled the latest branch on the RTX 5060 Ti 16 GB Vast instance and reran
+`python scripts/biber_live_provider_real_repo_plan_smoke.py --base-url http://127.0.0.1:8001/v1 --model biber-dev-core --target-root /workspace/biber-ai-platform`.
+The live 3B provider produced a reviewable real-repo docs plan with
+`ok=true`, `chain_status=planned`, `plan_outcome=planned_for_review`,
+`review_status=ready_for_explicit_apply_approval`,
+`apply_recommendation=ready_for_explicit_apply_approval`, `planned=1`,
+`rejected=0`, `plan_rejected=0`, `repo_status_unchanged=true`,
+`mutation_performed=false`, `github_request_sent=false`, `mentor_used=false`,
+and `training_allowed=false`. Plan hash:
+`b159b6b9d57c1a2746a9085fb0486b16118c045e15086aa68d35b2e1eb278cd2`.
+Artifacts were written under
+`/workspace/outputs/biber-real-repo-plan-smoke-20260728T093413Z/artifacts`.
+This is the first successful non-disposable real-repo live-provider planning
+checkpoint. Follow-up source checkpoint: the plan-only smoke now emits an
+`explicit_apply_approval` block with the exact apply and verify command arrays
+when a real-repo plan is ready. These commands are instructions only; do not
+run them unless the user separately approves applying the specific plan hash.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is

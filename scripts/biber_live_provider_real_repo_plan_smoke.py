@@ -495,6 +495,44 @@ def build_summary(
             "repair_edit_plan": str(artifact_dir / "real-repo-repair-edit-plan.json"),
         },
     }
+    if review_ready and planned > 0 and rejected == 0:
+        apply_output = artifact_dir / "real-repo-repair-edit-apply.json"
+        verify_output = artifact_dir / "real-repo-local-verify-chain.json"
+        summary["explicit_apply_approval"] = {
+            "required": True,
+            "approved": False,
+            "status": "requires_separate_explicit_user_approval_before_apply",
+            "plan_hash": review.get("plan_hash"),
+            "apply_output": str(apply_output),
+            "verify_output": str(verify_output),
+            "apply_command": [
+                sys.executable,
+                "scripts/biber_agent_client.py",
+                "--json",
+                "apply-repair-edits",
+                str(artifact_dir / "real-repo-repair-edit-plan.json"),
+                "--review-artifact",
+                str(artifact_dir / "real-repo-local-repair-chain-review.json"),
+                "--target-root",
+                str(target_root),
+                "--approve",
+                "--output",
+                str(apply_output),
+            ],
+            "verify_command_after_apply": [
+                sys.executable,
+                "scripts/biber_agent_client.py",
+                "--json",
+                "local-verify-chain",
+                str(apply_output),
+                "--test-id",
+                args.test_id,
+                "--target-root",
+                str(target_root),
+                "--output",
+                str(verify_output),
+            ],
+        }
     if readiness is not None:
         summary["readiness"] = readiness
     return summary
@@ -645,6 +683,13 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     )
     write_json(artifact_dir / "real-repo-plan-smoke-summary.json", summary)
     if args.cleanup and summary.get("ok") is True:
+        if isinstance(summary.get("explicit_apply_approval"), dict):
+            summary["explicit_apply_approval"] = {
+                "required": True,
+                "approved": False,
+                "status": "not_available_after_cleanup",
+                "reason": "artifact_work_directory_removed",
+            }
         shutil.rmtree(work_root, ignore_errors=True)
         summary["cleaned_up"] = True
     return summary

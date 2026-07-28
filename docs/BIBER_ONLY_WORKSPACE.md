@@ -144,6 +144,10 @@ unusable edit, inspect `plan_outcome`, `model_response_content_preview`,
 real-repo plan without a separate explicit apply approval.
 The default smoke edit uses a single exact docs line so the live 3B provider is
 not judged on preserving wrapped paragraph line breaks.
+When the plan-only result is ready, its `explicit_apply_approval` block gives
+the exact apply and verify command arrays. Treat them as pending instructions:
+do not run apply until the user explicitly approves the specific `plan_hash`,
+then run verify immediately after apply.
 
 This keeps Qwen2.5, Qwen3, llama.cpp, vLLM wrappers, and future local runners
 swappable without enabling OpenAI mentor, API auth, GPU training, or file apply.

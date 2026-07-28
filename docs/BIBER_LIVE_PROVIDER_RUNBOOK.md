@@ -137,6 +137,12 @@ artifacts only; real-repo apply remains a separate explicit approval step.
 The default smoke edit intentionally targets a single exact docs line, because
 small local models may collapse wrapped paragraphs even when they select the
 correct file.
+When this passes, the summary includes an `explicit_apply_approval` block with
+the reviewed `plan_hash`, `apply_command`, and `verify_command_after_apply`.
+Those commands are a resume aid only. Do not run the apply command unless the
+user explicitly approves applying that specific real-repo plan hash. After an
+approved apply, run the emitted verify command before considering any GitHub
+save or PR step.
 
 For manual repair-loop checks, run:
 
