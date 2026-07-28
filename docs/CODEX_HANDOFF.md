@@ -210,6 +210,23 @@ checkpoint. Follow-up source checkpoint: the plan-only smoke now emits an
 `explicit_apply_approval` block with the exact apply and verify command arrays
 when a real-repo plan is ready. These commands are instructions only; do not
 run them unless the user separately approves applying the specific plan hash.
+2026-07-28 follow-up Vast run after commit `0d27102`: the user pulled the
+latest branch and reran the same real-repo plan-only smoke. It again passed
+with `ok=true`, `chain_status=planned`, `plan_outcome=planned_for_review`,
+`review_status=ready_for_explicit_apply_approval`, `planned=1`, `rejected=0`,
+`repo_status_unchanged=true`, `mutation_performed=false`, no GitHub request,
+no OpenAI mentor, and no training. Latest real-repo plan hash:
+`c308cece9390c7cfbb92899b9c95c3038fa9ab5acfb01ebfbf5591f3ac13aac2`.
+Latest artifacts:
+`/workspace/outputs/biber-real-repo-plan-smoke-20260728T094239Z/artifacts`.
+The smoke emitted guarded command arrays under `explicit_apply_approval`:
+apply output
+`/workspace/outputs/biber-real-repo-plan-smoke-20260728T094239Z/artifacts/real-repo-repair-edit-apply.json`
+and verify output
+`/workspace/outputs/biber-real-repo-plan-smoke-20260728T094239Z/artifacts/real-repo-local-verify-chain.json`.
+Next step requires the user to explicitly approve applying this exact plan hash
+before running the emitted apply command. After apply, immediately run the
+emitted `local-verify-chain` command before any GitHub save or PR step.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
