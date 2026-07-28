@@ -149,6 +149,7 @@ pub enum IndexReplayError {
     UnexpectedStoredBlockCount { expected: usize, actual: usize },
     WrongStoredBlockHash { expected: String, actual: String },
     UnauthorizedProducer { expected: String, actual: String },
+    UnauthorizedSender { expected: String, actual: String },
     TooManyBlockTransactions { max: usize, actual: usize },
     TransactionSignature(SignatureVerificationError),
     WrongTransactionsRoot { expected: String, actual: String },
@@ -182,6 +183,12 @@ impl fmt::Display for IndexReplayError {
                 write!(
                     formatter,
                     "unauthorized producer: expected {expected}, got {actual}"
+                )
+            }
+            Self::UnauthorizedSender { expected, actual } => {
+                write!(
+                    formatter,
+                    "unauthorized sender: key derives {actual}, not from {expected}"
                 )
             }
             Self::TooManyBlockTransactions { max, actual } => write!(
@@ -661,6 +668,20 @@ fn replay_private_devnet_block(
     for transaction in &record.block.transactions {
         verify_transaction_with_scheme(scheme, transaction)
             .map_err(IndexReplayError::TransactionSignature)?;
+        // Sender↔key binding: under ed25519 the signing key must own the sender
+        // (`ed25519_address(public_key) == from`). Mirrors the node's submit/import.
+        if scheme == SignatureSchemeKind::Ed25519
+            && !<[u8; 32]>::try_from(transaction.public_key.as_slice())
+                .map(|key| ed25519_address(&key) == transaction.from)
+                .unwrap_or(false)
+        {
+            return Err(IndexReplayError::UnauthorizedSender {
+                expected: transaction.from.to_string(),
+                actual: <[u8; 32]>::try_from(transaction.public_key.as_slice())
+                    .map(|key| ed25519_address(&key).to_string())
+                    .unwrap_or_else(|_| "<invalid key>".to_string()),
+            });
+        }
     }
     let expected_transactions_root = canonical_transactions_root(&record.block.transactions);
     if record.block.header.transactions_root != expected_transactions_root {

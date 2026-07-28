@@ -36,7 +36,7 @@ confirmed directly in the source.
 
 | # | Severity (test-only → value-bearing) | Title | Status |
 |---|---|---|---|
-| 1 | **Info now → CRITICAL if value-bearing** | Signature not bound to claimed identity (`from`/`producer` ↔ `public_key`) | **Producer↔key FIXED; sender↔key open (needs key-derived accounts)** |
+| 1 | **Info now → CRITICAL if value-bearing** | Signature not bound to claimed identity (`from`/`producer` ↔ `public_key`) | **FIXED under Ed25519 — both producer↔key and sender↔key bound (sender via the key-derived-accounts phase)** |
 | 2 | Low now → Medium | Unbounded allocation from unvalidated length/count prefixes (import DoS) | **FIXED** (bounds prefixes vs remaining input) |
 | 3 | Low → High | Browser signs a server-provided signing hash without local recomputation | **FIXED** (browser recomputes + verifies) |
 | 4 | Low → Medium | Mempool dedup keyed on signature-dependent tx hash, not `(from, nonce)` | **Addressed** (mempool already enforces `(from,nonce)`; replay made resilient) |
@@ -87,14 +87,21 @@ binding.
   key-derived-authority genesis (`ed25519_authority_genesis`), and a new negative test
   (`ed25519_block_with_producer_key_not_deriving_the_authority_address_is_rejected`)
   proves a forged block is rejected. Test-only carries no key and skips the check.
-- **Sender ↔ key — OPEN (requires an architectural step).** Enforcing
-  `ed25519_address(tx.public_key) == tx.from` **cannot** be turned on against the current
-  account model — regular accounts (alice, the faucet, recipients) are opaque addresses,
-  not key-derived, so the check would reject every legitimate transaction (including the
-  faucet's own dispense). It needs a prior "key-derived accounts" phase that makes an
-  account address a function of its public key. Until then, transaction-sender
-  authenticity is NOT enforced under Ed25519 — a hard blocker before any value-bearing
-  use.
+- **Sender ↔ key — FIXED (via the key-derived-accounts phase).** Enforcing
+  `ed25519_address(tx.public_key) == tx.from` required a prior "key-derived accounts"
+  phase (see `docs/XRIQ_KEY_DERIVED_ACCOUNTS.md`) that makes an Ed25519 account's address
+  a function of its public key (the testnet faucet is now key-derived and signs from its
+  own key; the browser/CLI wallet's `from` is the derived address of its signer). With
+  that in place, the sender↔key binding is now enforced under Ed25519 in **four** layers:
+  the API preview (`from == ed25519_address(public_key)`, else `sender_key_mismatch`),
+  `XriqNode::submit_transaction`, the per-transaction loop in `validate_next_block_state`
+  (block-import path), and the indexer's `replay_private_devnet_block` — the latter three
+  via `UnauthorizedSender` (empty/non-32-byte key ⇒ reject). A forged transaction whose
+  signature verifies over the attacker's key but claims a victim `from` is rejected
+  (`ed25519_transaction_whose_key_does_not_derive_from_is_rejected_as_unauthorized_sender`,
+  plus the API mismatched-sender attack test). The test-only devnet scheme deliberately
+  skips the check (insecure by design; opaque accounts unchanged). Both halves of finding
+  1 (producer↔key and sender↔key) are now closed under Ed25519.
 
 ### 2 — Unbounded allocation from unvalidated length/count prefixes (import DoS)
 
@@ -198,19 +205,19 @@ list:
 Real Ed25519 cryptography is now correctly built at the primitive and encoding level,
 and the import/replay/serialization plumbing is solid. Findings 2–4 have been fixed
 (bounded decode allocation; browser client-side signing-hash recomputation; pending
-replay resilient to duplicate `(from,nonce)`), and the producer↔key half of finding 1
-is fixed and tested. **The one remaining substantive gap is the sender↔key half of
-finding 1: under the Ed25519 scheme, transaction senders are still not bound to a key,
-so transaction authentication is not yet real.** This means:
+replay resilient to duplicate `(from,nonce)`), and **both halves of finding 1 are now
+fixed and tested**: the producer↔key binding, and the sender↔key binding (enabled by the
+key-derived-accounts phase and enforced at the API, `submit_transaction`,
+`validate_next_block_state`, and indexer-replay layers under Ed25519). Under Ed25519,
+transaction and block authentication is now bound to identity. This does **not** lift the
+gate:
 
 > **XRIQ must remain test-only and valueless.** Real cryptography is *necessary but
-> not sufficient*. Before any value-bearing use, the following are hard gates:
-> 1. The **sender↔key binding** (remaining half of finding 1), which requires a
->    **key-derived-accounts phase** (an account address must be a function of its public
->    key) — its own focused effort — then re-review.
-> 2. An **independent, human, third-party security audit** (this AI-assisted review does
->    not replace it).
-> 3. **Legal review** per `docs/XRIQ_LEGAL_RISK_REDUCTION.md` /
+> not sufficient*. The identity-binding gap that made this an info-now/critical-if-value
+> finding is closed, but before any value-bearing use the following remain hard gates:
+> 1. An **independent, human, third-party security audit** (this AI-assisted review does
+>    not replace it) — including a fresh pass over the sender↔key change surfaces.
+> 2. **Legal review** per `docs/XRIQ_LEGAL_RISK_REDUCTION.md` /
 >    `docs/XRIQ_LEGAL_COUNSEL_QUESTIONS.md`.
 
 No finding is exploitable for real-world loss in the current test-only, undeployed,

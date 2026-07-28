@@ -11,7 +11,7 @@ use std::{
 
 use xriq_consensus::{BlockProductionError, BlockProductionInput, SingleAuthorityProducer};
 use xriq_core::{
-    Address, AddressError, Block, BlockValidationError, Environment, GenesisConfig,
+    Address, AddressError, Block, BlockValidationError, Environment, GenesisAccount, GenesisConfig,
     GenesisConfigError, Hash32, ParentHeaderView, SignatureBytes, Transaction,
     TransactionValidationContext, TransactionValidationError, XriqAmount,
     PUBLIC_TESTNET_FAUCET_ADDRESS, PUBLIC_TESTNET_FAUCET_DRIP_BASE_UNITS,
@@ -316,15 +316,39 @@ pub enum NodeError {
     Block(BlockProductionError),
     Header(BlockValidationError),
     UnauthorizedProducer,
-    TooManyBlockTransactions { max: usize, actual: usize },
-    WrongTransactionsRoot { expected: Hash32, actual: Hash32 },
-    WrongStateRoot { expected: Hash32, actual: Hash32 },
+    /// Under the ed25519 scheme, a transaction's `public_key` does not derive its
+    /// `from` address (`ed25519_address(public_key) != from`) — the signature is over
+    /// a key that does not own the sending account.
+    UnauthorizedSender,
+    TooManyBlockTransactions {
+        max: usize,
+        actual: usize,
+    },
+    WrongTransactionsRoot {
+        expected: Hash32,
+        actual: Hash32,
+    },
+    WrongStateRoot {
+        expected: Hash32,
+        actual: Hash32,
+    },
     BlockSignature(SignatureVerificationError),
     Storage(StorageError),
-    MissingStoredBlock { height: u64 },
-    UnexpectedStoredBlockHeight { minimum: u64, actual: u64 },
-    UnexpectedStoredBlockCount { expected: usize, actual: usize },
-    WrongStoredBlockHash { expected: Hash32, actual: Hash32 },
+    MissingStoredBlock {
+        height: u64,
+    },
+    UnexpectedStoredBlockHeight {
+        minimum: u64,
+        actual: u64,
+    },
+    UnexpectedStoredBlockCount {
+        expected: usize,
+        actual: usize,
+    },
+    WrongStoredBlockHash {
+        expected: Hash32,
+        actual: Hash32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1980,6 +2004,7 @@ fn node_runner_error_http_status(error: &NodeRunnerError) -> u16 {
             NodeError::MissingSender
             | NodeError::Transaction(_)
             | NodeError::TransactionSignature(_)
+            | NodeError::UnauthorizedSender
             | NodeError::Mempool(_),
         ) => 400,
         NodeRunnerError::Explorer(
@@ -2538,13 +2563,21 @@ fn private_devnet_node_with_pending_file_and_producer_signer(
 ) -> Result<XriqNode<FileChainStore>, NodeRunnerError> {
     let store = FileChainStore::open(chain_file)
         .map_err(|error| NodeRunnerError::Node(NodeError::Storage(error)))?;
-    let genesis = private_devnet_runner_genesis(alice_balance);
+    let pending_load = read_pending_transaction_records(pending_file.as_ref())?;
+    quarantine_corrupt_pending_lines(pending_file.as_ref(), &pending_load)?;
+    let mut genesis = private_devnet_runner_genesis(alice_balance);
+    // Under ed25519 the sender↔key binding requires each pending sender's `from` to be
+    // a funded, key-derived account; fund them as test-only runner minting (devnet is
+    // untouched — the binding is not enforced under the test-only scheme).
+    if producer_signer.scheme() == SignatureSchemeKind::Ed25519 {
+        for (_tx_hash, transaction) in &pending_load.records {
+            genesis = fund_runner_ed25519_sender(genesis, &transaction.from);
+        }
+    }
     let mut node = XriqNode::from_genesis_replaying_store(&genesis, store)
         .map_err(NodeRunnerError::Node)?
         .with_signature_scheme(producer_signer.scheme())
         .with_producer_signer(producer_signer);
-    let pending_load = read_pending_transaction_records(pending_file.as_ref())?;
-    quarantine_corrupt_pending_lines(pending_file.as_ref(), &pending_load)?;
     for (tx_hash, transaction) in pending_load.records {
         if private_devnet_file_confirmed_transaction_detail(
             node.store().path(),
@@ -2647,7 +2680,10 @@ pub fn private_devnet_file_produce_transfer_block_with_producer_signer(
     producer_signer: SchemeSigner,
 ) -> Result<ProducedTransferBlockStatus, NodeError> {
     let store = FileChainStore::open(chain_file).map_err(NodeError::Storage)?;
-    let genesis = private_devnet_runner_genesis(alice_balance);
+    let mut genesis = private_devnet_runner_genesis(alice_balance);
+    if producer_signer.scheme() == SignatureSchemeKind::Ed25519 {
+        genesis = fund_runner_ed25519_sender(genesis, &transfer.from);
+    }
     let mut node = XriqNode::from_genesis_replaying_store(&genesis, store)?
         .with_signature_scheme(producer_signer.scheme())
         .with_producer_signer(producer_signer);
@@ -3925,7 +3961,7 @@ fn runner_default_producer_signer(selection: RunnerGenesis) -> SchemeSigner {
 // `producer`. Binds an ed25519 block's producer identity to its signing key, so an
 // attacker cannot forge an authority block by copying the (public) authority address
 // while signing with their own key.
-fn producer_public_key_derives_address(public_key: &[u8], producer: &Address) -> bool {
+fn public_key_derives_address(public_key: &[u8], producer: &Address) -> bool {
     <[u8; 32]>::try_from(public_key)
         .map(|key| &ed25519_address(&key) == producer)
         .unwrap_or(false)
@@ -6055,6 +6091,31 @@ fn private_devnet_runner_genesis(alice_balance: Option<XriqAmount>) -> GenesisCo
     }
 }
 
+/// Test-only minting balance for the private-devnet runner's key-derived senders.
+const PRIVATE_DEVNET_RUNNER_ED25519_SENDER_BALANCE: u128 = 1_000_000_000;
+
+/// The private-devnet runner is test-only minting tooling (see
+/// [`PRIVATE_DEVNET_RUNNER_WARNING`]): it already funds an opaque `alice` out of thin
+/// air via `--alice-balance`. Under the ed25519 scheme the sender↔key binding
+/// additionally requires each sender's `from` to be a funded, **key-derived** account,
+/// so mint a balance for it here the same way. Only under ed25519, and only for a
+/// sender not already funded in genesis, so the devnet genesis stays byte-identical.
+fn fund_runner_ed25519_sender(mut genesis: GenesisConfig, from: &Address) -> GenesisConfig {
+    if genesis
+        .accounts
+        .iter()
+        .any(|account| &account.address == from)
+    {
+        return genesis;
+    }
+    genesis.accounts.push(GenesisAccount::new(
+        from.clone(),
+        XriqAmount::from_base_units(PRIVATE_DEVNET_RUNNER_ED25519_SENDER_BALANCE),
+        0,
+    ));
+    genesis
+}
+
 fn node_status<S: ChainStore>(node: &XriqNode<S>) -> NodeStatus {
     let chain_status = node.rpc_service().chain_status();
     NodeStatus {
@@ -7734,6 +7795,14 @@ impl<S: ChainStore> XriqNode<S> {
             .map_err(NodeError::Transaction)?;
         verify_transaction_with_scheme(self.signature_scheme, &tx)
             .map_err(NodeError::TransactionSignature)?;
+        // Sender↔key binding: under ed25519, the signing key must own the sending
+        // account (`ed25519_address(public_key) == from`), so a valid signature over
+        // an arbitrary key cannot spend from another account.
+        if self.signature_scheme == SignatureSchemeKind::Ed25519
+            && !public_key_derives_address(&tx.public_key, &tx.from)
+        {
+            return Err(NodeError::UnauthorizedSender);
+        }
         self.mempool
             .insert(tx_hash, tx)
             .map_err(NodeError::Mempool)?;
@@ -8038,10 +8107,7 @@ impl<S: ChainStore> XriqNode<S> {
         // is forgeable — the address is public). Test-only carries no key and is
         // insecure by design, so it skips this.
         if self.signature_scheme == SignatureSchemeKind::Ed25519
-            && !producer_public_key_derives_address(
-                &block.header.public_key,
-                &block.header.producer,
-            )
+            && !public_key_derives_address(&block.header.public_key, &block.header.producer)
         {
             return Err(NodeError::UnauthorizedProducer);
         }
@@ -8055,6 +8121,14 @@ impl<S: ChainStore> XriqNode<S> {
         for transaction in &block.transactions {
             verify_transaction_with_scheme(self.signature_scheme, transaction)
                 .map_err(NodeError::TransactionSignature)?;
+            // Sender↔key binding (same as submit): under ed25519 each transaction's
+            // key must own its `from` account, so a peer cannot import a block whose
+            // transactions are signed by keys that do not own the senders.
+            if self.signature_scheme == SignatureSchemeKind::Ed25519
+                && !public_key_derives_address(&transaction.public_key, &transaction.from)
+            {
+                return Err(NodeError::UnauthorizedSender);
+            }
         }
         let expected_transactions_root = canonical_transactions_root(&block.transactions);
         if block.header.transactions_root != expected_transactions_root {
@@ -8302,6 +8376,66 @@ mod tests {
         .with_signature_scheme(SignatureSchemeKind::Ed25519)
     }
 
+    // An ed25519 genesis whose authority AND a funded sender account are both
+    // key-derived, so a transaction from the sender signed by its key satisfies the
+    // sender↔key binding.
+    fn ed25519_account_genesis(
+        authority_pubkey: [u8; 32],
+        sender_pubkey: [u8; 32],
+        sender_balance: u128,
+    ) -> GenesisConfig {
+        let mut genesis = GenesisConfig::private_devnet();
+        genesis.authority = ed25519_address(&authority_pubkey);
+        genesis.authority_pubkey = authority_pubkey;
+        genesis.with_account(
+            ed25519_address(&sender_pubkey),
+            XriqAmount::from_base_units(sender_balance),
+            0,
+        )
+    }
+
+    fn ed25519_account_node(
+        authority_pubkey: [u8; 32],
+        sender_pubkey: [u8; 32],
+        sender_balance: u128,
+    ) -> XriqNode<InMemoryChainStore> {
+        XriqNode::from_genesis(
+            &ed25519_account_genesis(authority_pubkey, sender_pubkey, sender_balance),
+            InMemoryChainStore::new(),
+        )
+        .unwrap()
+        .with_signature_scheme(SignatureSchemeKind::Ed25519)
+    }
+
+    // An ed25519 transaction from the signing key's OWN key-derived address (so it
+    // satisfies the sender↔key binding), signed by that key.
+    fn ed25519_transaction_from_seed(
+        seed: [u8; 32],
+        to: Address,
+        nonce: u64,
+        amount: u128,
+        fee: u128,
+    ) -> Transaction {
+        use xriq_crypto::{ed25519_public_key, ed25519_sign_hash, ed25519_signing_key_from_seed};
+        let key = ed25519_signing_key_from_seed(seed);
+        let pubkey = ed25519_public_key(&key);
+        let mut tx = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from: ed25519_address(&pubkey),
+            to,
+            amount: XriqAmount::from_base_units(amount),
+            fee: XriqAmount::from_base_units(fee),
+            nonce,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: pubkey.to_vec(),
+        };
+        tx.signature = ed25519_sign_hash(&key, transaction_signing_hash(&tx));
+        tx
+    }
+
     fn node_state_root<S: ChainStore>(node: &XriqNode<S>) -> Hash32 {
         xriq_crypto::account_state_root(&node.ledger().state_root_entries())
     }
@@ -8359,8 +8493,8 @@ mod tests {
     #[test]
     fn signature_scheme_defaults_to_test_only_and_gates_verification() {
         use xriq_crypto::{
-            ed25519_public_key, ed25519_sign_hash, ed25519_signing_key_from_seed,
-            SignatureSchemeKind, SignatureVerificationError,
+            ed25519_public_key, ed25519_signing_key_from_seed, SignatureSchemeKind,
+            SignatureVerificationError,
         };
 
         // Default scheme is test-only, and a test-only-signed transaction submits.
@@ -8374,21 +8508,25 @@ mod tests {
             .unwrap();
 
         // Under the ed25519 scheme, that same test-only signature is rejected.
-        let mut ed_node = node().with_signature_scheme(SignatureSchemeKind::Ed25519);
+        // The ed25519 node funds a key-derived sender (seed [3]) so a genuine
+        // signed transaction from it also satisfies the sender↔key binding. The
+        // test-only-signature rejection is sent from that funded sender so the
+        // failure is the signature scheme (not a missing account).
+        let sender_pubkey = ed25519_public_key(&ed25519_signing_key_from_seed([3u8; 32]));
+        let sender_address = ed25519_address(&sender_pubkey);
+        let mut ed_node = ed25519_account_node([4u8; 32], sender_pubkey, 100);
         assert_eq!(ed_node.signature_scheme(), SignatureSchemeKind::Ed25519);
         assert_eq!(
-            ed_node.submit_transaction(hash(1), transaction(address("alice"), 0, 25, 2)),
+            ed_node.submit_transaction(hash(1), transaction(sender_address, 0, 25, 2)),
             Err(NodeError::TransactionSignature(
                 SignatureVerificationError::InvalidSignature
             ))
         );
 
-        // A genuine ed25519-signed transaction (key set before signing, since the
-        // public key is part of the signed body) verifies under the ed25519 node.
-        let key = ed25519_signing_key_from_seed([3u8; 32]);
-        let mut ed_tx = transaction(address("alice"), 0, 25, 2);
-        ed_tx.public_key = ed25519_public_key(&key).to_vec();
-        ed_tx.signature = ed25519_sign_hash(&key, transaction_signing_hash(&ed_tx));
+        // A genuine ed25519-signed transaction from that key-derived sender (key set
+        // before signing, since the public key is part of the signed body) verifies
+        // and is authorized under the ed25519 node.
+        let ed_tx = ed25519_transaction_from_seed([3u8; 32], address("bobbb"), 0, 25, 2);
         ed_node
             .submit_transaction(transaction_hash(&ed_tx), ed_tx)
             .unwrap();
@@ -8397,8 +8535,8 @@ mod tests {
     #[test]
     fn producer_signer_signs_produced_blocks_under_its_scheme() {
         use xriq_crypto::{
-            ed25519_public_key, ed25519_sign_hash, ed25519_signing_key_from_seed,
-            verify_block_header_with_scheme, SchemeSigner, SignatureSchemeKind,
+            ed25519_public_key, ed25519_signing_key_from_seed, verify_block_header_with_scheme,
+            SchemeSigner, SignatureSchemeKind,
         };
 
         // Default nodes sign with the test-only signer (byte-identical to before).
@@ -8410,20 +8548,21 @@ mod tests {
         // A node configured with an ed25519 producer key produces ed25519-signed
         // headers. It also verifies ed25519, so it accepts its own blocks.
         let producer_key = ed25519_signing_key_from_seed([4u8; 32]);
-        // Key-derived-authority genesis so producer == ed25519_address(producer_key),
-        // as required by the producer↔key binding.
-        let mut producer = ed25519_authority_node(ed25519_public_key(&producer_key))
-            .with_producer_signer(SchemeSigner::ed25519(producer_key.clone()));
+        let tx_key = ed25519_signing_key_from_seed([5u8; 32]);
+        let sender_pubkey = ed25519_public_key(&tx_key);
+        // Key-derived-authority genesis (producer == ed25519_address(producer_key), as
+        // required by the producer↔key binding) that also funds the key-derived sender.
+        let mut producer =
+            ed25519_account_node(ed25519_public_key(&producer_key), sender_pubkey, 100)
+                .with_producer_signer(SchemeSigner::ed25519(producer_key.clone()));
         assert_eq!(
             producer.producer_signer_scheme(),
             SignatureSchemeKind::Ed25519
         );
 
-        // Include an ed25519-signed transaction so the whole block is ed25519.
-        let tx_key = ed25519_signing_key_from_seed([5u8; 32]);
-        let mut tx = transaction(address("alice"), 0, 25, 2);
-        tx.public_key = ed25519_public_key(&tx_key).to_vec();
-        tx.signature = ed25519_sign_hash(&tx_key, transaction_signing_hash(&tx));
+        // Include an ed25519-signed transaction from the key-derived sender so the
+        // whole block is ed25519 and satisfies the sender↔key binding.
+        let tx = ed25519_transaction_from_seed([5u8; 32], address("alice"), 0, 25, 2);
         producer.submit_transaction_with_canonical_hash(tx).unwrap();
 
         let produced = producer
@@ -8442,8 +8581,9 @@ mod tests {
         );
 
         // And the produced block imports into a fresh ed25519 follower on the same
-        // key-derived-authority genesis.
-        let mut follower = ed25519_authority_node(ed25519_public_key(&producer_key));
+        // key-derived-authority genesis (which also funds the key-derived sender).
+        let mut follower =
+            ed25519_account_node(ed25519_public_key(&producer_key), sender_pubkey, 100);
         follower
             .import_block_with_canonical_hash(produced.block)
             .unwrap();
@@ -8517,6 +8657,12 @@ mod tests {
         let seed = [6u8; 32];
         fs::write(&key_path, bytes_hex(&seed)).unwrap();
 
+        // The runner tx is self-signed by the producer key, so under ed25519 the
+        // sender↔key binding requires `from == ed25519_address(producer pubkey)`. The
+        // runner funds that key-derived sender (test-only minting).
+        let producer_from =
+            ed25519_address(&ed25519_public_key(&ed25519_signing_key_from_seed(seed))).to_string();
+
         run_node_command([
             "produce-transfer-block",
             "--chain-file",
@@ -8526,7 +8672,7 @@ mod tests {
             "--alice-balance",
             "100",
             "--from",
-            "xriqdev1alice00000000000",
+            producer_from.as_str(),
             "--to",
             "xriqdev1bobbb00000000000",
             "--amount",
@@ -8582,13 +8728,15 @@ mod tests {
         let producer_seed = [8u8; 32];
         fs::write(&key_path, bytes_hex(&producer_seed)).unwrap();
 
-        // A "wallet" ed25519 key signs alice's pending transaction (distinct from
-        // the producer key). Public key set before signing (part of the body).
+        // A "wallet" ed25519 key signs its own pending transaction (distinct from
+        // the producer key). Public key set before signing (part of the body). Under
+        // ed25519 the sender↔key binding requires `from == ed25519_address(wallet key)`.
         let wallet_key = ed25519_signing_key_from_seed([3u8; 32]);
+        let wallet_from = ed25519_address(&ed25519_public_key(&wallet_key));
         let mut tx = Transaction {
             version: Transaction::SUPPORTED_VERSION,
             chain_id: "xriq-devnet".to_string(),
-            from: address("alice"),
+            from: wallet_from,
             to: address("bobbb"),
             amount: XriqAmount::from_base_units(25),
             fee: XriqAmount::from_base_units(2),
@@ -13108,15 +13256,15 @@ mod tests {
         // so a block signed by the authority key satisfies the producer↔key binding.
         let producer_key = ed25519_signing_key_from_seed([8u8; 32]);
         let authority_pubkey = ed25519_public_key(&producer_key);
-        let mut producer = ed25519_authority_node(authority_pubkey);
-        let mut follower = ed25519_authority_node(authority_pubkey);
+        // The genesis funds a key-derived sender (seed [7]) so its ed25519 transaction
+        // also satisfies the sender↔key binding.
+        let sender_pubkey = ed25519_public_key(&ed25519_signing_key_from_seed([7u8; 32]));
+        let mut producer = ed25519_account_node(authority_pubkey, sender_pubkey, 100);
+        let mut follower = ed25519_account_node(authority_pubkey, sender_pubkey, 100);
 
-        // A genuine ed25519-signed transaction from a funded account (public key set
-        // BEFORE signing, since it is part of the signed body).
-        let tx_key = ed25519_signing_key_from_seed([7u8; 32]);
-        let mut tx = transaction(address("alice"), 0, 25, 2);
-        tx.public_key = ed25519_public_key(&tx_key).to_vec();
-        tx.signature = ed25519_sign_hash(&tx_key, transaction_signing_hash(&tx));
+        // A genuine ed25519-signed transaction from that key-derived, funded account
+        // (public key set BEFORE signing, since it is part of the signed body).
+        let tx = ed25519_transaction_from_seed([7u8; 32], address("alice"), 0, 25, 2);
         producer.submit_transaction_with_canonical_hash(tx).unwrap();
 
         // Produce a block with canonical roots, then re-sign its header with the
@@ -13143,7 +13291,7 @@ mod tests {
         // (its transaction signature isn't a valid test-only signature), confirming
         // the scheme is what gates acceptance.
         let mut test_only_follower = XriqNode::from_genesis(
-            &ed25519_authority_genesis(authority_pubkey),
+            &ed25519_account_genesis(authority_pubkey, sender_pubkey, 100),
             InMemoryChainStore::new(),
         )
         .unwrap();
@@ -13154,6 +13302,48 @@ mod tests {
             ))
         );
         assert_eq!(test_only_follower.store().len(), 0);
+    }
+
+    #[test]
+    fn ed25519_transaction_whose_key_does_not_derive_from_is_rejected_as_unauthorized_sender() {
+        use xriq_crypto::{ed25519_public_key, ed25519_sign_hash, ed25519_signing_key_from_seed};
+
+        // A funded key-derived victim account, and a DIFFERENT attacker key.
+        let victim_pubkey = ed25519_public_key(&ed25519_signing_key_from_seed([7u8; 32]));
+        let victim = ed25519_address(&victim_pubkey);
+        let attacker_key = ed25519_signing_key_from_seed([99u8; 32]);
+
+        let mut node = ed25519_account_node([8u8; 32], victim_pubkey, 100);
+
+        // Forge: spend from the victim's `from`, but carry the attacker's own key and a
+        // signature that is internally VALID over that key. The signature verifies
+        // (public key is part of the signed body), so only the sender↔key binding —
+        // ed25519_address(public_key) == from — stops it.
+        let mut forged = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from: victim,
+            to: address("bobbb"),
+            amount: XriqAmount::from_base_units(25),
+            fee: XriqAmount::from_base_units(2),
+            nonce: 0,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: ed25519_public_key(&attacker_key).to_vec(),
+        };
+        forged.signature = ed25519_sign_hash(&attacker_key, transaction_signing_hash(&forged));
+
+        // The signature itself verifies over the attacker's key...
+        assert_eq!(
+            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &forged),
+            Ok(())
+        );
+        // ...but submit rejects it: the key does not derive the claimed `from`.
+        assert_eq!(
+            node.submit_transaction(transaction_hash(&forged), forged),
+            Err(NodeError::UnauthorizedSender)
+        );
     }
 
     #[test]

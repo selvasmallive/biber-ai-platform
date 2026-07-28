@@ -103,12 +103,28 @@ address of its own signer, not a fixed literal.
    canonical check + tsc + vite build all pass. (Funding a key-derived sender in a
    test genesis + the key-derived-account genesis test builder move to Phase 5, where
    the node-level enforcement and its end-to-end tests need them.)
-5. **Enforce sender↔key.** Under the Ed25519 scheme, add
-   `ed25519_address(tx.public_key) == tx.from` (reject empty/non-32-byte, wrong
-   address) in `submit_transaction`, the per-transaction loop in
-   `validate_next_block_state`, and the indexer's `replay_private_devnet_block` —
-   mirroring the producer↔key fix. Rework the ed25519 tests to key-derived senders
-   (they currently send from opaque `alice`). Test-only devnet skips the check.
+5. **Enforce sender↔key.** — **DONE.** Under the Ed25519 scheme, the sender↔key
+   binding `ed25519_address(tx.public_key) == tx.from` (empty/non-32-byte key ⇒
+   reject) is now enforced in three places, mirroring the producer↔key fix:
+   `XriqNode::submit_transaction`, the per-transaction loop in
+   `validate_next_block_state` (the block-import path), and the indexer's
+   `replay_private_devnet_block` — all via `NodeError::UnauthorizedSender` /
+   `IndexReplayError::UnauthorizedSender` (both mapped to HTTP 400). The test-only
+   devnet scheme skips the check (insecure by design; opaque accounts untouched). The
+   five ed25519 tests that sent from opaque `alice` were reworked onto key-derived
+   senders: new node test builders `ed25519_account_genesis(authority, sender, balance)`
+   / `ed25519_account_node(...)` fund a key-derived sender, and
+   `ed25519_transaction_from_seed(seed, to, nonce, amount, fee)` builds a transaction
+   from the signing key's OWN derived address. The private-devnet CLI runner
+   (`produce-transfer-block` / `produce-pending-block`) now funds each ed25519 sender's
+   key-derived `from` (test-only minting, `fund_runner_ed25519_sender`, ed25519-only so
+   devnet genesis stays byte-identical). New negative test
+   `ed25519_transaction_whose_key_does_not_derive_from_is_rejected_as_unauthorized_sender`:
+   a signature that verifies over the attacker's key but claims a victim `from` is
+   rejected as `UnauthorizedSender`. 344 workspace tests green; fmt + clippy clean (no
+   new warnings). (Deferred to Phase 6: a dedicated ed25519 *indexer*-level negative
+   test — the enforcement is present and mirrors the node, but the indexer test harness
+   does not yet build ed25519 blocks.)
 6. **Regenerate affected fixtures + re-review.** Regenerate only the ed25519/testnet
    fixtures whose addresses/hashes change; devnet fixtures are untouched. Update
    `SECURITY_REVIEW.md` (finding 1 fully closed) and re-run the adversarial review on

@@ -13643,3 +13643,31 @@ key-derived-account genesis test builder (ed25519_account_genesis funding ed2551
 + rework the ed25519 tx tests (currently send from opaque alice) to key-derived senders; devnet
 skips. (6) regenerate any ed25519 fixtures + close finding 1 in SECURITY_REVIEW + re-review.
 Then independent human audit + legal. Test-only throughout.
+
+---
+
+KEY-DERIVED ACCOUNTS PHASE 5 (sender<->key enforcement) -- DONE. Closed the node/consensus
+half of finding 1. Under the Ed25519 scheme the sender<->key binding
+ed25519_address(tx.public_key)==tx.from (empty/non-32-byte key -> reject) is now enforced in
+THREE places, mirroring the producer<->key fix: XriqNode::submit_transaction, the per-tx loop
+in validate_next_block_state (block-import path), and the indexer replay_private_devnet_block
+-- via NodeError::UnauthorizedSender / IndexReplayError::UnauthorizedSender (both HTTP 400).
+Test-only devnet SKIPS the check (insecure by design; ~300 opaque devnet literals untouched).
+Helper renamed producer_public_key_derives_address -> public_key_derives_address (shared by
+producer+sender checks). Reworked the 5 ed25519 tests that sent from opaque alice onto
+key-derived senders: new node test builders ed25519_account_genesis(authority,sender,balance)
++ ed25519_account_node(...) fund a key-derived sender, and ed25519_transaction_from_seed(seed,
+to,nonce,amount,fee) builds a tx from the signing key's OWN derived address. The private-devnet
+CLI runner (produce-transfer-block / produce-pending-block) now funds each ed25519 sender's
+key-derived `from` (test-only minting, fund_runner_ed25519_sender + PRIVATE_DEVNET_RUNNER_
+ED25519_SENDER_BALANCE, ed25519-only + dedup so devnet genesis stays byte-identical; pending
+path reads pending records BEFORE building genesis to fund their senders). New negative test
+ed25519_transaction_whose_key_does_not_derive_from_is_rejected_as_unauthorized_sender: a sig
+that VERIFIES over the attacker's key but claims a victim `from` -> UnauthorizedSender.
+Workspace: 344 Rust tests green (xriq-node 86), fmt clean, no new clippy warnings (the
+contains()/too-many-args/push_str warnings are pre-existing in xriq-api/xriq-wallet).
+REMAINING: (6) a dedicated ed25519 INDEXER-level negative test (enforcement present + mirrors
+node, but indexer test harness doesn't yet build ed25519 blocks); regenerate any ed25519/testnet
+fixtures whose hashes shift; close finding 1 fully in SECURITY_REVIEW.md + re-run the adversarial
+review on the changed surfaces. Then independent human security audit + legal review (external
+hard gates). Test-only + valueless throughout.
