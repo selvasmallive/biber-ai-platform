@@ -13832,4 +13832,154 @@ mod tests {
             assert_eq!(follower.store().len(), 0, "store mutated at seed {i}");
         }
     }
+
+    // ---- Deterministic fuzzing of the untrusted request/response text parsers ----
+    //
+    // These ad-hoc scanners decode attacker-controlled text: peer HTTP response bodies
+    // (identity / block-export / discovery) during sync, and the inbound HTTP request
+    // line/headers on the serve path. The security review flagged the JSON extraction
+    // as substring-scanning rather than real parsing, so it must at least never panic
+    // on hostile input and must read well-formed input correctly. Reuses BlockFuzzRng.
+
+    // A JSON/HTTP-ish string assembled from marker tokens and raw bytes, so the fuzzer
+    // frequently produces inputs that reach past the marker `find` calls into the
+    // number/hex/quoted-token scanners.
+    fn fuzz_wire_text(rng: &mut BlockFuzzRng) -> String {
+        const TOKENS: &[&str] = &[
+            "{",
+            "}",
+            "[",
+            "]",
+            ":",
+            ",",
+            "\"",
+            " ",
+            "\r\n",
+            "\n",
+            "\r\n\r\n",
+            "network",
+            "protocol",
+            "current_height",
+            "blocks_hex",
+            "node_id",
+            "peers",
+            "\"network\": \"",
+            "\"protocol\": \"",
+            "\"current_height\": ",
+            "\"blocks_hex\": \"",
+            "\"node_id\": \"",
+            "\"peers\": [",
+            "xriq-devnet",
+            "xriq-peer-blocks-v1",
+            "http://127.0.0.1:7001",
+            "null",
+            "0123456789",
+            "abcdef",
+            "deadbeef",
+            "Content-Length: ",
+            "GET / HTTP/1.1",
+            "xriqdev1",
+        ];
+        let parts = rng.below(40);
+        let mut out = String::new();
+        for _ in 0..parts {
+            out.push_str(TOKENS[rng.below(TOKENS.len() as u64) as usize]);
+            if rng.below(4) == 0 {
+                out.push(rng.byte() as char);
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn fuzz_untrusted_wire_parsers_never_panic() {
+        for i in 0..50_000u64 {
+            let mut rng = BlockFuzzRng::new(0xF0F0_1234_5678_ABCD ^ i);
+            let text = fuzz_wire_text(&mut rng);
+            // Peer response parsers (attacker-controlled HTTP bodies).
+            let _ = parse_peer_blocks_response(&text);
+            let _ = parse_peer_identity_response(&text);
+            let _ = parse_advertised_peers(&text);
+            let _ = extract_json_string(&text, "current_height");
+            let _ = extract_json_string(&text, "blocks_hex");
+            let _ = extract_json_u64(&text, "current_height");
+            // Request-side parsers (attacker-controlled inbound HTTP).
+            let _ = query_value(Some(&text), "tx_hash");
+            let _ = http_request_body(&text);
+            let _ = http_content_length_from_request_bytes(text.as_bytes());
+        }
+    }
+
+    #[test]
+    fn peer_blocks_response_parser_roundtrips_well_formed_bodies() {
+        for i in 0..5_000u64 {
+            let mut rng = BlockFuzzRng::new(0xB10C_5E5E_1234_5678 ^ i);
+            let height = rng.next_u64() % 1_000_000;
+            let byte_len = rng.below(40) as usize;
+            let bytes: Vec<u8> = (0..byte_len).map(|_| rng.byte()).collect();
+            let hex = bytes_hex(&bytes);
+            let body = format!(
+                "{{\n  \"network\": \"xriq-devnet\",\n  \"current_height\": {height},\n  \"blocks_hex\": \"{hex}\"\n}}"
+            );
+            let (parsed_height, parsed_bytes) = parse_peer_blocks_response(&body)
+                .unwrap_or_else(|error| panic!("well-formed body rejected at seed {i}: {error:?}"));
+            assert_eq!(parsed_height, height, "height mismatch at seed {i}");
+            assert_eq!(parsed_bytes, bytes, "bytes mismatch at seed {i}");
+        }
+    }
+
+    #[test]
+    fn peer_identity_response_parser_roundtrips_well_formed_bodies() {
+        for i in 0..5_000u64 {
+            let mut rng = BlockFuzzRng::new(0x1DEE_7777_2345_6789 ^ i);
+            let height = rng.next_u64() % 1_000_000;
+            let with_node_id = rng.below(2) == 0;
+            let body = if with_node_id {
+                format!(
+                    "{{ \"network\": \"xriq-devnet\", \"protocol\": \"xriq-peer-blocks-v1\", \"current_height\": {height}, \"node_id\": \"node-abc123\" }}"
+                )
+            } else {
+                format!(
+                    "{{ \"network\": \"xriq-devnet\", \"protocol\": \"xriq-peer-blocks-v1\", \"current_height\": {height}, \"node_id\": null }}"
+                )
+            };
+            let identity = parse_peer_identity_response(&body).unwrap_or_else(|error| {
+                panic!("well-formed identity rejected at seed {i}: {error:?}")
+            });
+            assert_eq!(identity.network, "xriq-devnet");
+            assert_eq!(identity.protocol, "xriq-peer-blocks-v1");
+            assert_eq!(
+                identity.current_height, height,
+                "height mismatch at seed {i}"
+            );
+            if with_node_id {
+                assert_eq!(identity.node_id.as_deref(), Some("node-abc123"));
+            }
+        }
+    }
+
+    #[test]
+    fn http_content_length_parser_reads_well_formed_requests() {
+        for i in 0..5_000u64 {
+            let mut rng = BlockFuzzRng::new(0x40D5_1234_5678_9ABC ^ i);
+            let declared = rng.below(100_000);
+            let body_len = (rng.below(64)) as usize;
+            let body = "x".repeat(body_len);
+            let request = format!(
+                "POST /submit HTTP/1.1\r\nHost: node\r\nContent-Length: {declared}\r\n\r\n{body}"
+            );
+            let (body_start, content_length) =
+                http_content_length_from_request_bytes(request.as_bytes())
+                    .unwrap_or_else(|| panic!("no content-length parsed at seed {i}"));
+            assert_eq!(
+                content_length, declared as usize,
+                "content-length mismatch at seed {i}"
+            );
+            assert_eq!(
+                &request.as_bytes()[body_start..],
+                body.as_bytes(),
+                "body offset wrong at seed {i}"
+            );
+        }
+    }
 }

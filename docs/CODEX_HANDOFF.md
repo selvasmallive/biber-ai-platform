@@ -13824,3 +13824,27 @@ verify_block_header_with_scheme (the sole guard for a timestamp mutation) made t
 property fail deterministically at seed 36; reverted. This gives finding-1's four enforcement
 layers (API, submit, validate_next_block_state, indexer replay) matching property/negative
 coverage. 365 workspace tests green (xriq-indexer 11); fmt + clippy clean. Test-only throughout.
+
+---
+
+UNTRUSTED WIRE-TEXT PARSER FUZZING -- DONE (redirected from "ISO 20022 parsers"). FINDING:
+there are NO ISO 20022 message parsers to fuzz. xriq-iso20022 is a one-directional OUTBOUND
+mapper (payment_initiation_preview / payment_status_preview / account_statement_preview) that
+takes already-validated internal structs and emits ISO-aligned preview JSON (not_certified:true,
+mapping_version, unsupported_fields) -- no XML parsing, no parse(&str)/&[u8] decode, panic-safe
+formatting only. Confirmed workspace-wide: no quick-xml/roxmltree/serde_xml deps; the API ISO
+endpoints are GET producers of ISO-preview JSON, not ingesters. So fuzzed the ACTUAL untrusted-
+input text parsers instead (the real analog of "message parsers"): the peer HTTP response
+parsers (parse_peer_blocks_response, parse_peer_identity_response, parse_advertised_peers,
+extract_json_string/u64 -- the ad-hoc substring scanners the security review flagged as not-
+robust) and the inbound HTTP request parsers (http_content_length_from_request_bytes,
+http_request_body, query_value). Four tests (65k fuzz + 15k positive, ~4.7s), reusing the node
+module's BlockFuzzRng: fuzz_untrusted_wire_parsers_never_panic (50k) -- JSON/HTTP-ish strings
+built from marker tokens + raw bytes (so inputs reach past the marker finds into the number/hex/
+quoted-token scanners) fed to ALL parsers, must never panic; peer_blocks_response_parser_
+roundtrips_well_formed_bodies (5k) -- a server-shaped body parses back to the exact height +
+hex bytes; peer_identity_response_parser_roundtrips_well_formed_bodies (5k) -- network/protocol/
+height/node_id (incl. null) parse correctly; http_content_length_parser_reads_well_formed_
+requests (5k) -- Content-Length + body offset parsed correctly. TEETH-CHECKED: perturbing the
+shared extract_json_u64 by +1 made both height roundtrips fail deterministically (490490 vs
+490489); reverted. 369 workspace tests green (xriq-node 95); fmt + clippy clean. Test-only.
