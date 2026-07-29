@@ -1006,7 +1006,10 @@ mod tests {
         genesis.authority = ed25519_address(&authority_pubkey);
         genesis.authority_pubkey = authority_pubkey;
         let genesis = genesis.with_account(victim.clone(), XriqAmount::from_base_units(100), 0);
-        assert_eq!(indexed_genesis_scheme(&genesis), SignatureSchemeKind::Ed25519);
+        assert_eq!(
+            indexed_genesis_scheme(&genesis),
+            SignatureSchemeKind::Ed25519
+        );
 
         // Forge: spend from the victim's `from`, but carry the attacker's own key and a
         // signature that is internally VALID over that key. The signature verifies, so
