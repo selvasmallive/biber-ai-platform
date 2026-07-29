@@ -335,6 +335,14 @@ explicit save approval; if Vast push is still blocked by Git identity or HTTPS
 auth, save the same one-line edit from the local BIBER-only checkout and then
 clean/sync Vast with `git restore --staged`, `git restore`, and
 `git pull --ff-only origin biber/mvp-resume-20260712`.
+2026-07-29 user save approval checkpoint: the user explicitly approved saving
+the verified parameterized Vast docs edit for plan hash
+`1fcc73db3608f448df9e5aa346231e536f1b524a9846714915151d17706fdcd9` to GitHub
+branch `biber/mvp-resume-20260712`. The local BIBER-only checkout applied the
+same reviewed one-line `docs/BIBER_ONLY_WORKSPACE.md` wording change from
+"dedicated sparse checkout" to "dedicated BIBER-only sparse checkout". No Vast
+GitHub credentials are needed for this save path; after the GitHub push, sync
+Vast with `git pull --ff-only origin biber/mvp-resume-20260712`.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is

@@ -1,6 +1,6 @@
 # BIBER-Only Workspace
 
-Use this document when continuing BIBER MVP from the dedicated sparse checkout at:
+Use this document when continuing BIBER MVP from the dedicated BIBER-only sparse checkout at:
 
 ```text
 C:\Users\vselv\OneDrive\Biber\biber-mvp-only
