@@ -13781,3 +13781,25 @@ mutation breaks a signature or a recomputed root or continuity -> rejected. TEET
 disabling verify_block_header_with_scheme (the sole guard for timestamp/consensus_round/
 public_key mutations) made the mutation property fail deterministically at seed 0; reverted.
 359 workspace tests green (xriq-node 91); fmt + clippy clean. Test-only throughout.
+
+---
+
+ON-DISK CHAIN-STORE RELOAD FUZZING -- DONE. Deterministic, dependency-free fuzz harness for
+the FileChainStore reload path: FileChainStore::open does fs::read then decode_store, which
+loops read_block_record (BLK1 tag + block_hash + header + tx_count + txs) and re-appends each
+record (append_block rejects duplicate hash/height). That decode runs on whatever is on disk --
+a truncated write, a corrupted file, hostile content. Reuses the storage module's existing
+FuzzRng + fuzz_block (from the peer-decoder fuzz commit). Four tests (~75k iters + fs, ~0.8s):
+(1) fuzz_decode_store_never_panics_on_arbitrary_bytes (50k) -- random inputs, half BLK1-tagged
+to reach the header/tx readers, must return Ok/Err never panic/OOM; (2) fuzz_decode_store_
+roundtrips_encoded_records (5k) -- a buffer of validly encoded records (distinct heights/hashes)
+decodes back to the same blocks + count; (3) fuzz_mutating_a_valid_store_buffer_never_panics
+(20k) -- byte flips / truncation / trailing bytes / tx-count tamper / splice on a valid buffer
+never panic; (4) file_chain_store_reload_roundtrips_random_blocks (200, real fs) -- append random
+blocks to a FileChainStore, reopen from disk, same blocks. Confirms the prior allocation-bounding
+DoS fix (cursor_remaining clamp in read_block_record) holds under fuzzing. TEETH-CHECKED: making
+read_block_record read transaction_count-1 txs made the roundtrip test fail deterministically;
+reverted. NOTE: unlike decode_peer_blocks, decode_store has no global canonical/trailing-bytes
+property (it is an append-only log of independently-framed records, decoded into a map), so the
+roundtrip asserts block-set equality rather than byte-for-byte re-encoding. 363 workspace tests
+green (xriq-storage 14); fmt + clippy clean. Test-only throughout.

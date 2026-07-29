@@ -926,4 +926,166 @@ mod tests {
             }
         }
     }
+
+    // ---- Deterministic fuzzing of the on-disk chain-store reload path ----
+    //
+    // `FileChainStore::open` reads the append-only log file and feeds its raw bytes to
+    // `decode_store`, which loops `read_block_record` (BLK1 tag + hash + header + txs)
+    // and re-appends each record (rejecting duplicate hash/height). That decode runs on
+    // whatever bytes are on disk — a truncated write, a corrupted file, or hostile
+    // content. These tests reuse the module's `FuzzRng` / `fuzz_block` to prove:
+    //   1. it never panics / OOMs on arbitrary bytes,
+    //   2. a buffer of validly encoded records round-trips (same blocks, same count),
+    //   3. mutating a valid buffer never panics,
+    //   4. the real file-backed `open` reload round-trips persisted blocks.
+
+    // Build `count` records with DISTINCT heights and hashes (the store rejects
+    // duplicate height/hash), each carrying a randomly generated block body.
+    fn fuzz_store_records(rng: &mut FuzzRng, count: usize) -> Vec<(Hash32, Block)> {
+        (0..count)
+            .map(|k| {
+                let mut block = fuzz_block(rng);
+                block.header.height = k as u64;
+                (hash((k as u8) ^ 0xC3), block)
+            })
+            .collect()
+    }
+
+    fn encode_store_records(records: &[(Hash32, Block)]) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        for (block_hash, block) in records {
+            encode_block_record(
+                &StoredBlock {
+                    block_hash: *block_hash,
+                    block: block.clone(),
+                },
+                &mut buffer,
+            )
+            .expect("valid record encodes");
+        }
+        buffer
+    }
+
+    #[test]
+    fn fuzz_decode_store_never_panics_on_arbitrary_bytes() {
+        for i in 0..50_000u64 {
+            let mut rng = FuzzRng::new(0x5709_ABCD_1234_5678 ^ i);
+            // Half raw random bytes, half prefixed with the real record tag so the
+            // header/transaction readers are exercised past the tag gate.
+            let mut input = rng.bytes(256);
+            if rng.bool() {
+                let mut tagged = BLOCK_RECORD_TAG.to_vec();
+                tagged.append(&mut input);
+                input = tagged;
+            }
+            // Must return without panicking; either outcome is acceptable.
+            let mut store = InMemoryChainStore::new();
+            let _ = decode_store(&input, &mut store);
+        }
+    }
+
+    #[test]
+    fn fuzz_decode_store_roundtrips_encoded_records() {
+        for i in 0..5_000u64 {
+            let mut rng = FuzzRng::new(0x0DD5_7075_2345_6789 ^ i);
+            let count = rng.below(6);
+            let records = fuzz_store_records(&mut rng, count);
+            let buffer = encode_store_records(&records);
+
+            let mut store = InMemoryChainStore::new();
+            decode_store(&buffer, &mut store).expect("encoded records decode");
+            assert_eq!(
+                store.len(),
+                records.len(),
+                "record count mismatch at seed {i}"
+            );
+            for (block_hash, block) in &records {
+                assert_eq!(
+                    store.block_by_hash(block_hash).map(|stored| &stored.block),
+                    Some(block),
+                    "record body mismatch at seed {i}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn fuzz_mutating_a_valid_store_buffer_never_panics() {
+        for i in 0..20_000u64 {
+            let mut rng = FuzzRng::new(0xF11E_57DA_3456_789A ^ i);
+            let count = 1 + rng.below(5);
+            let records = fuzz_store_records(&mut rng, count);
+            let mut bytes = encode_store_records(&records);
+            if bytes.is_empty() {
+                continue;
+            }
+            match rng.below(5) {
+                0 => {
+                    for _ in 0..=rng.below(4) {
+                        let idx = rng.below(bytes.len());
+                        bytes[idx] ^= rng.byte();
+                    }
+                }
+                1 => {
+                    let keep = rng.below(bytes.len());
+                    bytes.truncate(keep);
+                }
+                2 => {
+                    let mut extra = rng.bytes(16);
+                    bytes.append(&mut extra);
+                }
+                3 => {
+                    // Tamper the first record's transaction-count prefix, which sits
+                    // right after the tag (4) + hash (32) + header.
+                    let idx = rng.below(bytes.len());
+                    let patch = rng.next_u64() as u32;
+                    let end = (idx + 4).min(bytes.len());
+                    bytes[idx..end].copy_from_slice(&patch.to_le_bytes()[..end - idx]);
+                }
+                _ => {
+                    let idx = rng.below(bytes.len() + 1);
+                    bytes.insert(idx, rng.byte());
+                }
+            }
+
+            // Must not panic; Ok or Err are both acceptable outcomes.
+            let mut store = InMemoryChainStore::new();
+            let _ = decode_store(&bytes, &mut store);
+        }
+    }
+
+    #[test]
+    fn file_chain_store_reload_roundtrips_random_blocks() {
+        // Exercise the real file-backed reload (fs::read + decode_store) end to end.
+        for i in 0..200u64 {
+            let mut rng = FuzzRng::new(0xF11E_C0DE_4567_89AB ^ i);
+            let path = temp_store_path();
+            let count = 1 + rng.below(5);
+            let records = fuzz_store_records(&mut rng, count);
+            {
+                let mut store = FileChainStore::open(&path).expect("open new store");
+                for (block_hash, block) in &records {
+                    store
+                        .append_block(*block_hash, block.clone())
+                        .expect("append persists");
+                }
+            }
+            let reloaded = FileChainStore::open(&path).expect("reopen store");
+            assert_eq!(
+                reloaded.len(),
+                records.len(),
+                "reload count mismatch at seed {i}"
+            );
+            for (block_hash, block) in &records {
+                assert_eq!(
+                    reloaded
+                        .block_by_hash(block_hash)
+                        .map(|stored| &stored.block),
+                    Some(block),
+                    "reloaded body mismatch at seed {i}"
+                );
+            }
+            let _ = fs::remove_file(&path);
+        }
+    }
 }
