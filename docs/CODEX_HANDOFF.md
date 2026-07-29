@@ -13761,3 +13761,23 @@ DuplicateTransaction, state byte-identical. TEETH-CHECKED both: crediting the re
 extra made both ledger properties fail deterministically (supply @seed4, routing @seed0);
 flipping the mempool fee sort made the ordering invariant fail -- reverted both. 357 workspace
 tests green (xriq-ledger 10, xriq-mempool 11); fmt + clippy clean. Test-only throughout.
+
+---
+
+BLOCK VALIDATION PROPERTY TESTS -- DONE. Property-based (seeded xorshift64*, reproducible)
+tests for validate_next_block_state (the block-import validator, shared by import_block +
+peer sync + stored-block replay), in xriq-node on the test-only scheme. Two properties (25k
+iters total, ~3s): property_validly_produced_block_is_accepted (5k) -- a correctly produced
+block (0..=3 valid txs from distinct funded senders, via the real production+sign path) imports
+into a fresh follower and advances height by exactly 1. property_any_single_field_mutation_is_
+rejected_atomically (20k) -- take a valid block (first confirmed acceptable so a rejection is
+attributable to the mutation), apply ONE random field mutation, and assert the follower rejects
+it AND its ledger/tip/store are byte-for-byte unchanged (import atomicity). Mutation set spans
+every header field (version, chain_id, height, previous_block_hash, state_root, transactions_
+root, timestamp_ms, producer, consensus_round, public_key, signature) and transaction-level
+tampering (amount/nonce/to/signature, plus duplicate/drop a tx). Since the header signing hash
+covers ALL header fields except the signature, and tx signing hash covers all tx fields, every
+mutation breaks a signature or a recomputed root or continuity -> rejected. TEETH-CHECKED:
+disabling verify_block_header_with_scheme (the sole guard for timestamp/consensus_round/
+public_key mutations) made the mutation property fail deterministically at seed 0; reverted.
+359 workspace tests green (xriq-node 91); fmt + clippy clean. Test-only throughout.

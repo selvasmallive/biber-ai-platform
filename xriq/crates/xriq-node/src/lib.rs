@@ -13605,4 +13605,231 @@ mod tests {
         assert_eq!(follower.ledger(), &before_ledger);
         assert_eq!(follower.store().len(), 0);
     }
+
+    // ---- Property tests: block validation (validate_next_block_state) ----
+    //
+    // Over randomized valid blocks and single-field mutations (seeded PRNG for
+    // reproducibility), the block-import validator must uphold:
+    //   * a correctly produced block is accepted and advances the chain by one,
+    //   * ANY single-field mutation of a valid block is rejected — no forged header
+    //     field (height, parent, roots, producer, timestamp, key, signature) or
+    //     tampered/added/dropped transaction can pass validation,
+    //   * a rejected block leaves the ledger, store, and tip byte-for-byte unchanged
+    //     (import is atomic).
+    // The test-only scheme is used: mutating any signed field breaks the header or a
+    // transaction signature, or a recomputed root, so every mutation must be caught.
+
+    struct BlockFuzzRng(u64);
+
+    impl BlockFuzzRng {
+        fn new(seed: u64) -> Self {
+            BlockFuzzRng(seed | 1)
+        }
+
+        fn next_u64(&mut self) -> u64 {
+            let mut x = self.0;
+            x ^= x >> 12;
+            x ^= x << 25;
+            x ^= x >> 27;
+            self.0 = x;
+            x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+
+        fn below(&mut self, n: u64) -> u64 {
+            if n == 0 {
+                0
+            } else {
+                self.next_u64() % n
+            }
+        }
+
+        fn byte(&mut self) -> u8 {
+            self.next_u64() as u8
+        }
+    }
+
+    const BLOCK_FUZZ_LABELS: [&str; 4] = ["alice", "bobbb", "carol", "davey"];
+
+    fn multi_funded_node() -> XriqNode<InMemoryChainStore> {
+        let mut genesis = GenesisConfig::private_devnet();
+        for label in BLOCK_FUZZ_LABELS {
+            genesis =
+                genesis.with_account(address(label), XriqAmount::from_base_units(1_000_000), 0);
+        }
+        XriqNode::from_genesis(&genesis, InMemoryChainStore::new()).unwrap()
+    }
+
+    // A valid, test-only-signed transfer between two distinct funded accounts at
+    // nonce 0 (each sender is used at most once per block, so nonces never collide).
+    fn block_fuzz_transfer(
+        rng: &mut BlockFuzzRng,
+        from_label: &str,
+        to_label: &str,
+    ) -> Transaction {
+        let mut tx = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from: address(from_label),
+            to: address(to_label),
+            amount: XriqAmount::from_base_units(1 + rng.below(100) as u128),
+            fee: XriqAmount::from_base_units(2 + rng.below(5) as u128),
+            nonce: 0,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
+        };
+        tx.signature = test_only_signature_for_hash(transaction_signing_hash(&tx));
+        tx
+    }
+
+    // Produce a valid next block containing 0..=3 transactions from distinct senders.
+    fn produce_fuzz_block(rng: &mut BlockFuzzRng) -> Block {
+        let mut producer = multi_funded_node();
+        let tx_count = rng.below(4) as usize;
+        for i in 0..tx_count {
+            let from = BLOCK_FUZZ_LABELS[i];
+            let to = BLOCK_FUZZ_LABELS[(i + 1) % BLOCK_FUZZ_LABELS.len()];
+            let tx = block_fuzz_transfer(rng, from, to);
+            // Distinct senders/nonces, so submit always succeeds; tolerate the rare
+            // policy edge by ignoring a rejected submit.
+            let _ = producer.submit_transaction_with_canonical_hash(tx);
+        }
+        producer
+            .produce_next_block_with_private_devnet_signature(1_000 + rng.below(1_000), 0)
+            .expect("valid block produced")
+            .block
+    }
+
+    // Apply exactly one field mutation to a valid block. Returns the mutated block;
+    // callers skip the rare no-op (mutated == original).
+    fn mutate_block(rng: &mut BlockFuzzRng, mut block: Block) -> Block {
+        let has_txs = !block.transactions.is_empty();
+        let classes = if has_txs { 14 } else { 11 };
+        match rng.below(classes) {
+            0 => block.header.height = block.header.height.wrapping_add(1 + rng.below(4)),
+            1 => block.header.previous_block_hash = hash(rng.byte()),
+            2 => block.header.chain_id = format!("z{}", block.header.chain_id),
+            3 => block.header.state_root = hash(rng.byte()),
+            4 => block.header.transactions_root = hash(rng.byte()),
+            5 => {
+                block.header.timestamp_ms =
+                    block.header.timestamp_ms.wrapping_add(1 + rng.below(1000))
+            }
+            6 => {
+                block.header.consensus_round =
+                    block.header.consensus_round.wrapping_add(1 + rng.below(4))
+            }
+            7 => block.header.producer = address("zzzzzzzzzzz"),
+            8 => block.header.version = block.header.version.wrapping_add(1),
+            9 => {
+                let mut sig = block.header.signature.as_slice().to_vec();
+                if sig.is_empty() {
+                    sig.push(1);
+                } else {
+                    let idx = rng.below(sig.len() as u64) as usize;
+                    sig[idx] ^= 0xFF;
+                }
+                block.header.signature = SignatureBytes::new(sig);
+            }
+            10 => block.header.public_key.push(0xAB),
+            // Transaction-level mutations (only reachable when has_txs).
+            11 => {
+                let idx = rng.below(block.transactions.len() as u64) as usize;
+                match rng.below(4) {
+                    0 => {
+                        let a = block.transactions[idx].amount.base_units();
+                        block.transactions[idx].amount =
+                            XriqAmount::from_base_units(a.wrapping_add(1))
+                    }
+                    1 => {
+                        block.transactions[idx].nonce =
+                            block.transactions[idx].nonce.wrapping_add(1)
+                    }
+                    2 => block.transactions[idx].to = address("zzzzzzzzzzz"),
+                    _ => {
+                        let mut sig = block.transactions[idx].signature.as_slice().to_vec();
+                        if sig.is_empty() {
+                            sig.push(1);
+                        } else {
+                            sig[0] ^= 0xFF;
+                        }
+                        block.transactions[idx].signature = SignatureBytes::new(sig);
+                    }
+                }
+            }
+            12 => {
+                // Duplicate a transaction (breaks the transactions root and nonce set).
+                let first = block.transactions[0].clone();
+                block.transactions.push(first);
+            }
+            _ => {
+                // Drop a transaction (breaks the transactions root).
+                block.transactions.pop();
+            }
+        }
+        block
+    }
+
+    #[test]
+    fn property_validly_produced_block_is_accepted() {
+        for i in 0..5_000u64 {
+            let mut rng = BlockFuzzRng::new(0xB10C_1234_5678_9ABC ^ i);
+            let block = produce_fuzz_block(&mut rng);
+            let mut follower = multi_funded_node();
+            let before_height = follower.ledger().current_height();
+            follower
+                .import_block_with_canonical_hash(block)
+                .unwrap_or_else(|error| panic!("valid block rejected at seed {i}: {error:?}"));
+            assert_eq!(
+                follower.ledger().current_height(),
+                before_height + 1,
+                "height did not advance at seed {i}"
+            );
+        }
+    }
+
+    #[test]
+    fn property_any_single_field_mutation_is_rejected_atomically() {
+        for i in 0..20_000u64 {
+            let mut rng = BlockFuzzRng::new(0x0B1E_FACE_1234_5678 ^ i);
+            let block = produce_fuzz_block(&mut rng);
+
+            // The pristine block must be acceptable, or a rejection below would be
+            // spurious rather than caused by the mutation.
+            {
+                let mut base = multi_funded_node();
+                if base
+                    .import_block_with_canonical_hash(block.clone())
+                    .is_err()
+                {
+                    continue;
+                }
+            }
+
+            let mutated = mutate_block(&mut rng, block.clone());
+            if mutated == block {
+                continue; // rare no-op mutation
+            }
+
+            let mut follower = multi_funded_node();
+            let before_ledger = follower.ledger().clone();
+            let before_hash = follower.latest_block_hash();
+            let result = follower.import_block_with_canonical_hash(mutated);
+
+            assert!(result.is_err(), "mutation accepted at seed {i}");
+            // Import is atomic: a rejected block changes nothing.
+            assert_eq!(
+                follower.ledger(),
+                &before_ledger,
+                "ledger mutated at seed {i}"
+            );
+            assert_eq!(
+                follower.latest_block_hash(),
+                before_hash,
+                "tip mutated at seed {i}"
+            );
+            assert_eq!(follower.store().len(), 0, "store mutated at seed {i}");
+        }
+    }
 }
