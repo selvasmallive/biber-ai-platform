@@ -13739,3 +13739,25 @@ temporarily disabling the trailing-bytes rejection made fuzz_mutating fail deter
 seed 18 (canonical assertion), proving the harness is not vacuous; reverted. Confirms the prior
 DoS fix (bounded allocations via cursor_remaining) holds under fuzzing. 351 workspace tests
 green (xriq-storage 10); fmt + clippy clean. Test-only throughout.
+
+---
+
+LEDGER + MEMPOOL PROPERTY TESTS -- DONE. Property-based (seeded xorshift64*, dependency-free,
+reproducible) invariant tests for the two deterministic state machines. LEDGER (xriq-ledger,
+apply_transaction): property_apply_conserves_supply_or_is_atomic (20k iters) -- for random
+(state, tx): on Ok, total supply (sum of all balances) is UNCHANGED (no value created/destroyed)
+and ONLY the sender's nonce moves, by exactly +1; on Err, the ledger is byte-for-byte unchanged
+(atomicity). property_valid_transfer_routes_amount_and_fee_exactly (20k) -- a guaranteed-valid
+transfer debits sender by amount+fee, credits `to` by amount, credits fee_sink by fee (distinct
+roles). property_apply_is_deterministic (10k) -- same (state,tx) on two clones yields identical
+result + state. MEMPOOL (xriq-mempool): property_random_insert_remove_upholds_invariants (10k x
+40 ops) -- after every op: len <= max_transactions; ordered_entries length == len, sorted by
+(fee desc, received_order asc, tx_hash asc), stable across calls; (from,nonce) unique across
+residents; every resident satisfies amount>0 & fee>=min_fee; rejected inserts never change
+size/membership. property_remove_frees_the_account_nonce_slot (10k) -- a second (from,nonce) is
+DuplicateAccountNonce until the first is removed, then accepted (remove is insert's inverse).
+property_duplicate_hash_rejected_without_mutation (10k) -- re-inserting a resident hash ->
+DuplicateTransaction, state byte-identical. TEETH-CHECKED both: crediting the recipient +1
+extra made both ledger properties fail deterministically (supply @seed4, routing @seed0);
+flipping the mempool fee sort made the ordering invariant fail -- reverted both. 357 workspace
+tests green (xriq-ledger 10, xriq-mempool 11); fmt + clippy clean. Test-only throughout.
