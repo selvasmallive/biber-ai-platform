@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-07-28
+Last updated: 2026-07-29
 
 ## Current Goal
 
@@ -319,6 +319,22 @@ the guarded apply for artifacts under
 Next Vast action: run the emitted `apply-repair-edits --approve` command, then
 immediately run the emitted `local-verify-chain` command. Do not run GitHub
 save/PR until verification output and the resulting diff are reviewed.
+2026-07-28 verified parameterized real-repo apply checkpoint: the user ran the
+approved apply on Vast for plan hash
+`1fcc73db3608f448df9e5aa346231e536f1b524a9846714915151d17706fdcd9`, then ran
+the emitted `local-verify-chain` command. Apply succeeded with
+`apply_status=applied`, `approval_received=true`, one touched file
+(`docs/BIBER_ONLY_WORKSPACE.md`), one replacement, and no auto-save. Local
+verification passed with `ok=true`, `chain_status=verified`,
+`test_executed=true`, `test_ok=true`, `verification_status=passed`, and exit
+code `0` for `python-compileall-api`. The resulting Vast diff is exactly the
+intended one-line change from "dedicated sparse checkout" to
+"dedicated BIBER-only sparse checkout" in `docs/BIBER_ONLY_WORKSPACE.md`.
+Next step: save this exact verified docs edit to GitHub only after separate
+explicit save approval; if Vast push is still blocked by Git identity or HTTPS
+auth, save the same one-line edit from the local BIBER-only checkout and then
+clean/sync Vast with `git restore --staged`, `git restore`, and
+`git pull --ff-only origin biber/mvp-resume-20260712`.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
