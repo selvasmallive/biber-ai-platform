@@ -13720,3 +13720,22 @@ as accepted/by-design): test-only signature scheme is forgeable by design (ed255
 self-skip node_id is self-reported (optimization, not security); ad-hoc JSON extraction surfaces
 errors not panics; peer-reported heights are display-only (continuity enforced per-block). 348
 workspace tests green (xriq-node 89); fmt clean; clippy clean. Test-only throughout.
+
+---
+
+PEER-BLOCK DECODER FUZZING -- DONE. Deterministic, dependency-free fuzz harness for
+decode_peer_blocks (xriq-storage), the wire decoder that parses attacker-controlled peer
+HTTP bytes. Chose a seeded xorshift64* PRNG over proptest/cargo-fuzz to avoid a new dependency
+tree + Cargo.lock churn (CI runs --locked) and extra Windows link time; seeding makes every
+failure deterministically reproducible (better for CI than randomized proptest). Three tests
+(75k iterations total, ~0.4s): (1) fuzz_decode_never_panics_on_arbitrary_bytes -- 50k random
+inputs (half tag-prefixed to reach the header/tx readers) must return Ok/Err, never panic/OOM;
+(2) fuzz_encode_decode_roundtrips_random_blocks -- 5k structurally-valid random blocks
+encode->decode->equal; (3) fuzz_mutating_a_valid_encoding_never_panics -- 20k valid encodings
+mutated (byte flips, truncation, trailing bytes, count-prefix tamper, byte splice) must never
+panic. Key invariant beyond no-panic: CANONICAL acceptance -- whenever decode(b)=Ok(v),
+encode(v) must reproduce b exactly (catches non-canonical/slack acceptance). TEETH-CHECKED:
+temporarily disabling the trailing-bytes rejection made fuzz_mutating fail deterministically at
+seed 18 (canonical assertion), proving the harness is not vacuous; reverted. Confirms the prior
+DoS fix (bounded allocations via cursor_remaining) holds under fuzzing. 351 workspace tests
+green (xriq-storage 10); fmt + clippy clean. Test-only throughout.

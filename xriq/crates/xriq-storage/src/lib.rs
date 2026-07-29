@@ -718,4 +718,212 @@ mod tests {
             Err(StorageError::CorruptData)
         );
     }
+
+    // ---- Deterministic fuzzing of the peer-block wire decoder ----
+    //
+    // `decode_peer_blocks` parses attacker-controlled bytes (a peer's HTTP response).
+    // These tests hammer it with pseudo-random and mutated input to prove three
+    // invariants an adversarial peer must never be able to break:
+    //   1. it never panics / aborts (no unwrap, index-OOB, overflow, or OOM), always
+    //      returning Ok/Err on ANY input;
+    //   2. every structurally valid block round-trips (encode → decode → equal);
+    //   3. the accepted encoding is CANONICAL — if a byte string decodes, re-encoding
+    //      the result reproduces those exact bytes (no ambiguous/slack acceptance).
+    // The RNG is seeded per iteration so any failure is deterministically reproducible.
+
+    // xorshift64* — a tiny, dependency-free deterministic PRNG for fuzzing.
+    struct FuzzRng(u64);
+
+    impl FuzzRng {
+        fn new(seed: u64) -> Self {
+            // Any non-zero state; xorshift is degenerate at zero.
+            FuzzRng(seed | 1)
+        }
+
+        fn next_u64(&mut self) -> u64 {
+            let mut x = self.0;
+            x ^= x >> 12;
+            x ^= x << 25;
+            x ^= x >> 27;
+            self.0 = x;
+            x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+
+        fn below(&mut self, n: usize) -> usize {
+            if n == 0 {
+                0
+            } else {
+                (self.next_u64() % n as u64) as usize
+            }
+        }
+
+        fn byte(&mut self) -> u8 {
+            self.next_u64() as u8
+        }
+
+        fn bool(&mut self) -> bool {
+            self.next_u64() & 1 == 1
+        }
+
+        fn bytes(&mut self, max_len: usize) -> Vec<u8> {
+            let len = self.below(max_len + 1);
+            (0..len).map(|_| self.byte()).collect()
+        }
+    }
+
+    // A structurally valid address: the `xriqdev1` prefix + 16..=40 lowercase
+    // alphanumeric payload chars, so `Address::parse` always succeeds.
+    fn fuzz_address(rng: &mut FuzzRng) -> Address {
+        const CHARS: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789";
+        let len = 16 + rng.below(25);
+        let mut label = String::from("xriqdev1");
+        for _ in 0..len {
+            label.push(CHARS[rng.below(CHARS.len())] as char);
+        }
+        Address::parse(&label).expect("fuzz address is well-formed")
+    }
+
+    // A short valid-UTF-8 (ASCII) string; the decoder accepts any UTF-8, and ASCII
+    // is a valid subset that round-trips exactly.
+    fn fuzz_string(rng: &mut FuzzRng) -> String {
+        let len = rng.below(20);
+        (0..len)
+            .map(|_| (0x20 + rng.below(0x5f) as u8) as char)
+            .collect()
+    }
+
+    fn fuzz_bytes_vec(rng: &mut FuzzRng) -> Vec<u8> {
+        rng.bytes(24)
+    }
+
+    fn fuzz_transaction(rng: &mut FuzzRng) -> Transaction {
+        Transaction {
+            version: rng.next_u64() as u16,
+            chain_id: fuzz_string(rng),
+            from: fuzz_address(rng),
+            to: fuzz_address(rng),
+            amount: XriqAmount::from_base_units(rng.next_u64() as u128),
+            fee: XriqAmount::from_base_units(rng.next_u64() as u128),
+            nonce: rng.next_u64(),
+            memo_hash: rng.bool().then(|| hash(rng.byte())),
+            expires_at_height: rng.bool().then(|| rng.next_u64()),
+            signature: SignatureBytes::new(fuzz_bytes_vec(rng)),
+            public_key: fuzz_bytes_vec(rng),
+        }
+    }
+
+    fn fuzz_block(rng: &mut FuzzRng) -> Block {
+        let header = BlockHeader {
+            version: rng.next_u64() as u16,
+            chain_id: fuzz_string(rng),
+            height: rng.next_u64(),
+            previous_block_hash: hash(rng.byte()),
+            state_root: hash(rng.byte()),
+            transactions_root: hash(rng.byte()),
+            timestamp_ms: rng.next_u64(),
+            producer: fuzz_address(rng),
+            consensus_round: rng.next_u64(),
+            signature: SignatureBytes::new(fuzz_bytes_vec(rng)),
+            public_key: fuzz_bytes_vec(rng),
+        };
+        let tx_count = rng.below(4);
+        let transactions = (0..tx_count).map(|_| fuzz_transaction(rng)).collect();
+        Block {
+            header,
+            transactions,
+        }
+    }
+
+    fn fuzz_blocks(rng: &mut FuzzRng) -> Vec<Block> {
+        let count = rng.below(4);
+        (0..count).map(|_| fuzz_block(rng)).collect()
+    }
+
+    #[test]
+    fn fuzz_decode_never_panics_on_arbitrary_bytes() {
+        for i in 0..50_000u64 {
+            let mut rng = FuzzRng::new(0x9E37_79B9_7F4A_7C15 ^ i);
+            // Half raw random bytes, half prefixed with the real tag so the header/
+            // transaction readers are exercised deeply past the tag gate.
+            let mut input = rng.bytes(256);
+            if rng.bool() {
+                let mut tagged = PEER_BLOCKS_TAG.to_vec();
+                tagged.append(&mut input);
+                input = tagged;
+            }
+            // Must return without panicking; either outcome is acceptable.
+            if let Ok(blocks) = decode_peer_blocks(&input) {
+                // Any accepted byte string is canonical: re-encoding reproduces it.
+                assert_eq!(
+                    encode_peer_blocks(&blocks).unwrap(),
+                    input,
+                    "non-canonical acceptance at seed {i}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn fuzz_encode_decode_roundtrips_random_blocks() {
+        for i in 0..5_000u64 {
+            let mut rng = FuzzRng::new(0x1234_5678_9ABC_DEF0 ^ i.wrapping_mul(0x9E37_79B9));
+            let blocks = fuzz_blocks(&mut rng);
+            let encoded = encode_peer_blocks(&blocks).expect("valid blocks encode");
+            let decoded = decode_peer_blocks(&encoded).expect("own encoding decodes");
+            assert_eq!(decoded, blocks, "roundtrip mismatch at seed {i}");
+        }
+    }
+
+    #[test]
+    fn fuzz_mutating_a_valid_encoding_never_panics() {
+        for i in 0..20_000u64 {
+            let mut rng = FuzzRng::new(0xDEAD_BEEF_CAFE_F00D ^ i);
+            let blocks = fuzz_blocks(&mut rng);
+            let mut bytes = encode_peer_blocks(&blocks).expect("valid blocks encode");
+            if bytes.is_empty() {
+                continue;
+            }
+            // Apply one random mutation class to the valid encoding.
+            match rng.below(5) {
+                // Flip 1..=4 random bytes.
+                0 => {
+                    for _ in 0..=rng.below(4) {
+                        let idx = rng.below(bytes.len());
+                        bytes[idx] ^= rng.byte();
+                    }
+                }
+                // Truncate to a random shorter length.
+                1 => {
+                    let keep = rng.below(bytes.len());
+                    bytes.truncate(keep);
+                }
+                // Append random trailing bytes (must be rejected, never panic).
+                2 => {
+                    let mut extra = rng.bytes(16);
+                    bytes.append(&mut extra);
+                }
+                // Tamper the top-level block-count prefix (bytes 4..8).
+                3 => {
+                    if bytes.len() >= 8 {
+                        let patch = rng.next_u64() as u32;
+                        bytes[4..8].copy_from_slice(&patch.to_le_bytes());
+                    }
+                }
+                // Splice in a random byte at a random position.
+                _ => {
+                    let idx = rng.below(bytes.len() + 1);
+                    bytes.insert(idx, rng.byte());
+                }
+            }
+
+            // Must not panic; if it still decodes, the encoding stays canonical.
+            if let Ok(decoded) = decode_peer_blocks(&bytes) {
+                assert_eq!(
+                    encode_peer_blocks(&decoded).unwrap(),
+                    bytes,
+                    "mutated input accepted non-canonically at seed {i}"
+                );
+            }
+        }
+    }
 }
