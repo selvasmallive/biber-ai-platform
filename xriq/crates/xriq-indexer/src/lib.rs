@@ -1066,4 +1066,256 @@ mod tests {
             })
         );
     }
+
+    // ---- Property tests: chain-store replay (replay_private_devnet_store) ----
+    //
+    // The indexer replays a stored chain through its OWN block validator, independent
+    // of the node, to reconstruct ledger state. Over randomized valid chains and
+    // single-field block tampering (seeded PRNG, reproducible) it must uphold:
+    //   * a validly built chain replays without error to exactly the ledger the chain
+    //     committed to (the indexer agrees with block production),
+    //   * total supply is conserved across the replay (no value created/destroyed),
+    //   * replay is deterministic,
+    //   * any tampered block is rejected.
+    // Uses the test-only devnet scheme (authority_pubkey all-zero).
+
+    struct IndexerFuzzRng(u64);
+
+    impl IndexerFuzzRng {
+        fn new(seed: u64) -> Self {
+            IndexerFuzzRng(seed | 1)
+        }
+
+        fn next_u64(&mut self) -> u64 {
+            let mut x = self.0;
+            x ^= x >> 12;
+            x ^= x << 25;
+            x ^= x >> 27;
+            self.0 = x;
+            x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+
+        fn below(&mut self, n: u64) -> u64 {
+            if n == 0 {
+                0
+            } else {
+                self.next_u64() % n
+            }
+        }
+
+        fn byte(&mut self) -> u8 {
+            self.next_u64() as u8
+        }
+    }
+
+    const INDEXER_FUZZ_LABELS: [&str; 4] = ["alice", "bobbb", "carol", "davey"];
+
+    fn indexer_fuzz_genesis() -> GenesisConfig {
+        let mut genesis = GenesisConfig::private_devnet();
+        for label in INDEXER_FUZZ_LABELS {
+            genesis =
+                genesis.with_account(address(label), XriqAmount::from_base_units(1_000_000), 0);
+        }
+        genesis
+    }
+
+    // 0..=min(max, labels) valid test-only transactions, each from a distinct funded
+    // account at its current nonce (so nonces never collide within a block).
+    fn build_block_transactions(
+        rng: &mut IndexerFuzzRng,
+        ledger: &LedgerState,
+        genesis: &GenesisConfig,
+        max: usize,
+    ) -> Vec<Transaction> {
+        let cap = max.min(INDEXER_FUZZ_LABELS.len());
+        let count = rng.below(cap as u64 + 1) as usize;
+        let min_fee = ledger.config().min_fee.base_units();
+        (0..count)
+            .map(|i| {
+                let from = address(INDEXER_FUZZ_LABELS[i]);
+                let to = address(INDEXER_FUZZ_LABELS[(i + 1) % INDEXER_FUZZ_LABELS.len()]);
+                let nonce = ledger
+                    .account(&from)
+                    .map(|account| account.nonce)
+                    .unwrap_or(0);
+                let mut tx = Transaction {
+                    version: Transaction::SUPPORTED_VERSION,
+                    chain_id: genesis.chain_id.clone(),
+                    from,
+                    to,
+                    amount: XriqAmount::from_base_units(1 + rng.below(50) as u128),
+                    fee: XriqAmount::from_base_units(min_fee + rng.below(3) as u128),
+                    nonce,
+                    memo_hash: None,
+                    expires_at_height: None,
+                    signature: SignatureBytes::new(Vec::new()),
+                    public_key: Vec::new(),
+                };
+                tx.signature = test_only_signature_for_hash(transaction_signing_hash(&tx));
+                tx
+            })
+            .collect()
+    }
+
+    // Build a valid chain as an ordered list of (hash, block) records, returning the
+    // exact ledger the chain commits to (for the equivalence check).
+    fn build_valid_chain(
+        rng: &mut IndexerFuzzRng,
+        genesis: &GenesisConfig,
+        num_blocks: u64,
+    ) -> (Vec<(Hash32, Block)>, LedgerState) {
+        let mut ledger = LedgerState::from_genesis(genesis).unwrap();
+        let mut records = Vec::new();
+        let mut prev_hash = genesis.genesis_block_hash;
+        let max = genesis.max_transactions_per_block;
+        for offset in 1..=num_blocks {
+            let height = genesis.initial_height + offset;
+            let transactions = build_block_transactions(rng, &ledger, genesis, max);
+            for tx in &transactions {
+                ledger.apply_transaction(tx).unwrap();
+            }
+            let state_root = account_state_root(&ledger.state_root_entries());
+            ledger.set_current_height(height);
+            let transactions_root = canonical_transactions_root(&transactions);
+            let mut header = BlockHeader {
+                version: BlockHeader::SUPPORTED_VERSION,
+                chain_id: genesis.chain_id.clone(),
+                height,
+                previous_block_hash: prev_hash,
+                state_root,
+                transactions_root,
+                timestamp_ms: 1_000 + height,
+                producer: genesis.authority.clone(),
+                consensus_round: 0,
+                signature: SignatureBytes::new(Vec::new()),
+                public_key: Vec::new(),
+            };
+            header.signature = test_only_signature_for_hash(block_header_signing_hash(&header));
+            let block = Block {
+                header,
+                transactions,
+            };
+            let block_hash = canonical_block_hash(&block);
+            records.push((block_hash, block));
+            prev_hash = block_hash;
+        }
+        (records, ledger)
+    }
+
+    fn store_from_records(records: &[(Hash32, Block)]) -> InMemoryChainStore {
+        let mut store = InMemoryChainStore::new();
+        for (block_hash, block) in records {
+            store
+                .append_block(*block_hash, block.clone())
+                .expect("distinct-height/hash records append");
+        }
+        store
+    }
+
+    fn total_supply(ledger: &LedgerState) -> u128 {
+        ledger
+            .accounts()
+            .values()
+            .map(|account| account.balance.base_units())
+            .sum()
+    }
+
+    // Apply one field mutation to a block (height offset kept collision-free).
+    fn mutate_chain_block(rng: &mut IndexerFuzzRng, mut block: Block) -> Block {
+        let has_txs = !block.transactions.is_empty();
+        let classes = if has_txs { 12 } else { 9 };
+        match rng.below(classes) {
+            0 => block.header.height = block.header.height.wrapping_add(1_000 + rng.below(1_000)),
+            1 => block.header.previous_block_hash = hash(rng.byte()),
+            2 => block.header.chain_id = format!("z{}", block.header.chain_id),
+            3 => block.header.state_root = hash(rng.byte()),
+            4 => block.header.transactions_root = hash(rng.byte()),
+            5 => block.header.producer = address("zzzzzzzzzzz"),
+            6 => {
+                block.header.timestamp_ms =
+                    block.header.timestamp_ms.wrapping_add(1 + rng.below(1_000))
+            }
+            7 => block.header.version = block.header.version.wrapping_add(1),
+            8 => {
+                let mut sig = block.header.signature.as_slice().to_vec();
+                if sig.is_empty() {
+                    sig.push(1);
+                } else {
+                    sig[0] ^= 0xFF;
+                }
+                block.header.signature = SignatureBytes::new(sig);
+            }
+            9 => {
+                let idx = rng.below(block.transactions.len() as u64) as usize;
+                let a = block.transactions[idx].amount.base_units();
+                block.transactions[idx].amount = XriqAmount::from_base_units(a.wrapping_add(1));
+            }
+            10 => {
+                let idx = rng.below(block.transactions.len() as u64) as usize;
+                let mut sig = block.transactions[idx].signature.as_slice().to_vec();
+                if sig.is_empty() {
+                    sig.push(1);
+                } else {
+                    sig[0] ^= 0xFF;
+                }
+                block.transactions[idx].signature = SignatureBytes::new(sig);
+            }
+            _ => {
+                block.transactions.pop();
+            }
+        }
+        block
+    }
+
+    #[test]
+    fn property_replay_reconstructs_the_produced_ledger() {
+        for i in 0..3_000u64 {
+            let mut rng = IndexerFuzzRng::new(0x1DEC_0DE0_1234_5678 ^ i);
+            let genesis = indexer_fuzz_genesis();
+            let num_blocks = rng.below(5);
+            let (records, expected) = build_valid_chain(&mut rng, &genesis, num_blocks);
+            let store = store_from_records(&records);
+
+            let result = replay_private_devnet_store(&store, &genesis)
+                .unwrap_or_else(|error| panic!("valid chain rejected at seed {i}: {error:?}"));
+
+            // The indexer's independent replay reconstructs exactly the committed ledger.
+            assert_eq!(result.ledger, expected, "ledger mismatch at seed {i}");
+            // Total supply is conserved versus genesis.
+            let genesis_supply = total_supply(&LedgerState::from_genesis(&genesis).unwrap());
+            assert_eq!(
+                total_supply(&result.ledger),
+                genesis_supply,
+                "supply changed at seed {i}"
+            );
+            // Replay is deterministic.
+            let again = replay_private_devnet_store(&store, &genesis).unwrap();
+            assert_eq!(again, result, "replay not deterministic at seed {i}");
+        }
+    }
+
+    #[test]
+    fn property_replay_rejects_a_tampered_block() {
+        for i in 0..10_000u64 {
+            let mut rng = IndexerFuzzRng::new(0x7A31_9E12_3456_789A ^ i);
+            let genesis = indexer_fuzz_genesis();
+            let num_blocks = 1 + rng.below(4);
+            let (mut records, _) = build_valid_chain(&mut rng, &genesis, num_blocks);
+
+            // Tamper the last block (it has no children, so the parent chain up to it
+            // stays intact and the rejection is attributable to this block).
+            let last = records.len() - 1;
+            let mutated = mutate_chain_block(&mut rng, records[last].1.clone());
+            if mutated == records[last].1 {
+                continue; // rare no-op
+            }
+            records[last] = (canonical_block_hash(&mutated), mutated);
+
+            let store = store_from_records(&records);
+            assert!(
+                replay_private_devnet_store(&store, &genesis).is_err(),
+                "tampered block accepted at seed {i}"
+            );
+        }
+    }
 }

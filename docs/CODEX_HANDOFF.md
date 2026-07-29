@@ -13803,3 +13803,24 @@ reverted. NOTE: unlike decode_peer_blocks, decode_store has no global canonical/
 property (it is an append-only log of independently-framed records, decoded into a map), so the
 roundtrip asserts block-set equality rather than byte-for-byte re-encoding. 363 workspace tests
 green (xriq-storage 14); fmt + clippy clean. Test-only throughout.
+
+---
+
+INDEXER REPLAY PROPERTY TESTS -- DONE. Property-based (seeded xorshift64*, reproducible) tests
+for replay_private_devnet_store -- the indexer's INDEPENDENT re-execution of a stored chain
+through its own block validator (replay_private_devnet_block), separate from the node. Two
+properties (13k iters, ~2.6s) on the test-only devnet scheme: property_replay_reconstructs_the_
+produced_ledger (3k) -- build a valid chain of 0..=4 blocks as (hash,block) records (a shadow
+LedgerState computes each header's canonical state_root/transactions_root + test-only sig, so
+the chain is a reference "block production"), replay the resulting store, and assert the replayed
+ledger EQUALS the committed shadow ledger (the indexer agrees with production), total supply is
+conserved vs genesis, and replay is deterministic (twice -> equal). property_replay_rejects_a_
+tampered_block (10k) -- build a valid chain, tamper ONE field of the LAST block (height offset,
+prev-hash, chain_id, state_root, transactions_root, producer, timestamp, version, header sig, or
+a tx amount/sig/drop), and assert replay returns Err. Because every header field is in the
+signing hash and every tx field in the tx signing hash, each tamper breaks a signature, a
+recomputed root, producer identity, or continuity. TEETH-CHECKED: disabling
+verify_block_header_with_scheme (the sole guard for a timestamp mutation) made the tamper
+property fail deterministically at seed 36; reverted. This gives finding-1's four enforcement
+layers (API, submit, validate_next_block_state, indexer replay) matching property/negative
+coverage. 365 workspace tests green (xriq-indexer 11); fmt + clippy clean. Test-only throughout.
