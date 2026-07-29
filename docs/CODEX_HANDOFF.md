@@ -13696,3 +13696,27 @@ not by auto-minting. NO value-minting bypass found. SECURITY_REVIEW.md finding 1
 re-review note; XRIQ_KEY_DERIVED_ACCOUNTS.md phases 1-6 all DONE. REMAINING (external hard
 gates, unchanged): independent human third-party security audit + legal review before ANY
 value-bearing use. XRIQ stays TEST-ONLY and VALUELESS throughout.
+
+---
+
+PEER-SYNC ADVERSARIAL HARDENING -- DONE. Test-only hardening of the follower's peer-sync
+transport/discovery layer (block CONTENT was already fully re-validated on import: continuity,
+producer/sender key binding under ed25519, recomputed roots + canonical hash). Closed the
+transport/DoS/SSRF gaps surfaced by an attack-surface map. (1) RESPONSE-SIZE + TIME CAP:
+peer_http_get previously used stream.read_to_end (unbounded) with only a per-read 10s timeout
+-> a malicious peer could exhaust memory or slowloris. Added read_http_response_bounded<R: Read>
+enforcing PEER_HTTP_MAX_RESPONSE_BYTES (64 MiB) and PEER_HTTP_TOTAL_READ_TIMEOUT (30s total
+wall-clock) -> refuses oversized/slow bodies. Generic over Read so it is unit-tested with a
+slice reader (bounded_http_read_caps_body_size_and_read_time). (2) MAX-ROUNDS CLAMP:
+--max-rounds now clamped to PEER_SYNC_MAX_ROUNDS (100_000) so a pathological value cannot spin
+the pull loop unbounded. (3) SSRF GUARD on DISCOVERED peers: a peer's advertised peer list is
+attacker-influenced; discovered_peer_is_allowed now resolves each advertised host and refuses
+link-local/metadata (169.254.0.0/16 incl. 169.254.169.254, fe80::/10) and unspecified
+(0.0.0.0/::) addresses, and unresolvable hosts. Loopback/private stay ALLOWED (local multi-node
+testing depends on them); an operator's own --peer/--peers-file entries are trusted and NOT
+filtered. Helpers peer_url_host + ip_is_ssrf_sensitive; tests discovered_peers_reject_ssrf_
+sensitive_hosts + ssrf_sensitivity_covers_link_local_and_unspecified. NOT changed (documented
+as accepted/by-design): test-only signature scheme is forgeable by design (ed25519 closes it);
+self-skip node_id is self-reported (optimization, not security); ad-hoc JSON extraction surfaces
+errors not panics; peer-reported heights are display-only (continuity enforced per-block). 348
+workspace tests green (xriq-node 89); fmt clean; clippy clean. Test-only throughout.

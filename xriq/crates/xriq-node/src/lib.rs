@@ -4,9 +4,9 @@ use std::{
     fmt::{self, Write as _},
     fs,
     io::{self, Read, Write},
-    net::{TcpListener, TcpStream},
+    net::{IpAddr, TcpListener, TcpStream, ToSocketAddrs},
     path::Path,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use xriq_consensus::{BlockProductionError, BlockProductionInput, SingleAuthorityProducer};
@@ -3281,6 +3281,11 @@ fn run_status_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerErr
 
 const PEER_BLOCKS_DEFAULT_LIMIT: usize = 128;
 const PEER_BLOCKS_MAX_LIMIT: usize = 1024;
+// Upper bound on `--max-rounds`, so a pathological value cannot spin the pull loop
+// for an unbounded number of round-trips against one peer. At the max limit this
+// still permits ~1024 * this many blocks per peer per invocation (an operator reruns
+// to continue a longer catch-up).
+const PEER_SYNC_MAX_ROUNDS: usize = 100_000;
 
 fn run_peer_blocks_export_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunnerError> {
     let flags = RunnerFlagParser::parse(args)?;
@@ -3359,6 +3364,48 @@ fn parse_peer_blocks_response(body: &str) -> Result<(u64, Vec<u8>), NodeRunnerEr
     Ok((current_height, bytes))
 }
 
+// Hard ceiling on a peer's HTTP response body. A block export is hex-encoded
+// (~2 bytes/byte) and capped at PEER_BLOCKS_MAX_LIMIT blocks, so a legitimate
+// response is far under this; the cap exists so a malicious peer cannot exhaust
+// memory with an unbounded (or slowly-streamed) body via `read_to_end`.
+const PEER_HTTP_MAX_RESPONSE_BYTES: usize = 64 * 1024 * 1024;
+// Total wall-clock budget for reading one peer response. The socket already has a
+// 10s per-read timeout, but a slowloris peer can trickle bytes just under it
+// indefinitely; this bounds the whole read so it cannot hold the follower forever.
+const PEER_HTTP_TOTAL_READ_TIMEOUT: Duration = Duration::from_secs(30);
+
+// Read a peer's HTTP response into a buffer, refusing to grow past `max_bytes` or
+// to keep reading past `deadline`. Both are DoS bounds against an adversarial peer.
+// Generic over the reader so it is unit-testable without a live socket.
+fn read_http_response_bounded<R: Read>(
+    reader: &mut R,
+    max_bytes: usize,
+    deadline: Instant,
+) -> Result<Vec<u8>, NodeRunnerError> {
+    let mut response = Vec::new();
+    let mut chunk = [0u8; 16 * 1024];
+    loop {
+        if Instant::now() >= deadline {
+            return Err(NodeRunnerError::PeerSyncError(
+                "peer response exceeded the read time budget".to_string(),
+            ));
+        }
+        let read = reader.read(&mut chunk).map_err(|error| {
+            NodeRunnerError::PeerSyncError(format!("could not read response: {error}"))
+        })?;
+        if read == 0 {
+            break;
+        }
+        if response.len() + read > max_bytes {
+            return Err(NodeRunnerError::PeerSyncError(format!(
+                "peer response exceeded the {max_bytes}-byte limit"
+            )));
+        }
+        response.extend_from_slice(&chunk[..read]);
+    }
+    Ok(response)
+}
+
 // Minimal blocking HTTP GET for peer sync (the peer server responds once and
 // closes the connection). Only http:// is supported for the private testnet.
 fn peer_http_get(base_url: &str, path_and_query: &str) -> Result<String, NodeRunnerError> {
@@ -3391,10 +3438,8 @@ fn peer_http_get(base_url: &str, path_and_query: &str) -> Result<String, NodeRun
     stream.write_all(request.as_bytes()).map_err(|error| {
         NodeRunnerError::PeerSyncError(format!("could not send request: {error}"))
     })?;
-    let mut response = Vec::new();
-    stream.read_to_end(&mut response).map_err(|error| {
-        NodeRunnerError::PeerSyncError(format!("could not read response: {error}"))
-    })?;
+    let deadline = Instant::now() + PEER_HTTP_TOTAL_READ_TIMEOUT;
+    let response = read_http_response_bounded(&mut stream, PEER_HTTP_MAX_RESPONSE_BYTES, deadline)?;
     let response = String::from_utf8_lossy(&response);
     let (head, body) = response.split_once("\r\n\r\n").ok_or_else(|| {
         NodeRunnerError::PeerSyncError("malformed HTTP response (no header/body split)".to_string())
@@ -3528,6 +3573,51 @@ fn peer_fetch_peers(peer: &str) -> Result<Vec<String>, NodeRunnerError> {
     )?))
 }
 
+// Extract the host from an `http://host:port[/...]` peer URL.
+fn peer_url_host(url: &str) -> Option<&str> {
+    let authority = url.strip_prefix("http://")?;
+    let authority = authority.split('/').next().unwrap_or(authority);
+    let host = match authority.rsplit_once(':') {
+        Some((host, _port)) => host,
+        None => authority,
+    };
+    (!host.is_empty()).then_some(host)
+}
+
+// An address is SSRF-sensitive if it is link-local or unspecified — the
+// cloud-metadata endpoint vector (169.254.169.254 and the rest of 169.254.0.0/16,
+// fe80::/10) and 0.0.0.0 / ::. Loopback and private ranges are deliberately NOT
+// rejected: local multi-node testing depends on them.
+fn ip_is_ssrf_sensitive(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => v4.is_link_local() || v4.is_unspecified(),
+        IpAddr::V6(v6) => v6.is_unspecified() || (v6.segments()[0] & 0xffc0) == 0xfe80,
+    }
+}
+
+// Whether a DISCOVERED (peer-advertised) URL is safe for the follower to connect
+// to. A peer's advertisement is attacker-influenced, so refuse a host that resolves
+// to a link-local/unspecified address (SSRF against internal/metadata endpoints), or
+// one that cannot be resolved at all (discovery must not connect to what it cannot
+// vet). An operator's own `--peer` / `--peers-file` entries are trusted and are NOT
+// filtered through this.
+fn discovered_peer_is_allowed(url: &str) -> bool {
+    let Some(host) = peer_url_host(url) else {
+        return false;
+    };
+    let Ok(addrs) = (host, 0u16).to_socket_addrs() else {
+        return false;
+    };
+    let mut resolved = false;
+    for addr in addrs {
+        resolved = true;
+        if ip_is_ssrf_sensitive(addr.ip()) {
+            return false;
+        }
+    }
+    resolved
+}
+
 struct SinglePeerSyncOutcome {
     applied: usize,
     rounds: usize,
@@ -3614,7 +3704,8 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
         .optional("--max-rounds")
         .map(|value| parse_usize("--max-rounds", value))
         .transpose()?
-        .unwrap_or(1000);
+        .unwrap_or(1000)
+        .min(PEER_SYNC_MAX_ROUNDS);
     // --discover <max-peers> enables one-hop discovery (query each seed's
     // advertised peers and merge new ones) and caps the resulting peer set.
     let discover_cap = flags
@@ -3654,7 +3745,12 @@ fn run_peer_sync_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunner
                 if peers.len() >= cap {
                     break;
                 }
-                if candidate.starts_with("http://") && !peers.contains(&candidate) {
+                // A discovered peer is attacker-influenced: require http://, dedupe,
+                // and refuse SSRF-sensitive (link-local/metadata/unspecified) hosts.
+                if candidate.starts_with("http://")
+                    && !peers.contains(&candidate)
+                    && discovered_peer_is_allowed(&candidate)
+                {
                     peers.push(candidate);
                     discovered += 1;
                 }
@@ -10286,6 +10382,77 @@ mod tests {
         ));
 
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn bounded_http_read_caps_body_size_and_read_time() {
+        let body = [0u8; 100];
+
+        // Under the cap: the whole body is returned.
+        let mut ok_reader = &body[..];
+        let read = read_http_response_bounded(
+            &mut ok_reader,
+            200,
+            Instant::now() + Duration::from_secs(5),
+        )
+        .unwrap();
+        assert_eq!(read.len(), 100);
+
+        // Over the cap: refused before the buffer can grow past the limit.
+        let mut big_reader = &body[..];
+        let error = read_http_response_bounded(
+            &mut big_reader,
+            50,
+            Instant::now() + Duration::from_secs(5),
+        )
+        .unwrap_err();
+        assert!(matches!(error, NodeRunnerError::PeerSyncError(ref m) if m.contains("50-byte")));
+
+        // Past the deadline: refused before any read is consumed.
+        let mut slow_reader = &body[..];
+        let error = read_http_response_bounded(
+            &mut slow_reader,
+            200,
+            Instant::now() - Duration::from_secs(1),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(error, NodeRunnerError::PeerSyncError(ref m) if m.contains("read time budget"))
+        );
+    }
+
+    #[test]
+    fn discovered_peers_reject_ssrf_sensitive_hosts() {
+        // Link-local / cloud-metadata endpoint and the unspecified address are the
+        // SSRF vectors a malicious peer would advertise — refused.
+        assert!(!discovered_peer_is_allowed("http://169.254.169.254:80"));
+        assert!(!discovered_peer_is_allowed("http://169.254.0.1:7001"));
+        assert!(!discovered_peer_is_allowed("http://0.0.0.0:7001"));
+        // Malformed / non-http advertisements are refused too.
+        assert!(!discovered_peer_is_allowed("ftp://127.0.0.1:7001"));
+        assert!(!discovered_peer_is_allowed("http://:7001"));
+
+        // Loopback stays allowed: local multi-node testing depends on it, and the
+        // existing discovery tests advertise 127.0.0.1 peers.
+        assert!(discovered_peer_is_allowed("http://127.0.0.1:7001"));
+    }
+
+    #[test]
+    fn ssrf_sensitivity_covers_link_local_and_unspecified() {
+        use std::net::{Ipv4Addr, Ipv6Addr};
+        assert!(ip_is_ssrf_sensitive(IpAddr::V4(Ipv4Addr::new(
+            169, 254, 169, 254
+        ))));
+        assert!(ip_is_ssrf_sensitive(IpAddr::V4(Ipv4Addr::UNSPECIFIED)));
+        assert!(ip_is_ssrf_sensitive(IpAddr::V6(Ipv6Addr::UNSPECIFIED)));
+        assert!(ip_is_ssrf_sensitive(IpAddr::V6(Ipv6Addr::new(
+            0xfe80, 0, 0, 0, 0, 0, 0, 1
+        ))));
+        // Loopback and ordinary addresses are not treated as SSRF-sensitive.
+        assert!(!ip_is_ssrf_sensitive(IpAddr::V4(Ipv4Addr::LOCALHOST)));
+        assert!(!ip_is_ssrf_sensitive(IpAddr::V4(Ipv4Addr::new(
+            10, 0, 0, 5
+        ))));
     }
 
     #[test]
