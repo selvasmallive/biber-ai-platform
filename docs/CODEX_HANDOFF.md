@@ -13848,3 +13848,24 @@ height/node_id (incl. null) parse correctly; http_content_length_parser_reads_we
 requests (5k) -- Content-Length + body offset parsed correctly. TEETH-CHECKED: perturbing the
 shared extract_json_u64 by +1 made both height roundtrips fail deterministically (490490 vs
 490489); reverted. 369 workspace tests green (xriq-node 95); fmt + clippy clean. Test-only.
+
+---
+
+SNAPSHOT EXPORT/IMPORT PROPERTY TESTS -- DONE. Property-based (seeded BlockFuzzRng) tests for
+the directory-based snapshot round-trip (manifest.json + chain.bin [+ pending.tsv]). Export
+copies the chain file and records status in the manifest; import copies it back and re-derives
+status; snapshot-check re-replays and compares. Three tests: property_snapshot_export_import_
+roundtrips (80 iters, real fs) -- build a chain file of 0..=3 valid test-only transfers, export,
+assert private_devnet_snapshot_check_data reports verified=true + no status mismatches, import to
+a new chain file, assert the re-derived NodeStatus EQUALS the original AND the chain bytes are
+byte-identical; property_snapshot_import_rejects_tampered_manifest (80 iters, fs) -- after export,
+tamper the manifest (strip format-version / garbage bytes / delete it) and assert import returns
+Err; fuzz_snapshot_manifest_parser_never_panics (50k) -- feed marker/escape/raw-byte manifest-ish
+strings to snapshot_manifest_value / optional_string / required_string (the untrusted substring
+scanners), never panic. NOTE: export/import is fundamentally a byte-preserving file copy + a
+manifest, so round-trip fidelity is largely by construction; the value is confirming snapshot-
+check verifies a fresh export with no mismatch, that a tampered/missing manifest is rejected, and
+that the manifest parser is panic-safe on hostile input. TEETH-CHECKED: disabling
+validate_snapshot_manifest made the tamper property fail deterministically at seed 0 (import
+accepted a tampered manifest); reverted. 372 workspace tests green (xriq-node 98); fmt + clippy
+clean. Test-only throughout.

@@ -13982,4 +13982,181 @@ mod tests {
             );
         }
     }
+
+    // ---- Property tests: snapshot export/import round-trips ----
+    //
+    // A snapshot is a directory (manifest.json + chain.bin [+ pending.tsv]). Export
+    // copies the chain file and records status in the manifest; import copies it back
+    // and re-derives status; snapshot-check re-replays and compares. Over randomized
+    // chains (seeded PRNG) these must hold:
+    //   * export -> snapshot-check verifies with no status mismatches,
+    //   * export -> import reproduces the exact node status and byte-identical chain,
+    //   * a tampered/missing manifest is rejected on import,
+    //   * the manifest field parser never panics on arbitrary input.
+
+    // Build a chain file with `blocks` valid test-only alice->bob transfers.
+    fn build_snapshot_chain_file(
+        rng: &mut BlockFuzzRng,
+        chain_file: &Path,
+        alice_balance: XriqAmount,
+        blocks: u64,
+    ) {
+        for nonce in 0..blocks {
+            let transfer = PrivateDevnetTransferInput {
+                from: address("alice"),
+                to: address("bobbb"),
+                amount: XriqAmount::from_base_units(1 + rng.below(50) as u128),
+                fee: XriqAmount::from_base_units(2),
+                nonce,
+                expires_at_height: Some(10_000),
+                timestamp_ms: 1_000 + nonce,
+                consensus_round: 0,
+            };
+            private_devnet_file_produce_transfer_block(chain_file, Some(alice_balance), transfer)
+                .expect("valid transfer block produced");
+        }
+    }
+
+    #[test]
+    fn property_snapshot_export_import_roundtrips() {
+        let alice_balance = XriqAmount::from_base_units(1_000_000);
+        for i in 0..80u64 {
+            let mut rng = BlockFuzzRng::new(0x5A9A_1234_5678_9ABC ^ i);
+            let chain_file = temp_store_path();
+            let snapshot_dir = temp_snapshot_dir();
+            let imported_chain = temp_store_path();
+            let chain_str = chain_file.to_string_lossy().to_string();
+            let snapshot_str = snapshot_dir.to_string_lossy().to_string();
+            let imported_str = imported_chain.to_string_lossy().to_string();
+
+            let blocks = rng.below(4);
+            build_snapshot_chain_file(&mut rng, &chain_file, alice_balance, blocks);
+            let original = private_devnet_file_status(&chain_file, Some(alice_balance)).unwrap();
+
+            private_devnet_export_snapshot(&chain_str, None, Some(alice_balance), &snapshot_str)
+                .unwrap_or_else(|error| panic!("export failed at seed {i}: {error:?}"));
+
+            // A freshly exported snapshot verifies with no status mismatch.
+            let check = private_devnet_snapshot_check_data(&snapshot_dir, Some(alice_balance))
+                .unwrap_or_else(|error| panic!("snapshot-check failed at seed {i}: {error:?}"));
+            assert!(check.verified, "snapshot not verified at seed {i}");
+            assert!(
+                check.mismatches.is_empty(),
+                "snapshot mismatches at seed {i}: {:?}",
+                check.mismatches
+            );
+
+            private_devnet_import_snapshot(&snapshot_str, &imported_str, None, Some(alice_balance))
+                .unwrap_or_else(|error| panic!("import failed at seed {i}: {error:?}"));
+
+            // Import reproduces the exact status and byte-identical chain file.
+            let imported =
+                private_devnet_file_status(&imported_chain, Some(alice_balance)).unwrap();
+            assert_eq!(imported, original, "status mismatch at seed {i}");
+            assert_eq!(
+                fs::read(&imported_chain).unwrap(),
+                fs::read(&chain_file).unwrap(),
+                "chain bytes differ at seed {i}"
+            );
+
+            let _ = fs::remove_file(&chain_file);
+            let _ = fs::remove_file(&imported_chain);
+            let _ = fs::remove_dir_all(&snapshot_dir);
+        }
+    }
+
+    #[test]
+    fn property_snapshot_import_rejects_tampered_manifest() {
+        let alice_balance = XriqAmount::from_base_units(1_000_000);
+        for i in 0..80u64 {
+            let mut rng = BlockFuzzRng::new(0x7A47_1234_5678_9ABC ^ i);
+            let chain_file = temp_store_path();
+            let snapshot_dir = temp_snapshot_dir();
+            let imported_chain = temp_store_path();
+            let chain_str = chain_file.to_string_lossy().to_string();
+            let snapshot_str = snapshot_dir.to_string_lossy().to_string();
+            let imported_str = imported_chain.to_string_lossy().to_string();
+
+            let blocks = rng.below(3);
+            build_snapshot_chain_file(&mut rng, &chain_file, alice_balance, blocks);
+            private_devnet_export_snapshot(&chain_str, None, Some(alice_balance), &snapshot_str)
+                .unwrap();
+
+            let manifest_path = snapshot_dir.join("manifest.json");
+            match rng.below(3) {
+                0 => {
+                    // Replace the manifest with content lacking the format version.
+                    fs::write(&manifest_path, "{ \"not\": \"a manifest\" }").unwrap();
+                }
+                1 => {
+                    // Arbitrary garbage bytes.
+                    fs::write(&manifest_path, "\u{0}\u{1}not json at all\u{ff}").unwrap();
+                }
+                _ => {
+                    // Missing manifest entirely.
+                    let _ = fs::remove_file(&manifest_path);
+                }
+            }
+
+            assert!(
+                private_devnet_import_snapshot(
+                    &snapshot_str,
+                    &imported_str,
+                    None,
+                    Some(alice_balance)
+                )
+                .is_err(),
+                "import accepted a tampered/missing manifest at seed {i}"
+            );
+
+            let _ = fs::remove_file(&chain_file);
+            let _ = fs::remove_file(&imported_chain);
+            let _ = fs::remove_dir_all(&snapshot_dir);
+        }
+    }
+
+    // A manifest-ish string built from field markers, punctuation, escapes, and raw
+    // bytes so the fuzzer reaches deep into the value/string scanners.
+    fn fuzz_manifest_text(rng: &mut BlockFuzzRng) -> String {
+        const TOKENS: &[&str] = &[
+            "{",
+            "}",
+            ",",
+            ":",
+            " ",
+            "\n",
+            "\"",
+            "\\",
+            "null",
+            "chain.bin",
+            "pending.tsv",
+            "\"chain_file\"",
+            "\"pending_file\"",
+            "\"snapshot_format_version\"",
+            "xriq-private-devnet-snapshot-v1",
+            "\"chain_file\": \"",
+            "\"pending_file\": null",
+        ];
+        let parts = rng.below(40);
+        let mut out = String::new();
+        for _ in 0..parts {
+            out.push_str(TOKENS[rng.below(TOKENS.len() as u64) as usize]);
+            if rng.below(4) == 0 {
+                out.push(rng.byte() as char);
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn fuzz_snapshot_manifest_parser_never_panics() {
+        for i in 0..50_000u64 {
+            let mut rng = BlockFuzzRng::new(0x5A11_1234_5678_9ABC ^ i);
+            let text = fuzz_manifest_text(&mut rng);
+            let _ = snapshot_manifest_value(&text, "chain_file");
+            let _ = snapshot_manifest_optional_string(&text, "chain_file");
+            let _ = snapshot_manifest_required_string(&text, "chain_file");
+            let _ = snapshot_manifest_optional_string(&text, "pending_file");
+        }
+    }
 }
