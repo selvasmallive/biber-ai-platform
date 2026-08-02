@@ -1318,4 +1318,64 @@ mod tests {
             );
         }
     }
+
+    // ---- Property test: audit-record generation ----
+    //
+    // Indexing a chain must emit exactly one `index_block` audit event per block, keyed
+    // by `index-block:{height}:{hash}` with the indexer actor and block resource, and a
+    // re-index must add none (idempotent). This is the read-model's audit trail — every
+    // indexed block is accounted for exactly once.
+    #[test]
+    fn property_replay_indexes_one_audit_event_per_block() {
+        for i in 0..3_000u64 {
+            let mut rng = IndexerFuzzRng::new(0xA0D1_7EC0_1234_5678 ^ i);
+            let genesis = indexer_fuzz_genesis();
+            let num_blocks = rng.below(5);
+            let (records, ledger) = build_valid_chain(&mut rng, &genesis, num_blocks);
+            let store = store_from_records(&records);
+
+            let mut model = IndexedReadModel::new();
+            let summary = model.replay_chain(&store, &ledger).unwrap();
+
+            // Exactly one audit event per block, and the summary agrees.
+            assert_eq!(
+                model.audit_events.len(),
+                records.len(),
+                "audit count at seed {i}"
+            );
+            assert_eq!(
+                summary.audit_events_indexed,
+                records.len(),
+                "summary audit count at seed {i}"
+            );
+
+            // Every block has its own event with the expected identity and fields.
+            for (block_hash, block) in &records {
+                let block_hash_hex = hash_hex(*block_hash);
+                let event_id = format!("index-block:{}:{block_hash_hex}", block.header.height);
+                let event = model
+                    .audit_events
+                    .get(&event_id)
+                    .unwrap_or_else(|| panic!("missing audit event for block at seed {i}"));
+                assert_eq!(event.event_id, event_id);
+                assert_eq!(event.actor, INDEXER_ACTOR);
+                assert_eq!(event.action, "index_block");
+                assert_eq!(event.resource_type, "block");
+                assert_eq!(event.resource_id.as_deref(), Some(block_hash_hex.as_str()));
+                assert_eq!(event.environment, INDEXER_ENVIRONMENT);
+            }
+
+            // Idempotent: re-indexing the same store adds no new audit events.
+            let second = model.replay_chain(&store, &ledger).unwrap();
+            assert_eq!(
+                second.audit_events_indexed, 0,
+                "re-index not idempotent at seed {i}"
+            );
+            assert_eq!(
+                model.audit_events.len(),
+                records.len(),
+                "audit count changed on re-index at seed {i}"
+            );
+        }
+    }
 }

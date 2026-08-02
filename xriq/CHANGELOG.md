@@ -15,7 +15,7 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project fol
 Closed the outstanding identity-binding gap from the AI-assisted security review and
 added adversarial fuzz + property coverage across every attacker-facing decoder and
 every block-applying execution path. No behaviour change to valid paths; the test
-suite grew from ~343 to 377 workspace tests, all deterministic (seeded, no new
+suite grew from ~343 to 379 workspace tests, all deterministic (seeded, no new
 dependencies) and each suite teeth-checked (a deliberate defect was confirmed to fail
 the assertion, then reverted).
 
@@ -68,6 +68,10 @@ the assertion, then reverted).
     transaction responses faithfully mirror ledger and mempool state (ordering,
     address-order, limit caps), and `submit_transaction` is atomic with a
     `pending_count` that matches the post-state.
+  - Audit-record path — the indexer emits exactly one idempotent `index_block` audit
+    event per block (correct id/actor/resource), and the API's `admin_audit_events`
+    response mirrors the read-model trail sorted by event id descending and truncated
+    to the limit.
 
 ### Notes
 

@@ -13911,3 +13911,29 @@ state and submit stays atomic across randomized states. TEETH-CHECKED: setting c
 pending_transactions to len()+1 made the mirror property fail immediately; reverted. CHANGELOG
 updated (Added > property tests; count 375->377). 377 workspace tests green (xriq-rpc 12); fmt +
 clippy clean. Test-only throughout.
+
+---
+
+AUDIT-RECORD PATH PROPERTY TESTS -- DONE. Covered both ends of the audit trail (test-only).
+GENERATION (xriq-indexer): property_replay_indexes_one_audit_event_per_block (3k iters, reuses
+build_valid_chain/IndexerFuzzRng) -- indexing a chain of 0..=4 blocks emits EXACTLY one
+index_block audit event per block, each keyed index-block:{height}:{hash} with actor
+INDEXER_ACTOR, action index_block, resource_type block, resource_id Some(hash); summary.audit_
+events_indexed == block count; and a re-index adds ZERO (idempotent via insert_audit_event
+dedup). SHAPING (xriq-api): property_admin_audit_events_mirror_and_page_the_read_model (3k) --
+admin_audit_events(limit) over a randomized read-model audit set (BTreeMap dedupes by event_id)
+returns exactly the events mapped via audit_event_response, sorted by event_id DESCENDING and
+truncated to limit -- full Vec-equality mirror for limits {0,1,total,total+4}, length ==
+min(limit,total), strictly descending. TEETH-CHECKED both: flipping the API sort to ascending
+failed the mirror property; disabling the indexer insert_audit_event dedup failed the
+idempotency assertion; both reverted. Reused the existing snapshot() builder (injected random
+audit_events) + a local ApiFuzzRng. CHANGELOG updated (Added > property tests; 377->379). 379
+workspace tests green (xriq-indexer 12, xriq-api 21); fmt clean; clippy clean (the two
+pre-existing xriq-api warnings -- contains()/too-many-args -- are unchanged, not from this work).
+Test-only throughout.
+
+BOUNDARY NOTE: the user asked to "move to next phases even it is for production." Reaffirmed the
+standing hard gates -- independent third-party security audit + legal review -- and that
+production/value-bearing deployment (terraform apply/gcloud/cloud mutations) stays off-limits
+until those external human gates clear. Test-only production-READINESS engineering (like this
+audit-record coverage) continues; value-bearing/deploy steps do not.

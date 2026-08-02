@@ -5465,4 +5465,96 @@ mod tests {
         assert_eq!(timestamp_ms_to_utc(1_001), "1970-01-01T00:00:01Z");
         assert_eq!(timestamp_ms_to_utc(86_400_000), "1970-01-02T00:00:00Z");
     }
+
+    // ---- Property test: admin audit-event response shaping ----
+    //
+    // `admin_audit_events(limit)` shapes the read-model's audit trail into the admin
+    // response: it maps each IndexedAuditEvent, sorts by event_id DESCENDING, and
+    // truncates to `limit` — inventing, dropping, or reordering nothing. Over randomized
+    // audit-event sets this must mirror the read model exactly for any limit.
+    struct ApiFuzzRng(u64);
+
+    impl ApiFuzzRng {
+        fn new(seed: u64) -> Self {
+            ApiFuzzRng(seed | 1)
+        }
+
+        fn next_u64(&mut self) -> u64 {
+            let mut x = self.0;
+            x ^= x >> 12;
+            x ^= x << 25;
+            x ^= x >> 27;
+            self.0 = x;
+            x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+
+        fn below(&mut self, n: u64) -> u64 {
+            if n == 0 {
+                0
+            } else {
+                self.next_u64() % n
+            }
+        }
+
+        fn byte(&mut self) -> u8 {
+            self.next_u64() as u8
+        }
+    }
+
+    #[test]
+    fn property_admin_audit_events_mirror_and_page_the_read_model() {
+        for i in 0..3_000u64 {
+            let mut rng = ApiFuzzRng::new(0xAED1_7EC0_1234_5678_u64.wrapping_add(i));
+            let count = rng.below(12);
+            // Random audit events; a `BTreeMap` keyed by event_id dedupes collisions,
+            // so the expectation is derived from the resulting map, not the raw list.
+            let events: Vec<IndexedAuditEvent> = (0..count)
+                .map(|_| IndexedAuditEvent {
+                    event_id: format!("index-block:{:05}:{:02x}", rng.below(100_000), rng.byte()),
+                    actor: "xriq-indexer",
+                    action: "index_block",
+                    resource_type: "block",
+                    resource_id: Some(format!("{:02x}{}", rng.byte(), "0".repeat(62))),
+                    environment: INDEXER_ENVIRONMENT,
+                })
+                .collect();
+
+            let mut snapshot = snapshot();
+            snapshot.read_model.audit_events = events
+                .into_iter()
+                .map(|e| (e.event_id.clone(), e))
+                .collect();
+            let expected_events = snapshot.read_model.audit_events.clone();
+            let total = expected_events.len();
+            let service = XriqApiService::new(snapshot);
+
+            for &limit in &[0usize, 1, total, total + 4] {
+                let response = service.admin_audit_events(limit);
+                assert_eq!(response.limit, limit, "limit echoed at seed {i}");
+
+                // Expected: every read-model event mapped, sorted by event_id
+                // descending, truncated to `limit`.
+                let mut expected: Vec<AuditEventResponse> =
+                    expected_events.values().map(audit_event_response).collect();
+                expected.sort_by(|left, right| right.event_id.cmp(&left.event_id));
+                expected.truncate(limit);
+
+                assert_eq!(
+                    response.audit_events, expected,
+                    "audit shaping mismatch at seed {i} limit {limit}"
+                );
+                assert_eq!(
+                    response.audit_events.len(),
+                    limit.min(total),
+                    "length at seed {i} limit {limit}"
+                );
+                for pair in response.audit_events.windows(2) {
+                    assert!(
+                        pair[0].event_id >= pair[1].event_id,
+                        "not descending at seed {i}"
+                    );
+                }
+            }
+        }
+    }
 }
