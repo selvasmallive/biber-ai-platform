@@ -137,6 +137,21 @@ artifacts only; real-repo apply remains a separate explicit approval step.
 The default smoke edit intentionally targets a single exact docs line, because
 small local models may collapse wrapped paragraphs even when they select the
 correct file.
+After the fixed docs smoke is proven and synced, run the first real Python code
+planning profile:
+
+```bash
+python scripts/biber_live_provider_real_repo_plan_smoke.py \
+  --base-url http://127.0.0.1:8001/v1 \
+  --model biber-dev-core \
+  --target-root /workspace/biber-ai-platform \
+  --smoke-profile code-unused-timeout
+```
+
+This profile targets one exact unused assignment in `app/model_registry.py` and
+keeps `python-compileall-api` as the post-apply verification command. It is
+still plan-only: review the `plan_hash` and emitted commands, and do not apply
+without a separate explicit approval.
 After the first fixed docs smoke has passed, prefer task-specific exact
 replacement inputs instead of changing script defaults. For example:
 

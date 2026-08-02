@@ -6722,6 +6722,7 @@ def test_local_mvp_loop_repo_probe_smoke_documents_real_repo_dry_run() -> None:
     text = script.read_text(encoding="utf-8")
 
     assert "mvp-loop" in text
+    assert "safe.directory" in text
     assert "--local-target-root" in text
     assert "--include-git-state" in text
     assert "--changed-paths-file" in text
@@ -6776,6 +6777,21 @@ def test_live_provider_repair_smoke_documents_disposable_live_flow() -> None:
     assert "ensure_disposable_target" in text
     assert '"api_required": False' in text
     assert '"mentor_used": False' in text
+    assert '"training_allowed": False' in text
+
+
+def test_live_provider_real_repo_plan_smoke_has_code_profile() -> None:
+    script = ROOT / "scripts" / "biber_live_provider_real_repo_plan_smoke.py"
+    text = script.read_text(encoding="utf-8")
+
+    assert "--smoke-profile" in text
+    assert "safe.directory" in text
+    assert "code-unused-timeout" in text
+    assert "app/model_registry.py" in text
+    assert "local_model_timeout_seconds" in text
+    assert "smoke_profile" in text
+    assert "mutation_performed" in text
+    assert "explicit_apply_approval" in text
     assert '"training_allowed": False' in text
 
 

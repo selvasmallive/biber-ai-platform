@@ -26,8 +26,9 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def git_status_short(repo_root: Path) -> dict[str, Any]:
+    safe_directory = str(repo_root).replace("\\", "/")
     completed = subprocess.run(
-        ["git", "status", "--short"],
+        ["git", "-c", f"safe.directory={safe_directory}", "status", "--short"],
         cwd=str(repo_root),
         capture_output=True,
         check=False,

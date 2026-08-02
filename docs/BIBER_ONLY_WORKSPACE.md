@@ -144,6 +144,21 @@ unusable edit, inspect `plan_outcome`, `model_response_content_preview`,
 real-repo plan without a separate explicit apply approval.
 The default smoke edit uses a single exact docs line so the live 3B provider is
 not judged on preserving wrapped paragraph line breaks.
+After that docs proof is synced, use the first real code profile to test a
+small Python source edit plan:
+
+```bash
+python scripts/biber_live_provider_real_repo_plan_smoke.py \
+  --base-url http://127.0.0.1:8001/v1 \
+  --model biber-dev-core \
+  --target-root /workspace/biber-ai-platform \
+  --smoke-profile code-unused-timeout
+```
+
+This profile asks the local provider to plan removal of one unused assignment in
+`app/model_registry.py`, still with `python-compileall-api` as the verify step
+after any later approved apply. It must still report
+`mutation_performed=false` and stop before apply.
 For the next real task, pass `--required-path` plus either
 `--required-old-text`/`--required-new-text` or the `*-file` variants. The
 summary records `required_edit`, and the flow still stops before apply.

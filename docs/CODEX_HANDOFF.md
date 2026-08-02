@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-07-29
+Last updated: 2026-08-02
 
 ## Current Goal
 
@@ -343,6 +343,24 @@ same reviewed one-line `docs/BIBER_ONLY_WORKSPACE.md` wording change from
 "dedicated sparse checkout" to "dedicated BIBER-only sparse checkout". No Vast
 GitHub credentials are needed for this save path; after the GitHub push, sync
 Vast with `git pull --ff-only origin biber/mvp-resume-20260712`.
+2026-08-02 source checkpoint: the plan-only real-repo smoke now supports
+`--smoke-profile code-unused-timeout`, an opt-in first real Python code-edit
+planning proof. It targets one exact unused assignment in
+`app/model_registry.py` and still stops before apply, save, training, or OpenAI
+mentor. The default docs profile was advanced to the current saved docs line,
+and real-repo smoke artifact directories now use microsecond timestamps to
+avoid same-second collisions. Local Git probes in `scripts/biber_agent_client.py`,
+`scripts/biber_local_mvp_loop_repo_probe_smoke.py`, and the real-repo smoke now
+use per-command `safe.directory` so Codex sandbox validation can read branch
+and dirty state without global Git config changes. Verified locally with
+bundled-Python `py_compile`, the docs-line mock profile, the
+`code-unused-timeout` mock profile, `biber_local_mvp_loop_repo_probe_smoke.py`,
+`scripts/biber_local_confidence_smoke.py` (all 10 checks passed), and
+`git diff --check`. Bundled local Python still lacks `pytest`, so pytest was
+not run. Next Vast step after pulling this checkpoint:
+`python scripts/biber_live_provider_real_repo_plan_smoke.py --base-url http://127.0.0.1:8001/v1 --model biber-dev-core --target-root /workspace/biber-ai-platform --smoke-profile code-unused-timeout`.
+Review only the emitted plan hash and artifacts; do not apply unless the user
+explicitly approves that exact plan hash.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is

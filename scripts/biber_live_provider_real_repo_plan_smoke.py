@@ -31,15 +31,36 @@ DEFAULT_TIMEOUT_SECONDS = 180.0
 DEFAULT_CHANGED_PATH = "docs/BIBER_ONLY_WORKSPACE.md"
 DEFAULT_TEST_ID = "python-compileall-api"
 DEFAULT_OLD_TEXT = (
-    "Use this document when continuing BIBER MVP from the dedicated sparse checkout at:\n"
+    "Use this document when continuing BIBER MVP from the dedicated BIBER-only sparse checkout at:\n"
 )
 DEFAULT_NEW_TEXT = (
-    "Use this document when continuing BIBER MVP from the dedicated BIBER-only sparse checkout at:\n"
+    "Use this document when continuing BIBER MVP from the dedicated BIBER MVP-only sparse checkout at:\n"
 )
 DEFAULT_CONTEXT_INSTRUCTION = (
     "Select the narrow BIBER repo context needed for a safe plan-only "
     "local-provider edit review. Prioritize the required changed path."
 )
+CODE_PLAN_CONTEXT_INSTRUCTION = (
+    "Select the narrow BIBER Python source context needed for a safe "
+    "plan-only local-provider code edit review. Prioritize the required "
+    "changed path and exact old_text."
+)
+SMOKE_PROFILES: dict[str, dict[str, str]] = {
+    "docs-line": {
+        "required_path": DEFAULT_CHANGED_PATH,
+        "required_old_text": DEFAULT_OLD_TEXT,
+        "required_new_text": DEFAULT_NEW_TEXT,
+        "context_instruction": DEFAULT_CONTEXT_INSTRUCTION,
+    },
+    "code-unused-timeout": {
+        "required_path": "app/model_registry.py",
+        "required_old_text": (
+            '    timeout_seconds = getattr(settings, "local_model_timeout_seconds", 180)\n'
+        ),
+        "required_new_text": "",
+        "context_instruction": CODE_PLAN_CONTEXT_INSTRUCTION,
+    },
+}
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -58,7 +79,7 @@ def default_output_root() -> Path:
 
 
 def timestamp() -> str:
-    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
 
 
 def resolve_required_text(
@@ -134,8 +155,17 @@ def run_client(
 
 def git_status_short(target_root: Path) -> dict[str, Any]:
     try:
+        safe_directory = str(target_root).replace("\\", "/")
         completed = subprocess.run(
-            ["git", "-C", str(target_root), "status", "--short"],
+            [
+                "git",
+                "-c",
+                f"safe.directory={safe_directory}",
+                "-C",
+                str(target_root),
+                "status",
+                "--short",
+            ],
             capture_output=True,
             check=False,
             text=True,
@@ -496,6 +526,7 @@ def build_summary(
         "github_request_sent": False,
         "apply_status": None,
         "verification_status": None,
+        "smoke_profile": args.smoke_profile,
         "required_edit": {
             "path": required_path,
             "old_text_chars": len(required_old_text),
@@ -591,17 +622,23 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         or os.getenv("BIBER_LOCAL_MODEL_NAME")
         or DEFAULT_MODEL
     )
-    required_path = args.required_path or DEFAULT_CHANGED_PATH
+    profile = SMOKE_PROFILES[args.smoke_profile]
+    context_instruction = (
+        args.context_instruction
+        or profile.get("context_instruction")
+        or DEFAULT_CONTEXT_INSTRUCTION
+    )
+    required_path = args.required_path or profile["required_path"]
     required_old_text = resolve_required_text(
         value=args.required_old_text,
         file_value=args.required_old_text_file,
-        default=DEFAULT_OLD_TEXT,
+        default=profile["required_old_text"],
         label="required-old-text",
     )
     required_new_text = resolve_required_text(
         value=args.required_new_text,
         file_value=args.required_new_text_file,
-        default=DEFAULT_NEW_TEXT,
+        default=profile["required_new_text"],
         label="required-new-text",
     )
     plan_instruction = args.plan_instruction or build_plan_instruction(
@@ -666,7 +703,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     mvp_args = [
         "mvp-loop",
         "--instruction",
-        args.context_instruction,
+        context_instruction,
         "--local-target-root",
         str(target_root),
         "--include-git-state",
@@ -770,6 +807,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--mode", choices=["live", "mock"], default="live")
     parser.add_argument(
+        "--smoke-profile",
+        choices=sorted(SMOKE_PROFILES),
+        default="docs-line",
+        help=(
+            "Built-in exact-edit profile. Use code-unused-timeout for the first "
+            "small real Python source planning proof."
+        ),
+    )
+    parser.add_argument(
         "--base-url",
         default=os.getenv("BIBER_LOCAL_OPENAI_BASE_URL", DEFAULT_BASE_URL),
     )
@@ -784,7 +830,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--changed-path", action="append", default=None)
     parser.add_argument("--pinned-path", action="append", default=None)
     parser.add_argument("--test-id", default=DEFAULT_TEST_ID)
-    parser.add_argument("--context-instruction", default=DEFAULT_CONTEXT_INSTRUCTION)
+    parser.add_argument("--context-instruction")
     parser.add_argument(
         "--plan-instruction",
         help=(
@@ -794,8 +840,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--required-path",
-        default=DEFAULT_CHANGED_PATH,
-        help="Workspace-relative path the provider should edit when exact old_text is present.",
+        help=(
+            "Workspace-relative path the provider should edit when exact old_text "
+            "is present. Defaults to the selected --smoke-profile."
+        ),
     )
     parser.add_argument(
         "--required-old-text",

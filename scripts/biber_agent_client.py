@@ -341,8 +341,9 @@ def _run_git_local_target(
     target_root: Path,
     args: Sequence[str],
 ) -> subprocess.CompletedProcess[str]:
+    safe_directory = str(target_root).replace("\\", "/")
     return subprocess.run(
-        ["git", "-C", str(target_root), *args],
+        ["git", "-c", f"safe.directory={safe_directory}", "-C", str(target_root), *args],
         capture_output=True,
         check=False,
         text=True,
