@@ -14159,4 +14159,184 @@ mod tests {
             let _ = snapshot_manifest_optional_string(&text, "pending_file");
         }
     }
+
+    // ---- Deterministic fuzzing of the wallet transfer-draft parser ----
+    //
+    // `parse_private_devnet_transfer_body` decodes a user-supplied transfer file (the
+    // wallet `submit` command reads it off disk). It dispatches on a leading `{` to a
+    // hand-written flat-JSON object parser (FlatJsonObjectParser, which does byte-level
+    // scanning and slicing with escape/unicode handling) or to the `field=value` draft
+    // parser. Both consume attacker-controlled text, so they must never panic and must
+    // read well-formed input correctly. Reuses the node module's BlockFuzzRng.
+
+    // Transfer JSON/draft-ish text from field markers, values, escapes, multibyte
+    // characters, and raw bytes — so the fuzzer reaches into the string/number/escape
+    // scanners and the byte-boundary slicing in parse_string.
+    fn fuzz_transfer_text(rng: &mut BlockFuzzRng) -> String {
+        const TOKENS: &[&str] = &[
+            "{",
+            "}",
+            "[",
+            "]",
+            ":",
+            ",",
+            "=",
+            "\"",
+            " ",
+            "\n",
+            "\r",
+            "\u{feff}",
+            "version",
+            "chain_id",
+            "from",
+            "to",
+            "amount_base_units",
+            "amount",
+            "fee_base_units",
+            "fee",
+            "nonce",
+            "expires_at_height",
+            "timestamp_ms",
+            "consensus_round",
+            "format_version",
+            "warning",
+            "bogus_field",
+            "\"version\": \"1\"",
+            "\"chain_id\": \"xriq-devnet\"",
+            "xriqdev1alice00000000000",
+            "1",
+            "0",
+            "123456",
+            "-5",
+            "null",
+            "true",
+            "\\",
+            "\\n",
+            "\\u0041",
+            "\\uZZZZ",
+            "\\ud800",
+            "é",
+            "\u{65e5}",
+            "version=1",
+            "from=",
+            "nonce=7",
+        ];
+        let parts = rng.below(48);
+        let mut out = String::new();
+        for _ in 0..parts {
+            out.push_str(TOKENS[rng.below(TOKENS.len() as u64) as usize]);
+            if rng.below(4) == 0 {
+                out.push(rng.byte() as char);
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn fuzz_transfer_body_parser_never_panics() {
+        for i in 0..50_000u64 {
+            let mut rng = BlockFuzzRng::new(0x77A5_1234_5678_9ABC ^ i);
+            let mut text = fuzz_transfer_text(&mut rng);
+            // Bias a share of inputs to the JSON branch (leading `{`) so the flat-JSON
+            // parser and its byte-slicing string scanner are reached frequently.
+            if rng.below(2) == 0 {
+                text.insert(0, '{');
+            }
+            // Must return without panicking on any input; Ok/Err both acceptable.
+            let _ = parse_private_devnet_transfer_body(&text, "xriq-devnet");
+        }
+    }
+
+    #[test]
+    fn transfer_json_body_parser_roundtrips_well_formed() {
+        const LABELS: [&str; 4] = ["alice", "bobbb", "carol", "davey"];
+        for i in 0..5_000u64 {
+            let mut rng = BlockFuzzRng::new(0x7501_1234_5678_9ABC ^ i);
+            let from_label = LABELS[rng.below(4) as usize];
+            let to_label = LABELS[(rng.below(3) as usize
+                + 1
+                + LABELS.iter().position(|l| *l == from_label).unwrap())
+                % 4];
+            let from = address(from_label);
+            let to = address(to_label);
+            let amount = rng.next_u64() as u128 % 1_000_000;
+            let fee = rng.below(1_000) as u128;
+            let nonce = rng.next_u64() % 1_000_000;
+
+            // Randomly encode each numeric field as a JSON string or a bare number to
+            // exercise both JsonFieldValue::String and Number paths.
+            let num = |rng: &mut BlockFuzzRng, value: u128| {
+                if rng.below(2) == 0 {
+                    format!("\"{value}\"")
+                } else {
+                    value.to_string()
+                }
+            };
+            let body = format!(
+                "{{ \"version\": \"1\", \"chain_id\": \"xriq-devnet\", \"from\": \"{}\", \"to\": \"{}\", \"amount_base_units\": {}, \"fee_base_units\": {}, \"nonce\": {} }}",
+                from.as_str(),
+                to.as_str(),
+                num(&mut rng, amount),
+                num(&mut rng, fee),
+                num(&mut rng, nonce as u128),
+            );
+            let parsed = parse_private_devnet_transfer_body(&body, "xriq-devnet")
+                .unwrap_or_else(|error| panic!("well-formed JSON rejected at seed {i}: {error:?}"));
+            assert_eq!(parsed.from, from, "from mismatch at seed {i}");
+            assert_eq!(parsed.to, to, "to mismatch at seed {i}");
+            assert_eq!(
+                parsed.amount,
+                XriqAmount::from_base_units(amount),
+                "amount at seed {i}"
+            );
+            assert_eq!(
+                parsed.fee,
+                XriqAmount::from_base_units(fee),
+                "fee at seed {i}"
+            );
+            assert_eq!(parsed.nonce, nonce, "nonce at seed {i}");
+        }
+    }
+
+    #[test]
+    fn transfer_draft_body_parser_roundtrips_well_formed() {
+        const LABELS: [&str; 4] = ["alice", "bobbb", "carol", "davey"];
+        for i in 0..5_000u64 {
+            let mut rng = BlockFuzzRng::new(0x70A5_1234_5678_9ABC ^ i);
+            let from_label = LABELS[rng.below(4) as usize];
+            let to_label = LABELS[(rng.below(3) as usize
+                + 1
+                + LABELS.iter().position(|l| *l == from_label).unwrap())
+                % 4];
+            let from = address(from_label);
+            let to = address(to_label);
+            let amount = rng.next_u64() as u128 % 1_000_000;
+            let fee = rng.below(1_000) as u128;
+            let nonce = rng.next_u64() % 1_000_000;
+            // The `field=value` draft format (dispatched when the body does not start
+            // with `{`); uses the short amount/fee field names.
+            let body = format!(
+                "version=1\nchain_id=xriq-devnet\nfrom={}\nto={}\namount={amount}\nfee={fee}\nnonce={nonce}\n",
+                from.as_str(),
+                to.as_str(),
+            );
+            let parsed =
+                parse_private_devnet_transfer_body(&body, "xriq-devnet").unwrap_or_else(|error| {
+                    panic!("well-formed draft rejected at seed {i}: {error:?}")
+                });
+            assert_eq!(parsed.from, from, "from mismatch at seed {i}");
+            assert_eq!(parsed.to, to, "to mismatch at seed {i}");
+            assert_eq!(
+                parsed.amount,
+                XriqAmount::from_base_units(amount),
+                "amount at seed {i}"
+            );
+            assert_eq!(
+                parsed.fee,
+                XriqAmount::from_base_units(fee),
+                "fee at seed {i}"
+            );
+            assert_eq!(parsed.nonce, nonce, "nonce at seed {i}");
+        }
+    }
 }

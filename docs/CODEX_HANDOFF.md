@@ -13869,3 +13869,23 @@ that the manifest parser is panic-safe on hostile input. TEETH-CHECKED: disablin
 validate_snapshot_manifest made the tamper property fail deterministically at seed 0 (import
 accepted a tampered manifest); reverted. 372 workspace tests green (xriq-node 98); fmt + clippy
 clean. Test-only throughout.
+
+---
+
+WALLET TRANSFER-DRAFT PARSER FUZZING -- DONE. Deterministic (seeded BlockFuzzRng) fuzzing of
+parse_private_devnet_transfer_body (xriq-node) -- the parser the wallet `submit` command runs on
+a user-supplied --transfer-file. It dispatches on a leading `{` to a HAND-WRITTEN flat-JSON
+object parser (FlatJsonObjectParser: byte-level scanning + slicing, escape/\u-unicode handling,
+integer-only number scan, duplicate/unknown-field rejection) or to the `field=value` draft
+parser (DraftFields). Both consume attacker-controlled text. Three tests (60k iters, ~0.1s):
+fuzz_transfer_body_parser_never_panics (50k) -- JSON/draft-ish strings from field markers,
+values, escapes (\n, \u0041, \uZZZZ, \ud800), multibyte chars (é, 日), BOM, and raw bytes, half
+biased to the JSON branch with a leading `{`, must never panic (probes the parse_string
+byte-boundary slicing `&self.input[self.position-1..]` and the \u escape/number scanners);
+transfer_json_body_parser_roundtrips_well_formed (5k) -- a well-formed JSON body (numeric fields
+randomly encoded as JSON strings OR bare numbers, exercising both JsonFieldValue::String and
+Number) parses back to the exact from/to/amount/fee/nonce; transfer_draft_body_parser_roundtrips_
+well_formed (5k) -- the `field=value` draft form round-trips the same fields. TEETH-CHECKED:
+perturbing node parse_amount by +1 made both round-trips fail deterministically (929630 vs
+929629); reverted. CHANGELOG updated (Added > fuzz harnesses; count 372->375). 375 workspace
+tests green (xriq-node 101); fmt + clippy clean. Test-only throughout.

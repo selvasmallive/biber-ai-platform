@@ -15,7 +15,7 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project fol
 Closed the outstanding identity-binding gap from the AI-assisted security review and
 added adversarial fuzz + property coverage across every attacker-facing decoder and
 every block-applying execution path. No behaviour change to valid paths; the test
-suite grew from ~343 to 372 workspace tests, all deterministic (seeded, no new
+suite grew from ~343 to 375 workspace tests, all deterministic (seeded, no new
 dependencies) and each suite teeth-checked (a deliberate defect was confirmed to fail
 the assertion, then reverted).
 
@@ -49,6 +49,10 @@ the assertion, then reverted).
   - Untrusted wire-text parsers — peer HTTP response parsers and the inbound HTTP
     request line/headers — never-panic plus well-formed-body round-trips.
   - Snapshot manifest parser — never-panic on hostile manifest text.
+  - Wallet transfer-draft parser (`parse_private_devnet_transfer_body`, a hand-written
+    flat-JSON object parser plus the `field=value` draft parser) — never-panic on
+    arbitrary bytes/escapes/multibyte input, plus well-formed JSON and draft
+    round-trips.
 - **Property tests** for every block-applying path and the core state machines:
   - Ledger `apply_transaction` — total-supply conservation, failure atomicity, nonce
     increment, exact amount/fee routing, determinism.
@@ -63,7 +67,7 @@ the assertion, then reverted).
 
 ### Notes
 
-This pass corresponds to commits `d6ff2ca..49ce591` on `main`. The running engineering
+This pass corresponds to commits starting at `d6ff2ca` on `main`. The running engineering
 narrative is in [`docs/CODEX_HANDOFF.md`](../docs/CODEX_HANDOFF.md); the review status
 is in [`docs/SECURITY_REVIEW.md`](../docs/SECURITY_REVIEW.md) and the design in
 [`docs/XRIQ_KEY_DERIVED_ACCOUNTS.md`](../docs/XRIQ_KEY_DERIVED_ACCOUNTS.md).
