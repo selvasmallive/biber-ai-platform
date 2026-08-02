@@ -149,9 +149,10 @@ python scripts/biber_live_provider_real_repo_plan_smoke.py \
 ```
 
 This profile targets one exact unused assignment in `app/model_registry.py` and
-keeps `python-compileall-api` as the post-apply verification command. It is
-still plan-only: review the `plan_hash` and emitted commands, and do not apply
-without a separate explicit approval.
+keeps `python-compileall-api` as the post-apply verification command. It
+defaults to one context file to stay under the current 4096-token live 3B
+context limit. It is still plan-only: review the `plan_hash` and emitted
+commands, and do not apply without a separate explicit approval.
 After the first fixed docs smoke has passed, prefer task-specific exact
 replacement inputs instead of changing script defaults. For example:
 

@@ -157,7 +157,8 @@ python scripts/biber_live_provider_real_repo_plan_smoke.py \
 
 This profile asks the local provider to plan removal of one unused assignment in
 `app/model_registry.py`, still with `python-compileall-api` as the verify step
-after any later approved apply. It must still report
+after any later approved apply. It defaults to one context file so the live 3B
+endpoint with `BIBER_MAX_MODEL_LEN=4096` has room for the prompt. It must still report
 `mutation_performed=false` and stop before apply.
 For the next real task, pass `--required-path` plus either
 `--required-old-text`/`--required-new-text` or the `*-file` variants. The

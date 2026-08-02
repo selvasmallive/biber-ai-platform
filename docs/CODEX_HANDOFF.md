@@ -361,6 +361,17 @@ not run. Next Vast step after pulling this checkpoint:
 `python scripts/biber_live_provider_real_repo_plan_smoke.py --base-url http://127.0.0.1:8001/v1 --model biber-dev-core --target-root /workspace/biber-ai-platform --smoke-profile code-unused-timeout`.
 Review only the emitted plan hash and artifacts; do not apply unless the user
 explicitly approves that exact plan hash.
+2026-08-02 live Vast retry note: after pulling commit `6dc94ff`, the first
+live `--smoke-profile code-unused-timeout` run reached the local endpoint but
+failed before planning because vLLM returned HTTP 400:
+`maximum context length is 4096 tokens`, with `4640 input tokens`. This was not
+a credential, GPU, training, or OpenAI mentor issue. The source fix is to make
+the `code-unused-timeout` profile default to `max_context_files=1`, keeping the
+prompt focused on `app/model_registry.py`; the docs-line profile keeps the
+normal default. After pulling the follow-up commit, rerun the same Vast command
+without extra flags:
+`python scripts/biber_live_provider_real_repo_plan_smoke.py --base-url http://127.0.0.1:8001/v1 --model biber-dev-core --target-root /workspace/biber-ai-platform --smoke-profile code-unused-timeout`.
+It must still stop before apply and report `mutation_performed=false`.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is

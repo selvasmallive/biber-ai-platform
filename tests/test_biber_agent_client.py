@@ -6789,6 +6789,8 @@ def test_live_provider_real_repo_plan_smoke_has_code_profile() -> None:
     assert "code-unused-timeout" in text
     assert "app/model_registry.py" in text
     assert "local_model_timeout_seconds" in text
+    assert '"max_context_files": "1"' in text
+    assert "DEFAULT_MAX_CONTEXT_FILES" in text
     assert "smoke_profile" in text
     assert "mutation_performed" in text
     assert "explicit_apply_approval" in text

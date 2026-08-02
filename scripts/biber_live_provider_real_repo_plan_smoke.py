@@ -28,6 +28,7 @@ import biber_live_provider_readiness as live_readiness
 DEFAULT_BASE_URL = "http://127.0.0.1:8001/v1"
 DEFAULT_MODEL = "biber-dev-core"
 DEFAULT_TIMEOUT_SECONDS = 180.0
+DEFAULT_MAX_CONTEXT_FILES = 4
 DEFAULT_CHANGED_PATH = "docs/BIBER_ONLY_WORKSPACE.md"
 DEFAULT_TEST_ID = "python-compileall-api"
 DEFAULT_OLD_TEXT = (
@@ -51,6 +52,7 @@ SMOKE_PROFILES: dict[str, dict[str, str]] = {
         "required_old_text": DEFAULT_OLD_TEXT,
         "required_new_text": DEFAULT_NEW_TEXT,
         "context_instruction": DEFAULT_CONTEXT_INSTRUCTION,
+        "max_context_files": str(DEFAULT_MAX_CONTEXT_FILES),
     },
     "code-unused-timeout": {
         "required_path": "app/model_registry.py",
@@ -59,6 +61,7 @@ SMOKE_PROFILES: dict[str, dict[str, str]] = {
         ),
         "required_new_text": "",
         "context_instruction": CODE_PLAN_CONTEXT_INSTRUCTION,
+        "max_context_files": "1",
     },
 }
 
@@ -534,6 +537,8 @@ def build_summary(
             "old_text_preview": compact_preview(required_old_text),
             "new_text_preview": compact_preview(required_new_text),
         },
+        "max_context_files": args.max_context_files,
+        "max_scan_files": args.max_scan_files,
         "work_root": str(work_root),
         "artifact_dir": str(artifact_dir),
         "target_root": str(target_root),
@@ -629,6 +634,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         or DEFAULT_CONTEXT_INSTRUCTION
     )
     required_path = args.required_path or profile["required_path"]
+    if args.max_context_files is None:
+        args.max_context_files = int(
+            profile.get("max_context_files", str(DEFAULT_MAX_CONTEXT_FILES))
+        )
     required_old_text = resolve_required_text(
         value=args.required_old_text,
         file_value=args.required_old_text_file,
@@ -861,7 +870,15 @@ def parse_args() -> argparse.Namespace:
         "--required-new-text-file",
         help="UTF-8 file containing exact new_text for the guarded edit.",
     )
-    parser.add_argument("--max-context-files", type=int, default=4)
+    parser.add_argument(
+        "--max-context-files",
+        type=int,
+        default=None,
+        help=(
+            "Maximum context files selected for the planning prompt. Defaults "
+            "to the selected --smoke-profile."
+        ),
+    )
     parser.add_argument("--max-scan-files", type=int, default=2000)
     parser.add_argument(
         "--model-command",
