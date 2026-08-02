@@ -15,7 +15,7 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project fol
 Closed the outstanding identity-binding gap from the AI-assisted security review and
 added adversarial fuzz + property coverage across every attacker-facing decoder and
 every block-applying execution path. No behaviour change to valid paths; the test
-suite grew from ~343 to 375 workspace tests, all deterministic (seeded, no new
+suite grew from ~343 to 377 workspace tests, all deterministic (seeded, no new
 dependencies) and each suite teeth-checked (a deliberate defect was confirmed to fail
 the assertion, then reverted).
 
@@ -64,6 +64,10 @@ the assertion, then reverted).
     ledger, conserves supply, is deterministic, and rejects any tampered block.
   - Snapshot export/import — round-trip preserves node status and chain bytes; a
     tampered/missing manifest is rejected on import.
+  - RPC response shaping (`RpcService`) — chain-status / account / accounts / mempool /
+    transaction responses faithfully mirror ledger and mempool state (ordering,
+    address-order, limit caps), and `submit_transaction` is atomic with a
+    `pending_count` that matches the post-state.
 
 ### Notes
 

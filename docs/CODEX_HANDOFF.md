@@ -13889,3 +13889,25 @@ well_formed (5k) -- the `field=value` draft form round-trips the same fields. TE
 perturbing node parse_amount by +1 made both round-trips fail deterministically (929630 vs
 929629); reverted. CHANGELOG updated (Added > fuzz harnesses; count 372->375). 375 workspace
 tests green (xriq-node 101); fmt + clippy clean. Test-only throughout.
+
+---
+
+RPC RESPONSE-SHAPING PROPERTY TESTS -- DONE. Property-based (seeded RpcFuzzRng) tests for
+xriq-rpc RpcService, which shapes read responses from ledger + mempool state (health,
+chain_status, account, accounts, mempool, transaction, submit_transaction). Two properties (20k
+iters, ~0.7s): property_rpc_responses_mirror_state (10k) over a randomized ledger (0..=4 funded
+key-labelled accounts, random height/balance/nonce) + mempool (0..=6 distinct (from,nonce)
+txs) -- chain_status mirrors ledger chain_id/height/state_root + the set tip + mempool.len();
+account() is Ok-with-mirrored-balance/nonce iff the ledger holds the address (probed over
+funded AND never-funded labels); accounts(limit) is exactly the first min(limit,total) ledger
+accounts in address order (BTreeMap sorted), field-for-field; mempool() pending_count +
+ordered_transaction_hashes equal the mempool's ordered_entries; transaction(h) is Some-with-
+mirrored-body iff the mempool contains h (probed). property_rpc_submit_is_atomic_and_reports_
+pending_count (10k) -- a sometimes-valid/sometimes-malformed tx submitted: on Ok, accepted=true,
+tx_hash matches, mempool grew by exactly 1, contains(hash), and response.pending_count ==
+mempool.len(); on Err, the mempool is unchanged (len + membership). This is outbound SHAPING
+(not an untrusted-bytes parser) -- the value is that responses never invent, drop, or reorder
+state and submit stays atomic across randomized states. TEETH-CHECKED: setting chain_status
+pending_transactions to len()+1 made the mirror property fail immediately; reverted. CHANGELOG
+updated (Added > property tests; count 375->377). 377 workspace tests green (xriq-rpc 12); fmt +
+clippy clean. Test-only throughout.
