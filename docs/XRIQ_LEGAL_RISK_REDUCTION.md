@@ -15,9 +15,7 @@ enforce that phase in protocol behavior, operational controls, and public-facing
 software.
 
 This document is not legal, tax, accounting, compliance, or regulatory advice.
-Governance authorization does not waive any law, contract, license, sanctions
-restriction, or other external obligation, and restricted participation does not
-make XRIQ automatically compliant or legally exempt. Qualified advice and
+ Qualified advice and
 independent review remain useful risk-reduction measures, but neither is made an
 absolute engineering prerequisite by this document.
 
@@ -278,9 +276,7 @@ revealing spend authority.
 Custom zero-knowledge systems, ring signatures, stealth-address systems, mixers, or
 privacy pools MUST NOT be deployed without architecture-specific cryptographic,
 security, operational, and governance review. Privacy features MUST NOT be designed
-or marketed for sanctions evasion or concealment of illicit finance. Protocol design
-alone MUST NOT be described as AML, sanctions, KYC, recordkeeping, or Travel Rule
-compliance.
+or marketed for sanctions evasion or concealment of illicit finance. 
 
 ## 15. Open-source and decentralization roadmap
 
@@ -372,8 +368,7 @@ solely because legal review or an external audit has not occurred. They MUST ref
 or constrain capabilities prohibited by the active phase or lacking the applicable
 deployment authorization. Separate features such as public sales, custody services,
 bridges, mixers, stablecoins, fiat services, or customer-fund control require explicit
-scope, controls, and NGA authorization; phase approval alone does not waive external
-obligations.
+scope, controls, and authorization.
 
 ## 20. Change control and version history
 
