@@ -888,6 +888,27 @@ mod tests {
         rng.bytes(24)
     }
 
+    // A random transaction action across all variants, so the round-trip and
+    // canonical-encoding fuzz below exercise every action-codec path (the governance
+    // target address, and the swap's counter amount + counterparty key + signature) —
+    // not just the zero-byte `Transfer` case.
+    fn fuzz_action(rng: &mut FuzzRng) -> TxAction {
+        match rng.below(4) {
+            0 => TxAction::Transfer,
+            1 => TxAction::AuthorizeWallet {
+                target: fuzz_address(rng),
+            },
+            2 => TxAction::RevokeWallet {
+                target: fuzz_address(rng),
+            },
+            _ => TxAction::Swap {
+                counter_amount: rng.next_u64() as u128,
+                counterparty_public_key: fuzz_bytes_vec(rng),
+                counterparty_signature: SignatureBytes::new(fuzz_bytes_vec(rng)),
+            },
+        }
+    }
+
     fn fuzz_transaction(rng: &mut FuzzRng) -> Transaction {
         Transaction {
             version: rng.next_u64() as u16,
@@ -901,7 +922,7 @@ mod tests {
             expires_at_height: rng.bool().then(|| rng.next_u64()),
             signature: SignatureBytes::new(fuzz_bytes_vec(rng)),
             public_key: fuzz_bytes_vec(rng),
-            action: Default::default(),
+            action: fuzz_action(rng),
         }
     }
 

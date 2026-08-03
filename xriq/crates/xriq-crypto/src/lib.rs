@@ -1360,6 +1360,78 @@ mod tests {
     }
 
     #[test]
+    fn property_cosigned_swap_rejects_any_tamper() {
+        // Over many seeded swaps: a valid co-signature verifies on BOTH sides, and any
+        // single-field mutation invalidates at least one signature (both parties sign the
+        // same co-signing hash, which commits to every one of these fields). Bounded to
+        // keep the suite fast — each iteration does real Ed25519 signs + verifies.
+        for i in 0..400u64 {
+            let from_key = ed25519_signing_key_from_seed([(i & 0xff) as u8; 32]);
+            let to_key = ed25519_signing_key_from_seed([(((i >> 8) & 0xff) as u8) | 1; 32]);
+            let from = ed25519_address(&ed25519_public_key(&from_key));
+            let to = ed25519_address(&ed25519_public_key(&to_key));
+            if from == to {
+                continue; // need two distinct parties
+            }
+
+            let mut tx = transaction(SignatureBytes::new(Vec::new()));
+            tx.from = from.clone();
+            tx.to = to.clone();
+            tx.amount = XriqAmount::from_base_units(i as u128 + 1);
+            tx.fee = XriqAmount::from_base_units((i % 5) as u128 + 1);
+            tx.nonce = i;
+            tx.action = TxAction::Swap {
+                counter_amount: (i as u128) * 3 + 1,
+                counterparty_public_key: Vec::new(),
+                counterparty_signature: SignatureBytes::new(Vec::new()),
+            };
+            cosign_swap(
+                &mut tx,
+                &SchemeSigner::ed25519(from_key),
+                &SchemeSigner::ed25519(to_key),
+            );
+
+            assert!(
+                verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &tx).is_ok(),
+                "valid sender signature rejected at seed {i}"
+            );
+            assert!(
+                verify_swap_counterparty_with_scheme(SignatureSchemeKind::Ed25519, &tx).is_ok(),
+                "valid counterparty signature rejected at seed {i}"
+            );
+
+            // Mutate exactly one signed field.
+            let mut t = tx.clone();
+            match i % 5 {
+                0 => t.amount = XriqAmount::from_base_units(tx.amount.base_units() + 1),
+                1 => t.fee = XriqAmount::from_base_units(tx.fee.base_units() + 1),
+                2 => t.nonce = tx.nonce.wrapping_add(1),
+                3 => {
+                    if let TxAction::Swap { counter_amount, .. } = &mut t.action {
+                        *counter_amount = counter_amount.wrapping_add(1);
+                    }
+                }
+                _ => {
+                    if let TxAction::Swap {
+                        counterparty_public_key,
+                        ..
+                    } = &mut t.action
+                    {
+                        counterparty_public_key.push(0xFF);
+                    }
+                }
+            }
+            let from_ok = verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &t).is_ok();
+            let counterparty_ok =
+                verify_swap_counterparty_with_scheme(SignatureSchemeKind::Ed25519, &t).is_ok();
+            assert!(
+                !(from_ok && counterparty_ok),
+                "a tampered swap kept both signatures valid at seed {i}"
+            );
+        }
+    }
+
+    #[test]
     fn verify_transaction_with_scheme_accepts_only_the_configured_scheme() {
         // A test-only-signed transaction verifies under the test-only scheme
         // (empty public key, unused) and is rejected under ed25519.

@@ -14,6 +14,18 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project fol
 
 ## [Unreleased]
 
+### Hardening: fuzz + property coverage for the new action/co-signing surfaces
+
+- `xriq-storage`: the block-codec fuzz now generates all `TxAction` variants (governance
+  target address; swap counter amount + counterparty key + signature), so the existing
+  round-trip and canonical-encoding fuzz exercise every action-codec path — not just the
+  zero-byte `Transfer` case.
+- `xriq-crypto`: a seeded property (`property_cosigned_swap_rejects_any_tamper`) asserts a
+  valid co-signature verifies on both sides and that tampering ANY signed field (amount,
+  fee, nonce, counter amount, counterparty key) invalidates at least one signature.
+  Teeth-checked (dropping `counter_amount` from the co-signing preimage fails the property;
+  reverted).
+
 ### End-to-end Ed25519 co-signed swap + genesis counter-asset (test-only)
 
 Proved the co-signed swap works end to end under the real Ed25519 scheme across two
