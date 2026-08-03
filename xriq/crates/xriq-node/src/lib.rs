@@ -20,7 +20,8 @@ use xriq_core::{
 use xriq_crypto::{
     ed25519_address, ed25519_signing_key_from_seed, transaction_hash,
     transactions_root as canonical_transactions_root, verify_block_header_with_scheme,
-    verify_transaction_with_scheme, SchemeSigner, SignatureSchemeKind, SignatureVerificationError,
+    verify_swap_counterparty_with_scheme, verify_transaction_with_scheme, SchemeSigner,
+    SignatureSchemeKind, SignatureVerificationError,
 };
 use xriq_explorer::{
     render_account_detail, render_account_transactions, render_accounts, render_block_detail,
@@ -329,6 +330,10 @@ pub enum NodeError {
     /// registry. Both parties must be approved; rejected early at mempool admission,
     /// and again atomically by the ledger at block production/import.
     UnauthorizedSwapParty,
+    /// Under Ed25519, a swap's counterparty `public_key` does not derive its `to`
+    /// address — the co-signature is over a key that does not own the receiving
+    /// account. Mirrors `UnauthorizedSender` for the counterparty side.
+    UnauthorizedSwapCounterparty,
     TooManyBlockTransactions {
         max: usize,
         actual: usize,
@@ -2016,6 +2021,7 @@ fn node_runner_error_http_status(error: &NodeRunnerError) -> u16 {
             | NodeError::UnauthorizedSender
             | NodeError::UnauthorizedGovernanceAuthority
             | NodeError::UnauthorizedSwapParty
+            | NodeError::UnauthorizedSwapCounterparty
             | NodeError::Mempool(_),
         ) => 400,
         NodeRunnerError::Explorer(
@@ -4083,6 +4089,21 @@ fn public_key_derives_address(public_key: &[u8], producer: &Address) -> bool {
 // registry — and therefore the state root — consistent across the network.
 fn governance_sender_is_authority(tx: &Transaction, authority: &Address) -> bool {
     !tx.action.is_governance() || &tx.from == authority
+}
+
+// Under Ed25519, a swap's counterparty public key must derive the `to` address, so the
+// counterparty co-signature is over the key that owns the receiving account (mirrors the
+// sender↔key binding). Non-swap transactions and the test-only scheme (insecure by
+// design, carries no key) pass. The presence and cryptographic validity of the
+// co-signature are checked separately via `verify_swap_counterparty_with_scheme`.
+fn swap_counterparty_key_binds_to(scheme: SignatureSchemeKind, tx: &Transaction) -> bool {
+    if scheme != SignatureSchemeKind::Ed25519 {
+        return true;
+    }
+    match tx.action.swap_counterparty() {
+        Some((public_key, _)) => public_key_derives_address(public_key, &tx.to),
+        None => true,
+    }
 }
 
 // Open a file-backed node on the selected genesis (no pending-transaction
@@ -7925,6 +7946,14 @@ impl<S: ChainStore> XriqNode<S> {
         {
             return Err(NodeError::UnauthorizedSender);
         }
+        // Counterparty co-signature (swaps only): the recipient must consent to the
+        // swap by signing the same co-signing hash. Verified under the active scheme,
+        // with an ed25519 counterparty↔`to` key binding mirroring the sender side.
+        verify_swap_counterparty_with_scheme(self.signature_scheme, &tx)
+            .map_err(NodeError::TransactionSignature)?;
+        if !swap_counterparty_key_binds_to(self.signature_scheme, &tx) {
+            return Err(NodeError::UnauthorizedSwapCounterparty);
+        }
         // Authority gate: a registry authorize/revoke is accepted only from the chain
         // authority. Applied under every signature scheme (unlike the ed25519-only
         // sender↔key binding above) — the test-only scheme still gates governance by
@@ -8267,6 +8296,13 @@ impl<S: ChainStore> XriqNode<S> {
             {
                 return Err(NodeError::UnauthorizedSender);
             }
+            // Counterparty co-signature (same as submit): a peer cannot import a swap
+            // the recipient did not consent to.
+            verify_swap_counterparty_with_scheme(self.signature_scheme, transaction)
+                .map_err(NodeError::TransactionSignature)?;
+            if !swap_counterparty_key_binds_to(self.signature_scheme, transaction) {
+                return Err(NodeError::UnauthorizedSwapCounterparty);
+            }
             // Authority gate for registry governance, identical to mempool admission,
             // so a peer cannot import a block whose registry mutations were not issued
             // by the chain authority.
@@ -8376,7 +8412,8 @@ mod tests {
     };
     use xriq_core::{Address, BlockHeader, TxAction, XriqAmount};
     use xriq_crypto::{
-        block_header_signing_hash, test_only_signature_for_hash, transaction_signing_hash,
+        block_header_signing_hash, cosign_swap, test_only_signature_for_hash,
+        transaction_signing_hash,
     };
     use xriq_storage::{FileChainStore, InMemoryChainStore};
 
@@ -13848,9 +13885,15 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(Vec::new()),
             public_key: Vec::new(),
-            action: TxAction::Swap { counter_amount },
+            action: TxAction::Swap {
+                counter_amount,
+                counterparty_public_key: Vec::new(),
+                counterparty_signature: SignatureBytes::new(Vec::new()),
+            },
         };
-        tx.signature = test_only_signature_for_hash(transaction_signing_hash(&tx));
+        // Co-sign under the test-only scheme: `from` and the counterparty both sign the
+        // same co-signing hash (exercises the real `cosign_swap` helper).
+        cosign_swap(&mut tx, &SchemeSigner::TestOnly, &SchemeSigner::TestOnly);
         tx
     }
 
@@ -13893,6 +13936,69 @@ mod tests {
         let swap = node_swap_tx(address("alice"), address("bobbb"), 5, 3, 2, 0);
         let hash = node.submit_transaction_with_canonical_hash(swap).unwrap();
         assert!(node.mempool().contains(&hash));
+    }
+
+    // A `swap_node` with alice and bob already authorized (each governance tx applied in
+    // its own block, since a sender's nonce advances only once its block lands).
+    fn swap_node_both_authorized() -> XriqNode<InMemoryChainStore> {
+        let (mut node, authority) = swap_node();
+        for (nonce, target) in [(0u64, "alice"), (1u64, "bobbb")] {
+            node.submit_transaction_with_canonical_hash(node_governance_tx(
+                authority.clone(),
+                TxAction::AuthorizeWallet {
+                    target: address(target),
+                },
+                2,
+                nonce,
+            ))
+            .unwrap();
+            node.produce_next_block_with_canonical_roots(produce_canonical_roots_input(&node))
+                .unwrap();
+        }
+        node
+    }
+
+    #[test]
+    fn submit_rejects_swap_without_counterparty_consent() {
+        let mut node = swap_node_both_authorized();
+        // A properly co-signed swap, then strip the counterparty signature: the
+        // recipient did not consent, so it must be rejected even though both parties are
+        // registry-approved.
+        let mut swap = node_swap_tx(address("alice"), address("bobbb"), 5, 3, 2, 0);
+        if let TxAction::Swap {
+            counterparty_signature,
+            ..
+        } = &mut swap.action
+        {
+            *counterparty_signature = SignatureBytes::new(Vec::new());
+        }
+        assert_eq!(
+            node.submit_transaction_with_canonical_hash(swap),
+            Err(NodeError::Transaction(
+                TransactionValidationError::SwapMissingCounterpartySignature
+            ))
+        );
+        assert!(next_transactions(&node).is_empty());
+    }
+
+    #[test]
+    fn submit_rejects_swap_with_invalid_counterparty_signature() {
+        let mut node = swap_node_both_authorized();
+        // A co-signed swap whose counterparty signature is present but not a valid
+        // signature over the co-signing hash — forged consent is rejected.
+        let mut swap = node_swap_tx(address("alice"), address("bobbb"), 5, 3, 2, 0);
+        if let TxAction::Swap {
+            counterparty_signature,
+            ..
+        } = &mut swap.action
+        {
+            *counterparty_signature = SignatureBytes::new(vec![9, 9, 9]);
+        }
+        assert!(matches!(
+            node.submit_transaction_with_canonical_hash(swap),
+            Err(NodeError::TransactionSignature(_))
+        ));
+        assert!(next_transactions(&node).is_empty());
     }
 
     // ---- Property tests: block validation (validate_next_block_state) ----

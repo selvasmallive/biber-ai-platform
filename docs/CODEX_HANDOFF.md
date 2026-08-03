@@ -14030,3 +14030,52 @@ remain the user's + qualified professionals' domain.
 NEXT: handoff item 3 (extend hardening / property+fuzz coverage; optionally the audit-
 readiness / legal-counsel briefs, which per the controlling policy describe recommended-
 not-prerequisite reviews and must not claim either has been performed).
+
+---
+
+2026-08-03 -- CO-SIGNED SWAPS (counterparty consent) -- DONE, on branch
+xriq-cosigned-swap. TEST-ONLY and VALUELESS throughout; no change to deployment-phase
+posture. This closes the item-2 swap's headline gap (single-signature, no counterparty
+consent) that the handoff flagged as the biggest value-readiness blocker for swaps.
+
+WHAT: a TxAction::Swap is now co-signed -- the recipient `to` must sign the same
+co-signing hash as `from`, so `to`'s counter-asset cannot move without its consent.
+
+DESIGN:
+- xriq-core: TxAction::Swap gained counterparty_public_key: Vec<u8> +
+  counterparty_signature: SignatureBytes. validate_basic now also rejects an empty
+  counterparty signature (SwapMissingCounterpartySignature). New helper
+  TxAction::swap_counterparty() -> Option<(&[u8], &SignatureBytes)>.
+- xriq-crypto: the CO-SIGNING HASH is transaction_signing_hash, whose preimage
+  (encode_action) includes counter_amount + counterparty_public_key but EXCLUDES the
+  counterparty signature -- so both parties sign identical bytes. The full transaction
+  hash (transaction_bytes) DOES append the counterparty signature (part of tx identity).
+  New: verify_swap_counterparty_with_scheme (verifies `to`'s co-signature over the same
+  hash `from` signs) and cosign_swap(tx, from_signer, counterparty_signer) (binds both
+  public keys BEFORE either signs -- ordering is load-bearing since both keys are in the
+  signed preimage).
+- ENFORCEMENT (mirrors the sender<->key binding): submit_transaction,
+  validate_next_block_state, and indexer replay_private_devnet_block each call
+  verify_swap_counterparty_with_scheme and, under ed25519, require the counterparty key
+  to derive `to` (NodeError::UnauthorizedSwapCounterparty /
+  IndexReplayError::UnauthorizedSwapCounterparty via swap_counterparty_key_binds_to).
+  Storage write_action/read_action round-trip the counterparty key + signature. Test-only
+  scheme carries the mechanism but is insecure by design (no key binding), exactly like
+  the existing sender<->key check.
+
+TESTS: 401 -> 404 workspace, all green; fmt clean; no new clippy warnings. New: crypto
+(cosign_swap binds both parties to a shared hash under ed25519; tamper invalidates BOTH
+sigs), node (submit rejects missing counterparty sig [shape] and invalid counterparty sig
+[crypto], atomically). Teeth-check H: defeating verify_swap_counterparty_with_scheme fails
+both the node invalid-sig test and the crypto cosign test; reverted. Existing swap tests'
+helpers (ledger swap_tx, node node_swap_tx) updated -- node_swap_tx now uses cosign_swap.
+
+READINESS NOTE: co-signed swaps make the swap's CONSENT model sound, but this does NOT
+make XRIQ value-bearing. It remains test-only/valueless/undeployed; default sig scheme is
+still test-only; no production key custody; no independent security audit or legal review
+performed. See the deployment-status section of handoff.md and the controlling-policy note
+at the top of this file.
+
+NEXT: item 3 (extend hardening / property+fuzz on the new co-signing + swap/registry
+surfaces). A natural follow-on: make the co-signing mechanism the default for swaps under
+an ed25519 devnet config in an end-to-end node test.

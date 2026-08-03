@@ -357,9 +357,15 @@ fn write_action(output: &mut Vec<u8>, action: &TxAction) -> Result<(), StorageEr
             write_u8(output, ACTION_TAG_REVOKE);
             write_address(output, target)?;
         }
-        TxAction::Swap { counter_amount } => {
+        TxAction::Swap {
+            counter_amount,
+            counterparty_public_key,
+            counterparty_signature,
+        } => {
             write_u8(output, ACTION_TAG_SWAP);
             write_u128(output, *counter_amount);
+            write_byte_vec(output, counterparty_public_key)?;
+            write_signature(output, counterparty_signature)?;
         }
     }
     Ok(())
@@ -376,6 +382,8 @@ fn read_action(cursor: &mut Cursor<&[u8]>) -> Result<TxAction, StorageError> {
         }),
         ACTION_TAG_SWAP => Ok(TxAction::Swap {
             counter_amount: read_u128(cursor)?,
+            counterparty_public_key: read_vec(cursor)?,
+            counterparty_signature: read_signature(cursor)?,
         }),
         _ => Err(StorageError::CorruptData),
     }
@@ -665,6 +673,8 @@ mod tests {
         let mut swap = transaction();
         swap.action = TxAction::Swap {
             counter_amount: 123_456_789,
+            counterparty_public_key: vec![7, 8, 9, 10],
+            counterparty_signature: SignatureBytes::new(vec![11, 12, 13]),
         };
 
         let mut header = block(1, hash(0)).header;

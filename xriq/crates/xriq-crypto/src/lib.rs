@@ -354,6 +354,12 @@ pub fn transaction_bytes(transaction: &Transaction) -> Vec<u8> {
     let mut output = canonical_preamble(DOMAIN_TRANSACTION_HASH);
     encode_transaction_without_signature(transaction, &mut output);
     encode_signature(&transaction.signature, &mut output);
+    // A swap's counterparty co-signature is part of the full transaction identity (its
+    // hash) but NOT of the co-signing preimage — both parties sign the same bytes, so
+    // the signature itself is appended only here, after the signed body.
+    if let Some((_, counterparty_signature)) = transaction.action.swap_counterparty() {
+        encode_signature(counterparty_signature, &mut output);
+    }
     output
 }
 
@@ -458,6 +464,30 @@ pub fn verify_transaction_with_scheme(
     scheme.verify_envelope(transaction_signing_hash(transaction), &envelope)
 }
 
+/// Verify a swap's counterparty co-signature under an explicitly-selected scheme.
+///
+/// A swap is co-signed: the counterparty (`to`) signs the SAME `transaction_signing_hash`
+/// that the sender (`from`) signs — the preimage excludes both signatures but includes
+/// the counterparty public key, so the message is deterministic and binds the specific
+/// counterparty. This verifies the `to` side using the counterparty key/signature
+/// carried in the [`TxAction::Swap`] action. Non-swap transactions have no counterparty
+/// signature and pass trivially (`Ok`). The node pairs this with a key↔`to` binding
+/// under Ed25519, exactly as it binds `from` to the sender key.
+pub fn verify_swap_counterparty_with_scheme(
+    scheme: SignatureSchemeKind,
+    transaction: &Transaction,
+) -> Result<(), SignatureVerificationError> {
+    let Some((public_key, signature)) = transaction.action.swap_counterparty() else {
+        return Ok(());
+    };
+    let envelope = SignatureEnvelope {
+        algorithm: scheme.algorithm(),
+        public_key: public_key.to_vec(),
+        signature: signature.clone(),
+    };
+    scheme.verify_envelope(transaction_signing_hash(transaction), &envelope)
+}
+
 /// Verify a block header's producer signature under an explicitly-selected scheme.
 ///
 /// The block-production analogue of [`verify_transaction_with_scheme`]: signs over
@@ -535,6 +565,41 @@ impl SchemeSigner {
     pub fn sign_block_header(&self, header: &mut BlockHeader) {
         header.public_key = self.public_key();
         header.signature = self.sign_hash(block_header_signing_hash(header));
+    }
+}
+
+/// Co-sign a [`TxAction::Swap`] transaction in place: bind both public keys, then have
+/// the sender (`from`) and the counterparty (`to`) each sign the same co-signing hash.
+///
+/// Ordering is load-bearing: BOTH public keys are part of the signed preimage
+/// (`from.public_key` and the swap's `counterparty_public_key`), while NEITHER signature
+/// is — so the keys are set first, the single signing hash is computed once, and both
+/// parties sign that identical hash. The result verifies under
+/// `verify_transaction_with_scheme` (the `from` side) and
+/// `verify_swap_counterparty_with_scheme` (the `to` side). No-op on non-swap actions.
+pub fn cosign_swap(
+    transaction: &mut Transaction,
+    from: &SchemeSigner,
+    counterparty: &SchemeSigner,
+) {
+    transaction.public_key = from.public_key();
+    if let TxAction::Swap {
+        counterparty_public_key,
+        ..
+    } = &mut transaction.action
+    {
+        *counterparty_public_key = counterparty.public_key();
+    } else {
+        return;
+    }
+    let hash = transaction_signing_hash(transaction);
+    transaction.signature = from.sign_hash(hash);
+    if let TxAction::Swap {
+        counterparty_signature,
+        ..
+    } = &mut transaction.action
+    {
+        *counterparty_signature = counterparty.sign_hash(hash);
     }
 }
 
@@ -627,9 +692,19 @@ fn encode_action(action: &TxAction, output: &mut Vec<u8>) {
             output.push(2);
             encode_string(target.as_str(), output);
         }
-        TxAction::Swap { counter_amount } => {
+        TxAction::Swap {
+            counter_amount,
+            counterparty_public_key,
+            // The counterparty SIGNATURE is deliberately excluded from the co-signing
+            // preimage so both parties sign identical bytes (it is appended in
+            // `transaction_bytes` instead). The counterparty PUBLIC KEY is included, so
+            // the co-signing hash — and thus both signatures — bind a specific
+            // counterparty.
+            counterparty_signature: _,
+        } => {
             output.push(3);
             encode_u128(*counter_amount, output);
+            encode_bytes(counterparty_public_key, output);
         }
     }
 }
@@ -717,8 +792,8 @@ fn sha256_hash(bytes: &[u8]) -> Hash32 {
 mod tests {
     use super::*;
     use xriq_core::{
-        AccountStateEntry, Address, Block, BlockHeader, SignatureBytes, Transaction, XriqAmount,
-        PUBLIC_TESTNET_AUTHORITY_ADDRESS, PUBLIC_TESTNET_AUTHORITY_PUBKEY,
+        AccountStateEntry, Address, Block, BlockHeader, SignatureBytes, Transaction, TxAction,
+        XriqAmount, PUBLIC_TESTNET_AUTHORITY_ADDRESS, PUBLIC_TESTNET_AUTHORITY_PUBKEY,
         PUBLIC_TESTNET_FAUCET_ADDRESS, PUBLIC_TESTNET_FAUCET_PUBKEY,
     };
 
@@ -1229,6 +1304,59 @@ mod tests {
         header.public_key = ed25519_public_key(&key).to_vec();
         header.signature = ed25519_sign_hash(&key, block_header_signing_hash(&header));
         header
+    }
+
+    #[test]
+    fn cosign_swap_binds_both_parties_and_a_shared_hash() {
+        // Distinct ed25519 keys for the sender and the counterparty.
+        let from_key = ed25519_signing_key_from_seed([3u8; 32]);
+        let to_key = ed25519_signing_key_from_seed([9u8; 32]);
+        let from = ed25519_address(&ed25519_public_key(&from_key));
+        let to = ed25519_address(&ed25519_public_key(&to_key));
+
+        let mut tx = transaction(SignatureBytes::new(Vec::new()));
+        tx.from = from.clone();
+        tx.to = to.clone();
+        tx.action = TxAction::Swap {
+            counter_amount: 42,
+            counterparty_public_key: Vec::new(),
+            counterparty_signature: SignatureBytes::new(Vec::new()),
+        };
+        cosign_swap(
+            &mut tx,
+            &SchemeSigner::ed25519(from_key),
+            &SchemeSigner::ed25519(to_key),
+        );
+
+        // Both sides verify, and each bound key derives its own party's address.
+        assert_eq!(
+            verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &tx),
+            Ok(())
+        );
+        assert_eq!(
+            verify_swap_counterparty_with_scheme(SignatureSchemeKind::Ed25519, &tx),
+            Ok(())
+        );
+        assert_eq!(
+            ed25519_address(&<[u8; 32]>::try_from(tx.public_key.as_slice()).unwrap()),
+            from
+        );
+        let (counterparty_key, _) = tx.action.swap_counterparty().unwrap();
+        assert_eq!(
+            ed25519_address(&<[u8; 32]>::try_from(counterparty_key).unwrap()),
+            to
+        );
+
+        // Both parties signed the SAME co-signing hash, so tampering the swapped amount
+        // invalidates BOTH signatures.
+        let mut tampered = tx.clone();
+        if let TxAction::Swap { counter_amount, .. } = &mut tampered.action {
+            *counter_amount = 43;
+        }
+        assert!(verify_transaction_with_scheme(SignatureSchemeKind::Ed25519, &tampered).is_err());
+        assert!(
+            verify_swap_counterparty_with_scheme(SignatureSchemeKind::Ed25519, &tampered).is_err()
+        );
     }
 
     #[test]

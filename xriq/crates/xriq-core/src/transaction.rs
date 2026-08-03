@@ -44,11 +44,26 @@ pub enum TxAction {
     /// counter-asset, applied atomically only if BOTH parties are in the
     /// authorized-wallet registry. The native leg moves `amount` from `from` to `to`;
     /// the counter leg moves `counter_amount` of the counter-asset from `to` back to
-    /// `from`. `from` alone signs — there is NO counterparty signature, which is
-    /// acceptable only because both the native unit and the counter-asset are
-    /// valueless test units gated by an operator-controlled allowlist; a value-bearing
-    /// swap would require real atomic-swap / co-signing semantics.
-    Swap { counter_amount: u128 },
+    /// `from`.
+    ///
+    /// A swap is **co-signed**: `from` signs the transaction (the outer
+    /// [`Transaction::signature`]) AND the counterparty `to` signs the same co-signing
+    /// hash, carried here as `counterparty_signature` (+ its `counterparty_public_key`,
+    /// empty under the test-only scheme, the 32-byte Ed25519 key once signed). This
+    /// closes the counterparty-consent gap: `to` cannot have its counter-asset moved
+    /// without agreeing. Under Ed25519 the counterparty key must derive `to`, so the
+    /// consent is real; the test-only scheme carries the mechanism but is insecure by
+    /// design. Still valueless and test-only.
+    ///
+    /// The `counterparty_signature` is EXCLUDED from the co-signing preimage (both
+    /// parties sign the same bytes), exactly as the outer signature is; the
+    /// `counterparty_public_key` IS included, binding the swap to a specific
+    /// counterparty. See `xriq_crypto::encode_action`.
+    Swap {
+        counter_amount: u128,
+        counterparty_public_key: Vec<u8>,
+        counterparty_signature: SignatureBytes,
+    },
 }
 
 impl TxAction {
@@ -75,6 +90,20 @@ impl TxAction {
     /// Whether this action is a two-party counter-asset swap.
     pub fn is_swap(&self) -> bool {
         matches!(self, Self::Swap { .. })
+    }
+
+    /// The counterparty's public key and co-signature for a swap, if any (`None` for
+    /// non-swap actions). Both parties sign the same co-signing hash; this is the `to`
+    /// side.
+    pub fn swap_counterparty(&self) -> Option<(&[u8], &SignatureBytes)> {
+        match self {
+            Self::Swap {
+                counterparty_public_key,
+                counterparty_signature,
+                ..
+            } => Some((counterparty_public_key, counterparty_signature)),
+            _ => None,
+        }
     }
 }
 
@@ -142,6 +171,11 @@ pub enum TransactionValidationError {
     /// legs (native `amount` one way, `counter_amount` the other); the native side is
     /// covered by the existing `ZeroAmount` / `SelfTransfer` checks.
     SwapZeroCounterAmount,
+    /// A swap was missing the counterparty's co-signature. A swap is co-signed: the
+    /// recipient must sign to consent to giving up the counter-asset. (Cryptographic
+    /// verification of that signature happens at the node, mirroring the outer
+    /// signature; this checks only that one is present.)
+    SwapMissingCounterpartySignature,
 }
 
 impl Transaction {
@@ -182,10 +216,15 @@ impl Transaction {
                     return Err(TransactionValidationError::GovernanceMustBeValueless);
                 }
             }
-            TxAction::Swap { counter_amount } => {
+            TxAction::Swap {
+                counter_amount,
+                counterparty_signature,
+                ..
+            } => {
                 // A swap has two distinct parties and moves value on both legs. The
                 // both-parties-approved registry gate is enforced where the ledger
-                // state is available (submit + apply), not here.
+                // state is available (submit + apply); the counterparty co-signature is
+                // cryptographically verified at the node. Here we check shape only.
                 if self.from == self.to {
                     return Err(TransactionValidationError::SelfTransfer);
                 }
@@ -194,6 +233,9 @@ impl Transaction {
                 }
                 if *counter_amount == 0 {
                     return Err(TransactionValidationError::SwapZeroCounterAmount);
+                }
+                if counterparty_signature.is_empty() {
+                    return Err(TransactionValidationError::SwapMissingCounterpartySignature);
                 }
             }
         }

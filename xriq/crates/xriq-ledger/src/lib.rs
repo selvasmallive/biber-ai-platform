@@ -243,7 +243,7 @@ impl LedgerState {
             TxAction::RevokeWallet { target } => {
                 next_authorized.remove(target);
             }
-            TxAction::Swap { counter_amount } => {
+            TxAction::Swap { counter_amount, .. } => {
                 // Both-parties-approved gate: reject before any staging is committed.
                 if !self.is_authorized(&tx.from) || !self.is_authorized(&tx.to) {
                     return Err(LedgerError::UnauthorizedSwapParty);
@@ -1078,7 +1078,14 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(vec![1, 2, 3]),
             public_key: Vec::new(),
-            action: TxAction::Swap { counter_amount },
+            // Non-empty placeholder counterparty co-signature so validate_basic accepts
+            // the shape; the ledger applies swaps mechanically and does not verify
+            // signatures (that is the node's job), so a placeholder is sufficient here.
+            action: TxAction::Swap {
+                counter_amount,
+                counterparty_public_key: Vec::new(),
+                counterparty_signature: SignatureBytes::new(vec![4, 5, 6]),
+            },
         }
     }
 

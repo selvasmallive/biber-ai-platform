@@ -14,6 +14,43 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project fol
 
 ## [Unreleased]
 
+### Counterparty consent for swaps — co-signed swaps (test-only)
+
+Closed the swap's counterparty-consent gap: a `TxAction::Swap` is now **co-signed** —
+the recipient (`to`) must sign the same co-signing hash as the sender (`from`), so a
+party's counter-asset can no longer be moved without their agreement. Under the Ed25519
+scheme the consent is real (the counterparty key must derive `to`); the test-only scheme
+carries the mechanism but stays insecure by design. Still valueless and test-only.
+
+#### Added
+
+- **`TxAction::Swap` carries `counterparty_public_key` + `counterparty_signature`**
+  (`xriq-core`). Both parties sign one **co-signing hash**: the counterparty signature is
+  excluded from the signed preimage (both sign identical bytes), while the counterparty
+  public key is included (binding the swap to a specific `to`). New `xriq-crypto` helpers
+  `verify_swap_counterparty_with_scheme` and `cosign_swap`. New shape error
+  `SwapMissingCounterpartySignature`.
+- **Counterparty verification at every enforcement layer** — `submit_transaction`,
+  `validate_next_block_state` (block import), and the indexer's replay each verify the
+  counterparty co-signature and, under Ed25519, bind the counterparty key to `to`
+  (`NodeError::UnauthorizedSwapCounterparty` /
+  `IndexReplayError::UnauthorizedSwapCounterparty`), mirroring the existing sender↔key
+  binding. Storage codec round-trips the counterparty key + signature.
+
+#### Notes
+
+- This is the item-2 follow-up flagged as the swap's biggest gap. `Transfer` still encodes
+  to zero trailing bytes (transfer hashes unchanged); only the swap encoding grew.
+
+#### Tests
+
+- `xriq-crypto`: `cosign_swap` binds both parties to a shared hash under Ed25519 (both
+  verifiers pass; each key derives its party's address; tampering the swapped amount
+  invalidates BOTH signatures).
+- `xriq-node`: submit rejects a swap with a missing counterparty signature (shape) and
+  with an invalid one (crypto), atomically. Teeth-checked (verifier defeated → both the
+  node and crypto tests fail, then reverted).
+
 ### Both-parties-approved counter-asset swap (test-only)
 
 Added a two-party swap that exchanges the native unit for a clearly-valueless,

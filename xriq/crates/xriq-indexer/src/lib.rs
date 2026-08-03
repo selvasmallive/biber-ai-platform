@@ -15,7 +15,8 @@ use xriq_core::{
 use xriq_crypto::{
     block_hash as canonical_block_hash, ed25519_address, transaction_hash,
     transactions_root as canonical_transactions_root, verify_block_header_with_scheme,
-    verify_transaction_with_scheme, SignatureSchemeKind, SignatureVerificationError,
+    verify_swap_counterparty_with_scheme, verify_transaction_with_scheme, SignatureSchemeKind,
+    SignatureVerificationError,
 };
 use xriq_ledger::{LedgerError, LedgerState};
 use xriq_storage::{ChainStore, StoredBlock};
@@ -174,6 +175,12 @@ pub enum IndexReplayError {
         expected: String,
         actual: String,
     },
+    /// Under Ed25519, a swap's counterparty key does not derive its `to` address.
+    /// Mirrors the node's counterparty↔`to` binding.
+    UnauthorizedSwapCounterparty {
+        expected: String,
+        actual: String,
+    },
     TooManyBlockTransactions {
         max: usize,
         actual: usize,
@@ -228,6 +235,12 @@ impl fmt::Display for IndexReplayError {
                 write!(
                     formatter,
                     "unauthorized governance: registry mutation from {actual}, not authority {expected}"
+                )
+            }
+            Self::UnauthorizedSwapCounterparty { expected, actual } => {
+                write!(
+                    formatter,
+                    "unauthorized swap counterparty: key derives {actual}, not to {expected}"
                 )
             }
             Self::TooManyBlockTransactions { max, actual } => write!(
@@ -720,6 +733,25 @@ fn replay_private_devnet_block(
                     .map(|key| ed25519_address(&key).to_string())
                     .unwrap_or_else(|_| "<invalid key>".to_string()),
             });
+        }
+        // Counterparty co-signature (swaps only): the recipient must have consented.
+        // Verified under the active scheme, with an ed25519 counterparty↔`to` binding.
+        verify_swap_counterparty_with_scheme(scheme, transaction)
+            .map_err(IndexReplayError::TransactionSignature)?;
+        if scheme == SignatureSchemeKind::Ed25519 {
+            if let Some((counterparty_key, _)) = transaction.action.swap_counterparty() {
+                let derives_to = <[u8; 32]>::try_from(counterparty_key)
+                    .map(|key| ed25519_address(&key) == transaction.to)
+                    .unwrap_or(false);
+                if !derives_to {
+                    return Err(IndexReplayError::UnauthorizedSwapCounterparty {
+                        expected: transaction.to.to_string(),
+                        actual: <[u8; 32]>::try_from(counterparty_key)
+                            .map(|key| ed25519_address(&key).to_string())
+                            .unwrap_or_else(|_| "<invalid key>".to_string()),
+                    });
+                }
+            }
         }
         // Authority gate for registry governance, identical to the node's submit/import
         // path: only the chain authority may authorize/revoke wallets.
