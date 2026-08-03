@@ -14244,6 +14244,40 @@ mod tests {
         assert!(next_transactions(&node).is_empty());
     }
 
+    #[test]
+    fn import_rejects_block_with_forged_swap_counterparty_atomically() {
+        // Genesis seeds alice + bob authorized and bob's counter-asset, so a swap between
+        // them is well-formed for apply; the only defect is the forged counterparty
+        // co-signature. A peer cannot import a swap the recipient did not consent to.
+        let genesis = GenesisConfig::private_devnet()
+            .with_account(address("alice"), XriqAmount::from_base_units(100), 0)
+            .with_account(address("bobbb"), XriqAmount::from_base_units(100), 0)
+            .with_authorized_wallet(address("alice"))
+            .with_authorized_wallet(address("bobbb"))
+            .with_counter_asset(address("bobbb"), 500);
+        let mut node = XriqNode::from_genesis(&genesis, InMemoryChainStore::new()).unwrap();
+
+        let mut swap = node_swap_tx(address("alice"), address("bobbb"), 10, 30, 2, 0);
+        if let TxAction::Swap {
+            counterparty_signature,
+            ..
+        } = &mut swap.action
+        {
+            *counterparty_signature = SignatureBytes::new(vec![9, 9, 9]);
+        }
+        let block = signed_block_with(&node, vec![swap]);
+
+        let root_before = node.ledger().state_root();
+        let tip_before = node.latest_block_hash();
+        assert!(matches!(
+            node.import_block_with_canonical_hash(block),
+            Err(NodeError::TransactionSignature(_))
+        ));
+        // Import is atomic: the ledger and tip are unchanged.
+        assert_eq!(node.ledger().state_root(), root_before);
+        assert_eq!(node.latest_block_hash(), tip_before);
+    }
+
     // ---- Property tests: block validation (validate_next_block_state) ----
     //
     // Over randomized valid blocks and single-field mutations (seeded PRNG for
