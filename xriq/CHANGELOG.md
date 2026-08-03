@@ -14,6 +14,18 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project fol
 
 ## [Unreleased]
 
+### Genesis authorized-wallet seeding + indexer counterparty coverage
+
+- **Genesis registry seeding** — `GenesisConfig.authorized_wallets` +
+  `with_authorized_wallet(address)`, seeded by `LedgerState::from_genesis`, so a devnet
+  can start with wallets pre-approved (symmetric with the genesis counter-asset). Empty
+  by default and folded into `genesis_spec_hash` only when non-empty, so existing goldens
+  (the private-devnet spec hash) are unchanged.
+- **Indexer counterparty coverage** — the counterparty co-signature is now enforced and
+  tested at every layer: a new `xriq-indexer` test rejects a replayed swap whose
+  counterparty signature is forged (`IndexReplayError::TransactionSignature`), completing
+  the submit / block-import / indexer-replay coverage.
+
 ### Hardening: fuzz + property coverage for the new action/co-signing surfaces
 
 - `xriq-storage`: the block-codec fuzz now generates all `TxAction` variants (governance

@@ -99,6 +99,9 @@ impl LedgerState {
         for (address, balance) in &genesis.counter_asset_accounts {
             ledger.set_counter_balance(address.clone(), *balance);
         }
+        for address in &genesis.authorized_wallets {
+            ledger.authorize(address.clone());
+        }
         Ok(ledger)
     }
 
@@ -404,6 +407,25 @@ mod tests {
             ledger.account(&genesis.fee_sink),
             Some(Account::new(XriqAmount::ZERO, 0))
         );
+    }
+
+    #[test]
+    fn from_genesis_seeds_registry_and_counter_asset() {
+        let alice = address("alice");
+        let bob = address("bobbb");
+        let genesis = GenesisConfig::private_devnet()
+            .with_account(alice.clone(), XriqAmount::from_base_units(100), 0)
+            .with_authorized_wallet(alice.clone())
+            .with_authorized_wallet(bob.clone())
+            .with_counter_asset(bob.clone(), 500);
+
+        let ledger = LedgerState::from_genesis(&genesis).unwrap();
+
+        assert!(ledger.is_authorized(&alice));
+        assert!(ledger.is_authorized(&bob));
+        assert_eq!(ledger.authorized_wallets().len(), 2);
+        assert_eq!(ledger.counter_balance(&bob), 500);
+        assert_eq!(ledger.counter_balance(&alice), 0);
     }
 
     #[test]

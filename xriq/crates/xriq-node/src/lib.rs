@@ -3936,6 +3936,9 @@ const GENESIS_SPEC_HASH_DOMAIN: &[u8] = b"xriq-genesis-spec:v1";
 // Domain tag opening the optional counter-asset allocation section of the genesis spec
 // hash, appended only when at least one allocation exists (preserving existing goldens).
 const GENESIS_SPEC_COUNTER_ASSET_DOMAIN: &[u8] = b"xriq-genesis-spec:counter-asset:v1";
+// Domain tag opening the optional genesis-authorized-wallet section of the spec hash,
+// appended only when at least one wallet is pre-authorized (preserving existing goldens).
+const GENESIS_SPEC_AUTHORIZED_WALLETS_DOMAIN: &[u8] = b"xriq-genesis-spec:authorized-wallets:v1";
 
 fn push_len_prefixed(out: &mut Vec<u8>, data: &[u8]) {
     out.extend_from_slice(&(data.len() as u64).to_le_bytes());
@@ -3971,6 +3974,14 @@ fn genesis_spec_hash(genesis: &GenesisConfig) -> Hash32 {
         for (address, balance) in &genesis.counter_asset_accounts {
             push_len_prefixed(&mut bytes, address.as_str().as_bytes());
             bytes.extend_from_slice(&balance.to_le_bytes());
+        }
+    }
+    // Genesis-authorized wallets, likewise appended only when present.
+    if !genesis.authorized_wallets.is_empty() {
+        bytes.extend_from_slice(GENESIS_SPEC_AUTHORIZED_WALLETS_DOMAIN);
+        bytes.extend_from_slice(&(genesis.authorized_wallets.len() as u64).to_le_bytes());
+        for address in &genesis.authorized_wallets {
+            push_len_prefixed(&mut bytes, address.as_str().as_bytes());
         }
     }
     xriq_crypto::digest(&bytes)

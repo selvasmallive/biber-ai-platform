@@ -836,7 +836,8 @@ mod tests {
     use super::*;
     use xriq_core::{Block, BlockHeader, SignatureBytes, Transaction, TxAction};
     use xriq_crypto::{
-        block_header_signing_hash, test_only_signature_for_hash, transaction_signing_hash,
+        block_header_signing_hash, cosign_swap, test_only_signature_for_hash,
+        transaction_signing_hash, SchemeSigner,
     };
     use xriq_ledger::{Account, LedgerConfig, LedgerState};
     use xriq_storage::{ChainStore, InMemoryChainStore};
@@ -1028,6 +1029,80 @@ mod tests {
                 Err(IndexReplayError::UnauthorizedGovernanceAuthority { .. })
             ),
             "expected governance authority rejection, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn replay_rejects_swap_with_invalid_counterparty_signature() {
+        // Genesis seeds alice + bob authorized and gives bob the counter-asset, so a swap
+        // between them is well-formed for apply; the ONLY defect is a forged counterparty
+        // co-signature, which replay must reject (matching the node's submit/import gate).
+        let alice = address("alice");
+        let bob = address("bobbb");
+        let genesis = private_devnet_indexer_genesis(Some(XriqAmount::from_base_units(100)))
+            .with_account(bob.clone(), XriqAmount::from_base_units(100), 0)
+            .with_authorized_wallet(alice.clone())
+            .with_authorized_wallet(bob.clone())
+            .with_counter_asset(bob.clone(), 500);
+
+        let mut swap = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from: alice.clone(),
+            to: bob.clone(),
+            amount: XriqAmount::from_base_units(10),
+            fee: XriqAmount::from_base_units(2),
+            nonce: 0,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
+            action: TxAction::Swap {
+                counter_amount: 30,
+                counterparty_public_key: Vec::new(),
+                counterparty_signature: SignatureBytes::new(Vec::new()),
+            },
+        };
+        cosign_swap(&mut swap, &SchemeSigner::TestOnly, &SchemeSigner::TestOnly);
+        // Forge the counterparty's consent (present but not a valid signature).
+        if let TxAction::Swap {
+            counterparty_signature,
+            ..
+        } = &mut swap.action
+        {
+            *counterparty_signature = SignatureBytes::new(vec![9, 9, 9]);
+        }
+
+        // A well-formed block over the (mechanically applicable) swap: the ledger applies
+        // it without verifying signatures, so the roots are correct.
+        let mut ledger = LedgerState::from_genesis(&genesis).unwrap();
+        ledger.apply_transaction(&swap).unwrap();
+        let mut header = BlockHeader {
+            version: BlockHeader::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            height: 1,
+            previous_block_hash: Hash32::ZERO,
+            state_root: ledger.state_root(),
+            transactions_root: canonical_transactions_root(std::slice::from_ref(&swap)),
+            timestamp_ms: 1_001,
+            producer: genesis.authority.clone(),
+            consensus_round: 0,
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
+        };
+        header.signature = test_only_signature_for_hash(block_header_signing_hash(&header));
+        let mut store = InMemoryChainStore::new();
+        store
+            .append_block_with_canonical_hash(Block {
+                header,
+                transactions: vec![swap],
+            })
+            .unwrap();
+
+        let result = replay_private_devnet_store(&store, &genesis);
+        assert!(
+            matches!(result, Err(IndexReplayError::TransactionSignature(_))),
+            "expected counterparty signature rejection, got {result:?}"
         );
     }
 

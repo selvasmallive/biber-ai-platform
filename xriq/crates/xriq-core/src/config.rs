@@ -86,6 +86,11 @@ pub struct GenesisConfig {
     /// spec hash or the state root, so existing goldens are unaffected. Distinct from
     /// the native unit; used to seed swap counterparties on a devnet.
     pub counter_asset_accounts: Vec<(Address, u128)>,
+    /// Wallets pre-seeded into the authorized-wallet registry at genesis. Empty by
+    /// default; when empty it contributes nothing to the genesis spec hash or the state
+    /// root, so existing goldens are unaffected. Lets a devnet start with parties already
+    /// approved (e.g. for swaps) without a governance round.
+    pub authorized_wallets: Vec<Address>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,6 +120,7 @@ impl GenesisConfig {
             max_transactions_per_block: PRIVATE_DEVNET_MAX_TRANSACTIONS_PER_BLOCK,
             accounts: Vec::new(),
             counter_asset_accounts: Vec::new(),
+            authorized_wallets: Vec::new(),
         }
     }
 
@@ -136,6 +142,7 @@ impl GenesisConfig {
             max_transactions_per_block: PUBLIC_TESTNET_MAX_TRANSACTIONS_PER_BLOCK,
             accounts: Vec::new(),
             counter_asset_accounts: Vec::new(),
+            authorized_wallets: Vec::new(),
         }
         .with_account(
             Address::parse(PUBLIC_TESTNET_FAUCET_ADDRESS)
@@ -155,6 +162,13 @@ impl GenesisConfig {
     /// used to give a swap counterparty something to swap on a devnet.
     pub fn with_counter_asset(mut self, address: Address, balance: u128) -> Self {
         self.counter_asset_accounts.push((address, balance));
+        self
+    }
+
+    /// Pre-authorize `address` in the authorized-wallet registry at genesis, so a devnet
+    /// can start with the wallet approved without a governance round.
+    pub fn with_authorized_wallet(mut self, address: Address) -> Self {
+        self.authorized_wallets.push(address);
         self
     }
 
