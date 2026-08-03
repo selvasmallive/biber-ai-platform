@@ -344,6 +344,7 @@ fn write_transaction(output: &mut Vec<u8>, tx: &Transaction) -> Result<(), Stora
 const ACTION_TAG_TRANSFER: u8 = 0;
 const ACTION_TAG_AUTHORIZE: u8 = 1;
 const ACTION_TAG_REVOKE: u8 = 2;
+const ACTION_TAG_SWAP: u8 = 3;
 
 fn write_action(output: &mut Vec<u8>, action: &TxAction) -> Result<(), StorageError> {
     match action {
@@ -355,6 +356,10 @@ fn write_action(output: &mut Vec<u8>, action: &TxAction) -> Result<(), StorageEr
         TxAction::RevokeWallet { target } => {
             write_u8(output, ACTION_TAG_REVOKE);
             write_address(output, target)?;
+        }
+        TxAction::Swap { counter_amount } => {
+            write_u8(output, ACTION_TAG_SWAP);
+            write_u128(output, *counter_amount);
         }
     }
     Ok(())
@@ -368,6 +373,9 @@ fn read_action(cursor: &mut Cursor<&[u8]>) -> Result<TxAction, StorageError> {
         }),
         ACTION_TAG_REVOKE => Ok(TxAction::RevokeWallet {
             target: read_address(cursor)?,
+        }),
+        ACTION_TAG_SWAP => Ok(TxAction::Swap {
+            counter_amount: read_u128(cursor)?,
         }),
         _ => Err(StorageError::CorruptData),
     }
@@ -654,12 +662,16 @@ mod tests {
         revoke.action = TxAction::RevokeWallet {
             target: address("davey"),
         };
+        let mut swap = transaction();
+        swap.action = TxAction::Swap {
+            counter_amount: 123_456_789,
+        };
 
         let mut header = block(1, hash(0)).header;
         header.height = 7;
         let governance_block = Block {
             header,
-            transactions: vec![transaction(), authorize, revoke],
+            transactions: vec![transaction(), authorize, revoke, swap],
         };
         let blocks = vec![governance_block];
 

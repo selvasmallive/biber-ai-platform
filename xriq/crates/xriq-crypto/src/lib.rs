@@ -25,6 +25,10 @@ const DOMAIN_ACCOUNT_STATE_ROOT: &[u8] = b"xriq:v1:account-state-root";
 // nothing, so the state root of any chain that never authorizes a wallet is
 // byte-identical to the historical account-only root.
 const DOMAIN_AUTHORIZED_REGISTRY: &[u8] = b"xriq:v1:authorized-wallet-registry";
+// Domain tag opening the counter-asset balance section, appended to the state-root
+// preimage ONLY when at least one counter-asset balance exists. The counter-asset is a
+// clearly-valueless test unit distinct from the native unit.
+const DOMAIN_COUNTER_ASSET: &[u8] = b"xriq:v1:counter-asset-balances";
 
 pub const TEST_ONLY_SIGNATURE_PREFIX: &[u8] = b"xriq-test-only-signature-v1:";
 
@@ -367,20 +371,26 @@ pub fn transactions_root(transactions: &[Transaction]) -> Hash32 {
 }
 
 pub fn account_state_root(accounts: &[AccountStateEntry]) -> Hash32 {
-    ledger_state_root(accounts, &[])
+    ledger_state_root(accounts, &[], &[])
 }
 
-/// The consensus state root over both the account set and the authorized-wallet
-/// registry. This is the single commitment every node must agree on, so all callers
-/// (producer, importer, RPC, indexer) route through it via `LedgerState::state_root`.
+/// The consensus state root over the account set, the authorized-wallet registry, and
+/// the (test-only, valueless) counter-asset balances. This is the single commitment
+/// every node must agree on, so all callers (producer, importer, RPC, indexer) route
+/// through it via `LedgerState::state_root`.
 ///
-/// The registry section is appended to the account-only preimage ONLY when
-/// `authorized` is non-empty. An empty registry therefore produces a byte-identical
-/// preimage — and thus an identical root — to the historical account-only root, so no
-/// existing golden (`genesis_spec_hash`, block/state-root fixtures) on a chain that
-/// never authorizes a wallet shifts. `account_state_root` is exactly this function
-/// with an empty registry.
-pub fn ledger_state_root(accounts: &[AccountStateEntry], authorized: &[Address]) -> Hash32 {
+/// Each optional section — registry, then counter-asset — is appended to the
+/// account-only preimage ONLY when it is non-empty. A chain that never authorizes a
+/// wallet and never uses the counter-asset therefore produces a byte-identical preimage
+/// — and thus an identical root — to the historical account-only root, so no existing
+/// golden (`genesis_spec_hash`, block/state-root fixtures) shifts. `account_state_root`
+/// is exactly this function with both extras empty. Sections are domain-separated and
+/// ordered (registry before counter-asset) so the preimage is unambiguous.
+pub fn ledger_state_root(
+    accounts: &[AccountStateEntry],
+    authorized: &[Address],
+    counter_balances: &[(Address, u128)],
+) -> Hash32 {
     let mut sorted_accounts = accounts.to_vec();
     sorted_accounts.sort_by(|left, right| left.address.cmp(&right.address));
 
@@ -399,6 +409,16 @@ pub fn ledger_state_root(accounts: &[AccountStateEntry], authorized: &[Address])
         encode_u32(checked_len(sorted_registry.len()), &mut output);
         for address in sorted_registry {
             encode_string(address.as_str(), &mut output);
+        }
+    }
+    if !counter_balances.is_empty() {
+        let mut sorted_counter = counter_balances.to_vec();
+        sorted_counter.sort_by(|left, right| left.0.cmp(&right.0));
+        encode_bytes(DOMAIN_COUNTER_ASSET, &mut output);
+        encode_u32(checked_len(sorted_counter.len()), &mut output);
+        for (address, balance) in sorted_counter {
+            encode_string(address.as_str(), &mut output);
+            encode_u128(balance, &mut output);
         }
     }
     sha256_hash(&output)
@@ -606,6 +626,10 @@ fn encode_action(action: &TxAction, output: &mut Vec<u8>) {
         TxAction::RevokeWallet { target } => {
             output.push(2);
             encode_string(target.as_str(), output);
+        }
+        TxAction::Swap { counter_amount } => {
+            output.push(3);
+            encode_u128(*counter_amount, output);
         }
     }
 }
@@ -861,7 +885,7 @@ mod tests {
         // The whole point of the empty-registry case: byte-identical to the historical
         // account-only root, so no existing golden shifts.
         assert_eq!(
-            ledger_state_root(&accounts, &[]),
+            ledger_state_root(&accounts, &[], &[]),
             account_state_root(&accounts)
         );
     }
@@ -875,20 +899,47 @@ mod tests {
         let x = address("carol");
         let y = address("davey");
 
-        let root_xy = ledger_state_root(&accounts, &[x.clone(), y.clone()]);
+        let root_xy = ledger_state_root(&accounts, &[x.clone(), y.clone()], &[]);
         // Order-independent (sorted internally) and duplicate-insensitive (deduped).
         assert_eq!(
             root_xy,
-            ledger_state_root(&accounts, &[y.clone(), x.clone()])
+            ledger_state_root(&accounts, &[y.clone(), x.clone()], &[])
         );
         assert_eq!(
             root_xy,
-            ledger_state_root(&accounts, &[x.clone(), x.clone(), y.clone()])
+            ledger_state_root(&accounts, &[x.clone(), x.clone(), y.clone()], &[])
         );
         // A non-empty registry commits distinctly from the account-only root, and a
         // different membership yields a different root.
         assert_ne!(root_xy, account_state_root(&accounts));
-        assert_ne!(root_xy, ledger_state_root(&accounts, &[x]));
+        assert_ne!(root_xy, ledger_state_root(&accounts, &[x], &[]));
+    }
+
+    #[test]
+    fn ledger_state_root_counter_asset_is_sorted_and_changes_root() {
+        let accounts = [
+            AccountStateEntry::new(address("alice"), XriqAmount::from_base_units(100), 0),
+            AccountStateEntry::new(address("bobbb"), XriqAmount::from_base_units(25), 2),
+        ];
+        let a = address("carol");
+        let b = address("davey");
+
+        // Empty counter-asset ⇒ byte-identical to the account-only root.
+        assert_eq!(
+            ledger_state_root(&accounts, &[], &[]),
+            account_state_root(&accounts)
+        );
+
+        let root = ledger_state_root(&accounts, &[], &[(a.clone(), 5), (b.clone(), 9)]);
+        // Order-independent (sorted internally by address).
+        assert_eq!(
+            root,
+            ledger_state_root(&accounts, &[], &[(b.clone(), 9), (a.clone(), 5)])
+        );
+        // A non-empty counter-asset commits distinctly, and a different balance changes
+        // the root.
+        assert_ne!(root, account_state_root(&accounts));
+        assert_ne!(root, ledger_state_root(&accounts, &[], &[(a, 5), (b, 10)]));
     }
 
     #[test]

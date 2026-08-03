@@ -13974,3 +13974,59 @@ rejection fails).
 NEXT: handoff item 2 (both-parties-approved swap gating vs a valueless test counter-
 asset), then item 3 (extend hardening). The registry + TxAction plumbing is the
 foundation item 2 builds on (gate a swap on is_authorized for both parties).
+
+---
+
+2026-08-02 -- BOTH-PARTIES-APPROVED COUNTER-ASSET SWAP (handoff item 2) -- DONE, on
+branch xriq-swap-gating, then ff-merged to main. TEST-ONLY and VALUELESS throughout;
+no change to deployment-phase posture (see the controlling-policy note at the top of
+this file).
+
+WHAT: a two-party swap of the native unit for a clearly-valueless, test-only
+counter-asset, applied atomically only when BOTH parties are in the item-1
+authorized-wallet registry.
+
+DESIGN:
+- xriq-core: TxAction::Swap { counter_amount } (native leg amount from->to; counter leg
+  counter_amount to->from). validate_basic: distinct parties, non-zero native amount,
+  non-zero counter_amount (new SwapZeroCounterAmount). is_governance() was narrowed to
+  authorize/revoke ONLY (a swap is registry-gated, not authority-gated); added
+  is_swap(). Transfer still encodes to zero trailing bytes; Swap tag = 3 + u128.
+- xriq-ledger: a second balance map counter_balances (counter_balance /
+  set_counter_balance / counter_balance_entries), zero-pruned. apply_transaction Swap
+  arm: both-parties gate (is_authorized(from) && is_authorized(to) else
+  UnauthorizedSwapParty), then native credit + move_counter_asset (checked underflow/
+  overflow), staged and committed atomically with the fee. New LedgerError:
+  UnauthorizedSwapParty / CounterAssetUnderflow / CounterAssetOverflow. The
+  counter-asset is NOT genesis-allocated; set_counter_balance is a test/dev seed.
+- xriq-crypto: ledger_state_root now takes a third arg (counter_balances), appended as a
+  domain-separated section ONLY when non-empty -> empty counter-asset keeps a
+  byte-identical root. account_state_root == ledger_state_root(accounts, &[], &[]).
+- ENFORCEMENT: the gate is authoritative in the LEDGER apply (registry is ledger state,
+  unlike item-1 authority which is not), so validate_next_block_state + indexer replay
+  get it for free via apply; submit_transaction adds an early reject
+  (NodeError::UnauthorizedSwapParty). API preview stays transfer-only by construction.
+  Mempool: swaps carry amount>0 so the zero-amount policy admits them normally.
+- CONSENT CAVEAT (documented in the TxAction::Swap doc + CHANGELOG): the swap has NO
+  counterparty signature -- fine for valueless test units on an operator allowlist, but
+  it is the headline gap a value-bearing swap would have to close (real atomic-swap /
+  co-signing).
+
+TESTS: 394 -> 401 workspace, all green; fmt clean; clippy adds ZERO new warnings (same 5
+pre-existing api/wallet lints). New: ledger (3 swap unit tests + one 20k-iter property:
+approved-both => exact two-leg movement, both assets conserved; else Err + byte-identical),
+crypto (counter-asset root section), storage (Swap codec round-trip), node (submit rejects
+unapproved atomically; admits once both approved). THREE teeth-checks confirmed + reverted:
+ledger gate defeated (unapproved swap succeeds -> property fails at seed 42), premature
+ledger mutation (atomicity fails at seed 0), node submit gate defeated (reject test fails).
+
+NOTE on direction: the user stated "xriq will need to progress towards real value." I built
+item 2 test-only/valueless as specified and did NOT take any value-conferring action
+(no deploy, no custody, no real transfers, no readiness claims). The consent caveat above is
+the concrete engineering gap a value-bearing swap would need to close; legal/regulatory
+obligations (per XRIQ_LEGAL_RISK_REDUCTION.md, governance authorization does not waive law)
+remain the user's + qualified professionals' domain.
+
+NEXT: handoff item 3 (extend hardening / property+fuzz coverage; optionally the audit-
+readiness / legal-counsel briefs, which per the controlling policy describe recommended-
+not-prerequisite reviews and must not claim either has been performed).

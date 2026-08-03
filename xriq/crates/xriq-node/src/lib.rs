@@ -325,6 +325,10 @@ pub enum NodeError {
     /// mutate the registry; this mirrors the sender↔key binding and is enforced
     /// identically at mempool admission, block import, and indexer replay.
     UnauthorizedGovernanceAuthority,
+    /// A swap named a party (sender or recipient) not in the authorized-wallet
+    /// registry. Both parties must be approved; rejected early at mempool admission,
+    /// and again atomically by the ledger at block production/import.
+    UnauthorizedSwapParty,
     TooManyBlockTransactions {
         max: usize,
         actual: usize,
@@ -2011,6 +2015,7 @@ fn node_runner_error_http_status(error: &NodeRunnerError) -> u16 {
             | NodeError::TransactionSignature(_)
             | NodeError::UnauthorizedSender
             | NodeError::UnauthorizedGovernanceAuthority
+            | NodeError::UnauthorizedSwapParty
             | NodeError::Mempool(_),
         ) => 400,
         NodeRunnerError::Explorer(
@@ -7927,6 +7932,15 @@ impl<S: ChainStore> XriqNode<S> {
         if !governance_sender_is_authority(&tx, &self.producer.config().producer) {
             return Err(NodeError::UnauthorizedGovernanceAuthority);
         }
+        // Both-parties-approved gate for swaps: reject a swap whose sender or recipient
+        // is not registry-approved before it reaches the mempool. The ledger's apply is
+        // the authoritative gate (re-checked at block production/import); this only
+        // avoids admitting a swap that is already doomed.
+        if tx.action.is_swap()
+            && (!self.ledger.is_authorized(&tx.from) || !self.ledger.is_authorized(&tx.to))
+        {
+            return Err(NodeError::UnauthorizedSwapParty);
+        }
         self.mempool
             .insert(tx_hash, tx)
             .map_err(NodeError::Mempool)?;
@@ -13793,6 +13807,92 @@ mod tests {
         assert!(!node.ledger().is_authorized(&address("bobbb")));
         assert_eq!(node.ledger().state_root(), root_before);
         assert_eq!(node.latest_block_hash(), tip_before);
+    }
+
+    // ---- Both-parties-approved counter-asset swap: node submit gate ----
+    //
+    // The swap gate is enforced authoritatively by the ledger's apply (reached by block
+    // production, import, and indexer replay), and rejected early at mempool admission.
+    // These tests cover the early submit gate in both directions.
+
+    // A node whose authority, alice, and bob accounts are funded — enough to authorize
+    // both parties and then submit a swap between them.
+    fn swap_node() -> (XriqNode<InMemoryChainStore>, Address) {
+        let mut genesis = GenesisConfig::private_devnet();
+        let authority = genesis.authority.clone();
+        genesis = genesis
+            .with_account(authority.clone(), XriqAmount::from_base_units(100), 0)
+            .with_account(address("alice"), XriqAmount::from_base_units(100), 0)
+            .with_account(address("bobbb"), XriqAmount::from_base_units(100), 0);
+        let node = XriqNode::from_genesis(&genesis, InMemoryChainStore::new()).unwrap();
+        (node, authority)
+    }
+
+    fn node_swap_tx(
+        from: Address,
+        to: Address,
+        amount: u128,
+        counter_amount: u128,
+        fee: u128,
+        nonce: u64,
+    ) -> Transaction {
+        let mut tx = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from,
+            to,
+            amount: XriqAmount::from_base_units(amount),
+            fee: XriqAmount::from_base_units(fee),
+            nonce,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
+            action: TxAction::Swap { counter_amount },
+        };
+        tx.signature = test_only_signature_for_hash(transaction_signing_hash(&tx));
+        tx
+    }
+
+    #[test]
+    fn submit_rejects_swap_with_unapproved_party_atomically() {
+        let (mut node, _authority) = swap_node();
+        // Neither alice nor bob is authorized yet.
+        let tx = node_swap_tx(address("alice"), address("bobbb"), 5, 3, 2, 0);
+        assert_eq!(
+            node.submit_transaction_with_canonical_hash(tx),
+            Err(NodeError::UnauthorizedSwapParty)
+        );
+        assert!(next_transactions(&node).is_empty());
+    }
+
+    #[test]
+    fn submit_admits_swap_once_both_parties_are_authorized() {
+        let (mut node, authority) = swap_node();
+        // Authorize alice and bob. Each governance transaction advances the authority's
+        // nonce only once its block is applied, so they go in separate blocks.
+        for (nonce, target) in [(0u64, "alice"), (1u64, "bobbb")] {
+            node.submit_transaction_with_canonical_hash(node_governance_tx(
+                authority.clone(),
+                TxAction::AuthorizeWallet {
+                    target: address(target),
+                },
+                2,
+                nonce,
+            ))
+            .unwrap();
+            node.produce_next_block_with_canonical_roots(produce_canonical_roots_input(&node))
+                .unwrap();
+        }
+        assert!(node.ledger().is_authorized(&address("alice")));
+        assert!(node.ledger().is_authorized(&address("bobbb")));
+
+        // With both parties approved the swap passes the submit gate and is admitted.
+        // (The counter-asset balance is checked at apply, not at submit — this asserts
+        // only the both-parties-approved admission gate.)
+        let swap = node_swap_tx(address("alice"), address("bobbb"), 5, 3, 2, 0);
+        let hash = node.submit_transaction_with_canonical_hash(swap).unwrap();
+        assert!(node.mempool().contains(&hash));
     }
 
     // ---- Property tests: block validation (validate_next_block_state) ----

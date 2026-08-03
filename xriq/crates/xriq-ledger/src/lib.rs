@@ -45,6 +45,12 @@ pub struct LedgerState {
     /// [`TxAction::RevokeWallet`]), which the node accepts only from the chain
     /// authority. A `BTreeSet` keeps membership ordered and deterministic for rooting.
     authorized: BTreeSet<Address>,
+    /// Balances of the test-only, clearly-valueless counter-asset, distinct from the
+    /// native unit. Empty by default and, while empty, contributes nothing to the state
+    /// root (byte-identical root preserved). Moved only by [`TxAction::Swap`], which
+    /// applies only when both parties are in `authorized`. Zero balances are pruned so
+    /// the map — and therefore the root — is canonical.
+    counter_balances: BTreeMap<Address, u128>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,6 +60,14 @@ pub enum LedgerError {
     DebitUnderflow,
     CreditOverflow,
     NonceOverflow,
+    /// A [`TxAction::Swap`] named a party (sender or recipient) that is not in the
+    /// authorized-wallet registry. Both parties must be approved for a swap to apply.
+    UnauthorizedSwapParty,
+    /// A [`TxAction::Swap`] recipient lacked enough of the counter-asset to deliver
+    /// `counter_amount`.
+    CounterAssetUnderflow,
+    /// A [`TxAction::Swap`] would overflow a counter-asset balance on credit.
+    CounterAssetOverflow,
 }
 
 impl LedgerState {
@@ -64,6 +78,7 @@ impl LedgerState {
             config,
             accounts,
             authorized: BTreeSet::new(),
+            counter_balances: BTreeMap::new(),
         }
     }
 
@@ -141,13 +156,41 @@ impl LedgerState {
         self.authorized.remove(address);
     }
 
-    /// The consensus state root committing to BOTH the account set and the
-    /// authorized-wallet registry. Every node computes the root through this method so
-    /// the registry is folded in identically everywhere. While the registry is empty
-    /// the root is byte-identical to the historical account-only root, so no existing
-    /// golden shifts.
+    /// The counter-asset balance of `address` (zero if it holds none).
+    pub fn counter_balance(&self, address: &Address) -> u128 {
+        self.counter_balances.get(address).copied().unwrap_or(0)
+    }
+
+    /// Set the counter-asset balance of `address`, pruning zero balances so the map
+    /// stays canonical. Test/dev seeding helper — the counter-asset is valueless and is
+    /// not allocated at genesis.
+    pub fn set_counter_balance(&mut self, address: Address, balance: u128) {
+        if balance == 0 {
+            self.counter_balances.remove(&address);
+        } else {
+            self.counter_balances.insert(address, balance);
+        }
+    }
+
+    /// The counter-asset balances, in ascending (deterministic) address order.
+    pub fn counter_balance_entries(&self) -> Vec<(Address, u128)> {
+        self.counter_balances
+            .iter()
+            .map(|(address, balance)| (address.clone(), *balance))
+            .collect()
+    }
+
+    /// The consensus state root committing to the account set, the authorized-wallet
+    /// registry, AND the counter-asset balances. Every node computes the root through
+    /// this method so all three are folded in identically everywhere. While the registry
+    /// and the counter-asset are both empty the root is byte-identical to the historical
+    /// account-only root, so no existing golden shifts.
     pub fn state_root(&self) -> Hash32 {
-        xriq_crypto::ledger_state_root(&self.state_root_entries(), &self.authorized_wallets())
+        xriq_crypto::ledger_state_root(
+            &self.state_root_entries(),
+            &self.authorized_wallets(),
+            &self.counter_balance_entries(),
+        )
     }
 
     pub fn apply_transaction(&mut self, tx: &Transaction) -> Result<(), LedgerError> {
@@ -178,12 +221,18 @@ impl LedgerState {
         let mut next_accounts = self.accounts.clone();
         next_accounts.insert(tx.from.clone(), Account::new(sender_balance, sender_nonce));
 
-        // Apply the action. A transfer moves `amount` to the recipient; a governance
-        // action moves no value (amount is validated to be zero) and instead mutates
-        // the authorized-wallet registry. Both pay the fee to the sink, and both the
-        // account and registry changes are staged and committed together, so a failure
-        // anywhere above this point leaves the ledger byte-for-byte unchanged.
+        // Apply the action. Every branch stages its changes into the `next_*` clones
+        // and nothing is committed to `self` until the end, so a failure anywhere in
+        // this function leaves the ledger byte-for-byte unchanged (atomicity):
+        //   * Transfer moves `amount` to the recipient;
+        //   * a governance action moves no value (amount is validated zero) and mutates
+        //     the authorized-wallet registry;
+        //   * a Swap moves `amount` native to the recipient AND `counter_amount` of the
+        //     counter-asset back from the recipient, but ONLY if both parties are in the
+        //     registry (the both-parties-approved gate).
+        // All branches pay the fee to the sink.
         let mut next_authorized = self.authorized.clone();
+        let mut next_counter = self.counter_balances.clone();
         match &tx.action {
             TxAction::Transfer => {
                 credit_account(&mut next_accounts, &tx.to, tx.amount)?;
@@ -194,13 +243,57 @@ impl LedgerState {
             TxAction::RevokeWallet { target } => {
                 next_authorized.remove(target);
             }
+            TxAction::Swap { counter_amount } => {
+                // Both-parties-approved gate: reject before any staging is committed.
+                if !self.is_authorized(&tx.from) || !self.is_authorized(&tx.to) {
+                    return Err(LedgerError::UnauthorizedSwapParty);
+                }
+                // Native leg: `amount` from `from` (already debited above) to `to`.
+                credit_account(&mut next_accounts, &tx.to, tx.amount)?;
+                // Counter leg: `counter_amount` from `to` back to `from`.
+                move_counter_asset(&mut next_counter, &tx.to, &tx.from, *counter_amount)?;
+            }
         }
         credit_account(&mut next_accounts, &self.config.fee_sink, tx.fee)?;
 
         self.accounts = next_accounts;
         self.authorized = next_authorized;
+        self.counter_balances = next_counter;
         Ok(())
     }
+}
+
+// Move `amount` of the counter-asset from `from` to `to` in a staged balance map,
+// checked and zero-pruned so the map (and thus the state root) stays canonical.
+fn move_counter_asset(
+    balances: &mut BTreeMap<Address, u128>,
+    from: &Address,
+    to: &Address,
+    amount: u128,
+) -> Result<(), LedgerError> {
+    let from_balance = balances
+        .get(from)
+        .copied()
+        .unwrap_or(0)
+        .checked_sub(amount)
+        .ok_or(LedgerError::CounterAssetUnderflow)?;
+    let to_balance = balances
+        .get(to)
+        .copied()
+        .unwrap_or(0)
+        .checked_add(amount)
+        .ok_or(LedgerError::CounterAssetOverflow)?;
+    if from_balance == 0 {
+        balances.remove(from);
+    } else {
+        balances.insert(from.clone(), from_balance);
+    }
+    if to_balance == 0 {
+        balances.remove(to);
+    } else {
+        balances.insert(to.clone(), to_balance);
+    }
+    Ok(())
 }
 
 fn credit_account(
@@ -926,7 +1019,9 @@ mod tests {
                                 "revoke not applied at seed {i}"
                             )
                         }
-                        TxAction::Transfer => unreachable!("governance action only"),
+                        TxAction::Transfer | TxAction::Swap { .. } => {
+                            unreachable!("governance action only")
+                        }
                     }
                     // Governance moves no value — the fee merely relocates to the sink.
                     assert_eq!(
@@ -950,6 +1045,244 @@ mod tests {
                         ledger, before,
                         "state mutated on failed governance apply at seed {i}"
                     );
+                }
+            }
+        }
+    }
+
+    // ---- Both-parties-approved counter-asset swap: unit + property tests ----
+    //
+    // A swap moves the native unit one way and the (valueless, test-only) counter-asset
+    // the other, atomically, ONLY when both parties are in the authorized-wallet
+    // registry. These tests exercise the ledger mechanics: the both-parties-approved
+    // gate, exact two-leg movement, and atomicity (a rejected swap mutates nothing —
+    // accounts, registry, AND counter-asset).
+
+    fn swap_tx(
+        from: Address,
+        to: Address,
+        amount: u128,
+        counter_amount: u128,
+        fee: u128,
+        nonce: u64,
+    ) -> Transaction {
+        Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from,
+            to,
+            amount: XriqAmount::from_base_units(amount),
+            fee: XriqAmount::from_base_units(fee),
+            nonce,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(vec![1, 2, 3]),
+            public_key: Vec::new(),
+            action: TxAction::Swap { counter_amount },
+        }
+    }
+
+    fn counter_total(ledger: &LedgerState) -> u128 {
+        ledger
+            .counter_balance_entries()
+            .iter()
+            .map(|(_, balance)| balance)
+            .sum()
+    }
+
+    #[test]
+    fn swap_moves_native_and_counter_when_both_approved() {
+        let alice = address("alice");
+        let bob = address("bobbb");
+        let mut ledger = ledger();
+        ledger.set_account(
+            alice.clone(),
+            Account::new(XriqAmount::from_base_units(100), 0),
+        );
+        ledger.set_account(
+            bob.clone(),
+            Account::new(XriqAmount::from_base_units(50), 0),
+        );
+        ledger.authorize(alice.clone());
+        ledger.authorize(bob.clone());
+        ledger.set_counter_balance(bob.clone(), 30);
+
+        let tx = swap_tx(alice.clone(), bob.clone(), 10, 7, 2, 0);
+        ledger.apply_transaction(&tx).unwrap();
+
+        // Native: alice 100 → 88 (−10 −2 fee, nonce +1); bob 50 → 60; sink → 2.
+        assert_eq!(
+            ledger.account(&alice),
+            Some(Account::new(XriqAmount::from_base_units(88), 1))
+        );
+        assert_eq!(
+            ledger.account(&bob),
+            Some(Account::new(XriqAmount::from_base_units(60), 0))
+        );
+        assert_eq!(
+            ledger.account(&fee_sink()),
+            Some(Account::new(XriqAmount::from_base_units(2), 0))
+        );
+        // Counter-asset: bob 30 → 23; alice 0 → 7.
+        assert_eq!(ledger.counter_balance(&bob), 23);
+        assert_eq!(ledger.counter_balance(&alice), 7);
+    }
+
+    #[test]
+    fn swap_rejected_when_a_party_is_unapproved_without_mutation() {
+        let alice = address("alice");
+        let bob = address("bobbb");
+        let mut ledger = ledger();
+        ledger.set_account(
+            alice.clone(),
+            Account::new(XriqAmount::from_base_units(100), 0),
+        );
+        ledger.set_account(
+            bob.clone(),
+            Account::new(XriqAmount::from_base_units(50), 0),
+        );
+        ledger.authorize(alice.clone()); // bob is NOT authorized
+        ledger.set_counter_balance(bob.clone(), 30);
+
+        let tx = swap_tx(alice, bob, 10, 7, 2, 0);
+        let before = ledger.clone();
+        assert_eq!(
+            ledger.apply_transaction(&tx),
+            Err(LedgerError::UnauthorizedSwapParty)
+        );
+        assert_eq!(ledger, before);
+    }
+
+    #[test]
+    fn swap_rejected_when_counter_asset_insufficient_without_mutation() {
+        let alice = address("alice");
+        let bob = address("bobbb");
+        let mut ledger = ledger();
+        ledger.set_account(
+            alice.clone(),
+            Account::new(XriqAmount::from_base_units(100), 0),
+        );
+        ledger.set_account(
+            bob.clone(),
+            Account::new(XriqAmount::from_base_units(50), 0),
+        );
+        ledger.authorize(alice.clone());
+        ledger.authorize(bob.clone());
+        ledger.set_counter_balance(bob.clone(), 3); // less than the 7 required
+
+        let tx = swap_tx(alice, bob, 10, 7, 2, 0);
+        let before = ledger.clone();
+        assert_eq!(
+            ledger.apply_transaction(&tx),
+            Err(LedgerError::CounterAssetUnderflow)
+        );
+        assert_eq!(ledger, before);
+    }
+
+    #[test]
+    fn property_swap_is_atomic_and_moves_exactly_two_legs() {
+        for i in 0..20_000u64 {
+            let mut rng = FuzzRng::new(0x59A9_0000_0002_0001 ^ i);
+            let mut ledger = fuzz_ledger(&mut rng);
+            // Seed some counter-asset balances and authorize some accounts (both random,
+            // so the unapproved-party and insufficient-counter paths are exercised too).
+            for label in ACCOUNT_LABELS {
+                if rng.bool() {
+                    ledger.set_counter_balance(address(label), rng.below(1_000_000) as u128);
+                }
+                if rng.bool() {
+                    ledger.authorize(address(label));
+                }
+            }
+
+            let from = address(ACCOUNT_LABELS[rng.below(ACCOUNT_LABELS.len() as u64) as usize]);
+            let to = address(ACCOUNT_LABELS[rng.below(ACCOUNT_LABELS.len() as u64) as usize]);
+            let min_fee = ledger.config().min_fee.base_units();
+            let fee = min_fee + rng.below(4) as u128;
+            let amount = 1 + rng.below(1_000) as u128;
+            let counter_amount = 1 + rng.below(2_000_000) as u128;
+            let nonce = if rng.bool() {
+                ledger
+                    .account(&from)
+                    .map(|account| account.nonce)
+                    .unwrap_or(0)
+            } else {
+                rng.below(60)
+            };
+            let tx = swap_tx(from.clone(), to.clone(), amount, counter_amount, fee, nonce);
+
+            let before = ledger.clone();
+            let native_supply_before = total_supply(&ledger);
+            let counter_supply_before = counter_total(&ledger);
+
+            match ledger.apply_transaction(&tx) {
+                Ok(()) => {
+                    // A successful swap implies both parties were approved and distinct.
+                    assert!(
+                        before.is_authorized(&from) && before.is_authorized(&to),
+                        "swap applied with an unapproved party at seed {i}"
+                    );
+                    assert_ne!(from, to, "swap applied to itself at seed {i}");
+                    // Neither asset is created or destroyed.
+                    assert_eq!(
+                        total_supply(&ledger),
+                        native_supply_before,
+                        "native supply changed on swap at seed {i}"
+                    );
+                    assert_eq!(
+                        counter_total(&ledger),
+                        counter_supply_before,
+                        "counter supply changed on swap at seed {i}"
+                    );
+                    // Exact two-leg movement when the three native roles are distinct.
+                    let sink = ledger.config().fee_sink.clone();
+                    if from != sink && to != sink {
+                        assert_eq!(
+                            ledger.account(&from).unwrap().balance.base_units(),
+                            before.account(&from).unwrap().balance.base_units() - amount - fee,
+                            "sender native debit wrong at seed {i}"
+                        );
+                        assert_eq!(
+                            ledger.account(&to).unwrap().balance.base_units(),
+                            before
+                                .account(&to)
+                                .map(|a| a.balance.base_units())
+                                .unwrap_or(0)
+                                + amount,
+                            "recipient native credit wrong at seed {i}"
+                        );
+                        assert_eq!(
+                            ledger.account(&sink).unwrap().balance.base_units(),
+                            before
+                                .account(&sink)
+                                .map(|a| a.balance.base_units())
+                                .unwrap_or(0)
+                                + fee,
+                            "fee routing wrong at seed {i}"
+                        );
+                        // Counter leg moves the other way by exactly counter_amount.
+                        assert_eq!(
+                            ledger.counter_balance(&to),
+                            before.counter_balance(&to) - counter_amount,
+                            "recipient counter debit wrong at seed {i}"
+                        );
+                        assert_eq!(
+                            ledger.counter_balance(&from),
+                            before.counter_balance(&from) + counter_amount,
+                            "sender counter credit wrong at seed {i}"
+                        );
+                    }
+                    // Only the sender's nonce advanced, by exactly one.
+                    assert_eq!(
+                        ledger.account(&from).unwrap().nonce,
+                        before.account(&from).unwrap().nonce + 1,
+                        "sender nonce not +1 at seed {i}"
+                    );
+                }
+                Err(_) => {
+                    // A rejected swap mutates nothing — accounts, registry, AND the
+                    // counter-asset map are byte-identical.
+                    assert_eq!(ledger, before, "state mutated on failed swap at seed {i}");
                 }
             }
         }

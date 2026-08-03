@@ -40,21 +40,41 @@ pub enum TxAction {
     /// Authority-only: remove `target` from the authorized-wallet registry.
     /// Idempotent — revoking a wallet that is not authorized is a no-op.
     RevokeWallet { target: Address },
+    /// A two-party swap of the native unit for the (clearly valueless, test-only)
+    /// counter-asset, applied atomically only if BOTH parties are in the
+    /// authorized-wallet registry. The native leg moves `amount` from `from` to `to`;
+    /// the counter leg moves `counter_amount` of the counter-asset from `to` back to
+    /// `from`. `from` alone signs — there is NO counterparty signature, which is
+    /// acceptable only because both the native unit and the counter-asset are
+    /// valueless test units gated by an operator-controlled allowlist; a value-bearing
+    /// swap would require real atomic-swap / co-signing semantics.
+    Swap { counter_amount: u128 },
 }
 
 impl TxAction {
-    /// The wallet a governance action targets, if any (`None` for [`Self::Transfer`]).
+    /// The wallet a governance action targets, if any (`None` for [`Self::Transfer`]
+    /// and [`Self::Swap`], which are not registry mutations).
     pub fn governance_target(&self) -> Option<&Address> {
         match self {
-            Self::Transfer => None,
+            Self::Transfer | Self::Swap { .. } => None,
             Self::AuthorizeWallet { target } | Self::RevokeWallet { target } => Some(target),
         }
     }
 
-    /// Whether this action mutates the authorized-wallet registry (i.e. is not a
-    /// plain value transfer). Governance actions are authority-gated at the node.
+    /// Whether this action is an authority-only registry mutation (authorize/revoke).
+    /// These are authority-gated at the node. A [`Self::Swap`] is NOT governance — it
+    /// is gated on registry membership of both parties, not on the sender being the
+    /// authority — so it is excluded here.
     pub fn is_governance(&self) -> bool {
-        !matches!(self, Self::Transfer)
+        matches!(
+            self,
+            Self::AuthorizeWallet { .. } | Self::RevokeWallet { .. }
+        )
+    }
+
+    /// Whether this action is a two-party counter-asset swap.
+    pub fn is_swap(&self) -> bool {
+        matches!(self, Self::Swap { .. })
     }
 }
 
@@ -118,6 +138,10 @@ pub enum TransactionValidationError {
     /// transactions carry their target inside the action, so the recipient field is
     /// required to equal the sender, keeping the envelope unambiguous.
     GovernanceRecipientNotSelf,
+    /// A swap carried a zero counter-asset amount. A swap must move value on both
+    /// legs (native `amount` one way, `counter_amount` the other); the native side is
+    /// covered by the existing `ZeroAmount` / `SelfTransfer` checks.
+    SwapZeroCounterAmount,
 }
 
 impl Transaction {
@@ -156,6 +180,20 @@ impl Transaction {
                 }
                 if !self.amount.is_zero() {
                     return Err(TransactionValidationError::GovernanceMustBeValueless);
+                }
+            }
+            TxAction::Swap { counter_amount } => {
+                // A swap has two distinct parties and moves value on both legs. The
+                // both-parties-approved registry gate is enforced where the ledger
+                // state is available (submit + apply), not here.
+                if self.from == self.to {
+                    return Err(TransactionValidationError::SelfTransfer);
+                }
+                if self.amount.is_zero() {
+                    return Err(TransactionValidationError::ZeroAmount);
+                }
+                if *counter_amount == 0 {
+                    return Err(TransactionValidationError::SwapZeroCounterAmount);
                 }
             }
         }

@@ -14,6 +14,54 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project fol
 
 ## [Unreleased]
 
+### Both-parties-approved counter-asset swap (test-only)
+
+Added a two-party swap that exchanges the native unit for a clearly-valueless,
+test-only counter-asset, applied atomically only when **both** parties are in the
+authorized-wallet registry (building on the registry above). Still TEST-ONLY and
+VALUELESS: the counter-asset carries no value and is not allocated at genesis, and
+nothing here changes XRIQ's deployment-phase posture. The suite grew from 394 to 401
+workspace tests, all deterministic and each new suite teeth-checked.
+
+#### Added
+
+- **`TxAction::Swap { counter_amount }`** (`xriq-core`) — the native leg moves `amount`
+  from `from` to `to`; the counter leg moves `counter_amount` of the counter-asset from
+  `to` back to `from`. Validated as a unit (distinct parties, non-zero native amount,
+  non-zero `counter_amount` via the new `SwapZeroCounterAmount` error). `Transfer` still
+  encodes to zero trailing bytes; `Swap` hashes distinctly.
+- **Counter-asset balances in `LedgerState`** (`xriq-ledger`) — a second balance map
+  (`counter_balance` / `set_counter_balance` / `counter_balance_entries`), distinct from
+  the native unit and zero-pruned so it stays canonical. Folded into the consensus state
+  root via `xriq_crypto::ledger_state_root(accounts, authorized, counter_balances)` —
+  appended **only when non-empty**, so a chain that never uses the counter-asset keeps a
+  byte-identical root.
+- **Atomic swap apply** — `apply_transaction` moves both legs and the fee together, or
+  rejects with the ledger (accounts, registry, and counter-asset) byte-identical.
+
+#### Security
+
+- **Both-parties-approved gate** — a swap applies only if `is_authorized(from) &&
+  is_authorized(to)`, enforced authoritatively by the ledger apply (reached by block
+  production, import, and indexer replay) and rejected early at mempool admission
+  (`NodeError::UnauthorizedSwapParty`). New ledger errors `UnauthorizedSwapParty` /
+  `CounterAssetUnderflow` / `CounterAssetOverflow`. Note: the swap has **no counterparty
+  signature** — acceptable only because both units are valueless test units gated by an
+  operator-controlled allowlist; a value-bearing swap would require real atomic-swap /
+  co-signing semantics.
+
+#### Tests
+
+- `xriq-ledger`: swap unit tests (approved move, unapproved rejection, counter-asset
+  underflow) and a 20k-iteration seeded property — approved-both ⇒ exact two-leg
+  movement with both assets conserved; unapproved-either / any failure ⇒ Err and the
+  ledger byte-identical. Teeth-checked (gate defeated, and premature mutation) — both
+  confirmed to fail then reverted.
+- `xriq-crypto`: counter-asset state-root section (empty-equality, sorted, changes root).
+- `xriq-storage`: `Swap` survives the block codec round-trip.
+- `xriq-node`: submit rejects an unapproved-party swap atomically, and admits a swap once
+  both parties are authorized. Submit-gate teeth-checked.
+
 ### Authorized-wallet registry (test-only governance)
 
 Added an on-chain authorized-wallet allowlist to ledger state, mutated by a new
