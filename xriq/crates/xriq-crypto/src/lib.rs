@@ -11,7 +11,7 @@
 use core::fmt::Write as _;
 use sha2::{Digest, Sha256};
 use xriq_core::{
-    AccountStateEntry, Address, Block, BlockHeader, Hash32, SignatureBytes, Transaction,
+    AccountStateEntry, Address, Block, BlockHeader, Hash32, SignatureBytes, Transaction, TxAction,
 };
 
 const DOMAIN_TRANSACTION_SIGNING: &[u8] = b"xriq:v1:transaction:signing";
@@ -20,6 +20,11 @@ const DOMAIN_BLOCK_HEADER_SIGNING: &[u8] = b"xriq:v1:block-header:signing";
 const DOMAIN_BLOCK_HEADER_HASH: &[u8] = b"xriq:v1:block-header:hash";
 const DOMAIN_TRANSACTIONS_ROOT: &[u8] = b"xriq:v1:transactions-root";
 const DOMAIN_ACCOUNT_STATE_ROOT: &[u8] = b"xriq:v1:account-state-root";
+// Domain tag opening the authorized-wallet registry section that is appended to the
+// state-root preimage ONLY when the registry is non-empty. An empty registry appends
+// nothing, so the state root of any chain that never authorizes a wallet is
+// byte-identical to the historical account-only root.
+const DOMAIN_AUTHORIZED_REGISTRY: &[u8] = b"xriq:v1:authorized-wallet-registry";
 
 pub const TEST_ONLY_SIGNATURE_PREFIX: &[u8] = b"xriq-test-only-signature-v1:";
 
@@ -362,6 +367,20 @@ pub fn transactions_root(transactions: &[Transaction]) -> Hash32 {
 }
 
 pub fn account_state_root(accounts: &[AccountStateEntry]) -> Hash32 {
+    ledger_state_root(accounts, &[])
+}
+
+/// The consensus state root over both the account set and the authorized-wallet
+/// registry. This is the single commitment every node must agree on, so all callers
+/// (producer, importer, RPC, indexer) route through it via `LedgerState::state_root`.
+///
+/// The registry section is appended to the account-only preimage ONLY when
+/// `authorized` is non-empty. An empty registry therefore produces a byte-identical
+/// preimage — and thus an identical root — to the historical account-only root, so no
+/// existing golden (`genesis_spec_hash`, block/state-root fixtures) on a chain that
+/// never authorizes a wallet shifts. `account_state_root` is exactly this function
+/// with an empty registry.
+pub fn ledger_state_root(accounts: &[AccountStateEntry], authorized: &[Address]) -> Hash32 {
     let mut sorted_accounts = accounts.to_vec();
     sorted_accounts.sort_by(|left, right| left.address.cmp(&right.address));
 
@@ -371,6 +390,16 @@ pub fn account_state_root(accounts: &[AccountStateEntry]) -> Hash32 {
         encode_string(account.address.as_str(), &mut output);
         encode_u128(account.balance.base_units(), &mut output);
         encode_u64(account.nonce, &mut output);
+    }
+    if !authorized.is_empty() {
+        let mut sorted_registry = authorized.to_vec();
+        sorted_registry.sort();
+        sorted_registry.dedup();
+        encode_bytes(DOMAIN_AUTHORIZED_REGISTRY, &mut output);
+        encode_u32(checked_len(sorted_registry.len()), &mut output);
+        for address in sorted_registry {
+            encode_string(address.as_str(), &mut output);
+        }
     }
     sha256_hash(&output)
 }
@@ -559,6 +588,26 @@ fn encode_transaction_without_signature(transaction: &Transaction, output: &mut 
     // The signer's public key is part of the signed body, so a signature is bound
     // to the key that produced it (empty under the test-only scheme).
     encode_bytes(&transaction.public_key, output);
+    encode_action(&transaction.action, output);
+}
+
+// Append the transaction action to the canonical preimage. `Transfer` is the trailing
+// zero-byte case: it contributes NOTHING, so every historical transfer keeps a
+// byte-identical signing/hash preimage and `transactions_root`. The governance
+// variants contribute a one-byte tag (1/2) followed by the length-prefixed target
+// address, so they hash distinctly and cannot collide with a transfer preimage.
+fn encode_action(action: &TxAction, output: &mut Vec<u8>) {
+    match action {
+        TxAction::Transfer => {}
+        TxAction::AuthorizeWallet { target } => {
+            output.push(1);
+            encode_string(target.as_str(), output);
+        }
+        TxAction::RevokeWallet { target } => {
+            output.push(2);
+            encode_string(target.as_str(), output);
+        }
+    }
 }
 
 fn encode_header_without_signature(header: &BlockHeader, output: &mut Vec<u8>) {
@@ -672,6 +721,7 @@ mod tests {
             expires_at_height: Some(100),
             signature,
             public_key: Vec::new(),
+            action: Default::default(),
         }
     }
 
@@ -800,6 +850,45 @@ mod tests {
         second.nonce = 1;
 
         assert_ne!(account_state_root(&[first]), account_state_root(&[second]));
+    }
+
+    #[test]
+    fn ledger_state_root_empty_registry_equals_account_only_root() {
+        let accounts = [
+            AccountStateEntry::new(address("alice"), XriqAmount::from_base_units(100), 0),
+            AccountStateEntry::new(address("bobbb"), XriqAmount::from_base_units(25), 2),
+        ];
+        // The whole point of the empty-registry case: byte-identical to the historical
+        // account-only root, so no existing golden shifts.
+        assert_eq!(
+            ledger_state_root(&accounts, &[]),
+            account_state_root(&accounts)
+        );
+    }
+
+    #[test]
+    fn ledger_state_root_registry_is_sorted_deduped_and_changes_root() {
+        let accounts = [
+            AccountStateEntry::new(address("alice"), XriqAmount::from_base_units(100), 0),
+            AccountStateEntry::new(address("bobbb"), XriqAmount::from_base_units(25), 2),
+        ];
+        let x = address("carol");
+        let y = address("davey");
+
+        let root_xy = ledger_state_root(&accounts, &[x.clone(), y.clone()]);
+        // Order-independent (sorted internally) and duplicate-insensitive (deduped).
+        assert_eq!(
+            root_xy,
+            ledger_state_root(&accounts, &[y.clone(), x.clone()])
+        );
+        assert_eq!(
+            root_xy,
+            ledger_state_root(&accounts, &[x.clone(), x.clone(), y.clone()])
+        );
+        // A non-empty registry commits distinctly from the account-only root, and a
+        // different membership yields a different root.
+        assert_ne!(root_xy, account_state_root(&accounts));
+        assert_ne!(root_xy, ledger_state_root(&accounts, &[x]));
     }
 
     #[test]

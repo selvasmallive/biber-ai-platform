@@ -18,7 +18,7 @@ use xriq_core::{
     PUBLIC_TESTNET_FAUCET_MAX_BALANCE_BASE_UNITS,
 };
 use xriq_crypto::{
-    account_state_root, ed25519_address, ed25519_signing_key_from_seed, transaction_hash,
+    ed25519_address, ed25519_signing_key_from_seed, transaction_hash,
     transactions_root as canonical_transactions_root, verify_block_header_with_scheme,
     verify_transaction_with_scheme, SchemeSigner, SignatureSchemeKind, SignatureVerificationError,
 };
@@ -320,6 +320,11 @@ pub enum NodeError {
     /// `from` address (`ed25519_address(public_key) != from`) — the signature is over
     /// a key that does not own the sending account.
     UnauthorizedSender,
+    /// A governance transaction (authorized-wallet registry authorize/revoke) was
+    /// submitted by a sender other than the chain authority. Only the authority may
+    /// mutate the registry; this mirrors the sender↔key binding and is enforced
+    /// identically at mempool admission, block import, and indexer replay.
+    UnauthorizedGovernanceAuthority,
     TooManyBlockTransactions {
         max: usize,
         actual: usize,
@@ -2005,6 +2010,7 @@ fn node_runner_error_http_status(error: &NodeRunnerError) -> u16 {
             | NodeError::Transaction(_)
             | NodeError::TransactionSignature(_)
             | NodeError::UnauthorizedSender
+            | NodeError::UnauthorizedGovernanceAuthority
             | NodeError::Mempool(_),
         ) => 400,
         NodeRunnerError::Explorer(
@@ -4063,6 +4069,17 @@ fn public_key_derives_address(public_key: &[u8], producer: &Address) -> bool {
         .unwrap_or(false)
 }
 
+// Governance transactions (authorized-wallet registry authorize/revoke) may be issued
+// ONLY by the chain authority. A plain transfer is always allowed by this gate. This
+// complements the sender↔key binding: that check proves the signer owns `from`; this
+// additionally requires that `from` IS the authority before a registry mutation is
+// accepted. It is applied identically at mempool admission, block import, and indexer
+// replay so every node agrees on which governance transactions are valid, keeping the
+// registry — and therefore the state root — consistent across the network.
+fn governance_sender_is_authority(tx: &Transaction, authority: &Address) -> bool {
+    !tx.action.is_governance() || &tx.from == authority
+}
+
 // Open a file-backed node on the selected genesis (no pending-transaction
 // replay). Used by peer and faucet commands, which read/sync stored blocks.
 fn runner_node(
@@ -5133,6 +5150,7 @@ fn runner_transaction_body<S: ChainStore>(
         expires_at_height: transfer.expires_at_height,
         signature: SignatureBytes::new(Vec::new()),
         public_key: Vec::new(),
+        action: Default::default(),
     }
 }
 
@@ -5712,6 +5730,9 @@ fn parse_pending_transaction_record(line: &str) -> Result<(Hash32, Transaction),
         expires_at_height,
         signature,
         public_key,
+        // Pending on-disk records are plain transfers; the draft format carries no
+        // governance action.
+        action: Default::default(),
     };
     if transaction_hash(&transaction) != tx_hash {
         return Err(NodeRunnerError::InvalidPendingRecord(line.to_string()));
@@ -7899,6 +7920,13 @@ impl<S: ChainStore> XriqNode<S> {
         {
             return Err(NodeError::UnauthorizedSender);
         }
+        // Authority gate: a registry authorize/revoke is accepted only from the chain
+        // authority. Applied under every signature scheme (unlike the ed25519-only
+        // sender↔key binding above) — the test-only scheme still gates governance by
+        // sender address, since the registry must stay authority-controlled.
+        if !governance_sender_is_authority(&tx, &self.producer.config().producer) {
+            return Err(NodeError::UnauthorizedGovernanceAuthority);
+        }
         self.mempool
             .insert(tx_hash, tx)
             .map_err(NodeError::Mempool)?;
@@ -8020,7 +8048,7 @@ impl<S: ChainStore> XriqNode<S> {
         }
         let state_root = input
             .state_root_override
-            .unwrap_or_else(|| account_state_root(&next_ledger.state_root_entries()));
+            .unwrap_or_else(|| next_ledger.state_root());
 
         let parent = ParentHeaderView {
             chain_id: self.ledger.config().chain_id.clone(),
@@ -8177,7 +8205,7 @@ impl<S: ChainStore> XriqNode<S> {
             });
         }
 
-        let expected_state_root = account_state_root(&self.ledger.state_root_entries());
+        let expected_state_root = self.ledger.state_root();
         if latest_record.block.header.state_root != expected_state_root {
             return Err(NodeError::WrongStateRoot {
                 expected: expected_state_root,
@@ -8225,6 +8253,12 @@ impl<S: ChainStore> XriqNode<S> {
             {
                 return Err(NodeError::UnauthorizedSender);
             }
+            // Authority gate for registry governance, identical to mempool admission,
+            // so a peer cannot import a block whose registry mutations were not issued
+            // by the chain authority.
+            if !governance_sender_is_authority(transaction, &self.producer.config().producer) {
+                return Err(NodeError::UnauthorizedGovernanceAuthority);
+            }
         }
         let expected_transactions_root = canonical_transactions_root(&block.transactions);
         if block.header.transactions_root != expected_transactions_root {
@@ -8240,7 +8274,7 @@ impl<S: ChainStore> XriqNode<S> {
                 .apply_transaction(transaction)
                 .map_err(NodeError::Ledger)?;
         }
-        let expected_state_root = account_state_root(&next_ledger.state_root_entries());
+        let expected_state_root = next_ledger.state_root();
         if block.header.state_root != expected_state_root {
             return Err(NodeError::WrongStateRoot {
                 expected: expected_state_root,
@@ -8326,7 +8360,7 @@ mod tests {
         path::{Path, PathBuf},
         time::{SystemTime, UNIX_EPOCH},
     };
-    use xriq_core::{Address, BlockHeader, XriqAmount};
+    use xriq_core::{Address, BlockHeader, TxAction, XriqAmount};
     use xriq_crypto::{
         block_header_signing_hash, test_only_signature_for_hash, transaction_signing_hash,
     };
@@ -8353,6 +8387,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(Vec::new()),
             public_key: Vec::new(),
+            action: Default::default(),
         };
         tx.signature = test_only_signature_for_hash(transaction_signing_hash(&tx));
         tx
@@ -8413,7 +8448,7 @@ mod tests {
             next_ledger.apply_transaction(transaction).unwrap();
         }
         (
-            xriq_crypto::account_state_root(&next_ledger.state_root_entries()),
+            next_ledger.state_root(),
             xriq_crypto::transactions_root(&transactions),
         )
     }
@@ -8527,13 +8562,14 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(Vec::new()),
             public_key: pubkey.to_vec(),
+            action: Default::default(),
         };
         tx.signature = ed25519_sign_hash(&key, transaction_signing_hash(&tx));
         tx
     }
 
     fn node_state_root<S: ChainStore>(node: &XriqNode<S>) -> Hash32 {
-        xriq_crypto::account_state_root(&node.ledger().state_root_entries())
+        node.ledger().state_root()
     }
 
     fn genesis_state_root() -> Hash32 {
@@ -8841,6 +8877,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(Vec::new()),
             public_key: ed25519_public_key(&wallet_key).to_vec(),
+            action: Default::default(),
         };
         tx.signature = ed25519_sign_hash(&wallet_key, transaction_signing_hash(&tx));
         let record = render_pending_transaction_record(transaction_hash(&tx), &tx);
@@ -9130,10 +9167,7 @@ mod tests {
             produced.block.header.transactions_root,
             xriq_crypto::transactions_root(&produced.block.transactions)
         );
-        assert_eq!(
-            produced.block.header.state_root,
-            xriq_crypto::account_state_root(&node.ledger().state_root_entries())
-        );
+        assert_eq!(produced.block.header.state_root, node.ledger().state_root());
         assert_eq!(
             produced.block_hash,
             xriq_crypto::block_hash(&produced.block)
@@ -13360,7 +13394,7 @@ mod tests {
         assert_eq!(
             follower.import_block(produced.block_hash, produced.block),
             Err(NodeError::WrongStateRoot {
-                expected: xriq_crypto::account_state_root(&expected_ledger.state_root_entries()),
+                expected: expected_ledger.state_root(),
                 actual: hash(99),
             })
         );
@@ -13498,6 +13532,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(Vec::new()),
             public_key: ed25519_public_key(&attacker_key).to_vec(),
+            action: Default::default(),
         };
         forged.signature = ed25519_sign_hash(&attacker_key, transaction_signing_hash(&forged));
 
@@ -13606,6 +13641,160 @@ mod tests {
         assert_eq!(follower.store().len(), 0);
     }
 
+    // ---- Authorized-wallet registry: node authority gating ----
+    //
+    // Governance transactions (registry authorize/revoke) are accepted ONLY from the
+    // chain authority, enforced identically at mempool admission and block import. A
+    // rejected governance transaction mutates nothing (atomic), and an accepted one is
+    // reflected in the ledger AND the consensus state root, so nodes stay in agreement.
+
+    // A node whose authority account is funded (so it can pay a governance fee),
+    // alongside a funded non-authority (`alice`). Returns the node and its authority.
+    fn governance_node() -> (XriqNode<InMemoryChainStore>, Address) {
+        let mut genesis = GenesisConfig::private_devnet();
+        let authority = genesis.authority.clone();
+        genesis = genesis
+            .with_account(authority.clone(), XriqAmount::from_base_units(100), 0)
+            .with_account(address("alice"), XriqAmount::from_base_units(100), 0);
+        let node = XriqNode::from_genesis(&genesis, InMemoryChainStore::new()).unwrap();
+        (node, authority)
+    }
+
+    // A self-addressed, valueless, test-only-signed governance transaction.
+    fn node_governance_tx(from: Address, action: TxAction, fee: u128, nonce: u64) -> Transaction {
+        let mut tx = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from: from.clone(),
+            to: from,
+            amount: XriqAmount::ZERO,
+            fee: XriqAmount::from_base_units(fee),
+            nonce,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
+            action,
+        };
+        tx.signature = test_only_signature_for_hash(transaction_signing_hash(&tx));
+        tx
+    }
+
+    // Assemble a valid, correctly-rooted, test-only-signed block carrying
+    // `transactions` on top of `node`'s tip. Roots are computed by applying the
+    // transactions to a ledger clone (the ledger applies governance mechanically; the
+    // authority gate lives in the importer), so a block built this way is well-formed
+    // in every respect EXCEPT the import-time authority gate — isolating that gate.
+    fn signed_block_with<S: ChainStore>(
+        node: &XriqNode<S>,
+        transactions: Vec<Transaction>,
+    ) -> Block {
+        let mut next_ledger = node.ledger().clone();
+        for tx in &transactions {
+            next_ledger.apply_transaction(tx).unwrap();
+        }
+        let mut header = BlockHeader {
+            version: BlockHeader::SUPPORTED_VERSION,
+            chain_id: node.ledger().config().chain_id.clone(),
+            height: node.ledger().current_height() + 1,
+            previous_block_hash: node.latest_block_hash(),
+            state_root: next_ledger.state_root(),
+            transactions_root: xriq_crypto::transactions_root(&transactions),
+            timestamp_ms: 1_000,
+            producer: node.producer.config().producer.clone(),
+            consensus_round: 0,
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
+        };
+        header.signature = test_only_signature_for_hash(block_header_signing_hash(&header));
+        Block {
+            header,
+            transactions,
+        }
+    }
+
+    #[test]
+    fn submit_rejects_governance_from_non_authority_atomically() {
+        let (mut node, _authority) = governance_node();
+        let tx = node_governance_tx(
+            address("alice"),
+            TxAction::AuthorizeWallet {
+                target: address("bobbb"),
+            },
+            2,
+            0,
+        );
+        assert_eq!(
+            node.submit_transaction_with_canonical_hash(tx),
+            Err(NodeError::UnauthorizedGovernanceAuthority)
+        );
+        // Nothing admitted, nothing authorized.
+        assert!(next_transactions(&node).is_empty());
+        assert!(!node.ledger().is_authorized(&address("bobbb")));
+    }
+
+    #[test]
+    fn authority_governance_is_applied_and_reflected_in_the_state_root() {
+        let (mut node, authority) = governance_node();
+        let target = address("bobbb");
+        let root_before = node.ledger().state_root();
+
+        let tx = node_governance_tx(
+            authority.clone(),
+            TxAction::AuthorizeWallet {
+                target: target.clone(),
+            },
+            2,
+            0,
+        );
+        node.submit_transaction_with_canonical_hash(tx).unwrap();
+        let produced = node
+            .produce_next_block_with_canonical_roots(produce_canonical_roots_input(&node))
+            .unwrap();
+
+        // The registry is updated, the produced block commits to it, and the state root
+        // changed (the registry is folded into the consensus commitment).
+        assert!(node.ledger().is_authorized(&target));
+        assert_eq!(produced.block.header.state_root, node.ledger().state_root());
+        assert_ne!(node.ledger().state_root(), root_before);
+
+        // A follower on the same genesis accepts the block (authorized governance is
+        // valid at import) and converges on the same registry membership.
+        let (mut follower, _) = governance_node();
+        follower
+            .import_block_with_canonical_hash(produced.block)
+            .unwrap();
+        assert!(follower.ledger().is_authorized(&target));
+    }
+
+    #[test]
+    fn import_rejects_block_with_unauthorized_governance_atomically() {
+        let (mut node, _authority) = governance_node();
+        // A governance transaction from a non-authority (alice), inside an otherwise
+        // fully-valid, correctly-rooted, signed block. Only the import-time authority
+        // gate can reject it.
+        let rogue = node_governance_tx(
+            address("alice"),
+            TxAction::AuthorizeWallet {
+                target: address("bobbb"),
+            },
+            2,
+            0,
+        );
+        let block = signed_block_with(&node, vec![rogue]);
+
+        let root_before = node.ledger().state_root();
+        let tip_before = node.latest_block_hash();
+        assert_eq!(
+            node.import_block_with_canonical_hash(block),
+            Err(NodeError::UnauthorizedGovernanceAuthority)
+        );
+        // Import is atomic: registry, ledger, and tip are all unchanged.
+        assert!(!node.ledger().is_authorized(&address("bobbb")));
+        assert_eq!(node.ledger().state_root(), root_before);
+        assert_eq!(node.latest_block_hash(), tip_before);
+    }
+
     // ---- Property tests: block validation (validate_next_block_state) ----
     //
     // Over randomized valid blocks and single-field mutations (seeded PRNG for
@@ -13678,6 +13867,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(Vec::new()),
             public_key: Vec::new(),
+            action: Default::default(),
         };
         tx.signature = test_only_signature_for_hash(transaction_signing_hash(&tx));
         tx

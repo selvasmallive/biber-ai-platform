@@ -7,7 +7,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use xriq_core::{Address, Block, BlockHeader, Hash32, SignatureBytes, Transaction, XriqAmount};
+use xriq_core::{
+    Address, Block, BlockHeader, Hash32, SignatureBytes, Transaction, TxAction, XriqAmount,
+};
 use xriq_crypto::block_hash as canonical_block_hash;
 
 const BLOCK_RECORD_TAG: &[u8; 4] = b"BLK1";
@@ -329,7 +331,46 @@ fn write_transaction(output: &mut Vec<u8>, tx: &Transaction) -> Result<(), Stora
     write_option_u64(output, tx.expires_at_height);
     write_signature(output, &tx.signature)?;
     write_byte_vec(output, &tx.public_key)?;
+    write_action(output, &tx.action)?;
     Ok(())
+}
+
+// The transaction action is a trailing tagged field: `0` for a plain transfer (the
+// overwhelming common case), `1`/`2` for the governance variants followed by the
+// target address. Unlike the consensus hash preimage — where `Transfer` contributes
+// zero bytes so transfer hashes are unchanged — the on-disk codec is a parser and
+// always writes the one-byte tag so decoding is unambiguous. Storage bytes are not a
+// consensus golden; round-trip tests cover this.
+const ACTION_TAG_TRANSFER: u8 = 0;
+const ACTION_TAG_AUTHORIZE: u8 = 1;
+const ACTION_TAG_REVOKE: u8 = 2;
+
+fn write_action(output: &mut Vec<u8>, action: &TxAction) -> Result<(), StorageError> {
+    match action {
+        TxAction::Transfer => write_u8(output, ACTION_TAG_TRANSFER),
+        TxAction::AuthorizeWallet { target } => {
+            write_u8(output, ACTION_TAG_AUTHORIZE);
+            write_address(output, target)?;
+        }
+        TxAction::RevokeWallet { target } => {
+            write_u8(output, ACTION_TAG_REVOKE);
+            write_address(output, target)?;
+        }
+    }
+    Ok(())
+}
+
+fn read_action(cursor: &mut Cursor<&[u8]>) -> Result<TxAction, StorageError> {
+    match read_u8(cursor)? {
+        ACTION_TAG_TRANSFER => Ok(TxAction::Transfer),
+        ACTION_TAG_AUTHORIZE => Ok(TxAction::AuthorizeWallet {
+            target: read_address(cursor)?,
+        }),
+        ACTION_TAG_REVOKE => Ok(TxAction::RevokeWallet {
+            target: read_address(cursor)?,
+        }),
+        _ => Err(StorageError::CorruptData),
+    }
 }
 
 fn read_transaction(cursor: &mut Cursor<&[u8]>) -> Result<Transaction, StorageError> {
@@ -345,6 +386,7 @@ fn read_transaction(cursor: &mut Cursor<&[u8]>) -> Result<Transaction, StorageEr
         expires_at_height: read_option_u64(cursor)?,
         signature: read_signature(cursor)?,
         public_key: read_vec(cursor)?,
+        action: read_action(cursor)?,
     })
 }
 
@@ -542,6 +584,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(vec![1, 2, 3]),
             public_key: Vec::new(),
+            action: Default::default(),
         }
     }
 
@@ -595,6 +638,33 @@ mod tests {
             decode_peer_blocks(&trailing).err(),
             Some(StorageError::CorruptData)
         );
+    }
+
+    #[test]
+    fn governance_actions_survive_encode_decode_roundtrip() {
+        // The action is a trailing tagged codec field; every variant must round-trip so
+        // a stored block carrying a registry mutation replays identically. A plain
+        // transfer (the default) is covered by the roundtrip above; here we exercise
+        // both governance tags and their target address.
+        let mut authorize = transaction();
+        authorize.action = TxAction::AuthorizeWallet {
+            target: address("carol"),
+        };
+        let mut revoke = transaction();
+        revoke.action = TxAction::RevokeWallet {
+            target: address("davey"),
+        };
+
+        let mut header = block(1, hash(0)).header;
+        header.height = 7;
+        let governance_block = Block {
+            header,
+            transactions: vec![transaction(), authorize, revoke],
+        };
+        let blocks = vec![governance_block];
+
+        let encoded = encode_peer_blocks(&blocks).unwrap();
+        assert_eq!(decode_peer_blocks(&encoded).unwrap(), blocks);
     }
 
     #[test]
@@ -809,6 +879,7 @@ mod tests {
             expires_at_height: rng.bool().then(|| rng.next_u64()),
             signature: SignatureBytes::new(fuzz_bytes_vec(rng)),
             public_key: fuzz_bytes_vec(rng),
+            action: Default::default(),
         }
     }
 

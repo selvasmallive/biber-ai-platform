@@ -368,6 +368,7 @@ name = "xriq-ledger"
 version = "0.1.0"
 dependencies = [
  "xriq-core",
+ "xriq-crypto",
 ]
 
 [[package]]

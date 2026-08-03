@@ -576,7 +576,6 @@ fn account_transaction_direction(transaction: &Transaction, address: &Address) -
 mod tests {
     use super::*;
     use xriq_core::{Block, BlockHeader, SignatureBytes};
-    use xriq_crypto::account_state_root;
     use xriq_ledger::{Account, LedgerConfig, LedgerState};
     use xriq_mempool::{Mempool, MempoolConfig};
     use xriq_storage::InMemoryChainStore;
@@ -616,6 +615,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(vec![1, 2, 3]),
             public_key: Vec::new(),
+            action: Default::default(),
         }
     }
 
@@ -701,7 +701,7 @@ mod tests {
             address("bobbb"),
             Account::new(XriqAmount::from_base_units(25), 0),
         );
-        account_state_root(&ledger.state_root_entries())
+        ledger.state_root()
     }
 
     #[test]

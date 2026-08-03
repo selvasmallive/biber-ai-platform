@@ -13898,3 +13898,64 @@ pre-existing xriq-api warnings -- contains()/too-many-args -- are unchanged, not
 Test-only throughout.
 
 BOUNDARY NOTE: the user asked to "move to next phases even it is for production.". 
+
+---
+
+2026-08-02 -- AUTHORIZED-WALLET REGISTRY (handoff item 1) -- DONE, on branch
+xriq-authorized-wallet-registry, then ff-merged to main. TEST-ONLY and VALUELESS
+throughout; the audit/legal gates are untouched and remain NOT satisfied.
+
+WHAT: an on-chain authorized-wallet allowlist in ledger state, mutated by a new
+authority-gated governance transaction, folded into the consensus state root with
+zero golden drift.
+
+DESIGN (confirmed with the user before building -- "new tx action kind"):
+- xriq-core: added TxAction { Transfer(default) | AuthorizeWallet{target} |
+  RevokeWallet{target} } as a Transaction field. Governance is valueless + self-
+  addressed (amount==0, to==from) via new validate_basic errors
+  GovernanceMustBeValueless / GovernanceRecipientNotSelf. The transfer validation path
+  is byte-for-byte unchanged.
+- xriq-crypto: encode_transaction_without_signature appends the action AFTER
+  public_key, and Transfer appends ZERO bytes -> every existing transfer signing/hash
+  preimage and transactions_root is unchanged (verified: full suite green, no golden
+  shift). New ledger_state_root(accounts, authorized): appends a domain-separated
+  registry section ONLY when non-empty, so the empty-registry root is byte-identical
+  to account_state_root (which is now exactly the empty case).
+- xriq-ledger: LedgerState gained a BTreeSet authorized registry +
+  is_authorized/authorize/revoke/authorized_wallets + a single state_root() method
+  (ledger now depends on xriq-crypto; no dep cycle). apply_transaction applies a
+  governance action atomically with the fee (registry + accounts commit together).
+  Authority gating is NOT in the ledger (mirrors the sender-key binding being a node
+  concern).
+- STATE-ROOT ROUTING: replaced every consensus caller of
+  account_state_root(&x.state_root_entries()) with x.state_root() across node, indexer,
+  rpc, explorer, postgres (one commitment, computed identically everywhere).
+- ENFORCEMENT (authority-only governance), identical at every layer via
+  governance_sender_is_authority: XriqNode::submit_transaction,
+  validate_next_block_state (import), and indexer replay_private_devnet_block reject a
+  non-authority registry mutation ATOMICALLY (NodeError::UnauthorizedGovernanceAuthority
+  / IndexReplayError::UnauthorizedGovernanceAuthority). Mempool: the zero-amount policy
+  now applies only to transfers (governance is valueless); the fee floor still applies
+  to both. API preview: transfer-only BY CONSTRUCTION -- no code path builds a
+  governance action and its parsers default to Transfer -- so nothing untrusted can
+  inject a registry mutation there (documented, no gate needed).
+- STORAGE: write/read_transaction gained a trailing tagged action field (0=transfer,
+  1/2=governance+target). Storage is a parser (not a hash preimage) so it always
+  writes the 1-byte tag; storage bytes are not a consensus golden and round-trips are
+  property-tested. No on-disk fixtures are raw storage bytes (all fixtures are JSON).
+
+TESTS: 379 -> 394 workspace tests, all green; fmt clean; clippy adds ZERO new warnings
+(the 5 remaining are pre-existing api/wallet lints -- contains()/too-many-args/push_str
+-- untouched by this work). New coverage: ledger (registry idempotency + inverse,
+governance apply, + two 20k-iter seeded properties: root stability and apply
+atomicity), crypto (ledger_state_root empty-equality + sorted/deduped), storage
+(governance codec round-trip), node (submit + import reject non-authority atomically;
+authority governance applied end-to-end + follower import), indexer (replay rejects
+non-authority). FOUR teeth-checks confirmed and reverted: registry not folded into
+root (root-stability fails), premature registry mutation (atomicity fails), gate
+always-true (node submit+import rejections fail), indexer gate disabled (indexer
+rejection fails).
+
+NEXT: handoff item 2 (both-parties-approved swap gating vs a valueless test counter-
+asset), then item 3 (extend hardening). The registry + TxAction plumbing is the
+foundation item 2 builds on (gate a swap on is_authorized for both parties).

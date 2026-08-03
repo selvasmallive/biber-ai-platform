@@ -78,7 +78,10 @@ impl Mempool {
         if self.entries.contains_key(&tx_hash) {
             return Err(MempoolError::DuplicateTransaction);
         }
-        if tx.amount.is_zero() {
+        // Transfers must move a non-zero amount; governance transactions (registry
+        // authorize/revoke) are valueless by design, so the zero-amount policy applies
+        // only to transfers. The fee floor below still applies to both.
+        if !tx.action.is_governance() && tx.amount.is_zero() {
             return Err(MempoolError::ZeroAmount);
         }
         if tx.fee < self.config.min_fee {
@@ -157,6 +160,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(vec![1, 2, 3]),
             public_key: Vec::new(),
+            action: Default::default(),
         }
     }
 

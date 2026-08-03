@@ -13,7 +13,7 @@ use xriq_core::{
     Transaction, XriqAmount,
 };
 use xriq_crypto::{
-    account_state_root, block_hash as canonical_block_hash, ed25519_address, transaction_hash,
+    block_hash as canonical_block_hash, ed25519_address, transaction_hash,
     transactions_root as canonical_transactions_root, verify_block_header_with_scheme,
     verify_transaction_with_scheme, SignatureSchemeKind, SignatureVerificationError,
 };
@@ -144,17 +144,50 @@ pub enum IndexerError {
 pub enum IndexReplayError {
     Genesis(GenesisConfigError),
     Header(BlockValidationError),
-    MissingStoredBlock { height: u64 },
-    UnexpectedStoredBlockHeight { minimum: u64, actual: u64 },
-    UnexpectedStoredBlockCount { expected: usize, actual: usize },
-    WrongStoredBlockHash { expected: String, actual: String },
-    UnauthorizedProducer { expected: String, actual: String },
-    UnauthorizedSender { expected: String, actual: String },
-    TooManyBlockTransactions { max: usize, actual: usize },
+    MissingStoredBlock {
+        height: u64,
+    },
+    UnexpectedStoredBlockHeight {
+        minimum: u64,
+        actual: u64,
+    },
+    UnexpectedStoredBlockCount {
+        expected: usize,
+        actual: usize,
+    },
+    WrongStoredBlockHash {
+        expected: String,
+        actual: String,
+    },
+    UnauthorizedProducer {
+        expected: String,
+        actual: String,
+    },
+    UnauthorizedSender {
+        expected: String,
+        actual: String,
+    },
+    /// A governance transaction (authorized-wallet registry mutation) in the block was
+    /// not issued by the chain authority. Mirrors the node's submit/import gate so the
+    /// indexer's replayed state (and root) matches the node's.
+    UnauthorizedGovernanceAuthority {
+        expected: String,
+        actual: String,
+    },
+    TooManyBlockTransactions {
+        max: usize,
+        actual: usize,
+    },
     TransactionSignature(SignatureVerificationError),
-    WrongTransactionsRoot { expected: String, actual: String },
+    WrongTransactionsRoot {
+        expected: String,
+        actual: String,
+    },
     Ledger(LedgerError),
-    WrongStateRoot { expected: String, actual: String },
+    WrongStateRoot {
+        expected: String,
+        actual: String,
+    },
     BlockSignature(SignatureVerificationError),
     Indexer(IndexerError),
 }
@@ -189,6 +222,12 @@ impl fmt::Display for IndexReplayError {
                 write!(
                     formatter,
                     "unauthorized sender: key derives {actual}, not from {expected}"
+                )
+            }
+            Self::UnauthorizedGovernanceAuthority { expected, actual } => {
+                write!(
+                    formatter,
+                    "unauthorized governance: registry mutation from {actual}, not authority {expected}"
                 )
             }
             Self::TooManyBlockTransactions { max, actual } => write!(
@@ -265,7 +304,7 @@ fn index_store_with_genesis<S: ChainStore>(
         chain_id: replay.ledger.config().chain_id.clone(),
         current_height: replay.ledger.current_height(),
         latest_block_hash: hash_hex(replay.latest_block_hash),
-        state_root: hash_hex(account_state_root(&replay.ledger.state_root_entries())),
+        state_root: hash_hex(replay.ledger.state_root()),
         read_model,
         summary,
     })
@@ -426,7 +465,7 @@ impl IndexedReadModel {
 
     fn index_account_balances(&mut self, ledger: &LedgerState) -> usize {
         let height = ledger.current_height();
-        let state_root = hash_hex(account_state_root(&ledger.state_root_entries()));
+        let state_root = hash_hex(ledger.state_root());
         let mut indexed = 0;
 
         for (address, account) in ledger.accounts() {
@@ -682,6 +721,14 @@ fn replay_private_devnet_block(
                     .unwrap_or_else(|_| "<invalid key>".to_string()),
             });
         }
+        // Authority gate for registry governance, identical to the node's submit/import
+        // path: only the chain authority may authorize/revoke wallets.
+        if transaction.action.is_governance() && transaction.from != genesis.authority {
+            return Err(IndexReplayError::UnauthorizedGovernanceAuthority {
+                expected: genesis.authority.to_string(),
+                actual: transaction.from.to_string(),
+            });
+        }
     }
     let expected_transactions_root = canonical_transactions_root(&record.block.transactions);
     if record.block.header.transactions_root != expected_transactions_root {
@@ -697,7 +744,7 @@ fn replay_private_devnet_block(
             .apply_transaction(transaction)
             .map_err(IndexReplayError::Ledger)?;
     }
-    let expected_state_root = account_state_root(&next_ledger.state_root_entries());
+    let expected_state_root = next_ledger.state_root();
     if record.block.header.state_root != expected_state_root {
         return Err(IndexReplayError::WrongStateRoot {
             expected: hash_hex(expected_state_root),
@@ -755,7 +802,7 @@ fn amount_string(amount: XriqAmount) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use xriq_core::{Block, BlockHeader, SignatureBytes, Transaction};
+    use xriq_core::{Block, BlockHeader, SignatureBytes, Transaction, TxAction};
     use xriq_crypto::{
         block_header_signing_hash, test_only_signature_for_hash, transaction_signing_hash,
     };
@@ -787,6 +834,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(vec![1, 2, 3]),
             public_key: Vec::new(),
+            action: Default::default(),
         }
     }
 
@@ -858,7 +906,7 @@ mod tests {
         let tx = signed_transaction(address("alice"), address("bobbb"), 0, 25, 2);
         let mut ledger = LedgerState::from_genesis(&genesis).unwrap();
         ledger.apply_transaction(&tx).unwrap();
-        let state_root = account_state_root(&ledger.state_root_entries());
+        let state_root = ledger.state_root();
         let transactions_root = canonical_transactions_root(std::slice::from_ref(&tx));
         let mut header = BlockHeader {
             version: BlockHeader::SUPPORTED_VERSION,
@@ -882,6 +930,73 @@ mod tests {
             })
             .unwrap();
         (store, hash_hex(block_hash))
+    }
+
+    // A single-block devnet store whose one transaction is a governance authorize
+    // issued by `from`, correctly rooted and test-only signed, with the block produced
+    // by the chain authority. The ledger applies governance mechanically (no authority
+    // gate lives there), so the block is well-formed in every respect EXCEPT the
+    // replay-time authority gate — isolating that gate for the test below.
+    fn governance_devnet_store(from: Address) -> (InMemoryChainStore, GenesisConfig) {
+        let genesis = private_devnet_indexer_genesis(Some(XriqAmount::from_base_units(100)));
+        let mut tx = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from: from.clone(),
+            to: from,
+            amount: XriqAmount::ZERO,
+            fee: XriqAmount::from_base_units(2),
+            nonce: 0,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
+            action: TxAction::AuthorizeWallet {
+                target: address("bobbb"),
+            },
+        };
+        tx.signature = test_only_signature_for_hash(transaction_signing_hash(&tx));
+
+        let mut ledger = LedgerState::from_genesis(&genesis).unwrap();
+        ledger.apply_transaction(&tx).unwrap();
+        let mut header = BlockHeader {
+            version: BlockHeader::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            height: 1,
+            previous_block_hash: Hash32::ZERO,
+            state_root: ledger.state_root(),
+            transactions_root: canonical_transactions_root(std::slice::from_ref(&tx)),
+            timestamp_ms: 1_001,
+            producer: genesis.authority.clone(),
+            consensus_round: 0,
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
+        };
+        header.signature = test_only_signature_for_hash(block_header_signing_hash(&header));
+        let mut store = InMemoryChainStore::new();
+        store
+            .append_block_with_canonical_hash(Block {
+                header,
+                transactions: vec![tx],
+            })
+            .unwrap();
+        (store, genesis)
+    }
+
+    #[test]
+    fn replay_rejects_governance_from_non_authority() {
+        // `alice` is funded but is NOT the chain authority — her registry mutation must
+        // be rejected at replay, matching the node's submit/import gate so the indexer's
+        // replayed state never diverges from the node's.
+        let (store, genesis) = governance_devnet_store(address("alice"));
+        let result = replay_private_devnet_store(&store, &genesis);
+        assert!(
+            matches!(
+                result,
+                Err(IndexReplayError::UnauthorizedGovernanceAuthority { .. })
+            ),
+            "expected governance authority rejection, got {result:?}"
+        );
     }
 
     #[test]
@@ -1027,6 +1142,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(Vec::new()),
             public_key: ed25519_public_key(&attacker_key).to_vec(),
+            action: Default::default(),
         };
         forged.signature = ed25519_sign_hash(&attacker_key, transaction_signing_hash(&forged));
 
@@ -1038,7 +1154,7 @@ mod tests {
             chain_id: genesis.chain_id.clone(),
             height: 1,
             previous_block_hash: Hash32::ZERO,
-            state_root: account_state_root(&ledger.state_root_entries()),
+            state_root: ledger.state_root(),
             transactions_root: canonical_transactions_root(std::slice::from_ref(&forged)),
             timestamp_ms: 1_001,
             producer: genesis.authority.clone(),
@@ -1150,6 +1266,7 @@ mod tests {
                     expires_at_height: None,
                     signature: SignatureBytes::new(Vec::new()),
                     public_key: Vec::new(),
+                    action: Default::default(),
                 };
                 tx.signature = test_only_signature_for_hash(transaction_signing_hash(&tx));
                 tx
@@ -1174,7 +1291,7 @@ mod tests {
             for tx in &transactions {
                 ledger.apply_transaction(tx).unwrap();
             }
-            let state_root = account_state_root(&ledger.state_root_entries());
+            let state_root = ledger.state_root();
             ledger.set_current_height(height);
             let transactions_root = canonical_transactions_root(&transactions);
             let mut header = BlockHeader {

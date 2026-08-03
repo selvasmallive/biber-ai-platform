@@ -308,8 +308,8 @@ mod tests {
     };
     use xriq_core::{Address, Block, BlockHeader, Hash32, SignatureBytes, Transaction};
     use xriq_crypto::{
-        account_state_root, block_header_signing_hash, test_only_signature_for_hash,
-        transaction_signing_hash, transactions_root,
+        block_header_signing_hash, test_only_signature_for_hash, transaction_signing_hash,
+        transactions_root,
     };
     use xriq_ledger::LedgerState;
     use xriq_storage::{ChainStore, InMemoryChainStore};
@@ -331,6 +331,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(Vec::new()),
             public_key: Vec::new(),
+            action: Default::default(),
         };
         transaction.signature =
             test_only_signature_for_hash(transaction_signing_hash(&transaction));
@@ -347,7 +348,7 @@ mod tests {
             chain_id: "xriq-devnet".to_string(),
             height: 1,
             previous_block_hash: Hash32::ZERO,
-            state_root: account_state_root(&ledger.state_root_entries()),
+            state_root: ledger.state_root(),
             transactions_root: transactions_root(std::slice::from_ref(&transaction)),
             timestamp_ms: 1_001,
             producer: genesis.authority,

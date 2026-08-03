@@ -27,5 +27,5 @@ pub use hash::Hash32;
 pub use state::AccountStateEntry;
 pub use transaction::{
     AccountView, SignatureBytes, Transaction, TransactionValidationContext,
-    TransactionValidationError,
+    TransactionValidationError, TxAction,
 };

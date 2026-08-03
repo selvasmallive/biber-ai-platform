@@ -17,6 +17,47 @@ impl SignatureBytes {
     }
 }
 
+/// What a transaction *does*. A plain value [`TxAction::Transfer`] is the default
+/// and the only shape that moves the native unit. The governance variants carry no
+/// value — they mutate the on-chain authorized-wallet registry and are accepted only
+/// from the chain authority (gating is enforced at the node layers, mirroring the
+/// sender↔key binding). All of this is test-only and valueless; the registry gates a
+/// clearly-valueless test counter-asset flow, never anything value-bearing.
+///
+/// # Canonical encoding stability
+/// [`TxAction::Transfer`] must encode to *zero* trailing bytes so that every existing
+/// transfer keeps a byte-identical signing/hash preimage (and thus an unchanged
+/// `transactions_root`); only the governance variants contribute bytes. See
+/// `xriq_crypto::encode_transaction_without_signature`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum TxAction {
+    /// Move `amount` of the native unit from `from` to `to` (the classic transfer).
+    #[default]
+    Transfer,
+    /// Authority-only: add `target` to the on-chain authorized-wallet registry.
+    /// Idempotent — authorizing an already-authorized wallet is a no-op.
+    AuthorizeWallet { target: Address },
+    /// Authority-only: remove `target` from the authorized-wallet registry.
+    /// Idempotent — revoking a wallet that is not authorized is a no-op.
+    RevokeWallet { target: Address },
+}
+
+impl TxAction {
+    /// The wallet a governance action targets, if any (`None` for [`Self::Transfer`]).
+    pub fn governance_target(&self) -> Option<&Address> {
+        match self {
+            Self::Transfer => None,
+            Self::AuthorizeWallet { target } | Self::RevokeWallet { target } => Some(target),
+        }
+    }
+
+    /// Whether this action mutates the authorized-wallet registry (i.e. is not a
+    /// plain value transfer). Governance actions are authority-gated at the node.
+    pub fn is_governance(&self) -> bool {
+        !matches!(self, Self::Transfer)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transaction {
     pub version: u16,
@@ -35,6 +76,11 @@ pub struct Transaction {
     /// production-crypto migration (Phase 3b); see
     /// `docs/XRIQ_PRODUCTION_CRYPTO_MIGRATION.md`.
     pub public_key: Vec<u8>,
+    /// What the transaction does. [`TxAction::Transfer`] (the default) is a plain
+    /// value transfer; the governance variants mutate the authorized-wallet registry
+    /// and are accepted only from the chain authority. Encoded to zero trailing bytes
+    /// for `Transfer`, so existing transfer hashes are unchanged.
+    pub action: TxAction,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,10 +104,20 @@ pub enum TransactionValidationError {
     SelfTransfer,
     ZeroAmount,
     FeeTooLow,
-    InvalidNonce { expected: u64, actual: u64 },
+    InvalidNonce {
+        expected: u64,
+        actual: u64,
+    },
     InsufficientFunds,
     Expired,
     MissingSignature,
+    /// A governance action (registry authorize/revoke) carried a non-zero `amount`.
+    /// Governance transactions are valueless: they may pay a fee but move no units.
+    GovernanceMustBeValueless,
+    /// A governance action was not self-addressed (`to != from`). Governance
+    /// transactions carry their target inside the action, so the recipient field is
+    /// required to equal the sender, keeping the envelope unambiguous.
+    GovernanceRecipientNotSelf,
 }
 
 impl Transaction {
@@ -81,11 +137,27 @@ impl Transaction {
         if self.chain_id != context.chain_id {
             return Err(TransactionValidationError::WrongChainId);
         }
-        if self.from == self.to {
-            return Err(TransactionValidationError::SelfTransfer);
-        }
-        if self.amount.is_zero() {
-            return Err(TransactionValidationError::ZeroAmount);
+        // Shape checks split by action. The transfer path is byte-for-byte the
+        // historical validation (self-transfer + non-zero amount); governance
+        // transactions carry no value and are self-addressed (the target lives in the
+        // action), so they invert those two rules. Every other check below is shared.
+        match &self.action {
+            TxAction::Transfer => {
+                if self.from == self.to {
+                    return Err(TransactionValidationError::SelfTransfer);
+                }
+                if self.amount.is_zero() {
+                    return Err(TransactionValidationError::ZeroAmount);
+                }
+            }
+            TxAction::AuthorizeWallet { .. } | TxAction::RevokeWallet { .. } => {
+                if self.from != self.to {
+                    return Err(TransactionValidationError::GovernanceRecipientNotSelf);
+                }
+                if !self.amount.is_zero() {
+                    return Err(TransactionValidationError::GovernanceMustBeValueless);
+                }
+            }
         }
         if self.fee < context.min_fee {
             return Err(TransactionValidationError::FeeTooLow);
@@ -137,6 +209,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(vec![1, 2, 3]),
             public_key: Vec::new(),
+            action: Default::default(),
         }
     }
 

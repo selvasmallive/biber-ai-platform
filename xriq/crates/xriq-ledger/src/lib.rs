@@ -1,10 +1,10 @@
 //! Deterministic account ledger state transitions for the XRIQ private devnet.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use xriq_core::{
-    AccountStateEntry, AccountView, Address, GenesisConfig, GenesisConfigError, Transaction,
-    TransactionValidationContext, TransactionValidationError, XriqAmount,
+    AccountStateEntry, AccountView, Address, GenesisConfig, GenesisConfigError, Hash32,
+    Transaction, TransactionValidationContext, TransactionValidationError, TxAction, XriqAmount,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,6 +38,13 @@ pub struct LedgerConfig {
 pub struct LedgerState {
     config: LedgerConfig,
     accounts: BTreeMap<Address, Account>,
+    /// On-chain authorized-wallet registry. Empty by default — and while empty it
+    /// contributes nothing to the state root, so any chain that never authorizes a
+    /// wallet keeps a byte-identical root (see [`LedgerState::state_root`]). Mutated
+    /// only by governance transactions ([`TxAction::AuthorizeWallet`] /
+    /// [`TxAction::RevokeWallet`]), which the node accepts only from the chain
+    /// authority. A `BTreeSet` keeps membership ordered and deterministic for rooting.
+    authorized: BTreeSet<Address>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,7 +60,11 @@ impl LedgerState {
     pub fn new(config: LedgerConfig) -> Self {
         let mut accounts = BTreeMap::new();
         accounts.insert(config.fee_sink.clone(), Account::new(XriqAmount::ZERO, 0));
-        Self { config, accounts }
+        Self {
+            config,
+            accounts,
+            authorized: BTreeSet::new(),
+        }
     }
 
     pub fn from_genesis(genesis: &GenesisConfig) -> Result<Self, GenesisConfigError> {
@@ -106,6 +117,39 @@ impl LedgerState {
             .collect()
     }
 
+    /// Whether `address` is in the authorized-wallet registry.
+    pub fn is_authorized(&self, address: &Address) -> bool {
+        self.authorized.contains(address)
+    }
+
+    /// The authorized wallets, in ascending (deterministic) address order.
+    pub fn authorized_wallets(&self) -> Vec<Address> {
+        self.authorized.iter().cloned().collect()
+    }
+
+    /// Add `address` to the registry. Idempotent: authorizing an already-authorized
+    /// wallet leaves the registry unchanged. Direct mutator used by the governance
+    /// apply path; authority gating lives at the node layers, not here (mirroring the
+    /// sender↔key binding, which is also a node concern).
+    pub fn authorize(&mut self, address: Address) {
+        self.authorized.insert(address);
+    }
+
+    /// Remove `address` from the registry. Idempotent: revoking a wallet that is not
+    /// authorized leaves the registry unchanged.
+    pub fn revoke(&mut self, address: &Address) {
+        self.authorized.remove(address);
+    }
+
+    /// The consensus state root committing to BOTH the account set and the
+    /// authorized-wallet registry. Every node computes the root through this method so
+    /// the registry is folded in identically everywhere. While the registry is empty
+    /// the root is byte-identical to the historical account-only root, so no existing
+    /// golden shifts.
+    pub fn state_root(&self) -> Hash32 {
+        xriq_crypto::ledger_state_root(&self.state_root_entries(), &self.authorized_wallets())
+    }
+
     pub fn apply_transaction(&mut self, tx: &Transaction) -> Result<(), LedgerError> {
         let sender = self
             .accounts
@@ -133,10 +177,28 @@ impl LedgerState {
 
         let mut next_accounts = self.accounts.clone();
         next_accounts.insert(tx.from.clone(), Account::new(sender_balance, sender_nonce));
-        credit_account(&mut next_accounts, &tx.to, tx.amount)?;
+
+        // Apply the action. A transfer moves `amount` to the recipient; a governance
+        // action moves no value (amount is validated to be zero) and instead mutates
+        // the authorized-wallet registry. Both pay the fee to the sink, and both the
+        // account and registry changes are staged and committed together, so a failure
+        // anywhere above this point leaves the ledger byte-for-byte unchanged.
+        let mut next_authorized = self.authorized.clone();
+        match &tx.action {
+            TxAction::Transfer => {
+                credit_account(&mut next_accounts, &tx.to, tx.amount)?;
+            }
+            TxAction::AuthorizeWallet { target } => {
+                next_authorized.insert(target.clone());
+            }
+            TxAction::RevokeWallet { target } => {
+                next_authorized.remove(target);
+            }
+        }
         credit_account(&mut next_accounts, &self.config.fee_sink, tx.fee)?;
 
         self.accounts = next_accounts;
+        self.authorized = next_authorized;
         Ok(())
     }
 }
@@ -193,6 +255,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(vec![1, 2, 3]),
             public_key: Vec::new(),
+            action: Default::default(),
         }
     }
 
@@ -465,6 +528,7 @@ mod tests {
             expires_at_height: Some(ledger.current_height() + 1),
             signature: SignatureBytes::new(vec![1, 2, 3]),
             public_key: Vec::new(),
+            action: Default::default(),
         })
     }
 
@@ -497,6 +561,7 @@ mod tests {
                 SignatureBytes::new(Vec::new())
             },
             public_key: Vec::new(),
+            action: Default::default(),
         }
     }
 
@@ -613,6 +678,280 @@ mod tests {
             let rb = b.apply_transaction(&tx);
             assert_eq!(ra, rb, "apply result differs at seed {i}");
             assert_eq!(a, b, "apply state differs at seed {i}");
+        }
+    }
+
+    // ---- Authorized-wallet registry: unit + property tests ----
+    //
+    // The registry is on-chain state mutated only by governance transactions
+    // (`AuthorizeWallet` / `RevokeWallet`). Authority gating lives at the node, so
+    // these tests exercise the ledger mechanics: the registry primitives, the
+    // governance apply path (valueless, fee-charging, atomic), and — critically for
+    // consensus — that an EMPTY registry produces a byte-identical state root to the
+    // historical account-only root, while a non-empty registry changes it.
+
+    // A self-addressed, valueless governance transaction from `from`. Mirrors the
+    // envelope the node accepts: `to == from`, `amount == 0`, a fee, and a signature.
+    fn governance_tx(from: Address, action: TxAction, fee: u128, nonce: u64) -> Transaction {
+        Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from: from.clone(),
+            to: from,
+            amount: XriqAmount::ZERO,
+            fee: XriqAmount::from_base_units(fee),
+            nonce,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(vec![1, 2, 3]),
+            public_key: Vec::new(),
+            action,
+        }
+    }
+
+    #[test]
+    fn registry_is_empty_by_default() {
+        let ledger = ledger();
+        assert!(ledger.authorized_wallets().is_empty());
+        assert!(!ledger.is_authorized(&address("alice")));
+    }
+
+    #[test]
+    fn authorize_is_idempotent_and_revoke_inverts_it() {
+        let mut ledger = ledger();
+        let alice = address("alice");
+
+        ledger.authorize(alice.clone());
+        let after_one = ledger.clone();
+        ledger.authorize(alice.clone()); // idempotent: authorizing again is a no-op
+        assert_eq!(ledger, after_one, "second authorize mutated the registry");
+        assert!(ledger.is_authorized(&alice));
+
+        ledger.revoke(&alice); // inverse of the (single) authorize
+        assert!(!ledger.is_authorized(&alice));
+        let after_revoke = ledger.clone();
+        ledger.revoke(&alice); // idempotent: revoking a non-member is a no-op
+        assert_eq!(ledger, after_revoke, "second revoke mutated the registry");
+    }
+
+    #[test]
+    fn governance_authorize_applies_and_charges_only_the_fee() {
+        let authority = address("chain");
+        let target = address("bobbb");
+        let mut ledger = ledger();
+        ledger.set_account(
+            authority.clone(),
+            Account::new(XriqAmount::from_base_units(100), 0),
+        );
+
+        let tx = governance_tx(
+            authority.clone(),
+            TxAction::AuthorizeWallet {
+                target: target.clone(),
+            },
+            2,
+            0,
+        );
+        ledger.apply_transaction(&tx).unwrap();
+
+        assert!(ledger.is_authorized(&target));
+        // Only the fee moved: sender debited the fee and nonce advanced; sink credited.
+        assert_eq!(
+            ledger.account(&authority),
+            Some(Account::new(XriqAmount::from_base_units(98), 1))
+        );
+        assert_eq!(
+            ledger.account(&fee_sink()),
+            Some(Account::new(XriqAmount::from_base_units(2), 0))
+        );
+    }
+
+    #[test]
+    fn governance_revoke_removes_from_registry() {
+        let authority = address("chain");
+        let target = address("bobbb");
+        let mut ledger = ledger();
+        ledger.set_account(
+            authority.clone(),
+            Account::new(XriqAmount::from_base_units(100), 0),
+        );
+        ledger.authorize(target.clone());
+
+        let tx = governance_tx(
+            authority.clone(),
+            TxAction::RevokeWallet {
+                target: target.clone(),
+            },
+            2,
+            0,
+        );
+        ledger.apply_transaction(&tx).unwrap();
+        assert!(!ledger.is_authorized(&target));
+    }
+
+    #[test]
+    fn governance_carrying_value_is_rejected_without_mutation() {
+        let authority = address("chain");
+        let mut ledger = ledger();
+        ledger.set_account(
+            authority.clone(),
+            Account::new(XriqAmount::from_base_units(100), 0),
+        );
+        let mut tx = governance_tx(
+            authority.clone(),
+            TxAction::AuthorizeWallet {
+                target: address("bobbb"),
+            },
+            2,
+            0,
+        );
+        tx.amount = XriqAmount::from_base_units(1);
+        let before = ledger.clone();
+        assert_eq!(
+            ledger.apply_transaction(&tx),
+            Err(LedgerError::Transaction(
+                TransactionValidationError::GovernanceMustBeValueless
+            ))
+        );
+        assert_eq!(ledger, before);
+    }
+
+    #[test]
+    fn governance_not_self_addressed_is_rejected_without_mutation() {
+        let authority = address("chain");
+        let mut ledger = ledger();
+        ledger.set_account(
+            authority.clone(),
+            Account::new(XriqAmount::from_base_units(100), 0),
+        );
+        let mut tx = governance_tx(
+            authority.clone(),
+            TxAction::AuthorizeWallet {
+                target: address("bobbb"),
+            },
+            2,
+            0,
+        );
+        tx.to = address("carol");
+        let before = ledger.clone();
+        assert_eq!(
+            ledger.apply_transaction(&tx),
+            Err(LedgerError::Transaction(
+                TransactionValidationError::GovernanceRecipientNotSelf
+            ))
+        );
+        assert_eq!(ledger, before);
+    }
+
+    #[test]
+    fn property_registry_root_stability() {
+        for i in 0..20_000u64 {
+            let mut rng = FuzzRng::new(0xA557_0217_ED00_0001 ^ i);
+            let ledger = fuzz_ledger(&mut rng);
+
+            // Empty registry ⇒ byte-identical to the historical account-only root, so
+            // no chain that never authorizes a wallet sees its state root shift.
+            assert_eq!(
+                ledger.state_root(),
+                xriq_crypto::account_state_root(&ledger.state_root_entries()),
+                "empty-registry root diverged from account-only root at seed {i}"
+            );
+
+            // Authorizing a wallet changes the root; revoking it restores the root
+            // (registry inverse ⇒ root inverse).
+            let mut with_registry = ledger.clone();
+            let target = address(ACCOUNT_LABELS[rng.below(ACCOUNT_LABELS.len() as u64) as usize]);
+            with_registry.authorize(target.clone());
+            assert!(with_registry.is_authorized(&target));
+            assert_ne!(
+                with_registry.state_root(),
+                ledger.state_root(),
+                "non-empty registry did not change the root at seed {i}"
+            );
+            with_registry.revoke(&target);
+            assert_eq!(
+                with_registry.state_root(),
+                ledger.state_root(),
+                "revoke did not restore the empty-registry root at seed {i}"
+            );
+        }
+    }
+
+    #[test]
+    fn property_governance_apply_is_atomic_and_moves_only_the_registry() {
+        for i in 0..20_000u64 {
+            let mut rng = FuzzRng::new(0x60FE_0000_0BAD_0001 ^ i);
+            let mut ledger = fuzz_ledger(&mut rng);
+
+            let from = address(ACCOUNT_LABELS[rng.below(ACCOUNT_LABELS.len() as u64) as usize]);
+            let target = address(ACCOUNT_LABELS[rng.below(ACCOUNT_LABELS.len() as u64) as usize]);
+            let action = if rng.bool() {
+                TxAction::AuthorizeWallet {
+                    target: target.clone(),
+                }
+            } else {
+                TxAction::RevokeWallet {
+                    target: target.clone(),
+                }
+            };
+            // Fee spans below/above min_fee, and the nonce is sometimes wrong, so both
+            // the success and the failure/atomicity paths are exercised.
+            let fee = rng.below(6) as u128;
+            let nonce = if rng.bool() {
+                ledger
+                    .account(&from)
+                    .map(|account| account.nonce)
+                    .unwrap_or(0)
+            } else {
+                rng.below(60)
+            };
+            let tx = governance_tx(from.clone(), action.clone(), fee, nonce);
+
+            let before = ledger.clone();
+            let supply_before = total_supply(&ledger);
+
+            match ledger.apply_transaction(&tx) {
+                Ok(()) => {
+                    // The registry reflects the action exactly.
+                    match &action {
+                        TxAction::AuthorizeWallet { target } => {
+                            assert!(
+                                ledger.is_authorized(target),
+                                "authorize not applied at seed {i}"
+                            )
+                        }
+                        TxAction::RevokeWallet { target } => {
+                            assert!(
+                                !ledger.is_authorized(target),
+                                "revoke not applied at seed {i}"
+                            )
+                        }
+                        TxAction::Transfer => unreachable!("governance action only"),
+                    }
+                    // Governance moves no value — the fee merely relocates to the sink.
+                    assert_eq!(
+                        total_supply(&ledger),
+                        supply_before,
+                        "supply changed on governance apply at seed {i}"
+                    );
+                    // Only the sender's nonce advanced, by exactly one.
+                    let sender_after = ledger.account(&from).expect("sender exists on success");
+                    let sender_before = before.account(&from).expect("a successful sender existed");
+                    assert_eq!(
+                        sender_after.nonce,
+                        sender_before.nonce + 1,
+                        "sender nonce not +1 at seed {i}"
+                    );
+                }
+                Err(_) => {
+                    // A rejected governance transaction mutates nothing — including the
+                    // registry (atomicity across accounts AND the allowlist).
+                    assert_eq!(
+                        ledger, before,
+                        "state mutated on failed governance apply at seed {i}"
+                    );
+                }
+            }
         }
     }
 }

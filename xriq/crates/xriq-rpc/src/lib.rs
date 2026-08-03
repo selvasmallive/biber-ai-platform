@@ -7,9 +7,7 @@ use xriq_core::{
     Address, Hash32, Transaction, TransactionValidationContext, TransactionValidationError,
     XriqAmount,
 };
-use xriq_crypto::{
-    account_state_root, transaction_hash, SignatureVerificationError, TestOnlySignatureVerifier,
-};
+use xriq_crypto::{transaction_hash, SignatureVerificationError, TestOnlySignatureVerifier};
 use xriq_ledger::LedgerState;
 use xriq_mempool::{Mempool, MempoolError};
 
@@ -92,7 +90,7 @@ impl RpcService {
             chain_id: self.ledger.config().chain_id.clone(),
             current_height: self.ledger.current_height(),
             latest_block_hash: self.latest_block_hash,
-            state_root: account_state_root(&self.ledger.state_root_entries()),
+            state_root: self.ledger.state_root(),
             pending_transactions: self.mempool.len(),
         }
     }
@@ -204,7 +202,7 @@ impl RpcService {
 mod tests {
     use super::*;
     use xriq_core::SignatureBytes;
-    use xriq_crypto::{account_state_root, test_only_signature_for_hash, transaction_signing_hash};
+    use xriq_crypto::{test_only_signature_for_hash, transaction_signing_hash};
     use xriq_ledger::{Account, LedgerConfig};
     use xriq_mempool::MempoolConfig;
 
@@ -233,6 +231,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(Vec::new()),
             public_key: Vec::new(),
+            action: Default::default(),
         };
         tx.signature = test_only_signature_for_hash(transaction_signing_hash(&tx));
         tx
@@ -267,7 +266,7 @@ mod tests {
                 chain_id: "xriq-devnet".to_string(),
                 current_height: 10,
                 latest_block_hash: hash(9),
-                state_root: account_state_root(&service.ledger.state_root_entries()),
+                state_root: service.ledger.state_root(),
                 pending_transactions: 0,
             }
         );
@@ -526,7 +525,7 @@ mod tests {
             assert_eq!(status.latest_block_hash, latest_hash, "tip at {i}");
             assert_eq!(
                 status.state_root,
-                account_state_root(&service.ledger().state_root_entries()),
+                service.ledger().state_root(),
                 "state_root at {i}"
             );
             assert_eq!(
