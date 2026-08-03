@@ -2,6 +2,18 @@
 
 Last updated: 2026-06-15
 
+> **CONTROLLING-POLICY NOTE (2026-08-02).** This file is a running session log. Where
+> earlier entries below describe an independent third-party security audit and/or
+> legal review as a "hard gate" or a prerequisite for value-bearing use, that wording
+> is **superseded** by the current controlling policy: `docs/XRIQ_LEGAL_RISK_REDUCTION.md`
+> §1 and `docs/SECURITY_REVIEW.md` §1 (both Version 2, 2026-08-02) frame independent
+> security audit and legal review as **recommended risk-reduction measures, not
+> absolute engineering prerequisites**, and place deployment-phase progression under
+> Network Governance Authority (NGA) phase authorization. `XRIQ_LEGAL_RISK_REDUCTION.md`
+> §1 controls where any other project document conflicts. As a factual matter, no such
+> audit or legal review has been performed, and XRIQ remains test-only, valueless, and
+> undeployed.
+
 ## Current Goal
 
 Phase 1 goal is complete: XRIQ private-devnet RC1 is tagged and pushed. Phase
@@ -13903,7 +13915,10 @@ BOUNDARY NOTE: the user asked to "move to next phases even it is for production.
 
 2026-08-02 -- AUTHORIZED-WALLET REGISTRY (handoff item 1) -- DONE, on branch
 xriq-authorized-wallet-registry, then ff-merged to main. TEST-ONLY and VALUELESS
-throughout; the audit/legal gates are untouched and remain NOT satisfied.
+throughout; this changes no deployment-phase posture. Per the controlling policy
+(XRIQ_LEGAL_RISK_REDUCTION.md §1 / SECURITY_REVIEW.md §1) an independent security audit
+and legal review are recommended, not prerequisites; as a factual matter neither has
+been performed.
 
 WHAT: an on-chain authorized-wallet allowlist in ledger state, mutated by a new
 authority-gated governance transaction, folded into the consensus state root with

@@ -176,9 +176,12 @@ address of its own signer, not a fixed literal.
 
 - No change to the devnet account model or its fixtures.
 - No custom cryptography; reuse `ed25519_address` + the existing scheme seam.
-- This does not authorize value-bearing use: it closes finding 1, but the independent
-  human security audit and legal review remain hard gates
-  (`docs/XRIQ_LEGAL_RISK_REDUCTION.md`).
+- This does not authorize value-bearing use: it closes finding 1, but deployment-phase
+  progression remains governed by Network Governance Authority phase authorization. An
+  independent human security audit and legal review are recommended risk-reduction
+  measures, not absolute engineering prerequisites, per the controlling policy in
+  `docs/XRIQ_LEGAL_RISK_REDUCTION.md` §1 and `docs/SECURITY_REVIEW.md` §1 (neither has
+  been performed).
 
 ## First bounded step (when implementation starts)
 

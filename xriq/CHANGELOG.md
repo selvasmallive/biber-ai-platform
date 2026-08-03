@@ -5,8 +5,12 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project fol
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 > **TEST-ONLY AND VALUELESS.** XRIQ is an experimental, undeployed, valueless test
-> chain. Nothing here authorizes value-bearing use. An independent third-party
-> security audit and a legal review remain hard gates before any such use.
+> chain, and nothing here authorizes value-bearing use. Deployment-phase progression
+> is governed by Network Governance Authority phase authorization; an independent
+> third-party security audit and legal review are recommended risk-reduction measures,
+> **not** absolute engineering prerequisites (see `docs/XRIQ_LEGAL_RISK_REDUCTION.md`
+> §1 and `docs/SECURITY_REVIEW.md` §1). As a matter of fact, neither has been
+> performed.
 
 ## [Unreleased]
 
@@ -15,8 +19,8 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project fol
 Added an on-chain authorized-wallet allowlist to ledger state, mutated by a new
 authority-gated governance transaction and folded into the consensus state root
 without shifting any existing golden. Still TEST-ONLY and VALUELESS: the registry
-carries no value, governance transactions move no units, and nothing here changes the
-outstanding audit/legal gates. The suite grew from 379 to 394 workspace tests, all
+carries no value, governance transactions move no units, and nothing here changes
+XRIQ's deployment-phase posture. The suite grew from 379 to 394 workspace tests, all
 deterministic (seeded, no new dependencies) and each new suite teeth-checked.
 
 #### Added

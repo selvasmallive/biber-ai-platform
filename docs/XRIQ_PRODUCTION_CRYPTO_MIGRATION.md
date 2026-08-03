@@ -340,8 +340,11 @@ new key-handling anti-patterns.
    round-trip confirms the v2 API (32-byte pubkey, 64-byte signature, verify=true —
    standard RFC 8032 Ed25519 that `ed25519_dalek` accepts). NOT browser-functionally
    tested end-to-end (needs a live server + browser). **Phase 5 complete** (pending
-   a live browser smoke test). Then Phase 6 (AI-assisted security review — hard gate,
-   before any value-bearing use; legal review remains a separate gate).
+   a live browser smoke test). Then Phase 6 (AI-assisted security review). Per the
+   controlling policy (`docs/XRIQ_LEGAL_RISK_REDUCTION.md` §1 / `docs/SECURITY_REVIEW.md`
+   §1), an independent security review and legal review are recommended risk-reduction
+   measures, not absolute prerequisites; deployment-phase progression is gated by NGA
+   phase authorization.
    **(5a — wallet client-side signing) DONE.** `xriq-wallet` `build_test_transfer`
    now delegates to a new `build_transfer_with_signer(request, &SchemeSigner)` that
    signs the transaction locally via the signer; a `--signing-key-file <path>` flag
@@ -401,5 +404,8 @@ new key-handling anti-patterns.
 - No custom cryptography; only audited crates.
 - No key custody (server or browser) — non-custodial invariant preserved.
 - This does not authorize a value-bearing mainnet: real crypto is *necessary but
-  not sufficient*; legal review (`docs/XRIQ_LEGAL_COUNSEL_QUESTIONS.md`) and the
-  independent security audit remain hard gates.
+  not sufficient*. Deployment-phase progression is governed by NGA phase authorization;
+  legal review (`docs/XRIQ_LEGAL_COUNSEL_QUESTIONS.md`) and an independent security
+  audit are recommended risk-reduction measures, not absolute prerequisites, per
+  `docs/XRIQ_LEGAL_RISK_REDUCTION.md` §1 and `docs/SECURITY_REVIEW.md` §1 (neither has
+  been performed).
