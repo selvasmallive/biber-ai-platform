@@ -14079,3 +14079,48 @@ at the top of this file.
 NEXT: item 3 (extend hardening / property+fuzz on the new co-signing + swap/registry
 surfaces). A natural follow-on: make the co-signing mechanism the default for swaps under
 an ed25519 devnet config in an end-to-end node test.
+
+---
+
+2026-08-03 -- END-TO-END ED25519 CO-SIGNED SWAP + GENESIS COUNTER-ASSET -- DONE, on
+branch xriq-cosigned-swap (same branch as the co-signing work; both ff-merged to local
+main). TEST-ONLY and VALUELESS; no change to deployment-phase posture.
+
+WHAT: proved the co-signed swap works end to end under the REAL ed25519 scheme across two
+nodes, and added genesis seeding for the valueless counter-asset.
+
+DESIGN:
+- xriq-core: GenesisConfig gained counter_asset_accounts: Vec<(Address, u128)> +
+  with_counter_asset(address, balance). Only the two constructors needed updating (no
+  literal GenesisConfig constructions elsewhere).
+- xriq-ledger: from_genesis seeds counter balances via set_counter_balance.
+- xriq-node: genesis_spec_hash appends a domain-separated counter-asset section ONLY when
+  non-empty (GENESIS_SPEC_COUNTER_ASSET_DOMAIN), so the private-devnet spec-hash golden is
+  unchanged (verified: full suite green).
+- Test wiring lesson: to keep a producer and a follower in lockstep across multiple
+  produced blocks under ed25519, the producer must sign each header with its ed25519
+  producer signer DURING production (set node.with_producer_signer(SchemeSigner::ed25519(
+  authority_key)) and use produce_next_block_with_private_devnet_signature) -- re-signing
+  the header AFTER produce_next_block_with_canonical_roots changes the block hash, so the
+  producer's tip and the follower's tip diverge (Header(WrongPreviousHash) on the next
+  block). Timestamps must strictly increase per block.
+
+TESTS: 404 -> 406 workspace, all green; fmt clean; no new clippy warnings. New xriq-node:
+ed25519_cosigned_swap_flows_through_produce_and_import (two distinct keys; alice from-signs,
+bob counterparty-signs; submit->produce->import; producer AND follower converge on native +
+counter-asset moved, fee to sink) and ed25519_swap_cosigned_by_the_wrong_counterparty_key_
+is_rejected (impostor key that does not derive `to` -> UnauthorizedSwapCounterparty). Teeth-
+check I: disabling genesis counter-asset seeding fails the end-to-end swap with
+CounterAssetUnderflow; reverted.
+
+READINESS NOTE (unchanged): end-to-end co-signed swaps working under ed25519 is a genuine
+engineering milestone for the swap's consent + cross-node consistency, but XRIQ remains
+test-only, valueless, and undeployed. Default sig scheme is still test-only; no production
+key custody; no independent security audit or legal review performed. A document edit does
+not change legal or technical reality. See handoff.md deployment-status section and the
+controlling-policy note at the top of this file.
+
+NEXT: item 3 hardening (fuzz the co-signing codec + swap/registry surfaces; property-test
+the counterparty binding). Optionally wire an ed25519 devnet config that makes co-signing
+the default path, and add genesis registry (authorized-wallet) seeding to complement the
+genesis counter-asset seeding.

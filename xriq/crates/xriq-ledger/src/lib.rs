@@ -96,6 +96,9 @@ impl LedgerState {
                 Account::new(account.balance, account.nonce),
             );
         }
+        for (address, balance) in &genesis.counter_asset_accounts {
+            ledger.set_counter_balance(address.clone(), *balance);
+        }
         Ok(ledger)
     }
 

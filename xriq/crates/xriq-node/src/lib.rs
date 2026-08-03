@@ -3933,6 +3933,9 @@ fn run_peer_peers_command(args: &[String]) -> Result<NodeRunnerOutput, NodeRunne
 
 const TESTNET_GENESIS_WARNING: &str = "TEST-ONLY public testnet: native units are valueless test units with no monetary value; not for production, sale, or investment.";
 const GENESIS_SPEC_HASH_DOMAIN: &[u8] = b"xriq-genesis-spec:v1";
+// Domain tag opening the optional counter-asset allocation section of the genesis spec
+// hash, appended only when at least one allocation exists (preserving existing goldens).
+const GENESIS_SPEC_COUNTER_ASSET_DOMAIN: &[u8] = b"xriq-genesis-spec:counter-asset:v1";
 
 fn push_len_prefixed(out: &mut Vec<u8>, data: &[u8]) {
     out.extend_from_slice(&(data.len() as u64).to_le_bytes());
@@ -3959,6 +3962,16 @@ fn genesis_spec_hash(genesis: &GenesisConfig) -> Hash32 {
         push_len_prefixed(&mut bytes, account.address.as_str().as_bytes());
         bytes.extend_from_slice(&account.balance.base_units().to_le_bytes());
         bytes.extend_from_slice(&account.nonce.to_le_bytes());
+    }
+    // Counter-asset allocations are appended ONLY when present, so a genesis without any
+    // (every existing chain) keeps a byte-identical spec hash — no golden shifts.
+    if !genesis.counter_asset_accounts.is_empty() {
+        bytes.extend_from_slice(GENESIS_SPEC_COUNTER_ASSET_DOMAIN);
+        bytes.extend_from_slice(&(genesis.counter_asset_accounts.len() as u64).to_le_bytes());
+        for (address, balance) in &genesis.counter_asset_accounts {
+            push_len_prefixed(&mut bytes, address.as_str().as_bytes());
+            bytes.extend_from_slice(&balance.to_le_bytes());
+        }
     }
     xriq_crypto::digest(&bytes)
 }
@@ -13554,6 +13567,225 @@ mod tests {
             ))
         );
         assert_eq!(test_only_follower.store().len(), 0);
+    }
+
+    // ---- End-to-end Ed25519 co-signed swap (real two-key consent across nodes) ----
+
+    // Produce the next block on `producer` (with canonical roots), re-sign its header
+    // with the Ed25519 authority key, and import it into `follower` so both nodes stay
+    // in lockstep. Returns nothing; panics on any failure.
+    fn ed25519_produce_and_import(
+        producer: &mut XriqNode<InMemoryChainStore>,
+        follower: &mut XriqNode<InMemoryChainStore>,
+        timestamp_ms: u64,
+    ) {
+        // The producer signs the header with its Ed25519 producer signer DURING
+        // production, so the producer's stored block and the follower's imported block
+        // are byte-identical (same hash) and the two chains stay in lockstep.
+        let produced = producer
+            .produce_next_block_with_private_devnet_signature(timestamp_ms, 0)
+            .unwrap();
+        follower
+            .import_block_with_canonical_hash(produced.block)
+            .unwrap();
+    }
+
+    // An Ed25519-signed governance transaction from the authority (self-addressed,
+    // valueless), signed by the authority key so it satisfies the sender↔key binding.
+    fn ed25519_authority_governance(
+        authority_signer: &SchemeSigner,
+        authority: &Address,
+        action: TxAction,
+        fee: u128,
+        nonce: u64,
+    ) -> Transaction {
+        let mut tx = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from: authority.clone(),
+            to: authority.clone(),
+            amount: XriqAmount::ZERO,
+            fee: XriqAmount::from_base_units(fee),
+            nonce,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
+            action,
+        };
+        authority_signer.sign_transaction(&mut tx);
+        tx
+    }
+
+    #[test]
+    fn ed25519_cosigned_swap_flows_through_produce_and_import() {
+        use xriq_crypto::{ed25519_public_key, ed25519_signing_key_from_seed};
+
+        let authority_key = ed25519_signing_key_from_seed([8u8; 32]);
+        let authority = ed25519_address(&ed25519_public_key(&authority_key));
+        let alice_key = ed25519_signing_key_from_seed([7u8; 32]);
+        let alice = ed25519_address(&ed25519_public_key(&alice_key));
+        let bob_key = ed25519_signing_key_from_seed([5u8; 32]);
+        let bob = ed25519_address(&ed25519_public_key(&bob_key));
+
+        // Genesis: key-derived authority, all three funded in native, and bob seeded with
+        // the (valueless) counter-asset so the swap has something to move.
+        let mut genesis = GenesisConfig::private_devnet();
+        genesis.authority = authority.clone();
+        genesis.authority_pubkey = ed25519_public_key(&authority_key);
+        let genesis = genesis
+            .with_account(authority.clone(), XriqAmount::from_base_units(100), 0)
+            .with_account(alice.clone(), XriqAmount::from_base_units(100), 0)
+            .with_account(bob.clone(), XriqAmount::from_base_units(100), 0)
+            .with_counter_asset(bob.clone(), 1_000);
+        let make_node = || {
+            XriqNode::from_genesis(&genesis, InMemoryChainStore::new())
+                .unwrap()
+                .with_signature_scheme(SignatureSchemeKind::Ed25519)
+                .with_producer_signer(SchemeSigner::ed25519(authority_key.clone()))
+        };
+        let mut producer = make_node();
+        let mut follower = make_node();
+        let authority_signer = SchemeSigner::ed25519(authority_key.clone());
+
+        // Authorize alice then bob (each governance tx applied in its own block, imported
+        // into the follower so both nodes agree on the registry).
+        for (nonce, target) in [(0u64, alice.clone()), (1u64, bob.clone())] {
+            producer
+                .submit_transaction_with_canonical_hash(ed25519_authority_governance(
+                    &authority_signer,
+                    &authority,
+                    TxAction::AuthorizeWallet { target },
+                    2,
+                    nonce,
+                ))
+                .unwrap();
+            ed25519_produce_and_import(&mut producer, &mut follower, 1_000 * (nonce + 1));
+        }
+        assert!(producer.ledger().is_authorized(&alice) && producer.ledger().is_authorized(&bob));
+        assert!(follower.ledger().is_authorized(&alice) && follower.ledger().is_authorized(&bob));
+
+        // A genuine two-key co-signed swap: alice (from) sends 10 native to bob; bob
+        // (counterparty) returns 30 counter-asset — and MUST sign to consent.
+        let mut swap = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from: alice.clone(),
+            to: bob.clone(),
+            amount: XriqAmount::from_base_units(10),
+            fee: XriqAmount::from_base_units(2),
+            nonce: 0,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
+            action: TxAction::Swap {
+                counter_amount: 30,
+                counterparty_public_key: Vec::new(),
+                counterparty_signature: SignatureBytes::new(Vec::new()),
+            },
+        };
+        cosign_swap(
+            &mut swap,
+            &SchemeSigner::ed25519(alice_key.clone()),
+            &SchemeSigner::ed25519(bob_key.clone()),
+        );
+
+        // Real consent is accepted at submit, produced, and imported into the follower.
+        producer
+            .submit_transaction_with_canonical_hash(swap)
+            .unwrap();
+        ed25519_produce_and_import(&mut producer, &mut follower, 3_000);
+
+        // Both nodes converge on the same post-swap state: native moved one way, the
+        // counter-asset the other, fee to the sink.
+        for node in [&producer, &follower] {
+            assert_eq!(
+                node.ledger().account(&alice).unwrap().balance,
+                XriqAmount::from_base_units(88) // 100 - 10 - 2 fee
+            );
+            assert_eq!(
+                node.ledger().account(&bob).unwrap().balance,
+                XriqAmount::from_base_units(110) // 100 + 10
+            );
+            assert_eq!(node.ledger().counter_balance(&alice), 30);
+            assert_eq!(node.ledger().counter_balance(&bob), 970); // 1000 - 30
+        }
+    }
+
+    #[test]
+    fn ed25519_swap_cosigned_by_the_wrong_counterparty_key_is_rejected() {
+        use xriq_crypto::{ed25519_public_key, ed25519_signing_key_from_seed};
+
+        let authority_key = ed25519_signing_key_from_seed([8u8; 32]);
+        let authority = ed25519_address(&ed25519_public_key(&authority_key));
+        let alice_key = ed25519_signing_key_from_seed([7u8; 32]);
+        let alice = ed25519_address(&ed25519_public_key(&alice_key));
+        let bob_key = ed25519_signing_key_from_seed([5u8; 32]);
+        let bob = ed25519_address(&ed25519_public_key(&bob_key));
+        // An impostor key that is NOT bob's.
+        let impostor_key = ed25519_signing_key_from_seed([42u8; 32]);
+
+        let mut genesis = GenesisConfig::private_devnet();
+        genesis.authority = authority.clone();
+        genesis.authority_pubkey = ed25519_public_key(&authority_key);
+        let genesis = genesis
+            .with_account(authority.clone(), XriqAmount::from_base_units(100), 0)
+            .with_account(alice.clone(), XriqAmount::from_base_units(100), 0)
+            .with_account(bob.clone(), XriqAmount::from_base_units(100), 0)
+            .with_counter_asset(bob.clone(), 1_000);
+        let authority_signer = SchemeSigner::ed25519(authority_key);
+        let mut node = XriqNode::from_genesis(&genesis, InMemoryChainStore::new())
+            .unwrap()
+            .with_signature_scheme(SignatureSchemeKind::Ed25519)
+            .with_producer_signer(authority_signer.clone());
+        let mut follower = XriqNode::from_genesis(&genesis, InMemoryChainStore::new())
+            .unwrap()
+            .with_signature_scheme(SignatureSchemeKind::Ed25519)
+            .with_producer_signer(authority_signer.clone());
+        for (nonce, target) in [(0u64, alice.clone()), (1u64, bob.clone())] {
+            node.submit_transaction_with_canonical_hash(ed25519_authority_governance(
+                &authority_signer,
+                &authority,
+                TxAction::AuthorizeWallet { target },
+                2,
+                nonce,
+            ))
+            .unwrap();
+            ed25519_produce_and_import(&mut node, &mut follower, 1_000 * (nonce + 1));
+        }
+
+        // A swap "co-signed" by an impostor instead of bob: the counterparty key does not
+        // derive `to` (bob), so consent is forged and the swap is rejected.
+        let mut swap = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from: alice.clone(),
+            to: bob.clone(),
+            amount: XriqAmount::from_base_units(10),
+            fee: XriqAmount::from_base_units(2),
+            nonce: 0,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
+            action: TxAction::Swap {
+                counter_amount: 30,
+                counterparty_public_key: Vec::new(),
+                counterparty_signature: SignatureBytes::new(Vec::new()),
+            },
+        };
+        cosign_swap(
+            &mut swap,
+            &SchemeSigner::ed25519(alice_key),
+            &SchemeSigner::ed25519(impostor_key),
+        );
+
+        assert_eq!(
+            node.submit_transaction_with_canonical_hash(swap),
+            Err(NodeError::UnauthorizedSwapCounterparty)
+        );
+        assert!(next_transactions(&node).is_empty());
     }
 
     #[test]

@@ -81,6 +81,11 @@ pub struct GenesisConfig {
     pub mempool_max_transactions: usize,
     pub max_transactions_per_block: usize,
     pub accounts: Vec<GenesisAccount>,
+    /// Genesis allocations of the test-only, clearly-valueless counter-asset (address →
+    /// balance). Empty by default; when empty it contributes nothing to the genesis
+    /// spec hash or the state root, so existing goldens are unaffected. Distinct from
+    /// the native unit; used to seed swap counterparties on a devnet.
+    pub counter_asset_accounts: Vec<(Address, u128)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,6 +114,7 @@ impl GenesisConfig {
             mempool_max_transactions: PRIVATE_DEVNET_MEMPOOL_MAX_TRANSACTIONS,
             max_transactions_per_block: PRIVATE_DEVNET_MAX_TRANSACTIONS_PER_BLOCK,
             accounts: Vec::new(),
+            counter_asset_accounts: Vec::new(),
         }
     }
 
@@ -129,6 +135,7 @@ impl GenesisConfig {
             mempool_max_transactions: PUBLIC_TESTNET_MEMPOOL_MAX_TRANSACTIONS,
             max_transactions_per_block: PUBLIC_TESTNET_MAX_TRANSACTIONS_PER_BLOCK,
             accounts: Vec::new(),
+            counter_asset_accounts: Vec::new(),
         }
         .with_account(
             Address::parse(PUBLIC_TESTNET_FAUCET_ADDRESS)
@@ -141,6 +148,13 @@ impl GenesisConfig {
     pub fn with_account(mut self, address: Address, balance: XriqAmount, nonce: u64) -> Self {
         self.accounts
             .push(GenesisAccount::new(address, balance, nonce));
+        self
+    }
+
+    /// Seed a genesis balance of the test-only counter-asset for `address`. Valueless;
+    /// used to give a swap counterparty something to swap on a devnet.
+    pub fn with_counter_asset(mut self, address: Address, balance: u128) -> Self {
+        self.counter_asset_accounts.push((address, balance));
         self
     }
 

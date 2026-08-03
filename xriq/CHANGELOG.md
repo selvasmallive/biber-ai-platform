@@ -14,6 +14,30 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project fol
 
 ## [Unreleased]
 
+### End-to-end Ed25519 co-signed swap + genesis counter-asset (test-only)
+
+Proved the co-signed swap works end to end under the real Ed25519 scheme across two
+nodes, and added genesis seeding for the (valueless) counter-asset so a swap has
+something to move on a devnet. Still test-only and valueless.
+
+#### Added
+
+- **Genesis counter-asset allocations** — `GenesisConfig.counter_asset_accounts` +
+  `with_counter_asset(address, balance)`, seeded by `LedgerState::from_genesis`. Empty
+  by default and, when empty, contributes nothing to the `genesis_spec_hash` or the
+  state root, so every existing golden is unchanged (the private-devnet spec-hash golden
+  is unaffected).
+
+#### Tests
+
+- `xriq-node`: an end-to-end Ed25519 test drives a genuine two-key co-signed swap
+  (distinct sender and counterparty keys) through submit → produce → import across a
+  producer and a follower node; both converge on the same post-swap state (native and
+  counter-asset moved, fee to the sink). A companion test rejects a swap "co-signed" by
+  an impostor key that does not derive `to` (`UnauthorizedSwapCounterparty`).
+  Teeth-checked (disabling genesis counter-asset seeding fails the end-to-end swap with
+  `CounterAssetUnderflow`; reverted).
+
 ### Counterparty consent for swaps — co-signed swaps (test-only)
 
 Closed the swap's counterparty-consent gap: a `TxAction::Swap` is now **co-signed** —
