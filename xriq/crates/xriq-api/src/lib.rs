@@ -842,6 +842,7 @@ pub fn verify_signed_submit_envelope_preview(
                 expires_at_height: Some(expires_at_height),
                 signature: SignatureBytes::new(ed25519_signature_bytes.clone()),
                 public_key: public_key_bytes.clone(),
+                action: Default::default(),
             };
             hash_hex(transaction_hash(&preliminary))
         }
@@ -893,6 +894,7 @@ pub fn verify_signed_submit_envelope_preview(
         expires_at_height: Some(expires_at_height),
         signature: SignatureBytes::new(Vec::new()),
         public_key: public_key_bytes,
+        action: Default::default(),
     };
     let signing_hash = xriq_crypto::transaction_signing_hash(&transaction);
     let expected_signing_hash = hash_hex(signing_hash);
@@ -1025,6 +1027,7 @@ pub fn prepare_signed_submit_signing_hash(
         expires_at_height: Some(expires_at_height),
         signature: SignatureBytes::new(Vec::new()),
         public_key,
+        action: Default::default(),
     };
     Ok(SignedSubmitPrepareOk {
         endpoint: SIGNED_SUBMIT_ENDPOINT,
@@ -2233,6 +2236,7 @@ fn parse_pending_mempool_entry(
         expires_at_height,
         signature: SignatureBytes::new(signature),
         public_key,
+        action: Default::default(),
     };
     let computed_hash = hash_hex(transaction_hash(&transaction));
     if computed_hash != tx_hash {
@@ -3954,6 +3958,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(Vec::new()),
             public_key: Vec::new(),
+            action: Default::default(),
         };
         transaction.signature =
             test_only_signature_for_hash(transaction_signing_hash(&transaction));
@@ -4368,6 +4373,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(Vec::new()),
             public_key: pubkey.to_vec(),
+            action: Default::default(),
         };
         let signing_hash = transaction_signing_hash(&tx);
         tx.signature = ed25519_sign_hash(&key, signing_hash);
@@ -4433,6 +4439,7 @@ mod tests {
             expires_at_height: Some(100),
             signature: SignatureBytes::new(Vec::new()),
             public_key: pubkey.to_vec(),
+            action: Default::default(),
         };
         let attack_signing_hash = transaction_signing_hash(&attack_tx);
         attack_tx.signature = ed25519_sign_hash(&key, attack_signing_hash);
@@ -4519,6 +4526,7 @@ mod tests {
                 expires_at_height: Some(100),
                 signature: SignatureBytes::new(Vec::new()),
                 public_key: Vec::new(),
+                action: Default::default(),
             };
             hash_hex(transaction_signing_hash(&tx))
         };
@@ -4546,6 +4554,7 @@ mod tests {
                 expires_at_height: Some(100),
                 signature: SignatureBytes::new(Vec::new()),
                 public_key: pubkey.to_vec(),
+                action: Default::default(),
             };
             hash_hex(transaction_signing_hash(&tx))
         };

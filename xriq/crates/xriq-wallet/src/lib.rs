@@ -459,6 +459,7 @@ pub fn build_transfer_with_signer(
         expires_at_height: request.expires_at_height,
         signature: SignatureBytes::new(Vec::new()),
         public_key: Vec::new(),
+        action: Default::default(),
     };
     signer.sign_transaction(&mut transaction);
     TransferDraft {
