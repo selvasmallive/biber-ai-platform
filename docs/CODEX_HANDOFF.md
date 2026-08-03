@@ -14124,3 +14124,52 @@ NEXT: item 3 hardening (fuzz the co-signing codec + swap/registry surfaces; prop
 the counterparty binding). Optionally wire an ed25519 devnet config that makes co-signing
 the default path, and add genesis registry (authorized-wallet) seeding to complement the
 genesis counter-asset seeding.
+
+---
+
+2026-08-03 -- ITEM-3 HARDENING + GENESIS SEEDING + FULL COUNTERPARTY COVERAGE -- DONE, on
+local main (small ff-merged branches). TEST-ONLY and VALUELESS throughout. This closes the
+in-bounds engineering for the registry/swap/co-signing feature set; see the boundary note
+below.
+
+WHAT SHIPPED THIS ROUND:
+- Hardening: xriq-storage block-codec fuzz now generates ALL TxAction variants (governance
+  target; swap counter_amount + counterparty key + signature), so the round-trip +
+  canonical-encoding fuzz cover every action-codec path. xriq-crypto property
+  property_cosigned_swap_rejects_any_tamper (400 seeded ed25519 swaps: valid co-sig
+  verifies both sides; any signed-field tamper breaks >=1 signature). Teeth-checked
+  (dropping counter_amount from the co-signing preimage fails it).
+- Genesis seeding (symmetric): GenesisConfig.counter_asset_accounts / authorized_wallets +
+  with_counter_asset / with_authorized_wallet; seeded by LedgerState::from_genesis; folded
+  into genesis_spec_hash ONLY when non-empty (private-devnet spec-hash golden unchanged;
+  only the two constructors needed updating -- no literal GenesisConfig constructions).
+- Counterparty co-signature enforcement now TESTED AT EVERY LAYER: submit
+  (submit_rejects_swap_with_invalid_counterparty_signature; ed25519 wrong-key ->
+  UnauthorizedSwapCounterparty), block import
+  (import_rejects_block_with_forged_swap_counterparty_atomically, atomic), and indexer
+  replay (replay_rejects_swap_with_invalid_counterparty_signature). Plus the end-to-end
+  ed25519 two-node swap and the crypto tamper property.
+
+TESTS: now 410 workspace tests, all green; fmt clean; clippy adds ZERO new warnings (same 5
+pre-existing api/wallet lints). Every new fuzz/property suite teeth-checked.
+
+BOUNDARY REACHED -- ONLY PRODUCTION / REAL-VALUE STEPS REMAIN (none of which an assistant
+should perform; they are the owner's + qualified professionals' domain):
+- Production signature scheme by DEFAULT (ed25519 instead of the test-only scheme) -- this
+  is the production-crypto migration, a production step, not a test-only one.
+- Real key custody / KMS (no keys in source; gitignored key files or a KMS).
+- Deployment of value-bearing infrastructure (terraform apply / gcloud / cloud mutations).
+- Assigning the token/counter-asset any real value.
+- Independent third-party security audit (recommended, not a hard prerequisite per the
+  controlling policy, but NOT performed).
+- Legal / regulatory review (AML, sanctions, securities, money transmission, etc.) --
+  external obligations that apply regardless of document wording; NOT performed.
+
+The test-only protocol engineering for authorized-wallet registry + both-parties-approved
+counter-asset swap + co-signed swaps (counterparty consent) is complete and comprehensively
+tested. XRIQ remains test-only, valueless, and undeployed; no document edit changes that.
+
+POSSIBLE FUTURE TEST-ONLY WORK (optional, lower value): extend the block-validation
+adversarial fuzz (mutate_block / BLOCK_FUZZ) to include governance + swap transactions
+(currently transfers only); explorer-ui surfacing of governance/swap. Not required for
+correctness -- the targeted per-layer tests + crypto property already cover the risk.
