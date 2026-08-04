@@ -14,6 +14,17 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project fol
 
 ## [Unreleased]
 
+### Block-validation adversarial fuzz now covers swaps
+
+The block-import validator's seeded adversarial suite (`property_validly_produced_block_is_accepted`
+and `property_any_single_field_mutation_is_rejected_atomically`) previously produced
+transfer-only blocks. It now also produces **co-signed counter-asset swaps** (the fuzz node
+pre-authorizes every account and seeds the counter-asset at genesis, so swaps are valid),
+and the transaction-level mutations include swap-specific tampering (the swapped
+`counter_amount` and the counterparty co-signature). So a valid swap-carrying block is
+accepted, and any single-field mutation of one — including a forged counterparty
+co-signature — is rejected atomically. Test-only; no behaviour change to valid paths.
+
 ### Genesis authorized-wallet seeding + indexer counterparty coverage
 
 - **Genesis registry seeding** — `GenesisConfig.authorized_wallets` +

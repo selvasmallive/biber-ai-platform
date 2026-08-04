@@ -14325,8 +14325,12 @@ mod tests {
     fn multi_funded_node() -> XriqNode<InMemoryChainStore> {
         let mut genesis = GenesisConfig::private_devnet();
         for label in BLOCK_FUZZ_LABELS {
-            genesis =
-                genesis.with_account(address(label), XriqAmount::from_base_units(1_000_000), 0);
+            // Fund natively, and also pre-authorize + seed the counter-asset so that
+            // co-signed swaps between any two labels are valid (transfers ignore both).
+            genesis = genesis
+                .with_account(address(label), XriqAmount::from_base_units(1_000_000), 0)
+                .with_authorized_wallet(address(label))
+                .with_counter_asset(address(label), 1_000_000);
         }
         XriqNode::from_genesis(&genesis, InMemoryChainStore::new()).unwrap()
     }
@@ -14356,14 +14360,45 @@ mod tests {
         tx
     }
 
-    // Produce a valid next block containing 0..=3 transactions from distinct senders.
+    // A valid, test-only CO-SIGNED swap between two distinct funded + authorized accounts
+    // at nonce 0: `from` sends native, `to` co-signs and returns the counter-asset. Both
+    // parties sign the same co-signing hash via `cosign_swap`.
+    fn block_fuzz_swap(rng: &mut BlockFuzzRng, from_label: &str, to_label: &str) -> Transaction {
+        let mut tx = Transaction {
+            version: Transaction::SUPPORTED_VERSION,
+            chain_id: "xriq-devnet".to_string(),
+            from: address(from_label),
+            to: address(to_label),
+            amount: XriqAmount::from_base_units(1 + rng.below(100) as u128),
+            fee: XriqAmount::from_base_units(2 + rng.below(5) as u128),
+            nonce: 0,
+            memo_hash: None,
+            expires_at_height: Some(100),
+            signature: SignatureBytes::new(Vec::new()),
+            public_key: Vec::new(),
+            action: TxAction::Swap {
+                counter_amount: 1 + rng.below(100) as u128,
+                counterparty_public_key: Vec::new(),
+                counterparty_signature: SignatureBytes::new(Vec::new()),
+            },
+        };
+        cosign_swap(&mut tx, &SchemeSigner::TestOnly, &SchemeSigner::TestOnly);
+        tx
+    }
+
+    // Produce a valid next block containing 0..=3 transactions from distinct senders,
+    // each independently a plain transfer or a co-signed counter-asset swap.
     fn produce_fuzz_block(rng: &mut BlockFuzzRng) -> Block {
         let mut producer = multi_funded_node();
         let tx_count = rng.below(4) as usize;
         for i in 0..tx_count {
             let from = BLOCK_FUZZ_LABELS[i];
             let to = BLOCK_FUZZ_LABELS[(i + 1) % BLOCK_FUZZ_LABELS.len()];
-            let tx = block_fuzz_transfer(rng, from, to);
+            let tx = if rng.below(2) == 0 {
+                block_fuzz_transfer(rng, from, to)
+            } else {
+                block_fuzz_swap(rng, from, to)
+            };
             // Distinct senders/nonces, so submit always succeeds; tolerate the rare
             // policy edge by ignoring a rejected submit.
             let _ = producer.submit_transaction_with_canonical_hash(tx);
@@ -14409,7 +14444,7 @@ mod tests {
             // Transaction-level mutations (only reachable when has_txs).
             11 => {
                 let idx = rng.below(block.transactions.len() as u64) as usize;
-                match rng.below(4) {
+                match rng.below(6) {
                     0 => {
                         let a = block.transactions[idx].amount.base_units();
                         block.transactions[idx].amount =
@@ -14420,7 +14455,7 @@ mod tests {
                             block.transactions[idx].nonce.wrapping_add(1)
                     }
                     2 => block.transactions[idx].to = address("zzzzzzzzzzz"),
-                    _ => {
+                    3 => {
                         let mut sig = block.transactions[idx].signature.as_slice().to_vec();
                         if sig.is_empty() {
                             sig.push(1);
@@ -14428,6 +14463,39 @@ mod tests {
                             sig[0] ^= 0xFF;
                         }
                         block.transactions[idx].signature = SignatureBytes::new(sig);
+                    }
+                    // Swap-specific: tamper the swapped counter-asset amount (falls back to
+                    // an amount bump for a non-swap, so the mutation is never a no-op).
+                    4 => {
+                        if let TxAction::Swap { counter_amount, .. } =
+                            &mut block.transactions[idx].action
+                        {
+                            *counter_amount = counter_amount.wrapping_add(1);
+                        } else {
+                            let a = block.transactions[idx].amount.base_units();
+                            block.transactions[idx].amount =
+                                XriqAmount::from_base_units(a.wrapping_add(1));
+                        }
+                    }
+                    // Swap-specific: forge/flip the counterparty co-signature (falls back
+                    // to a nonce bump for a non-swap).
+                    _ => {
+                        if let TxAction::Swap {
+                            counterparty_signature,
+                            ..
+                        } = &mut block.transactions[idx].action
+                        {
+                            let mut sig = counterparty_signature.as_slice().to_vec();
+                            if sig.is_empty() {
+                                sig.push(1);
+                            } else {
+                                sig[0] ^= 0xFF;
+                            }
+                            *counterparty_signature = SignatureBytes::new(sig);
+                        } else {
+                            block.transactions[idx].nonce =
+                                block.transactions[idx].nonce.wrapping_add(1);
+                        }
                     }
                 }
             }
