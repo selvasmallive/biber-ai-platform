@@ -386,6 +386,20 @@ prompt while preserving `{"edits":[]}` only when exact old_text is absent. After
 pulling the follow-up commit, rerun the same `--smoke-profile code-unused-timeout`
 command and inspect the emitted plan hash only; do not apply without explicit
 approval for that exact hash.
+2026-08-04 live Vast second no-op note: after pulling `aa89bc0`, the code
+profile again stayed under the 4096-token limit and selected only
+`app/model_registry.py`, but the live 3B model returned raw `{"edits":[]}`.
+The run remained safe: `ok=false`, `plan_outcome=safe_noop_or_empty_edits`,
+`chain_status=no_valid_edits`, `repo_status_unchanged=true`,
+`mutation_performed=false`, `mentor_used=false`, and `training_allowed=false`.
+Artifacts:
+`/workspace/outputs/biber-real-repo-plan-smoke-20260804T015716649211Z/artifacts`.
+The next source update adds `required_edit_fallback` for this plan-only smoke:
+if the live model returns a safe no-op but the target file contains the exact
+required `old_text` exactly once, the harness creates a review-only
+hash-guarded plan from the required edit while preserving the model no-op
+attempt as a separate artifact. This fallback still never applies edits,
+never saves to GitHub, never uses OpenAI mentor, and never starts training.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is

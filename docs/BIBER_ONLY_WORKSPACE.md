@@ -160,7 +160,11 @@ This profile asks the local provider to plan removal of one unused assignment in
 after any later approved apply. It defaults to one context file so the live 3B
 endpoint with `BIBER_MAX_MODEL_LEN=4096` has room for the prompt. The prompt
 includes a preferred exact JSON edit and must still report
-`mutation_performed=false` and stop before apply.
+`mutation_performed=false` and stop before apply. If the live 3B model returns
+`{"edits":[]}` for the exact edit, the smoke can use `required_edit_fallback` to
+produce a review-only hash-guarded plan only after confirming the target file
+contains `old_text` exactly once; the summary keeps the model no-op attempt as
+separate evidence.
 For the next real task, pass `--required-path` plus either
 `--required-old-text`/`--required-new-text` or the `*-file` variants. The
 summary records `required_edit`, and the flow still stops before apply.

@@ -6793,6 +6793,10 @@ def test_live_provider_real_repo_plan_smoke_has_code_profile() -> None:
     assert "DEFAULT_MAX_CONTEXT_FILES" in text
     assert "Preferred JSON edit" in text
     assert "required_edit_json" in text
+    assert "--required-edit-fallback" in text
+    assert "--mock-safe-noop" in text
+    assert "required_edit_fallback" in text
+    assert "live_model_returned_safe_noop_for_exact_required_edit" in text
     assert "smoke_profile" in text
     assert "mutation_performed" in text
     assert "explicit_apply_approval" in text

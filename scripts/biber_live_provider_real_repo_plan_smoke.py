@@ -222,17 +222,22 @@ def create_mock_provider(
     required_path: str,
     required_old_text: str,
     required_new_text: str,
+    safe_noop: bool = False,
 ) -> None:
-    edit_payload = {
-        "edits": [
-            {
-                "path": required_path,
-                "old_text": required_old_text,
-                "new_text": required_new_text,
-                "expected_replacements": 1,
-            }
-        ]
-    }
+    edit_payload = (
+        {"edits": []}
+        if safe_noop
+        else {
+            "edits": [
+                {
+                    "path": required_path,
+                    "old_text": required_old_text,
+                    "new_text": required_new_text,
+                    "expected_replacements": 1,
+                }
+            ]
+        }
+    )
     path.write_text(
         "import json\n"
         "import sys\n"
@@ -471,6 +476,72 @@ def repair_chain_diagnostics(chain: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def required_old_text_probe(
+    *,
+    target_root: Path,
+    required_path: str,
+    required_old_text: str,
+) -> dict[str, Any]:
+    target_path = (target_root / required_path).resolve()
+    try:
+        relative = target_path.relative_to(target_root.resolve())
+    except ValueError:
+        return {
+            "ok": False,
+            "reason": "required_path_outside_target_root",
+            "path": required_path,
+        }
+    if not target_path.is_file():
+        return {
+            "ok": False,
+            "reason": "required_path_not_file",
+            "path": str(relative),
+        }
+    try:
+        text = target_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return {
+            "ok": False,
+            "reason": "required_path_not_utf8",
+            "path": str(relative),
+        }
+    exact_replacements = text.count(required_old_text)
+    normalized_replacements = text.replace("\r\n", "\n").count(
+        required_old_text.replace("\r\n", "\n")
+    )
+    return {
+        "ok": exact_replacements == 1,
+        "reason": "exactly_one_required_old_text"
+        if exact_replacements == 1
+        else "required_old_text_replacement_count_not_one",
+        "path": str(relative).replace("\\", "/"),
+        "exact_replacements": exact_replacements,
+        "normalized_replacements": normalized_replacements,
+    }
+
+
+def required_edit_response_text(
+    *,
+    required_path: str,
+    required_old_text: str,
+    required_new_text: str,
+) -> str:
+    return json.dumps(
+        {
+            "edits": [
+                {
+                    "path": required_path,
+                    "old_text": required_old_text,
+                    "new_text": required_new_text,
+                    "expected_replacements": 1,
+                }
+            ]
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+
 def build_summary(
     *,
     args: argparse.Namespace,
@@ -573,6 +644,10 @@ def build_summary(
         "rejected": rejected,
         "plan_hash": review.get("plan_hash"),
         "apply_allowed": plan.get("apply_allowed"),
+        "required_edit_fallback_enabled": args.required_edit_fallback,
+        "required_edit_fallback": chain.get("required_edit_fallback")
+        if isinstance(chain.get("required_edit_fallback"), dict)
+        else None,
         **diagnostics,
         "next_action": next_action,
         "repo_status_unchanged": repo_status_unchanged,
@@ -582,6 +657,12 @@ def build_summary(
             "mvp_loop": str(artifact_dir / "real-repo-mvp-loop.json"),
             "prepared_repair": str(artifact_dir / "real-repo-plan-only-repair.json"),
             "local_repair_chain": str(artifact_dir / "real-repo-local-repair-chain.json"),
+            "local_repair_chain_model_attempt": str(
+                artifact_dir / "real-repo-local-repair-chain-model-attempt.json"
+            ),
+            "required_edit_fallback_response": str(
+                artifact_dir / "real-repo-required-edit-fallback-response.json"
+            ),
             "local_repair_chain_review": str(
                 artifact_dir / "real-repo-local-repair-chain-review.json"
             ),
@@ -685,6 +766,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             required_path=required_path,
             required_old_text=required_old_text,
             required_new_text=required_new_text,
+            safe_noop=args.mock_safe_noop,
         )
         model_command = json.dumps([sys.executable, str(mock_provider)])
     else:
@@ -777,6 +859,76 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         env_updates=env_updates,
         timeout_seconds=args.command_timeout_seconds + args.model_command_timeout_seconds,
     )
+    model_attempt_diagnostics = repair_chain_diagnostics(chain)
+    if (
+        args.required_edit_fallback
+        and model_attempt_diagnostics["plan_outcome"] == "safe_noop_or_empty_edits"
+    ):
+        fallback_probe = required_old_text_probe(
+            target_root=target_root,
+            required_path=required_path,
+            required_old_text=required_old_text,
+        )
+        if fallback_probe.get("ok") is True:
+            model_attempt_artifact = (
+                artifact_dir / "real-repo-local-repair-chain-model-attempt.json"
+            )
+            write_json(model_attempt_artifact, chain)
+            fallback_response_artifact = (
+                artifact_dir / "real-repo-required-edit-fallback-response.json"
+            )
+            fallback_response_artifact.write_text(
+                required_edit_response_text(
+                    required_path=required_path,
+                    required_old_text=required_old_text,
+                    required_new_text=required_new_text,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            chain = run_client(
+                repo_root,
+                artifact_dir,
+                "local-repair-chain",
+                str(artifact_dir / "real-repo-plan-only-repair.json"),
+                "--model-response-file",
+                str(fallback_response_artifact),
+                "--target-root",
+                str(target_root),
+                "--output",
+                str(artifact_dir / "real-repo-local-repair-chain.json"),
+                env_updates=env_updates,
+                timeout_seconds=args.command_timeout_seconds,
+            )
+            chain["required_edit_fallback"] = {
+                "used": True,
+                "reason": "live_model_returned_safe_noop_for_exact_required_edit",
+                "model_attempt_artifact": str(model_attempt_artifact),
+                "model_attempt_plan_outcome": model_attempt_diagnostics["plan_outcome"],
+                "model_attempt_preview": model_attempt_diagnostics[
+                    "model_response_content_preview"
+                ],
+                "fallback_response_artifact": str(fallback_response_artifact),
+                "target_probe": fallback_probe,
+            }
+            model_response_source = chain.get("model_response_source")
+            if isinstance(model_response_source, dict):
+                model_response_source["required_edit_fallback_used"] = True
+                model_response_source["required_edit_fallback_reason"] = (
+                    "live_model_returned_safe_noop_for_exact_required_edit"
+                )
+            write_json(artifact_dir / "real-repo-local-repair-chain.json", chain)
+        else:
+            chain["required_edit_fallback"] = {
+                "used": False,
+                "reason": "target_probe_not_safe_for_required_edit_fallback",
+                "model_attempt_plan_outcome": model_attempt_diagnostics["plan_outcome"],
+                "model_attempt_preview": model_attempt_diagnostics[
+                    "model_response_content_preview"
+                ],
+                "target_probe": fallback_probe,
+            }
+            write_json(artifact_dir / "real-repo-local-repair-chain.json", chain)
     review = run_client(
         repo_root,
         artifact_dir,
@@ -831,6 +983,11 @@ def parse_args() -> argparse.Namespace:
         )
     )
     parser.add_argument("--mode", choices=["live", "mock"], default="live")
+    parser.add_argument(
+        "--mock-safe-noop",
+        action="store_true",
+        help="In mock mode, return {\"edits\":[]} to exercise required-edit fallback.",
+    )
     parser.add_argument(
         "--smoke-profile",
         choices=sorted(SMOKE_PROFILES),
@@ -906,6 +1063,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model-command-timeout-seconds", type=float, default=180.0)
     parser.add_argument("--command-timeout-seconds", type=float, default=180.0)
     parser.add_argument("--readiness-timeout-seconds", type=float, default=10.0)
+    parser.add_argument(
+        "--required-edit-fallback",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "When the live provider returns a safe no-op for an exact required edit, "
+            "build a review-only plan from the guarded required edit if the target "
+            "file contains old_text exactly once. This never applies the edit."
+        ),
+    )
     parser.add_argument(
         "--require-ready",
         action=argparse.BooleanOptionalAction,
