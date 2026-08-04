@@ -107,15 +107,31 @@ def build_plan_instruction(
     required_old_text: str,
     required_new_text: str,
 ) -> str:
+    required_edit_json = json.dumps(
+        {
+            "edits": [
+                {
+                    "path": required_path,
+                    "old_text": required_old_text,
+                    "new_text": required_new_text,
+                    "expected_replacements": 1,
+                }
+            ]
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
     return (
         "Plan only, do not apply. This is a smoke test of the real-repo planning "
         f"bridge. If the exact old_text below appears in `{required_path}`, "
-        "return exactly one JSON edit using that path, old_text, new_text, and "
-        "expected_replacements=1. If the exact old_text is unavailable, return "
-        "{\"edits\":[]}.\n\n"
+        "return exactly the preferred JSON edit object below. Do not rewrite, "
+        "summarize, reformat the string values, or change the path. Return "
+        "{\"edits\":[]} only if the exact old_text is absent from the supplied "
+        "source snippets.\n\n"
         f"Required path: {required_path}\n"
         f"Required old_text:\n{required_old_text}\n"
-        f"Required new_text:\n{required_new_text}"
+        f"Required new_text:\n{required_new_text}\n"
+        f"Preferred JSON edit:\n{required_edit_json}"
     )
 
 

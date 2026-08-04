@@ -372,6 +372,20 @@ normal default. After pulling the follow-up commit, rerun the same Vast command
 without extra flags:
 `python scripts/biber_live_provider_real_repo_plan_smoke.py --base-url http://127.0.0.1:8001/v1 --model biber-dev-core --target-root /workspace/biber-ai-platform --smoke-profile code-unused-timeout`.
 It must still stop before apply and report `mutation_performed=false`.
+2026-08-04 live Vast no-op retry note: after pulling `af2e18f`, the same live
+code-profile command stayed under the 4096-token limit (`max_context_files=1`)
+and readiness passed, but the 3B model returned a conservative safe no-op:
+Markdown-fenced `{"edits":[]}`. The run was safe: `ok=false`,
+`plan_outcome=safe_noop_or_empty_edits`, `chain_status=no_valid_edits`,
+`review_status=blocked_before_apply`, `repo_status_unchanged=true`,
+`mutation_performed=false`, `mentor_used=false`, and `training_allowed=false`.
+Artifacts:
+`/workspace/outputs/biber-real-repo-plan-smoke-20260804T012119657722Z/artifacts`.
+The follow-up source fix adds a literal preferred JSON edit to the plan-only
+prompt while preserving `{"edits":[]}` only when exact old_text is absent. After
+pulling the follow-up commit, rerun the same `--smoke-profile code-unused-timeout`
+command and inspect the emitted plan hash only; do not apply without explicit
+approval for that exact hash.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
