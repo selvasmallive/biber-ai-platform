@@ -435,6 +435,15 @@ expected one-line removal of
 No other Vast repo changes were reported. Next gated action is explicit user
 approval to save/push this verified Vast edit to GitHub branch
 `biber/mvp-resume-20260712`.
+2026-08-05 GitHub save approval note: the user explicitly approved saving and
+pushing the verified Vast edit for plan hash
+`858c56890c036597184bf6d29d86df839e5e471aaf06bfc8a87062b7921bc578` to branch
+`biber/mvp-resume-20260712`. The local BIBER-only checkout mirrored the exact
+Vast diff by removing the unused `timeout_seconds` assignment from
+`app/model_registry.py`. Local compile verification passed with
+`PYTHONPYCACHEPREFIX` pointed at a writable temp cache:
+`python -m compileall app src`. After push, Vast should fast-forward pull the
+branch before further live-provider or training work.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is

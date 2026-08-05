@@ -98,7 +98,6 @@ def build_model_registry(settings: Any) -> ModelRegistry:
     )
     local_base_url = getattr(settings, "local_model_base_url")
     local_model_name = getattr(settings, "local_model_name")
-    timeout_seconds = getattr(settings, "local_model_timeout_seconds", 180)
     candidate_base_url = os.getenv("BIBER_CANDIDATE_MODEL_BASE_URL") or local_base_url
     candidate_provider_model = (
         os.getenv("BIBER_CANDIDATE_PROVIDER_MODEL")
