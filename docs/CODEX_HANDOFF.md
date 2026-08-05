@@ -400,6 +400,23 @@ required `old_text` exactly once, the harness creates a review-only
 hash-guarded plan from the required edit while preserving the model no-op
 attempt as a separate artifact. This fallback still never applies edits,
 never saves to GitHub, never uses OpenAI mentor, and never starts training.
+2026-08-05 live Vast guarded fallback plan note: after pulling `c51c93e`, the
+same code profile produced a reviewable plan. Summary: `ok=true`,
+`chain_status=planned`, `planned=1`, `rejected=0`,
+`review_status=ready_for_explicit_apply_approval`,
+`apply_recommendation=ready_for_explicit_apply_approval`,
+`repo_status_unchanged=true`, `mutation_performed=false`, `mentor_used=false`,
+and `training_allowed=false`. The live model attempt still returned safe no-op,
+so `required_edit_fallback.used=true` after confirming
+`app/model_registry.py` contains the exact required old text once. Plan hash:
+`858c56890c036597184bf6d29d86df839e5e471aaf06bfc8a87062b7921bc578`.
+Artifacts:
+`/workspace/outputs/biber-real-repo-plan-smoke-20260805T025932583892Z/artifacts`.
+Next gated action requires explicit user approval for that exact hash before
+running the emitted `apply_command`; immediately after apply, run the emitted
+`verify_command_after_apply` with `python-compileall-api`. Do not save/push the
+Vast repo edit until verification passes and the user explicitly approves the
+GitHub save step.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
