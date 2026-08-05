@@ -417,6 +417,17 @@ running the emitted `apply_command`; immediately after apply, run the emitted
 `verify_command_after_apply` with `python-compileall-api`. Do not save/push the
 Vast repo edit until verification passes and the user explicitly approves the
 GitHub save step.
+2026-08-05 live Vast apply/verify note: the user explicitly approved applying
+plan hash `858c56890c036597184bf6d29d86df839e5e471aaf06bfc8a87062b7921bc578`.
+The subsequent `local-verify-chain` passed with `ok=true`,
+`chain_status=verified`, `verification_status=passed`, `test_ok=true`,
+`exit_code=0`, and `test_id=python-compileall-api`. Relevant output compiled
+`app/model_registry.py` and listed `app`, `src`, and `src/biber_api`. Artifact:
+`/workspace/outputs/biber-real-repo-plan-smoke-20260805T025932583892Z/artifacts/real-repo-local-verify-chain.json`.
+Next step is to inspect `git status --short` and
+`git diff -- app/model_registry.py` on Vast. If the diff is exactly the planned
+one-line removal, request explicit approval before saving/pushing the verified
+Vast edit to GitHub.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
