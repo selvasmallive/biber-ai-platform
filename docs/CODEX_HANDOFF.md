@@ -428,6 +428,13 @@ Next step is to inspect `git status --short` and
 `git diff -- app/model_registry.py` on Vast. If the diff is exactly the planned
 one-line removal, request explicit approval before saving/pushing the verified
 Vast edit to GitHub.
+2026-08-05 live Vast diff inspection note: `git status --short` showed only
+`M app/model_registry.py`, and `git diff -- app/model_registry.py` showed the
+expected one-line removal of
+`timeout_seconds = getattr(settings, "local_model_timeout_seconds", 180)`.
+No other Vast repo changes were reported. Next gated action is explicit user
+approval to save/push this verified Vast edit to GitHub branch
+`biber/mvp-resume-20260712`.
 
 Active scope as of 2026-07-12: resume **BIBER MVP only**. Do not continue XRIQ
 work in this repo unless the user explicitly asks for it; XRIQ continuation is
