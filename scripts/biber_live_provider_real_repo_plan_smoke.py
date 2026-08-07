@@ -106,6 +106,7 @@ def build_plan_instruction(
     required_path: str,
     required_old_text: str,
     required_new_text: str,
+    preflight_probe: dict[str, Any] | None = None,
 ) -> str:
     required_edit_json = json.dumps(
         {
@@ -121,6 +122,15 @@ def build_plan_instruction(
         ensure_ascii=False,
         sort_keys=True,
     )
+    preflight_note = ""
+    if preflight_probe and preflight_probe.get("ok") is True:
+        preflight_note = (
+            "Preflight result: the target repo was checked before this model "
+            f"request, and the exact old_text appears exactly once in "
+            f"`{preflight_probe.get('path', required_path)}`. Because this "
+            "presence check passed, do not return {\"edits\":[]} for absence; "
+            "return the preferred JSON edit exactly.\n\n"
+        )
     return (
         "Plan only, do not apply. This is a smoke test of the real-repo planning "
         f"bridge. If the exact old_text below appears in `{required_path}`, "
@@ -128,6 +138,7 @@ def build_plan_instruction(
         "summarize, reformat the string values, or change the path. Return "
         "{\"edits\":[]} only if the exact old_text is absent from the supplied "
         "source snippets.\n\n"
+        f"{preflight_note}"
         f"Required path: {required_path}\n"
         f"Required old_text:\n{required_old_text}\n"
         f"Required new_text:\n{required_new_text}\n"
@@ -550,6 +561,7 @@ def build_summary(
     required_path: str,
     required_old_text: str,
     required_new_text: str,
+    required_target_probe: dict[str, Any],
     work_root: Path,
     artifact_dir: Path,
     target_root: Path,
@@ -624,6 +636,7 @@ def build_summary(
             "old_text_preview": compact_preview(required_old_text),
             "new_text_preview": compact_preview(required_new_text),
         },
+        "required_target_probe": required_target_probe,
         "max_context_files": args.max_context_files,
         "max_scan_files": args.max_scan_files,
         "work_root": str(work_root),
@@ -747,10 +760,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         default=profile["required_new_text"],
         label="required-new-text",
     )
+    required_target_probe = required_old_text_probe(
+        target_root=target_root,
+        required_path=required_path,
+        required_old_text=required_old_text,
+    )
     plan_instruction = args.plan_instruction or build_plan_instruction(
         required_path=required_path,
         required_old_text=required_old_text,
         required_new_text=required_new_text,
+        preflight_probe=required_target_probe,
     )
     output_root = Path(args.output_root) if args.output_root else default_output_root()
     work_root = output_root / f"biber-real-repo-plan-smoke-{timestamp()}"
@@ -951,6 +970,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         required_path=required_path,
         required_old_text=required_old_text,
         required_new_text=required_new_text,
+        required_target_probe=required_target_probe,
         work_root=work_root,
         artifact_dir=artifact_dir,
         target_root=target_root,
