@@ -57,6 +57,24 @@ state that the exact target text has already been preflight-confirmed present,
 so the local model is less likely to no-op. Do not apply the real-repo plan
 without separate explicit approval for the exact plan hash.
 
+Follow-up after prompt improvement: commits `fa4fbaa` and `e2866d7` added a
+preflight-confirmed presence note to
+`scripts/biber_live_provider_real_repo_plan_smoke.py`, a `required_target_probe`
+summary field, and a light regression test. Local validation used the bundled
+Python runtime for `py_compile` and mock plan smoke; `pytest` was not available
+locally. After pulling on Vast, rerunning the same 7B real-repo plan-only smoke
+produced the edit from the live model itself (Markdown-fenced JSON was safely
+extracted) with `required_edit_fallback=null`, `required_target_probe.ok=true`,
+`repo_status_unchanged=true`, `mutation_performed=false`, `planned=1`,
+`rejected=0`, `review_status=ready_for_explicit_apply_approval`, and plan hash
+`e614d5c3bb808fd8fed7d89ebd36155722ca30284ea7cf60f25ea442b7ba325e`. Latest
+artifact root:
+`/workspace/outputs/biber-real-repo-plan-smoke-20260807T141831247616Z`.
+This proves the 7B provider can now produce a reviewable non-disposable
+real-repo plan without deterministic fallback. It still did not mutate the repo,
+did not save to GitHub, did not use OpenAI mentor, and did not train. Real-repo
+apply remains blocked until the user explicitly approves the exact plan hash.
+
 2026-07-22 Vast resume note: the new low-cost Vast instance
 `45558024` has `/workspace` mounted on a 500 GB volume and exposes an
 RTX 5060 Ti 16 GB GPU with host driver `570.153.02` / CUDA `12.8`.
