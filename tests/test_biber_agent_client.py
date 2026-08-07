@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import biber_agent_client as client  # noqa: E402
+import biber_live_provider_real_repo_plan_smoke as real_repo_smoke  # noqa: E402
 import biber_live_provider_readiness as live_readiness  # noqa: E402
 import biber_local_openai_provider as local_provider  # noqa: E402
 
@@ -6801,6 +6802,23 @@ def test_live_provider_real_repo_plan_smoke_has_code_profile() -> None:
     assert "mutation_performed" in text
     assert "explicit_apply_approval" in text
     assert '"training_allowed": False' in text
+
+
+def test_real_repo_plan_prompt_includes_confirmed_presence_note() -> None:
+    prompt = real_repo_smoke.build_plan_instruction(
+        required_path="docs/BIBER_ONLY_WORKSPACE.md",
+        required_old_text="old line\n",
+        required_new_text="new line\n",
+        preflight_probe={
+            "ok": True,
+            "path": "docs/BIBER_ONLY_WORKSPACE.md",
+            "exact_replacements": 1,
+        },
+    )
+
+    assert "Preflight result" in prompt
+    assert "appears exactly once" in prompt
+    assert 'do not return {"edits":[]}' in prompt
 
 
 def test_local_verified_repair_github_dry_run_smoke_documents_handoff() -> None:

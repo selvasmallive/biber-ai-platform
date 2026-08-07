@@ -30,6 +30,33 @@ rotation, and no XRIQ/XRIS work occurred. Logs are in `/workspace/biber-logs`
 (`vllm.log`, `api.log`, `start-0807.log`); cache/artifacts remain under
 `/workspace/.hf_home`, `/workspace/outputs`, and `/workspace/adapters`.
 
+2026-08-07 live 7B smoke checkpoint: after pulling handoff commit `00b9266`
+on Vast, the repeatable disposable live-provider repair smoke passed against
+the 7B endpoint:
+`python scripts/biber_live_provider_repair_smoke.py --base-url http://127.0.0.1:8001/v1 --model biber-dev-core`.
+Result: `ok=true`, `readiness_ok=true`, `chain_status=planned`,
+`review_status=ready_for_explicit_apply_approval`, `planned=1`, `rejected=0`,
+`apply_status=applied`, `verification_chain_status=verified`,
+`verification_status=passed`, `test_ok=true`, `mentor_used=false`,
+`training_allowed=false`, and `auto_saved=false`. Artifact root:
+`/workspace/outputs/biber-live-provider-repair-smoke-20260807T141345Z`.
+
+The 7B real-repo plan-only smoke also passed safely without mutating the repo:
+`python scripts/biber_live_provider_real_repo_plan_smoke.py --base-url http://127.0.0.1:8001/v1 --model biber-dev-core --target-root /workspace/biber-ai-platform`.
+Result: `ok=true`, `repo_status_unchanged=true`, `mutation_performed=false`,
+`chain_status=planned`, `plan_outcome=planned_for_review`,
+`review_status=ready_for_explicit_apply_approval`, `planned=1`, `rejected=0`,
+and plan hash `e614d5c3bb808fd8fed7d89ebd36155722ca30284ea7cf60f25ea442b7ba325e`.
+Artifact root:
+`/workspace/outputs/biber-real-repo-plan-smoke-20260807T141412393242Z`.
+Important quality signal: the model first returned a safe no-op
+(`{"edits":[]}`) even though the exact target text was present; the guarded
+`required_edit_fallback` confirmed exactly one target match and produced the
+reviewable plan. Next narrow improvement should make the real-repo plan prompt
+state that the exact target text has already been preflight-confirmed present,
+so the local model is less likely to no-op. Do not apply the real-repo plan
+without separate explicit approval for the exact plan hash.
+
 2026-07-22 Vast resume note: the new low-cost Vast instance
 `45558024` has `/workspace` mounted on a 500 GB volume and exposes an
 RTX 5060 Ti 16 GB GPU with host driver `570.153.02` / CUDA `12.8`.
