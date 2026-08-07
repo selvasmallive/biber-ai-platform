@@ -82,6 +82,21 @@ probe, mock real-repo plan, full local repair loop, verified-repair GitHub
 dry-run, standalone GitHub dry-run artifacts, and repair-loop status. This used
 no external network, no GPU, no OpenAI mentor, no training, and sent no GitHub
 request.
+2026-08-07 approved real-repo apply checkpoint: the user explicitly approved
+applying plan hash
+`e614d5c3bb808fd8fed7d89ebd36155722ca30284ea7cf60f25ea442b7ba325e` from the
+latest 7B real-repo plan smoke. The apply ran on the current SSH-capable Vast
+GPU against
+`/workspace/outputs/biber-real-repo-plan-smoke-20260807T141831247616Z/artifacts`.
+`apply-repair-edits --approve` applied exactly one edit to
+`docs/BIBER_ONLY_WORKSPACE.md`, changing "dedicated BIBER-only sparse checkout"
+to "dedicated BIBER MVP-only sparse checkout". `local-verify-chain` immediately
+passed `python-compileall-api` with `chain_status=verified`, `test_ok=true`,
+and `verification_status=passed`. Remote git diff showed only that one docs
+line. No OpenAI mentor, no training, no credential rotation, and no XRIQ/XRIS
+work occurred. Moving forward, treat the current Vast instance reached by
+`ssh -i $env:USERPROFILE\.ssh\biber_vast_ed25519 -p 16276 root@85.30.169.224`
+as the active BIBER GPU; do not depend on the older Vast GPU instance.
 
 2026-07-22 Vast resume note: the new low-cost Vast instance
 `45558024` has `/workspace` mounted on a 500 GB volume and exposes an
