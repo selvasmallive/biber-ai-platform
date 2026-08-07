@@ -1,8 +1,34 @@
 # Codex Handoff
 
-Last updated: 2026-08-02
+Last updated: 2026-08-07
 
 ## Current Goal
+
+2026-08-07 fresh Vast GPU checkpoint: BIBER MVP work has resumed on a new
+SSH-capable Vast instance. Use SSH from the workstation with:
+`ssh -i $env:USERPROFILE\.ssh\biber_vast_ed25519 -p 16276 root@85.30.169.224`.
+Instance prompt observed as `root@C.47073868`; `/workspace` is a persistent
+volume mounted at about 499 GB, container `/` is 40 GB, and the GPU is
+`NVIDIA GeForce RTX 3090 Ti` with 24564 MiB VRAM, driver `595.71.05`, CUDA
+`13.2`. The branch cloned on Vast is `biber/mvp-resume-20260712`, commit
+`6128f15 Save verified BIBER Vast model registry edit`.
+
+The bootstrap completed successfully under `/workspace/biber-venv` using
+`torch 2.8.0+cu128`, `vllm 0.10.2`, and `transformers 4.57.6`; CUDA is
+available. The local provider is now running 7B, not 3B:
+`Qwen/Qwen2.5-Coder-7B-Instruct` served as stable alias `biber-dev-core` at
+`http://127.0.0.1:8001/v1` with `BIBER_MAX_MODEL_LEN=8192`. FastAPI is running
+at `http://127.0.0.1:8000`. Verified with `bash scripts/vast_status_direct.sh`,
+`bash scripts/vast_test_direct.sh`, and
+`python scripts/biber_live_provider_readiness.py --base-url http://127.0.0.1:8001/v1 --model biber-dev-core --require-ready --require-model`.
+Results: `/health` ok, `/v1/runtime` showed `mentor_enabled=false`, vLLM
+`/v1/models` listed `biber-dev-core` rooted at the 7B Qwen model with
+`max_model_len=8192`, chat smoke returned content `ok`, readiness returned
+`ok=true`, `endpoint_reachable=true`, `model_available=true`, `mentor_used=false`,
+and `training_allowed=false`. No OpenAI mentor call, no training, no credential
+rotation, and no XRIQ/XRIS work occurred. Logs are in `/workspace/biber-logs`
+(`vllm.log`, `api.log`, `start-0807.log`); cache/artifacts remain under
+`/workspace/.hf_home`, `/workspace/outputs`, and `/workspace/adapters`.
 
 2026-07-22 Vast resume note: the new low-cost Vast instance
 `45558024` has `/workspace` mounted on a 500 GB volume and exposes an
