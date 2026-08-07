@@ -74,6 +74,14 @@ This proves the 7B provider can now produce a reviewable non-disposable
 real-repo plan without deterministic fallback. It still did not mutate the repo,
 did not save to GitHub, did not use OpenAI mentor, and did not train. Real-repo
 apply remains blocked until the user explicitly approves the exact plan hash.
+After the above commits, the CPU-local confidence gate passed from the
+BIBER-only sparse checkout using the bundled Python runtime:
+`python scripts/biber_local_confidence_smoke.py`. It reported `ok=true` across
+10 checks, including local provider wrapper, mocked readiness, repo-context
+probe, mock real-repo plan, full local repair loop, verified-repair GitHub
+dry-run, standalone GitHub dry-run artifacts, and repair-loop status. This used
+no external network, no GPU, no OpenAI mentor, no training, and sent no GitHub
+request.
 
 2026-07-22 Vast resume note: the new low-cost Vast instance
 `45558024` has `/workspace` mounted on a 500 GB volume and exposes an
