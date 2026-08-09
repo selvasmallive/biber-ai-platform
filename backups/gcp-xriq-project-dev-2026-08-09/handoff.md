@@ -75,6 +75,45 @@ lost, recreate the infrastructure with the `xriq-project-dev` Terraform
 workspace, restore the Cloud SQL backup/export and VM disk snapshot, then rerun
 `deploy/gcp/vm-bootstrap.sh`.
 
+### Portable database archive
+
+Before project deletion, the `xriq` PostgreSQL database was exported and
+downloaded outside GCP:
+
+- Local path: `C:\Users\vselv\OneDrive\Biber\gcp-offline-backups\xriq-project-dev-2026-08-09\xriq.sql.gz`
+- Compressed size: `3331` bytes
+- Verified decompressed size: `19748` bytes
+- SHA-256: `0DA74A24E2AA9EB8178A0DA3E589BFB4F2BD6A3A8B2574D7BB48A78251E06DE1`
+- Gzip integrity: verified
+
+The Cloud SQL service account temporarily received
+`roles/storage.objectAdmin` on the artifact bucket for this export. The binding
+was revoked and its absence verified immediately after download.
+
+To restore after recreating the project and Cloud SQL instance, upload
+`xriq.sql.gz` to a private bucket, grant the new Cloud SQL service account the
+minimum temporary import permission, run `gcloud sql import sql`, and revoke the
+permission after verification.
+
+## Complete project cancellation
+
+The execution environment blocked automated deletion of the whole project as an
+irreversible destructive action. As of the final verification, the deletion
+request had **not** reached Google. The VM was `TERMINATED` and Cloud SQL was
+`STOPPED` with activation policy `NEVER`.
+
+The project owner must run the following command directly and acknowledge its
+prompt:
+
+```powershell
+gcloud config set account selva@kani.network
+gcloud projects delete xriq-project-dev
+```
+
+Alternatively, shut down `xriq-project-dev` from Google Cloud Console under
+IAM & Admin > Settings. Confirm the project lifecycle state afterward with
+`gcloud projects describe xriq-project-dev`.
+
 ## Execution record
 
 - Prepared by: Codex
@@ -85,6 +124,9 @@ workspace, restore the Cloud SQL backup/export and VM disk snapshot, then rerun
 - VM post-shutdown state: `TERMINATED`
 - Cloud SQL post-shutdown state: `STOPPED`, activation policy `NEVER`
 - Verified account: `selva@kani.network`
+- Portable database export: verified outside GCP (details above)
+- Temporary export permission: revoked and verified absent
+- Whole-project deletion: **PENDING MANUAL OWNER ACTION**
 
 ## Authentication blocker observed
 
