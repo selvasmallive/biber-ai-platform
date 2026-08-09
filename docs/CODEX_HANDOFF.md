@@ -163,7 +163,14 @@ new `live_verified_repair_github_dry_run` summary reported `mode=fixture`,
 `verification=passed`, `chain_status=verified`, `test_ok=true`, `matched=2`,
 and `github_request_sent=false`. `git diff --check` passed, with only Windows
 LF-to-CRLF warnings. No GPU, OpenAI mentor, training, external paid API, or
-GitHub request was used.
+GitHub request was used. Commit `660240c` was pushed to
+`biber/mvp-resume-20260712`, then the current Vast checkout was fast-forwarded
+to that commit and the same confidence smoke passed there using
+`/workspace/biber-venv/bin/python`. Vast artifact:
+`/workspace/outputs/biber-local-confidence-smoke-20260809T1340Z.json`; compact
+summary reported `ok=True`, `checks=11`, `failed_checks=0`, and the live
+verified-repair bridge line `mode=fixture verification=passed
+chain_status=verified test_ok=True matched=2 github_request_sent=False`.
 
 2026-07-22 Vast resume note: the new low-cost Vast instance
 `45558024` has `/workspace` mounted on a 500 GB volume and exposes an
