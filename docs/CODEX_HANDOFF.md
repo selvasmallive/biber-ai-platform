@@ -108,6 +108,21 @@ default soft-delete policy active. Use this bucket for non-git BIBER runtime
 backup tarballs. Do not upload plaintext `.env`, SSH keys, tokens, or other
 secrets; encrypt private backups before upload. Do not upload `.hf_home` unless
 the user deliberately wants to pay storage for redownloadable model cache.
+The old Vast GPU backup was then verified in GCS at
+`gs://biber-ai-platform-backups-biber-499407/biber/vast-backups/0aefa82a6cf8/20260809T074747Z/`
+with three objects: the main tarball, its SHA256 file, and encrypted `.env`
+under `private/`. The non-secret tarball was downloaded on the workstation,
+checksum-verified (`b4f015baf5ba3395087277a1a9066cbad84fc2c87a18829a48bbd65285ad0523`),
+copied to the current SSH-capable Vast GPU, and extracted under
+`/workspace/restores/old-gpu-0aefa82a6cf8-20260809T074747Z`. Non-secret runtime
+artifacts were merged into the active workspace using no-overwrite copy:
+`outputs` merged into `/workspace/outputs`, and old logs copied under
+`/workspace/biber-logs/restored-old-gpu-0aefa82a6cf8-20260809T074747Z`. The
+old `biber-ai-platform` repo copy remains isolated inside the restore folder
+and did not overwrite the active GitHub-synced repo. The active Vast repo stayed
+clean on branch `biber/mvp-resume-20260712`. Encrypted `.env` was not restored;
+restore it only if the user types the AES password on the GPU or otherwise
+handles the secret out of chat.
 
 2026-07-22 Vast resume note: the new low-cost Vast instance
 `45558024` has `/workspace` mounted on a 500 GB volume and exposes an
