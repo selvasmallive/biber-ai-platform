@@ -124,6 +124,27 @@ clean on branch `biber/mvp-resume-20260712`. Encrypted `.env` was not restored;
 restore it only if the user types the AES password on the GPU or otherwise
 handles the secret out of chat.
 
+2026-08-09 BIBER live verified GitHub dry-run bridge checkpoint: commit
+`f8147b3` added `scripts/biber_live_verified_repair_github_dry_run_smoke.py`.
+The script reads a verified `local-verify-chain` artifact, confirms the linked
+`apply-repair-edits` artifact was applied and verified, then emits
+`save-github --dry-run`, `create-pr --dry-run`, and `list-github-dry-runs`
+artifacts for the touched files. It sends no GitHub request, does not call the
+model endpoint, does not use OpenAI mentor, and does not train. Local fixture
+validation passed with the bundled Python runtime. After pulling on the current
+Vast GPU, the bridge passed against the real 7B verified repair artifact
+`/workspace/outputs/biber-real-repo-plan-smoke-20260807T141831247616Z/artifacts/real-repo-local-verify-chain.json`.
+Result: `ok=true`, `verification_status=passed`, `chain_status=verified`,
+`test_ok=true`, `github_request_sent=false`,
+`paths=["docs/BIBER_ONLY_WORKSPACE.md"]`, branch
+`biber/live-verified-repair-20260807-docs`, base branch
+`biber/mvp-resume-20260712`, plan hash
+`e614d5c3bb808fd8fed7d89ebd36155722ca30284ea7cf60f25ea442b7ba325e`, and
+artifact root
+`/workspace/outputs/biber-live-verified-github-dry-run-20260809T124948405428Z`.
+Next GitHub step remains review-only unless the user explicitly requests a real
+GitHub save or PR.
+
 2026-07-22 Vast resume note: the new low-cost Vast instance
 `45558024` has `/workspace` mounted on a 500 GB volume and exposes an
 RTX 5060 Ti 16 GB GPU with host driver `570.153.02` / CUDA `12.8`.
