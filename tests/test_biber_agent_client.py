@@ -468,6 +468,24 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
     assert list_result["gpu_required"] is False
     assert list_result["api_required"] is False
     assert list_result["artifacts"][0]["repo_probe_path_list_files_used"] is True
+    assert (
+        list_result["artifacts"][0]["live_verified_repair_github_mode"]
+        == "fixture"
+    )
+    assert (
+        list_result["artifacts"][0]["live_verified_repair_github_verified"]
+        is True
+    )
+    assert (
+        list_result["artifacts"][0][
+            "live_verified_repair_github_dry_run_artifacts_matched"
+        ]
+        == 2
+    )
+    assert (
+        list_result["artifacts"][0]["live_verified_repair_github_request_sent"]
+        is False
+    )
     assert list_result["artifact_path"] == str(list_artifact)
     assert json.loads(list_artifact.read_text(encoding="utf-8")) == list_result
     assert failed_only["matched"] == 1
@@ -475,6 +493,10 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
     assert "BIBER local confidence smoke artifacts (2)" in list_summary
     assert "failed: 1" in list_summary
     assert "repo_probe_path_files=True" in list_summary
+    assert "live_verified_bridge=True" in list_summary
+    assert "live_verified_bridge_mode=fixture" in list_summary
+    assert "live_verified_bridge_matched=2" in list_summary
+    assert "live_verified_bridge_request_sent=False" in list_summary
     assert "gpu_required: False" in list_summary
 
 

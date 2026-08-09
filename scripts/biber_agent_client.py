@@ -14370,6 +14370,9 @@ def summarize_confidence_smoke_artifact(
     github_dry_run_artifacts = require_mapping(
         normalized.get("github_dry_run_artifacts")
     )
+    live_verified_repair_github = require_mapping(
+        normalized.get("live_verified_repair_github_dry_run")
+    )
     mvp_loop_repo_probe = require_mapping(normalized.get("mvp_loop_repo_probe"))
     real_repo_plan = require_mapping(normalized.get("live_provider_real_repo_plan"))
     summary = {
@@ -14385,6 +14388,18 @@ def summarize_confidence_smoke_artifact(
         "github_dry_run_artifacts_matched": github_dry_run_artifacts.get(
             "matched",
             0,
+        ),
+        "live_verified_repair_github_mode": live_verified_repair_github.get("mode"),
+        "live_verified_repair_github_verified": (
+            live_verified_repair_github.get("verification_status") == "passed"
+            and live_verified_repair_github.get("chain_status") == "verified"
+            and live_verified_repair_github.get("test_ok") is True
+        ),
+        "live_verified_repair_github_dry_run_artifacts_matched": (
+            live_verified_repair_github.get("dry_run_artifacts_matched", 0)
+        ),
+        "live_verified_repair_github_request_sent": (
+            live_verified_repair_github.get("github_request_sent") is True
         ),
         "repo_probe_path_list_files_used": (
             mvp_loop_repo_probe.get("path_list_files_used") is True
@@ -14604,6 +14619,10 @@ def format_confidence_smoke_artifact_list_summary(payload: Mapping[str, Any]) ->
                     f"gpu_required={artifact.get('gpu_required')}",
                     f"api_required={artifact.get('api_required')}",
                     f"repo_probe_path_files={artifact.get('repo_probe_path_list_files_used')}",
+                    f"live_verified_bridge={artifact.get('live_verified_repair_github_verified')}",
+                    f"live_verified_bridge_mode={artifact.get('live_verified_repair_github_mode') or '-'}",
+                    f"live_verified_bridge_matched={artifact.get('live_verified_repair_github_dry_run_artifacts_matched', 0)}",
+                    f"live_verified_bridge_request_sent={artifact.get('live_verified_repair_github_request_sent')}",
                 ]
             )
         )

@@ -290,7 +290,8 @@ at a real local Qwen/vLLM endpoint.
 The real-checkout repo-probe also verifies that `mvp-loop` accepts
 `--pinned-paths-file` and `--changed-paths-file` in the local path.
 `show-confidence-smoke` and `list-confidence-smokes` surface this path-list
-evidence from saved confidence artifacts.
+evidence plus the live verified-repair GitHub dry-run bridge status from saved
+confidence artifacts.
 `list-mvp-loops --output` can save the discovered loop artifacts and repair
 next-step metadata for later resume, and `show-mvp-loop-list` summarizes that
 saved list without rerunning the scan.
