@@ -20,7 +20,9 @@ hf-cache/
 models/
 checkpoints/
 datasets/
-backups/
+backups/*
+!backups/gcp-xriq-project-dev-2026-08-09/
+!backups/gcp-xriq-project-dev-2026-08-09/**
 # Root-anchored so it ignores the BIBER datasets dir but not nested paths like
 # infra/azure/modules/data/.
 /data/
