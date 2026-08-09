@@ -69,10 +69,42 @@ def compact_check(name: str, payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def create_real_repo_plan_fixture(root: Path) -> tuple[Path, str, str, str]:
+    target_root = root / "real-repo-plan-fixture"
+    required_path = "docs/BIBER_ONLY_WORKSPACE.md"
+    required_old_text = (
+        "Use this document when continuing BIBER MVP from the dedicated fixture "
+        "sparse checkout at:\n"
+    )
+    required_new_text = (
+        "Use this document when continuing BIBER MVP from the dedicated fixture "
+        "BIBER MVP-only sparse checkout at:\n"
+    )
+    target_file = target_root / required_path
+    target_file.parent.mkdir(parents=True, exist_ok=True)
+    target_file.write_text(
+        "# BIBER Fixture Workspace\n\n"
+        f"{required_old_text}\n"
+        "This temporary target exists only for the local confidence smoke.\n",
+        encoding="utf-8",
+    )
+    (target_root / "README.md").write_text(
+        "# BIBER fixture\n\nNo external network or GPU required.\n",
+        encoding="utf-8",
+    )
+    return target_root, required_path, required_old_text, required_new_text
+
+
 def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
     repo_root = Path(__file__).resolve().parents[1]
     with tempfile.TemporaryDirectory(prefix="biber-local-confidence-pycache-") as tmp:
         pycache_root = Path(tmp)
+        (
+            real_repo_plan_fixture,
+            real_repo_required_path,
+            real_repo_required_old_text,
+            real_repo_required_new_text,
+        ) = create_real_repo_plan_fixture(pycache_root)
         provider = run_smoke_script(
             repo_root=repo_root,
             script_name="biber_local_openai_provider_smoke.py",
@@ -108,7 +140,23 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             script_name="biber_live_provider_real_repo_plan_smoke.py",
             pycache_root=pycache_root,
             timeout_seconds=timeout_seconds,
-            script_args=["--mode", "mock", "--cleanup"],
+            script_args=[
+                "--mode",
+                "mock",
+                "--cleanup",
+                "--target-root",
+                str(real_repo_plan_fixture),
+                "--required-path",
+                real_repo_required_path,
+                "--required-old-text",
+                real_repo_required_old_text,
+                "--required-new-text",
+                real_repo_required_new_text,
+                "--changed-path",
+                real_repo_required_path,
+                "--pinned-path",
+                "README.md",
+            ],
         )
         mvp_loop_full_repair = run_smoke_script(
             repo_root=repo_root,
@@ -127,6 +175,13 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             script_name="biber_local_github_dry_run_artifacts_smoke.py",
             pycache_root=pycache_root,
             timeout_seconds=timeout_seconds,
+        )
+        live_verified_repair_github_dry_run = run_smoke_script(
+            repo_root=repo_root,
+            script_name="biber_live_verified_repair_github_dry_run_smoke.py",
+            pycache_root=pycache_root,
+            timeout_seconds=timeout_seconds,
+            script_args=["--mode", "fixture"],
         )
         repair_loop = run_smoke_script(
             repo_root=repo_root,
@@ -148,6 +203,10 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             verified_repair_github_dry_run,
         ),
         compact_check("local_github_dry_run_artifacts", github_dry_run_artifacts),
+        compact_check(
+            "live_verified_repair_github_dry_run_fixture",
+            live_verified_repair_github_dry_run,
+        ),
         compact_check("local_repair_loop", repair_loop),
     ]
     summary = {
@@ -278,6 +337,25 @@ def run_confidence_smoke(timeout_seconds: float) -> dict[str, Any]:
             ),
             "list_source": github_dry_run_artifacts.get("list_source"),
         },
+        "live_verified_repair_github_dry_run": {
+            "mode": live_verified_repair_github_dry_run.get("mode"),
+            "verification_status": live_verified_repair_github_dry_run.get(
+                "verification_status"
+            ),
+            "chain_status": live_verified_repair_github_dry_run.get("chain_status"),
+            "test_ok": live_verified_repair_github_dry_run.get("test_ok"),
+            "paths": live_verified_repair_github_dry_run.get("paths"),
+            "github_request_sent": live_verified_repair_github_dry_run.get(
+                "github_request_sent"
+            ),
+            "dry_run_artifacts_matched": live_verified_repair_github_dry_run.get(
+                "dry_run_artifacts_matched"
+            ),
+            "pull_request_source": live_verified_repair_github_dry_run.get(
+                "pull_request_source"
+            ),
+            "next_action": live_verified_repair_github_dry_run.get("next_action"),
+        },
         "repair_loop": {
             "chain_status": repair_loop.get("chain_status"),
             "verification_ok": repair_loop.get("verification_ok"),
@@ -295,7 +373,8 @@ def parse_args() -> argparse.Namespace:
         description=(
             "Run BIBER's local provider, readiness, local MVP-loop success/failure, "
             "real-repo probe, full local MVP repair, GitHub dry-run handoff, "
-            "GitHub dry-run artifact, and local repair-loop smokes as one "
+            "GitHub dry-run artifact, live verified-repair GitHub bridge, "
+            "and local repair-loop smokes as one "
             "no-GPU confidence gate."
         )
     )

@@ -14474,6 +14474,9 @@ def format_confidence_smoke_artifact_summary(payload: Mapping[str, Any]) -> str:
     verified_repair_github = require_mapping(
         payload.get("verified_repair_github_dry_run")
     )
+    live_verified_repair_github = require_mapping(
+        payload.get("live_verified_repair_github_dry_run")
+    )
     mvp_loop = require_mapping(payload.get("mvp_loop"))
     mvp_loop_repo_probe = require_mapping(payload.get("mvp_loop_repo_probe"))
     real_repo_plan = require_mapping(payload.get("live_provider_real_repo_plan"))
@@ -14551,6 +14554,16 @@ def format_confidence_smoke_artifact_summary(payload: Mapping[str, Any]) -> str:
             f"matched={github_dry_run_artifacts.get('matched', 0)} "
             f"types={','.join(str(item) for item in require_list(github_dry_run_artifacts.get('dry_run_types')))} "
             f"github_request_sent={github_dry_run_artifacts.get('github_request_sent')}"
+        )
+    if live_verified_repair_github:
+        lines.append(
+            "live_verified_repair_github_dry_run: "
+            f"mode={live_verified_repair_github.get('mode', '-')} "
+            f"verification={live_verified_repair_github.get('verification_status', '-')} "
+            f"chain_status={live_verified_repair_github.get('chain_status', '-')} "
+            f"test_ok={live_verified_repair_github.get('test_ok')} "
+            f"matched={live_verified_repair_github.get('dry_run_artifacts_matched', 0)} "
+            f"github_request_sent={live_verified_repair_github.get('github_request_sent')}"
         )
     if repair_loop:
         lines.append(

@@ -1,6 +1,6 @@
 # Codex Handoff
 
-Last updated: 2026-08-07
+Last updated: 2026-08-09
 
 ## Current Goal
 
@@ -144,6 +144,26 @@ artifact root
 `/workspace/outputs/biber-live-verified-github-dry-run-20260809T124948405428Z`.
 Next GitHub step remains review-only unless the user explicitly requests a real
 GitHub save or PR.
+
+2026-08-09 local confidence bridge checkpoint: the CPU-local combined
+confidence gate now also runs
+`scripts/biber_live_verified_repair_github_dry_run_smoke.py --mode fixture`.
+`scripts/biber_local_confidence_smoke.py` creates a temporary fixture target
+for the mock real-repo plan smoke instead of relying on a mutable docs line in
+the active checkout, so the gate remains stable after approved docs edits. The
+saved-artifact summary path (`show-confidence-smoke`) now surfaces the live
+verified-repair GitHub dry-run bridge line. Local validation from the
+BIBER-only sparse checkout used the bundled Python runtime for:
+`python -m py_compile scripts/biber_local_confidence_smoke.py scripts/biber_live_verified_repair_github_dry_run_smoke.py scripts/biber_agent_client.py tests/test_biber_agent_client.py`,
+`python scripts/biber_local_confidence_smoke.py`, and
+`python scripts/biber_agent_client.py show-confidence-smoke <saved-artifact>`.
+Result: `ok=true`, `checks=11`, `failed_checks=0`, `gpu_required=false`,
+`api_required=false`, `mentor_used=false`, `training_allowed=false`, and the
+new `live_verified_repair_github_dry_run` summary reported `mode=fixture`,
+`verification=passed`, `chain_status=verified`, `test_ok=true`, `matched=2`,
+and `github_request_sent=false`. `git diff --check` passed, with only Windows
+LF-to-CRLF warnings. No GPU, OpenAI mentor, training, external paid API, or
+GitHub request was used.
 
 2026-07-22 Vast resume note: the new low-cost Vast instance
 `45558024` has `/workspace` mounted on a 500 GB volume and exposes an

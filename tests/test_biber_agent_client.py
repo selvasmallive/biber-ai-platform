@@ -287,6 +287,10 @@ def test_local_confidence_smoke_runs_provider_and_repair_smokes() -> None:
     assert "biber_local_github_dry_run_artifacts_smoke.py" in text
     assert "local_github_dry_run_artifacts" in text
     assert '"github_dry_run_artifacts"' in text
+    assert "biber_live_verified_repair_github_dry_run_smoke.py" in text
+    assert "live_verified_repair_github_dry_run_fixture" in text
+    assert '"live_verified_repair_github_dry_run"' in text
+    assert "dry_run_artifacts_matched" in text
     assert "biber_local_repair_loop_smoke.py" in text
     assert "biber_local_confidence_smoke" in text
     assert '"external_network_required": False' in text
@@ -358,6 +362,14 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
             "dry_run_types": ["pull_request", "save"],
             "github_request_sent": False,
         },
+        "live_verified_repair_github_dry_run": {
+            "mode": "fixture",
+            "verification_status": "passed",
+            "chain_status": "verified",
+            "test_ok": True,
+            "dry_run_artifacts_matched": 2,
+            "github_request_sent": False,
+        },
         "repair_loop": {
             "chain_status": "verified",
             "verification_ok": True,
@@ -406,6 +418,8 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
     assert "live_provider_real_repo_plan: mode=mock outcome=planned_for_review" in output
     assert "mutation_performed=False" in output
     assert "github_dry_run_artifacts: matched=2" in output
+    assert "live_verified_repair_github_dry_run: mode=fixture" in output
+    assert "chain_status=verified" in output
     assert "repair_loop: chain_status=verified" in output
 
     list_result = json.loads(

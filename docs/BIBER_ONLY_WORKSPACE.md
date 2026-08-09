@@ -281,10 +281,12 @@ python scripts/biber_agent_client.py show-mvp-loop-list \
 This combined smoke runs the mocked local OpenAI-compatible provider HTTP smoke,
 the mocked live-provider readiness smoke, the local MVP-loop edit-review smoke,
 the local MVP-loop failure/repair-hint smoke, the real-checkout MVP-loop
-repo-probe dry run, the verified-repair GitHub dry-run handoff smoke, the
-standalone GitHub dry-run artifact smoke, and the local repair-loop smoke
-together. It is the preferred pre-live-provider gate before asking for Vast GPU
-credentials or pointing BIBER at a real local Qwen/vLLM endpoint.
+repo-probe dry run, the mock real-repo plan smoke, the full local MVP-loop
+repair smoke, the verified-repair GitHub dry-run handoff smoke, the standalone
+GitHub dry-run artifact smoke, the live verified-repair GitHub dry-run bridge
+in fixture mode, and the local repair-loop smoke together. It is the preferred
+pre-live-provider gate before asking for Vast GPU credentials or pointing BIBER
+at a real local Qwen/vLLM endpoint.
 The real-checkout repo-probe also verifies that `mvp-loop` accepts
 `--pinned-paths-file` and `--changed-paths-file` in the local path.
 `show-confidence-smoke` and `list-confidence-smokes` surface this path-list
@@ -432,7 +434,9 @@ confirms the linked `apply-repair-edits` artifact was applied and verified, then
 writes `save-github --dry-run`, `create-pr --dry-run`, and
 `list-github-dry-runs` artifacts. It sends no GitHub request, uses no OpenAI
 mentor, runs no model inference, and starts no training. Review the dry-run
-artifacts before any real GitHub save or PR.
+artifacts before any real GitHub save or PR. The combined confidence gate runs
+the same bridge in `--mode fixture` so this handoff path is checked locally even
+when no live Vast artifact is available.
 
 To run only the repair-loop smoke:
 
