@@ -181,6 +181,22 @@ user explicitly approves applying that specific real-repo plan hash. After an
 approved apply, run the emitted verify command before considering any GitHub
 save or PR step.
 
+After an approved real-repo apply and successful `local-verify-chain`, create a
+local-only GitHub save/PR handoff from the verified artifact:
+
+```bash
+python scripts/biber_live_verified_repair_github_dry_run_smoke.py \
+  --verification-artifact /workspace/outputs/.../artifacts/real-repo-local-verify-chain.json \
+  --target-root /workspace/biber-ai-platform \
+  --branch biber/live-verified-repair
+```
+
+This post-verification bridge emits `save-github --dry-run` and
+`create-pr --dry-run` artifacts for the touched files, plus a dry-run listing.
+It never sends a GitHub request, does not call the model endpoint, does not use
+OpenAI mentor, and does not train. Treat it as a review handoff before any real
+GitHub save or PR.
+
 For manual repair-loop checks, run:
 
 ```bash

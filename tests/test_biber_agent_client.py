@@ -6856,6 +6856,21 @@ def test_local_github_dry_run_artifacts_smoke_documents_handoff() -> None:
     assert '"training_allowed": False' in text
 
 
+def test_live_verified_repair_github_dry_run_smoke_documents_handoff() -> None:
+    script = ROOT / "scripts" / "biber_live_verified_repair_github_dry_run_smoke.py"
+    text = script.read_text(encoding="utf-8")
+
+    assert "local-verify-chain" in text
+    assert "save-github" in text
+    assert "create-pr" in text
+    assert "list-github-dry-runs" in text
+    assert "biber_live_verified_repair_github_dry_run_smoke" in text
+    assert "review_dry_run_artifacts_before_real_github_save_or_pr" in text
+    assert '"api_required": False' in text
+    assert '"gpu_required": False' in text
+    assert '"training_allowed": False' in text
+
+
 def test_run_verify_repair_edits_can_override_test_id_and_diagnose_failure(
     monkeypatch,
     tmp_path: Path,

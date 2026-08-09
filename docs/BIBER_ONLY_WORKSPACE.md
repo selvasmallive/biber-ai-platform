@@ -418,6 +418,22 @@ runs `show-github-dry-run` on each, and runs `list-github-dry-runs` over the
 artifact directory. It verifies no GitHub request was sent and does not require
 BIBER API, GitHub credentials, OpenAI, Vast GPU, or training credentials.
 
+To create GitHub save/PR dry-runs from a verified live-provider repair:
+
+```bash
+python scripts/biber_live_verified_repair_github_dry_run_smoke.py \
+  --verification-artifact /workspace/outputs/.../artifacts/real-repo-local-verify-chain.json \
+  --target-root /workspace/biber-ai-platform \
+  --branch biber/live-verified-repair
+```
+
+This post-verification bridge reads the verified `local-verify-chain` artifact,
+confirms the linked `apply-repair-edits` artifact was applied and verified, then
+writes `save-github --dry-run`, `create-pr --dry-run`, and
+`list-github-dry-runs` artifacts. It sends no GitHub request, uses no OpenAI
+mentor, runs no model inference, and starts no training. Review the dry-run
+artifacts before any real GitHub save or PR.
+
 To run only the repair-loop smoke:
 
 ```bash
