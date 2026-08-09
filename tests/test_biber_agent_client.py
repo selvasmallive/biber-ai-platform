@@ -6907,6 +6907,22 @@ def test_live_verified_repair_github_dry_run_smoke_documents_handoff() -> None:
     assert '"training_allowed": False' in text
 
 
+def test_live_provider_fixture_plan_smoke_documents_gpu_fixture_flow() -> None:
+    script = ROOT / "scripts" / "biber_live_provider_fixture_plan_smoke.py"
+    text = script.read_text(encoding="utf-8")
+
+    assert "biber_live_provider_real_repo_plan_smoke.py" in text
+    assert "BIBER_FIXTURE_OLD_TOKEN" in text
+    assert "BIBER_FIXTURE_NEW_TOKEN" in text
+    assert "--mode" in text
+    assert "choices=[\"live\", \"mock\"]" in text
+    assert "target_is_disposable" in text
+    assert "review_plan_artifacts_only_no_apply" in text
+    assert '"api_required": False' in text
+    assert '"training_allowed": False' in text
+    assert "OpenAI mentor" in text
+
+
 def test_run_verify_repair_edits_can_override_test_id_and_diagnose_failure(
     monkeypatch,
     tmp_path: Path,

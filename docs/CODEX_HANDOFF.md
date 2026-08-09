@@ -183,6 +183,23 @@ list summary showed `checks=11`, `repo_probe_path_files=True`,
 `live_verified_bridge_matched=2`, and
 `live_verified_bridge_request_sent=False`. No GPU, OpenAI mentor, training,
 external API, or GitHub request was used.
+2026-08-09 GPU-use preference update: the user explicitly said to make maximum
+use of the current Vast GPU when it speeds BIBER MVP progress and not to worry
+about the running GPU cost. Treat this as approval to use the current SSH-backed
+Vast GPU for faster local-model inference, live provider checks, `/workspace`
+artifact validation, and GPU-side repo fast-forwards. This does not by itself
+approve OpenAI mentor calls, external paid APIs, credential rotation,
+destructive git operations, or a training run; keep those behind separate
+explicit approval unless the user later broadens the approval.
+To avoid fragile hand-written SSH fixture commands, add/use
+`scripts/biber_live_provider_fixture_plan_smoke.py`. It creates a disposable
+target, routes it through `biber_live_provider_real_repo_plan_smoke.py`, and
+stops before apply/save. Local validation used bundled Python `py_compile` and
+`python scripts/biber_live_provider_fixture_plan_smoke.py --mode mock`; result:
+`ok=true`, `chain_status=planned`, `review_status=ready_for_explicit_apply_approval`,
+`planned=1`, `rejected=0`, `mutation_performed=false`,
+`github_request_sent=false`, `mentor_used=false`, and
+`training_allowed=false`.
 
 2026-07-22 Vast resume note: the new low-cost Vast instance
 `45558024` has `/workspace` mounted on a 500 GB volume and exposes an

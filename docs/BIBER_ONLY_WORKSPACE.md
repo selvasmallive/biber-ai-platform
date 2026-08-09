@@ -439,6 +439,20 @@ artifacts before any real GitHub save or PR. The combined confidence gate runs
 the same bridge in `--mode fixture` so this handoff path is checked locally even
 when no live Vast artifact is available.
 
+To run a quick live local-model plan-only check on Vast without touching the
+active repo:
+
+```bash
+python scripts/biber_live_provider_fixture_plan_smoke.py \
+  --base-url http://127.0.0.1:8001/v1 \
+  --model biber-dev-core
+```
+
+This creates a disposable target under `/workspace/outputs`, routes it through
+the same real-repo plan-only path, and stops before apply/save. It is the
+preferred quick GPU-backed validation when the Vast runtime is already running.
+It sends no GitHub request, uses no OpenAI mentor, and starts no training.
+
 To run only the repair-loop smoke:
 
 ```bash
