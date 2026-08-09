@@ -97,6 +97,17 @@ line. No OpenAI mentor, no training, no credential rotation, and no XRIQ/XRIS
 work occurred. Moving forward, treat the current Vast instance reached by
 `ssh -i $env:USERPROFILE\.ssh\biber_vast_ed25519 -p 16276 root@85.30.169.224`
 as the active BIBER GPU; do not depend on the older Vast GPU instance.
+2026-08-09 Google Cloud backup checkpoint: the workstation `gcloud` is
+authenticated as `selva@kani.network`, and visible GCP projects include
+`biber-499407` (BIBER) and `xriq-499406` (XRIQ). A private BIBER backup bucket
+was created in project `biber-499407`:
+`gs://biber-ai-platform-backups-biber-499407`. Bucket properties verified:
+location `US-CENTRAL1`, storage class `STANDARD`, uniform bucket-level access
+enabled, public access prevention enforced, object versioning enabled, and the
+default soft-delete policy active. Use this bucket for non-git BIBER runtime
+backup tarballs. Do not upload plaintext `.env`, SSH keys, tokens, or other
+secrets; encrypt private backups before upload. Do not upload `.hf_home` unless
+the user deliberately wants to pay storage for redownloadable model cache.
 
 2026-07-22 Vast resume note: the new low-cost Vast instance
 `45558024` has `/workspace` mounted on a 500 GB volume and exposes an
