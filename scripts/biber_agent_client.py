@@ -14526,12 +14526,17 @@ def summarize_real_repo_plan_smoke_artifact(
     }
 
 
+def normalize_path_filter_text(value: Any) -> str:
+    return str(value or "").replace("\\", "/").rstrip("/")
+
+
 def list_real_repo_plan_smoke_artifacts(
     *,
     directory: str,
     pattern: str,
     limit: int,
     failed_only: bool = False,
+    target_root: str | None = None,
 ) -> dict[str, Any]:
     if limit < 1:
         raise BiberAgentClientError("--limit must be at least 1.")
@@ -14546,6 +14551,7 @@ def list_real_repo_plan_smoke_artifacts(
         )
 
     scanned = 0
+    target_root_filter = normalize_path_filter_text(target_root)
     artifacts: list[dict[str, Any]] = []
     for path in root.rglob(pattern):
         if not path.is_file():
@@ -14561,6 +14567,10 @@ def list_real_repo_plan_smoke_artifacts(
         summary = summarize_real_repo_plan_smoke_artifact(path, raw_payload)
         if summary is None:
             continue
+        if target_root_filter and (
+            normalize_path_filter_text(summary.get("target_root")) != target_root_filter
+        ):
+            continue
         if failed_only and summary.get("ok") is True:
             continue
         artifacts.append(summary)
@@ -14572,6 +14582,7 @@ def list_real_repo_plan_smoke_artifacts(
         "directory": str(root),
         "pattern": pattern,
         "failed_only": failed_only,
+        "target_root": target_root,
         "scanned": scanned,
         "matched": len(artifacts),
         "failed": failed_count,
@@ -14597,12 +14608,14 @@ def find_latest_real_repo_plan_smoke_artifact(
     directory: str,
     pattern: str,
     failed_only: bool = False,
+    target_root: str | None = None,
 ) -> dict[str, Any]:
     artifacts = list_real_repo_plan_smoke_artifacts(
         directory=directory,
         pattern=pattern,
         limit=1,
         failed_only=failed_only,
+        target_root=target_root,
     )
     latest = next(iter(require_list(artifacts.get("artifacts"))), None)
     if not isinstance(latest, dict):
@@ -14693,6 +14706,7 @@ def format_real_repo_plan_smoke_artifact_list_summary(
         f"directory: {payload.get('directory', '-')}",
         f"pattern: {payload.get('pattern', '-')}",
         f"failed_only: {payload.get('failed_only', False)}",
+        f"target_root: {payload.get('target_root') or '-'}",
         f"scanned: {payload.get('scanned', 0)}",
         f"matched: {payload.get('matched', 0)}",
         f"failed: {payload.get('failed', 0)}",
@@ -18122,6 +18136,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="*real-repo-plan*.json",
     )
     show_latest_real_repo_plan_smoke.add_argument("--failed-only", action="store_true")
+    show_latest_real_repo_plan_smoke.add_argument("--target-root")
 
     list_real_repo_plan_smokes = subparsers.add_parser(
         "list-real-repo-plan-smokes",
@@ -18134,6 +18149,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     list_real_repo_plan_smokes.add_argument("--limit", type=int, default=20)
     list_real_repo_plan_smokes.add_argument("--failed-only", action="store_true")
+    list_real_repo_plan_smokes.add_argument("--target-root")
     list_real_repo_plan_smokes.add_argument("--output")
 
     show_confidence_smoke = subparsers.add_parser(
@@ -19812,6 +19828,7 @@ def run(args: argparse.Namespace) -> str:
             directory=args.directory,
             pattern=args.pattern,
             failed_only=args.failed_only,
+            target_root=args.target_root,
         )
         return (
             json.dumps(artifact, indent=2, sort_keys=True)
@@ -19824,6 +19841,7 @@ def run(args: argparse.Namespace) -> str:
             pattern=args.pattern,
             limit=args.limit,
             failed_only=args.failed_only,
+            target_root=args.target_root,
         )
         if args.output:
             artifacts["artifact_path"] = str(Path(args.output))

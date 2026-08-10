@@ -10,9 +10,13 @@ Last updated: 2026-08-10
 `biber_live_provider_real_repo_plan_smoke.py` artifact and prints the same
 review-focused summary as `show-real-repo-plan-smoke`. Preferred Vast resume
 command:
-`/workspace/biber-venv/bin/python scripts/biber_agent_client.py show-latest-real-repo-plan-smoke /workspace/outputs --pattern '*real-repo-plan*.json'`.
+`/workspace/biber-venv/bin/python scripts/biber_agent_client.py show-latest-real-repo-plan-smoke /workspace/outputs --pattern '*real-repo-plan*.json' --target-root /workspace/biber-ai-platform`.
 This is offline/read-only and must not apply files, call GitHub, call OpenAI
 mentor, start training, or use external APIs.
+Use `--target-root` on Vast because the live confidence gate also creates
+nested fixture plan artifacts under `/workspace/outputs`; without the filter,
+the newest artifact may be for a disposable confidence target rather than the
+actual BIBER checkout.
 
 2026-08-10 live confidence resume helper checkpoint: continue BIBER MVP only.
 `scripts/biber_agent_client.py` now includes

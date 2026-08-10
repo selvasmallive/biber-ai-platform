@@ -773,8 +773,25 @@ def test_run_show_real_repo_plan_smoke_summarizes_saved_artifact(
         json.dumps(failed_payload, sort_keys=True),
         encoding="utf-8",
     )
+    other_target_artifact = tmp_path / "biber-real-repo-plan-smoke-other-target.json"
+    other_target_payload = {
+        **payload,
+        "target_root": "/workspace/outputs/confidence-fixture/target",
+        "plan_hash": "other-target-plan",
+        "explicit_apply_approval": {
+            "required": True,
+            "approved": False,
+            "status": "requires_separate_explicit_user_approval_before_apply",
+            "plan_hash": "other-target-plan",
+        },
+    }
+    other_target_artifact.write_text(
+        json.dumps(other_target_payload, sort_keys=True),
+        encoding="utf-8",
+    )
     os.utime(artifact, (1_900_000_000, 1_900_000_000))
     os.utime(failed_artifact, (1_900_000_100, 1_900_000_100))
+    os.utime(other_target_artifact, (1_900_000_200, 1_900_000_200))
 
     output = client.run(client.parse_args(["show-real-repo-plan-smoke", str(artifact)]))
     result = json.loads(
@@ -844,6 +861,36 @@ def test_run_show_real_repo_plan_smoke_summarizes_saved_artifact(
             ]
         )
     )
+    latest_for_target = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "show-latest-real-repo-plan-smoke",
+                    str(tmp_path),
+                    "--pattern",
+                    "*real-repo-plan*.json",
+                    "--target-root",
+                    "/workspace/biber-ai-platform",
+                ]
+            )
+        )
+    )
+    filtered_list = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "list-real-repo-plan-smokes",
+                    str(tmp_path),
+                    "--pattern",
+                    "*real-repo-plan*.json",
+                    "--target-root",
+                    "/workspace/biber-ai-platform",
+                ]
+            )
+        )
+    )
 
     assert result["source"] == "biber_live_provider_real_repo_plan_smoke"
     assert "BIBER real-repo plan smoke" in output
@@ -857,7 +904,7 @@ def test_run_show_real_repo_plan_smoke_summarizes_saved_artifact(
     assert "required_path: app/model_registry.py" in output
     assert "explicit_apply_approval: required=True" in output
     assert list_result["source"] == "biber_real_repo_plan_smoke_artifact_list"
-    assert list_result["matched"] == 2
+    assert list_result["matched"] == 3
     assert list_result["failed"] == 1
     assert list_result["gpu_required"] is True
     assert list_result["live_provider_required"] is True
@@ -867,20 +914,25 @@ def test_run_show_real_repo_plan_smoke_summarizes_saved_artifact(
     assert json.loads(list_artifact.read_text(encoding="utf-8")) == list_result
     assert failed_only["matched"] == 1
     assert failed_only["artifacts"][0]["ok"] is False
-    assert "BIBER real-repo plan smoke artifacts (2)" in list_summary
+    assert "BIBER real-repo plan smoke artifacts (3)" in list_summary
     assert "failed: 1" in list_summary
     assert "outcome=planned_for_review" in list_summary
     assert "review=ready_for_explicit_apply_approval" in list_summary
     assert "mutated=False" in list_summary
     assert "repo_unchanged=True" in list_summary
     assert latest["source"] == "biber_live_provider_real_repo_plan_smoke"
-    assert latest["artifact_path"] == str(failed_artifact)
-    assert latest["artifact_list"]["matched"] == 2
-    assert latest["ok"] is False
+    assert latest["artifact_path"] == str(other_target_artifact)
+    assert latest["artifact_list"]["matched"] == 3
+    assert latest["plan_hash"] == "other-target-plan"
     assert latest["mutation_performed"] is False
     assert latest["repo_status_unchanged"] is True
     assert "BIBER real-repo plan smoke" in latest_summary
-    assert f"artifact_path: {failed_artifact}" in latest_summary
+    assert f"artifact_path: {other_target_artifact}" in latest_summary
+    assert latest_for_target["artifact_path"] == str(failed_artifact)
+    assert latest_for_target["artifact_list"]["matched"] == 2
+    assert latest_for_target["target_root"] == "/workspace/biber-ai-platform"
+    assert filtered_list["target_root"] == "/workspace/biber-ai-platform"
+    assert filtered_list["matched"] == 2
 
 
 def test_format_capabilities_summary_includes_presets_and_tests() -> None:

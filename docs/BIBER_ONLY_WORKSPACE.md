@@ -183,10 +183,12 @@ python scripts/biber_agent_client.py show-real-repo-plan-smoke \
   /workspace/outputs/biber-real-repo-plan-latest.json
 python scripts/biber_agent_client.py show-latest-real-repo-plan-smoke \
   /workspace/outputs \
-  --pattern "*real-repo-plan*.json"
+  --pattern "*real-repo-plan*.json" \
+  --target-root /workspace/biber-ai-platform
 python scripts/biber_agent_client.py list-real-repo-plan-smokes \
   /workspace/outputs \
   --pattern "*real-repo-plan*.json" \
+  --target-root /workspace/biber-ai-platform \
   --output /workspace/outputs/biber-real-repo-plan-smoke-list.json
 ```
 
