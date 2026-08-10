@@ -144,6 +144,9 @@ unusable edit, inspect `plan_outcome`, `model_response_content_preview`,
 real-repo plan without a separate explicit apply approval.
 The default smoke edit uses a single exact docs line so the live 3B provider is
 not judged on preserving wrapped paragraph line breaks.
+That docs-line profile can choose between the accepted `BIBER-only` and
+`BIBER MVP-only` wording variants when no explicit `--required-*` text is
+provided, so the smoke remains usable after an approved wording apply.
 After that docs proof is synced, use the first real code profile to test a
 small Python source edit plan:
 
@@ -172,6 +175,17 @@ When the plan-only result is ready, its `explicit_apply_approval` block gives
 the exact apply and verify command arrays. Treat them as pending instructions:
 do not run apply until the user explicitly approves the specific `plan_hash`,
 then run verify immediately after apply.
+To reopen or scan saved real-repo plan smoke summaries without rerunning the
+local model:
+
+```bash
+python scripts/biber_agent_client.py show-real-repo-plan-smoke \
+  /workspace/outputs/biber-real-repo-plan-latest.json
+python scripts/biber_agent_client.py list-real-repo-plan-smokes \
+  /workspace/outputs \
+  --pattern "*real-repo-plan*.json" \
+  --output /workspace/outputs/biber-real-repo-plan-smoke-list.json
+```
 
 This keeps Qwen2.5, Qwen3, llama.cpp, vLLM wrappers, and future local runners
 swappable without enabling OpenAI mentor, API auth, GPU training, or file apply.

@@ -14472,6 +14472,220 @@ def list_confidence_smoke_artifacts(
     }
 
 
+def normalize_real_repo_plan_smoke_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") != "biber_live_provider_real_repo_plan_smoke":
+        return None
+    return dict(payload)
+
+
+def summarize_real_repo_plan_smoke_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    normalized = normalize_real_repo_plan_smoke_artifact(payload)
+    if normalized is None:
+        return None
+    required_edit = require_mapping(normalized.get("required_edit"))
+    explicit_approval = require_mapping(normalized.get("explicit_apply_approval"))
+    return {
+        "path": str(path),
+        "source": normalized.get("source"),
+        "ok": normalized.get("ok") is True,
+        "mode": normalized.get("mode"),
+        "smoke_profile": normalized.get("smoke_profile"),
+        "target_root": normalized.get("target_root"),
+        "model": normalized.get("model"),
+        "gpu_required": normalized.get("gpu_required") is True,
+        "live_provider_required": normalized.get("live_provider_required") is True,
+        "api_required": normalized.get("api_required") is True,
+        "mentor_used": normalized.get("mentor_used") is True,
+        "training_allowed": normalized.get("training_allowed") is True,
+        "github_request_sent": normalized.get("github_request_sent") is True,
+        "mutation_performed": normalized.get("mutation_performed") is True,
+        "repo_status_unchanged": normalized.get("repo_status_unchanged") is True,
+        "readiness_ok": normalized.get("readiness_ok") is True,
+        "mvp_ok": normalized.get("mvp_ok") is True,
+        "source_context_snippets_available": (
+            normalized.get("source_context_snippets_available") is True
+        ),
+        "chain_status": normalized.get("chain_status"),
+        "plan_outcome": normalized.get("plan_outcome"),
+        "review_status": normalized.get("review_status"),
+        "apply_recommendation": normalized.get("apply_recommendation"),
+        "planned": normalized.get("planned", 0),
+        "rejected": normalized.get("rejected", 0),
+        "apply_allowed": normalized.get("apply_allowed") is True,
+        "plan_hash": normalized.get("plan_hash"),
+        "required_path": required_edit.get("path"),
+        "explicit_apply_required": explicit_approval.get("required") is True,
+        "explicit_apply_status": explicit_approval.get("status"),
+        "next_action": normalized.get("next_action"),
+        "modified_epoch": path.stat().st_mtime,
+    }
+
+
+def list_real_repo_plan_smoke_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    failed_only: bool = False,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            f"Real-repo plan smoke artifact directory does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            f"Real-repo plan smoke artifact path is not a directory: {root}"
+        )
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="real-repo plan smoke artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        summary = summarize_real_repo_plan_smoke_artifact(path, raw_payload)
+        if summary is None:
+            continue
+        if failed_only and summary.get("ok") is True:
+            continue
+        artifacts.append(summary)
+
+    artifacts.sort(key=lambda item: float(item.get("modified_epoch") or 0.0), reverse=True)
+    failed_count = sum(1 for item in artifacts if item.get("ok") is not True)
+    return {
+        "source": "biber_real_repo_plan_smoke_artifact_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "failed_only": failed_only,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "failed": failed_count,
+        "api_required": False,
+        "gpu_required": any(item.get("gpu_required") is True for item in artifacts),
+        "live_provider_required": any(
+            item.get("live_provider_required") is True for item in artifacts
+        ),
+        "mentor_used": False,
+        "training_allowed": False,
+        "github_request_sent": any(
+            item.get("github_request_sent") is True for item in artifacts
+        ),
+        "mutation_performed": any(
+            item.get("mutation_performed") is True for item in artifacts
+        ),
+        "artifacts": artifacts[:limit],
+    }
+
+
+def format_real_repo_plan_smoke_artifact_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    required_edit = require_mapping(payload.get("required_edit"))
+    explicit_approval = require_mapping(payload.get("explicit_apply_approval"))
+    lines = [
+        "BIBER real-repo plan smoke",
+        f"ok: {payload.get('ok') is True}",
+        f"mode: {payload.get('mode', '-')}",
+        f"smoke_profile: {payload.get('smoke_profile', '-')}",
+        f"target_root: {payload.get('target_root', '-')}",
+        f"model: {payload.get('model', '-')}",
+        f"gpu_required: {payload.get('gpu_required') is True}",
+        f"live_provider_required: {payload.get('live_provider_required') is True}",
+        f"api_required: {payload.get('api_required') is True}",
+        f"mentor_used: {payload.get('mentor_used') is True}",
+        f"training_allowed: {payload.get('training_allowed') is True}",
+        f"github_request_sent: {payload.get('github_request_sent') is True}",
+        f"mutation_performed: {payload.get('mutation_performed') is True}",
+        f"repo_status_unchanged: {payload.get('repo_status_unchanged') is True}",
+        f"readiness_ok: {payload.get('readiness_ok') is True}",
+        f"mvp_ok: {payload.get('mvp_ok') is True}",
+        (
+            "source_context_snippets_available: "
+            f"{payload.get('source_context_snippets_available') is True}"
+        ),
+        f"chain_status: {payload.get('chain_status', '-')}",
+        f"plan_outcome: {payload.get('plan_outcome', '-')}",
+        f"review_status: {payload.get('review_status', '-')}",
+        f"apply_recommendation: {payload.get('apply_recommendation', '-')}",
+        f"planned: {payload.get('planned', 0)}",
+        f"rejected: {payload.get('rejected', 0)}",
+        f"apply_allowed: {payload.get('apply_allowed') is True}",
+        f"plan_hash: {payload.get('plan_hash', '-')}",
+        f"required_path: {required_edit.get('path', '-')}",
+        (
+            "explicit_apply_approval: "
+            f"required={explicit_approval.get('required')} "
+            f"status={explicit_approval.get('status', '-')} "
+            f"plan_hash={explicit_approval.get('plan_hash', '-')}"
+        ),
+        f"next_action: {payload.get('next_action', '-')}",
+    ]
+    if payload.get("work_root"):
+        lines.append(f"work_root: {payload.get('work_root')}")
+    if payload.get("artifact_dir"):
+        lines.append(f"artifact_dir: {payload.get('artifact_dir')}")
+    if payload.get("artifact_path"):
+        lines.append(f"artifact_path: {payload.get('artifact_path')}")
+    return "\n".join(lines)
+
+
+def format_real_repo_plan_smoke_artifact_list_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER real-repo plan smoke artifacts ({len(artifacts)})",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"failed_only: {payload.get('failed_only', False)}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"failed: {payload.get('failed', 0)}",
+        f"gpu_required: {payload.get('gpu_required') is True}",
+        f"live_provider_required: {payload.get('live_provider_required') is True}",
+        f"github_request_sent: {payload.get('github_request_sent') is True}",
+        f"mutation_performed: {payload.get('mutation_performed') is True}",
+    ]
+    for artifact in artifacts:
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"ok={artifact.get('ok')}",
+                    f"mode={artifact.get('mode', '-')}",
+                    f"profile={artifact.get('smoke_profile', '-')}",
+                    f"outcome={artifact.get('plan_outcome', '-')}",
+                    f"review={artifact.get('review_status', '-')}",
+                    f"planned={artifact.get('planned', 0)}",
+                    f"rejected={artifact.get('rejected', 0)}",
+                    f"mutated={artifact.get('mutation_performed')}",
+                    f"repo_unchanged={artifact.get('repo_status_unchanged')}",
+                    f"plan_hash={artifact.get('plan_hash', '-')}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_confidence_smoke_artifact_summary(payload: Mapping[str, Any]) -> str:
     checks = [
         item
@@ -17853,6 +18067,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     list_github_dry_runs.add_argument("--limit", type=int, default=20)
     list_github_dry_runs.add_argument("--output")
 
+    show_real_repo_plan_smoke = subparsers.add_parser(
+        "show-real-repo-plan-smoke",
+        help="Summarize a saved biber_live_provider_real_repo_plan_smoke.py artifact.",
+    )
+    show_real_repo_plan_smoke.add_argument("artifact")
+
+    list_real_repo_plan_smokes = subparsers.add_parser(
+        "list-real-repo-plan-smokes",
+        help="List saved biber_live_provider_real_repo_plan_smoke.py artifacts.",
+    )
+    list_real_repo_plan_smokes.add_argument("directory")
+    list_real_repo_plan_smokes.add_argument(
+        "--pattern",
+        default="*real-repo-plan*.json",
+    )
+    list_real_repo_plan_smokes.add_argument("--limit", type=int, default=20)
+    list_real_repo_plan_smokes.add_argument("--failed-only", action="store_true")
+    list_real_repo_plan_smokes.add_argument("--output")
+
     show_confidence_smoke = subparsers.add_parser(
         "show-confidence-smoke",
         help="Summarize a saved biber_local_confidence_smoke.py JSON artifact.",
@@ -19507,6 +19740,37 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
             else format_github_dry_run_artifact_list_summary(artifacts)
+        )
+    if args.command == "show-real-repo-plan-smoke":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="real-repo plan smoke artifact",
+        )
+        normalized = normalize_real_repo_plan_smoke_artifact(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "real-repo plan smoke artifact must have source "
+                "biber_live_provider_real_repo_plan_smoke."
+            )
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_real_repo_plan_smoke_artifact_summary(normalized)
+        )
+    if args.command == "list-real-repo-plan-smokes":
+        artifacts = list_real_repo_plan_smoke_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            failed_only=args.failed_only,
+        )
+        if args.output:
+            artifacts["artifact_path"] = str(Path(args.output))
+            write_json_artifact(artifacts, args.output)
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_real_repo_plan_smoke_artifact_list_summary(artifacts)
         )
     if args.command == "show-confidence-smoke":
         artifact = load_json_artifact(

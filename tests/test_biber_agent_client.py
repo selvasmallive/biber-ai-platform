@@ -4,6 +4,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -704,6 +705,151 @@ def test_run_show_live_provider_confidence_summarizes_saved_artifact(
     assert latest["failed_checks"][0]["name"] == "live_disposable_repair"
     assert "BIBER live-provider confidence smoke" in latest_summary
     assert f"artifact_path: {failed_artifact}" in latest_summary
+
+
+def test_run_show_real_repo_plan_smoke_summarizes_saved_artifact(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "biber-real-repo-plan-smoke.json"
+    failed_artifact = tmp_path / "biber-real-repo-plan-smoke-failed.json"
+    list_artifact = tmp_path / "biber-real-repo-plan-smoke-list.json"
+    payload = {
+        "source": "biber_live_provider_real_repo_plan_smoke",
+        "ok": True,
+        "mode": "live",
+        "smoke_profile": "code-unused-timeout",
+        "target_root": "/workspace/biber-ai-platform",
+        "model": "biber-dev-core",
+        "api_required": False,
+        "gpu_required": True,
+        "live_provider_required": True,
+        "mentor_used": False,
+        "training_allowed": False,
+        "github_request_sent": False,
+        "mutation_performed": False,
+        "auto_applied": False,
+        "auto_saved": False,
+        "repo_status_unchanged": True,
+        "readiness_ok": True,
+        "mvp_ok": True,
+        "source_context_snippets_available": True,
+        "chain_status": "planned",
+        "plan_outcome": "planned_for_review",
+        "review_status": "ready_for_explicit_apply_approval",
+        "apply_recommendation": "ready_for_explicit_apply_approval",
+        "planned": 1,
+        "rejected": 0,
+        "apply_allowed": False,
+        "plan_hash": "abc123",
+        "required_edit": {
+            "path": "app/model_registry.py",
+            "old_text_chars": 72,
+            "new_text_chars": 0,
+        },
+        "explicit_apply_approval": {
+            "required": True,
+            "approved": False,
+            "status": "requires_separate_explicit_user_approval_before_apply",
+            "plan_hash": "abc123",
+        },
+        "next_action": "review_plan_artifacts_only_no_apply",
+        "work_root": "/workspace/outputs/biber-real-repo-plan-smoke-test",
+        "artifact_dir": "/workspace/outputs/biber-real-repo-plan-smoke-test/artifacts",
+    }
+    artifact.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    failed_payload = {
+        **payload,
+        "ok": False,
+        "chain_status": "no_valid_edits",
+        "plan_outcome": "safe_noop_or_empty_edits",
+        "review_status": "blocked_before_apply",
+        "planned": 0,
+        "rejected": 0,
+        "plan_hash": None,
+        "explicit_apply_approval": {},
+        "next_action": "inspect_model_response_and_prompt_or_retry_with_stricter_instruction",
+    }
+    failed_artifact.write_text(
+        json.dumps(failed_payload, sort_keys=True),
+        encoding="utf-8",
+    )
+    os.utime(artifact, (1_900_000_000, 1_900_000_000))
+    os.utime(failed_artifact, (1_900_000_100, 1_900_000_100))
+
+    output = client.run(client.parse_args(["show-real-repo-plan-smoke", str(artifact)]))
+    result = json.loads(
+        client.run(
+            client.parse_args(["--json", "show-real-repo-plan-smoke", str(artifact)])
+        )
+    )
+    list_result = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "list-real-repo-plan-smokes",
+                    str(tmp_path),
+                    "--pattern",
+                    "*real-repo-plan*.json",
+                    "--output",
+                    str(list_artifact),
+                ]
+            )
+        )
+    )
+    failed_only = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "list-real-repo-plan-smokes",
+                    str(tmp_path),
+                    "--pattern",
+                    "*real-repo-plan*.json",
+                    "--failed-only",
+                ]
+            )
+        )
+    )
+    list_summary = client.run(
+        client.parse_args(
+            [
+                "list-real-repo-plan-smokes",
+                str(tmp_path),
+                "--pattern",
+                "*real-repo-plan*.json",
+            ]
+        )
+    )
+
+    assert result["source"] == "biber_live_provider_real_repo_plan_smoke"
+    assert "BIBER real-repo plan smoke" in output
+    assert "mode: live" in output
+    assert "smoke_profile: code-unused-timeout" in output
+    assert "mutation_performed: False" in output
+    assert "repo_status_unchanged: True" in output
+    assert "review_status: ready_for_explicit_apply_approval" in output
+    assert "apply_allowed: False" in output
+    assert "plan_hash: abc123" in output
+    assert "required_path: app/model_registry.py" in output
+    assert "explicit_apply_approval: required=True" in output
+    assert list_result["source"] == "biber_real_repo_plan_smoke_artifact_list"
+    assert list_result["matched"] == 2
+    assert list_result["failed"] == 1
+    assert list_result["gpu_required"] is True
+    assert list_result["live_provider_required"] is True
+    assert list_result["github_request_sent"] is False
+    assert list_result["mutation_performed"] is False
+    assert list_result["artifact_path"] == str(list_artifact)
+    assert json.loads(list_artifact.read_text(encoding="utf-8")) == list_result
+    assert failed_only["matched"] == 1
+    assert failed_only["artifacts"][0]["ok"] is False
+    assert "BIBER real-repo plan smoke artifacts (2)" in list_summary
+    assert "failed: 1" in list_summary
+    assert "outcome=planned_for_review" in list_summary
+    assert "review=ready_for_explicit_apply_approval" in list_summary
+    assert "mutated=False" in list_summary
+    assert "repo_unchanged=True" in list_summary
 
 
 def test_format_capabilities_summary_includes_presets_and_tests() -> None:
@@ -7061,6 +7207,33 @@ def test_real_repo_plan_prompt_includes_confirmed_presence_note() -> None:
     assert "Preflight result" in prompt
     assert "appears exactly once" in prompt
     assert 'do not return {"edits":[]}' in prompt
+
+
+def test_real_repo_plan_profile_selects_matching_docs_line_alternate(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "BIBER_ONLY_WORKSPACE.md").write_text(
+        real_repo_smoke.DOCS_LINE_BIBER_MVP_ONLY_TEXT,
+        encoding="utf-8",
+    )
+    args = SimpleNamespace(
+        required_old_text=None,
+        required_old_text_file=None,
+        required_new_text=None,
+        required_new_text_file=None,
+    )
+
+    old_text, new_text = real_repo_smoke.resolve_profile_required_texts(
+        target_root=tmp_path,
+        required_path="docs/BIBER_ONLY_WORKSPACE.md",
+        profile=real_repo_smoke.SMOKE_PROFILES["docs-line"],
+        args=args,
+    )
+
+    assert old_text == real_repo_smoke.DOCS_LINE_BIBER_MVP_ONLY_TEXT
+    assert new_text == real_repo_smoke.DOCS_LINE_BIBER_ONLY_TEXT
 
 
 def test_local_verified_repair_github_dry_run_smoke_documents_handoff() -> None:

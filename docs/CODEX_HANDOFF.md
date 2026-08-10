@@ -27,6 +27,19 @@ summarized `/workspace/outputs/biber-live-provider-confidence-latest.json` as
 `model_available=True`, fixture plan `planned`, and disposable repair
 `apply=applied verification=passed test_ok=True`.
 
+Next source checkpoint in progress: `scripts/biber_agent_client.py` adds
+`show-real-repo-plan-smoke <artifact>` and
+`list-real-repo-plan-smokes <directory>` for saved
+`biber_live_provider_real_repo_plan_smoke.py` summary artifacts. These are
+offline/read-only artifact readers to help review non-disposable plan-only
+results before any human plan-hash apply decision. They must not apply files,
+save to GitHub, call OpenAI mentor, start training, or use external APIs.
+During local validation, the default docs-line real-repo profile was found to
+be stale because the target wording had already been updated. The same source
+checkpoint also makes that profile choose between the accepted `BIBER-only`
+and `BIBER MVP-only` wording variants when the caller has not supplied explicit
+`--required-*` text.
+
 2026-08-07 fresh Vast GPU checkpoint: BIBER MVP work has resumed on a new
 SSH-capable Vast instance. Use SSH from the workstation with:
 `ssh -i $env:USERPROFILE\.ssh\biber_vast_ed25519 -p 16276 root@85.30.169.224`.
