@@ -821,6 +821,29 @@ def test_run_show_real_repo_plan_smoke_summarizes_saved_artifact(
             ]
         )
     )
+    latest = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "show-latest-real-repo-plan-smoke",
+                    str(tmp_path),
+                    "--pattern",
+                    "*real-repo-plan*.json",
+                ]
+            )
+        )
+    )
+    latest_summary = client.run(
+        client.parse_args(
+            [
+                "show-latest-real-repo-plan-smoke",
+                str(tmp_path),
+                "--pattern",
+                "*real-repo-plan*.json",
+            ]
+        )
+    )
 
     assert result["source"] == "biber_live_provider_real_repo_plan_smoke"
     assert "BIBER real-repo plan smoke" in output
@@ -850,6 +873,14 @@ def test_run_show_real_repo_plan_smoke_summarizes_saved_artifact(
     assert "review=ready_for_explicit_apply_approval" in list_summary
     assert "mutated=False" in list_summary
     assert "repo_unchanged=True" in list_summary
+    assert latest["source"] == "biber_live_provider_real_repo_plan_smoke"
+    assert latest["artifact_path"] == str(failed_artifact)
+    assert latest["artifact_list"]["matched"] == 2
+    assert latest["ok"] is False
+    assert latest["mutation_performed"] is False
+    assert latest["repo_status_unchanged"] is True
+    assert "BIBER real-repo plan smoke" in latest_summary
+    assert f"artifact_path: {failed_artifact}" in latest_summary
 
 
 def test_format_capabilities_summary_includes_presets_and_tests() -> None:

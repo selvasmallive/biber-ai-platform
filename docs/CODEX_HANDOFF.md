@@ -4,6 +4,16 @@ Last updated: 2026-08-10
 
 ## Current Goal
 
+2026-08-10 latest real-repo plan resume helper checkpoint:
+`scripts/biber_agent_client.py` now includes
+`show-latest-real-repo-plan-smoke <directory>`, which finds the newest saved
+`biber_live_provider_real_repo_plan_smoke.py` artifact and prints the same
+review-focused summary as `show-real-repo-plan-smoke`. Preferred Vast resume
+command:
+`/workspace/biber-venv/bin/python scripts/biber_agent_client.py show-latest-real-repo-plan-smoke /workspace/outputs --pattern '*real-repo-plan*.json'`.
+This is offline/read-only and must not apply files, call GitHub, call OpenAI
+mentor, start training, or use external APIs.
+
 2026-08-10 live confidence resume helper checkpoint: continue BIBER MVP only.
 `scripts/biber_agent_client.py` now includes
 `show-latest-live-provider-confidence <directory>`, which finds the newest
