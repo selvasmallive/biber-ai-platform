@@ -37,7 +37,8 @@ It returned `ok=True`, `mode=fixture`, `chain_status=verified`,
 follow-up `list-github-dry-runs /workspace/outputs --pattern
 '*github-*-dry-run*.json' --limit 5` found the newest save and PR dry-run
 artifacts with `github_request_sent=False`.
-Source checkpoint in progress: `scripts/biber_agent_client.py` adds
+2026-08-10 live verified GitHub dry-run bridge reader checkpoint:
+`scripts/biber_agent_client.py` adds
 `show-live-verified-github-dry-run <artifact>`,
 `show-latest-live-verified-github-dry-run <directory>`, and
 `list-live-verified-github-dry-runs <directory>` for saved
@@ -46,6 +47,20 @@ are offline/read-only readers for the verified-repair-to-GitHub-dry-run bridge;
 they must not send GitHub requests, call OpenAI mentor, apply files, or start
 training. Use `--target-root /workspace/biber-ai-platform` on Vast when looking
 for the latest bridge summary for the real BIBER checkout.
+Local validation passed bundled Python `py_compile`, the focused
+`tests.test_biber_agent_client.test_run_show_live_verified_github_dry_run_summarizes_saved_artifact`
+path, a fixture-mode `biber_live_verified_repair_github_dry_run_smoke.py`
+run, and all three new reader commands. Commit `94290a8` pushed this source
+work. After fast-forwarding the current Vast GPU, the new readers summarized
+`/workspace/outputs/biber-live-verified-github-dry-run-latest.json` as
+`ok=True`, `mode=fixture`, `chain_status=verified`,
+`verification_status=passed`, `test_ok=True`, `paths=1`,
+`dry_run_artifacts_matched=2`, `github_request_sent=False`,
+`mentor_used=False`, `training_allowed=False`, and `auto_saved=False`.
+`list-live-verified-github-dry-runs /workspace/outputs --pattern
+'*live-verified-github-dry-run*.json' --limit 3 --output
+/workspace/outputs/biber-live-verified-github-dry-run-list-latest.json` also
+passed and saved the list artifact.
 
 2026-08-10 live confidence resume helper checkpoint: continue BIBER MVP only.
 `scripts/biber_agent_client.py` now includes
