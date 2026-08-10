@@ -27,6 +27,16 @@ the current Vast GPU, the filtered command correctly returned
 `review_status=ready_for_explicit_apply_approval`, `planned=1`, `rejected=0`,
 `mutation_performed=False`, `repo_status_unchanged=True`, and plan hash
 `867e0027a0298a395cbce0314ddd4cb1e4206ba65da97181e69c8ac399514fb3`.
+Also on the current Vast GPU, the existing verified-repair GitHub dry-run
+bridge was refreshed in fixture mode:
+`/workspace/biber-venv/bin/python scripts/biber_live_verified_repair_github_dry_run_smoke.py --mode fixture --output /workspace/outputs/biber-live-verified-github-dry-run-latest.json`.
+It returned `ok=True`, `mode=fixture`, `chain_status=verified`,
+`verification_status=passed`, `test_ok=True`, `paths=['src/app.py']`,
+`dry_run_artifacts_matched=2`, `github_request_sent=False`, and
+`next_action=review_dry_run_artifacts_before_real_github_save_or_pr`. A
+follow-up `list-github-dry-runs /workspace/outputs --pattern
+'*github-*-dry-run*.json' --limit 5` found the newest save and PR dry-run
+artifacts with `github_request_sent=False`.
 
 2026-08-10 live confidence resume helper checkpoint: continue BIBER MVP only.
 `scripts/biber_agent_client.py` now includes
