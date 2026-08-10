@@ -15,6 +15,18 @@ This is an offline artifact reader: it should not call GitHub, OpenAI mentor,
 training, or any external API. Use it before rerunning heavier GPU confidence
 checks when `/workspace/outputs` already has recent artifacts.
 
+Validation for the helper: local bundled Python `py_compile`, a mock
+`scripts/biber_live_provider_confidence_smoke.py --mode mock --cleanup` run,
+`show-latest-live-provider-confidence <temp-dir>`, and a direct focused
+`tests.test_biber_agent_client` function call passed. Commit `9d65af5` pushed
+the helper. After fast-forwarding the current Vast GPU to `9d65af5`,
+`/workspace/biber-venv/bin/python scripts/biber_agent_client.py show-latest-live-provider-confidence /workspace/outputs --pattern '*live-provider-confidence*.json'`
+summarized `/workspace/outputs/biber-live-provider-confidence-latest.json` as
+`ok=True`, `mode=live`, `checks=3`, `failed_checks=0`, `gpu_required=True`,
+`live_provider_required=True`, `github_request_sent=False`, readiness
+`model_available=True`, fixture plan `planned`, and disposable repair
+`apply=applied verification=passed test_ok=True`.
+
 2026-08-07 fresh Vast GPU checkpoint: BIBER MVP work has resumed on a new
 SSH-capable Vast instance. Use SSH from the workstation with:
 `ssh -i $env:USERPROFILE\.ssh\biber_vast_ed25519 -p 16276 root@85.30.169.224`.
