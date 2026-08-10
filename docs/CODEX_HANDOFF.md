@@ -242,6 +242,17 @@ checks. Local validation used bundled Python `py_compile`,
 `checks=3`, `failed_checks=0`, readiness ok, fixture plan `planned`,
 disposable repair `apply=applied`, `verification=passed`, and `test_ok=true`;
 no GitHub request, OpenAI mentor, training, or external API was used.
+Commit `4fe00ad` pushed the artifact readers. After pulling on the current
+Vast GPU, `show-live-provider-confidence
+/workspace/outputs/biber-live-provider-confidence-latest.json` summarized the
+saved live artifact as `ok=True`, `mode=live`, `checks=3`,
+`failed_checks=0`, `gpu_required=True`, `live_provider_required=True`,
+`github_request_sent=False`, readiness `model_available=True`, fixture plan
+`planned`, and disposable repair `apply=applied verification=passed
+test_ok=True`. `list-live-provider-confidence /workspace/outputs --pattern
+'biber-live-provider-confidence-latest.json' --limit 1 --output
+/workspace/outputs/biber-live-provider-confidence-list-latest.json` also
+passed and saved the list artifact.
 
 2026-07-22 Vast resume note: the new low-cost Vast instance
 `45558024` has `/workspace` mounted on a 500 GB volume and exposes an
