@@ -31,12 +31,14 @@ DEFAULT_TIMEOUT_SECONDS = 180.0
 DEFAULT_MAX_CONTEXT_FILES = 4
 DEFAULT_CHANGED_PATH = "docs/BIBER_ONLY_WORKSPACE.md"
 DEFAULT_TEST_ID = "python-compileall-api"
-DEFAULT_OLD_TEXT = (
+DOCS_LINE_BIBER_ONLY_TEXT = (
     "Use this document when continuing BIBER MVP from the dedicated BIBER-only sparse checkout at:\n"
 )
-DEFAULT_NEW_TEXT = (
+DOCS_LINE_BIBER_MVP_ONLY_TEXT = (
     "Use this document when continuing BIBER MVP from the dedicated BIBER MVP-only sparse checkout at:\n"
 )
+DEFAULT_OLD_TEXT = DOCS_LINE_BIBER_MVP_ONLY_TEXT
+DEFAULT_NEW_TEXT = DOCS_LINE_BIBER_ONLY_TEXT
 DEFAULT_CONTEXT_INSTRUCTION = (
     "Select the narrow BIBER repo context needed for a safe plan-only "
     "local-provider edit review. Prioritize the required changed path."
@@ -46,11 +48,21 @@ CODE_PLAN_CONTEXT_INSTRUCTION = (
     "plan-only local-provider code edit review. Prioritize the required "
     "changed path and exact old_text."
 )
-SMOKE_PROFILES: dict[str, dict[str, str]] = {
+SMOKE_PROFILES: dict[str, dict[str, Any]] = {
     "docs-line": {
         "required_path": DEFAULT_CHANGED_PATH,
         "required_old_text": DEFAULT_OLD_TEXT,
         "required_new_text": DEFAULT_NEW_TEXT,
+        "required_text_alternates": [
+            {
+                "required_old_text": DOCS_LINE_BIBER_MVP_ONLY_TEXT,
+                "required_new_text": DOCS_LINE_BIBER_ONLY_TEXT,
+            },
+            {
+                "required_old_text": DOCS_LINE_BIBER_ONLY_TEXT,
+                "required_new_text": DOCS_LINE_BIBER_MVP_ONLY_TEXT,
+            },
+        ],
         "context_instruction": DEFAULT_CONTEXT_INSTRUCTION,
         "max_context_files": str(DEFAULT_MAX_CONTEXT_FILES),
     },
@@ -99,6 +111,62 @@ def resolve_required_text(
     if value is not None:
         return value
     return default
+
+
+def resolve_profile_required_texts(
+    *,
+    target_root: Path,
+    required_path: str,
+    profile: dict[str, Any],
+    args: argparse.Namespace,
+) -> tuple[str, str]:
+    required_old_text = resolve_required_text(
+        value=args.required_old_text,
+        file_value=args.required_old_text_file,
+        default=str(profile["required_old_text"]),
+        label="required-old-text",
+    )
+    required_new_text = resolve_required_text(
+        value=args.required_new_text,
+        file_value=args.required_new_text_file,
+        default=str(profile["required_new_text"]),
+        label="required-new-text",
+    )
+    explicit_text_supplied = any(
+        (
+            args.required_old_text is not None,
+            args.required_old_text_file is not None,
+            args.required_new_text is not None,
+            args.required_new_text_file is not None,
+        )
+    )
+    if explicit_text_supplied:
+        return required_old_text, required_new_text
+
+    alternates = profile.get("required_text_alternates")
+    if not isinstance(alternates, list):
+        return required_old_text, required_new_text
+
+    target_file = target_root / required_path
+    try:
+        target_text = target_file.read_text(encoding="utf-8")
+    except OSError:
+        return required_old_text, required_new_text
+
+    normalized_target_text = target_text.replace("\r\n", "\n")
+    for alternate in alternates:
+        if not isinstance(alternate, dict):
+            continue
+        old_text = alternate.get("required_old_text")
+        new_text = alternate.get("required_new_text")
+        if not isinstance(old_text, str) or not isinstance(new_text, str):
+            continue
+        if (
+            target_text.count(old_text) == 1
+            or normalized_target_text.count(old_text.replace("\r\n", "\n")) == 1
+        ):
+            return old_text, new_text
+    return required_old_text, required_new_text
 
 
 def build_plan_instruction(
@@ -748,17 +816,11 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         args.max_context_files = int(
             profile.get("max_context_files", str(DEFAULT_MAX_CONTEXT_FILES))
         )
-    required_old_text = resolve_required_text(
-        value=args.required_old_text,
-        file_value=args.required_old_text_file,
-        default=profile["required_old_text"],
-        label="required-old-text",
-    )
-    required_new_text = resolve_required_text(
-        value=args.required_new_text,
-        file_value=args.required_new_text_file,
-        default=profile["required_new_text"],
-        label="required-new-text",
+    required_old_text, required_new_text = resolve_profile_required_texts(
+        target_root=target_root,
+        required_path=required_path,
+        profile=profile,
+        args=args,
     )
     required_target_probe = required_old_text_probe(
         target_root=target_root,
