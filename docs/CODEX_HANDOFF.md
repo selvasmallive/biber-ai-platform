@@ -58,6 +58,13 @@ the current Vast GPU, a live 7B plan-only run saved
 --limit 3` matched saved live artifacts and also reported
 `mutation_performed=False`. Do not apply that real-repo plan unless the user
 explicitly approves this exact plan hash.
+Final same-day confidence rerun on the current Vast GPU also passed:
+`/workspace/biber-venv/bin/python scripts/biber_live_provider_confidence_smoke.py --mode live --base-url http://127.0.0.1:8001/v1 --model biber-dev-core --output /workspace/outputs/biber-live-provider-confidence-latest.json`
+returned `ok=True`, `checks=3`, `failed_checks=0`, readiness
+`model_available=True`, fixture plan `planned`, disposable repair
+`apply=applied verification=passed test_ok=True`, `github_request_sent=False`,
+`mentor_used=False`, and `training_allowed=False`. Latest live confidence work
+root: `/workspace/outputs/biber-live-provider-confidence-20260810T154202018377Z`.
 
 2026-08-07 fresh Vast GPU checkpoint: BIBER MVP work has resumed on a new
 SSH-capable Vast instance. Use SSH from the workstation with:
