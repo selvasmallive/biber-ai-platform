@@ -231,6 +231,17 @@ disposable repair `apply_status=applied`, `verification_status=passed`,
 `test_ok=true`, `unsafe_flags=[]`, `github_request_sent=false`,
 `mentor_used=false`, and `training_allowed=false`. Artifact root:
 `/workspace/outputs/biber-live-provider-confidence-20260810T045141729306Z`.
+Follow-up artifact-reader work added
+`scripts/biber_agent_client.py show-live-provider-confidence <artifact>` and
+`list-live-provider-confidence <directory>`. These summarize saved
+`biber_live_provider_confidence_smoke.py` artifacts without rerunning GPU
+checks. Local validation used bundled Python `py_compile`,
+`scripts/biber_live_provider_confidence_smoke.py --mode mock --output <temp-artifact> --cleanup`,
+`show-live-provider-confidence <temp-artifact>`, and
+`list-live-provider-confidence <temp-dir>`. Result: `ok=true`, `mode=mock`,
+`checks=3`, `failed_checks=0`, readiness ok, fixture plan `planned`,
+disposable repair `apply=applied`, `verification=passed`, and `test_ok=true`;
+no GitHub request, OpenAI mentor, training, or external API was used.
 
 2026-07-22 Vast resume note: the new low-cost Vast instance
 `45558024` has `/workspace` mounted on a 500 GB volume and exposes an

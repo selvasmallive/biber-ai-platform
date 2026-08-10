@@ -467,6 +467,17 @@ and disposable live repair validation. It is GPU-backed in `--mode live` and can
 also run locally with `--mode mock`. It sends no GitHub request, uses no OpenAI
 mentor, starts no training, and only applies edits inside a disposable target
 created under the smoke work directory.
+To reopen or scan saved live-provider confidence artifacts without rerunning the
+GPU checks:
+
+```bash
+python scripts/biber_agent_client.py show-live-provider-confidence \
+  /workspace/outputs/biber-live-provider-confidence-latest.json
+python scripts/biber_agent_client.py list-live-provider-confidence \
+  /workspace/outputs \
+  --pattern "*live-provider-confidence*.json" \
+  --output /workspace/outputs/biber-live-provider-confidence-list.json
+```
 
 To run only the repair-loop smoke:
 

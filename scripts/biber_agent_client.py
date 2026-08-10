@@ -14629,6 +14629,251 @@ def format_confidence_smoke_artifact_list_summary(payload: Mapping[str, Any]) ->
     return "\n".join(lines)
 
 
+def normalize_live_provider_confidence_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") != "biber_live_provider_confidence_smoke":
+        return None
+    checks = [
+        dict(check)
+        for check in require_list(payload.get("checks"))
+        if isinstance(check, dict)
+    ]
+    return {
+        **dict(payload),
+        "checks": checks,
+        "failed_checks": [
+            check
+            for check in checks
+            if check.get("ok") is not True
+        ],
+    }
+
+
+def summarize_live_provider_confidence_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    normalized = normalize_live_provider_confidence_artifact(payload)
+    if normalized is None:
+        return None
+    checks = require_list(normalized.get("checks"))
+    failed_checks = require_list(normalized.get("failed_checks"))
+    readiness = require_mapping(normalized.get("readiness"))
+    fixture_plan = require_mapping(normalized.get("fixture_plan"))
+    disposable_repair = require_mapping(normalized.get("disposable_repair"))
+    return {
+        "path": str(path),
+        "source": normalized.get("source"),
+        "ok": normalized.get("ok") is True,
+        "mode": normalized.get("mode"),
+        "checks": len(checks),
+        "failed_checks": len(failed_checks),
+        "gpu_required": normalized.get("gpu_required") is True,
+        "live_provider_required": normalized.get("live_provider_required") is True,
+        "api_required": normalized.get("api_required") is True,
+        "mentor_used": normalized.get("mentor_used") is True,
+        "training_allowed": normalized.get("training_allowed") is True,
+        "github_request_sent": normalized.get("github_request_sent") is True,
+        "readiness_ok": readiness.get("ok") is True,
+        "readiness_model_available": readiness.get("model_available") is True,
+        "fixture_plan_status": fixture_plan.get("chain_status"),
+        "fixture_plan_review_status": fixture_plan.get("review_status"),
+        "fixture_plan_mutation_performed": (
+            fixture_plan.get("mutation_performed") is True
+        ),
+        "fixture_plan_planned": fixture_plan.get("planned", 0),
+        "disposable_repair_status": disposable_repair.get("chain_status"),
+        "disposable_repair_apply_status": disposable_repair.get("apply_status"),
+        "disposable_repair_verification_status": (
+            disposable_repair.get("verification_status")
+        ),
+        "disposable_repair_test_ok": disposable_repair.get("test_ok") is True,
+        "disposable_repair_target_is_disposable": (
+            disposable_repair.get("target_is_disposable") is True
+        ),
+        "modified_epoch": path.stat().st_mtime,
+    }
+
+
+def list_live_provider_confidence_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    failed_only: bool = False,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            f"Live-provider confidence artifact directory does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            f"Live-provider confidence artifact path is not a directory: {root}"
+        )
+
+    scanned = 0
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="live-provider confidence artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        summary = summarize_live_provider_confidence_artifact(path, raw_payload)
+        if summary is None:
+            continue
+        if failed_only and summary.get("ok") is True:
+            continue
+        artifacts.append(summary)
+
+    artifacts.sort(key=lambda item: float(item.get("modified_epoch") or 0.0), reverse=True)
+    failed_count = sum(1 for item in artifacts if item.get("ok") is not True)
+    return {
+        "source": "biber_live_provider_confidence_artifact_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "failed_only": failed_only,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "failed": failed_count,
+        "api_required": False,
+        "gpu_required": any(item.get("gpu_required") is True for item in artifacts),
+        "live_provider_required": any(
+            item.get("live_provider_required") is True for item in artifacts
+        ),
+        "mentor_used": False,
+        "training_allowed": False,
+        "github_request_sent": any(
+            item.get("github_request_sent") is True for item in artifacts
+        ),
+        "artifacts": artifacts[:limit],
+    }
+
+
+def format_live_provider_confidence_artifact_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    checks = [
+        item
+        for item in require_list(payload.get("checks"))
+        if isinstance(item, dict)
+    ]
+    failed_checks = [
+        item
+        for item in require_list(payload.get("failed_checks"))
+        if isinstance(item, dict)
+    ]
+    readiness = require_mapping(payload.get("readiness"))
+    fixture_plan = require_mapping(payload.get("fixture_plan"))
+    disposable_repair = require_mapping(payload.get("disposable_repair"))
+    lines = [
+        "BIBER live-provider confidence smoke",
+        f"ok: {payload.get('ok') is True}",
+        f"mode: {payload.get('mode', '-')}",
+        f"checks: {len(checks)}",
+        f"failed_checks: {len(failed_checks)}",
+        f"gpu_required: {payload.get('gpu_required') is True}",
+        f"live_provider_required: {payload.get('live_provider_required') is True}",
+        f"api_required: {payload.get('api_required') is True}",
+        f"mentor_used: {payload.get('mentor_used') is True}",
+        f"training_allowed: {payload.get('training_allowed') is True}",
+        f"github_request_sent: {payload.get('github_request_sent') is True}",
+    ]
+    for check in checks:
+        lines.append(
+            " ".join(
+                [
+                    f"- {check.get('name', '-')}",
+                    f"ok={check.get('ok')}",
+                    f"source={check.get('source', '-')}",
+                    f"gpu_required={check.get('gpu_required')}",
+                ]
+            )
+        )
+    if failed_checks:
+        lines.append("failed_check_names:")
+        lines.extend(f"- {check.get('name', '-')}" for check in failed_checks)
+    if readiness:
+        lines.append(
+            "readiness: "
+            f"ok={readiness.get('ok')} "
+            f"model_available={readiness.get('model_available')} "
+            f"available_model_count={readiness.get('available_model_count')}"
+        )
+    if fixture_plan:
+        lines.append(
+            "fixture_plan: "
+            f"chain_status={fixture_plan.get('chain_status', '-')} "
+            f"review={fixture_plan.get('review_status', '-')} "
+            f"planned={fixture_plan.get('planned', 0)} "
+            f"rejected={fixture_plan.get('rejected', 0)} "
+            f"mutation_performed={fixture_plan.get('mutation_performed')}"
+        )
+    if disposable_repair:
+        lines.append(
+            "disposable_repair: "
+            f"chain_status={disposable_repair.get('chain_status', '-')} "
+            f"apply={disposable_repair.get('apply_status', '-')} "
+            f"verification={disposable_repair.get('verification_status', '-')} "
+            f"test_ok={disposable_repair.get('test_ok')} "
+            f"target_is_disposable={disposable_repair.get('target_is_disposable')}"
+        )
+    if payload.get("work_root"):
+        lines.append(f"work_root: {payload.get('work_root')}")
+    if payload.get("artifact_path"):
+        lines.append(f"artifact_path: {payload.get('artifact_path')}")
+    return "\n".join(lines)
+
+
+def format_live_provider_confidence_artifact_list_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER live-provider confidence artifacts ({len(artifacts)})",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"failed_only: {payload.get('failed_only', False)}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"failed: {payload.get('failed', 0)}",
+        f"gpu_required: {payload.get('gpu_required') is True}",
+        f"live_provider_required: {payload.get('live_provider_required') is True}",
+        f"github_request_sent: {payload.get('github_request_sent') is True}",
+    ]
+    for artifact in artifacts:
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"ok={artifact.get('ok')}",
+                    f"mode={artifact.get('mode', '-')}",
+                    f"checks={artifact.get('checks', 0)}",
+                    f"failed_checks={artifact.get('failed_checks', 0)}",
+                    f"readiness_ok={artifact.get('readiness_ok')}",
+                    f"fixture_plan={artifact.get('fixture_plan_status', '-')}",
+                    f"repair_apply={artifact.get('disposable_repair_apply_status', '-')}",
+                    f"repair_verified={artifact.get('disposable_repair_verification_status', '-')}",
+                    f"test_ok={artifact.get('disposable_repair_test_ok')}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_mvp_loop_summary(payload: Mapping[str, Any]) -> str:
     steps = require_mapping(payload.get("steps"))
     lines = [
@@ -17586,6 +17831,28 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     list_confidence_smokes.add_argument("--failed-only", action="store_true")
     list_confidence_smokes.add_argument("--output")
 
+    show_live_provider_confidence = subparsers.add_parser(
+        "show-live-provider-confidence",
+        help=(
+            "Summarize a saved biber_live_provider_confidence_smoke.py JSON "
+            "artifact."
+        ),
+    )
+    show_live_provider_confidence.add_argument("artifact")
+
+    list_live_provider_confidence = subparsers.add_parser(
+        "list-live-provider-confidence",
+        help="List saved biber_live_provider_confidence_smoke.py JSON artifacts.",
+    )
+    list_live_provider_confidence.add_argument("directory")
+    list_live_provider_confidence.add_argument(
+        "--pattern",
+        default="*live-provider-confidence*.json",
+    )
+    list_live_provider_confidence.add_argument("--limit", type=int, default=20)
+    list_live_provider_confidence.add_argument("--failed-only", action="store_true")
+    list_live_provider_confidence.add_argument("--output")
+
     mvp_loop = subparsers.add_parser(
         "mvp-loop",
         help=(
@@ -19216,6 +19483,37 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
             else format_confidence_smoke_artifact_list_summary(artifacts)
+        )
+    if args.command == "show-live-provider-confidence":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="live-provider confidence artifact",
+        )
+        normalized = normalize_live_provider_confidence_artifact(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "live-provider confidence artifact must have source "
+                "biber_live_provider_confidence_smoke."
+            )
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_live_provider_confidence_artifact_summary(normalized)
+        )
+    if args.command == "list-live-provider-confidence":
+        artifacts = list_live_provider_confidence_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            failed_only=args.failed_only,
+        )
+        if args.output:
+            artifacts["artifact_path"] = str(Path(args.output))
+            write_json_artifact(artifacts, args.output)
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_live_provider_confidence_artifact_list_summary(artifacts)
         )
     if args.command == "show-mvp-loop":
         artifact = load_json_artifact(args.artifact, label="mvp-loop artifact")

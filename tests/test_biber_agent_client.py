@@ -500,6 +500,179 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
     assert "gpu_required: False" in list_summary
 
 
+def test_run_show_live_provider_confidence_summarizes_saved_artifact(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "biber-live-provider-confidence.json"
+    failed_artifact = tmp_path / "biber-live-provider-confidence-failed.json"
+    list_artifact = tmp_path / "biber-live-provider-confidence-list.json"
+    payload = {
+        "source": "biber_live_provider_confidence_smoke",
+        "ok": True,
+        "mode": "live",
+        "api_required": False,
+        "gpu_required": True,
+        "live_provider_required": True,
+        "mentor_used": False,
+        "training_allowed": False,
+        "github_request_sent": False,
+        "work_root": "/workspace/outputs/biber-live-provider-confidence-test",
+        "checks": [
+            {
+                "name": "live_provider_readiness",
+                "source": "biber_live_provider_readiness",
+                "ok": True,
+                "gpu_required": False,
+            },
+            {
+                "name": "live_fixture_plan",
+                "source": "biber_live_provider_fixture_plan_smoke",
+                "ok": True,
+                "gpu_required": True,
+            },
+            {
+                "name": "live_disposable_repair",
+                "source": "biber_live_provider_repair_smoke",
+                "ok": True,
+                "gpu_required": True,
+            },
+        ],
+        "readiness": {
+            "ok": True,
+            "model_available": True,
+            "available_model_count": 1,
+        },
+        "fixture_plan": {
+            "chain_status": "planned",
+            "review_status": "ready_for_explicit_apply_approval",
+            "planned": 1,
+            "rejected": 0,
+            "mutation_performed": False,
+        },
+        "disposable_repair": {
+            "chain_status": "planned",
+            "apply_status": "applied",
+            "verification_status": "passed",
+            "test_ok": True,
+            "target_is_disposable": True,
+        },
+    }
+    artifact.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    failed_payload = {
+        **payload,
+        "ok": False,
+        "checks": [
+            *payload["checks"][:2],
+            {
+                "name": "live_disposable_repair",
+                "source": "biber_live_provider_repair_smoke",
+                "ok": False,
+                "gpu_required": True,
+            },
+        ],
+    }
+    failed_artifact.write_text(
+        json.dumps(failed_payload, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    output = client.run(
+        client.parse_args(["show-live-provider-confidence", str(artifact)])
+    )
+    result = json.loads(
+        client.run(
+            client.parse_args(
+                ["--json", "show-live-provider-confidence", str(artifact)]
+            )
+        )
+    )
+
+    assert result["source"] == "biber_live_provider_confidence_smoke"
+    assert result["failed_checks"] == []
+    assert "BIBER live-provider confidence smoke" in output
+    assert "mode: live" in output
+    assert "checks: 3" in output
+    assert "gpu_required: True" in output
+    assert "live_provider_required: True" in output
+    assert "github_request_sent: False" in output
+    assert "readiness: ok=True model_available=True" in output
+    assert "fixture_plan: chain_status=planned" in output
+    assert "mutation_performed=False" in output
+    assert "disposable_repair: chain_status=planned apply=applied" in output
+    assert "verification=passed" in output
+    assert "target_is_disposable=True" in output
+
+    list_result = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "list-live-provider-confidence",
+                    str(tmp_path),
+                    "--pattern",
+                    "*live-provider-confidence*.json",
+                    "--output",
+                    str(list_artifact),
+                ]
+            )
+        )
+    )
+    failed_only = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "list-live-provider-confidence",
+                    str(tmp_path),
+                    "--pattern",
+                    "*live-provider-confidence*.json",
+                    "--failed-only",
+                ]
+            )
+        )
+    )
+    list_summary = client.run(
+        client.parse_args(
+            [
+                "list-live-provider-confidence",
+                str(tmp_path),
+                "--pattern",
+                "*live-provider-confidence*.json",
+            ]
+        )
+    )
+
+    assert list_result["source"] == "biber_live_provider_confidence_artifact_list"
+    assert list_result["matched"] == 2
+    assert list_result["failed"] == 1
+    assert list_result["gpu_required"] is True
+    assert list_result["live_provider_required"] is True
+    assert list_result["github_request_sent"] is False
+    matching = {
+        Path(item["path"]).name: item for item in list_result["artifacts"]
+    }
+    ok_summary = matching["biber-live-provider-confidence.json"]
+    assert ok_summary["readiness_ok"] is True
+    assert ok_summary["fixture_plan_status"] == "planned"
+    assert ok_summary["fixture_plan_mutation_performed"] is False
+    assert ok_summary["disposable_repair_apply_status"] == "applied"
+    assert ok_summary["disposable_repair_verification_status"] == "passed"
+    assert ok_summary["disposable_repair_test_ok"] is True
+    assert ok_summary["disposable_repair_target_is_disposable"] is True
+    assert list_result["artifact_path"] == str(list_artifact)
+    assert json.loads(list_artifact.read_text(encoding="utf-8")) == list_result
+    assert failed_only["matched"] == 1
+    assert failed_only["artifacts"][0]["ok"] is False
+    assert "BIBER live-provider confidence artifacts (2)" in list_summary
+    assert "failed: 1" in list_summary
+    assert "mode=live" in list_summary
+    assert "readiness_ok=True" in list_summary
+    assert "fixture_plan=planned" in list_summary
+    assert "repair_apply=applied" in list_summary
+    assert "repair_verified=passed" in list_summary
+    assert "test_ok=True" in list_summary
+
+
 def test_format_capabilities_summary_includes_presets_and_tests() -> None:
     output = client.format_capabilities_summary(sample_capabilities())
 
