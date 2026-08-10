@@ -14759,6 +14759,44 @@ def list_live_provider_confidence_artifacts(
     }
 
 
+def find_latest_live_provider_confidence_artifact(
+    *,
+    directory: str,
+    pattern: str,
+    failed_only: bool = False,
+) -> dict[str, Any]:
+    artifacts = list_live_provider_confidence_artifacts(
+        directory=directory,
+        pattern=pattern,
+        limit=1,
+        failed_only=failed_only,
+    )
+    latest = next(iter(require_list(artifacts.get("artifacts"))), None)
+    if not isinstance(latest, dict):
+        raise BiberAgentClientError(
+            "No matching live-provider confidence artifact found."
+        )
+    raw_payload = load_json_artifact(
+        str(latest.get("path")),
+        label="live-provider confidence artifact",
+    )
+    normalized = normalize_live_provider_confidence_artifact(raw_payload)
+    if normalized is None:
+        raise BiberAgentClientError(
+            "latest live-provider confidence artifact must have source "
+            "biber_live_provider_confidence_smoke."
+        )
+    return {
+        **normalized,
+        "artifact_path": latest.get("path"),
+        "artifact_list": {
+            key: value
+            for key, value in artifacts.items()
+            if key != "artifacts"
+        },
+    }
+
+
 def format_live_provider_confidence_artifact_summary(
     payload: Mapping[str, Any],
 ) -> str:
@@ -17840,6 +17878,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     show_live_provider_confidence.add_argument("artifact")
 
+    show_latest_live_provider_confidence = subparsers.add_parser(
+        "show-latest-live-provider-confidence",
+        help=(
+            "Find and summarize the newest saved "
+            "biber_live_provider_confidence_smoke.py JSON artifact."
+        ),
+    )
+    show_latest_live_provider_confidence.add_argument("directory")
+    show_latest_live_provider_confidence.add_argument(
+        "--pattern",
+        default="*live-provider-confidence*.json",
+    )
+    show_latest_live_provider_confidence.add_argument(
+        "--failed-only",
+        action="store_true",
+    )
+
     list_live_provider_confidence = subparsers.add_parser(
         "list-live-provider-confidence",
         help="List saved biber_live_provider_confidence_smoke.py JSON artifacts.",
@@ -19499,6 +19554,17 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(normalized, indent=2, sort_keys=True)
             if args.print_json
             else format_live_provider_confidence_artifact_summary(normalized)
+        )
+    if args.command == "show-latest-live-provider-confidence":
+        artifact = find_latest_live_provider_confidence_artifact(
+            directory=args.directory,
+            pattern=args.pattern,
+            failed_only=args.failed_only,
+        )
+        return (
+            json.dumps(artifact, indent=2, sort_keys=True)
+            if args.print_json
+            else format_live_provider_confidence_artifact_summary(artifact)
         )
     if args.command == "list-live-provider-confidence":
         artifacts = list_live_provider_confidence_artifacts(

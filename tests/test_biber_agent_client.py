@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -396,6 +397,8 @@ def test_run_show_confidence_smoke_summarizes_saved_artifact(
         json.dumps(failed_payload, sort_keys=True),
         encoding="utf-8",
     )
+    os.utime(artifact, (1_900_000_000, 1_900_000_000))
+    os.utime(failed_artifact, (1_900_000_100, 1_900_000_100))
 
     output = client.run(
         client.parse_args(["show-confidence-smoke", str(artifact)])
@@ -641,6 +644,29 @@ def test_run_show_live_provider_confidence_summarizes_saved_artifact(
             ]
         )
     )
+    latest = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "show-latest-live-provider-confidence",
+                    str(tmp_path),
+                    "--pattern",
+                    "*live-provider-confidence*.json",
+                ]
+            )
+        )
+    )
+    latest_summary = client.run(
+        client.parse_args(
+            [
+                "show-latest-live-provider-confidence",
+                str(tmp_path),
+                "--pattern",
+                "*live-provider-confidence*.json",
+            ]
+        )
+    )
 
     assert list_result["source"] == "biber_live_provider_confidence_artifact_list"
     assert list_result["matched"] == 2
@@ -671,6 +697,13 @@ def test_run_show_live_provider_confidence_summarizes_saved_artifact(
     assert "repair_apply=applied" in list_summary
     assert "repair_verified=passed" in list_summary
     assert "test_ok=True" in list_summary
+    assert latest["source"] == "biber_live_provider_confidence_smoke"
+    assert latest["artifact_path"] == str(failed_artifact)
+    assert latest["artifact_list"]["matched"] == 2
+    assert latest["ok"] is False
+    assert latest["failed_checks"][0]["name"] == "live_disposable_repair"
+    assert "BIBER live-provider confidence smoke" in latest_summary
+    assert f"artifact_path: {failed_artifact}" in latest_summary
 
 
 def test_format_capabilities_summary_includes_presets_and_tests() -> None:

@@ -473,6 +473,9 @@ GPU checks:
 ```bash
 python scripts/biber_agent_client.py show-live-provider-confidence \
   /workspace/outputs/biber-live-provider-confidence-latest.json
+python scripts/biber_agent_client.py show-latest-live-provider-confidence \
+  /workspace/outputs \
+  --pattern "*live-provider-confidence*.json"
 python scripts/biber_agent_client.py list-live-provider-confidence \
   /workspace/outputs \
   --pattern "*live-provider-confidence*.json" \

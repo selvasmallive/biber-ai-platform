@@ -1,8 +1,19 @@
 # Codex Handoff
 
-Last updated: 2026-08-09
+Last updated: 2026-08-10
 
 ## Current Goal
+
+2026-08-10 live confidence resume helper checkpoint: continue BIBER MVP only.
+`scripts/biber_agent_client.py` now includes
+`show-latest-live-provider-confidence <directory>`, which finds the newest
+saved `biber_live_provider_confidence_smoke.py` artifact and prints the same
+compact summary as `show-live-provider-confidence`. Preferred Vast resume
+command:
+`/workspace/biber-venv/bin/python scripts/biber_agent_client.py show-latest-live-provider-confidence /workspace/outputs --pattern '*live-provider-confidence*.json'`.
+This is an offline artifact reader: it should not call GitHub, OpenAI mentor,
+training, or any external API. Use it before rerunning heavier GPU confidence
+checks when `/workspace/outputs` already has recent artifacts.
 
 2026-08-07 fresh Vast GPU checkpoint: BIBER MVP work has resumed on a new
 SSH-capable Vast instance. Use SSH from the workstation with:
