@@ -27,7 +27,8 @@ summarized `/workspace/outputs/biber-live-provider-confidence-latest.json` as
 `model_available=True`, fixture plan `planned`, and disposable repair
 `apply=applied verification=passed test_ok=True`.
 
-Next source checkpoint in progress: `scripts/biber_agent_client.py` adds
+2026-08-10 real-repo plan artifact reader checkpoint:
+`scripts/biber_agent_client.py` adds
 `show-real-repo-plan-smoke <artifact>` and
 `list-real-repo-plan-smokes <directory>` for saved
 `biber_live_provider_real_repo_plan_smoke.py` summary artifacts. These are
@@ -39,6 +40,24 @@ be stale because the target wording had already been updated. The same source
 checkpoint also makes that profile choose between the accepted `BIBER-only`
 and `BIBER MVP-only` wording variants when the caller has not supplied explicit
 `--required-*` text.
+Local validation passed bundled Python `py_compile`, a mock
+`biber_live_provider_real_repo_plan_smoke.py --mode mock --cleanup` run,
+`show-real-repo-plan-smoke`, `list-real-repo-plan-smokes`, and focused direct
+tests for the artifact reader and profile alternate selector.
+Commits `f6b9839` and `7c641fd` pushed this source work. After fast-forwarding
+the current Vast GPU, a live 7B plan-only run saved
+`/workspace/outputs/biber-real-repo-plan-latest.json` and returned `ok=True`,
+`mode=live`, `smoke_profile=docs-line`, `chain_status=planned`,
+`plan_outcome=planned_for_review`,
+`review_status=ready_for_explicit_apply_approval`, `planned=1`, `rejected=0`,
+`apply_allowed=False`, `mutation_performed=False`,
+`repo_status_unchanged=True`, `github_request_sent=False`,
+`mentor_used=False`, `training_allowed=False`, and plan hash
+`867e0027a0298a395cbce0314ddd4cb1e4206ba65da97181e69c8ac399514fb3`.
+`list-real-repo-plan-smokes /workspace/outputs --pattern '*real-repo-plan*.json'
+--limit 3` matched saved live artifacts and also reported
+`mutation_performed=False`. Do not apply that real-repo plan unless the user
+explicitly approves this exact plan hash.
 
 2026-08-07 fresh Vast GPU checkpoint: BIBER MVP work has resumed on a new
 SSH-capable Vast instance. Use SSH from the workstation with:
