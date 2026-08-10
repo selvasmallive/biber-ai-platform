@@ -221,6 +221,16 @@ result: `ok=true`, `checks=3`, readiness ok, fixture plan
 `verification_status=passed`, `test_ok=true`, `unsafe_flags=[]`,
 `github_request_sent=false`, `mentor_used=false`, and
 `training_allowed=false`.
+Commit `f57a8e0` pushed the combined wrapper. After pulling on the current Vast
+GPU, live validation ran:
+`/workspace/biber-venv/bin/python scripts/biber_live_provider_confidence_smoke.py --mode live --base-url http://127.0.0.1:8001/v1 --model biber-dev-core --output /workspace/outputs/biber-live-provider-confidence-latest.json`.
+Result: `ok=true`, `checks=3`, `gpu_required=true`,
+`live_provider_required=true`, readiness `model_available=true`, fixture plan
+`chain_status=planned`, `planned=1`, `rejected=0`, `mutation_performed=false`,
+disposable repair `apply_status=applied`, `verification_status=passed`,
+`test_ok=true`, `unsafe_flags=[]`, `github_request_sent=false`,
+`mentor_used=false`, and `training_allowed=false`. Artifact root:
+`/workspace/outputs/biber-live-provider-confidence-20260810T045141729306Z`.
 
 2026-07-22 Vast resume note: the new low-cost Vast instance
 `45558024` has `/workspace` mounted on a 500 GB volume and exposes an
