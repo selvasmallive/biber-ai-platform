@@ -37,6 +37,15 @@ It returned `ok=True`, `mode=fixture`, `chain_status=verified`,
 follow-up `list-github-dry-runs /workspace/outputs --pattern
 '*github-*-dry-run*.json' --limit 5` found the newest save and PR dry-run
 artifacts with `github_request_sent=False`.
+Source checkpoint in progress: `scripts/biber_agent_client.py` adds
+`show-live-verified-github-dry-run <artifact>`,
+`show-latest-live-verified-github-dry-run <directory>`, and
+`list-live-verified-github-dry-runs <directory>` for saved
+`biber_live_verified_repair_github_dry_run_smoke.py` summary artifacts. These
+are offline/read-only readers for the verified-repair-to-GitHub-dry-run bridge;
+they must not send GitHub requests, call OpenAI mentor, apply files, or start
+training. Use `--target-root /workspace/biber-ai-platform` on Vast when looking
+for the latest bridge summary for the real BIBER checkout.
 
 2026-08-10 live confidence resume helper checkpoint: continue BIBER MVP only.
 `scripts/biber_agent_client.py` now includes

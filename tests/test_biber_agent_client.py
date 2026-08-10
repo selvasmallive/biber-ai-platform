@@ -1502,6 +1502,211 @@ def test_run_github_dry_runs_do_not_resolve_api_key(
     assert "type=pull_request" in list_summary
 
 
+def test_run_show_live_verified_github_dry_run_summarizes_saved_artifact(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "biber-live-verified-github-dry-run.json"
+    failed_artifact = tmp_path / "biber-live-verified-github-dry-run-failed.json"
+    other_target_artifact = (
+        tmp_path / "biber-live-verified-github-dry-run-other-target.json"
+    )
+    list_artifact = tmp_path / "biber-live-verified-github-dry-run-list.json"
+    payload = {
+        "source": "biber_live_verified_repair_github_dry_run_smoke",
+        "ok": True,
+        "mode": "fixture",
+        "external_network_required": False,
+        "gpu_required": False,
+        "api_required": False,
+        "live_provider_required": False,
+        "mentor_used": False,
+        "training_allowed": False,
+        "auto_saved": False,
+        "github_request_sent": False,
+        "target_root": "/workspace/biber-ai-platform",
+        "verification_artifact": "/workspace/outputs/verify.json",
+        "apply_artifact": "/workspace/outputs/apply.json",
+        "verification_status": "passed",
+        "chain_status": "verified",
+        "test_id": "python-compileall-api",
+        "test_ok": True,
+        "plan_hash": "abc123",
+        "paths": ["src/app.py"],
+        "owner": "selvasmallive",
+        "repo": "biber-ai-platform",
+        "branch": "biber/live-verified-repair-test",
+        "base_branch": "biber/mvp-resume-20260712",
+        "work_root": "/workspace/outputs/biber-live-verified-github-dry-run-test",
+        "artifact_dir": (
+            "/workspace/outputs/biber-live-verified-github-dry-run-test/artifacts"
+        ),
+        "save_artifacts": [
+            {
+                "path": "src/app.py",
+                "artifact": "/workspace/outputs/github-save-dry-run-1.json",
+                "source": "biber_github_save_dry_run",
+                "dry_run": True,
+                "github_request_sent": False,
+            }
+        ],
+        "pull_request_artifact": "/workspace/outputs/github-pr-dry-run.json",
+        "pull_request_source": "biber_github_pull_request_dry_run",
+        "pull_request_draft": True,
+        "list_artifact": "/workspace/outputs/github-dry-run-list.json",
+        "dry_run_artifacts_matched": 2,
+        "dry_run_artifacts_scanned": 2,
+        "next_action": "review_dry_run_artifacts_before_real_github_save_or_pr",
+    }
+    artifact.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    failed_payload = {
+        **payload,
+        "ok": False,
+        "chain_status": "blocked",
+        "verification_status": "failed",
+        "test_ok": False,
+        "dry_run_artifacts_matched": 0,
+        "next_action": "inspect_verified_artifact_and_dry_run_outputs",
+    }
+    failed_artifact.write_text(
+        json.dumps(failed_payload, sort_keys=True),
+        encoding="utf-8",
+    )
+    other_target_payload = {
+        **payload,
+        "target_root": "/workspace/outputs/fixture-target",
+        "plan_hash": "other-target-plan",
+    }
+    other_target_artifact.write_text(
+        json.dumps(other_target_payload, sort_keys=True),
+        encoding="utf-8",
+    )
+    os.utime(artifact, (1_900_000_000, 1_900_000_000))
+    os.utime(failed_artifact, (1_900_000_100, 1_900_000_100))
+    os.utime(other_target_artifact, (1_900_000_200, 1_900_000_200))
+
+    output = client.run(
+        client.parse_args(["show-live-verified-github-dry-run", str(artifact)])
+    )
+    result = json.loads(
+        client.run(
+            client.parse_args(
+                ["--json", "show-live-verified-github-dry-run", str(artifact)]
+            )
+        )
+    )
+    list_result = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "list-live-verified-github-dry-runs",
+                    str(tmp_path),
+                    "--pattern",
+                    "*live-verified-github-dry-run*.json",
+                    "--output",
+                    str(list_artifact),
+                ]
+            )
+        )
+    )
+    latest = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "show-latest-live-verified-github-dry-run",
+                    str(tmp_path),
+                    "--pattern",
+                    "*live-verified-github-dry-run*.json",
+                ]
+            )
+        )
+    )
+    latest_for_target = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "show-latest-live-verified-github-dry-run",
+                    str(tmp_path),
+                    "--pattern",
+                    "*live-verified-github-dry-run*.json",
+                    "--target-root",
+                    "/workspace/biber-ai-platform",
+                ]
+            )
+        )
+    )
+    failed_only = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "list-live-verified-github-dry-runs",
+                    str(tmp_path),
+                    "--pattern",
+                    "*live-verified-github-dry-run*.json",
+                    "--failed-only",
+                ]
+            )
+        )
+    )
+    filtered_list = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "list-live-verified-github-dry-runs",
+                    str(tmp_path),
+                    "--pattern",
+                    "*live-verified-github-dry-run*.json",
+                    "--target-root",
+                    "/workspace/biber-ai-platform",
+                ]
+            )
+        )
+    )
+    list_summary = client.run(
+        client.parse_args(
+            [
+                "list-live-verified-github-dry-runs",
+                str(tmp_path),
+                "--pattern",
+                "*live-verified-github-dry-run*.json",
+            ]
+        )
+    )
+
+    assert result["source"] == "biber_live_verified_repair_github_dry_run_smoke"
+    assert "BIBER live verified repair GitHub dry-run" in output
+    assert "mode: fixture" in output
+    assert "target_root: /workspace/biber-ai-platform" in output
+    assert "chain_status: verified" in output
+    assert "verification_status: passed" in output
+    assert "test_ok: True" in output
+    assert "github_request_sent: False" in output
+    assert "dry_run_artifacts_matched: 2" in output
+    assert "touched_paths:" in output
+    assert "- src/app.py" in output
+    assert list_result["source"] == "biber_live_verified_github_dry_run_artifact_list"
+    assert list_result["matched"] == 3
+    assert list_result["failed"] == 1
+    assert list_result["github_request_sent"] is False
+    assert list_result["artifact_path"] == str(list_artifact)
+    assert json.loads(list_artifact.read_text(encoding="utf-8")) == list_result
+    assert latest["artifact_path"] == str(other_target_artifact)
+    assert latest["plan_hash"] == "other-target-plan"
+    assert latest_for_target["artifact_path"] == str(failed_artifact)
+    assert latest_for_target["artifact_list"]["matched"] == 2
+    assert filtered_list["target_root"] == "/workspace/biber-ai-platform"
+    assert filtered_list["matched"] == 2
+    assert failed_only["matched"] == 1
+    assert failed_only["artifacts"][0]["ok"] is False
+    assert "BIBER live verified GitHub dry-run artifacts (3)" in list_summary
+    assert "github_request_sent: False" in list_summary
+    assert "dry_runs=2" in list_summary
+
+
 def test_run_mvp_loop_can_include_github_dry_run_without_api_key(
     monkeypatch,
     tmp_path: Path,

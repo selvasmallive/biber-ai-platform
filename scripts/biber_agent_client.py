@@ -14641,6 +14641,245 @@ def find_latest_real_repo_plan_smoke_artifact(
     }
 
 
+def normalize_live_verified_github_dry_run_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") != "biber_live_verified_repair_github_dry_run_smoke":
+        return None
+    return dict(payload)
+
+
+def summarize_live_verified_github_dry_run_artifact(
+    path: Path,
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    normalized = normalize_live_verified_github_dry_run_artifact(payload)
+    if normalized is None:
+        return None
+    save_artifacts = require_list(normalized.get("save_artifacts"))
+    paths = require_list(normalized.get("paths"))
+    return {
+        "path": str(path),
+        "source": normalized.get("source"),
+        "ok": normalized.get("ok") is True,
+        "mode": normalized.get("mode"),
+        "target_root": normalized.get("target_root"),
+        "chain_status": normalized.get("chain_status"),
+        "verification_status": normalized.get("verification_status"),
+        "test_id": normalized.get("test_id"),
+        "test_ok": normalized.get("test_ok") is True,
+        "plan_hash": normalized.get("plan_hash"),
+        "paths": len(paths),
+        "save_artifacts": len(
+            [item for item in save_artifacts if isinstance(item, dict)]
+        ),
+        "pull_request_source": normalized.get("pull_request_source"),
+        "pull_request_draft": normalized.get("pull_request_draft") is True,
+        "dry_run_artifacts_matched": normalized.get("dry_run_artifacts_matched", 0),
+        "github_request_sent": normalized.get("github_request_sent") is True,
+        "api_required": normalized.get("api_required") is True,
+        "mentor_used": normalized.get("mentor_used") is True,
+        "training_allowed": normalized.get("training_allowed") is True,
+        "gpu_required": normalized.get("gpu_required") is True,
+        "live_provider_required": normalized.get("live_provider_required") is True,
+        "auto_saved": normalized.get("auto_saved") is True,
+        "next_action": normalized.get("next_action"),
+        "modified_epoch": path.stat().st_mtime,
+    }
+
+
+def list_live_verified_github_dry_run_artifacts(
+    *,
+    directory: str,
+    pattern: str,
+    limit: int,
+    failed_only: bool = False,
+    target_root: str | None = None,
+) -> dict[str, Any]:
+    if limit < 1:
+        raise BiberAgentClientError("--limit must be at least 1.")
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            f"Live verified GitHub dry-run artifact directory does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            f"Live verified GitHub dry-run artifact path is not a directory: {root}"
+        )
+
+    scanned = 0
+    target_root_filter = normalize_path_filter_text(target_root)
+    artifacts: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="live verified GitHub dry-run artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        summary = summarize_live_verified_github_dry_run_artifact(path, raw_payload)
+        if summary is None:
+            continue
+        if target_root_filter and (
+            normalize_path_filter_text(summary.get("target_root")) != target_root_filter
+        ):
+            continue
+        if failed_only and summary.get("ok") is True:
+            continue
+        artifacts.append(summary)
+
+    artifacts.sort(key=lambda item: float(item.get("modified_epoch") or 0.0), reverse=True)
+    failed_count = sum(1 for item in artifacts if item.get("ok") is not True)
+    return {
+        "source": "biber_live_verified_github_dry_run_artifact_list",
+        "directory": str(root),
+        "pattern": pattern,
+        "failed_only": failed_only,
+        "target_root": target_root,
+        "scanned": scanned,
+        "matched": len(artifacts),
+        "failed": failed_count,
+        "api_required": False,
+        "gpu_required": any(item.get("gpu_required") is True for item in artifacts),
+        "live_provider_required": any(
+            item.get("live_provider_required") is True for item in artifacts
+        ),
+        "mentor_used": False,
+        "training_allowed": False,
+        "github_request_sent": any(
+            item.get("github_request_sent") is True for item in artifacts
+        ),
+        "auto_saved": any(item.get("auto_saved") is True for item in artifacts),
+        "artifacts": artifacts[:limit],
+    }
+
+
+def find_latest_live_verified_github_dry_run_artifact(
+    *,
+    directory: str,
+    pattern: str,
+    failed_only: bool = False,
+    target_root: str | None = None,
+) -> dict[str, Any]:
+    artifacts = list_live_verified_github_dry_run_artifacts(
+        directory=directory,
+        pattern=pattern,
+        limit=1,
+        failed_only=failed_only,
+        target_root=target_root,
+    )
+    latest = next(iter(require_list(artifacts.get("artifacts"))), None)
+    if not isinstance(latest, dict):
+        raise BiberAgentClientError(
+            "No matching live verified GitHub dry-run artifact found."
+        )
+    raw_payload = load_json_artifact(
+        str(latest.get("path")),
+        label="live verified GitHub dry-run artifact",
+    )
+    normalized = normalize_live_verified_github_dry_run_artifact(raw_payload)
+    if normalized is None:
+        raise BiberAgentClientError(
+            "latest live verified GitHub dry-run artifact must have source "
+            "biber_live_verified_repair_github_dry_run_smoke."
+        )
+    return {
+        **normalized,
+        "artifact_path": latest.get("path"),
+        "artifact_list": {
+            key: value
+            for key, value in artifacts.items()
+            if key != "artifacts"
+        },
+    }
+
+
+def format_live_verified_github_dry_run_artifact_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    paths = require_list(payload.get("paths"))
+    save_artifacts = require_list(payload.get("save_artifacts"))
+    lines = [
+        "BIBER live verified repair GitHub dry-run",
+        f"ok: {payload.get('ok') is True}",
+        f"mode: {payload.get('mode', '-')}",
+        f"target_root: {payload.get('target_root', '-')}",
+        f"chain_status: {payload.get('chain_status', '-')}",
+        f"verification_status: {payload.get('verification_status', '-')}",
+        f"test_id: {payload.get('test_id', '-')}",
+        f"test_ok: {payload.get('test_ok') is True}",
+        f"plan_hash: {payload.get('plan_hash', '-')}",
+        f"paths: {len(paths)}",
+        f"save_artifacts: {len([item for item in save_artifacts if isinstance(item, dict)])}",
+        f"pull_request_source: {payload.get('pull_request_source', '-')}",
+        f"pull_request_draft: {payload.get('pull_request_draft') is True}",
+        f"dry_run_artifacts_matched: {payload.get('dry_run_artifacts_matched', 0)}",
+        f"github_request_sent: {payload.get('github_request_sent') is True}",
+        f"api_required: {payload.get('api_required') is True}",
+        f"mentor_used: {payload.get('mentor_used') is True}",
+        f"training_allowed: {payload.get('training_allowed') is True}",
+        f"gpu_required: {payload.get('gpu_required') is True}",
+        f"live_provider_required: {payload.get('live_provider_required') is True}",
+        f"auto_saved: {payload.get('auto_saved') is True}",
+        f"next_action: {payload.get('next_action', '-')}",
+    ]
+    if paths:
+        lines.append("touched_paths:")
+        lines.extend(f"- {path}" for path in paths)
+    if payload.get("work_root"):
+        lines.append(f"work_root: {payload.get('work_root')}")
+    if payload.get("artifact_dir"):
+        lines.append(f"artifact_dir: {payload.get('artifact_dir')}")
+    if payload.get("artifact_path"):
+        lines.append(f"artifact_path: {payload.get('artifact_path')}")
+    return "\n".join(lines)
+
+
+def format_live_verified_github_dry_run_artifact_list_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    artifacts = [
+        item
+        for item in require_list(payload.get("artifacts"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER live verified GitHub dry-run artifacts ({len(artifacts)})",
+        f"directory: {payload.get('directory', '-')}",
+        f"pattern: {payload.get('pattern', '-')}",
+        f"failed_only: {payload.get('failed_only', False)}",
+        f"target_root: {payload.get('target_root') or '-'}",
+        f"scanned: {payload.get('scanned', 0)}",
+        f"matched: {payload.get('matched', 0)}",
+        f"failed: {payload.get('failed', 0)}",
+        f"github_request_sent: {payload.get('github_request_sent') is True}",
+        f"auto_saved: {payload.get('auto_saved') is True}",
+    ]
+    for artifact in artifacts:
+        lines.append(
+            " ".join(
+                [
+                    f"- {artifact.get('path', '-')}",
+                    f"ok={artifact.get('ok')}",
+                    f"mode={artifact.get('mode', '-')}",
+                    f"target={artifact.get('target_root', '-')}",
+                    f"chain={artifact.get('chain_status', '-')}",
+                    f"verification={artifact.get('verification_status', '-')}",
+                    f"test_ok={artifact.get('test_ok')}",
+                    f"paths={artifact.get('paths', 0)}",
+                    f"dry_runs={artifact.get('dry_run_artifacts_matched', 0)}",
+                    f"github_request_sent={artifact.get('github_request_sent')}",
+                ]
+            )
+        )
+    return "\n".join(lines)
+
+
 def format_real_repo_plan_smoke_artifact_summary(
     payload: Mapping[str, Any],
 ) -> str:
@@ -18117,6 +18356,53 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     list_github_dry_runs.add_argument("--limit", type=int, default=20)
     list_github_dry_runs.add_argument("--output")
 
+    show_live_verified_github_dry_run = subparsers.add_parser(
+        "show-live-verified-github-dry-run",
+        help=(
+            "Summarize a saved "
+            "biber_live_verified_repair_github_dry_run_smoke.py artifact."
+        ),
+    )
+    show_live_verified_github_dry_run.add_argument("artifact")
+
+    show_latest_live_verified_github_dry_run = subparsers.add_parser(
+        "show-latest-live-verified-github-dry-run",
+        help=(
+            "Find and summarize the newest saved "
+            "biber_live_verified_repair_github_dry_run_smoke.py artifact."
+        ),
+    )
+    show_latest_live_verified_github_dry_run.add_argument("directory")
+    show_latest_live_verified_github_dry_run.add_argument(
+        "--pattern",
+        default="*live-verified-github-dry-run*.json",
+    )
+    show_latest_live_verified_github_dry_run.add_argument(
+        "--failed-only",
+        action="store_true",
+    )
+    show_latest_live_verified_github_dry_run.add_argument("--target-root")
+
+    list_live_verified_github_dry_runs = subparsers.add_parser(
+        "list-live-verified-github-dry-runs",
+        help=(
+            "List saved biber_live_verified_repair_github_dry_run_smoke.py "
+            "artifacts."
+        ),
+    )
+    list_live_verified_github_dry_runs.add_argument("directory")
+    list_live_verified_github_dry_runs.add_argument(
+        "--pattern",
+        default="*live-verified-github-dry-run*.json",
+    )
+    list_live_verified_github_dry_runs.add_argument("--limit", type=int, default=20)
+    list_live_verified_github_dry_runs.add_argument(
+        "--failed-only",
+        action="store_true",
+    )
+    list_live_verified_github_dry_runs.add_argument("--target-root")
+    list_live_verified_github_dry_runs.add_argument("--output")
+
     show_real_repo_plan_smoke = subparsers.add_parser(
         "show-real-repo-plan-smoke",
         help="Summarize a saved biber_live_provider_real_repo_plan_smoke.py artifact.",
@@ -19806,6 +20092,50 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
             else format_github_dry_run_artifact_list_summary(artifacts)
+        )
+    if args.command == "show-live-verified-github-dry-run":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="live verified GitHub dry-run artifact",
+        )
+        normalized = normalize_live_verified_github_dry_run_artifact(artifact)
+        if normalized is None:
+            raise BiberAgentClientError(
+                "live verified GitHub dry-run artifact must have source "
+                "biber_live_verified_repair_github_dry_run_smoke."
+            )
+        return (
+            json.dumps(normalized, indent=2, sort_keys=True)
+            if args.print_json
+            else format_live_verified_github_dry_run_artifact_summary(normalized)
+        )
+    if args.command == "show-latest-live-verified-github-dry-run":
+        artifact = find_latest_live_verified_github_dry_run_artifact(
+            directory=args.directory,
+            pattern=args.pattern,
+            failed_only=args.failed_only,
+            target_root=args.target_root,
+        )
+        return (
+            json.dumps(artifact, indent=2, sort_keys=True)
+            if args.print_json
+            else format_live_verified_github_dry_run_artifact_summary(artifact)
+        )
+    if args.command == "list-live-verified-github-dry-runs":
+        artifacts = list_live_verified_github_dry_run_artifacts(
+            directory=args.directory,
+            pattern=args.pattern,
+            limit=args.limit,
+            failed_only=args.failed_only,
+            target_root=args.target_root,
+        )
+        if args.output:
+            artifacts["artifact_path"] = str(Path(args.output))
+            write_json_artifact(artifacts, args.output)
+        return (
+            json.dumps(artifacts, indent=2, sort_keys=True)
+            if args.print_json
+            else format_live_verified_github_dry_run_artifact_list_summary(artifacts)
         )
     if args.command == "show-real-repo-plan-smoke":
         artifact = load_json_artifact(

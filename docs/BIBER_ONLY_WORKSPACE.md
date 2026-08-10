@@ -457,6 +457,21 @@ mentor, runs no model inference, and starts no training. Review the dry-run
 artifacts before any real GitHub save or PR. The combined confidence gate runs
 the same bridge in `--mode fixture` so this handoff path is checked locally even
 when no live Vast artifact is available.
+To reopen saved bridge summaries without rerunning the smoke:
+
+```bash
+python scripts/biber_agent_client.py show-live-verified-github-dry-run \
+  /workspace/outputs/biber-live-verified-github-dry-run-latest.json
+python scripts/biber_agent_client.py show-latest-live-verified-github-dry-run \
+  /workspace/outputs \
+  --pattern "*live-verified-github-dry-run*.json" \
+  --target-root /workspace/biber-ai-platform
+python scripts/biber_agent_client.py list-live-verified-github-dry-runs \
+  /workspace/outputs \
+  --pattern "*live-verified-github-dry-run*.json" \
+  --target-root /workspace/biber-ai-platform \
+  --output /workspace/outputs/biber-live-verified-github-dry-run-list.json
+```
 
 To run a quick live local-model plan-only check on Vast without touching the
 active repo:
