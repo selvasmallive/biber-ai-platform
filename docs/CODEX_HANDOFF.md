@@ -209,6 +209,18 @@ Result: `ok=true`, `mode=live`, `gpu_required=true`,
 `mutation_performed=false`, `github_request_sent=false`, `mentor_used=false`,
 `training_allowed=false`, `plan_hash=cef89d5acc9418d4c5ecc4aa71f24797b5396a742dc86bd8bea185b15d556f56`,
 and artifact root `/workspace/outputs/biber-live-fixture-plan-20260809T141538333246Z`.
+2026-08-10 combined live-provider confidence gate checkpoint:
+`scripts/biber_live_provider_confidence_smoke.py` now runs the live-provider
+readiness check, disposable fixture plan-only smoke, and disposable live repair
+smoke as one GPU-friendly command. It supports `--mode mock` for CPU-local
+validation and `--mode live` for the Vast 7B endpoint. Local validation used
+bundled Python `py_compile` and
+`python scripts/biber_live_provider_confidence_smoke.py --mode mock --cleanup`;
+result: `ok=true`, `checks=3`, readiness ok, fixture plan
+`chain_status=planned`, disposable repair `apply_status=applied`,
+`verification_status=passed`, `test_ok=true`, `unsafe_flags=[]`,
+`github_request_sent=false`, `mentor_used=false`, and
+`training_allowed=false`.
 
 2026-07-22 Vast resume note: the new low-cost Vast instance
 `45558024` has `/workspace` mounted on a 500 GB volume and exposes an

@@ -453,6 +453,21 @@ the same real-repo plan-only path, and stops before apply/save. It is the
 preferred quick GPU-backed validation when the Vast runtime is already running.
 It sends no GitHub request, uses no OpenAI mentor, and starts no training.
 
+To run the preferred one-command live local-model confidence check on Vast:
+
+```bash
+python scripts/biber_live_provider_confidence_smoke.py \
+  --base-url http://127.0.0.1:8001/v1 \
+  --model biber-dev-core \
+  --output /workspace/outputs/biber-live-provider-confidence-latest.json
+```
+
+This combines live-provider readiness, disposable fixture plan-only validation,
+and disposable live repair validation. It is GPU-backed in `--mode live` and can
+also run locally with `--mode mock`. It sends no GitHub request, uses no OpenAI
+mentor, starts no training, and only applies edits inside a disposable target
+created under the smoke work directory.
+
 To run only the repair-loop smoke:
 
 ```bash

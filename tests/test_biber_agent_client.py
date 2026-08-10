@@ -6923,6 +6923,24 @@ def test_live_provider_fixture_plan_smoke_documents_gpu_fixture_flow() -> None:
     assert "OpenAI mentor" in text
 
 
+def test_live_provider_confidence_smoke_documents_combined_gpu_gate() -> None:
+    script = ROOT / "scripts" / "biber_live_provider_confidence_smoke.py"
+    text = script.read_text(encoding="utf-8")
+
+    assert "biber_live_provider_readiness.py" in text
+    assert "biber_live_provider_readiness_smoke.py" in text
+    assert "biber_live_provider_fixture_plan_smoke.py" in text
+    assert "biber_live_provider_repair_smoke.py" in text
+    assert "live_provider_readiness" in text
+    assert "live_fixture_plan" in text
+    assert "live_disposable_repair" in text
+    assert "skip_repair_apply" in text
+    assert "unsafe_flags" in text
+    assert "target_is_disposable" in text
+    assert '"api_required": False' in text
+    assert '"training_allowed": False' in text
+
+
 def test_run_verify_repair_edits_can_override_test_id_and_diagnose_failure(
     monkeypatch,
     tmp_path: Path,
