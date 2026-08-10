@@ -17,6 +17,16 @@ Use `--target-root` on Vast because the live confidence gate also creates
 nested fixture plan artifacts under `/workspace/outputs`; without the filter,
 the newest artifact may be for a disposable confidence target rather than the
 actual BIBER checkout.
+Validation: local bundled Python `py_compile` and the focused
+`tests.test_biber_agent_client.test_run_show_real_repo_plan_smoke_summarizes_saved_artifact`
+path passed. Commit `25e9691` added the target filter. After fast-forwarding
+the current Vast GPU, the filtered command correctly returned
+`/workspace/outputs/biber-real-repo-plan-latest.json` for target root
+`/workspace/biber-ai-platform`, with `ok=True`, `mode=live`,
+`plan_outcome=planned_for_review`,
+`review_status=ready_for_explicit_apply_approval`, `planned=1`, `rejected=0`,
+`mutation_performed=False`, `repo_status_unchanged=True`, and plan hash
+`867e0027a0298a395cbce0314ddd4cb1e4206ba65da97181e69c8ac399514fb3`.
 
 2026-08-10 live confidence resume helper checkpoint: continue BIBER MVP only.
 `scripts/biber_agent_client.py` now includes
