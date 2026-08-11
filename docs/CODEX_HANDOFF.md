@@ -25,6 +25,20 @@ GPU, the preferred command saved
 real-repo plan `planned=1`/`rejected=0`, GitHub bridge
 `chain_status=verified`, and pending plan hash
 `867e0027a0298a395cbce0314ddd4cb1e4206ba65da97181e69c8ac399514fb3`.
+2026-08-11 follow-up: the user explicitly approved applying the
+`867e0027a0298a395cbce0314ddd4cb1e4206ba65da97181e69c8ac399514fb3` plan,
+but the guarded apply correctly refused it with "Workspace edit plan hash
+mismatch" because the target repo had changed since that artifact was created.
+No mutation occurred. A refreshed plan-only Vast run for the same exact
+`docs/BIBER_ONLY_WORKSPACE.md` wording change succeeded against the current
+checkout, refreshed `/workspace/outputs/biber-real-repo-plan-latest.json`, and
+refreshed `/workspace/outputs/biber-live-mvp-resume-status-latest.json`.
+Current pending plan hash is
+`6f6ad3b211279cded393cb00b04a6df029287a0a1c1540f5390f68a94f9617aa` with
+`ok=True`, `ready_for_apply_decision=True`, `planned=1`, `rejected=0`,
+`mutation_performed=False`, `repo_status_unchanged=True`,
+`github_request_sent=False`, `mentor_used=False`, and `training_allowed=False`.
+Do not apply it unless the user explicitly approves this exact new hash.
 
 2026-08-10 latest real-repo plan resume helper checkpoint:
 `scripts/biber_agent_client.py` now includes
