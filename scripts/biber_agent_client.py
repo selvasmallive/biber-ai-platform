@@ -15100,7 +15100,7 @@ def build_live_mvp_resume_status(
     verified_apply_file_hashes_match = (
         apply_hash_status is not None and apply_hash_status.get("ok") is True
     )
-    verified_apply_matches_plan = (
+    verified_apply_history_matches_plan = (
         github_bridge.get("ok") is True
         and github_bridge.get("mode") != "fixture"
         and github_bridge.get("chain_status") == "verified"
@@ -15108,6 +15108,9 @@ def build_live_mvp_resume_status(
         and github_bridge.get("test_ok") is True
         and bool(real_repo_plan.get("plan_hash"))
         and github_bridge.get("plan_hash") == real_repo_plan.get("plan_hash")
+    )
+    verified_apply_matches_plan = (
+        verified_apply_history_matches_plan
         and verified_apply_file_hashes_match
     )
     pending_apply_decision = (
@@ -15118,17 +15121,17 @@ def build_live_mvp_resume_status(
         and real_repo_plan.get("repo_status_unchanged") is True
     )
     ready_for_apply_decision = (
-        pending_apply_decision and not verified_apply_matches_plan
+        pending_apply_decision and not verified_apply_history_matches_plan
     )
     ok = (
         confidence.get("ok") is True
-        and (ready_for_apply_decision or verified_apply_matches_plan)
+        and (ready_for_apply_decision or verified_apply_history_matches_plan)
         and github_bridge.get("ok") is True
         and not unsafe_flags
     )
-    if verified_apply_matches_plan and target_git_clean:
+    if verified_apply_history_matches_plan and target_git_clean:
         next_action = "start_next_narrow_biber_step"
-    elif verified_apply_matches_plan:
+    elif verified_apply_history_matches_plan:
         next_action = "save_verified_change_to_github_if_requested"
     elif ready_for_apply_decision:
         next_action = "human_decision_required_for_real_repo_plan_hash"
@@ -15158,6 +15161,7 @@ def build_live_mvp_resume_status(
         "unsafe_flags": unsafe_flags,
         "pending_apply_decision": pending_apply_decision,
         "ready_for_apply_decision": ready_for_apply_decision,
+        "verified_apply_history_matches_plan": verified_apply_history_matches_plan,
         "verified_apply_matches_plan": verified_apply_matches_plan,
         "verified_apply_file_hashes_match": verified_apply_file_hashes_match,
         "target_git_clean": target_git_clean,
@@ -15186,6 +15190,7 @@ def format_live_mvp_resume_status(payload: Mapping[str, Any]) -> str:
         f"unsafe_flags: {','.join(str(item) for item in require_list(payload.get('unsafe_flags'))) or '-'}",
         f"pending_apply_decision: {payload.get('pending_apply_decision') is True}",
         f"ready_for_apply_decision: {payload.get('ready_for_apply_decision') is True}",
+        f"verified_apply_history_matches_plan: {payload.get('verified_apply_history_matches_plan') is True}",
         f"verified_apply_matches_plan: {payload.get('verified_apply_matches_plan') is True}",
         f"verified_apply_file_hashes_match: {payload.get('verified_apply_file_hashes_match') is True}",
         f"target_git_clean: {payload.get('target_git_clean') is True}",

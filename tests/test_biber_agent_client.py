@@ -2007,6 +2007,7 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert status["ok"] is True
     assert status["pending_apply_decision"] is True
     assert status["ready_for_apply_decision"] is False
+    assert status["verified_apply_history_matches_plan"] is True
     assert status["verified_apply_matches_plan"] is True
     assert status["verified_apply_file_hashes_match"] is True
     assert status["target_git_clean"] is True
@@ -2016,10 +2017,40 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert status["target_git_status"]["dirty"] is False
     assert "pending_apply_decision: True" in summary
     assert "ready_for_apply_decision: False" in summary
+    assert "verified_apply_history_matches_plan: True" in summary
     assert "verified_apply_matches_plan: True" in summary
     assert "verified_apply_file_hashes_match: True" in summary
     assert "target_git_clean: True" in summary
     assert "next_action: start_next_narrow_biber_step" in summary
+
+    target_file.write_text(
+        "Later committed docs update after the verified apply.\n",
+        encoding="utf-8",
+    )
+    moved_status = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "live-mvp-resume-status",
+                    str(tmp_path),
+                    "--target-root",
+                    str(target_root),
+                ]
+            )
+        )
+    )
+
+    assert moved_status["pending_apply_decision"] is True
+    assert moved_status["ready_for_apply_decision"] is False
+    assert moved_status["verified_apply_history_matches_plan"] is True
+    assert moved_status["verified_apply_matches_plan"] is False
+    assert moved_status["verified_apply_file_hashes_match"] is False
+    assert moved_status["target_git_clean"] is True
+    assert moved_status["next_action"] == "start_next_narrow_biber_step"
+    assert moved_status["verified_apply_hash_status"]["mismatched"][0]["path"] == (
+        "docs/BIBER_ONLY_WORKSPACE.md"
+    )
 
 
 def test_run_mvp_loop_can_include_github_dry_run_without_api_key(

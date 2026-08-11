@@ -207,11 +207,11 @@ This command is offline and read-only. It should report any pending
 GitHub, OpenAI mentor, training, external APIs, or apply files.
 If the latest verified GitHub dry-run bridge has the same `plan_hash` as the
 latest real-repo plan, the status command treats that plan as already
-applied/verified only when the linked apply artifact's `new_sha256` values
-still match the current target files. With a clean target git checkout,
-`next_action` should become
-`start_next_narrow_biber_step`; with a dirty target checkout, it should become
-`save_verified_change_to_github_if_requested`.
+applied/verified historically and will not ask for duplicate apply approval.
+It also checks whether the linked apply artifact's `new_sha256` values still
+match the current target files. With a clean target git checkout, `next_action`
+should become `start_next_narrow_biber_step`; with a dirty target checkout, it
+should become `save_verified_change_to_github_if_requested`.
 
 This keeps Qwen2.5, Qwen3, llama.cpp, vLLM wrappers, and future local runners
 swappable without enabling OpenAI mentor, API auth, GPU training, or file apply.
