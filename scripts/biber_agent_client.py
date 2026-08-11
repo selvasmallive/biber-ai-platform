@@ -14895,6 +14895,7 @@ def build_live_mvp_resume_status(
     confidence: dict[str, Any]
     real_repo_plan: dict[str, Any]
     github_bridge: dict[str, Any]
+    target_git_status: dict[str, Any] | None = None
     try:
         confidence_artifact = find_latest_live_provider_confidence_artifact(
             directory=directory,
@@ -14934,6 +14935,9 @@ def build_live_mvp_resume_status(
             "plan_outcome": plan_artifact.get("plan_outcome"),
             "review_status": plan_artifact.get("review_status"),
             "apply_recommendation": plan_artifact.get("apply_recommendation"),
+            "required_path": require_mapping(plan_artifact.get("required_edit")).get(
+                "path"
+            ),
             "planned": plan_artifact.get("planned", 0),
             "rejected": plan_artifact.get("rejected", 0),
             "plan_hash": plan_artifact.get("plan_hash"),
@@ -14965,6 +14969,7 @@ def build_live_mvp_resume_status(
             "chain_status": bridge_artifact.get("chain_status"),
             "verification_status": bridge_artifact.get("verification_status"),
             "test_ok": bridge_artifact.get("test_ok") is True,
+            "plan_hash": bridge_artifact.get("plan_hash"),
             "paths": len(require_list(bridge_artifact.get("paths"))),
             "dry_run_artifacts_matched": bridge_artifact.get(
                 "dry_run_artifacts_matched",
@@ -14976,6 +14981,12 @@ def build_live_mvp_resume_status(
         }
     except BiberAgentClientError as exc:
         github_bridge = compact_artifact_error(exc)
+
+    if target_root:
+        try:
+            target_git_status = git_status_local_target(Path(target_root))
+        except BiberAgentClientError as exc:
+            target_git_status = compact_artifact_error(exc)
 
     unsafe_flags: list[str] = []
     for section_name, section in (
@@ -14989,24 +15000,44 @@ def build_live_mvp_resume_status(
     if real_repo_plan.get("mutation_performed") is True:
         unsafe_flags.append("real_repo_plan.mutation_performed")
 
-    ready_for_apply_decision = (
+    verified_apply_matches_plan = (
+        github_bridge.get("ok") is True
+        and github_bridge.get("mode") != "fixture"
+        and github_bridge.get("chain_status") == "verified"
+        and github_bridge.get("verification_status") == "passed"
+        and github_bridge.get("test_ok") is True
+        and bool(real_repo_plan.get("plan_hash"))
+        and github_bridge.get("plan_hash") == real_repo_plan.get("plan_hash")
+    )
+    target_git_clean = (
+        target_git_status is not None
+        and target_git_status.get("available") is True
+        and target_git_status.get("dirty") is False
+    )
+    pending_apply_decision = (
         real_repo_plan.get("ok") is True
         and real_repo_plan.get("review_status") == "ready_for_explicit_apply_approval"
         and bool(real_repo_plan.get("plan_hash"))
         and real_repo_plan.get("mutation_performed") is False
         and real_repo_plan.get("repo_status_unchanged") is True
     )
+    ready_for_apply_decision = (
+        pending_apply_decision and not verified_apply_matches_plan
+    )
     ok = (
         confidence.get("ok") is True
-        and ready_for_apply_decision
+        and (ready_for_apply_decision or verified_apply_matches_plan)
         and github_bridge.get("ok") is True
         and not unsafe_flags
     )
-    next_action = (
-        "human_decision_required_for_real_repo_plan_hash"
-        if ready_for_apply_decision
-        else "refresh_live_confidence_and_real_repo_plan_artifacts"
-    )
+    if verified_apply_matches_plan and target_git_clean:
+        next_action = "start_next_narrow_biber_step"
+    elif verified_apply_matches_plan:
+        next_action = "save_verified_change_to_github_if_requested"
+    elif ready_for_apply_decision:
+        next_action = "human_decision_required_for_real_repo_plan_hash"
+    else:
+        next_action = "refresh_live_confidence_and_real_repo_plan_artifacts"
     return {
         "source": "biber_live_mvp_resume_status",
         "ok": ok,
@@ -15029,12 +15060,16 @@ def build_live_mvp_resume_status(
             for section in (confidence, real_repo_plan, github_bridge)
         ),
         "unsafe_flags": unsafe_flags,
+        "pending_apply_decision": pending_apply_decision,
         "ready_for_apply_decision": ready_for_apply_decision,
+        "verified_apply_matches_plan": verified_apply_matches_plan,
+        "target_git_clean": target_git_clean,
         "plan_hash": real_repo_plan.get("plan_hash"),
         "next_action": next_action,
         "confidence": confidence,
         "real_repo_plan": real_repo_plan,
         "github_bridge": github_bridge,
+        "target_git_status": target_git_status,
     }
 
 
@@ -15051,7 +15086,10 @@ def format_live_mvp_resume_status(payload: Mapping[str, Any]) -> str:
         f"mentor_used: {payload.get('mentor_used') is True}",
         f"training_allowed: {payload.get('training_allowed') is True}",
         f"unsafe_flags: {','.join(str(item) for item in require_list(payload.get('unsafe_flags'))) or '-'}",
+        f"pending_apply_decision: {payload.get('pending_apply_decision') is True}",
         f"ready_for_apply_decision: {payload.get('ready_for_apply_decision') is True}",
+        f"verified_apply_matches_plan: {payload.get('verified_apply_matches_plan') is True}",
+        f"target_git_clean: {payload.get('target_git_clean') is True}",
         f"plan_hash: {payload.get('plan_hash') or '-'}",
         f"next_action: {payload.get('next_action', '-')}",
         (

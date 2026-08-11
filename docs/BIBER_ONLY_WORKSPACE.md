@@ -205,6 +205,12 @@ python scripts/biber_agent_client.py live-mvp-resume-status \
 This command is offline and read-only. It should report any pending
 `plan_hash` that needs a separate explicit apply decision, and it must not call
 GitHub, OpenAI mentor, training, external APIs, or apply files.
+If the latest verified GitHub dry-run bridge has the same `plan_hash` as the
+latest real-repo plan, the status command treats that plan as already
+applied/verified instead of asking for another apply approval. With a clean
+target git checkout, `next_action` should become
+`start_next_narrow_biber_step`; with a dirty target checkout, it should become
+`save_verified_change_to_github_if_requested`.
 
 This keeps Qwen2.5, Qwen3, llama.cpp, vLLM wrappers, and future local runners
 swappable without enabling OpenAI mentor, API auth, GPU training, or file apply.

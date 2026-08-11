@@ -1856,6 +1856,140 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
     assert "github_bridge: ok=True mode=fixture chain=verified" in summary
 
 
+def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    target_root = tmp_path / "target-repo"
+    target_root.mkdir()
+    confidence_artifact = tmp_path / "biber-live-provider-confidence-latest.json"
+    real_plan_artifact = tmp_path / "biber-real-repo-plan-latest.json"
+    github_bridge_artifact = (
+        tmp_path / "biber-live-verified-github-dry-run-latest.json"
+    )
+
+    def fake_git_status(target: Path) -> dict[str, object]:
+        assert target == target_root
+        return {
+            "available": True,
+            "target_root": str(target_root),
+            "branch": "biber/mvp-resume-20260712",
+            "head": "abc1234",
+            "dirty": False,
+            "status_short": [],
+            "modified_count": 0,
+            "untracked_count": 0,
+        }
+
+    monkeypatch.setattr(client, "git_status_local_target", fake_git_status)
+    confidence_artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_live_provider_confidence_smoke",
+                "ok": True,
+                "mode": "live",
+                "github_request_sent": False,
+                "mentor_used": False,
+                "training_allowed": False,
+                "checks": [{"name": "readiness", "ok": True}],
+                "readiness": {"ok": True},
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    real_plan_artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_live_provider_real_repo_plan_smoke",
+                "ok": True,
+                "mode": "live",
+                "target_root": str(target_root),
+                "github_request_sent": False,
+                "mentor_used": False,
+                "training_allowed": False,
+                "mutation_performed": False,
+                "repo_status_unchanged": True,
+                "plan_outcome": "planned_for_review",
+                "review_status": "ready_for_explicit_apply_approval",
+                "apply_recommendation": "ready_for_explicit_apply_approval",
+                "planned": 1,
+                "rejected": 0,
+                "plan_hash": "plan-verified",
+                "required_edit": {"path": "docs/BIBER_ONLY_WORKSPACE.md"},
+                "explicit_apply_approval": {
+                    "required": True,
+                    "status": "requires_separate_explicit_user_approval_before_apply",
+                    "plan_hash": "plan-verified",
+                },
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    github_bridge_artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_live_verified_repair_github_dry_run_smoke",
+                "ok": True,
+                "mode": "artifact",
+                "target_root": str(target_root),
+                "chain_status": "verified",
+                "verification_status": "passed",
+                "test_id": "python-compileall-api",
+                "test_ok": True,
+                "plan_hash": "plan-verified",
+                "paths": ["docs/BIBER_ONLY_WORKSPACE.md"],
+                "dry_run_artifacts_matched": 2,
+                "github_request_sent": False,
+                "mentor_used": False,
+                "training_allowed": False,
+                "auto_saved": False,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+    status = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "live-mvp-resume-status",
+                    str(tmp_path),
+                    "--target-root",
+                    str(target_root),
+                ]
+            )
+        )
+    )
+    summary = client.run(
+        client.parse_args(
+            [
+                "live-mvp-resume-status",
+                str(tmp_path),
+                "--target-root",
+                str(target_root),
+            ]
+        )
+    )
+
+    assert status["ok"] is True
+    assert status["pending_apply_decision"] is True
+    assert status["ready_for_apply_decision"] is False
+    assert status["verified_apply_matches_plan"] is True
+    assert status["target_git_clean"] is True
+    assert status["next_action"] == "start_next_narrow_biber_step"
+    assert status["github_bridge"]["plan_hash"] == "plan-verified"
+    assert status["target_git_status"]["dirty"] is False
+    assert "pending_apply_decision: True" in summary
+    assert "ready_for_apply_decision: False" in summary
+    assert "verified_apply_matches_plan: True" in summary
+    assert "target_git_clean: True" in summary
+    assert "next_action: start_next_narrow_biber_step" in summary
+
+
 def test_run_mvp_loop_can_include_github_dry_run_without_api_key(
     monkeypatch,
     tmp_path: Path,
