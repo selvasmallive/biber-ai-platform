@@ -4,6 +4,18 @@ Last updated: 2026-08-10
 
 ## Current Goal
 
+2026-08-11 latest BIBER live MVP resume status checkpoint:
+`scripts/biber_agent_client.py` now includes
+`live-mvp-resume-status <directory>`, which summarizes the latest saved live
+provider confidence, real-repo plan-only smoke, and verified-repair GitHub
+dry-run bridge artifacts together without rerunning model/GPU work. Preferred
+Vast resume command:
+`/workspace/biber-venv/bin/python scripts/biber_agent_client.py live-mvp-resume-status /workspace/outputs --target-root /workspace/biber-ai-platform --output /workspace/outputs/biber-live-mvp-resume-status-latest.json`.
+This is offline/read-only and must not call GitHub, call OpenAI mentor, start
+training, use external APIs, or apply files. If it reports
+`next_action=human_decision_required_for_real_repo_plan_hash`, do not apply the
+real-repo plan until the user explicitly approves the exact `plan_hash`.
+
 2026-08-10 latest real-repo plan resume helper checkpoint:
 `scripts/biber_agent_client.py` now includes
 `show-latest-real-repo-plan-smoke <directory>`, which finds the newest saved

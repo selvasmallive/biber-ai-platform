@@ -192,6 +192,20 @@ python scripts/biber_agent_client.py list-real-repo-plan-smokes \
   --output /workspace/outputs/biber-real-repo-plan-smoke-list.json
 ```
 
+To summarize the latest live MVP readiness, real-repo plan, and GitHub bridge
+dry-run artifacts together without rerunning GPU/model work:
+
+```bash
+python scripts/biber_agent_client.py live-mvp-resume-status \
+  /workspace/outputs \
+  --target-root /workspace/biber-ai-platform \
+  --output /workspace/outputs/biber-live-mvp-resume-status-latest.json
+```
+
+This command is offline and read-only. It should report any pending
+`plan_hash` that needs a separate explicit apply decision, and it must not call
+GitHub, OpenAI mentor, training, external APIs, or apply files.
+
 This keeps Qwen2.5, Qwen3, llama.cpp, vLLM wrappers, and future local runners
 swappable without enabling OpenAI mentor, API auth, GPU training, or file apply.
 `scripts/biber_local_openai_provider.py` is the stdlib OpenAI-compatible

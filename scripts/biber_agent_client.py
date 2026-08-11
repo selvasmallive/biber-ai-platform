@@ -14880,6 +14880,215 @@ def format_live_verified_github_dry_run_artifact_list_summary(
     return "\n".join(lines)
 
 
+def compact_artifact_error(exc: Exception) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "error": str(exc),
+    }
+
+
+def build_live_mvp_resume_status(
+    *,
+    directory: str,
+    target_root: str | None = None,
+) -> dict[str, Any]:
+    confidence: dict[str, Any]
+    real_repo_plan: dict[str, Any]
+    github_bridge: dict[str, Any]
+    try:
+        confidence_artifact = find_latest_live_provider_confidence_artifact(
+            directory=directory,
+            pattern="*live-provider-confidence*.json",
+        )
+        confidence = {
+            "ok": confidence_artifact.get("ok") is True,
+            "artifact_path": confidence_artifact.get("artifact_path"),
+            "mode": confidence_artifact.get("mode"),
+            "checks": len(require_list(confidence_artifact.get("checks"))),
+            "failed_checks": len(
+                require_list(confidence_artifact.get("failed_checks"))
+            ),
+            "readiness_ok": require_mapping(
+                confidence_artifact.get("readiness")
+            ).get("ok")
+            is True,
+            "github_request_sent": confidence_artifact.get("github_request_sent")
+            is True,
+            "mentor_used": confidence_artifact.get("mentor_used") is True,
+            "training_allowed": confidence_artifact.get("training_allowed") is True,
+        }
+    except BiberAgentClientError as exc:
+        confidence = compact_artifact_error(exc)
+
+    try:
+        plan_artifact = find_latest_real_repo_plan_smoke_artifact(
+            directory=directory,
+            pattern="*real-repo-plan*.json",
+            target_root=target_root,
+        )
+        real_repo_plan = {
+            "ok": plan_artifact.get("ok") is True,
+            "artifact_path": plan_artifact.get("artifact_path"),
+            "target_root": plan_artifact.get("target_root"),
+            "mode": plan_artifact.get("mode"),
+            "plan_outcome": plan_artifact.get("plan_outcome"),
+            "review_status": plan_artifact.get("review_status"),
+            "apply_recommendation": plan_artifact.get("apply_recommendation"),
+            "planned": plan_artifact.get("planned", 0),
+            "rejected": plan_artifact.get("rejected", 0),
+            "plan_hash": plan_artifact.get("plan_hash"),
+            "mutation_performed": plan_artifact.get("mutation_performed") is True,
+            "repo_status_unchanged": plan_artifact.get("repo_status_unchanged")
+            is True,
+            "github_request_sent": plan_artifact.get("github_request_sent") is True,
+            "mentor_used": plan_artifact.get("mentor_used") is True,
+            "training_allowed": plan_artifact.get("training_allowed") is True,
+            "requires_explicit_apply_approval": bool(
+                require_mapping(plan_artifact.get("explicit_apply_approval")).get(
+                    "required"
+                )
+            ),
+        }
+    except BiberAgentClientError as exc:
+        real_repo_plan = compact_artifact_error(exc)
+
+    try:
+        bridge_artifact = find_latest_live_verified_github_dry_run_artifact(
+            directory=directory,
+            pattern="*live-verified-github-dry-run*.json",
+        )
+        github_bridge = {
+            "ok": bridge_artifact.get("ok") is True,
+            "artifact_path": bridge_artifact.get("artifact_path"),
+            "mode": bridge_artifact.get("mode"),
+            "target_root": bridge_artifact.get("target_root"),
+            "chain_status": bridge_artifact.get("chain_status"),
+            "verification_status": bridge_artifact.get("verification_status"),
+            "test_ok": bridge_artifact.get("test_ok") is True,
+            "paths": len(require_list(bridge_artifact.get("paths"))),
+            "dry_run_artifacts_matched": bridge_artifact.get(
+                "dry_run_artifacts_matched",
+                0,
+            ),
+            "github_request_sent": bridge_artifact.get("github_request_sent") is True,
+            "mentor_used": bridge_artifact.get("mentor_used") is True,
+            "training_allowed": bridge_artifact.get("training_allowed") is True,
+        }
+    except BiberAgentClientError as exc:
+        github_bridge = compact_artifact_error(exc)
+
+    unsafe_flags: list[str] = []
+    for section_name, section in (
+        ("confidence", confidence),
+        ("real_repo_plan", real_repo_plan),
+        ("github_bridge", github_bridge),
+    ):
+        for flag in ("github_request_sent", "mentor_used", "training_allowed"):
+            if section.get(flag) is True:
+                unsafe_flags.append(f"{section_name}.{flag}")
+    if real_repo_plan.get("mutation_performed") is True:
+        unsafe_flags.append("real_repo_plan.mutation_performed")
+
+    ready_for_apply_decision = (
+        real_repo_plan.get("ok") is True
+        and real_repo_plan.get("review_status") == "ready_for_explicit_apply_approval"
+        and bool(real_repo_plan.get("plan_hash"))
+        and real_repo_plan.get("mutation_performed") is False
+        and real_repo_plan.get("repo_status_unchanged") is True
+    )
+    ok = (
+        confidence.get("ok") is True
+        and ready_for_apply_decision
+        and github_bridge.get("ok") is True
+        and not unsafe_flags
+    )
+    next_action = (
+        "human_decision_required_for_real_repo_plan_hash"
+        if ready_for_apply_decision
+        else "refresh_live_confidence_and_real_repo_plan_artifacts"
+    )
+    return {
+        "source": "biber_live_mvp_resume_status",
+        "ok": ok,
+        "directory": directory,
+        "target_root": target_root,
+        "api_required": False,
+        "external_network_required": False,
+        "gpu_required": False,
+        "live_provider_required": False,
+        "github_request_sent": any(
+            section.get("github_request_sent") is True
+            for section in (confidence, real_repo_plan, github_bridge)
+        ),
+        "mentor_used": any(
+            section.get("mentor_used") is True
+            for section in (confidence, real_repo_plan, github_bridge)
+        ),
+        "training_allowed": any(
+            section.get("training_allowed") is True
+            for section in (confidence, real_repo_plan, github_bridge)
+        ),
+        "unsafe_flags": unsafe_flags,
+        "ready_for_apply_decision": ready_for_apply_decision,
+        "plan_hash": real_repo_plan.get("plan_hash"),
+        "next_action": next_action,
+        "confidence": confidence,
+        "real_repo_plan": real_repo_plan,
+        "github_bridge": github_bridge,
+    }
+
+
+def format_live_mvp_resume_status(payload: Mapping[str, Any]) -> str:
+    confidence = require_mapping(payload.get("confidence"))
+    real_repo_plan = require_mapping(payload.get("real_repo_plan"))
+    github_bridge = require_mapping(payload.get("github_bridge"))
+    lines = [
+        "BIBER live MVP resume status",
+        f"ok: {payload.get('ok') is True}",
+        f"directory: {payload.get('directory', '-')}",
+        f"target_root: {payload.get('target_root') or '-'}",
+        f"github_request_sent: {payload.get('github_request_sent') is True}",
+        f"mentor_used: {payload.get('mentor_used') is True}",
+        f"training_allowed: {payload.get('training_allowed') is True}",
+        f"unsafe_flags: {','.join(str(item) for item in require_list(payload.get('unsafe_flags'))) or '-'}",
+        f"ready_for_apply_decision: {payload.get('ready_for_apply_decision') is True}",
+        f"plan_hash: {payload.get('plan_hash') or '-'}",
+        f"next_action: {payload.get('next_action', '-')}",
+        (
+            "confidence: "
+            f"ok={confidence.get('ok')} "
+            f"mode={confidence.get('mode', '-')} "
+            f"checks={confidence.get('checks', 0)} "
+            f"failed={confidence.get('failed_checks', 0)} "
+            f"readiness_ok={confidence.get('readiness_ok')} "
+            f"artifact={confidence.get('artifact_path', '-')}"
+        ),
+        (
+            "real_repo_plan: "
+            f"ok={real_repo_plan.get('ok')} "
+            f"target={real_repo_plan.get('target_root', '-')} "
+            f"outcome={real_repo_plan.get('plan_outcome', '-')} "
+            f"review={real_repo_plan.get('review_status', '-')} "
+            f"planned={real_repo_plan.get('planned', 0)} "
+            f"rejected={real_repo_plan.get('rejected', 0)} "
+            f"mutated={real_repo_plan.get('mutation_performed')} "
+            f"repo_unchanged={real_repo_plan.get('repo_status_unchanged')} "
+            f"artifact={real_repo_plan.get('artifact_path', '-')}"
+        ),
+        (
+            "github_bridge: "
+            f"ok={github_bridge.get('ok')} "
+            f"mode={github_bridge.get('mode', '-')} "
+            f"chain={github_bridge.get('chain_status', '-')} "
+            f"verification={github_bridge.get('verification_status', '-')} "
+            f"test_ok={github_bridge.get('test_ok')} "
+            f"dry_runs={github_bridge.get('dry_run_artifacts_matched', 0)} "
+            f"artifact={github_bridge.get('artifact_path', '-')}"
+        ),
+    ]
+    return "\n".join(lines)
+
+
 def format_real_repo_plan_smoke_artifact_summary(
     payload: Mapping[str, Any],
 ) -> str:
@@ -18403,6 +18612,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     list_live_verified_github_dry_runs.add_argument("--target-root")
     list_live_verified_github_dry_runs.add_argument("--output")
 
+    live_mvp_resume_status = subparsers.add_parser(
+        "live-mvp-resume-status",
+        help=(
+            "Summarize latest saved Vast/BIBER MVP confidence, real-repo plan, "
+            "and GitHub dry-run bridge artifacts without rerunning them."
+        ),
+    )
+    live_mvp_resume_status.add_argument("directory")
+    live_mvp_resume_status.add_argument("--target-root")
+    live_mvp_resume_status.add_argument("--output")
+
     show_real_repo_plan_smoke = subparsers.add_parser(
         "show-real-repo-plan-smoke",
         help="Summarize a saved biber_live_provider_real_repo_plan_smoke.py artifact.",
@@ -20136,6 +20356,19 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(artifacts, indent=2, sort_keys=True)
             if args.print_json
             else format_live_verified_github_dry_run_artifact_list_summary(artifacts)
+        )
+    if args.command == "live-mvp-resume-status":
+        status = build_live_mvp_resume_status(
+            directory=args.directory,
+            target_root=args.target_root,
+        )
+        if args.output:
+            status["artifact_path"] = str(Path(args.output))
+            write_json_artifact(status, args.output)
+        return (
+            json.dumps(status, indent=2, sort_keys=True)
+            if args.print_json
+            else format_live_mvp_resume_status(status)
         )
     if args.command == "show-real-repo-plan-smoke":
         artifact = load_json_artifact(

@@ -1707,6 +1707,155 @@ def test_run_show_live_verified_github_dry_run_summarizes_saved_artifact(
     assert "dry_runs=2" in list_summary
 
 
+def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
+    tmp_path: Path,
+) -> None:
+    confidence_artifact = tmp_path / "biber-live-provider-confidence-latest.json"
+    real_plan_artifact = tmp_path / "biber-real-repo-plan-latest.json"
+    github_bridge_artifact = (
+        tmp_path / "biber-live-verified-github-dry-run-latest.json"
+    )
+    status_artifact = tmp_path / "biber-live-mvp-resume-status.json"
+    confidence_artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_live_provider_confidence_smoke",
+                "ok": True,
+                "mode": "live",
+                "github_request_sent": False,
+                "mentor_used": False,
+                "training_allowed": False,
+                "checks": [
+                    {"name": "readiness", "ok": True},
+                    {"name": "fixture_plan", "ok": True},
+                    {"name": "repair", "ok": True},
+                ],
+                "readiness": {
+                    "ok": True,
+                    "model_available": True,
+                    "available_model_count": 1,
+                },
+                "fixture_plan": {"chain_status": "planned"},
+                "disposable_repair": {
+                    "apply_status": "applied",
+                    "verification_status": "passed",
+                    "test_ok": True,
+                },
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    real_plan_artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_live_provider_real_repo_plan_smoke",
+                "ok": True,
+                "mode": "live",
+                "target_root": "/workspace/biber-ai-platform",
+                "github_request_sent": False,
+                "mentor_used": False,
+                "training_allowed": False,
+                "mutation_performed": False,
+                "repo_status_unchanged": True,
+                "plan_outcome": "planned_for_review",
+                "review_status": "ready_for_explicit_apply_approval",
+                "apply_recommendation": "ready_for_explicit_apply_approval",
+                "planned": 1,
+                "rejected": 0,
+                "plan_hash": "plan-123",
+                "required_edit": {"path": "docs/BIBER_ONLY_WORKSPACE.md"},
+                "explicit_apply_approval": {
+                    "required": True,
+                    "status": "requires_separate_explicit_user_approval_before_apply",
+                    "plan_hash": "plan-123",
+                },
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    github_bridge_artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_live_verified_repair_github_dry_run_smoke",
+                "ok": True,
+                "mode": "fixture",
+                "target_root": "/workspace/outputs/fixture-target",
+                "chain_status": "verified",
+                "verification_status": "passed",
+                "test_id": "python-compileall-api",
+                "test_ok": True,
+                "paths": ["src/app.py"],
+                "save_artifacts": [{"path": "src/app.py"}],
+                "pull_request_source": "biber_github_pull_request_dry_run",
+                "pull_request_draft": True,
+                "dry_run_artifacts_matched": 2,
+                "github_request_sent": False,
+                "mentor_used": False,
+                "training_allowed": False,
+                "auto_saved": False,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    os.utime(confidence_artifact, (1_900_000_000, 1_900_000_000))
+    os.utime(real_plan_artifact, (1_900_000_100, 1_900_000_100))
+    os.utime(github_bridge_artifact, (1_900_000_200, 1_900_000_200))
+
+    status = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "live-mvp-resume-status",
+                    str(tmp_path),
+                    "--target-root",
+                    "/workspace/biber-ai-platform",
+                    "--output",
+                    str(status_artifact),
+                ]
+            )
+        )
+    )
+    summary = client.run(
+        client.parse_args(
+            [
+                "live-mvp-resume-status",
+                str(tmp_path),
+                "--target-root",
+                "/workspace/biber-ai-platform",
+            ]
+        )
+    )
+
+    assert status["source"] == "biber_live_mvp_resume_status"
+    assert status["ok"] is True
+    assert status["ready_for_apply_decision"] is True
+    assert status["plan_hash"] == "plan-123"
+    assert status["next_action"] == "human_decision_required_for_real_repo_plan_hash"
+    assert status["github_request_sent"] is False
+    assert status["mentor_used"] is False
+    assert status["training_allowed"] is False
+    assert status["unsafe_flags"] == []
+    assert status["confidence"]["ok"] is True
+    assert status["confidence"]["readiness_ok"] is True
+    assert status["real_repo_plan"]["review_status"] == (
+        "ready_for_explicit_apply_approval"
+    )
+    assert status["real_repo_plan"]["mutation_performed"] is False
+    assert status["github_bridge"]["dry_run_artifacts_matched"] == 2
+    assert status["artifact_path"] == str(status_artifact)
+    assert json.loads(status_artifact.read_text(encoding="utf-8")) == status
+    assert "BIBER live MVP resume status" in summary
+    assert "ready_for_apply_decision: True" in summary
+    assert "plan_hash: plan-123" in summary
+    assert "confidence: ok=True mode=live checks=3" in summary
+    assert "real_repo_plan: ok=True target=/workspace/biber-ai-platform" in summary
+    assert "github_bridge: ok=True mode=fixture chain=verified" in summary
+
+
 def test_run_mvp_loop_can_include_github_dry_run_without_api_key(
     monkeypatch,
     tmp_path: Path,
