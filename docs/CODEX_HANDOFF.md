@@ -52,8 +52,8 @@ GitHub bridge dry-run then wrote
 `mode=artifact`, `paths=['docs/BIBER_ONLY_WORKSPACE.md']`,
 `dry_run_artifacts_matched=2`, `github_request_sent=False`, and
 `next_action=review_dry_run_artifacts_before_real_github_save_or_pr`. The
-applied docs edit is verified on Vast but intentionally not committed or pushed
-yet; save it to GitHub only after explicit user approval.
+user explicitly approved saving this verified docs apply, and it was pushed to
+GitHub branch `biber/mvp-resume-20260712` as commit `f49d7b6`.
 
 2026-08-10 latest real-repo plan resume helper checkpoint:
 `scripts/biber_agent_client.py` now includes
