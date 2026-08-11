@@ -4,6 +4,30 @@ Last updated: 2026-08-11
 
 ## Current Goal
 
+2026-08-11 latest BIBER resume interpreter checkpoint:
+commits `5e7e287` and `ebae2a5` added `--python-command` to
+`live-mvp-resume-status` so generated `next_commands` can embed the active
+runtime, especially `/workspace/biber-venv/bin/python` on Vast. The
+`refresh_resume_status` hint preserves `--python-command`, so repeated status
+refreshes keep producing Vast-ready command arrays. Local validation passed
+bundled Python `py_compile`, a direct self-sustaining `--python-command`
+resume-status harness, and `scripts/biber_local_confidence_smoke.py`. The
+current Vast GPU was fast-forwarded to `ebae2a5`; py_compile passed; the
+preferred status command with `--python-command /workspace/biber-venv/bin/python`
+returned `ok=True`, `next_action=start_next_narrow_biber_step`,
+`refresh_resume_status.command_parts[0]=/workspace/biber-venv/bin/python`,
+`refresh_has_python_command=True`, `github_request_sent=False`,
+`mentor_used=False`, and `training_allowed=False`. The safe live provider
+confidence gate was then rerun on Vast:
+`/workspace/biber-venv/bin/python scripts/biber_live_provider_confidence_smoke.py --mode live --base-url http://127.0.0.1:8001/v1 --model biber-dev-core --output /workspace/outputs/biber-live-provider-confidence-latest.json`.
+It passed with `ok=True`, `checks=3`, `failed_checks=0`, readiness
+`model_available=True`, disposable repair `verification_status=passed`, and no
+GitHub/OpenAI/training. The refreshed
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json` still reports
+`next_action=start_next_narrow_biber_step` with next command labels
+`run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`,
+`prepare_next_plan_only_required_edit`, and `refresh_resume_status`.
+
 2026-08-11 latest BIBER resume next-command checkpoint:
 commit `360a063` adds `next_commands` to
 `live-mvp-resume-status`. The status artifact now carries safe, machine-readable
