@@ -54,6 +54,17 @@ GitHub bridge dry-run then wrote
 `next_action=review_dry_run_artifacts_before_real_github_save_or_pr`. The
 user explicitly approved saving this verified docs apply, and it was pushed to
 GitHub branch `biber/mvp-resume-20260712` as commit `f49d7b6`.
+2026-08-11 follow-up: commit `2dcc194` updated
+`live-mvp-resume-status` so a latest verified GitHub dry-run bridge with the
+same `plan_hash` as the latest real-repo plan is treated as already
+applied/verified, not as another pending apply approval. The command now also
+reports target git cleanliness when `--target-root` is supplied. Local bundled
+Python `py_compile` and focused direct resume-status tests passed. After
+fast-forwarding Vast to `2dcc194`, the preferred status command against
+`/workspace/outputs` returned `ok=True`, `pending_apply_decision=True`,
+`ready_for_apply_decision=False`, `verified_apply_matches_plan=True`,
+`target_git_clean=True`, `github_request_sent=False`, `mentor_used=False`,
+`training_allowed=False`, and `next_action=start_next_narrow_biber_step`.
 
 2026-08-10 latest real-repo plan resume helper checkpoint:
 `scripts/biber_agent_client.py` now includes
