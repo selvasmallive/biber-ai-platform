@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -1862,11 +1863,17 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
 ) -> None:
     target_root = tmp_path / "target-repo"
     target_root.mkdir()
+    target_file = target_root / "docs" / "BIBER_ONLY_WORKSPACE.md"
+    target_file.parent.mkdir()
+    target_content = "Use this document from the dedicated BIBER-only checkout.\n"
+    target_file.write_text(target_content, encoding="utf-8")
+    target_sha = hashlib.sha256(target_file.read_bytes()).hexdigest()
     confidence_artifact = tmp_path / "biber-live-provider-confidence-latest.json"
     real_plan_artifact = tmp_path / "biber-real-repo-plan-latest.json"
     github_bridge_artifact = (
         tmp_path / "biber-live-verified-github-dry-run-latest.json"
     )
+    apply_artifact = tmp_path / "real-repo-repair-edit-apply.json"
 
     def fake_git_status(target: Path) -> dict[str, object]:
         assert target == target_root
@@ -1927,6 +1934,27 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
         ),
         encoding="utf-8",
     )
+    apply_artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "ok": True,
+                "plan_hash": "plan-verified",
+                "apply_status": "applied",
+                "edit_apply": {
+                    "ok": True,
+                    "applied": [
+                        {
+                            "path": "docs/BIBER_ONLY_WORKSPACE.md",
+                            "new_sha256": target_sha,
+                        }
+                    ],
+                },
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
     github_bridge_artifact.write_text(
         json.dumps(
             {
@@ -1939,6 +1967,7 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
                 "test_id": "python-compileall-api",
                 "test_ok": True,
                 "plan_hash": "plan-verified",
+                "apply_artifact": str(apply_artifact),
                 "paths": ["docs/BIBER_ONLY_WORKSPACE.md"],
                 "dry_run_artifacts_matched": 2,
                 "github_request_sent": False,
@@ -1979,13 +2008,16 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert status["pending_apply_decision"] is True
     assert status["ready_for_apply_decision"] is False
     assert status["verified_apply_matches_plan"] is True
+    assert status["verified_apply_file_hashes_match"] is True
     assert status["target_git_clean"] is True
     assert status["next_action"] == "start_next_narrow_biber_step"
     assert status["github_bridge"]["plan_hash"] == "plan-verified"
+    assert status["verified_apply_hash_status"]["matched"] == 1
     assert status["target_git_status"]["dirty"] is False
     assert "pending_apply_decision: True" in summary
     assert "ready_for_apply_decision: False" in summary
     assert "verified_apply_matches_plan: True" in summary
+    assert "verified_apply_file_hashes_match: True" in summary
     assert "target_git_clean: True" in summary
     assert "next_action: start_next_narrow_biber_step" in summary
 

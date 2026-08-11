@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -14887,6 +14888,89 @@ def compact_artifact_error(exc: Exception) -> dict[str, Any]:
     }
 
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def verified_apply_hash_status(
+    *,
+    apply_artifact: str | None,
+    target_root: str | None,
+) -> dict[str, Any]:
+    if not apply_artifact:
+        return {
+            "ok": False,
+            "reason": "apply_artifact_missing",
+            "checked": 0,
+        }
+    if not target_root:
+        return {
+            "ok": False,
+            "reason": "target_root_missing",
+            "checked": 0,
+        }
+    try:
+        root = validate_local_target_root(Path(target_root))
+        apply_payload = load_json_artifact(
+            apply_artifact,
+            label="verified apply artifact",
+        )
+        applied = require_list(
+            require_mapping(apply_payload.get("edit_apply")).get("applied")
+        )
+        checked = 0
+        matched = 0
+        missing: list[str] = []
+        mismatched: list[dict[str, Any]] = []
+        for item in applied:
+            edit = require_mapping(item)
+            rel_path = str(edit.get("path") or "").strip()
+            expected_sha = str(edit.get("new_sha256") or "").strip()
+            if not rel_path or not expected_sha:
+                continue
+            candidate = (root / rel_path).resolve()
+            try:
+                candidate.relative_to(root)
+            except ValueError:
+                mismatched.append(
+                    {
+                        "path": rel_path,
+                        "reason": "path_outside_target_root",
+                    }
+                )
+                continue
+            checked += 1
+            if not candidate.is_file():
+                missing.append(rel_path)
+                continue
+            actual_sha = sha256_file(candidate)
+            if actual_sha == expected_sha:
+                matched += 1
+            else:
+                mismatched.append(
+                    {
+                        "path": rel_path,
+                        "expected_sha256": expected_sha,
+                        "actual_sha256": actual_sha,
+                    }
+                )
+        return {
+            "ok": checked > 0 and checked == matched and not missing and not mismatched,
+            "apply_artifact": apply_artifact,
+            "target_root": str(root),
+            "checked": checked,
+            "matched": matched,
+            "missing": missing,
+            "mismatched": mismatched,
+        }
+    except (BiberAgentClientError, OSError) as exc:
+        return compact_artifact_error(exc)
+
+
 def build_live_mvp_resume_status(
     *,
     directory: str,
@@ -14896,6 +14980,7 @@ def build_live_mvp_resume_status(
     real_repo_plan: dict[str, Any]
     github_bridge: dict[str, Any]
     target_git_status: dict[str, Any] | None = None
+    apply_hash_status: dict[str, Any] | None = None
     try:
         confidence_artifact = find_latest_live_provider_confidence_artifact(
             directory=directory,
@@ -14970,6 +15055,7 @@ def build_live_mvp_resume_status(
             "verification_status": bridge_artifact.get("verification_status"),
             "test_ok": bridge_artifact.get("test_ok") is True,
             "plan_hash": bridge_artifact.get("plan_hash"),
+            "apply_artifact": bridge_artifact.get("apply_artifact"),
             "paths": len(require_list(bridge_artifact.get("paths"))),
             "dry_run_artifacts_matched": bridge_artifact.get(
                 "dry_run_artifacts_matched",
@@ -14987,6 +15073,12 @@ def build_live_mvp_resume_status(
             target_git_status = git_status_local_target(Path(target_root))
         except BiberAgentClientError as exc:
             target_git_status = compact_artifact_error(exc)
+        if github_bridge.get("mode") != "fixture":
+            apply_hash_status = verified_apply_hash_status(
+                apply_artifact=github_bridge.get("apply_artifact"),
+                target_root=target_root,
+            )
+            github_bridge["apply_hash_status"] = apply_hash_status
 
     unsafe_flags: list[str] = []
     for section_name, section in (
@@ -15000,6 +15092,14 @@ def build_live_mvp_resume_status(
     if real_repo_plan.get("mutation_performed") is True:
         unsafe_flags.append("real_repo_plan.mutation_performed")
 
+    target_git_clean = (
+        target_git_status is not None
+        and target_git_status.get("available") is True
+        and target_git_status.get("dirty") is False
+    )
+    verified_apply_file_hashes_match = (
+        apply_hash_status is not None and apply_hash_status.get("ok") is True
+    )
     verified_apply_matches_plan = (
         github_bridge.get("ok") is True
         and github_bridge.get("mode") != "fixture"
@@ -15008,11 +15108,7 @@ def build_live_mvp_resume_status(
         and github_bridge.get("test_ok") is True
         and bool(real_repo_plan.get("plan_hash"))
         and github_bridge.get("plan_hash") == real_repo_plan.get("plan_hash")
-    )
-    target_git_clean = (
-        target_git_status is not None
-        and target_git_status.get("available") is True
-        and target_git_status.get("dirty") is False
+        and verified_apply_file_hashes_match
     )
     pending_apply_decision = (
         real_repo_plan.get("ok") is True
@@ -15063,6 +15159,7 @@ def build_live_mvp_resume_status(
         "pending_apply_decision": pending_apply_decision,
         "ready_for_apply_decision": ready_for_apply_decision,
         "verified_apply_matches_plan": verified_apply_matches_plan,
+        "verified_apply_file_hashes_match": verified_apply_file_hashes_match,
         "target_git_clean": target_git_clean,
         "plan_hash": real_repo_plan.get("plan_hash"),
         "next_action": next_action,
@@ -15070,6 +15167,7 @@ def build_live_mvp_resume_status(
         "real_repo_plan": real_repo_plan,
         "github_bridge": github_bridge,
         "target_git_status": target_git_status,
+        "verified_apply_hash_status": apply_hash_status,
     }
 
 
@@ -15089,6 +15187,7 @@ def format_live_mvp_resume_status(payload: Mapping[str, Any]) -> str:
         f"pending_apply_decision: {payload.get('pending_apply_decision') is True}",
         f"ready_for_apply_decision: {payload.get('ready_for_apply_decision') is True}",
         f"verified_apply_matches_plan: {payload.get('verified_apply_matches_plan') is True}",
+        f"verified_apply_file_hashes_match: {payload.get('verified_apply_file_hashes_match') is True}",
         f"target_git_clean: {payload.get('target_git_clean') is True}",
         f"plan_hash: {payload.get('plan_hash') or '-'}",
         f"next_action: {payload.get('next_action', '-')}",
