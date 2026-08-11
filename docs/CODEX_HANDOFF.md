@@ -39,6 +39,21 @@ Current pending plan hash is
 `mutation_performed=False`, `repo_status_unchanged=True`,
 `github_request_sent=False`, `mentor_used=False`, and `training_allowed=False`.
 Do not apply it unless the user explicitly approves this exact new hash.
+2026-08-11 follow-up: the user explicitly approved applying plan hash
+`6f6ad3b211279cded393cb00b04a6df029287a0a1c1540f5390f68a94f9617aa`.
+The guarded Vast apply succeeded with `apply_status=applied`,
+`files_touched=1`, and only `docs/BIBER_ONLY_WORKSPACE.md` changed. The paired
+`local-verify-chain` command wrote
+`/workspace/outputs/biber-real-repo-plan-smoke-20260811T183304260577Z/artifacts/real-repo-local-verify-chain.json`
+and passed `python-compileall-api` with `verification_status=passed`,
+`test_ok=True`, `mentor_used=False`, and `training_allowed=False`. A no-request
+GitHub bridge dry-run then wrote
+`/workspace/outputs/biber-live-verified-github-dry-run-latest.json`, reported
+`mode=artifact`, `paths=['docs/BIBER_ONLY_WORKSPACE.md']`,
+`dry_run_artifacts_matched=2`, `github_request_sent=False`, and
+`next_action=review_dry_run_artifacts_before_real_github_save_or_pr`. The
+applied docs edit is verified on Vast but intentionally not committed or pushed
+yet; save it to GitHub only after explicit user approval.
 
 2026-08-10 latest real-repo plan resume helper checkpoint:
 `scripts/biber_agent_client.py` now includes
