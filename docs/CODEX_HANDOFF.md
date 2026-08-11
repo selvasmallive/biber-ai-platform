@@ -75,6 +75,21 @@ repair `apply_status=applied`, `verification_status=passed`, `test_ok=True`,
 `training_allowed=False`. The refreshed `live-mvp-resume-status` still
 returned `ready_for_apply_decision=False`, `verified_apply_matches_plan=True`,
 `target_git_clean=True`, and `next_action=start_next_narrow_biber_step`.
+2026-08-11 follow-up: commits `afc52f6` and `b94d94f` tightened
+`live-mvp-resume-status` so it reads the verified apply artifact, hashes the
+current target files, and separates historical verification from current file
+byte equality. This prevents an already verified/saved plan from reopening a
+duplicate apply approval after later legitimate commits change the same file.
+Local bundled Python `py_compile`, direct resume-status tests, and
+`scripts/biber_local_confidence_smoke.py` passed. After fast-forwarding Vast to
+`b94d94f`, the preferred status command returned `ok=True`,
+`pending_apply_decision=True`, `ready_for_apply_decision=False`,
+`verified_apply_history_matches_plan=True`,
+`verified_apply_matches_plan=False`,
+`verified_apply_file_hashes_match=False`, `target_git_clean=True`, and
+`next_action=start_next_narrow_biber_step`. The false current-file hash match
+is expected because later committed docs updates changed
+`docs/BIBER_ONLY_WORKSPACE.md` after the original verified apply.
 
 2026-08-10 latest real-repo plan resume helper checkpoint:
 `scripts/biber_agent_client.py` now includes
