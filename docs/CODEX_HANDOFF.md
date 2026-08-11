@@ -1,8 +1,30 @@
 # Codex Handoff
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 ## Current Goal
+
+2026-08-11 latest BIBER resume next-command checkpoint:
+commit `360a063` adds `next_commands` to
+`live-mvp-resume-status`. The status artifact now carries safe, machine-readable
+command hints for the reported `next_action`, including whether each hint is
+ready to run, mutates the repo, uses GPU/model, sends GitHub requests, uses
+OpenAI mentor, or allows training. These are hints only and do not override the
+normal gates: real-repo apply, training, OpenAI mentor, and real GitHub save/PR
+still require separate explicit approval. Local validation passed bundled Python
+`py_compile`, a direct resume-status next-command harness, and
+`scripts/biber_local_confidence_smoke.py`. The current Vast GPU was
+fast-forwarded to `360a063`; `/workspace/biber-venv/bin/python -m py_compile
+scripts/biber_agent_client.py tests/test_biber_agent_client.py` passed, and the
+preferred read-only status command refreshed
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json` with `ok=True`,
+`target_git_clean=True`, `ready_for_apply_decision=False`,
+`verified_apply_history_matches_plan=True`, `github_request_sent=False`,
+`mentor_used=False`, `training_allowed=False`, and
+`next_action=start_next_narrow_biber_step`. The next safe command hints are
+`run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`,
+`prepare_next_plan_only_required_edit` (template, `ready_to_run=false`), and
+`refresh_resume_status`.
 
 2026-08-11 latest BIBER live MVP resume status checkpoint:
 `scripts/biber_agent_client.py` now includes
