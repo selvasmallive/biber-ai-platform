@@ -1814,6 +1814,8 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
                     str(tmp_path),
                     "--target-root",
                     "/workspace/biber-ai-platform",
+                    "--python-command",
+                    "/workspace/biber-venv/bin/python",
                     "--output",
                     str(status_artifact),
                 ]
@@ -1861,6 +1863,12 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
     assert (
         "show-latest-real-repo-plan-smoke"
         in next_commands["inspect_pending_real_repo_plan"]["command"]
+    )
+    assert next_commands["inspect_pending_real_repo_plan"]["command_parts"][0] == (
+        "/workspace/biber-venv/bin/python"
+    )
+    assert next_commands["refresh_resume_status"]["command_parts"][0] == (
+        "/workspace/biber-venv/bin/python"
     )
     assert status["artifact_path"] == str(status_artifact)
     assert json.loads(status_artifact.read_text(encoding="utf-8")) == status
@@ -2006,6 +2014,8 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
                     str(tmp_path),
                     "--target-root",
                     str(target_root),
+                    "--python-command",
+                    "/workspace/biber-venv/bin/python",
                 ]
             )
         )
@@ -2044,6 +2054,9 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
         "refresh_resume_status",
     }
     assert next_commands["run_cpu_local_confidence_gate"]["uses_gpu"] is False
+    assert next_commands["run_cpu_local_confidence_gate"]["command_parts"][0] == (
+        "/workspace/biber-venv/bin/python"
+    )
     assert next_commands["run_cpu_local_confidence_gate"]["mutates_repo"] is False
     assert next_commands["rerun_live_provider_confidence_gate"]["uses_gpu"] is True
     assert next_commands["rerun_live_provider_confidence_gate"]["uses_model"] is True

@@ -14976,9 +14976,11 @@ def build_live_mvp_resume_next_commands(
     directory: str,
     target_root: str | None,
     next_action: str,
+    python_command: str = "python",
 ) -> list[dict[str, Any]]:
     root = Path(directory)
     target = target_root or "/workspace/biber-ai-platform"
+    python_executable = python_command or "python"
 
     def command_entry(
         *,
@@ -15019,7 +15021,7 @@ def build_live_mvp_resume_next_commands(
         ),
         environment="vast-or-local-artifact-reader",
         command_parts=[
-            "python",
+            python_executable,
             "scripts/biber_agent_client.py",
             "live-mvp-resume-status",
             directory,
@@ -15040,7 +15042,7 @@ def build_live_mvp_resume_next_commands(
                 ),
                 environment="vast-or-local-artifact-reader",
                 command_parts=[
-                    "python",
+                    python_executable,
                     "scripts/biber_agent_client.py",
                     "show-latest-real-repo-plan-smoke",
                     directory,
@@ -15063,7 +15065,7 @@ def build_live_mvp_resume_next_commands(
                 ),
                 environment="vast-or-local-artifact-reader",
                 command_parts=[
-                    "python",
+                    python_executable,
                     "scripts/biber_agent_client.py",
                     "show-latest-live-verified-github-dry-run",
                     directory,
@@ -15084,7 +15086,10 @@ def build_live_mvp_resume_next_commands(
                     "Run the no-API local confidence gate before broader changes."
                 ),
                 environment="local-or-vast",
-                command_parts=["python", "scripts/biber_local_confidence_smoke.py"],
+                command_parts=[
+                    python_executable,
+                    "scripts/biber_local_confidence_smoke.py",
+                ],
             ),
             command_entry(
                 label="rerun_live_provider_confidence_gate",
@@ -15097,7 +15102,7 @@ def build_live_mvp_resume_next_commands(
                 uses_model=True,
                 live_provider_required=True,
                 command_parts=[
-                    "python",
+                    python_executable,
                     "scripts/biber_live_provider_confidence_smoke.py",
                     "--mode",
                     "live",
@@ -15121,7 +15126,7 @@ def build_live_mvp_resume_next_commands(
                 uses_model=True,
                 live_provider_required=True,
                 command_parts=[
-                    "python",
+                    python_executable,
                     "scripts/biber_live_provider_real_repo_plan_smoke.py",
                     "--base-url",
                     "http://127.0.0.1:8001/v1",
@@ -15152,7 +15157,7 @@ def build_live_mvp_resume_next_commands(
             uses_model=True,
             live_provider_required=True,
             command_parts=[
-                "python",
+                python_executable,
                 "scripts/biber_live_provider_confidence_smoke.py",
                 "--mode",
                 "live",
@@ -15172,6 +15177,7 @@ def build_live_mvp_resume_status(
     *,
     directory: str,
     target_root: str | None = None,
+    python_command: str = "python",
 ) -> dict[str, Any]:
     confidence: dict[str, Any]
     real_repo_plan: dict[str, Any]
@@ -15338,6 +15344,7 @@ def build_live_mvp_resume_status(
         directory=directory,
         target_root=target_root,
         next_action=next_action,
+        python_command=python_command,
     )
     return {
         "source": "biber_live_mvp_resume_status",
@@ -18977,6 +18984,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     live_mvp_resume_status.add_argument("directory")
     live_mvp_resume_status.add_argument("--target-root")
+    live_mvp_resume_status.add_argument(
+        "--python-command",
+        default="python",
+        help=(
+            "Python executable to embed in generated next_commands. Use "
+            "/workspace/biber-venv/bin/python on Vast."
+        ),
+    )
     live_mvp_resume_status.add_argument("--output")
 
     show_real_repo_plan_smoke = subparsers.add_parser(
@@ -20717,6 +20732,7 @@ def run(args: argparse.Namespace) -> str:
         status = build_live_mvp_resume_status(
             directory=args.directory,
             target_root=args.target_root,
+            python_command=args.python_command,
         )
         if args.output:
             status["artifact_path"] = str(Path(args.output))
