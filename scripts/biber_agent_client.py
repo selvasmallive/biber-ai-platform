@@ -15027,6 +15027,8 @@ def build_live_mvp_resume_next_commands(
             directory,
             "--target-root",
             target,
+            "--python-command",
+            python_executable,
             "--output",
             root / "biber-live-mvp-resume-status-latest.json",
         ],

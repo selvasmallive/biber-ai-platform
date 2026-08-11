@@ -1870,6 +1870,7 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
     assert next_commands["refresh_resume_status"]["command_parts"][0] == (
         "/workspace/biber-venv/bin/python"
     )
+    assert "--python-command" in next_commands["refresh_resume_status"]["command_parts"]
     assert status["artifact_path"] == str(status_artifact)
     assert json.loads(status_artifact.read_text(encoding="utf-8")) == status
     assert "BIBER live MVP resume status" in summary
@@ -2057,6 +2058,7 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert next_commands["run_cpu_local_confidence_gate"]["command_parts"][0] == (
         "/workspace/biber-venv/bin/python"
     )
+    assert "--python-command" in next_commands["refresh_resume_status"]["command_parts"]
     assert next_commands["run_cpu_local_confidence_gate"]["mutates_repo"] is False
     assert next_commands["rerun_live_provider_confidence_gate"]["uses_gpu"] is True
     assert next_commands["rerun_live_provider_confidence_gate"]["uses_model"] is True
