@@ -15,6 +15,16 @@ This is offline/read-only and must not call GitHub, call OpenAI mentor, start
 training, use external APIs, or apply files. If it reports
 `next_action=human_decision_required_for_real_repo_plan_hash`, do not apply the
 real-repo plan until the user explicitly approves the exact `plan_hash`.
+Local validation passed bundled Python `py_compile` plus focused direct
+`tests.test_biber_agent_client.test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts`.
+Commit `562d6db` pushed this helper. After fast-forwarding the current Vast
+GPU, the preferred command saved
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json` and returned
+`ok=True`, `ready_for_apply_decision=True`, `github_request_sent=False`,
+`mentor_used=False`, `training_allowed=False`, confidence `checks=3`,
+real-repo plan `planned=1`/`rejected=0`, GitHub bridge
+`chain_status=verified`, and pending plan hash
+`867e0027a0298a395cbce0314ddd4cb1e4206ba65da97181e69c8ac399514fb3`.
 
 2026-08-10 latest real-repo plan resume helper checkpoint:
 `scripts/biber_agent_client.py` now includes
