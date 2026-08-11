@@ -1847,6 +1847,21 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
     )
     assert status["real_repo_plan"]["mutation_performed"] is False
     assert status["github_bridge"]["dry_run_artifacts_matched"] == 2
+    next_commands = {
+        str(item.get("label")): item
+        for item in status["next_commands"]
+        if isinstance(item, dict)
+    }
+    assert "inspect_pending_real_repo_plan" in next_commands
+    assert "refresh_resume_status" in next_commands
+    assert next_commands["inspect_pending_real_repo_plan"]["mutates_repo"] is False
+    assert next_commands["inspect_pending_real_repo_plan"]["github_request_sent"] is False
+    assert next_commands["inspect_pending_real_repo_plan"]["mentor_used"] is False
+    assert next_commands["inspect_pending_real_repo_plan"]["training_allowed"] is False
+    assert (
+        "show-latest-real-repo-plan-smoke"
+        in next_commands["inspect_pending_real_repo_plan"]["command"]
+    )
     assert status["artifact_path"] == str(status_artifact)
     assert json.loads(status_artifact.read_text(encoding="utf-8")) == status
     assert "BIBER live MVP resume status" in summary
@@ -1855,6 +1870,8 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
     assert "confidence: ok=True mode=live checks=3" in summary
     assert "real_repo_plan: ok=True target=/workspace/biber-ai-platform" in summary
     assert "github_bridge: ok=True mode=fixture chain=verified" in summary
+    assert "next_commands:" in summary
+    assert "inspect_pending_real_repo_plan" in summary
 
 
 def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
@@ -2015,6 +2032,28 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert status["github_bridge"]["plan_hash"] == "plan-verified"
     assert status["verified_apply_hash_status"]["matched"] == 1
     assert status["target_git_status"]["dirty"] is False
+    next_commands = {
+        str(item.get("label")): item
+        for item in status["next_commands"]
+        if isinstance(item, dict)
+    }
+    assert set(next_commands) == {
+        "run_cpu_local_confidence_gate",
+        "rerun_live_provider_confidence_gate",
+        "prepare_next_plan_only_required_edit",
+        "refresh_resume_status",
+    }
+    assert next_commands["run_cpu_local_confidence_gate"]["uses_gpu"] is False
+    assert next_commands["run_cpu_local_confidence_gate"]["mutates_repo"] is False
+    assert next_commands["rerun_live_provider_confidence_gate"]["uses_gpu"] is True
+    assert next_commands["rerun_live_provider_confidence_gate"]["uses_model"] is True
+    assert next_commands["prepare_next_plan_only_required_edit"]["ready_to_run"] is False
+    assert next_commands["prepare_next_plan_only_required_edit"]["mutates_repo"] is False
+    assert next_commands["prepare_next_plan_only_required_edit"]["training_allowed"] is False
+    assert (
+        "biber_live_provider_real_repo_plan_smoke.py"
+        in next_commands["prepare_next_plan_only_required_edit"]["command"]
+    )
     assert "pending_apply_decision: True" in summary
     assert "ready_for_apply_decision: False" in summary
     assert "verified_apply_history_matches_plan: True" in summary
@@ -2022,6 +2061,7 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert "verified_apply_file_hashes_match: True" in summary
     assert "target_git_clean: True" in summary
     assert "next_action: start_next_narrow_biber_step" in summary
+    assert "run_cpu_local_confidence_gate" in summary
 
     target_file.write_text(
         "Later committed docs update after the verified apply.\n",
@@ -2048,6 +2088,7 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert moved_status["verified_apply_file_hashes_match"] is False
     assert moved_status["target_git_clean"] is True
     assert moved_status["next_action"] == "start_next_narrow_biber_step"
+    assert moved_status["next_commands"][0]["label"] == "run_cpu_local_confidence_gate"
     assert moved_status["verified_apply_hash_status"]["mismatched"][0]["path"] == (
         "docs/BIBER_ONLY_WORKSPACE.md"
     )

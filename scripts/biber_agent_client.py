@@ -14971,6 +14971,203 @@ def verified_apply_hash_status(
         return compact_artifact_error(exc)
 
 
+def build_live_mvp_resume_next_commands(
+    *,
+    directory: str,
+    target_root: str | None,
+    next_action: str,
+) -> list[dict[str, Any]]:
+    root = Path(directory)
+    target = target_root or "/workspace/biber-ai-platform"
+
+    def command_entry(
+        *,
+        label: str,
+        description: str,
+        command_parts: Sequence[object],
+        environment: str,
+        ready_to_run: bool = True,
+        uses_gpu: bool = False,
+        uses_model: bool = False,
+        live_provider_required: bool = False,
+        mutates_repo: bool = False,
+    ) -> dict[str, Any]:
+        parts = [str(part) for part in command_parts]
+        return {
+            "label": label,
+            "description": description,
+            "environment": environment,
+            "ready_to_run": ready_to_run,
+            "safe": not mutates_repo,
+            "mutates_repo": mutates_repo,
+            "api_required": False,
+            "external_network_required": False,
+            "github_request_sent": False,
+            "mentor_used": False,
+            "training_allowed": False,
+            "uses_gpu": uses_gpu,
+            "uses_model": uses_model,
+            "live_provider_required": live_provider_required,
+            "command_parts": parts,
+            "command": format_cli_command(parts),
+        }
+
+    refresh_resume = command_entry(
+        label="refresh_resume_status",
+        description=(
+            "Rebuild the combined live MVP resume status from saved artifacts."
+        ),
+        environment="vast-or-local-artifact-reader",
+        command_parts=[
+            "python",
+            "scripts/biber_agent_client.py",
+            "live-mvp-resume-status",
+            directory,
+            "--target-root",
+            target,
+            "--output",
+            root / "biber-live-mvp-resume-status-latest.json",
+        ],
+    )
+
+    if next_action == "human_decision_required_for_real_repo_plan_hash":
+        return [
+            command_entry(
+                label="inspect_pending_real_repo_plan",
+                description=(
+                    "Inspect the latest plan-only real-repo artifact before any "
+                    "separate explicit apply approval."
+                ),
+                environment="vast-or-local-artifact-reader",
+                command_parts=[
+                    "python",
+                    "scripts/biber_agent_client.py",
+                    "show-latest-real-repo-plan-smoke",
+                    directory,
+                    "--pattern",
+                    "*real-repo-plan*.json",
+                    "--target-root",
+                    target,
+                ],
+            ),
+            refresh_resume,
+        ]
+
+    if next_action == "save_verified_change_to_github_if_requested":
+        return [
+            command_entry(
+                label="inspect_verified_github_dry_run_bridge",
+                description=(
+                    "Inspect the latest verified GitHub dry-run bridge before "
+                    "any separate real GitHub save or PR request."
+                ),
+                environment="vast-or-local-artifact-reader",
+                command_parts=[
+                    "python",
+                    "scripts/biber_agent_client.py",
+                    "show-latest-live-verified-github-dry-run",
+                    directory,
+                    "--pattern",
+                    "*live-verified-github-dry-run*.json",
+                    "--target-root",
+                    target,
+                ],
+            ),
+            refresh_resume,
+        ]
+
+    if next_action == "start_next_narrow_biber_step":
+        return [
+            command_entry(
+                label="run_cpu_local_confidence_gate",
+                description=(
+                    "Run the no-API local confidence gate before broader changes."
+                ),
+                environment="local-or-vast",
+                command_parts=["python", "scripts/biber_local_confidence_smoke.py"],
+            ),
+            command_entry(
+                label="rerun_live_provider_confidence_gate",
+                description=(
+                    "Refresh the live local-model confidence artifact without "
+                    "training, mentor, apply, or GitHub requests."
+                ),
+                environment="vast-gpu",
+                uses_gpu=True,
+                uses_model=True,
+                live_provider_required=True,
+                command_parts=[
+                    "python",
+                    "scripts/biber_live_provider_confidence_smoke.py",
+                    "--mode",
+                    "live",
+                    "--base-url",
+                    "http://127.0.0.1:8001/v1",
+                    "--model",
+                    "biber-dev-core",
+                    "--output",
+                    root / "biber-live-provider-confidence-latest.json",
+                ],
+            ),
+            command_entry(
+                label="prepare_next_plan_only_required_edit",
+                description=(
+                    "Template for the next exact real-repo plan-only smoke; "
+                    "fill the required old/new text files first."
+                ),
+                environment="vast-gpu",
+                ready_to_run=False,
+                uses_gpu=True,
+                uses_model=True,
+                live_provider_required=True,
+                command_parts=[
+                    "python",
+                    "scripts/biber_live_provider_real_repo_plan_smoke.py",
+                    "--base-url",
+                    "http://127.0.0.1:8001/v1",
+                    "--model",
+                    "biber-dev-core",
+                    "--target-root",
+                    target,
+                    "--required-path",
+                    "<workspace-relative-path>",
+                    "--required-old-text-file",
+                    str(root / "biber-old.txt"),
+                    "--required-new-text-file",
+                    str(root / "biber-new.txt"),
+                ],
+            ),
+            refresh_resume,
+        ]
+
+    return [
+        command_entry(
+            label="refresh_live_confidence_gate",
+            description=(
+                "Regenerate the live confidence artifact when saved artifacts are "
+                "missing or stale."
+            ),
+            environment="vast-gpu",
+            uses_gpu=True,
+            uses_model=True,
+            live_provider_required=True,
+            command_parts=[
+                "python",
+                "scripts/biber_live_provider_confidence_smoke.py",
+                "--mode",
+                "live",
+                "--base-url",
+                "http://127.0.0.1:8001/v1",
+                "--model",
+                "biber-dev-core",
+                "--output",
+                root / "biber-live-provider-confidence-latest.json",
+            ],
+        ),
+        refresh_resume,
+    ]
+
+
 def build_live_mvp_resume_status(
     *,
     directory: str,
@@ -15137,6 +15334,11 @@ def build_live_mvp_resume_status(
         next_action = "human_decision_required_for_real_repo_plan_hash"
     else:
         next_action = "refresh_live_confidence_and_real_repo_plan_artifacts"
+    next_commands = build_live_mvp_resume_next_commands(
+        directory=directory,
+        target_root=target_root,
+        next_action=next_action,
+    )
     return {
         "source": "biber_live_mvp_resume_status",
         "ok": ok,
@@ -15167,6 +15369,7 @@ def build_live_mvp_resume_status(
         "target_git_clean": target_git_clean,
         "plan_hash": real_repo_plan.get("plan_hash"),
         "next_action": next_action,
+        "next_commands": next_commands,
         "confidence": confidence,
         "real_repo_plan": real_repo_plan,
         "github_bridge": github_bridge,
@@ -15228,6 +15431,17 @@ def format_live_mvp_resume_status(payload: Mapping[str, Any]) -> str:
             f"artifact={github_bridge.get('artifact_path', '-')}"
         ),
     ]
+    next_commands = [
+        item
+        for item in require_list(payload.get("next_commands"))
+        if isinstance(item, dict)
+    ]
+    if next_commands:
+        lines.append("next_commands:")
+        lines.extend(
+            f"- {item.get('label', '-')}: {item.get('command', '-')}"
+            for item in next_commands[:5]
+        )
     return "\n".join(lines)
 
 
