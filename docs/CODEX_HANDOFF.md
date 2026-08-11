@@ -65,6 +65,16 @@ fast-forwarding Vast to `2dcc194`, the preferred status command against
 `ready_for_apply_decision=False`, `verified_apply_matches_plan=True`,
 `target_git_clean=True`, `github_request_sent=False`, `mentor_used=False`,
 `training_allowed=False`, and `next_action=start_next_narrow_biber_step`.
+2026-08-11 follow-up: after syncing Vast to handoff commit `f20cdf2`, the live
+GPU confidence gate was rerun with the current code:
+`/workspace/biber-venv/bin/python scripts/biber_live_provider_confidence_smoke.py --mode live --base-url http://127.0.0.1:8001/v1 --model biber-dev-core --output /workspace/outputs/biber-live-provider-confidence-latest.json`.
+It returned `ok=True`, `checks=3`, `failed_checks=0`, readiness
+`model_available=True`, fixture plan `planned=1`/`rejected=0`, disposable
+repair `apply_status=applied`, `verification_status=passed`, `test_ok=True`,
+`github_request_sent=False`, `mentor_used=False`, and
+`training_allowed=False`. The refreshed `live-mvp-resume-status` still
+returned `ready_for_apply_decision=False`, `verified_apply_matches_plan=True`,
+`target_git_clean=True`, and `next_action=start_next_narrow_biber_step`.
 
 2026-08-10 latest real-repo plan resume helper checkpoint:
 `scripts/biber_agent_client.py` now includes
