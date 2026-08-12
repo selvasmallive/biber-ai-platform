@@ -62,6 +62,23 @@ artifact under `/workspace/outputs/biber-export-smoke`. The command returned
 live MVP resume status, then continue with another local-first BIBER MVP agent
 flow improvement.
 
+2026-08-12 latest BIBER resume-status changed-path discovery checkpoint:
+commit `5af32be` updates `live-mvp-resume-status` so it scans saved failed
+`*mvp-loop*.json` artifacts for sanitized candidate changed paths and exposes a
+safe ready command labeled `export_latest_failure_changed_paths` when one is
+available. The generated command writes
+`/workspace/outputs/biber-latest-failure-changed-paths.txt` through
+`export-mvp-failure-changed-paths` and can feed the next local
+`mvp-loop --changed-paths-file` context pass. The status JSON now includes
+`failure_changed_paths`, and the text summary reports its ok/count/artifact
+state. This remains local/read-only for the export command and keeps GitHub,
+OpenAI mentor, training, and repo mutation disabled. Local validation passed
+bundled Python `py_compile`, a direct resume ready-command harness,
+`scripts/biber_local_confidence_smoke.py`, and `git diff --check`. Next narrow
+step: push this checkpoint, fast-forward Vast, refresh live MVP resume status,
+and confirm the new ready label appears when a failed MVP artifact with candidate
+paths is present.
+
 2026-08-12 latest BIBER ready-command reader checkpoint:
 commit `7ab4594` adds
 `show-live-mvp-ready-command <artifact> [--label LABEL|--index N]
