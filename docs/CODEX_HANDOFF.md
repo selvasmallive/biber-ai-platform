@@ -28,6 +28,21 @@ py_compile passed; `live-mvp-resume-status` refreshed
 `/workspace/outputs/biber-live-mvp-resume-status-latest.json` reports
 `next_action=start_next_narrow_biber_step` and the same three ready labels above.
 
+2026-08-12 latest BIBER ready-command list checkpoint:
+commit `5c81933` adds
+`list-live-mvp-ready-commands <artifact>` to `scripts/biber_agent_client.py`.
+It lists every filtered ready command from a saved `live-mvp-resume-status`
+artifact as JSON or a compact text view. This remains offline/read-only and
+does not execute any command. Local validation passed bundled Python
+`py_compile`, a synthetic ready-command list harness,
+`scripts/biber_local_confidence_smoke.py`, and `git diff --check`. The current
+Vast GPU was fast-forwarded to `5c81933`; py_compile passed; the command read
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json` and returned
+`list_ok=True`, `count=3`, labels `run_cpu_local_confidence_gate`,
+`rerun_live_provider_confidence_gate`, and `refresh_resume_status`,
+with `mutates_repo=False`, `github_request_sent=False`, `mentor_used=False`,
+and `training_allowed=False`.
+
 2026-08-12 latest BIBER ready-command subset checkpoint:
 commit `3c0bf79` adds `next_ready_commands` and
 `next_ready_command_labels` to `live-mvp-resume-status`. This is a filtered
