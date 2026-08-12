@@ -21,6 +21,19 @@ not run because the local bundled runtime does not have pytest installed. Next
 narrow step: push this checkpoint, fast-forward the current Vast GPU repo, run
 Vast py_compile plus the same direct harness, then refresh the live MVP resume
 status before starting another BIBER MVP step.
+2026-08-12 follow-up: commits `414f921` and `0bd37cb` were pushed to
+`biber/mvp-resume-20260712`; the current Vast GPU repo at
+`/workspace/biber-ai-platform` was fast-forwarded to `0bd37cb`. Vast validation
+passed py_compile, `scripts/biber_local_confidence_smoke.py`, and the focused
+diagnosis-file-reference repair harness. The live provider confidence gate was
+then rerun against `http://127.0.0.1:8001/v1` model `biber-dev-core` and passed
+with `ok=True`, `checks=3`, readiness `ok=True`, fixture plan `ok=True`,
+disposable repair `ok=True`, `github_request_sent=False`, `mentor_used=False`,
+and `training_allowed=False`. Refreshed
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json` reports
+`target_git_clean=True`, `next_action=start_next_narrow_biber_step`, and ready
+labels `run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`,
+and `refresh_resume_status`.
 
 2026-08-12 latest BIBER ready-command reader checkpoint:
 commit `7ab4594` adds
