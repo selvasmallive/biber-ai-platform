@@ -56,6 +56,19 @@ compact planner check selected `Cargo.toml`, `package.json`, `tsconfig.json`,
 `crates/wallet/src/lib.rs`, `crates/wallet/src/main.rs`, and `src/App.tsx` for
 a mixed Rust/React fixture with `ok=True`.
 
+2026-08-12 latest BIBER test-diagnosis stack checkpoint:
+commit `5259c73` expands deterministic failure diagnosis in
+`src/biber_api/test_diagnosis.py` to include Docker/Compose, PostgreSQL, and
+GitHub Actions in addition to the existing .NET, Java, Rust, Python, and
+Node/React coverage. It classifies Docker daemon/compose configuration errors,
+PostgreSQL connection/auth/relation/SQL syntax failures, and GitHub Actions
+workflow/YAML/expression failures without calling a model, OpenAI mentor,
+GitHub, or training. Local validation passed bundled Python `py_compile`, a
+direct diagnosis harness for the new stacks, `scripts/biber_local_confidence_smoke.py`,
+and `git diff --check`. The current Vast GPU was fast-forwarded to `5259c73`;
+py_compile passed; the compact diagnosis harness returned `ok=True` for
+`docker`, `postgres`, and `github-actions`.
+
 2026-08-12 latest BIBER ready-command subset checkpoint:
 commit `3c0bf79` adds `next_ready_commands` and
 `next_ready_command_labels` to `live-mvp-resume-status`. This is a filtered
