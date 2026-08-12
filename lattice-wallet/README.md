@@ -12,12 +12,17 @@ the wallet produces on XRIQ (ML-DSA / CRYSTALS-Dilithium).
 
 | Chain | Status | Signing | Address | Proven against |
 | --- | --- | --- | --- | --- |
-| **XRIQ** (devnet) | ✅ live | Ed25519 | `xriqdev1…` | Rust chain golden vectors |
-| **Ethereum + EVM** (Polygon, Base, Sepolia) | ✅ live | secp256k1 | EIP-55 `0x…` | EIP-155 / EIP-55 golden vectors |
-| Bitcoin | 🔜 planned | secp256k1 (UTXO) | bech32 | — |
-| Solana | 🔜 planned | Ed25519 | base58 | — |
-| Zcash (transparent) | 🔜 planned | secp256k1 | t-addr | — |
+| **XRIQ** (devnet) | ✅ send/receive | Ed25519 | `xriqdev1…` | Rust chain golden vectors |
+| **Ethereum + EVM** (Polygon, Base, Sepolia) | ✅ send/receive | secp256k1 | EIP-55 `0x…` | EIP-155 / EIP-55 golden vectors |
+| **Bitcoin** | ✅ send/receive | secp256k1 (P2WPKH) | bech32 `bc1q…` | BIP84 golden addresses; `@scure/btc-signer` |
+| **Solana** | ✅ send/receive | Ed25519 | base58 | derivation + tx bytes vs `@solana/web3.js` |
+| **Zcash (transparent)** | ◐ receive/balance/history; send gated | secp256k1 | `t1…` | base58check vs Bitcoin genesis address |
 | Monero, shielded Zcash | ⛔ out of scope | ring sig / zk-SNARK | — | see below |
+
+**Transparent Zcash spend** is intentionally disabled until its ZIP-243/244 transaction
+digest is implemented and verified against the official ZIP test vectors — Zcash's sighash
+is not Bitcoin's, and an unverified signer risks invalid or fund-losing transactions.
+Receiving, balance, and history work today.
 
 Adding a chain is a `ChainAdapter` (`src/core/chains/`) plus one line in the registry —
 the wallet shell, keystore, biometrics, PQ, and UI are chain-agnostic.
@@ -66,6 +71,9 @@ src/core/        protocol + security (unit-testable, no UI)
     registry.ts  supported chains + adapter factory
     xriqAdapter.ts  XRIQ over the Rust-conformant core
     evm.ts       Ethereum + EVM (secp256k1, keccak, RLP, EIP-1559 + EIP-155)
+    bitcoin.ts   Bitcoin BIP84 P2WPKH (@scure/btc-signer, Esplora backend)
+    solana.ts    Solana Ed25519 + hand-rolled transfer message (web3.js-verified)
+    zcash.ts     Zcash transparent t-addr (receive/balance; spend gated)
   xriq.ts        canonical encoding, address derivation, tx signing, submit envelope
   pq.ts          ML-DSA-65 hybrid post-quantum signing (algorithm id 250)
   keystore.ts    hardware-backed secret storage + biometric gate (the only secret sink)

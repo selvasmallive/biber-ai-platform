@@ -3,7 +3,7 @@
 // recovery phrase across all chains (each chain derives its own account).
 import type { HistoryEntry } from '../rpc';
 
-export type ChainFamily = 'xriq' | 'evm' | 'utxo' | 'solana';
+export type ChainFamily = 'xriq' | 'evm' | 'bitcoin' | 'solana' | 'zcash-t';
 
 export interface ChainConfig {
   id: string; // 'xriq', 'ethereum', 'polygon', 'bitcoin', 'solana', 'zcash-t'
