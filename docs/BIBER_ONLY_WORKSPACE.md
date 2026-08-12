@@ -223,6 +223,10 @@ the currently served local provider or candidate model. Treat commands with
 `ready_to_run=false` as templates that need exact task inputs first. These hints
 do not override the normal gates: real-repo apply, training, OpenAI mentor, and
 real GitHub save/PR still need separate explicit approval.
+Automation should prefer `next_ready_commands` when it wants only fully
+specified safe commands; this filtered subset excludes templates and any command
+that would mutate the repo, send GitHub requests, use OpenAI mentor, or allow
+training.
 
 This keeps Qwen2.5, Qwen3, llama.cpp, vLLM wrappers, and future local runners
 swappable without enabling OpenAI mentor, API auth, GPU training, or file apply.

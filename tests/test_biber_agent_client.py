@@ -1879,6 +1879,13 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
     assert "http://127.0.0.1:9009/v1" in next_commands["refresh_resume_status"]["command_parts"]
     assert "--live-model" in next_commands["refresh_resume_status"]["command_parts"]
     assert "biber-dev-core-v2-candidate" in next_commands["refresh_resume_status"]["command_parts"]
+    assert status["next_ready_command_labels"] == [
+        "inspect_pending_real_repo_plan",
+        "refresh_resume_status",
+    ]
+    assert [
+        item["label"] for item in status["next_ready_commands"]
+    ] == status["next_ready_command_labels"]
     assert status["artifact_path"] == str(status_artifact)
     assert json.loads(status_artifact.read_text(encoding="utf-8")) == status
     assert "BIBER live MVP resume status" in summary
@@ -1889,6 +1896,7 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
     assert "github_bridge: ok=True mode=fixture chain=verified" in summary
     assert "next_commands:" in summary
     assert "inspect_pending_real_repo_plan" in summary
+    assert "next_ready_commands:" in summary
 
 
 def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
@@ -2085,6 +2093,15 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert next_commands["prepare_next_plan_only_required_edit"]["training_allowed"] is False
     assert "http://127.0.0.1:9009/v1" in next_commands["prepare_next_plan_only_required_edit"]["command_parts"]
     assert "biber-dev-core-v2-candidate" in next_commands["prepare_next_plan_only_required_edit"]["command_parts"]
+    assert status["next_ready_command_labels"] == [
+        "run_cpu_local_confidence_gate",
+        "rerun_live_provider_confidence_gate",
+        "refresh_resume_status",
+    ]
+    assert "prepare_next_plan_only_required_edit" not in status["next_ready_command_labels"]
+    assert [
+        item["label"] for item in status["next_ready_commands"]
+    ] == status["next_ready_command_labels"]
     assert (
         "biber_live_provider_real_repo_plan_smoke.py"
         in next_commands["prepare_next_plan_only_required_edit"]["command"]
@@ -2097,6 +2114,7 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert "target_git_clean: True" in summary
     assert "next_action: start_next_narrow_biber_step" in summary
     assert "run_cpu_local_confidence_gate" in summary
+    assert "next_ready_commands:" in summary
 
     target_file.write_text(
         "Later committed docs update after the verified apply.\n",
@@ -2124,6 +2142,11 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert moved_status["target_git_clean"] is True
     assert moved_status["next_action"] == "start_next_narrow_biber_step"
     assert moved_status["next_commands"][0]["label"] == "run_cpu_local_confidence_gate"
+    assert moved_status["next_ready_command_labels"] == [
+        "run_cpu_local_confidence_gate",
+        "rerun_live_provider_confidence_gate",
+        "refresh_resume_status",
+    ]
     assert moved_status["verified_apply_hash_status"]["mismatched"][0]["path"] == (
         "docs/BIBER_ONLY_WORKSPACE.md"
     )

@@ -15185,6 +15185,25 @@ def build_live_mvp_resume_next_commands(
     ]
 
 
+def filter_ready_live_mvp_resume_commands(
+    commands: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    ready: list[dict[str, Any]] = []
+    for command in commands:
+        if command.get("ready_to_run") is not True:
+            continue
+        if command.get("safe") is not True or command.get("mutates_repo") is True:
+            continue
+        if command.get("github_request_sent") is True:
+            continue
+        if command.get("mentor_used") is True:
+            continue
+        if command.get("training_allowed") is True:
+            continue
+        ready.append(dict(command))
+    return ready
+
+
 def build_live_mvp_resume_status(
     *,
     directory: str,
@@ -15362,6 +15381,7 @@ def build_live_mvp_resume_status(
         live_base_url=live_base_url,
         live_model=live_model,
     )
+    next_ready_commands = filter_ready_live_mvp_resume_commands(next_commands)
     return {
         "source": "biber_live_mvp_resume_status",
         "ok": ok,
@@ -15393,6 +15413,10 @@ def build_live_mvp_resume_status(
         "plan_hash": real_repo_plan.get("plan_hash"),
         "next_action": next_action,
         "next_commands": next_commands,
+        "next_ready_commands": next_ready_commands,
+        "next_ready_command_labels": [
+            command.get("label") for command in next_ready_commands
+        ],
         "confidence": confidence,
         "real_repo_plan": real_repo_plan,
         "github_bridge": github_bridge,
@@ -15464,6 +15488,17 @@ def format_live_mvp_resume_status(payload: Mapping[str, Any]) -> str:
         lines.extend(
             f"- {item.get('label', '-')}: {item.get('command', '-')}"
             for item in next_commands[:5]
+        )
+    next_ready_commands = [
+        item
+        for item in require_list(payload.get("next_ready_commands"))
+        if isinstance(item, dict)
+    ]
+    if next_ready_commands:
+        lines.append("next_ready_commands:")
+        lines.extend(
+            f"- {item.get('label', '-')}: {item.get('command', '-')}"
+            for item in next_ready_commands[:5]
         )
     return "\n".join(lines)
 
