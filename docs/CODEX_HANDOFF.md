@@ -4,6 +4,33 @@ Last updated: 2026-08-12
 
 ## Current Goal
 
+2026-08-12 latest BIBER stale-spec docs plan checkpoint:
+After the previous verified docs edit was saved, the completed
+`/workspace/outputs/biber-next-required-edit.json` was replaced on the current
+SSH-enabled Vast GPU with a new docs-only exact-edit spec for
+`docs/BIBER_ONLY_WORKSPACE.md`. The new spec teaches future sessions to replace
+the required-edit spec after a verified edit is saved/pushed so completed edits
+are not planned again. The spec matched the old text exactly once and the new
+text was not already present. Guarded `refresh_resume_status` exposed
+`run_next_required_edit_spec_plan`, and that command was run with
+`--allow-gpu --allow-live-provider`. Result:
+`/workspace/outputs/biber-real-repo-plan-latest.json` has `ok=True`,
+`plan_hash=06a6bb6baf64be6e3b1389f99a4508d97405881a21c79433ddf4fc36888ebc77`,
+`review_status=ready_for_explicit_apply_approval`, `planned=1`, `rejected=0`,
+`mutation_performed=False`, `repo_status_unchanged=True`,
+`github_request_sent=False`, `mentor_used=False`, and `training_allowed=False`.
+As with the prior docs spec, the live model returned a safe noop and the
+required-edit fallback produced the exact plan
+(`required_edit_fallback.used=True`,
+`reason=live_model_returned_safe_noop_for_exact_required_edit`). Refreshed
+resume status now reports
+`next_action=human_decision_required_for_real_repo_plan_hash`,
+`target_git_clean=True`, `pending_apply_decision=True`, and ready labels
+`inspect_pending_real_repo_plan` and `refresh_resume_status`. Next step requires
+explicit approval to apply plan hash
+`06a6bb6baf64be6e3b1389f99a4508d97405881a21c79433ddf4fc36888ebc77`; do not
+apply it without that approval.
+
 2026-08-12 latest BIBER live required-edit plan checkpoint:
 A real `/workspace/outputs/biber-next-required-edit.json` was created on the
 current SSH-enabled Vast GPU to target a one-line documentation clarification in
