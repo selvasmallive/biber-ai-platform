@@ -26,6 +26,15 @@ resume status now reports
 and `refresh_resume_status`. Next step requires explicit approval to apply plan
 hash `d9503b6caecde04b333946b6d4c9541584f6e12cd8c00db6eb7bb5b731ea6fbf`; do
 not apply it without that approval.
+2026-08-12 follow-up: commit `0688f0f` recorded the checkpoint above and was
+pushed to `biber/mvp-resume-20260712`; the Vast checkout was fast-forwarded to
+it and remained clean. After another `refresh_resume_status`, the read-only
+`inspect_pending_real_repo_plan` ready command ran successfully and confirmed
+the same pending plan hash, `required_path=docs/BIBER_ONLY_WORKSPACE.md`,
+`apply_allowed=False`, and
+`explicit_apply_approval.required=True`. The current stop point is still the
+human decision gate for plan hash
+`d9503b6caecde04b333946b6d4c9541584f6e12cd8c00db6eb7bb5b731ea6fbf`.
 
 2026-08-12 latest BIBER next-required-edit ready-command checkpoint:
 `live-mvp-resume-status` now looks for canonical
