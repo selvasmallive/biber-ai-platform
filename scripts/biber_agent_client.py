@@ -1332,6 +1332,7 @@ def build_mvp_loop_repair_hint(
         "diagnosis_summary": diagnosis.get("summary"),
         "primary_category": diagnosis.get("primary_category"),
         "detected_stack": diagnosis.get("detected_stack"),
+        "candidate_changed_paths": diagnosis_file_reference_paths(diagnosis),
         "relevant_output": compact_text(
             relevant_output,
             max_chars=max_relevant_output_chars,
@@ -1347,6 +1348,25 @@ def build_mvp_loop_repair_hint(
     }
 
 
+def diagnosis_file_reference_paths(diagnosis: Mapping[str, Any]) -> list[str]:
+    candidates: list[object] = []
+    for reference in require_list(diagnosis.get("file_references")):
+        if isinstance(reference, Mapping):
+            candidates.append(reference.get("path"))
+        else:
+            candidates.append(reference)
+    return sanitize_repo_relative_paths(candidates)
+
+
+def sanitize_repo_relative_paths(paths: list[object]) -> list[str]:
+    clean_paths: list[str] = []
+    for path in paths:
+        clean_path = safe_repo_relative_path(path)
+        if clean_path is not None:
+            clean_paths.append(clean_path)
+    return dedupe_strings(clean_paths) or []
+
+
 def build_mvp_loop_agent_report(payload: Mapping[str, Any]) -> dict[str, Any]:
     steps = require_mapping(payload.get("steps"))
     selected_context_paths = [
@@ -1357,6 +1377,7 @@ def build_mvp_loop_agent_report(payload: Mapping[str, Any]) -> dict[str, Any]:
     edit_apply = require_mapping(steps.get("edit_apply"))
     test_run = require_mapping(steps.get("test_run"))
     diagnosis = require_mapping(steps.get("test_diagnosis"))
+    diagnosis_file_paths = diagnosis_file_reference_paths(diagnosis)
     edit_review = require_mapping(edit_plan.get("review"))
 
     planned = [
@@ -1465,6 +1486,7 @@ def build_mvp_loop_agent_report(payload: Mapping[str, Any]) -> dict[str, Any]:
             or diagnosis.get("summary"),
             "primary_category": diagnosis.get("primary_category"),
             "detected_stack": diagnosis.get("detected_stack"),
+            "file_references": diagnosis_file_paths,
         },
         "next_actions": deduped_next_actions,
     }
@@ -1505,6 +1527,12 @@ def build_mvp_loop_failure_record(path: Path, payload: Mapping[str, Any]) -> dic
         or test_run.get("stderr")
         or ""
     )
+    candidate_changed_paths = sanitize_repo_relative_paths(
+        [
+            *diagnosis_file_reference_paths(diagnosis),
+            *require_list(repair_hint.get("candidate_changed_paths")),
+        ]
+    )
     record: dict[str, Any] = {
         "source": "biber_mvp_loop_failure",
         "review_status": "needs_review",
@@ -1520,6 +1548,7 @@ def build_mvp_loop_failure_record(path: Path, payload: Mapping[str, Any]) -> dic
             or diagnosis.get("summary"),
             "primary_category": diagnosis.get("primary_category"),
             "detected_stack": diagnosis.get("detected_stack"),
+            "file_references": candidate_changed_paths,
             "test_id": test_run.get("test_id"),
             "exit_code": test_run.get("exit_code"),
             "timed_out": bool(test_run.get("timed_out")),
@@ -1550,6 +1579,14 @@ def build_repair_prompt(
     )
     action_lines = "\n".join(f"- {action}" for action in suggested_next_actions) or "- none"
     command = " ".join(str(part) for part in require_list(failure.get("command"))) or "-"
+    candidate_changed_paths = [
+        str(path)
+        for path in require_list(failure.get("file_references"))
+        if str(path).strip()
+    ]
+    candidate_changed_lines = (
+        "\n".join(f"- {path}" for path in candidate_changed_paths) or "- none"
+    )
     contract = require_mapping(output_contract) or build_repair_output_contract()
     contract_text = format_repair_output_contract(contract)
     report = require_mapping(agent_report)
@@ -1592,6 +1629,16 @@ def build_repair_prompt(
             f"stack={report_failure.get('detected_stack') or '-'} "
             f"category={report_failure.get('primary_category') or '-'}"
         )
+        file_references = [
+            str(path)
+            for path in require_list(report_failure.get("file_references"))
+            if str(path).strip()
+        ]
+        if file_references:
+            report_lines.append(
+                "- failure_file_references: "
+                + ", ".join(file_references[:DEFAULT_REPAIR_CONTEXT_SNIPPET_MAX_FILES])
+            )
     if report_repair_hint:
         workflow = ", ".join(
             str(item)
@@ -1658,6 +1705,9 @@ def build_repair_prompt(
             f"- detected_stack: {failure.get('detected_stack') or '-'}",
             f"- primary_category: {failure.get('primary_category') or '-'}",
             f"- summary: {failure.get('diagnosis_summary') or '-'}",
+            "",
+            "Candidate changed paths from diagnosis:",
+            candidate_changed_lines,
             "",
             "Suggested next actions:",
             action_lines,
@@ -1875,9 +1925,24 @@ def build_mvp_loop_repair_request(
         if repair_hint:
             agent_report = dict(agent_report)
             agent_report["repair_hint"] = repair_hint
-    all_context_paths = [
-        str(item) for item in require_list(payload.get("selected_context_paths"))
+    candidate_changed_paths = sanitize_repo_relative_paths(
+        [
+            *diagnosis_file_reference_paths(diagnosis),
+            *require_list(repair_hint.get("candidate_changed_paths")),
+        ]
+    )
+    requested_context_paths = sanitize_repo_relative_paths(
+        require_list(payload.get("selected_context_paths"))
+    )
+    missing_candidate_paths = [
+        path for path in candidate_changed_paths if path not in requested_context_paths
     ]
+    all_context_paths = sanitize_repo_relative_paths(
+        [
+            *missing_candidate_paths,
+            *requested_context_paths,
+        ]
+    )
     selected_context_paths = (
         all_context_paths[:max_context_paths]
         if max_context_paths is not None
@@ -1910,6 +1975,7 @@ def build_mvp_loop_repair_request(
         or diagnosis.get("summary"),
         "primary_category": diagnosis.get("primary_category"),
         "detected_stack": diagnosis.get("detected_stack"),
+        "file_references": candidate_changed_paths,
         "test_id": test_run.get("test_id"),
         "command": require_list(test_run.get("command")),
         "exit_code": test_run.get("exit_code"),
@@ -1949,6 +2015,7 @@ def build_mvp_loop_repair_request(
         "instruction": repair_instruction,
         "repair_prompt": repair_prompt,
         "repair_output_contract": repair_output_contract,
+        "candidate_changed_paths": candidate_changed_paths,
         "selected_context_paths": selected_context_paths,
         "selected_context_paths_truncated": len(selected_context_paths)
         < len(all_context_paths),
@@ -16388,6 +16455,7 @@ def format_mvp_loop_repair_request_summary(payload: Mapping[str, Any]) -> str:
         f"source_artifact: {payload.get('source_artifact', '-')}",
         f"repair_status: {payload.get('repair_status', '-')}",
         f"training_allowed: {payload.get('training_allowed', False)}",
+        f"candidate_changed_paths: {len(require_list(payload.get('candidate_changed_paths')))}",
         f"selected_context_paths: {len(require_list(payload.get('selected_context_paths')))}",
         f"test_id: {failure.get('test_id') or '-'}",
         f"primary_category: {failure.get('primary_category') or '-'}",

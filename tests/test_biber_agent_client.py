@@ -2919,6 +2919,10 @@ def test_build_mvp_loop_repair_request_extracts_failure_context(tmp_path: Path) 
                 "detected_stack": "dotnet",
                 "summary": "Detected compile_error in dotnet output.",
                 "relevant_output": "Example.cs(7,1): error CS1002: ; expected\n",
+                "file_references": [
+                    {"path": "src/App.cs", "line": 7},
+                    {"path": "C:/secrets/.env", "line": 1},
+                ],
                 "suggested_next_actions": ["Fix compiler diagnostics first."],
             },
         },
@@ -2937,13 +2941,17 @@ def test_build_mvp_loop_repair_request_extracts_failure_context(tmp_path: Path) 
     assert repair["source"] == "biber_mvp_loop_repair_request"
     assert repair["repair_status"] == "ready_for_local_model"
     assert repair["training_allowed"] is False
+    assert repair["candidate_changed_paths"] == ["src/App.cs"]
     assert repair["selected_context_paths"] == ["README.md", "src/App.cs"]
     assert repair["selected_context_paths_truncated"] is True
     assert repair["failure"]["test_id"] == "dotnet-test"
     assert repair["failure"]["primary_category"] == "compile_error"
+    assert repair["failure"]["file_references"] == ["src/App.cs"]
     assert repair["failure"]["relevant_output"].endswith("; expected\n")
     assert repair["agent_report"]["status"] == "test_failed"
+    assert repair["agent_report"]["failure"]["file_references"] == ["src/App.cs"]
     assert repair["repair_hint"]["status"] == "ready_for_prepare_repair"
+    assert repair["repair_hint"]["candidate_changed_paths"] == ["src/App.cs"]
     assert repair["repair_hint"]["primary_category"] == "compile_error"
     assert repair["repair_hint"]["test_id"] == "dotnet-test"
     assert repair["repair_hint"]["next_workflow"][:3] == [
@@ -2960,11 +2968,67 @@ def test_build_mvp_loop_repair_request_extracts_failure_context(tmp_path: Path) 
     assert "Agent report:" in repair["repair_prompt"]
     assert "- status: test_failed" in repair["repair_prompt"]
     assert "repair_hint: status=ready_for_prepare_repair" in repair["repair_prompt"]
+    assert "failure_file_references: src/App.cs" in repair["repair_prompt"]
+    assert "Candidate changed paths from diagnosis:\n- src/App.cs" in repair["repair_prompt"]
     assert "stack=dotnet category=compile_error" in repair["repair_prompt"]
     assert "next=prepare-repair, local-repair-chain" in repair["repair_prompt"]
     assert "Fix the API compile error." in repair["repair_prompt"]
     assert "Fix compiler diagnostics first." in repair["repair_prompt"]
     assert repair["next_test_id"] == "dotnet-test"
+
+
+def test_build_mvp_loop_repair_request_prioritizes_diagnosis_file_references(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "failure-mvp-loop.json"
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "api.py").write_text(
+        "def status():\n    return 'bad'\n",
+        encoding="utf-8",
+    )
+    payload = {
+        "ok": False,
+        "instruction": "Repair the API assertion.",
+        "steps": {
+            "test_run": {
+                "ok": False,
+                "test_id": "python-pytest",
+                "command": ["python", "-m", "pytest", "-q"],
+                "exit_code": 1,
+                "timed_out": False,
+                "stdout": "src/api.py:2: AssertionError\n",
+            },
+            "test_diagnosis": {
+                "primary_category": "assertion_failure",
+                "detected_stack": "python",
+                "summary": "Detected assertion_failure in python output.",
+                "relevant_output": "src/api.py:2: AssertionError\n",
+                "file_references": [
+                    {"path": "src/api.py", "line": 2},
+                    {"path": "../outside.py", "line": 1},
+                    {"path": "src/api.py", "line": 2},
+                ],
+            },
+        },
+        "selected_context_paths": ["README.md", "tests/test_api.py"],
+        "test_ok": False,
+        "target_root": str(tmp_path),
+    }
+
+    repair = client.build_mvp_loop_repair_request(
+        path=artifact,
+        payload=payload,
+        instruction=None,
+        max_relevant_output_chars=120,
+        max_context_paths=2,
+    )
+
+    assert repair["candidate_changed_paths"] == ["src/api.py"]
+    assert repair["selected_context_paths"] == ["src/api.py", "README.md"]
+    assert repair["selected_context_paths_truncated"] is True
+    assert repair["source_context_snippets_available"] is True
+    assert repair["source_context_snippets"][0]["path"] == "src/api.py"
+    assert "BIBER_FILE_CONTENT_START\ndef status():" in repair["repair_prompt"]
 
 
 def test_build_mvp_loop_repair_request_uses_agent_report_context(
