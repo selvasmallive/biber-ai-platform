@@ -134,11 +134,18 @@ class TestFailureSignal(BaseModel):
     evidence: str
 
 
+class TestFailureFileReference(BaseModel):
+    path: str
+    line_number: int | None = None
+    column_number: int | None = None
+
+
 class TestFailureDiagnosisResponse(BaseModel):
     has_failure: bool
     primary_category: str
     detected_stack: str
     signals: list[TestFailureSignal]
+    file_references: list[TestFailureFileReference] = Field(default_factory=list)
     relevant_output: str
     suggested_next_actions: list[str]
     summary: str

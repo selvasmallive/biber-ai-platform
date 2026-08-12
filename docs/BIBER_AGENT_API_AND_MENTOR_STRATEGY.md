@@ -167,6 +167,8 @@ the workflow pieces that make a local model useful on real repositories.
      pytest, Docker/Compose, PostgreSQL, and GitHub Actions incrementally
    - classify failures as compile errors, assertion failures, missing imports,
      dependency/config issues, flaky tests, or environment problems
+   - extract workspace-relative `file_references` from failure output so the
+     next repo-context plan can focus on failing files and related tests
    - send only concise, relevant failure context back to the model
    - rerun targeted tests after a proposed fix
    - save useful failure/fix pairs as future eval or fine-tuning candidates

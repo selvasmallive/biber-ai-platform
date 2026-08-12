@@ -45,6 +45,9 @@ def test_diagnose_dotnet_compile_error() -> None:
     assert diagnosis["primary_category"] == "compile_error"
     assert diagnosis["signals"][0]["category"] == "compile_error"
     assert "CS0103" in diagnosis["relevant_output"]
+    assert diagnosis["file_references"] == [
+        {"path": "Program.cs", "line_number": 10, "column_number": 13}
+    ]
 
 
 def test_diagnose_java_missing_symbol() -> None:
@@ -121,7 +124,11 @@ def test_diagnose_typescript_compile_error() -> None:
     assert diagnosis["detected_stack"] == "node"
     assert diagnosis["primary_category"] == "compile_error"
     assert diagnosis["signals"][0]["message"] == "TypeScript compiler error"
+    assert diagnosis["file_references"] == [
+        {"path": "src/App.tsx", "line_number": 8, "column_number": 12}
+    ]
     assert "package.json" in " ".join(diagnosis["suggested_next_actions"])
+    assert "file_references" in " ".join(diagnosis["suggested_next_actions"])
 
 
 def test_diagnose_react_testing_library_assertion() -> None:
@@ -178,6 +185,9 @@ def test_diagnose_postgres_sql_syntax_error() -> None:
     assert diagnosis["detected_stack"] == "postgres"
     assert diagnosis["primary_category"] == "compile_error"
     assert diagnosis["signals"][0]["message"] == "PostgreSQL SQL syntax error"
+    assert diagnosis["file_references"] == [
+        {"path": "migrations/001.sql", "line_number": 12, "column_number": None}
+    ]
     assert "migrations" in " ".join(diagnosis["suggested_next_actions"]).lower()
 
 
@@ -195,7 +205,33 @@ def test_diagnose_github_actions_workflow_error() -> None:
     assert diagnosis["detected_stack"] == "github-actions"
     assert diagnosis["primary_category"] == "compile_error"
     assert diagnosis["signals"][0]["message"] == "GitHub Actions expression error"
+    assert diagnosis["file_references"] == [
+        {
+            "path": ".github/workflows/ci.yml",
+            "line_number": 14,
+            "column_number": 9,
+        }
+    ]
     assert "workflow" in " ".join(diagnosis["suggested_next_actions"]).lower()
+
+
+def test_diagnose_python_traceback_extracts_relative_file_reference() -> None:
+    diagnosis = diagnose_test_failure(
+        command=["python", "-m", "pytest"],
+        exit_code=1,
+        stderr=(
+            "Traceback (most recent call last):\n"
+            "  File \"src/biber_api/main.py\", line 42, in handler\n"
+            "    raise RuntimeError('boom')\n"
+            "RuntimeError: boom\n"
+        ),
+    )
+
+    assert diagnosis["detected_stack"] == "python"
+    assert diagnosis["primary_category"] == "runtime_error"
+    assert diagnosis["file_references"] == [
+        {"path": "src/biber_api/main.py", "line_number": 42, "column_number": None}
+    ]
 
 
 def test_diagnose_endpoint_returns_structured_failure(tmp_path: Path) -> None:
@@ -220,6 +256,9 @@ def test_diagnose_endpoint_returns_structured_failure(tmp_path: Path) -> None:
     assert body["detected_stack"] == "dotnet"
     assert body["primary_category"] == "compile_error"
     assert body["signals"][0]["evidence"].endswith("; expected")
+    assert body["file_references"] == [
+        {"path": "Example.cs", "line_number": 7, "column_number": 1}
+    ]
 
 
 def test_diagnose_endpoint_requires_api_key(tmp_path: Path) -> None:

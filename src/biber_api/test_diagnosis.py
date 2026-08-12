@@ -149,6 +149,7 @@ def diagnose_test_failure(
 
     primary_category = _primary_category(signals)
     relevant_output = _relevant_output(lines, signals, max_context_lines=max_context_lines)
+    file_references = _file_references(lines)
     summary = _summary(
         has_failure=has_failure,
         primary_category=primary_category,
@@ -160,10 +161,12 @@ def diagnose_test_failure(
         "primary_category": primary_category,
         "detected_stack": detected_stack,
         "signals": signals,
+        "file_references": file_references,
         "relevant_output": relevant_output,
         "suggested_next_actions": _suggested_next_actions(
             primary_category,
             detected_stack,
+            file_references=file_references,
         ),
         "summary": summary,
     }
@@ -332,6 +335,100 @@ def _relevant_output(
     return "\n".join(selected[:max_context_lines])
 
 
+_PATH_EXTENSIONS = (
+    "cs",
+    "css",
+    "java",
+    "js",
+    "jsx",
+    "kt",
+    "py",
+    "rs",
+    "sh",
+    "sql",
+    "toml",
+    "ts",
+    "tsx",
+    "xml",
+    "yaml",
+    "yml",
+)
+_PATH_PATTERN = (
+    r"(?P<path>(?:\.github/)?(?:[A-Za-z0-9_.@+-]+/)*"
+    r"[A-Za-z0-9_.@+-]+"
+    r"\.(?:"
+    + "|".join(_PATH_EXTENSIONS)
+    + r"))"
+)
+
+
+def _file_references(lines: list[str]) -> list[dict[str, int | str | None]]:
+    references: list[dict[str, int | str | None]] = []
+    seen: set[tuple[str, int | None, int | None]] = set()
+
+    def add(path: str, line: str | int | None, column: str | int | None) -> None:
+        clean_path = _clean_failure_path(path)
+        if clean_path is None:
+            return
+        line_number = _to_positive_int(line)
+        column_number = _to_positive_int(column)
+        key = (clean_path, line_number, column_number)
+        if key in seen:
+            return
+        seen.add(key)
+        references.append(
+            {
+                "path": clean_path,
+                "line_number": line_number,
+                "column_number": column_number,
+            }
+        )
+
+    for line in lines:
+        for match in re.finditer(
+            _PATH_PATTERN + r"\((?P<line>\d+),(?P<column>\d+)\)",
+            line,
+            flags=re.IGNORECASE,
+        ):
+            add(match.group("path"), match.group("line"), match.group("column"))
+        for match in re.finditer(
+            _PATH_PATTERN + r":(?P<line>\d+)(?::(?P<column>\d+))?",
+            line,
+            flags=re.IGNORECASE,
+        ):
+            add(match.group("path"), match.group("line"), match.group("column"))
+        for match in re.finditer(
+            r"File [\"'](?P<path>[^\"']+)[\"'], line (?P<line>\d+)",
+            line,
+        ):
+            add(match.group("path"), match.group("line"), None)
+        if len(references) >= 12:
+            break
+    return references[:12]
+
+
+def _clean_failure_path(path: str) -> str | None:
+    clean = path.strip().strip("'\"`").replace("\\", "/")
+    if not clean or "\x00" in clean:
+        return None
+    if clean.startswith("/") or re.match(r"^[A-Za-z]:", clean):
+        return None
+    parts = [part for part in clean.split("/") if part]
+    if not parts or any(part == ".." for part in parts):
+        return None
+    return "/".join(parts)
+
+
+def _to_positive_int(value: str | int | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
 def _summary(
     *,
     has_failure: bool,
@@ -347,7 +444,12 @@ def _summary(
     )
 
 
-def _suggested_next_actions(primary_category: str, detected_stack: str) -> list[str]:
+def _suggested_next_actions(
+    primary_category: str,
+    detected_stack: str,
+    *,
+    file_references: list[dict[str, int | str | None]] | None = None,
+) -> list[str]:
     actions = [
         "Use the repo-context planner with the failing file, related tests, and manifests.",
     ]
@@ -384,4 +486,6 @@ def _suggested_next_actions(primary_category: str, detected_stack: str) -> list[
         actions.append("Include schema, migrations, and the application query or connection config.")
     elif detected_stack == "github-actions":
         actions.append("Include the workflow file plus the scripts or commands it invokes.")
+    if file_references:
+        actions.append("Use `file_references` as candidate changed paths for the next repo-context plan.")
     return actions
