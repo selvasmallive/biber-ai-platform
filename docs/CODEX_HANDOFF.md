@@ -35,6 +35,22 @@ and `training_allowed=False`. Refreshed
 labels `run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`,
 and `refresh_resume_status`.
 
+2026-08-12 latest BIBER failure changed-path export checkpoint:
+commit `16f24e1` adds
+`export-mvp-failure-changed-paths <artifact> --output <paths.txt>` to
+`scripts/biber_agent_client.py`. It is a read-only/local bridge from failed
+MVP/repair artifacts to repo-context planning: it sanitizes and dedupes
+`candidate_changed_paths`, `failure.file_references`,
+`agent_report.failure.file_references`, `repair_hint.candidate_changed_paths`,
+and `steps.test_diagnosis.file_references`, writes a newline-delimited
+changed-paths file, and prints a safe next `mvp-loop --changed-paths-file`
+command. It does not call the model, GitHub, OpenAI mentor, training, or external
+APIs. Local validation passed bundled Python `py_compile`, a direct export
+harness, an actual CLI export smoke, `scripts/biber_local_confidence_smoke.py`,
+and `git diff --check`. Next narrow step: push this checkpoint, fast-forward Vast,
+run Vast py_compile plus a compact CLI export smoke, then refresh
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json`.
+
 2026-08-12 latest BIBER ready-command reader checkpoint:
 commit `7ab4594` adds
 `show-live-mvp-ready-command <artifact> [--label LABEL|--index N]
