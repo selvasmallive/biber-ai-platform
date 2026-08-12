@@ -4,6 +4,24 @@ Last updated: 2026-08-11
 
 ## Current Goal
 
+2026-08-12 latest BIBER provider-swappable resume checkpoint:
+commit `cd73135` made `live-mvp-resume-status` generated `next_commands`
+provider/model-swappable. It adds named defaults for the local OpenAI-compatible
+endpoint and served model alias plus CLI flags `--live-base-url` and
+`--live-model`. The generated `refresh_resume_status`,
+`rerun_live_provider_confidence_gate`, and
+`prepare_next_plan_only_required_edit` hints now preserve those values instead
+of hardcoding `http://127.0.0.1:8001/v1` and `biber-dev-core`. Local validation
+passed bundled Python `py_compile`, a direct no-API provider override harness
+using `biber-dev-core-v2-candidate`, `scripts/biber_local_confidence_smoke.py`,
+and `git diff --check`. The current Vast GPU was fast-forwarded to `cd73135`;
+py_compile passed; the preferred read-only status command with
+`--python-command /workspace/biber-venv/bin/python --live-base-url
+http://127.0.0.1:8001/v1 --live-model biber-dev-core` returned `ok=True`,
+`next_action=start_next_narrow_biber_step`, and confirmed refresh/confidence/
+plan-only command hints all preserve the live base URL and model alias.
+`github_request_sent=False`, `mentor_used=False`, and `training_allowed=False`.
+
 2026-08-11 latest BIBER resume interpreter checkpoint:
 commits `5e7e287` and `ebae2a5` added `--python-command` to
 `live-mvp-resume-status` so generated `next_commands` can embed the active
