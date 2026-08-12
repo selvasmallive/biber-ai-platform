@@ -200,6 +200,8 @@ python scripts/biber_agent_client.py live-mvp-resume-status \
   /workspace/outputs \
   --target-root /workspace/biber-ai-platform \
   --python-command /workspace/biber-venv/bin/python \
+  --live-base-url http://127.0.0.1:8001/v1 \
+  --live-model biber-dev-core \
   --output /workspace/outputs/biber-live-mvp-resume-status-latest.json
 ```
 
@@ -216,10 +218,11 @@ should become `save_verified_change_to_github_if_requested`.
 The JSON output includes `next_commands`, a small list of safe command hints
 for the reported `next_action`. Use `--python-command` to make those hints
 match the current runtime, for example `/workspace/biber-venv/bin/python` on
-Vast. Treat commands with `ready_to_run=false` as templates that need exact task
-inputs first. These hints do not override the normal gates: real-repo apply,
-training, OpenAI mentor, and real GitHub save/PR still need separate explicit
-approval.
+Vast. Use `--live-base-url` and `--live-model` to keep the hints aligned with
+the currently served local provider or candidate model. Treat commands with
+`ready_to_run=false` as templates that need exact task inputs first. These hints
+do not override the normal gates: real-repo apply, training, OpenAI mentor, and
+real GitHub save/PR still need separate explicit approval.
 
 This keeps Qwen2.5, Qwen3, llama.cpp, vLLM wrappers, and future local runners
 swappable without enabling OpenAI mentor, API auth, GPU training, or file apply.

@@ -1816,6 +1816,10 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
                     "/workspace/biber-ai-platform",
                     "--python-command",
                     "/workspace/biber-venv/bin/python",
+                    "--live-base-url",
+                    "http://127.0.0.1:9009/v1",
+                    "--live-model",
+                    "biber-dev-core-v2-candidate",
                     "--output",
                     str(status_artifact),
                 ]
@@ -1871,6 +1875,10 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
         "/workspace/biber-venv/bin/python"
     )
     assert "--python-command" in next_commands["refresh_resume_status"]["command_parts"]
+    assert "--live-base-url" in next_commands["refresh_resume_status"]["command_parts"]
+    assert "http://127.0.0.1:9009/v1" in next_commands["refresh_resume_status"]["command_parts"]
+    assert "--live-model" in next_commands["refresh_resume_status"]["command_parts"]
+    assert "biber-dev-core-v2-candidate" in next_commands["refresh_resume_status"]["command_parts"]
     assert status["artifact_path"] == str(status_artifact)
     assert json.loads(status_artifact.read_text(encoding="utf-8")) == status
     assert "BIBER live MVP resume status" in summary
@@ -2017,6 +2025,10 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
                     str(target_root),
                     "--python-command",
                     "/workspace/biber-venv/bin/python",
+                    "--live-base-url",
+                    "http://127.0.0.1:9009/v1",
+                    "--live-model",
+                    "biber-dev-core-v2-candidate",
                 ]
             )
         )
@@ -2059,12 +2071,20 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
         "/workspace/biber-venv/bin/python"
     )
     assert "--python-command" in next_commands["refresh_resume_status"]["command_parts"]
+    assert "--live-base-url" in next_commands["refresh_resume_status"]["command_parts"]
+    assert "http://127.0.0.1:9009/v1" in next_commands["refresh_resume_status"]["command_parts"]
+    assert "--live-model" in next_commands["refresh_resume_status"]["command_parts"]
+    assert "biber-dev-core-v2-candidate" in next_commands["refresh_resume_status"]["command_parts"]
     assert next_commands["run_cpu_local_confidence_gate"]["mutates_repo"] is False
     assert next_commands["rerun_live_provider_confidence_gate"]["uses_gpu"] is True
     assert next_commands["rerun_live_provider_confidence_gate"]["uses_model"] is True
+    assert "http://127.0.0.1:9009/v1" in next_commands["rerun_live_provider_confidence_gate"]["command_parts"]
+    assert "biber-dev-core-v2-candidate" in next_commands["rerun_live_provider_confidence_gate"]["command_parts"]
     assert next_commands["prepare_next_plan_only_required_edit"]["ready_to_run"] is False
     assert next_commands["prepare_next_plan_only_required_edit"]["mutates_repo"] is False
     assert next_commands["prepare_next_plan_only_required_edit"]["training_allowed"] is False
+    assert "http://127.0.0.1:9009/v1" in next_commands["prepare_next_plan_only_required_edit"]["command_parts"]
+    assert "biber-dev-core-v2-candidate" in next_commands["prepare_next_plan_only_required_edit"]["command_parts"]
     assert (
         "biber_live_provider_real_repo_plan_smoke.py"
         in next_commands["prepare_next_plan_only_required_edit"]["command"]

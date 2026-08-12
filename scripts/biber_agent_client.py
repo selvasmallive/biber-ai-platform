@@ -18,6 +18,8 @@ from typing import Any, Sequence
 
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
+DEFAULT_LOCAL_OPENAI_BASE_URL = "http://127.0.0.1:8001/v1"
+DEFAULT_LOCAL_OPENAI_MODEL = "biber-dev-core"
 API_KEY_ENV_NAMES = ("BIBER_API_KEY", "BIBER_TEST_API_KEY", "BIBER_DEMO_API_KEY")
 DEFAULT_REPAIR_INSTRUCTION = (
     "Repair the failed BIBER MVP loop using the smallest safe code change. "
@@ -14977,10 +14979,14 @@ def build_live_mvp_resume_next_commands(
     target_root: str | None,
     next_action: str,
     python_command: str = "python",
+    live_base_url: str = DEFAULT_LOCAL_OPENAI_BASE_URL,
+    live_model: str = DEFAULT_LOCAL_OPENAI_MODEL,
 ) -> list[dict[str, Any]]:
     root = Path(directory)
     target = target_root or "/workspace/biber-ai-platform"
     python_executable = python_command or "python"
+    base_url = live_base_url or DEFAULT_LOCAL_OPENAI_BASE_URL
+    model = live_model or DEFAULT_LOCAL_OPENAI_MODEL
 
     def command_entry(
         *,
@@ -15029,6 +15035,10 @@ def build_live_mvp_resume_next_commands(
             target,
             "--python-command",
             python_executable,
+            "--live-base-url",
+            base_url,
+            "--live-model",
+            model,
             "--output",
             root / "biber-live-mvp-resume-status-latest.json",
         ],
@@ -15109,9 +15119,9 @@ def build_live_mvp_resume_next_commands(
                     "--mode",
                     "live",
                     "--base-url",
-                    "http://127.0.0.1:8001/v1",
+                    base_url,
                     "--model",
-                    "biber-dev-core",
+                    model,
                     "--output",
                     root / "biber-live-provider-confidence-latest.json",
                 ],
@@ -15131,9 +15141,9 @@ def build_live_mvp_resume_next_commands(
                     python_executable,
                     "scripts/biber_live_provider_real_repo_plan_smoke.py",
                     "--base-url",
-                    "http://127.0.0.1:8001/v1",
+                    base_url,
                     "--model",
-                    "biber-dev-core",
+                    model,
                     "--target-root",
                     target,
                     "--required-path",
@@ -15164,9 +15174,9 @@ def build_live_mvp_resume_next_commands(
                 "--mode",
                 "live",
                 "--base-url",
-                "http://127.0.0.1:8001/v1",
+                base_url,
                 "--model",
-                "biber-dev-core",
+                model,
                 "--output",
                 root / "biber-live-provider-confidence-latest.json",
             ],
@@ -15180,6 +15190,8 @@ def build_live_mvp_resume_status(
     directory: str,
     target_root: str | None = None,
     python_command: str = "python",
+    live_base_url: str = DEFAULT_LOCAL_OPENAI_BASE_URL,
+    live_model: str = DEFAULT_LOCAL_OPENAI_MODEL,
 ) -> dict[str, Any]:
     confidence: dict[str, Any]
     real_repo_plan: dict[str, Any]
@@ -15347,6 +15359,8 @@ def build_live_mvp_resume_status(
         target_root=target_root,
         next_action=next_action,
         python_command=python_command,
+        live_base_url=live_base_url,
+        live_model=live_model,
     )
     return {
         "source": "biber_live_mvp_resume_status",
@@ -18994,6 +19008,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "/workspace/biber-venv/bin/python on Vast."
         ),
     )
+    live_mvp_resume_status.add_argument(
+        "--live-base-url",
+        default=os.environ.get(
+            "BIBER_LOCAL_OPENAI_BASE_URL",
+            DEFAULT_LOCAL_OPENAI_BASE_URL,
+        ),
+        help=(
+            "OpenAI-compatible live provider base URL to embed in generated "
+            "next_commands. Defaults to BIBER_LOCAL_OPENAI_BASE_URL or the "
+            "local Vast vLLM URL."
+        ),
+    )
+    live_mvp_resume_status.add_argument(
+        "--live-model",
+        default=os.environ.get("BIBER_LOCAL_OPENAI_MODEL", DEFAULT_LOCAL_OPENAI_MODEL),
+        help=(
+            "Live provider model or adapter alias to embed in generated "
+            "next_commands. Defaults to BIBER_LOCAL_OPENAI_MODEL or biber-dev-core."
+        ),
+    )
     live_mvp_resume_status.add_argument("--output")
 
     show_real_repo_plan_smoke = subparsers.add_parser(
@@ -20735,6 +20769,8 @@ def run(args: argparse.Namespace) -> str:
             directory=args.directory,
             target_root=args.target_root,
             python_command=args.python_command,
+            live_base_url=args.live_base_url,
+            live_model=args.live_model,
         )
         if args.output:
             status["artifact_path"] = str(Path(args.output))
