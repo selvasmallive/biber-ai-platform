@@ -43,6 +43,19 @@ Vast GPU was fast-forwarded to `5c81933`; py_compile passed; the command read
 with `mutates_repo=False`, `github_request_sent=False`, `mentor_used=False`,
 and `training_allowed=False`.
 
+2026-08-12 latest BIBER repo-context entrypoint checkpoint:
+commit `5cdc324` updates `src/biber_api/repo_context.py` so repo-context
+planning uses each detected stack profile's `entrypoint_patterns` instead of
+only hardcoded .NET/Java rules. This improves context selection for Rust,
+React/TypeScript, Python, TensorFlow, Docker, GitHub Actions, Java, and .NET
+without changing apply, GitHub, mentor, or training gates. Local validation
+passed bundled Python `py_compile`, a direct Rust/React entrypoint planner
+harness, `scripts/biber_local_confidence_smoke.py`, and `git diff --check`.
+The current Vast GPU was fast-forwarded to `5cdc324`; py_compile passed; a
+compact planner check selected `Cargo.toml`, `package.json`, `tsconfig.json`,
+`crates/wallet/src/lib.rs`, `crates/wallet/src/main.rs`, and `src/App.tsx` for
+a mixed Rust/React fixture with `ok=True`.
+
 2026-08-12 latest BIBER ready-command subset checkpoint:
 commit `3c0bf79` adds `next_ready_commands` and
 `next_ready_command_labels` to `live-mvp-resume-status`. This is a filtered
