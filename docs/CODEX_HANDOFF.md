@@ -69,6 +69,20 @@ and `git diff --check`. The current Vast GPU was fast-forwarded to `5259c73`;
 py_compile passed; the compact diagnosis harness returned `ok=True` for
 `docker`, `postgres`, and `github-actions`.
 
+2026-08-12 latest BIBER diagnosis file-reference checkpoint:
+commit `6e29227` adds additive `file_references` metadata to test-failure
+diagnosis responses. `src/biber_api/test_diagnosis.py` now extracts
+workspace-relative file/line/column references from common .NET/TypeScript,
+PostgreSQL, GitHub Actions, and Python traceback output, and
+`src/biber_api/schemas.py` exposes the metadata through
+`TestFailureDiagnosisResponse`. This is deterministic and does not use the
+local model, OpenAI mentor, GitHub requests, training, or repo mutation. Local
+validation passed bundled Python `py_compile`, a direct file-reference harness
+with schema validation for `dotnet`, `node`, `postgres`, `github-actions`, and
+`python`, `scripts/biber_local_confidence_smoke.py`, and `git diff --check`.
+The current Vast GPU was fast-forwarded to `6e29227`; py_compile passed; the
+same compact file-reference harness returned `ok=True` for all five stacks.
+
 2026-08-12 latest BIBER ready-command subset checkpoint:
 commit `3c0bf79` adds `next_ready_commands` and
 `next_ready_command_labels` to `live-mvp-resume-status`. This is a filtered
