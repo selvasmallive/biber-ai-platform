@@ -21,6 +21,12 @@ py_compile passed; `live-mvp-resume-status` refreshed
 `training_allowed=False`. Ready labels on Vast are
 `run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`, and
 `refresh_resume_status`.
+2026-08-12 follow-up: the current Vast GPU was fast-forwarded to handoff commit
+`bdebe4f`; the safe live provider confidence gate passed with `ok=True`,
+`checks=3`, all check entries `ok=True`, `github_request_sent=False`,
+`mentor_used=False`, and `training_allowed=False`. The refreshed
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json` reports
+`next_action=start_next_narrow_biber_step` and the same three ready labels above.
 
 2026-08-12 latest BIBER ready-command subset checkpoint:
 commit `3c0bf79` adds `next_ready_commands` and
