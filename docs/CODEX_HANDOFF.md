@@ -4,6 +4,22 @@ Last updated: 2026-08-11
 
 ## Current Goal
 
+2026-08-12 latest BIBER ready-command subset checkpoint:
+commit `3c0bf79` adds `next_ready_commands` and
+`next_ready_command_labels` to `live-mvp-resume-status`. This is a filtered
+subset of `next_commands` for automation or future Codex sessions that want
+only fully specified safe commands. It excludes templates (`ready_to_run=false`)
+and any command that would mutate the repo, send GitHub requests, use OpenAI
+mentor, or allow training. Local validation passed bundled Python `py_compile`,
+a direct no-API ready-command harness, `scripts/biber_local_confidence_smoke.py`,
+and `git diff --check`. The current Vast GPU was fast-forwarded to `3c0bf79`;
+py_compile passed; the preferred read-only status command returned `ok=True`,
+`next_action=start_next_narrow_biber_step`, `next_ready_command_labels=[
+run_cpu_local_confidence_gate, rerun_live_provider_confidence_gate,
+refresh_resume_status]`, `ready_count=3`, and confirmed
+`prepare_next_plan_only_required_edit` is excluded from the ready subset.
+`github_request_sent=False`, `mentor_used=False`, and `training_allowed=False`.
+
 2026-08-12 latest BIBER provider-swappable resume checkpoint:
 commit `cd73135` made `live-mvp-resume-status` generated `next_commands`
 provider/model-swappable. It adds named defaults for the local OpenAI-compatible
