@@ -4,6 +4,24 @@ Last updated: 2026-08-11
 
 ## Current Goal
 
+2026-08-12 latest BIBER diagnosis-to-repair context checkpoint:
+commit `414f921` updates `scripts/biber_agent_client.py` so deterministic
+test-diagnosis `file_references` now flow into MVP repair artifacts as
+sanitized `candidate_changed_paths`, `failure.file_references`, and prioritized
+prepared-repair `selected_context_paths` when a referenced file was missing from
+the original context selection. Existing selected-context ordering is preserved
+when the referenced file was already selected. Repair prompts now show
+`failure_file_references` and "Candidate changed paths from diagnosis" so the
+local model can focus edits without asking OpenAI mentor. Tests add coverage for
+sanitizing unsafe paths, deduping repeated references, and pulling the referenced
+source snippet into the prepared repair request. Local validation passed bundled
+Python `py_compile`, `scripts/biber_local_confidence_smoke.py`, a direct
+diagnosis-file-reference repair harness, and `git diff --check`. `pytest` was
+not run because the local bundled runtime does not have pytest installed. Next
+narrow step: push this checkpoint, fast-forward the current Vast GPU repo, run
+Vast py_compile plus the same direct harness, then refresh the live MVP resume
+status before starting another BIBER MVP step.
+
 2026-08-12 latest BIBER ready-command reader checkpoint:
 commit `7ab4594` adds
 `show-live-mvp-ready-command <artifact> [--label LABEL|--index N]
