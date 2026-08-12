@@ -78,6 +78,16 @@ bundled Python `py_compile`, a direct resume ready-command harness,
 step: push this checkpoint, fast-forward Vast, refresh live MVP resume status,
 and confirm the new ready label appears when a failed MVP artifact with candidate
 paths is present.
+2026-08-12 correction: commit `2487f66` tightens the changed-path discovery so
+`live-mvp-resume-status --target-root <repo>` only advertises
+`export_latest_failure_changed_paths` when the failed MVP artifact's `target_root`
+matches the requested repo. This prevents disposable fixture failures from
+appearing as real-repo ready commands. Local validation passed bundled Python
+`py_compile`, a target-filtered direct harness, `scripts/biber_local_confidence_smoke.py`,
+and `git diff --check`. Next narrow step: push/sync this guard to Vast, refresh
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json`, and confirm the
+fixture-derived `export_latest_failure_changed_paths` label is absent for the
+real `/workspace/biber-ai-platform` target unless a real failed MVP artifact exists.
 
 2026-08-12 latest BIBER ready-command reader checkpoint:
 commit `7ab4594` adds
