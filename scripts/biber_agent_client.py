@@ -14121,10 +14121,28 @@ def export_mvp_loop_failures(
     }
 
 
+def normalize_target_root_text(value: object) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip().replace("\\", "/").rstrip("/")
+
+
+def artifact_target_root_text(payload: Mapping[str, Any]) -> str | None:
+    target_root = normalize_target_root_text(payload.get("target_root"))
+    if target_root:
+        return target_root
+    return normalize_target_root_text(
+        require_mapping(require_mapping(payload.get("agent_report")).get("repo")).get(
+            "target_root"
+        )
+    )
+
+
 def find_latest_mvp_failure_changed_path_hint(
     *,
     directory: str,
     pattern: str = "*mvp-loop*.json",
+    target_root: str | None = None,
 ) -> dict[str, Any]:
     root = Path(directory)
     if not root.exists() or not root.is_dir():
@@ -14133,6 +14151,7 @@ def find_latest_mvp_failure_changed_path_hint(
             "reason": "mvp_loop_artifact_directory_missing",
             "directory": str(root),
             "pattern": pattern,
+            "target_root": target_root,
             "scanned": 0,
             "failed": 0,
             "candidate_changed_path_count": 0,
@@ -14158,6 +14177,10 @@ def find_latest_mvp_failure_changed_path_hint(
         normalized = normalize_mvp_loop_artifact(raw_payload)
         if normalized is None or not is_failed_mvp_loop_artifact(normalized):
             continue
+        if target_root:
+            artifact_target_root = artifact_target_root_text(normalized)
+            if artifact_target_root != normalize_target_root_text(target_root):
+                continue
         failed += 1
         candidate_changed_paths = artifact_candidate_changed_paths(normalized)
         if not candidate_changed_paths:
@@ -14167,6 +14190,7 @@ def find_latest_mvp_failure_changed_path_hint(
             "reason": "latest_failed_mvp_loop_with_candidate_changed_paths",
             "directory": str(root),
             "pattern": pattern,
+            "target_root": target_root,
             "artifact_path": str(artifact_path),
             "candidate_changed_paths": candidate_changed_paths,
             "candidate_changed_path_count": len(candidate_changed_paths),
@@ -14182,6 +14206,7 @@ def find_latest_mvp_failure_changed_path_hint(
         "reason": "no_failed_mvp_candidate_changed_paths",
         "directory": str(root),
         "pattern": pattern,
+        "target_root": target_root,
         "scanned": scanned,
         "failed": failed,
         "candidate_changed_path_count": 0,
@@ -15591,6 +15616,7 @@ def build_live_mvp_resume_status(
     failure_changed_paths = find_latest_mvp_failure_changed_path_hint(
         directory=directory,
         pattern="*mvp-loop*.json",
+        target_root=target_root,
     )
 
     if target_root:

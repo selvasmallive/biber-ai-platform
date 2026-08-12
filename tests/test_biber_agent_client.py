@@ -3087,12 +3087,15 @@ def test_build_mvp_failure_changed_paths_export_writes_changed_paths_file(
 def test_find_latest_mvp_failure_changed_path_hint_uses_safe_paths(
     tmp_path: Path,
 ) -> None:
+    target_root = tmp_path / "target"
     old_artifact = tmp_path / "old-mvp-loop.json"
     new_artifact = tmp_path / "new-mvp-loop.json"
+    fixture_artifact = tmp_path / "fixture-mvp-loop.json"
     old_artifact.write_text(
         json.dumps(
             {
                 "ok": False,
+                "target_root": str(target_root),
                 "steps": {
                     "test_diagnosis": {
                         "file_references": [{"path": "src/old.py", "line": 1}]
@@ -3106,6 +3109,7 @@ def test_find_latest_mvp_failure_changed_path_hint_uses_safe_paths(
         json.dumps(
             {
                 "ok": False,
+                "target_root": str(target_root),
                 "steps": {
                     "test_diagnosis": {
                         "file_references": [
@@ -3118,10 +3122,28 @@ def test_find_latest_mvp_failure_changed_path_hint_uses_safe_paths(
         ),
         encoding="utf-8",
     )
+    fixture_artifact.write_text(
+        json.dumps(
+            {
+                "ok": False,
+                "target_root": str(tmp_path / "fixture-target"),
+                "steps": {
+                    "test_diagnosis": {
+                        "file_references": [{"path": "src/fixture.py", "line": 9}]
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     os.utime(old_artifact, (1, 1))
     os.utime(new_artifact, (2, 2))
+    os.utime(fixture_artifact, (3, 3))
 
-    hint = client.find_latest_mvp_failure_changed_path_hint(directory=str(tmp_path))
+    hint = client.find_latest_mvp_failure_changed_path_hint(
+        directory=str(tmp_path),
+        target_root=str(target_root),
+    )
 
     assert hint["ok"] is True
     assert hint["artifact_path"] == str(new_artifact)
