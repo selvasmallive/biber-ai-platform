@@ -18,6 +18,18 @@ bundled local Python. Next narrow step: commit/push this checkpoint,
 fast-forward Vast, run Vast `py_compile`, a compact disposable
 `live-mvp-resume-status` ready-command smoke, and refresh the latest Vast resume
 status.
+2026-08-12 follow-up: commit `f5dd11b` was pushed to
+`biber/mvp-resume-20260712`; the current SSH-enabled Vast GPU repo was
+fast-forwarded to it. Vast `py_compile` passed, and a compact disposable smoke
+confirmed `prepare_latest_repair` is exposed only for a target-root-matching
+failed MVP-loop and can be executed through the ready-command guard to write a
+prepared repair request. The disposable smoke directory was removed afterward so
+recursive latest-artifact discovery points back at the real `/workspace/outputs`
+artifacts. Refreshed `/workspace/outputs/biber-live-mvp-resume-status-latest.json`
+reports `plan_hash=6f6ad3b211279cded393cb00b04a6df029287a0a1c1540f5390f68a94f9617aa`,
+`target_git_clean=True`, and `next_action=start_next_narrow_biber_step`; latest
+ready labels are `run_cpu_local_confidence_gate`,
+`rerun_live_provider_confidence_gate`, and `refresh_resume_status`.
 
 2026-08-12 latest BIBER prepare-latest-repair checkpoint:
 `scripts/biber_agent_client.py` now has
