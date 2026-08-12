@@ -35,6 +35,22 @@ the same pending plan hash, `required_path=docs/BIBER_ONLY_WORKSPACE.md`,
 `explicit_apply_approval.required=True`. The current stop point is still the
 human decision gate for plan hash
 `d9503b6caecde04b333946b6d4c9541584f6e12cd8c00db6eb7bb5b731ea6fbf`.
+2026-08-12 save follow-up: the user explicitly approved saving/pushing the
+verified docs edit for plan hash
+`d9503b6caecde04b333946b6d4c9541584f6e12cd8c00db6eb7bb5b731ea6fbf`.
+The exact verified one-line edit in `docs/BIBER_ONLY_WORKSPACE.md` was mirrored
+into the local BIBER-only checkout, committed as `a80fc35`
+(`Clarify BIBER required edit spec docs`), and pushed to
+`biber/mvp-resume-20260712`. The Vast checkout was reconciled to the pushed
+commit after verifying the worktree file matched `FETCH_HEAD`, and refreshed
+resume status now reports `next_action=start_next_narrow_biber_step`,
+`target_git_clean=True`, `pending_apply_decision=False`,
+`apply_decision_status=already_verified_current_file_hashes_match`,
+`verified_apply_history_matches_plan=True`, `verified_apply_matches_plan=True`,
+and `verified_apply_file_hashes_match=True`. The canonical
+`/workspace/outputs/biber-next-required-edit.json` still describes the completed
+docs edit; replace it with a new required-edit spec before running
+`run_next_required_edit_spec_plan` again.
 
 2026-08-12 latest BIBER next-required-edit ready-command checkpoint:
 `live-mvp-resume-status` now looks for canonical
