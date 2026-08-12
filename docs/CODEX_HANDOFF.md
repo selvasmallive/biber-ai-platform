@@ -20,6 +20,21 @@ Python still does not have pytest installed. Next narrow step: commit/push this
 checkpoint, fast-forward Vast, run Vast py_compile plus
 `show-latest-live-mvp-ready-command` and `list-latest-live-mvp-ready-commands`
 against `/workspace/outputs`, then refresh the live MVP resume status.
+2026-08-12 follow-up: commit `e689d6c` was pushed to
+`biber/mvp-resume-20260712`; the current Vast GPU repo was fast-forwarded to
+it. Vast `py_compile` passed. `show-latest-live-mvp-ready-command
+/workspace/outputs --label refresh_resume_status` selected
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json` with
+`ok=True`, label `refresh_resume_status`, and available labels
+`run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`, and
+`refresh_resume_status`. `list-latest-live-mvp-ready-commands
+/workspace/outputs` returned `count=3` with the same labels and no GitHub,
+mentor, or training use. The latest-artifact guarded refresh then ran again and
+wrote `/workspace/outputs/biber-ready-command-run-latest-refresh-latest.json`
+with `ok=True`, `execution_allowed=True`, and `executed=True`; refreshed status
+still reports `target_git_clean=True`,
+`apply_decision_status=already_verified_history_only`, and
+`next_action=start_next_narrow_biber_step`.
 
 2026-08-12 latest BIBER ready-command latest-artifact checkpoint:
 `scripts/biber_agent_client.py` now has
