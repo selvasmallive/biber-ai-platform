@@ -1,8 +1,30 @@
 # Codex Handoff
 
-Last updated: 2026-08-11
+Last updated: 2026-08-12
 
 ## Current Goal
+
+2026-08-12 latest BIBER guarded ready-command runner checkpoint:
+commit `fcead37` adds
+`run-live-mvp-ready-command <live-mvp-resume-status.json>` to
+`scripts/biber_agent_client.py`. It selects an existing `next_ready_commands`
+entry by label or index, validates that the command is ready/safe, rejects repo
+mutation, GitHub requests, OpenAI mentor use, training, external-network
+requirements, and API-required commands, and only permits GPU/live-provider
+commands when the caller passes `--allow-gpu --allow-live-provider`. It can also
+write a JSON run artifact with selection, guard validation, execution status,
+exit code, and bounded stdout/stderr. `docs/BIBER_ONLY_WORKSPACE.md` documents
+the guarded runner. Local validation passed bundled Python `py_compile`, a
+direct guarded-run harness, `scripts/biber_local_confidence_smoke.py`, and
+`git diff --check`; local bundled Python still does not include `pytest`, so the
+focused pytest was not run locally. Before this code commit, the current Vast GPU
+also passed the safe live-provider confidence gate and refreshed
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json` with
+`next_action=start_next_narrow_biber_step` and ready labels
+`run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`, and
+`refresh_resume_status`. Next narrow step: push/sync this checkpoint to Vast,
+run Vast py_compile plus a guarded ready-command dry-run/refresh smoke, then
+refresh the live MVP resume status again.
 
 2026-08-12 latest BIBER diagnosis-to-repair context checkpoint:
 commit `414f921` updates `scripts/biber_agent_client.py` so deterministic
