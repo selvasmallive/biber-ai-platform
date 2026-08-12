@@ -311,11 +311,46 @@ def test_plan_repo_context_exposes_node_react_profile(tmp_path: Path) -> None:
     ]
 
 
+def test_plan_repo_context_selects_profile_entrypoints_for_rust_and_react(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "Cargo.toml").write_text("[package]\nname='wallet'\n", encoding="utf-8")
+    rust_main = tmp_path / "crates" / "wallet" / "src" / "main.rs"
+    rust_main.parent.mkdir(parents=True)
+    rust_main.write_text("fn main() {}\n", encoding="utf-8")
+    rust_lib = rust_main.parent / "lib.rs"
+    rust_lib.write_text("pub fn start() {}\n", encoding="utf-8")
+    (tmp_path / "package.json").write_text('{"scripts":{"check":"tsc"}}\n', encoding="utf-8")
+    (tmp_path / "tsconfig.json").write_text("{}\n", encoding="utf-8")
+    app = tmp_path / "src" / "App.tsx"
+    app.parent.mkdir()
+    app.write_text("export function App() { return null }\n", encoding="utf-8")
+
+    plan = plan_repo_context(
+        root=str(tmp_path),
+        instruction="Review wallet app entrypoints.",
+        max_files=12,
+    )
+
+    assert {"rust", "node-react"}.issubset(set(plan["detected_project_types"]))
+    assert "crates/wallet/src/main.rs" in plan["selected_paths"]
+    assert "crates/wallet/src/lib.rs" in plan["selected_paths"]
+    assert "src/App.tsx" in plan["selected_paths"]
+    reasons = {
+        candidate["path"]: candidate["reason"]
+        for candidate in plan["candidates"]
+    }
+    assert reasons["crates/wallet/src/main.rs"] == "rust entrypoint"
+    assert reasons["src/App.tsx"] == "node-react entrypoint"
+
+
 def test_plan_repo_context_detects_tensorflow_docker_and_actions(
     tmp_path: Path,
 ) -> None:
     (tmp_path / "requirements.txt").write_text("tensorflow==2.16.1\n", encoding="utf-8")
     (tmp_path / "train.py").write_text("import tensorflow as tf\n", encoding="utf-8")
+    (tmp_path / "evaluate.py").write_text("print('eval')\n", encoding="utf-8")
+    (tmp_path / "model.py").write_text("print('model')\n", encoding="utf-8")
     (tmp_path / "Dockerfile").write_text("FROM python:3.12-slim\n", encoding="utf-8")
     workflow = tmp_path / ".github" / "workflows" / "ci.yml"
     workflow.parent.mkdir(parents=True)
@@ -335,6 +370,8 @@ def test_plan_repo_context_detects_tensorflow_docker_and_actions(
     assert profiles["tensorflow"]["recommended_test_ids"] == ["python-pytest"]
     assert profiles["docker"]["recommended_test_ids"] == ["docker-compose-config"]
     assert profiles["github-actions"]["label"] == "GitHub Actions CI/CD"
+    assert "evaluate.py" in plan["selected_paths"]
+    assert "model.py" in plan["selected_paths"]
 
 
 def test_chat_service_injects_repo_context_into_local_prompt(tmp_path: Path) -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import fnmatch
 from pathlib import Path
 import re
 
@@ -712,18 +713,26 @@ def _stack_entrypoint_files(
 ) -> list[tuple[Path, str]]:
     project_types = set(detected_project_types)
     matches: list[tuple[Path, str]] = []
-    for relative in scanned_files:
-        name = relative.name.lower()
-        path_text = relative.as_posix().lower()
-        if "dotnet" in project_types and name in {"program.cs", "startup.cs"}:
-            matches.append((relative, "dotnet entrypoint"))
-        if (
-            "java" in project_types
-            and "src/main/" in path_text
-            and (name.endswith("application.java") or name.endswith("application.kt"))
-        ):
-            matches.append((relative, "java application entrypoint"))
+    for project_type in sorted(project_types):
+        profile = STACK_CONTEXT_PROFILES.get(project_type)
+        if profile is None:
+            continue
+        patterns = [str(pattern) for pattern in profile["entrypoint_patterns"]]
+        for relative in scanned_files:
+            if not _is_plan_candidate_file(relative):
+                continue
+            if any(_matches_stack_pattern(relative, pattern) for pattern in patterns):
+                matches.append((relative, f"{project_type} entrypoint"))
     return sorted(matches, key=lambda item: item[0].as_posix())[:8]
+
+
+def _matches_stack_pattern(relative: Path, pattern: str) -> bool:
+    normalized_pattern = pattern.replace("\\", "/").lower()
+    path_text = relative.as_posix().lower()
+    name = relative.name.lower()
+    if "/" in normalized_pattern:
+        return fnmatch.fnmatchcase(path_text, normalized_pattern)
+    return fnmatch.fnmatchcase(name, normalized_pattern)
 
 
 def _instruction_matched_files(instruction: str, scanned_files: list[Path]) -> list[Path]:

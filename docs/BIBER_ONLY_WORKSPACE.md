@@ -73,6 +73,10 @@ branch, short HEAD, dirty status, and `git status --short` before edits/tests.
 Repo-context and safe-edit paths must stay workspace-relative; Windows
 drive-relative paths are rejected, and repo-context scanning skips symlinked
 entries so local context does not follow links outside the target repo.
+Repo-context planning uses stack profile entrypoint patterns, so detected Rust,
+React/TypeScript, Python, TensorFlow, Docker, GitHub Actions, Java, and .NET
+projects can pull in their likely app/build/test entrypoints before falling
+back to broad instruction-term matches.
 Workspace edit plans include a deterministic `review` block with
 `review_status`, `ready_for_apply`, risk/operation counts, warnings, blockers,
 and required actions. Apply still requires the matching `plan_hash`; the review
