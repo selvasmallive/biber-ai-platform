@@ -209,7 +209,9 @@ When the next intended plan-only edit is ready, save the guarded exact-edit spec
 include `run_next_required_edit_spec_plan`, which runs
 `biber_live_provider_real_repo_plan_smoke.py --required-edit-spec ...` against
 the current target root. It uses the local provider/GPU and still stops before
-apply, GitHub save, OpenAI mentor, or training.
+apply, GitHub save, OpenAI mentor, or training. After a verified edit is
+saved/pushed, replace this spec before rerunning the command so completed edits
+are not planned again.
 When the plan-only result is ready, its `explicit_apply_approval` block gives
 the exact apply and verify command arrays. Treat them as pending instructions:
 do not run apply until the user explicitly approves the specific `plan_hash`,
