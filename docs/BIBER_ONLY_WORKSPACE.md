@@ -186,6 +186,23 @@ separate evidence.
 For the next real task, pass `--required-path` plus either
 `--required-old-text`/`--required-new-text` or the `*-file` variants. The
 summary records `required_edit`, and the flow still stops before apply.
+For less fragile shell quoting, prepare a JSON spec and pass it with
+`--required-edit-spec` instead:
+
+```json
+{
+  "path": "docs/BIBER_ONLY_WORKSPACE.md",
+  "old_text": "exact old text\n",
+  "new_text": "exact new text\n",
+  "changed_paths": ["docs/BIBER_ONLY_WORKSPACE.md"],
+  "max_context_files": 1
+}
+```
+
+The spec may also use `old_text_file` and `new_text_file`; relative file paths
+are resolved from the spec file directory. Explicit CLI `--required-*`,
+`--changed-path`, `--pinned-path`, and instruction flags still override the
+spec.
 When the plan-only result is ready, its `explicit_apply_approval` block gives
 the exact apply and verify command arrays. Treat them as pending instructions:
 do not run apply until the user explicitly approves the specific `plan_hash`,

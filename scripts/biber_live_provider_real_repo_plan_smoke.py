@@ -113,6 +113,127 @@ def resolve_required_text(
     return default
 
 
+def load_required_edit_spec(path: str | None) -> tuple[dict[str, Any], Path | None]:
+    if not path:
+        return {}, None
+    spec_path = Path(path)
+    try:
+        payload = json.loads(spec_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise RuntimeError(f"Could not read required edit spec: {spec_path}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Required edit spec is not valid JSON: {spec_path}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("Required edit spec must be a JSON object.")
+    return dict(payload), spec_path
+
+
+def first_spec_string(spec: dict[str, Any], *keys: str) -> str | None:
+    for key in keys:
+        value = spec.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            raise RuntimeError(f"Required edit spec field `{key}` must be a string.")
+        return value
+    return None
+
+
+def read_required_edit_spec_text_file(
+    *,
+    spec_path: Path,
+    value: str,
+    label: str,
+) -> str:
+    text_path = Path(value)
+    if not text_path.is_absolute():
+        text_path = spec_path.parent / text_path
+    try:
+        return text_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(
+            f"Could not read required edit spec {label} file: {text_path}"
+        ) from exc
+
+
+def spec_string_list(spec: dict[str, Any], *keys: str) -> list[str] | None:
+    for key in keys:
+        value = spec.get(key)
+        if value is None:
+            continue
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, list) and all(isinstance(item, str) for item in value):
+            return [str(item) for item in value]
+        raise RuntimeError(
+            f"Required edit spec field `{key}` must be a string or list of strings."
+        )
+    return None
+
+
+def apply_required_edit_spec(
+    args: argparse.Namespace,
+) -> tuple[dict[str, Any], Path | None]:
+    spec, spec_path = load_required_edit_spec(args.required_edit_spec)
+    if not spec:
+        return spec, spec_path
+
+    if args.required_path is None:
+        args.required_path = first_spec_string(spec, "required_path", "path")
+
+    if args.required_old_text is None and args.required_old_text_file is None:
+        old_text = first_spec_string(spec, "required_old_text", "old_text")
+        old_text_file = first_spec_string(
+            spec,
+            "required_old_text_file",
+            "old_text_file",
+        )
+        if old_text is not None and old_text_file is not None:
+            raise RuntimeError(
+                "Required edit spec must not set both old_text and old_text_file."
+            )
+        if old_text is not None:
+            args.required_old_text = old_text
+        elif old_text_file is not None and spec_path is not None:
+            args.required_old_text = read_required_edit_spec_text_file(
+                spec_path=spec_path,
+                value=old_text_file,
+                label="old_text",
+            )
+
+    if args.required_new_text is None and args.required_new_text_file is None:
+        new_text = first_spec_string(spec, "required_new_text", "new_text")
+        new_text_file = first_spec_string(
+            spec,
+            "required_new_text_file",
+            "new_text_file",
+        )
+        if new_text is not None and new_text_file is not None:
+            raise RuntimeError(
+                "Required edit spec must not set both new_text and new_text_file."
+            )
+        if new_text is not None:
+            args.required_new_text = new_text
+        elif new_text_file is not None and spec_path is not None:
+            args.required_new_text = read_required_edit_spec_text_file(
+                spec_path=spec_path,
+                value=new_text_file,
+                label="new_text",
+            )
+
+    if args.context_instruction is None:
+        args.context_instruction = first_spec_string(spec, "context_instruction")
+    if args.plan_instruction is None:
+        args.plan_instruction = first_spec_string(spec, "plan_instruction")
+    if args.changed_path is None:
+        args.changed_path = spec_string_list(spec, "changed_paths", "changed_path")
+    if args.pinned_path is None:
+        args.pinned_path = spec_string_list(spec, "pinned_paths", "pinned_path")
+    if args.max_context_files is None and spec.get("max_context_files") is not None:
+        args.max_context_files = int(spec["max_context_files"])
+    return spec, spec_path
+
+
 def resolve_profile_required_texts(
     *,
     target_root: Path,
@@ -703,6 +824,7 @@ def build_summary(
             "new_text_chars": len(required_new_text),
             "old_text_preview": compact_preview(required_old_text),
             "new_text_preview": compact_preview(required_new_text),
+            "spec_path": args.required_edit_spec,
         },
         "required_target_probe": required_target_probe,
         "max_context_files": args.max_context_files,
@@ -806,6 +928,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         or DEFAULT_MODEL
     )
     profile = SMOKE_PROFILES[args.smoke_profile]
+    required_edit_spec, required_edit_spec_path = apply_required_edit_spec(args)
     context_instruction = (
         args.context_instruction
         or profile.get("context_instruction")
@@ -1044,6 +1167,11 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         chain=chain,
         review=review,
     )
+    if required_edit_spec_path is not None:
+        summary["required_edit_spec"] = {
+            "path": str(required_edit_spec_path),
+            "keys": sorted(str(key) for key in required_edit_spec),
+        }
     write_json(artifact_dir / "real-repo-plan-smoke-summary.json", summary)
     if args.cleanup and summary.get("ok") is True:
         if isinstance(summary.get("explicit_apply_approval"), dict):
@@ -1091,6 +1219,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--target-root")
     parser.add_argument("--output-root")
+    parser.add_argument(
+        "--required-edit-spec",
+        help=(
+            "Optional JSON object with path/old_text/new_text for the guarded "
+            "required edit. CLI --required-* flags take precedence."
+        ),
+    )
     parser.add_argument("--changed-path", action="append", default=None)
     parser.add_argument("--pinned-path", action="append", default=None)
     parser.add_argument("--test-id", default=DEFAULT_TEST_ID)

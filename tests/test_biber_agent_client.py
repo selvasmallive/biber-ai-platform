@@ -8948,6 +8948,7 @@ def test_live_provider_real_repo_plan_smoke_has_code_profile() -> None:
     assert "DEFAULT_MAX_CONTEXT_FILES" in text
     assert "Preferred JSON edit" in text
     assert "required_edit_json" in text
+    assert "--required-edit-spec" in text
     assert "--required-edit-fallback" in text
     assert "--mock-safe-noop" in text
     assert "required_edit_fallback" in text
@@ -9000,6 +9001,57 @@ def test_real_repo_plan_profile_selects_matching_docs_line_alternate(
 
     assert old_text == real_repo_smoke.DOCS_LINE_BIBER_MVP_ONLY_TEXT
     assert new_text == real_repo_smoke.DOCS_LINE_BIBER_ONLY_TEXT
+
+
+def test_real_repo_plan_required_edit_spec_applies_defaults(
+    tmp_path: Path,
+) -> None:
+    old_text_file = tmp_path / "old.txt"
+    new_text_file = tmp_path / "new.txt"
+    old_text_file.write_text("old line\n", encoding="utf-8")
+    new_text_file.write_text("new line\n", encoding="utf-8")
+    spec = tmp_path / "required-edit.json"
+    spec.write_text(
+        json.dumps(
+            {
+                "path": "docs/BIBER_ONLY_WORKSPACE.md",
+                "old_text_file": old_text_file.name,
+                "new_text_file": new_text_file.name,
+                "changed_paths": ["docs/BIBER_ONLY_WORKSPACE.md"],
+                "pinned_paths": ["scripts/biber_agent_client.py"],
+                "context_instruction": "Select only the docs context.",
+                "plan_instruction": "Plan only from the exact spec.",
+                "max_context_files": "2",
+            }
+        ),
+        encoding="utf-8",
+    )
+    args = SimpleNamespace(
+        required_edit_spec=str(spec),
+        required_path=None,
+        required_old_text=None,
+        required_old_text_file=None,
+        required_new_text=None,
+        required_new_text_file=None,
+        changed_path=None,
+        pinned_path=None,
+        context_instruction=None,
+        plan_instruction=None,
+        max_context_files=None,
+    )
+
+    payload, spec_path = real_repo_smoke.apply_required_edit_spec(args)
+
+    assert spec_path == spec
+    assert payload["path"] == "docs/BIBER_ONLY_WORKSPACE.md"
+    assert args.required_path == "docs/BIBER_ONLY_WORKSPACE.md"
+    assert args.required_old_text == "old line\n"
+    assert args.required_new_text == "new line\n"
+    assert args.changed_path == ["docs/BIBER_ONLY_WORKSPACE.md"]
+    assert args.pinned_path == ["scripts/biber_agent_client.py"]
+    assert args.context_instruction == "Select only the docs context."
+    assert args.plan_instruction == "Plan only from the exact spec."
+    assert args.max_context_files == 2
 
 
 def test_local_verified_repair_github_dry_run_smoke_documents_handoff() -> None:

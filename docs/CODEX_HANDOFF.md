@@ -4,6 +4,16 @@ Last updated: 2026-08-12
 
 ## Current Goal
 
+2026-08-12 latest BIBER required-edit spec checkpoint:
+`scripts/biber_live_provider_real_repo_plan_smoke.py` now accepts
+`--required-edit-spec`, a JSON object that can provide `path`/`required_path`,
+`old_text` or `old_text_file`, `new_text` or `new_text_file`, optional
+`changed_paths`, `pinned_paths`, instructions, and `max_context_files`. Explicit
+CLI flags still take precedence. This makes future exact real-repo plan-only GPU
+runs safer and easier to reproduce without fragile shell quoting. Next narrow
+step: validate locally, commit/push, fast-forward Vast, run a mock spec smoke and
+a live/readiness-safe spec plan smoke if appropriate, then refresh handoff.
+
 2026-08-12 latest BIBER canonical-artifact resume safety checkpoint:
 `live-mvp-resume-status` and latest ready-command discovery now prefer canonical
 top-level `*-latest.json` artifacts in the requested outputs directory before
