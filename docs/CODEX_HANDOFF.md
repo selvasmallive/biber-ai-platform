@@ -25,6 +25,24 @@ also passed the safe live-provider confidence gate and refreshed
 `refresh_resume_status`. Next narrow step: push/sync this checkpoint to Vast,
 run Vast py_compile plus a guarded ready-command dry-run/refresh smoke, then
 refresh the live MVP resume status again.
+2026-08-12 follow-up: commits `fcead37`, `feb37d1`, and `be73c03` were pushed
+to `biber/mvp-resume-20260712`; the current Vast GPU repo was fast-forwarded to
+`be73c03`. Vast `py_compile` passed for `scripts/biber_agent_client.py` and
+`tests/test_biber_agent_client.py`. The guarded runner executed
+`refresh_resume_status` from
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json` with `ok=True`,
+`execution_allowed=True`, `executed=True`, and `github_request_sent=False`,
+`mentor_used=False`, `training_allowed=False`. It also correctly rejected
+`rerun_live_provider_confidence_gate` without explicit flags using blockers
+`gpu_requires_allow_gpu` and `live_provider_requires_allow_live_provider`; after
+passing `--allow-gpu --allow-live-provider`, the same command ran the live
+provider confidence gate successfully with three green checks and no GitHub,
+mentor, or training use. Resume status was refreshed again and still reports
+`next_action=start_next_narrow_biber_step`, `target_git_clean=True`,
+`apply_decision_status=already_verified_history_only`, and ready labels
+`run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`, and
+`refresh_resume_status`. Continue with the next narrow BIBER MVP agent-flow
+improvement.
 
 2026-08-12 latest BIBER diagnosis-to-repair context checkpoint:
 commit `414f921` updates `scripts/biber_agent_client.py` so deterministic
