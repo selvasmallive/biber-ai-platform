@@ -4,6 +4,24 @@ Last updated: 2026-08-11
 
 ## Current Goal
 
+2026-08-12 latest BIBER ready-command reader checkpoint:
+commit `7ab4594` adds
+`show-live-mvp-ready-command <artifact> [--label LABEL|--index N]
+[--command-only]` to `scripts/biber_agent_client.py`. It reads a saved
+`live-mvp-resume-status` artifact and prints one filtered `next_ready_commands`
+entry without rerunning model/GPU work or parsing the full JSON by hand. This is
+offline/read-only and keeps GitHub requests, OpenAI mentor, training, and repo
+mutation disabled. Local validation passed bundled Python `py_compile`, a direct
+synthetic ready-command reader harness, `scripts/biber_local_confidence_smoke.py`,
+and `git diff --check`. The current Vast GPU was fast-forwarded to `7ab4594`;
+py_compile passed; `live-mvp-resume-status` refreshed
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json`; and
+`show-live-mvp-ready-command` selected `refresh_resume_status` with
+`selection_ok=True`, `safe=True`, `mutates_repo=False`, `mentor_used=False`, and
+`training_allowed=False`. Ready labels on Vast are
+`run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`, and
+`refresh_resume_status`.
+
 2026-08-12 latest BIBER ready-command subset checkpoint:
 commit `3c0bf79` adds `next_ready_commands` and
 `next_ready_command_labels` to `live-mvp-resume-status`. This is a filtered
