@@ -27,6 +27,15 @@ afterward and now reports canonical top-level artifacts, `plan_hash=6f6ad3b21127
 `target_git_clean=True`, `next_action=start_next_narrow_biber_step`, and latest
 ready labels `run_cpu_local_confidence_gate`,
 `rerun_live_provider_confidence_gate`, and `refresh_resume_status`.
+2026-08-12 live-provider follow-up: using the guarded ready-command runner,
+`rerun_live_provider_confidence_gate` was executed on the current SSH-enabled
+Vast GPU with `--allow-gpu --allow-live-provider`. It completed with `ok=True`,
+`github_request_sent=False`, `mentor_used=False`, and `training_allowed=False`,
+writing `/workspace/outputs/biber-live-provider-confidence-latest.json`. The
+guarded `refresh_resume_status` command then completed with `ok=True`; latest
+resume status still reports `plan_hash=6f6ad3b211279cded393cb00b04a6df029287a0a1c1540f5390f68a94f9617aa`,
+`target_git_clean=True`, `next_action=start_next_narrow_biber_step`, and
+canonical `preferred_canonical=True` discovery for the saved resume artifact.
 
 2026-08-12 latest BIBER prepare-latest-repair ready-command checkpoint:
 `live-mvp-resume-status` now summarizes the latest target-root-matching failed
