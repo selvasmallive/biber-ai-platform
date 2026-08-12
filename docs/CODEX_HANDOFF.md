@@ -99,6 +99,22 @@ longer exposed as a real-repo changed-path export. Continue with local-first
 BIBER MVP improvements; only use `export_latest_failure_changed_paths` when a
 real failed MVP artifact for the same target root exists.
 
+2026-08-12 latest BIBER live apply-decision clarity checkpoint:
+commit `d5ac10c` updates `live-mvp-resume-status` so
+`pending_apply_decision` now means an apply decision is actually actionable
+right now. The prior broad condition is preserved as
+`apply_candidate_available`, and a new `apply_decision_status` explains whether
+the plan `requires_explicit_apply_approval`,
+`already_verified_current_file_hashes_match`, `already_verified_history_only`,
+`apply_candidate_available_but_not_actionable`, or `not_ready`. This prevents
+old verified plan artifacts from reading like a fresh approval request. Local
+validation passed bundled Python `py_compile`, a direct saved-plan status
+harness, `scripts/biber_local_confidence_smoke.py`, and `git diff --check`.
+Next narrow step: push/sync this checkpoint to Vast, refresh
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json`, and confirm the
+live status shows `pending_apply_decision=False` with an `already_verified_*`
+status when the plan is already covered by verified apply history.
+
 2026-08-12 latest BIBER ready-command reader checkpoint:
 commit `7ab4594` adds
 `show-live-mvp-ready-command <artifact> [--label LABEL|--index N]
