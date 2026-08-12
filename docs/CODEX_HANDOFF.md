@@ -21,6 +21,20 @@ Python still does not have pytest installed. Next narrow step: commit/push this
 checkpoint, fast-forward Vast, run Vast py_compile and a compact
 `prepare-latest-repair` smoke against a disposable artifact directory, then
 refresh `/workspace/outputs/biber-live-mvp-resume-status-latest.json`.
+2026-08-12 follow-up: commit `faf6c20` was pushed to
+`biber/mvp-resume-20260712`; the current Vast GPU repo was fast-forwarded to
+it. Vast `py_compile` passed for `scripts/biber_agent_client.py` and
+`tests/test_biber_agent_client.py`. A compact disposable smoke under
+`/workspace/outputs/biber-prepare-latest-smoke-20260812T171451Z` confirmed
+`prepare-latest-repair --target-root` selected the target-root-matching failed
+MVP-loop artifact instead of the newer failure from another root, wrote a
+prepared repair request, and preserved `api_required=False`,
+`github_request_sent=False`, `mentor_used=False`, and `training_allowed=False`.
+The latest-artifact guarded `refresh_resume_status` then passed again; refreshed
+status still reports `target_git_clean=True`,
+`apply_decision_status=already_verified_history_only`, and
+`next_action=start_next_narrow_biber_step`. Continue with the next narrow BIBER
+MVP agent-flow improvement.
 
 2026-08-12 latest BIBER ready-command latest show/list checkpoint:
 `scripts/biber_agent_client.py` now also supports
