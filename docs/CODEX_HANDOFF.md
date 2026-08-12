@@ -30,6 +30,27 @@ resume status now reports
 explicit approval to apply plan hash
 `06a6bb6baf64be6e3b1389f99a4508d97405881a21c79433ddf4fc36888ebc77`; do not
 apply it without that approval.
+2026-08-12 apply follow-up: the user explicitly approved applying plan hash
+`06a6bb6baf64be6e3b1389f99a4508d97405881a21c79433ddf4fc36888ebc77`.
+The apply command from the plan artifact was run on the current Vast checkout
+and changed only `docs/BIBER_ONLY_WORKSPACE.md`; the embedded
+`local-verify-chain` command then passed `python-compileall-api`.
+The post-verification no-request GitHub bridge was created with
+`biber_live_verified_repair_github_dry_run_smoke.py` using dry-run branch
+`biber/live-stale-spec-docs-dry-run`, base
+`biber/mvp-resume-20260712`, and commit message
+`Document replacing completed BIBER required edit specs`. It produced
+`/workspace/outputs/biber-live-verified-github-dry-run-latest.json` with
+`ok=True`, `chain_status=verified`, `verification_status=passed`,
+`test_ok=True`, `dry_run_artifacts_matched=2`, `github_request_sent=False`,
+`mentor_used=False`, and `training_allowed=False`. Refreshed resume status now
+reports `next_action=save_verified_change_to_github_if_requested`,
+`target_git_clean=False`, `pending_apply_decision=False`,
+`apply_decision_status=already_verified_current_file_hashes_match`,
+`verified_apply_history_matches_plan=True`, `verified_apply_matches_plan=True`,
+and `verified_apply_file_hashes_match=True`. The Vast repo is intentionally
+dirty with the verified docs edit. Next step requires explicit approval to
+save/push this verified edit to GitHub branch `biber/mvp-resume-20260712`.
 
 2026-08-12 latest BIBER live required-edit plan checkpoint:
 A real `/workspace/outputs/biber-next-required-edit.json` was created on the
