@@ -88,6 +88,16 @@ and `git diff --check`. Next narrow step: push/sync this guard to Vast, refresh
 `/workspace/outputs/biber-live-mvp-resume-status-latest.json`, and confirm the
 fixture-derived `export_latest_failure_changed_paths` label is absent for the
 real `/workspace/biber-ai-platform` target unless a real failed MVP artifact exists.
+2026-08-12 follow-up: commits `2487f66` and `14126d9` were pushed and the
+current Vast GPU repo was fast-forwarded to `14126d9`. Vast py_compile passed
+and `live-mvp-resume-status --target-root /workspace/biber-ai-platform` now
+reports `failure_changed_paths.ok=False`, reason
+`no_failed_mvp_candidate_changed_paths`, `target_git_clean=True`, and ready
+labels only `run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`,
+and `refresh_resume_status`. This confirms the disposable fixture failure is no
+longer exposed as a real-repo changed-path export. Continue with local-first
+BIBER MVP improvements; only use `export_latest_failure_changed_paths` when a
+real failed MVP artifact for the same target root exists.
 
 2026-08-12 latest BIBER ready-command reader checkpoint:
 commit `7ab4594` adds
