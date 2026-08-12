@@ -13,6 +13,17 @@ CLI flags still take precedence. This makes future exact real-repo plan-only GPU
 runs safer and easier to reproduce without fragile shell quoting. Next narrow
 step: validate locally, commit/push, fast-forward Vast, run a mock spec smoke and
 a live/readiness-safe spec plan smoke if appropriate, then refresh handoff.
+2026-08-12 follow-up: commit `ecd1f55` was pushed to
+`biber/mvp-resume-20260712`; the current SSH-enabled Vast GPU repo was
+fast-forwarded to it. Local validation passed bundled Python `py_compile`,
+`git diff --check`, a direct no-pytest required-edit spec smoke, and
+`scripts/biber_local_confidence_smoke.py`; focused pytest is still unavailable
+in the bundled local Python. Vast `py_compile` passed. A `/tmp` mock spec smoke
+and a `/tmp` live-provider spec smoke both passed with `ok=True`,
+`mutation_performed=False`, `github_request_sent=False`, `mentor_used=False`,
+and `training_allowed=False`. The live spec smoke planned the exact edit
+directly with `fallback_used=False` and did not touch real repo files or
+canonical `/workspace/outputs` artifacts.
 
 2026-08-12 latest BIBER canonical-artifact resume safety checkpoint:
 `live-mvp-resume-status` and latest ready-command discovery now prefer canonical
