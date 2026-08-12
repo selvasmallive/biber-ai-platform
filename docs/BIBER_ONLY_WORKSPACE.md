@@ -227,6 +227,14 @@ Automation should prefer `next_ready_commands` when it wants only fully
 specified safe commands; this filtered subset excludes templates and any command
 that would mutate the repo, send GitHub requests, use OpenAI mentor, or allow
 training.
+To print one saved ready command without parsing JSON manually:
+
+```bash
+python scripts/biber_agent_client.py show-live-mvp-ready-command \
+  /workspace/outputs/biber-live-mvp-resume-status-latest.json \
+  --label rerun_live_provider_confidence_gate \
+  --command-only
+```
 
 This keeps Qwen2.5, Qwen3, llama.cpp, vLLM wrappers, and future local runners
 swappable without enabling OpenAI mentor, API auth, GPU training, or file apply.

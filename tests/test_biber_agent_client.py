@@ -1888,6 +1888,66 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
     ] == status["next_ready_command_labels"]
     assert status["artifact_path"] == str(status_artifact)
     assert json.loads(status_artifact.read_text(encoding="utf-8")) == status
+    ready_by_label = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "show-live-mvp-ready-command",
+                    str(status_artifact),
+                    "--label",
+                    "refresh_resume_status",
+                ]
+            )
+        )
+    )
+    ready_by_index = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "show-live-mvp-ready-command",
+                    str(status_artifact),
+                    "--index",
+                    "0",
+                ]
+            )
+        )
+    )
+    ready_command_only = client.run(
+        client.parse_args(
+            [
+                "show-live-mvp-ready-command",
+                str(status_artifact),
+                "--label",
+                "refresh_resume_status",
+                "--command-only",
+            ]
+        )
+    )
+    ready_summary = client.run(
+        client.parse_args(
+            [
+                "show-live-mvp-ready-command",
+                str(status_artifact),
+                "--label",
+                "refresh_resume_status",
+            ]
+        )
+    )
+    assert ready_by_label["source"] == "biber_live_mvp_ready_command_selection"
+    assert ready_by_label["label"] == "refresh_resume_status"
+    assert ready_by_label["safe"] is True
+    assert ready_by_label["mutates_repo"] is False
+    assert ready_by_label["github_request_sent"] is False
+    assert ready_by_label["mentor_used"] is False
+    assert ready_by_label["training_allowed"] is False
+    assert "--live-model" in ready_by_label["command_parts"]
+    assert ready_by_index["label"] == "inspect_pending_real_repo_plan"
+    assert ready_command_only == ready_by_label["command_text"]
+    assert "--live-base-url" in ready_command_only
+    assert "BIBER live MVP ready command" in ready_summary
+    assert "label: refresh_resume_status" in ready_summary
     assert "BIBER live MVP resume status" in summary
     assert "ready_for_apply_decision: True" in summary
     assert "plan_hash: plan-123" in summary

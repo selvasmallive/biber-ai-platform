@@ -15503,6 +15503,96 @@ def format_live_mvp_resume_status(payload: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def select_live_mvp_resume_ready_command(
+    payload: Mapping[str, Any],
+    *,
+    label: str | None = None,
+    index: int = 0,
+    artifact_path: str | None = None,
+) -> dict[str, Any]:
+    if payload.get("source") != "biber_live_mvp_resume_status":
+        raise BiberAgentClientError(
+            "live MVP ready command artifact must have source "
+            "biber_live_mvp_resume_status."
+        )
+    ready_commands = [
+        item
+        for item in require_list(payload.get("next_ready_commands"))
+        if isinstance(item, dict)
+    ]
+    if not ready_commands:
+        raise BiberAgentClientError(
+            "live MVP resume status artifact has no next_ready_commands."
+        )
+    selected_index = index
+    selected: dict[str, Any] | None = None
+    if label:
+        for candidate_index, command in enumerate(ready_commands):
+            if command.get("label") == label:
+                selected = dict(command)
+                selected_index = candidate_index
+                break
+        if selected is None:
+            labels = ", ".join(
+                str(command.get("label")) for command in ready_commands
+            )
+            raise BiberAgentClientError(
+                f"ready command label not found: {label}. Available labels: {labels}"
+            )
+    else:
+        if index < 0 or index >= len(ready_commands):
+            raise BiberAgentClientError(
+                f"ready command index {index} out of range for "
+                f"{len(ready_commands)} command(s)."
+            )
+        selected = dict(ready_commands[index])
+
+    return {
+        "source": "biber_live_mvp_ready_command_selection",
+        "ok": True,
+        "artifact_path": artifact_path,
+        "status_next_action": payload.get("next_action"),
+        "selected_by": "label" if label else "index",
+        "selected_index": selected_index,
+        "available_labels": [
+            command.get("label") for command in ready_commands
+        ],
+        "command": selected,
+        "command_text": selected.get("command"),
+        "command_parts": selected.get("command_parts"),
+        "label": selected.get("label"),
+        "api_required": selected.get("api_required") is True,
+        "external_network_required": selected.get("external_network_required") is True,
+        "github_request_sent": selected.get("github_request_sent") is True,
+        "mentor_used": selected.get("mentor_used") is True,
+        "training_allowed": selected.get("training_allowed") is True,
+        "mutates_repo": selected.get("mutates_repo") is True,
+        "safe": selected.get("safe") is True,
+    }
+
+
+def format_live_mvp_ready_command_selection(payload: Mapping[str, Any]) -> str:
+    command = require_mapping(payload.get("command"))
+    lines = [
+        "BIBER live MVP ready command",
+        f"ok: {payload.get('ok') is True}",
+        f"artifact_path: {payload.get('artifact_path') or '-'}",
+        f"status_next_action: {payload.get('status_next_action') or '-'}",
+        f"label: {payload.get('label') or '-'}",
+        f"selected_index: {payload.get('selected_index', '-')}",
+        f"safe: {payload.get('safe') is True}",
+        f"mutates_repo: {payload.get('mutates_repo') is True}",
+        f"github_request_sent: {payload.get('github_request_sent') is True}",
+        f"mentor_used: {payload.get('mentor_used') is True}",
+        f"training_allowed: {payload.get('training_allowed') is True}",
+        f"command: {payload.get('command_text') or '-'}",
+    ]
+    description = command.get("description")
+    if description:
+        lines.append(f"description: {description}")
+    return "\n".join(lines)
+
+
 def format_real_repo_plan_smoke_artifact_summary(
     payload: Mapping[str, Any],
 ) -> str:
@@ -19065,6 +19155,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     live_mvp_resume_status.add_argument("--output")
 
+    show_live_mvp_ready_command = subparsers.add_parser(
+        "show-live-mvp-ready-command",
+        help=(
+            "Select one next_ready_commands entry from a saved "
+            "live-mvp-resume-status artifact."
+        ),
+    )
+    show_live_mvp_ready_command.add_argument("artifact")
+    show_live_mvp_ready_command.add_argument("--label")
+    show_live_mvp_ready_command.add_argument("--index", type=int, default=0)
+    show_live_mvp_ready_command.add_argument(
+        "--command-only",
+        action="store_true",
+        help="Print only the selected command text.",
+    )
+
     show_real_repo_plan_smoke = subparsers.add_parser(
         "show-real-repo-plan-smoke",
         help="Summarize a saved biber_live_provider_real_repo_plan_smoke.py artifact.",
@@ -20814,6 +20920,24 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(status, indent=2, sort_keys=True)
             if args.print_json
             else format_live_mvp_resume_status(status)
+        )
+    if args.command == "show-live-mvp-ready-command":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="live MVP resume status artifact",
+        )
+        selection = select_live_mvp_resume_ready_command(
+            artifact,
+            label=args.label,
+            index=args.index,
+            artifact_path=args.artifact,
+        )
+        if args.command_only:
+            return str(selection.get("command_text") or "")
+        return (
+            json.dumps(selection, indent=2, sort_keys=True)
+            if args.print_json
+            else format_live_mvp_ready_command_selection(selection)
         )
     if args.command == "show-real-repo-plan-smoke":
         artifact = load_json_artifact(
