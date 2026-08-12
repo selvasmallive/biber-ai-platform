@@ -15664,7 +15664,7 @@ def build_live_mvp_resume_status(
         verified_apply_history_matches_plan
         and verified_apply_file_hashes_match
     )
-    pending_apply_decision = (
+    apply_candidate_available = (
         real_repo_plan.get("ok") is True
         and real_repo_plan.get("review_status") == "ready_for_explicit_apply_approval"
         and bool(real_repo_plan.get("plan_hash"))
@@ -15672,8 +15672,19 @@ def build_live_mvp_resume_status(
         and real_repo_plan.get("repo_status_unchanged") is True
     )
     ready_for_apply_decision = (
-        pending_apply_decision and not verified_apply_history_matches_plan
+        apply_candidate_available and not verified_apply_history_matches_plan
     )
+    pending_apply_decision = ready_for_apply_decision
+    if ready_for_apply_decision:
+        apply_decision_status = "requires_explicit_apply_approval"
+    elif verified_apply_matches_plan:
+        apply_decision_status = "already_verified_current_file_hashes_match"
+    elif verified_apply_history_matches_plan:
+        apply_decision_status = "already_verified_history_only"
+    elif apply_candidate_available:
+        apply_decision_status = "apply_candidate_available_but_not_actionable"
+    else:
+        apply_decision_status = "not_ready"
     ok = (
         confidence.get("ok") is True
         and (ready_for_apply_decision or verified_apply_history_matches_plan)
@@ -15720,6 +15731,8 @@ def build_live_mvp_resume_status(
             for section in (confidence, real_repo_plan, github_bridge)
         ),
         "unsafe_flags": unsafe_flags,
+        "apply_candidate_available": apply_candidate_available,
+        "apply_decision_status": apply_decision_status,
         "pending_apply_decision": pending_apply_decision,
         "ready_for_apply_decision": ready_for_apply_decision,
         "verified_apply_history_matches_plan": verified_apply_history_matches_plan,
@@ -15756,6 +15769,8 @@ def format_live_mvp_resume_status(payload: Mapping[str, Any]) -> str:
         f"mentor_used: {payload.get('mentor_used') is True}",
         f"training_allowed: {payload.get('training_allowed') is True}",
         f"unsafe_flags: {','.join(str(item) for item in require_list(payload.get('unsafe_flags'))) or '-'}",
+        f"apply_candidate_available: {payload.get('apply_candidate_available') is True}",
+        f"apply_decision_status: {payload.get('apply_decision_status') or '-'}",
         f"pending_apply_decision: {payload.get('pending_apply_decision') is True}",
         f"ready_for_apply_decision: {payload.get('ready_for_apply_decision') is True}",
         f"verified_apply_history_matches_plan: {payload.get('verified_apply_history_matches_plan') is True}",

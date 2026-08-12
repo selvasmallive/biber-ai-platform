@@ -1839,6 +1839,9 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
 
     assert status["source"] == "biber_live_mvp_resume_status"
     assert status["ok"] is True
+    assert status["apply_candidate_available"] is True
+    assert status["apply_decision_status"] == "requires_explicit_apply_approval"
+    assert status["pending_apply_decision"] is True
     assert status["ready_for_apply_decision"] is True
     assert status["plan_hash"] == "plan-123"
     assert status["next_action"] == "human_decision_required_for_real_repo_plan_hash"
@@ -1980,6 +1983,9 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
     assert "BIBER live MVP ready command" in ready_summary
     assert "label: refresh_resume_status" in ready_summary
     assert "BIBER live MVP resume status" in summary
+    assert "apply_candidate_available: True" in summary
+    assert "apply_decision_status: requires_explicit_apply_approval" in summary
+    assert "pending_apply_decision: True" in summary
     assert "ready_for_apply_decision: True" in summary
     assert "plan_hash: plan-123" in summary
     assert "confidence: ok=True mode=live checks=3" in summary
@@ -2144,7 +2150,11 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     )
 
     assert status["ok"] is True
-    assert status["pending_apply_decision"] is True
+    assert status["apply_candidate_available"] is True
+    assert status["apply_decision_status"] == (
+        "already_verified_current_file_hashes_match"
+    )
+    assert status["pending_apply_decision"] is False
     assert status["ready_for_apply_decision"] is False
     assert status["verified_apply_history_matches_plan"] is True
     assert status["verified_apply_matches_plan"] is True
@@ -2197,7 +2207,12 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
         "biber_live_provider_real_repo_plan_smoke.py"
         in next_commands["prepare_next_plan_only_required_edit"]["command"]
     )
-    assert "pending_apply_decision: True" in summary
+    assert "apply_candidate_available: True" in summary
+    assert (
+        "apply_decision_status: already_verified_current_file_hashes_match"
+        in summary
+    )
+    assert "pending_apply_decision: False" in summary
     assert "ready_for_apply_decision: False" in summary
     assert "verified_apply_history_matches_plan: True" in summary
     assert "verified_apply_matches_plan: True" in summary
@@ -2225,7 +2240,9 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
         )
     )
 
-    assert moved_status["pending_apply_decision"] is True
+    assert moved_status["apply_candidate_available"] is True
+    assert moved_status["apply_decision_status"] == "already_verified_history_only"
+    assert moved_status["pending_apply_decision"] is False
     assert moved_status["ready_for_apply_decision"] is False
     assert moved_status["verified_apply_history_matches_plan"] is True
     assert moved_status["verified_apply_matches_plan"] is False
