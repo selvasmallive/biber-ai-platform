@@ -15886,6 +15886,11 @@ def select_live_mvp_resume_ready_command(
             )
         selected = dict(ready_commands[index])
 
+    command_parts = [str(part) for part in require_list(selected.get("command_parts"))]
+    command_text = selected.get("command")
+    if not command_text and command_parts:
+        command_text = format_cli_command(command_parts)
+
     return {
         "source": "biber_live_mvp_ready_command_selection",
         "ok": True,
@@ -15897,8 +15902,8 @@ def select_live_mvp_resume_ready_command(
             command.get("label") for command in ready_commands
         ],
         "command": selected,
-        "command_text": selected.get("command"),
-        "command_parts": selected.get("command_parts"),
+        "command_text": command_text,
+        "command_parts": command_parts,
         "label": selected.get("label"),
         "api_required": selected.get("api_required") is True,
         "external_network_required": selected.get("external_network_required") is True,
@@ -19893,6 +19898,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Print only the selected command text.",
     )
 
+    show_latest_live_mvp_ready_command = subparsers.add_parser(
+        "show-latest-live-mvp-ready-command",
+        help=(
+            "Find the newest saved live-mvp-resume-status artifact and select "
+            "one next_ready_commands entry from it."
+        ),
+    )
+    show_latest_live_mvp_ready_command.add_argument("directory")
+    show_latest_live_mvp_ready_command.add_argument(
+        "--pattern",
+        default="*live-mvp-resume-status*.json",
+    )
+    show_latest_live_mvp_ready_command.add_argument("--label")
+    show_latest_live_mvp_ready_command.add_argument("--index", type=int, default=0)
+    show_latest_live_mvp_ready_command.add_argument(
+        "--command-only",
+        action="store_true",
+        help="Print only the selected command text.",
+    )
+
     list_live_mvp_ready_commands = subparsers.add_parser(
         "list-live-mvp-ready-commands",
         help=(
@@ -19901,6 +19926,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     list_live_mvp_ready_commands.add_argument("artifact")
+
+    list_latest_live_mvp_ready_commands = subparsers.add_parser(
+        "list-latest-live-mvp-ready-commands",
+        help=(
+            "Find the newest saved live-mvp-resume-status artifact and list "
+            "all next_ready_commands entries from it."
+        ),
+    )
+    list_latest_live_mvp_ready_commands.add_argument("directory")
+    list_latest_live_mvp_ready_commands.add_argument(
+        "--pattern",
+        default="*live-mvp-resume-status*.json",
+    )
 
     run_live_mvp_ready_command = subparsers.add_parser(
         "run-live-mvp-ready-command",
@@ -21751,6 +21789,26 @@ def run(args: argparse.Namespace) -> str:
             if args.print_json
             else format_live_mvp_ready_command_selection(selection)
         )
+    if args.command == "show-latest-live-mvp-ready-command":
+        artifact = find_latest_live_mvp_resume_status_artifact(
+            directory=args.directory,
+            pattern=args.pattern,
+        )
+        selected_status_artifact_path = str(artifact.get("artifact_path") or "")
+        selection = select_live_mvp_resume_ready_command(
+            artifact,
+            label=args.label,
+            index=args.index,
+            artifact_path=selected_status_artifact_path,
+        )
+        selection["artifact_discovery"] = require_mapping(artifact.get("artifact_list"))
+        if args.command_only:
+            return str(selection.get("command_text") or "")
+        return (
+            json.dumps(selection, indent=2, sort_keys=True)
+            if args.print_json
+            else format_live_mvp_ready_command_selection(selection)
+        )
     if args.command == "list-live-mvp-ready-commands":
         artifact = load_json_artifact(
             args.artifact,
@@ -21759,6 +21817,24 @@ def run(args: argparse.Namespace) -> str:
         ready_commands = list_live_mvp_resume_ready_commands(
             artifact,
             artifact_path=args.artifact,
+        )
+        return (
+            json.dumps(ready_commands, indent=2, sort_keys=True)
+            if args.print_json
+            else format_live_mvp_ready_command_list(ready_commands)
+        )
+    if args.command == "list-latest-live-mvp-ready-commands":
+        artifact = find_latest_live_mvp_resume_status_artifact(
+            directory=args.directory,
+            pattern=args.pattern,
+        )
+        selected_status_artifact_path = str(artifact.get("artifact_path") or "")
+        ready_commands = list_live_mvp_resume_ready_commands(
+            artifact,
+            artifact_path=selected_status_artifact_path,
+        )
+        ready_commands["artifact_discovery"] = require_mapping(
+            artifact.get("artifact_list")
         )
         return (
             json.dumps(ready_commands, indent=2, sort_keys=True)

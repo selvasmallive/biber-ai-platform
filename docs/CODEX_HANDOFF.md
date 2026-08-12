@@ -4,6 +4,23 @@ Last updated: 2026-08-12
 
 ## Current Goal
 
+2026-08-12 latest BIBER ready-command latest show/list checkpoint:
+`scripts/biber_agent_client.py` now also supports
+`show-latest-live-mvp-ready-command <outputs-dir>` and
+`list-latest-live-mvp-ready-commands <outputs-dir>`, using the same valid-source
+latest resume-status discovery as `run-latest-live-mvp-ready-command`. The
+ready-command selector now formats `command_parts` as the fallback
+`command_text` when an artifact has parts but no pre-rendered command string, so
+`--command-only` stays useful for synthetic or compact status artifacts. This is
+read-only for show/list and preserves the same no-GitHub, no-mentor,
+no-training posture. Local validation passed bundled Python `py_compile`, a
+focused direct latest show/list/run harness, `scripts/biber_local_confidence_smoke.py`,
+and `git diff --check`. Focused pytest was not run because the bundled local
+Python still does not have pytest installed. Next narrow step: commit/push this
+checkpoint, fast-forward Vast, run Vast py_compile plus
+`show-latest-live-mvp-ready-command` and `list-latest-live-mvp-ready-commands`
+against `/workspace/outputs`, then refresh the live MVP resume status.
+
 2026-08-12 latest BIBER ready-command latest-artifact checkpoint:
 `scripts/biber_agent_client.py` now has
 `run-latest-live-mvp-ready-command <outputs-dir>`, which finds the newest valid

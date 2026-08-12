@@ -2213,6 +2213,49 @@ def test_run_latest_live_mvp_ready_command_uses_newest_status_artifact(
     os.utime(unrelated_artifact, (150.0, 150.0))
     os.utime(newer_artifact, (200.0, 200.0))
 
+    show_latest = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "show-latest-live-mvp-ready-command",
+                    str(tmp_path),
+                    "--label",
+                    "refresh_resume_status",
+                ]
+            )
+        )
+    )
+    show_latest_command_only = client.run(
+        client.parse_args(
+            [
+                "show-latest-live-mvp-ready-command",
+                str(tmp_path),
+                "--label",
+                "refresh_resume_status",
+                "--command-only",
+            ]
+        )
+    )
+    list_latest = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "list-latest-live-mvp-ready-commands",
+                    str(tmp_path),
+                ]
+            )
+        )
+    )
+    assert show_latest["label"] == "refresh_resume_status"
+    assert show_latest["artifact_path"] == str(newer_artifact)
+    assert show_latest["artifact_discovery"]["matched"] == 2
+    assert show_latest_command_only == show_latest["command_text"]
+    assert list_latest["artifact_path"] == str(newer_artifact)
+    assert list_latest["count"] == 1
+    assert list_latest["labels"] == ["refresh_resume_status"]
+
     run_calls: dict[str, object] = {}
 
     def fake_subprocess_run(

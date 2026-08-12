@@ -247,6 +247,17 @@ python scripts/biber_agent_client.py list-live-mvp-ready-commands \
   /workspace/outputs/biber-live-mvp-resume-status-latest.json
 ```
 
+When the exact status JSON path is not known, use the latest-artifact variants:
+
+```bash
+python scripts/biber_agent_client.py show-latest-live-mvp-ready-command \
+  /workspace/outputs \
+  --label refresh_resume_status
+
+python scripts/biber_agent_client.py list-latest-live-mvp-ready-commands \
+  /workspace/outputs
+```
+
 To run one saved ready command through the built-in guard instead of copying the
 command by hand:
 
