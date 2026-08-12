@@ -14151,6 +14151,59 @@ def build_latest_mvp_loop_repair_request(
     return repair
 
 
+def find_latest_failed_mvp_loop_summary(
+    *,
+    directory: str,
+    pattern: str = "*mvp-loop*.json",
+    target_root: str | None = None,
+) -> dict[str, Any]:
+    try:
+        artifacts = list_mvp_loop_artifacts(
+            directory=directory,
+            pattern=pattern,
+            limit=1,
+            failed_only=True,
+            target_root=target_root,
+        )
+    except BiberAgentClientError as exc:
+        return compact_artifact_error(exc)
+    latest = next(iter(require_list(artifacts.get("artifacts"))), None)
+    if not isinstance(latest, dict):
+        return {
+            "ok": False,
+            "reason": "no_failed_mvp_loop_artifact",
+            "directory": str(Path(directory)),
+            "pattern": pattern,
+            "target_root": target_root,
+            "scanned": artifacts.get("scanned", 0),
+            "matched": 0,
+            "api_required": False,
+            "github_request_sent": False,
+            "mentor_used": False,
+            "training_allowed": False,
+        }
+    return {
+        "ok": True,
+        "reason": "latest_failed_mvp_loop_artifact",
+        "directory": str(Path(directory)),
+        "pattern": pattern,
+        "target_root": target_root,
+        "scanned": artifacts.get("scanned", 0),
+        "matched": len(require_list(artifacts.get("artifacts"))),
+        "artifact_path": latest.get("path"),
+        "test_ok": latest.get("test_ok"),
+        "agent_report_status": latest.get("agent_report_status"),
+        "repair_hint_status": latest.get("repair_hint_status"),
+        "repair_next_step": latest.get("repair_next_step"),
+        "repair_primary_category": latest.get("repair_primary_category"),
+        "repair_detected_stack": latest.get("repair_detected_stack"),
+        "api_required": False,
+        "github_request_sent": False,
+        "mentor_used": False,
+        "training_allowed": False,
+    }
+
+
 def export_mvp_loop_failures(
     *,
     directory: str,
@@ -15334,6 +15387,7 @@ def build_live_mvp_resume_next_commands(
     live_base_url: str = DEFAULT_LOCAL_OPENAI_BASE_URL,
     live_model: str = DEFAULT_LOCAL_OPENAI_MODEL,
     failure_changed_paths: Mapping[str, Any] | None = None,
+    latest_failed_mvp_loop: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     root = Path(directory)
     target = target_root or "/workspace/biber-ai-platform"
@@ -15481,6 +15535,31 @@ def build_live_mvp_resume_next_commands(
                     ],
                 )
             )
+        latest_failure = require_mapping(latest_failed_mvp_loop)
+        if latest_failure.get("ok") is True and latest_failure.get("artifact_path"):
+            prepare_parts: list[object] = [
+                python_executable,
+                "scripts/biber_agent_client.py",
+                "prepare-latest-repair",
+                directory,
+                "--pattern",
+                "*mvp-loop*.json",
+                "--output",
+                root / "biber-prepared-latest-repair.json",
+            ]
+            if target_root:
+                prepare_parts.extend(["--target-root", target])
+            start_next_commands.append(
+                command_entry(
+                    label="prepare_latest_repair",
+                    description=(
+                        "Build a prepared repair request from the latest failed "
+                        "MVP-loop artifact for this target root."
+                    ),
+                    environment="local-or-vast-artifact-reader",
+                    command_parts=prepare_parts,
+                )
+            )
         start_next_commands.extend(
             [
                 command_entry(
@@ -15598,6 +15677,7 @@ def build_live_mvp_resume_status(
     real_repo_plan: dict[str, Any]
     github_bridge: dict[str, Any]
     failure_changed_paths: dict[str, Any]
+    latest_failed_mvp_loop: dict[str, Any]
     target_git_status: dict[str, Any] | None = None
     apply_hash_status: dict[str, Any] | None = None
     try:
@@ -15692,6 +15772,11 @@ def build_live_mvp_resume_status(
         pattern="*mvp-loop*.json",
         target_root=target_root,
     )
+    latest_failed_mvp_loop = find_latest_failed_mvp_loop_summary(
+        directory=directory,
+        pattern="*mvp-loop*.json",
+        target_root=target_root,
+    )
 
     if target_root:
         try:
@@ -15781,6 +15866,7 @@ def build_live_mvp_resume_status(
         live_base_url=live_base_url,
         live_model=live_model,
         failure_changed_paths=failure_changed_paths,
+        latest_failed_mvp_loop=latest_failed_mvp_loop,
     )
     next_ready_commands = filter_ready_live_mvp_resume_commands(next_commands)
     return {
@@ -15824,6 +15910,7 @@ def build_live_mvp_resume_status(
         "real_repo_plan": real_repo_plan,
         "github_bridge": github_bridge,
         "failure_changed_paths": failure_changed_paths,
+        "latest_failed_mvp_loop": latest_failed_mvp_loop,
         "target_git_status": target_git_status,
         "verified_apply_hash_status": apply_hash_status,
     }
@@ -15834,6 +15921,7 @@ def format_live_mvp_resume_status(payload: Mapping[str, Any]) -> str:
     real_repo_plan = require_mapping(payload.get("real_repo_plan"))
     github_bridge = require_mapping(payload.get("github_bridge"))
     failure_changed_paths = require_mapping(payload.get("failure_changed_paths"))
+    latest_failed_mvp_loop = require_mapping(payload.get("latest_failed_mvp_loop"))
     lines = [
         "BIBER live MVP resume status",
         f"ok: {payload.get('ok') is True}",
@@ -15889,6 +15977,12 @@ def format_live_mvp_resume_status(payload: Mapping[str, Any]) -> str:
             f"ok={failure_changed_paths.get('ok')} "
             f"count={failure_changed_paths.get('candidate_changed_path_count', 0)} "
             f"artifact={failure_changed_paths.get('artifact_path', '-')}"
+        ),
+        (
+            "latest_failed_mvp_loop: "
+            f"ok={latest_failed_mvp_loop.get('ok')} "
+            f"repair_hint={latest_failed_mvp_loop.get('repair_hint_status', '-')} "
+            f"artifact={latest_failed_mvp_loop.get('artifact_path', '-')}"
         ),
     ]
     next_commands = [
@@ -16125,6 +16219,7 @@ def validate_live_mvp_ready_command_execution(
     allowed_agent_subcommands = {
         "export-mvp-failure-changed-paths",
         "live-mvp-resume-status",
+        "prepare-latest-repair",
         "show-latest-live-verified-github-dry-run",
         "show-latest-real-repo-plan-smoke",
     }

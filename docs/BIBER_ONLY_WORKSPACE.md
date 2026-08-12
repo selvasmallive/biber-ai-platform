@@ -242,6 +242,12 @@ Automation should prefer `next_ready_commands` when it wants only fully
 specified safe commands; this filtered subset excludes templates and any command
 that would mutate the repo, send GitHub requests, use OpenAI mentor, or allow
 training.
+When a target-root-matching failed saved `mvp-loop` artifact exists and the
+current verified plan is already handled, `live-mvp-resume-status` may include a
+safe ready command labeled `prepare_latest_repair`. That command runs
+`prepare-latest-repair` against the outputs directory, builds a local repair
+request from the latest failed artifact for the same target root, and does not
+call a model, GitHub, OpenAI mentor, training, or external APIs.
 To print one saved ready command without parsing JSON manually:
 
 ```bash

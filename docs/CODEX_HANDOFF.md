@@ -4,6 +4,21 @@ Last updated: 2026-08-12
 
 ## Current Goal
 
+2026-08-12 latest BIBER prepare-latest-repair ready-command checkpoint:
+`live-mvp-resume-status` now summarizes the latest target-root-matching failed
+saved `mvp-loop` artifact and, when the current verified plan is already
+handled with a clean target checkout, exposes a filtered safe ready command
+labeled `prepare_latest_repair`. That ready command runs
+`prepare-latest-repair <outputs-dir> --target-root <repo>` and writes a prepared
+repair request artifact without using GitHub, OpenAI mentor, training, external
+APIs, repo mutation, or model calls. Local validation passed bundled Python
+`py_compile`, a direct no-pytest status harness that verified the ready command
+and guard, and `git diff --check`; focused pytest is still unavailable in the
+bundled local Python. Next narrow step: commit/push this checkpoint,
+fast-forward Vast, run Vast `py_compile`, a compact disposable
+`live-mvp-resume-status` ready-command smoke, and refresh the latest Vast resume
+status.
+
 2026-08-12 latest BIBER prepare-latest-repair checkpoint:
 `scripts/biber_agent_client.py` now has
 `prepare-latest-repair <outputs-dir>`, which finds the newest failed saved

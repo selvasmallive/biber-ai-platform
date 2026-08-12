@@ -2576,6 +2576,173 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     )
 
 
+def test_live_mvp_resume_status_exposes_prepare_latest_repair_ready_command(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    target_root = tmp_path / "target-repo"
+    target_root.mkdir()
+    target_file = target_root / "docs" / "BIBER_ONLY_WORKSPACE.md"
+    target_file.parent.mkdir()
+    target_file.write_text("verified docs\n", encoding="utf-8")
+    target_sha = hashlib.sha256(target_file.read_bytes()).hexdigest()
+
+    def fake_git_status(target: Path) -> dict[str, object]:
+        assert target == target_root
+        return {
+            "available": True,
+            "target_root": str(target_root),
+            "branch": "biber/mvp-resume-20260712",
+            "head": "abc1234",
+            "dirty": False,
+            "status_short": [],
+            "modified_count": 0,
+            "untracked_count": 0,
+        }
+
+    monkeypatch.setattr(client, "git_status_local_target", fake_git_status)
+    (tmp_path / "biber-live-provider-confidence-latest.json").write_text(
+        json.dumps(
+            {
+                "source": "biber_live_provider_confidence_smoke",
+                "ok": True,
+                "mode": "live",
+                "github_request_sent": False,
+                "mentor_used": False,
+                "training_allowed": False,
+                "checks": [{"name": "readiness", "ok": True}],
+                "readiness": {"ok": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "biber-real-repo-plan-latest.json").write_text(
+        json.dumps(
+            {
+                "source": "biber_live_provider_real_repo_plan_smoke",
+                "ok": True,
+                "mode": "live",
+                "target_root": str(target_root),
+                "github_request_sent": False,
+                "mentor_used": False,
+                "training_allowed": False,
+                "mutation_performed": False,
+                "repo_status_unchanged": True,
+                "plan_outcome": "planned_for_review",
+                "review_status": "ready_for_explicit_apply_approval",
+                "apply_recommendation": "ready_for_explicit_apply_approval",
+                "planned": 1,
+                "rejected": 0,
+                "plan_hash": "plan-verified",
+                "explicit_apply_approval": {"required": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    apply_artifact = tmp_path / "real-repo-repair-edit-apply.json"
+    apply_artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "ok": True,
+                "plan_hash": "plan-verified",
+                "apply_status": "applied",
+                "edit_apply": {
+                    "ok": True,
+                    "applied": [
+                        {
+                            "path": "docs/BIBER_ONLY_WORKSPACE.md",
+                            "new_sha256": target_sha,
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "biber-live-verified-github-dry-run-latest.json").write_text(
+        json.dumps(
+            {
+                "source": "biber_live_verified_repair_github_dry_run_smoke",
+                "ok": True,
+                "mode": "artifact",
+                "target_root": str(target_root),
+                "chain_status": "verified",
+                "verification_status": "passed",
+                "test_ok": True,
+                "plan_hash": "plan-verified",
+                "apply_artifact": str(apply_artifact),
+                "paths": ["docs/BIBER_ONLY_WORKSPACE.md"],
+                "dry_run_artifacts_matched": 2,
+                "github_request_sent": False,
+                "mentor_used": False,
+                "training_allowed": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    failed_loop = tmp_path / "failed-mvp-loop.json"
+    failed_loop.write_text(
+        json.dumps(
+            {
+                "ok": False,
+                "target_root": str(target_root),
+                "steps": {
+                    "context_plan": {},
+                    "test_run": {
+                        "ok": False,
+                        "test_id": "python-compileall-api",
+                        "command": ["python", "-m", "compileall", "app"],
+                        "exit_code": 1,
+                        "timed_out": False,
+                        "stdout": "SyntaxError: invalid syntax\n",
+                    },
+                    "test_diagnosis": {
+                        "primary_category": "compile_error",
+                        "detected_stack": "python",
+                    },
+                },
+                "selected_context_paths": ["app/api.py"],
+                "test_ok": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    status = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "live-mvp-resume-status",
+                    str(tmp_path),
+                    "--target-root",
+                    str(target_root),
+                    "--python-command",
+                    "/workspace/biber-venv/bin/python",
+                ]
+            )
+        )
+    )
+    next_commands = {
+        str(item.get("label")): item
+        for item in status["next_commands"]
+        if isinstance(item, dict)
+    }
+
+    assert status["next_action"] == "start_next_narrow_biber_step"
+    assert status["latest_failed_mvp_loop"]["ok"] is True
+    assert status["latest_failed_mvp_loop"]["artifact_path"] == str(failed_loop)
+    assert "prepare_latest_repair" in status["next_ready_command_labels"]
+    assert next_commands["prepare_latest_repair"]["ready_to_run"] is True
+    assert next_commands["prepare_latest_repair"]["mutates_repo"] is False
+    assert next_commands["prepare_latest_repair"]["github_request_sent"] is False
+    assert next_commands["prepare_latest_repair"]["mentor_used"] is False
+    assert next_commands["prepare_latest_repair"]["training_allowed"] is False
+    assert "prepare-latest-repair" in next_commands["prepare_latest_repair"]["command_parts"]
+    assert "--target-root" in next_commands["prepare_latest_repair"]["command_parts"]
+
+
 def test_run_mvp_loop_can_include_github_dry_run_without_api_key(
     monkeypatch,
     tmp_path: Path,
