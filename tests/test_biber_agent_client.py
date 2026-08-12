@@ -3031,6 +3031,59 @@ def test_build_mvp_loop_repair_request_prioritizes_diagnosis_file_references(
     assert "BIBER_FILE_CONTENT_START\ndef status():" in repair["repair_prompt"]
 
 
+def test_build_mvp_failure_changed_paths_export_writes_changed_paths_file(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "failure-mvp-loop.json"
+    output = tmp_path / "changed-paths.txt"
+    payload = {
+        "instruction": "Repair the focused file.",
+        "candidate_changed_paths": ["src/api.py", "src/api.py"],
+        "failure": {
+            "file_references": [
+                {"path": "tests/test_api.py", "line": 4},
+                {"path": "/tmp/secret.txt", "line": 1},
+            ],
+        },
+        "agent_report": {
+            "repair_hint": {
+                "candidate_changed_paths": ["src/service.py", "../outside.py"],
+            }
+        },
+        "steps": {
+            "test_diagnosis": {
+                "file_references": [{"path": "src/api.py", "line": 2}]
+            }
+        },
+    }
+
+    export = client.build_mvp_failure_changed_paths_export(
+        path=artifact,
+        payload=payload,
+        output=str(output),
+        target_root="/workspace/biber-ai-platform",
+        instruction=None,
+        max_context_files=6,
+    )
+
+    assert export["source"] == "biber_mvp_failure_changed_paths_export"
+    assert export["ok"] is True
+    assert export["api_required"] is False
+    assert export["mentor_used"] is False
+    assert export["training_allowed"] is False
+    assert export["candidate_changed_paths"] == [
+        "src/api.py",
+        "tests/test_api.py",
+        "src/service.py",
+    ]
+    assert output.read_text(encoding="utf-8") == (
+        "src/api.py\ntests/test_api.py\nsrc/service.py\n"
+    )
+    assert "--changed-paths-file" in export["next_command"]
+    assert "--local-target-root /workspace/biber-ai-platform" in export["next_command"]
+    assert "--max-context-files 6" in export["next_command"]
+
+
 def test_build_mvp_loop_repair_request_uses_agent_report_context(
     tmp_path: Path,
 ) -> None:

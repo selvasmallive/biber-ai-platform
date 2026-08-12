@@ -1367,6 +1367,40 @@ def sanitize_repo_relative_paths(paths: list[object]) -> list[str]:
     return dedupe_strings(clean_paths) or []
 
 
+def artifact_candidate_changed_paths(payload: Mapping[str, Any]) -> list[str]:
+    candidates: list[object] = []
+
+    def add_paths(value: object) -> None:
+        candidates.extend(require_list(value))
+
+    def add_file_references(value: object) -> None:
+        for reference in require_list(value):
+            if isinstance(reference, Mapping):
+                candidates.append(reference.get("path"))
+            else:
+                candidates.append(reference)
+
+    add_paths(payload.get("candidate_changed_paths"))
+    add_file_references(require_mapping(payload.get("failure")).get("file_references"))
+    add_paths(require_mapping(payload.get("repair_hint")).get("candidate_changed_paths"))
+
+    agent_report = require_mapping(payload.get("agent_report"))
+    add_file_references(
+        require_mapping(agent_report.get("failure")).get("file_references")
+    )
+    add_paths(
+        require_mapping(agent_report.get("repair_hint")).get(
+            "candidate_changed_paths"
+        )
+    )
+
+    steps = require_mapping(payload.get("steps"))
+    candidates.extend(
+        diagnosis_file_reference_paths(require_mapping(steps.get("test_diagnosis")))
+    )
+    return sanitize_repo_relative_paths(candidates)
+
+
 def build_mvp_loop_agent_report(payload: Mapping[str, Any]) -> dict[str, Any]:
     steps = require_mapping(payload.get("steps"))
     selected_context_paths = [
@@ -2037,6 +2071,87 @@ def build_mvp_loop_repair_request(
     if runtime_profile_ids is not None:
         repair["runtime_profile_ids"] = runtime_profile_ids
     return repair
+
+
+def build_mvp_failure_changed_paths_export(
+    *,
+    path: Path,
+    payload: Mapping[str, Any],
+    output: str,
+    target_root: str | None,
+    instruction: str | None,
+    max_context_files: int | None,
+) -> dict[str, Any]:
+    candidate_changed_paths = artifact_candidate_changed_paths(payload)
+    output_path = Path(output)
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            "".join(f"{path}\n" for path in candidate_changed_paths),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        raise BiberAgentClientError(
+            f"Could not write changed paths file {output_path}: {exc}"
+        ) from exc
+
+    instruction_text = (
+        instruction
+        or str(payload.get("instruction") or "").strip()
+        or "Plan the next BIBER repair using diagnosis candidate changed paths."
+    )
+    next_command_parts: list[object] = [
+        "python",
+        "scripts/biber_agent_client.py",
+        "mvp-loop",
+        "--instruction",
+        instruction_text,
+        "--changed-paths-file",
+        output_path,
+        "--include-git-state",
+    ]
+    if target_root:
+        next_command_parts.extend(["--local-target-root", target_root])
+    if max_context_files is not None:
+        next_command_parts.extend(["--max-context-files", max_context_files])
+    return {
+        "source": "biber_mvp_failure_changed_paths_export",
+        "ok": bool(candidate_changed_paths),
+        "api_required": False,
+        "external_network_required": False,
+        "github_request_sent": False,
+        "mentor_used": False,
+        "training_allowed": False,
+        "source_artifact": str(path),
+        "changed_paths_file": str(output_path),
+        "candidate_changed_paths": candidate_changed_paths,
+        "candidate_changed_path_count": len(candidate_changed_paths),
+        "next_command": format_cli_command(next_command_parts),
+        "next_workflow": [
+            "run_mvp_loop_with_changed_paths_file",
+            "prepare_repair_if_test_fails",
+            "review_before_any_apply",
+        ],
+    }
+
+
+def format_mvp_failure_changed_paths_export_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    paths = [
+        str(path) for path in require_list(payload.get("candidate_changed_paths"))
+    ]
+    lines = [
+        "BIBER MVP failure changed-paths export",
+        f"ok: {bool(payload.get('ok'))}",
+        f"source_artifact: {payload.get('source_artifact', '-')}",
+        f"changed_paths_file: {payload.get('changed_paths_file', '-')}",
+        f"candidate_changed_paths: {len(paths)}",
+    ]
+    lines.extend(f"- {path}" for path in paths)
+    if payload.get("next_command"):
+        lines.append(f"next_command: {payload.get('next_command')}")
+    return "\n".join(lines)
 
 
 def ensure_repair_request_output_contract(
@@ -20752,6 +20867,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     prepare_repair.add_argument("--max-context-paths", type=int)
     prepare_repair.add_argument("--output")
 
+    export_failure_changed_paths = subparsers.add_parser(
+        "export-mvp-failure-changed-paths",
+        help=(
+            "Export sanitized candidate changed paths from a failed MVP/repair "
+            "artifact for use with mvp-loop --changed-paths-file."
+        ),
+    )
+    export_failure_changed_paths.add_argument("artifact")
+    export_failure_changed_paths.add_argument("--output", required=True)
+    export_failure_changed_paths.add_argument("--target-root")
+    export_failure_changed_paths.add_argument("--instruction")
+    export_failure_changed_paths.add_argument("--max-context-files", type=int)
+
     attempt_repair = subparsers.add_parser(
         "attempt-repair",
         help=(
@@ -22659,6 +22787,25 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(repair, indent=2, sort_keys=True)
             if args.print_json
             else format_mvp_loop_repair_request_summary(repair)
+        )
+    if args.command == "export-mvp-failure-changed-paths":
+        artifact_path = Path(args.artifact)
+        artifact = load_json_artifact(
+            str(artifact_path),
+            label="mvp-loop or repair artifact",
+        )
+        export = build_mvp_failure_changed_paths_export(
+            path=artifact_path,
+            payload=artifact,
+            output=args.output,
+            target_root=args.target_root,
+            instruction=args.instruction,
+            max_context_files=args.max_context_files,
+        )
+        return (
+            json.dumps(export, indent=2, sort_keys=True)
+            if args.print_json
+            else format_mvp_failure_changed_paths_export_summary(export)
         )
     if args.command == "local-repair-chain":
         artifact_path = Path(args.artifact)
