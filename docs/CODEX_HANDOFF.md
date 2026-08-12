@@ -23,6 +23,28 @@ installed. Next narrow step: commit/push this checkpoint, fast-forward the
 current Vast GPU repo, run Vast py_compile plus
 `run-latest-live-mvp-ready-command /workspace/outputs --label refresh_resume_status`,
 then refresh `/workspace/outputs/biber-live-mvp-resume-status-latest.json`.
+2026-08-12 follow-up: commit `66392f1` was pushed to
+`biber/mvp-resume-20260712`; the current Vast GPU repo at
+`/workspace/biber-ai-platform` was fast-forwarded to it. Vast `py_compile`
+passed for `scripts/biber_agent_client.py` and
+`tests/test_biber_agent_client.py`. The new latest-artifact runner selected
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json`, executed
+`refresh_resume_status`, and wrote
+`/workspace/outputs/biber-ready-command-run-latest-refresh-latest.json` with
+`ok=True`, `execution_allowed=True`, `executed=True`, and
+`github_request_sent=False`, `mentor_used=False`, `training_allowed=False`.
+The same latest-artifact runner also executed
+`rerun_live_provider_confidence_gate` with explicit
+`--allow-gpu --allow-live-provider`, writing
+`/workspace/outputs/biber-ready-command-run-latest-live-confidence-latest.json`;
+the live confidence gate passed with `ok=True`, three green checks,
+readiness `ok=True`, fixture plan `ok=True`, disposable repair `ok=True`, and
+no GitHub, mentor, or training use. Resume status was refreshed again and
+reports `target_git_clean=True`, `next_action=start_next_narrow_biber_step`,
+`apply_decision_status=already_verified_history_only`, and ready labels
+`run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`, and
+`refresh_resume_status`. Continue with another narrow BIBER MVP agent-flow
+improvement.
 
 2026-08-12 latest BIBER guarded ready-command runner checkpoint:
 commit `fcead37` adds
