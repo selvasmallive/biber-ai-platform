@@ -164,7 +164,7 @@ the workflow pieces that make a local model useful on real repositories.
 
 3. Better test-failure diagnosis loops:
    - parse common failure output for `.NET`, Maven/Gradle, Cargo, Node/React,
-     and pytest incrementally
+     pytest, Docker/Compose, PostgreSQL, and GitHub Actions incrementally
    - classify failures as compile errors, assertion failures, missing imports,
      dependency/config issues, flaky tests, or environment problems
    - send only concise, relevant failure context back to the model

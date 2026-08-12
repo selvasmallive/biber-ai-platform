@@ -151,6 +151,53 @@ def test_diagnose_vite_import_resolution_failure() -> None:
     assert diagnosis["signals"][0]["message"] == "Node import resolution error"
 
 
+def test_diagnose_docker_daemon_unavailable() -> None:
+    diagnosis = diagnose_test_failure(
+        command=["docker", "compose", "config"],
+        test_id="docker-compose-config",
+        exit_code=1,
+        stderr=(
+            "error while fetching server API version: "
+            "Cannot connect to the Docker daemon at unix:///var/run/docker.sock\n"
+        ),
+    )
+
+    assert diagnosis["detected_stack"] == "docker"
+    assert diagnosis["primary_category"] == "configuration_error"
+    assert diagnosis["signals"][0]["message"] == "Docker daemon unavailable"
+    assert "compose" in " ".join(diagnosis["suggested_next_actions"]).lower()
+
+
+def test_diagnose_postgres_sql_syntax_error() -> None:
+    diagnosis = diagnose_test_failure(
+        command=["psql", "-f", "migrations/001.sql"],
+        exit_code=3,
+        stderr="psql:migrations/001.sql:12: ERROR: syntax error at or near \"FROM\"\n",
+    )
+
+    assert diagnosis["detected_stack"] == "postgres"
+    assert diagnosis["primary_category"] == "compile_error"
+    assert diagnosis["signals"][0]["message"] == "PostgreSQL SQL syntax error"
+    assert "migrations" in " ".join(diagnosis["suggested_next_actions"]).lower()
+
+
+def test_diagnose_github_actions_workflow_error() -> None:
+    diagnosis = diagnose_test_failure(
+        command=["actionlint", ".github/workflows/ci.yml"],
+        test_id="github-actions-workflow",
+        exit_code=1,
+        stderr=(
+            ".github/workflows/ci.yml:14:9: "
+            "Unrecognized named-value: 'secretsx'\n"
+        ),
+    )
+
+    assert diagnosis["detected_stack"] == "github-actions"
+    assert diagnosis["primary_category"] == "compile_error"
+    assert diagnosis["signals"][0]["message"] == "GitHub Actions expression error"
+    assert "workflow" in " ".join(diagnosis["suggested_next_actions"]).lower()
+
+
 def test_diagnose_endpoint_returns_structured_failure(tmp_path: Path) -> None:
     settings = make_settings(tmp_path)
     main_module.app.dependency_overrides[main_module.get_settings] = lambda: settings

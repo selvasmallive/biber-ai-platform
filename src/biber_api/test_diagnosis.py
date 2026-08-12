@@ -5,7 +5,17 @@ from dataclasses import dataclass
 from typing import Any
 
 
-SUPPORTED_STACKS = ["dotnet", "java", "rust", "python", "node", "unknown"]
+SUPPORTED_STACKS = [
+    "dotnet",
+    "java",
+    "rust",
+    "python",
+    "node",
+    "docker",
+    "postgres",
+    "github-actions",
+    "unknown",
+]
 
 _CATEGORY_PRIORITY = {
     "timeout": 0,
@@ -65,6 +75,20 @@ _RULES = [
     _Rule(r"typeerror", "runtime_error", "JavaScript type error", "node"),
     _Rule(r"syntaxerror", "compile_error", "JavaScript syntax error", "node"),
     _Rule(r"\bfail\b", "test_failure", "JavaScript test failure", "node"),
+    _Rule(r"cannot connect to the docker daemon", "configuration_error", "Docker daemon unavailable", "docker"),
+    _Rule(r"docker daemon is not running", "configuration_error", "Docker daemon unavailable", "docker"),
+    _Rule(r"error while fetching server api version", "configuration_error", "Docker daemon unavailable", "docker"),
+    _Rule(r"yaml: line \d+:", "configuration_error", "Docker Compose YAML error", "docker"),
+    _Rule(r"services\..* must be a mapping", "configuration_error", "Docker Compose schema error", "docker"),
+    _Rule(r"could not connect to server", "configuration_error", "PostgreSQL connection error", "postgres"),
+    _Rule(r"connection refused", "configuration_error", "PostgreSQL connection refused", "postgres"),
+    _Rule(r"password authentication failed", "configuration_error", "PostgreSQL authentication error", "postgres"),
+    _Rule(r"relation .* does not exist", "runtime_error", "PostgreSQL missing relation", "postgres"),
+    _Rule(r"syntax error at or near", "compile_error", "PostgreSQL SQL syntax error", "postgres"),
+    _Rule(r"invalid workflow file", "configuration_error", "GitHub Actions workflow invalid", "github-actions"),
+    _Rule(r"the workflow is not valid", "configuration_error", "GitHub Actions workflow invalid", "github-actions"),
+    _Rule(r"you have an error in your yaml syntax", "configuration_error", "GitHub Actions YAML error", "github-actions"),
+    _Rule(r"unrecognized named-value", "compile_error", "GitHub Actions expression error", "github-actions"),
 ]
 
 
@@ -187,6 +211,15 @@ def _detect_stack(command: list[str], test_id: str, lines: list[str]) -> str:
         )
     ):
         return "node"
+    if "docker compose" in command_text or "docker-compose" in command_text:
+        return "docker"
+    if any(token in command_text for token in ("psql", "postgres", "pg_isready")):
+        return "postgres"
+    if any(
+        token in command_text
+        for token in ("github-actions", ".github/workflows", "actionlint")
+    ):
+        return "github-actions"
 
     text = " ".join([command_text, *lines[:80]]).lower()
     if "dotnet" in text or re.search(r"\bcs\d{4}\b", text):
@@ -217,6 +250,37 @@ def _detect_stack(command: list[str], test_id: str, lines: list[str]) -> str:
         )
     ):
         return "node"
+    if any(
+        token in text
+        for token in (
+            "docker compose",
+            "docker-compose",
+            "docker daemon",
+            "services.",
+        )
+    ):
+        return "docker"
+    if any(
+        token in text
+        for token in (
+            "postgres",
+            "psql:",
+            "could not connect to server",
+            "relation ",
+        )
+    ):
+        return "postgres"
+    if any(
+        token in text
+        for token in (
+            "invalid workflow file",
+            "the workflow is not valid",
+            "unrecognized named-value",
+            ".github/workflows",
+            "actionlint",
+        )
+    ):
+        return "github-actions"
     return "unknown"
 
 
@@ -314,4 +378,10 @@ def _suggested_next_actions(primary_category: str, detected_stack: str) -> list[
         actions.append("Include `pyproject.toml` or requirements plus the failing test/module.")
     elif detected_stack == "node":
         actions.append("Include `package.json`, test config, and the failing component/module.")
+    elif detected_stack == "docker":
+        actions.append("Include Dockerfile, compose files, and the service config being validated.")
+    elif detected_stack == "postgres":
+        actions.append("Include schema, migrations, and the application query or connection config.")
+    elif detected_stack == "github-actions":
+        actions.append("Include the workflow file plus the scripts or commands it invokes.")
     return actions
