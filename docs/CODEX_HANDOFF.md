@@ -17,6 +17,16 @@ apply, GitHub request, OpenAI mentor call, or training. Next narrow step:
 validate locally, commit/push, fast-forward Vast, and run a `/tmp` resume-status
 spec-command smoke before using the command with any real `/workspace/outputs`
 spec.
+2026-08-12 follow-up: commit `2dd7084` was pushed to
+`biber/mvp-resume-20260712`; the current SSH-enabled Vast GPU repo was
+fast-forwarded to it. Local validation passed bundled Python `py_compile`,
+`git diff --check`, a direct no-pytest status harness, and
+`scripts/biber_local_confidence_smoke.py`; focused pytest is still unavailable
+in the bundled local Python. Vast `py_compile` passed. A `/tmp` resume-status
+smoke confirmed `run_next_required_edit_spec_plan` appears when
+`biber-next-required-edit.json` is complete, validates only with explicit
+`--allow-gpu --allow-live-provider`, remains blocked without those allowances,
+and does not touch real `/workspace/outputs` state.
 
 2026-08-12 latest BIBER required-edit spec checkpoint:
 `scripts/biber_live_provider_real_repo_plan_smoke.py` now accepts
