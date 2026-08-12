@@ -2043,6 +2043,9 @@ def build_mvp_loop_repair_request(
         "source": "biber_mvp_loop_repair_request",
         "repair_loop_version": "mvp-v1",
         "repair_status": "ready_for_local_model",
+        "api_required": False,
+        "github_request_sent": False,
+        "mentor_used": False,
         "training_allowed": False,
         "source_artifact": str(path),
         "ok": False,
@@ -4811,6 +4814,9 @@ def build_local_verification_repair_request(
         "source": "biber_mvp_loop_repair_request",
         "repair_loop_version": "mvp-v1",
         "repair_status": "ready_for_local_model",
+        "api_required": False,
+        "github_request_sent": False,
+        "mentor_used": False,
         "training_allowed": False,
         "source_artifact": str(path),
         "ok": False,
@@ -14040,6 +14046,7 @@ def list_mvp_loop_artifacts(
     pattern: str,
     limit: int,
     failed_only: bool = False,
+    target_root: str | None = None,
 ) -> dict[str, Any]:
     if limit < 1:
         raise BiberAgentClientError("--limit must be at least 1.")
@@ -14064,6 +14071,10 @@ def list_mvp_loop_artifacts(
             continue
         if failed_only and not is_failed_mvp_loop_artifact(normalized):
             continue
+        if target_root:
+            artifact_target_root = artifact_target_root_text(normalized)
+            if artifact_target_root != normalize_target_root_text(target_root):
+                continue
         artifacts.append(summarize_mvp_loop_artifact(path, normalized))
 
     artifacts.sort(key=lambda item: float(item.get("modified_epoch") or 0.0), reverse=True)
@@ -14072,9 +14083,72 @@ def list_mvp_loop_artifacts(
         "directory": str(root),
         "pattern": pattern,
         "failed_only": failed_only,
+        "target_root": target_root,
         "scanned": scanned,
         "artifacts": artifacts[:limit],
     }
+
+
+def find_latest_failed_mvp_loop_artifact(
+    *,
+    directory: str,
+    pattern: str,
+    target_root: str | None = None,
+) -> dict[str, Any]:
+    artifacts = list_mvp_loop_artifacts(
+        directory=directory,
+        pattern=pattern,
+        limit=1,
+        failed_only=True,
+        target_root=target_root,
+    )
+    latest = next(iter(require_list(artifacts.get("artifacts"))), None)
+    if not isinstance(latest, dict):
+        raise BiberAgentClientError("No matching failed mvp-loop artifact found.")
+    raw_payload = load_json_artifact(
+        str(latest.get("path")),
+        label="mvp-loop artifact",
+    )
+    normalized = normalize_mvp_loop_artifact(raw_payload)
+    if normalized is None or not is_failed_mvp_loop_artifact(normalized):
+        raise BiberAgentClientError(
+            "latest failed mvp-loop artifact must contain a failed saved MVP loop."
+        )
+    return {
+        **normalized,
+        "artifact_path": latest.get("path"),
+        "artifact_list": {
+            key: value
+            for key, value in artifacts.items()
+            if key != "artifacts"
+        },
+    }
+
+
+def build_latest_mvp_loop_repair_request(
+    *,
+    directory: str,
+    pattern: str,
+    target_root: str | None,
+    instruction: str | None,
+    max_relevant_output_chars: int,
+    max_context_paths: int | None,
+) -> dict[str, Any]:
+    artifact = find_latest_failed_mvp_loop_artifact(
+        directory=directory,
+        pattern=pattern,
+        target_root=target_root,
+    )
+    artifact_path = Path(str(artifact.get("artifact_path")))
+    repair = build_mvp_loop_repair_request(
+        path=artifact_path,
+        payload=artifact,
+        instruction=instruction,
+        max_relevant_output_chars=max_relevant_output_chars,
+        max_context_paths=max_context_paths,
+    )
+    repair["artifact_discovery"] = require_mapping(artifact.get("artifact_list"))
+    return repair
 
 
 def export_mvp_loop_failures(
@@ -16994,6 +17068,7 @@ def format_mvp_loop_artifact_list_summary(payload: Mapping[str, Any]) -> str:
         f"directory: {payload.get('directory', '-')}",
         f"pattern: {payload.get('pattern', '-')}",
         f"failed_only: {payload.get('failed_only', False)}",
+        f"target_root: {payload.get('target_root') or '-'}",
         f"scanned: {payload.get('scanned', 0)}",
     ]
     for artifact in artifacts:
@@ -20193,6 +20268,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     list_mvp_loops.add_argument("directory")
     list_mvp_loops.add_argument("--pattern", default="*mvp-loop*.json")
     list_mvp_loops.add_argument("--limit", type=int, default=10)
+    list_mvp_loops.add_argument("--target-root")
     list_mvp_loops.add_argument(
         "--failed-only",
         action="store_true",
@@ -21438,6 +21514,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     prepare_repair.add_argument("--max-context-paths", type=int)
     prepare_repair.add_argument("--output")
 
+    prepare_latest_repair = subparsers.add_parser(
+        "prepare-latest-repair",
+        help=(
+            "Find the newest failed mvp-loop artifact under a directory and "
+            "build a local-model repair request from it."
+        ),
+    )
+    prepare_latest_repair.add_argument("directory")
+    prepare_latest_repair.add_argument("--pattern", default="*mvp-loop*.json")
+    prepare_latest_repair.add_argument("--target-root")
+    prepare_latest_repair.add_argument("--instruction")
+    prepare_latest_repair.add_argument(
+        "--max-relevant-output-chars",
+        type=int,
+        default=4000,
+    )
+    prepare_latest_repair.add_argument("--max-context-paths", type=int)
+    prepare_latest_repair.add_argument("--output")
+
     export_failure_changed_paths = subparsers.add_parser(
         "export-mvp-failure-changed-paths",
         help=(
@@ -22042,6 +22137,7 @@ def run(args: argparse.Namespace) -> str:
             pattern=args.pattern,
             limit=args.limit,
             failed_only=args.failed_only,
+            target_root=args.target_root,
         )
         if args.output:
             artifacts["artifact_path"] = str(Path(args.output))
@@ -23437,6 +23533,23 @@ def run(args: argparse.Namespace) -> str:
         repair = build_mvp_loop_repair_request(
             path=artifact_path,
             payload=normalized,
+            instruction=args.instruction,
+            max_relevant_output_chars=args.max_relevant_output_chars,
+            max_context_paths=args.max_context_paths,
+        )
+        if args.output:
+            repair["artifact_path"] = str(Path(args.output))
+            write_json_artifact(repair, args.output)
+        return (
+            json.dumps(repair, indent=2, sort_keys=True)
+            if args.print_json
+            else format_mvp_loop_repair_request_summary(repair)
+        )
+    if args.command == "prepare-latest-repair":
+        repair = build_latest_mvp_loop_repair_request(
+            directory=args.directory,
+            pattern=args.pattern,
+            target_root=args.target_root,
             instruction=args.instruction,
             max_relevant_output_chars=args.max_relevant_output_chars,
             max_context_paths=args.max_context_paths,

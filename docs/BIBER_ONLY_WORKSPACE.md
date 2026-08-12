@@ -107,6 +107,17 @@ local-model repair prompt, with OpenAI mentor still disabled unless explicitly
 requested later through the separate repair-attempt path. The prompt includes
 `agent_report.repair_hint` when available so the local model sees the same
 failure category, stack, and no-API workflow guidance exposed by status output.
+When the exact failed artifact path is not known, use
+`prepare-latest-repair` and pass `--target-root` for real-repo work so fixture
+failures are ignored:
+
+```bash
+python scripts/biber_agent_client.py --json prepare-latest-repair \
+  /workspace/outputs \
+  --target-root /workspace/biber-ai-platform \
+  --output /workspace/outputs/biber-prepared-latest-repair.json
+```
+
 `attempt-repair` artifacts include `repair_output_contract` and
 `extraction_hint` so the next local step can call `extract-repair-edits` and
 then `plan-repair-edits` without guessing the expected model-output shape.

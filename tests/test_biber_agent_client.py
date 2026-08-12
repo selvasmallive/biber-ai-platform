@@ -3769,7 +3769,119 @@ def test_run_prepare_repair_writes_request_without_api_key(
     assert result["source_artifact"] == str(failure)
     assert result["instruction"] == "Repair with the smallest safe edit."
     assert result["failure"]["detected_stack"] == "dotnet"
+    assert result["api_required"] is False
+    assert result["github_request_sent"] is False
+    assert result["mentor_used"] is False
     assert result["training_allowed"] is False
+
+
+def test_run_prepare_latest_repair_filters_failed_artifacts_by_target_root(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("prepare-latest-repair should not resolve an API key")
+
+    target_root = tmp_path / "target"
+    target_root.mkdir()
+    other_root = tmp_path / "other"
+    other_root.mkdir()
+    selected_failure = tmp_path / "selected-mvp-loop.json"
+    newer_other_failure = tmp_path / "newer-other-mvp-loop.json"
+    success = tmp_path / "success-mvp-loop.json"
+
+    selected_payload = {
+        "ok": False,
+        "instruction": "Fix the API assertion.",
+        "target_root": str(target_root),
+        "steps": {
+            "context_plan": {},
+            "test_run": {
+                "ok": False,
+                "test_id": "python-compileall-api",
+                "command": ["python", "-m", "compileall", "app"],
+                "exit_code": 1,
+                "timed_out": False,
+                "stdout": "app/api.py:3: SyntaxError: invalid syntax\n",
+            },
+            "test_diagnosis": {
+                "primary_category": "compile_error",
+                "detected_stack": "python",
+                "summary": "Detected compile_error.",
+                "file_references": [{"path": "app/api.py", "line": 3}],
+            },
+        },
+        "selected_context_paths": ["README.md", "app/api.py"],
+        "test_ok": False,
+    }
+    selected_failure.write_text(json.dumps(selected_payload), encoding="utf-8")
+    newer_other_failure.write_text(
+        json.dumps({**selected_payload, "target_root": str(other_root)}),
+        encoding="utf-8",
+    )
+    success.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "target_root": str(target_root),
+                "steps": {"context_plan": {}, "test_run": {"ok": True}},
+                "selected_context_paths": [],
+                "test_ok": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    os.utime(selected_failure, (100.0, 100.0))
+    os.utime(success, (150.0, 150.0))
+    os.utime(newer_other_failure, (200.0, 200.0))
+    output_path = tmp_path / "prepared-latest-repair.json"
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--json",
+                "prepare-latest-repair",
+                str(tmp_path),
+                "--target-root",
+                str(target_root),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+    result = json.loads(output)
+    saved = json.loads(output_path.read_text(encoding="utf-8"))
+    filtered_list = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "list-mvp-loops",
+                    str(tmp_path),
+                    "--failed-only",
+                    "--target-root",
+                    str(target_root),
+                ]
+            )
+        )
+    )
+
+    assert saved == result
+    assert result["source"] == "biber_mvp_loop_repair_request"
+    assert result["source_artifact"] == str(selected_failure)
+    assert result["artifact_path"] == str(output_path)
+    assert result["artifact_discovery"]["target_root"] == str(target_root)
+    assert result["artifact_discovery"]["scanned"] == 3
+    assert result["failure"]["file_references"] == ["app/api.py"]
+    assert result["candidate_changed_paths"] == ["app/api.py"]
+    assert result["api_required"] is False
+    assert result["github_request_sent"] is False
+    assert result["mentor_used"] is False
+    assert result["training_allowed"] is False
+    assert [item["path"] for item in filtered_list["artifacts"]] == [
+        str(selected_failure)
+    ]
 
 
 def test_run_attempt_repair_calls_local_model_and_writes_artifact(

@@ -4,6 +4,24 @@ Last updated: 2026-08-12
 
 ## Current Goal
 
+2026-08-12 latest BIBER prepare-latest-repair checkpoint:
+`scripts/biber_agent_client.py` now has
+`prepare-latest-repair <outputs-dir>`, which finds the newest failed saved
+`mvp-loop` artifact under a directory and builds the same local repair request
+as `prepare-repair`, without requiring the operator to copy the exact failed
+artifact path. `list-mvp-loops` and `prepare-latest-repair` both accept
+`--target-root`; for real-repo work, pass the repo root so disposable fixture
+failures are ignored. Prepared repair request artifacts now explicitly include
+`api_required=False`, `github_request_sent=False`, `mentor_used=False`, and
+`training_allowed=False`. `docs/BIBER_ONLY_WORKSPACE.md` documents the new
+command. Local validation passed bundled Python `py_compile`, a focused direct
+`prepare-latest-repair`/target-root harness, `scripts/biber_local_confidence_smoke.py`,
+and `git diff --check`. Focused pytest was attempted but the bundled local
+Python still does not have pytest installed. Next narrow step: commit/push this
+checkpoint, fast-forward Vast, run Vast py_compile and a compact
+`prepare-latest-repair` smoke against a disposable artifact directory, then
+refresh `/workspace/outputs/biber-live-mvp-resume-status-latest.json`.
+
 2026-08-12 latest BIBER ready-command latest show/list checkpoint:
 `scripts/biber_agent_client.py` now also supports
 `show-latest-live-mvp-ready-command <outputs-dir>` and
