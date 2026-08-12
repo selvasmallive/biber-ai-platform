@@ -15910,6 +15910,188 @@ def select_live_mvp_resume_ready_command(
     }
 
 
+def normalize_ready_command_script_path(value: object) -> str:
+    text = str(value or "").strip().replace("\\", "/")
+    if "/scripts/" in text:
+        text = "scripts/" + text.rsplit("/scripts/", 1)[1]
+    while text.startswith("./"):
+        text = text[2:]
+    return text
+
+
+def validate_live_mvp_ready_command_execution(
+    command: Mapping[str, Any],
+    *,
+    allow_gpu: bool = False,
+    allow_live_provider: bool = False,
+) -> dict[str, Any]:
+    blockers: list[str] = []
+    parts = [str(part) for part in require_list(command.get("command_parts"))]
+    parts = [part for part in parts if part]
+
+    if command.get("ready_to_run") is not True:
+        blockers.append("not_ready_to_run")
+    if command.get("safe") is not True:
+        blockers.append("not_marked_safe")
+    if command.get("mutates_repo") is True:
+        blockers.append("mutates_repo")
+    if command.get("api_required") is True:
+        blockers.append("api_required")
+    if command.get("external_network_required") is True:
+        blockers.append("external_network_required")
+    if command.get("github_request_sent") is True:
+        blockers.append("github_request_sent")
+    if command.get("mentor_used") is True:
+        blockers.append("mentor_used")
+    if command.get("training_allowed") is True:
+        blockers.append("training_allowed")
+    if command.get("uses_gpu") is True and not allow_gpu:
+        blockers.append("gpu_requires_allow_gpu")
+    if command.get("live_provider_required") is True and not allow_live_provider:
+        blockers.append("live_provider_requires_allow_live_provider")
+
+    script_path = normalize_ready_command_script_path(parts[1] if len(parts) > 1 else "")
+    subcommand = parts[2] if len(parts) > 2 else None
+    allowed_agent_subcommands = {
+        "export-mvp-failure-changed-paths",
+        "live-mvp-resume-status",
+        "show-latest-live-verified-github-dry-run",
+        "show-latest-real-repo-plan-smoke",
+    }
+    allowed_standalone_scripts = {
+        "scripts/biber_local_confidence_smoke.py",
+        "scripts/biber_live_provider_confidence_smoke.py",
+    }
+    if not parts:
+        blockers.append("missing_command_parts")
+    elif script_path == "scripts/biber_agent_client.py":
+        if subcommand not in allowed_agent_subcommands:
+            blockers.append("agent_client_subcommand_not_allowlisted")
+    elif script_path not in allowed_standalone_scripts:
+        blockers.append("script_not_allowlisted")
+
+    return {
+        "ok": not blockers,
+        "blockers": blockers,
+        "command_parts": parts,
+        "script_path": script_path or None,
+        "agent_subcommand": subcommand,
+        "allow_gpu": allow_gpu,
+        "allow_live_provider": allow_live_provider,
+    }
+
+
+def run_live_mvp_resume_ready_command(
+    payload: Mapping[str, Any],
+    *,
+    label: str | None = None,
+    index: int = 0,
+    artifact_path: str | None = None,
+    cwd: str | None = None,
+    timeout_seconds: float = 300.0,
+    allow_gpu: bool = False,
+    allow_live_provider: bool = False,
+    dry_run: bool = False,
+    max_output_chars: int = 4000,
+) -> dict[str, Any]:
+    if timeout_seconds <= 0:
+        raise BiberAgentClientError("--timeout-seconds must be greater than 0.")
+    if max_output_chars < 1:
+        raise BiberAgentClientError("--max-output-chars must be at least 1.")
+
+    selection = select_live_mvp_resume_ready_command(
+        payload,
+        label=label,
+        index=index,
+        artifact_path=artifact_path,
+    )
+    command = require_mapping(selection.get("command"))
+    validation = validate_live_mvp_ready_command_execution(
+        command,
+        allow_gpu=allow_gpu,
+        allow_live_provider=allow_live_provider,
+    )
+    result: dict[str, Any] = {
+        "source": "biber_live_mvp_ready_command_run",
+        "ok": False,
+        "artifact_path": artifact_path,
+        "status_next_action": payload.get("next_action"),
+        "label": selection.get("label"),
+        "selected_index": selection.get("selected_index"),
+        "command_text": selection.get("command_text"),
+        "command_parts": validation.get("command_parts", []),
+        "validation": validation,
+        "execution_allowed": validation.get("ok") is True,
+        "dry_run": dry_run,
+        "executed": False,
+        "cwd": cwd,
+        "timeout_seconds": timeout_seconds,
+        "api_required": selection.get("api_required") is True,
+        "external_network_required": selection.get("external_network_required") is True,
+        "github_request_sent": selection.get("github_request_sent") is True,
+        "mentor_used": selection.get("mentor_used") is True,
+        "training_allowed": selection.get("training_allowed") is True,
+        "mutates_repo": selection.get("mutates_repo") is True,
+        "uses_gpu": command.get("uses_gpu") is True,
+        "live_provider_required": command.get("live_provider_required") is True,
+    }
+    if validation.get("ok") is not True:
+        result["blockers"] = validation.get("blockers", [])
+        return result
+    if dry_run:
+        result["ok"] = True
+        return result
+
+    command_parts = [str(part) for part in require_list(validation.get("command_parts"))]
+    try:
+        completed = subprocess.run(
+            command_parts,
+            cwd=cwd,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=timeout_seconds,
+        )
+    except FileNotFoundError as exc:
+        result["error"] = f"ready command executable not found: {command_parts[0]}"
+        result["exception"] = exc.__class__.__name__
+        return result
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        result.update(
+            {
+                "executed": True,
+                "timed_out": True,
+                "stdout": compact_text(stdout, max_chars=max_output_chars),
+                "stderr": compact_text(stderr, max_chars=max_output_chars),
+                "stdout_truncated": len(stdout) > max_output_chars,
+                "stderr_truncated": len(stderr) > max_output_chars,
+            }
+        )
+        return result
+    except OSError as exc:
+        result["error"] = f"ready command failed to start: {exc}"
+        result["exception"] = exc.__class__.__name__
+        return result
+
+    stdout = completed.stdout or ""
+    stderr = completed.stderr or ""
+    result.update(
+        {
+            "ok": completed.returncode == 0,
+            "executed": True,
+            "timed_out": False,
+            "exit_code": completed.returncode,
+            "stdout": compact_text(stdout, max_chars=max_output_chars),
+            "stderr": compact_text(stderr, max_chars=max_output_chars),
+            "stdout_truncated": len(stdout) > max_output_chars,
+            "stderr_truncated": len(stderr) > max_output_chars,
+        }
+    )
+    return result
+
+
 def list_live_mvp_resume_ready_commands(
     payload: Mapping[str, Any],
     *,
@@ -16003,6 +16185,40 @@ def format_live_mvp_ready_command_selection(payload: Mapping[str, Any]) -> str:
     description = command.get("description")
     if description:
         lines.append(f"description: {description}")
+    return "\n".join(lines)
+
+
+def format_live_mvp_ready_command_run(payload: Mapping[str, Any]) -> str:
+    validation = require_mapping(payload.get("validation"))
+    blockers = require_list(validation.get("blockers"))
+    lines = [
+        "BIBER live MVP ready command run",
+        f"ok: {payload.get('ok') is True}",
+        f"artifact_path: {payload.get('artifact_path') or '-'}",
+        f"status_next_action: {payload.get('status_next_action') or '-'}",
+        f"label: {payload.get('label') or '-'}",
+        f"selected_index: {payload.get('selected_index', '-')}",
+        f"execution_allowed: {payload.get('execution_allowed') is True}",
+        f"blockers: {','.join(str(item) for item in blockers) or '-'}",
+        f"dry_run: {payload.get('dry_run') is True}",
+        f"executed: {payload.get('executed') is True}",
+        f"exit_code: {payload.get('exit_code', '-')}",
+        f"uses_gpu: {payload.get('uses_gpu') is True}",
+        f"live_provider_required: {payload.get('live_provider_required') is True}",
+        f"mutates_repo: {payload.get('mutates_repo') is True}",
+        f"github_request_sent: {payload.get('github_request_sent') is True}",
+        f"mentor_used: {payload.get('mentor_used') is True}",
+        f"training_allowed: {payload.get('training_allowed') is True}",
+        f"command: {payload.get('command_text') or '-'}",
+    ]
+    stdout = str(payload.get("stdout") or "").strip()
+    stderr = str(payload.get("stderr") or "").strip()
+    if stdout:
+        lines.append(f"stdout: {stdout}")
+    if stderr:
+        lines.append(f"stderr: {stderr}")
+    if payload.get("error"):
+        lines.append(f"error: {payload.get('error')}")
     return "\n".join(lines)
 
 
@@ -19594,6 +19810,36 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     list_live_mvp_ready_commands.add_argument("artifact")
 
+    run_live_mvp_ready_command = subparsers.add_parser(
+        "run-live-mvp-ready-command",
+        help=(
+            "Run one guarded next_ready_commands entry from a saved "
+            "live-mvp-resume-status artifact."
+        ),
+    )
+    run_live_mvp_ready_command.add_argument("artifact")
+    run_live_mvp_ready_command.add_argument("--label")
+    run_live_mvp_ready_command.add_argument("--index", type=int, default=0)
+    run_live_mvp_ready_command.add_argument("--cwd")
+    run_live_mvp_ready_command.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=300.0,
+    )
+    run_live_mvp_ready_command.add_argument(
+        "--allow-gpu",
+        action="store_true",
+        help="Permit ready commands marked uses_gpu=true.",
+    )
+    run_live_mvp_ready_command.add_argument(
+        "--allow-live-provider",
+        action="store_true",
+        help="Permit ready commands that require the live local-model endpoint.",
+    )
+    run_live_mvp_ready_command.add_argument("--dry-run", action="store_true")
+    run_live_mvp_ready_command.add_argument("--max-output-chars", type=int, default=4000)
+    run_live_mvp_ready_command.add_argument("--output")
+
     show_real_repo_plan_smoke = subparsers.add_parser(
         "show-real-repo-plan-smoke",
         help="Summarize a saved biber_live_provider_real_repo_plan_smoke.py artifact.",
@@ -21388,6 +21634,31 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(ready_commands, indent=2, sort_keys=True)
             if args.print_json
             else format_live_mvp_ready_command_list(ready_commands)
+        )
+    if args.command == "run-live-mvp-ready-command":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="live MVP resume status artifact",
+        )
+        result = run_live_mvp_resume_ready_command(
+            artifact,
+            label=args.label,
+            index=args.index,
+            artifact_path=args.artifact,
+            cwd=args.cwd,
+            timeout_seconds=args.timeout_seconds,
+            allow_gpu=args.allow_gpu,
+            allow_live_provider=args.allow_live_provider,
+            dry_run=args.dry_run,
+            max_output_chars=args.max_output_chars,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_live_mvp_ready_command_run(result)
         )
     if args.command == "show-real-repo-plan-smoke":
         artifact = load_json_artifact(

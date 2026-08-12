@@ -247,6 +247,22 @@ python scripts/biber_agent_client.py list-live-mvp-ready-commands \
   /workspace/outputs/biber-live-mvp-resume-status-latest.json
 ```
 
+To run one saved ready command through the built-in guard instead of copying the
+command by hand:
+
+```bash
+python scripts/biber_agent_client.py run-live-mvp-ready-command \
+  /workspace/outputs/biber-live-mvp-resume-status-latest.json \
+  --label refresh_resume_status \
+  --cwd /workspace/biber-ai-platform
+```
+
+The runner executes only commands already present in `next_ready_commands` and
+still rejects repo mutation, GitHub requests, OpenAI mentor use, training,
+external-network requirements, and API-required commands. GPU/live-provider
+commands require explicit `--allow-gpu --allow-live-provider`; use `--dry-run`
+when you only want to verify the selected command and safety guard.
+
 This keeps Qwen2.5, Qwen3, llama.cpp, vLLM wrappers, and future local runners
 swappable without enabling OpenAI mentor, API auth, GPU training, or file apply.
 `scripts/biber_local_openai_provider.py` is the stdlib OpenAI-compatible

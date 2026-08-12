@@ -1709,6 +1709,7 @@ def test_run_show_live_verified_github_dry_run_summarizes_saved_artifact(
 
 
 def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
+    monkeypatch,
     tmp_path: Path,
 ) -> None:
     confidence_artifact = tmp_path / "biber-live-provider-confidence-latest.json"
@@ -1982,6 +1983,62 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
     assert "[1] refresh_resume_status" in ready_list_summary
     assert "BIBER live MVP ready command" in ready_summary
     assert "label: refresh_resume_status" in ready_summary
+
+    run_calls: dict[str, object] = {}
+
+    def fake_subprocess_run(
+        command_parts: list[str],
+        *,
+        cwd: str | None,
+        capture_output: bool,
+        check: bool,
+        text: bool,
+        timeout: float,
+    ) -> object:
+        run_calls["command_parts"] = list(command_parts)
+        run_calls["cwd"] = cwd
+        run_calls["timeout"] = timeout
+        assert capture_output is True
+        assert check is False
+        assert text is True
+        return client.subprocess.CompletedProcess(
+            command_parts,
+            0,
+            "resume refreshed\n",
+            "",
+        )
+
+    monkeypatch.setattr(client.subprocess, "run", fake_subprocess_run)
+    ready_run = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "run-live-mvp-ready-command",
+                    str(status_artifact),
+                    "--label",
+                    "refresh_resume_status",
+                    "--cwd",
+                    str(tmp_path),
+                    "--timeout-seconds",
+                    "12",
+                ]
+            )
+        )
+    )
+    assert ready_run["source"] == "biber_live_mvp_ready_command_run"
+    assert ready_run["ok"] is True
+    assert ready_run["execution_allowed"] is True
+    assert ready_run["executed"] is True
+    assert ready_run["exit_code"] == 0
+    assert ready_run["stdout"] == "resume refreshed\n"
+    assert ready_run["github_request_sent"] is False
+    assert ready_run["mentor_used"] is False
+    assert ready_run["training_allowed"] is False
+    assert run_calls["cwd"] == str(tmp_path)
+    assert run_calls["timeout"] == 12
+    assert run_calls["command_parts"] == ready_by_label["command_parts"]
+
     assert "BIBER live MVP resume status" in summary
     assert "apply_candidate_available: True" in summary
     assert "apply_decision_status: requires_explicit_apply_approval" in summary
@@ -1994,6 +2051,87 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
     assert "next_commands:" in summary
     assert "inspect_pending_real_repo_plan" in summary
     assert "next_ready_commands:" in summary
+
+
+def test_run_live_mvp_ready_command_blocks_gpu_without_explicit_flags(
+    tmp_path: Path,
+) -> None:
+    status_artifact = tmp_path / "status.json"
+    status_artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_live_mvp_resume_status",
+                "next_action": "start_next_narrow_biber_step",
+                "next_ready_commands": [
+                    {
+                        "label": "rerun_live_provider_confidence_gate",
+                        "description": "Refresh live confidence.",
+                        "ready_to_run": True,
+                        "safe": True,
+                        "mutates_repo": False,
+                        "api_required": False,
+                        "external_network_required": False,
+                        "github_request_sent": False,
+                        "mentor_used": False,
+                        "training_allowed": False,
+                        "uses_gpu": True,
+                        "live_provider_required": True,
+                        "command_parts": [
+                            sys.executable,
+                            "scripts/biber_live_provider_confidence_smoke.py",
+                            "--mode",
+                            "live",
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    blocked = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "run-live-mvp-ready-command",
+                    str(status_artifact),
+                    "--label",
+                    "rerun_live_provider_confidence_gate",
+                ]
+            )
+        )
+    )
+
+    assert blocked["ok"] is False
+    assert blocked["execution_allowed"] is False
+    assert blocked["executed"] is False
+    assert "gpu_requires_allow_gpu" in blocked["validation"]["blockers"]
+    assert "live_provider_requires_allow_live_provider" in blocked["validation"][
+        "blockers"
+    ]
+
+    dry_run = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "run-live-mvp-ready-command",
+                    str(status_artifact),
+                    "--label",
+                    "rerun_live_provider_confidence_gate",
+                    "--allow-gpu",
+                    "--allow-live-provider",
+                    "--dry-run",
+                ]
+            )
+        )
+    )
+
+    assert dry_run["ok"] is True
+    assert dry_run["execution_allowed"] is True
+    assert dry_run["executed"] is False
+    assert dry_run["dry_run"] is True
 
 
 def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
