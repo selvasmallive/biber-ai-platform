@@ -114,6 +114,15 @@ Next narrow step: push/sync this checkpoint to Vast, refresh
 `/workspace/outputs/biber-live-mvp-resume-status-latest.json`, and confirm the
 live status shows `pending_apply_decision=False` with an `already_verified_*`
 status when the plan is already covered by verified apply history.
+2026-08-12 follow-up: commits `d5ac10c` and `8aa70a7` were pushed and the
+current Vast GPU repo was fast-forwarded to `8aa70a7`. Vast py_compile passed;
+refreshed `/workspace/outputs/biber-live-mvp-resume-status-latest.json` reports
+`ok=True`, `apply_candidate_available=True`,
+`apply_decision_status=already_verified_history_only`,
+`pending_apply_decision=False`, and ready labels
+`run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`, and
+`refresh_resume_status`. Continue with the next local-first BIBER MVP agent-flow
+improvement; no apply approval is currently pending from the old verified plan.
 
 2026-08-12 latest BIBER ready-command reader checkpoint:
 commit `7ab4594` adds
