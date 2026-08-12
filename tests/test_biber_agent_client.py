@@ -2110,6 +2110,7 @@ def test_run_live_mvp_ready_command_blocks_gpu_without_explicit_flags(
     assert "live_provider_requires_allow_live_provider" in blocked["validation"][
         "blockers"
     ]
+    assert blocked["validation"]["agent_subcommand"] is None
 
     dry_run = json.loads(
         client.run(

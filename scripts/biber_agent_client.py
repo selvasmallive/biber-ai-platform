@@ -15951,7 +15951,10 @@ def validate_live_mvp_ready_command_execution(
         blockers.append("live_provider_requires_allow_live_provider")
 
     script_path = normalize_ready_command_script_path(parts[1] if len(parts) > 1 else "")
-    subcommand = parts[2] if len(parts) > 2 else None
+    raw_subcommand = parts[2] if len(parts) > 2 else None
+    agent_subcommand = (
+        raw_subcommand if script_path == "scripts/biber_agent_client.py" else None
+    )
     allowed_agent_subcommands = {
         "export-mvp-failure-changed-paths",
         "live-mvp-resume-status",
@@ -15965,7 +15968,7 @@ def validate_live_mvp_ready_command_execution(
     if not parts:
         blockers.append("missing_command_parts")
     elif script_path == "scripts/biber_agent_client.py":
-        if subcommand not in allowed_agent_subcommands:
+        if agent_subcommand not in allowed_agent_subcommands:
             blockers.append("agent_client_subcommand_not_allowlisted")
     elif script_path not in allowed_standalone_scripts:
         blockers.append("script_not_allowlisted")
@@ -15975,7 +15978,7 @@ def validate_live_mvp_ready_command_execution(
         "blockers": blockers,
         "command_parts": parts,
         "script_path": script_path or None,
-        "agent_subcommand": subcommand,
+        "agent_subcommand": agent_subcommand,
         "allow_gpu": allow_gpu,
         "allow_live_provider": allow_live_provider,
     }
