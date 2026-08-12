@@ -203,6 +203,13 @@ The spec may also use `old_text_file` and `new_text_file`; relative file paths
 are resolved from the spec file directory. Explicit CLI `--required-*`,
 `--changed-path`, `--pinned-path`, and instruction flags still override the
 spec.
+When the next intended plan-only edit is ready, save it as
+`/workspace/outputs/biber-next-required-edit.json` and refresh
+`live-mvp-resume-status`. If the spec is complete, `next_ready_commands` will
+include `run_next_required_edit_spec_plan`, which runs
+`biber_live_provider_real_repo_plan_smoke.py --required-edit-spec ...` against
+the current target root. It uses the local provider/GPU and still stops before
+apply, GitHub save, OpenAI mentor, or training.
 When the plan-only result is ready, its `explicit_apply_approval` block gives
 the exact apply and verify command arrays. Treat them as pending instructions:
 do not run apply until the user explicitly approves the specific `plan_hash`,

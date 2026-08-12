@@ -14204,6 +14204,67 @@ def find_latest_failed_mvp_loop_summary(
     }
 
 
+def summarize_next_required_edit_spec(
+    *,
+    directory: str,
+    filename: str = "biber-next-required-edit.json",
+) -> dict[str, Any]:
+    root = Path(directory)
+    path = root / filename
+    base = {
+        "source": "biber_next_required_edit_spec_summary",
+        "path": str(path),
+        "filename": filename,
+        "api_required": False,
+        "external_network_required": False,
+        "github_request_sent": False,
+        "mentor_used": False,
+        "training_allowed": False,
+    }
+    if not path.is_file():
+        return {**base, "ok": False, "reason": "not_found"}
+    try:
+        payload = load_json_artifact(str(path), label="next required edit spec")
+    except BiberAgentClientError as exc:
+        return {**base, **compact_artifact_error(exc)}
+    if not isinstance(payload, dict):
+        return {**base, "ok": False, "reason": "spec_not_object"}
+
+    required_path = payload.get("required_path") or payload.get("path")
+    old_text = payload.get("required_old_text") or payload.get("old_text")
+    old_text_file = (
+        payload.get("required_old_text_file") or payload.get("old_text_file")
+    )
+    new_text = payload.get("required_new_text") or payload.get("new_text")
+    new_text_file = (
+        payload.get("required_new_text_file") or payload.get("new_text_file")
+    )
+    has_path = isinstance(required_path, str) and bool(required_path.strip())
+    has_old = isinstance(old_text, str) or (
+        isinstance(old_text_file, str) and bool(old_text_file.strip())
+    )
+    has_new = isinstance(new_text, str) or (
+        isinstance(new_text_file, str) and bool(new_text_file.strip())
+    )
+    blockers = []
+    if not has_path:
+        blockers.append("missing_path")
+    if not has_old:
+        blockers.append("missing_old_text")
+    if not has_new:
+        blockers.append("missing_new_text")
+    return {
+        **base,
+        "ok": not blockers,
+        "reason": "ready" if not blockers else "missing_required_fields",
+        "blockers": blockers,
+        "required_path": required_path if has_path else None,
+        "uses_old_text_file": isinstance(old_text_file, str),
+        "uses_new_text_file": isinstance(new_text_file, str),
+        "keys": sorted(str(key) for key in payload),
+    }
+
+
 def export_mvp_loop_failures(
     *,
     directory: str,
@@ -15464,6 +15525,7 @@ def build_live_mvp_resume_next_commands(
     live_model: str = DEFAULT_LOCAL_OPENAI_MODEL,
     failure_changed_paths: Mapping[str, Any] | None = None,
     latest_failed_mvp_loop: Mapping[str, Any] | None = None,
+    next_required_edit_spec: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     root = Path(directory)
     target = target_root or "/workspace/biber-ai-platform"
@@ -15636,6 +15698,35 @@ def build_live_mvp_resume_next_commands(
                     command_parts=prepare_parts,
                 )
             )
+        required_spec = require_mapping(next_required_edit_spec)
+        if required_spec.get("ok") is True and required_spec.get("path"):
+            start_next_commands.append(
+                command_entry(
+                    label="run_next_required_edit_spec_plan",
+                    description=(
+                        "Run the next exact real-repo plan-only smoke from "
+                        "biber-next-required-edit.json."
+                    ),
+                    environment="vast-gpu",
+                    uses_gpu=True,
+                    uses_model=True,
+                    live_provider_required=True,
+                    command_parts=[
+                        python_executable,
+                        "scripts/biber_live_provider_real_repo_plan_smoke.py",
+                        "--base-url",
+                        base_url,
+                        "--model",
+                        model,
+                        "--target-root",
+                        target,
+                        "--required-edit-spec",
+                        required_spec.get("path"),
+                        "--output",
+                        root / "biber-real-repo-plan-latest.json",
+                    ],
+                )
+            )
         start_next_commands.extend(
             [
                 command_entry(
@@ -15754,6 +15845,7 @@ def build_live_mvp_resume_status(
     github_bridge: dict[str, Any]
     failure_changed_paths: dict[str, Any]
     latest_failed_mvp_loop: dict[str, Any]
+    next_required_edit_spec: dict[str, Any]
     target_git_status: dict[str, Any] | None = None
     apply_hash_status: dict[str, Any] | None = None
     try:
@@ -15854,6 +15946,7 @@ def build_live_mvp_resume_status(
         pattern="*mvp-loop*.json",
         target_root=target_root,
     )
+    next_required_edit_spec = summarize_next_required_edit_spec(directory=directory)
 
     if target_root:
         try:
@@ -15944,6 +16037,7 @@ def build_live_mvp_resume_status(
         live_model=live_model,
         failure_changed_paths=failure_changed_paths,
         latest_failed_mvp_loop=latest_failed_mvp_loop,
+        next_required_edit_spec=next_required_edit_spec,
     )
     next_ready_commands = filter_ready_live_mvp_resume_commands(next_commands)
     return {
@@ -15988,6 +16082,7 @@ def build_live_mvp_resume_status(
         "github_bridge": github_bridge,
         "failure_changed_paths": failure_changed_paths,
         "latest_failed_mvp_loop": latest_failed_mvp_loop,
+        "next_required_edit_spec": next_required_edit_spec,
         "target_git_status": target_git_status,
         "verified_apply_hash_status": apply_hash_status,
     }
@@ -15999,6 +16094,7 @@ def format_live_mvp_resume_status(payload: Mapping[str, Any]) -> str:
     github_bridge = require_mapping(payload.get("github_bridge"))
     failure_changed_paths = require_mapping(payload.get("failure_changed_paths"))
     latest_failed_mvp_loop = require_mapping(payload.get("latest_failed_mvp_loop"))
+    next_required_edit_spec = require_mapping(payload.get("next_required_edit_spec"))
     lines = [
         "BIBER live MVP resume status",
         f"ok: {payload.get('ok') is True}",
@@ -16060,6 +16156,12 @@ def format_live_mvp_resume_status(payload: Mapping[str, Any]) -> str:
             f"ok={latest_failed_mvp_loop.get('ok')} "
             f"repair_hint={latest_failed_mvp_loop.get('repair_hint_status', '-')} "
             f"artifact={latest_failed_mvp_loop.get('artifact_path', '-')}"
+        ),
+        (
+            "next_required_edit_spec: "
+            f"ok={next_required_edit_spec.get('ok')} "
+            f"path={next_required_edit_spec.get('required_path', '-')} "
+            f"artifact={next_required_edit_spec.get('path', '-')}"
         ),
     ]
     next_commands = [
@@ -16314,6 +16416,7 @@ def validate_live_mvp_ready_command_execution(
     allowed_standalone_scripts = {
         "scripts/biber_local_confidence_smoke.py",
         "scripts/biber_live_provider_confidence_smoke.py",
+        "scripts/biber_live_provider_real_repo_plan_smoke.py",
     }
     if not parts:
         blockers.append("missing_command_parts")

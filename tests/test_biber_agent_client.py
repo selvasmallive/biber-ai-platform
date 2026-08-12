@@ -2763,6 +2763,19 @@ def test_live_mvp_resume_status_exposes_prepare_latest_repair_ready_command(
         ),
         encoding="utf-8",
     )
+    next_required_edit_spec = tmp_path / "biber-next-required-edit.json"
+    next_required_edit_spec.write_text(
+        json.dumps(
+            {
+                "path": "docs/BIBER_ONLY_WORKSPACE.md",
+                "old_text": "verified docs\n",
+                "new_text": "verified docs updated\n",
+                "changed_paths": ["docs/BIBER_ONLY_WORKSPACE.md"],
+                "max_context_files": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
     failed_loop = tmp_path / "failed-mvp-loop.json"
     failed_loop.write_text(
         json.dumps(
@@ -2823,6 +2836,26 @@ def test_live_mvp_resume_status_exposes_prepare_latest_repair_ready_command(
     assert status["github_bridge"]["artifact_path"] == str(
         tmp_path / "biber-live-verified-github-dry-run-latest.json"
     )
+    assert status["next_required_edit_spec"]["ok"] is True
+    assert status["next_required_edit_spec"]["path"] == str(next_required_edit_spec)
+    assert "run_next_required_edit_spec_plan" in status["next_ready_command_labels"]
+    spec_command = next_commands["run_next_required_edit_spec_plan"]
+    assert spec_command["ready_to_run"] is True
+    assert spec_command["uses_gpu"] is True
+    assert spec_command["uses_model"] is True
+    assert spec_command["live_provider_required"] is True
+    assert spec_command["mutates_repo"] is False
+    assert "scripts/biber_live_provider_real_repo_plan_smoke.py" in spec_command[
+        "command_parts"
+    ]
+    assert "--required-edit-spec" in spec_command["command_parts"]
+    assert str(next_required_edit_spec) in spec_command["command_parts"]
+    spec_validation = client.validate_live_mvp_ready_command_execution(
+        spec_command,
+        allow_gpu=True,
+        allow_live_provider=True,
+    )
+    assert spec_validation["ok"] is True
     assert status["latest_failed_mvp_loop"]["ok"] is True
     assert status["latest_failed_mvp_loop"]["artifact_path"] == str(failed_loop)
     assert "prepare_latest_repair" in status["next_ready_command_labels"]

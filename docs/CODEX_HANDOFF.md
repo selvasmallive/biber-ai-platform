@@ -4,6 +4,20 @@ Last updated: 2026-08-12
 
 ## Current Goal
 
+2026-08-12 latest BIBER next-required-edit ready-command checkpoint:
+`live-mvp-resume-status` now looks for canonical
+`biber-next-required-edit.json` in the requested outputs directory. When the
+spec has a path plus old/new text or file fields, it summarizes the spec and
+adds a guarded ready command labeled `run_next_required_edit_spec_plan`. The
+command runs `biber_live_provider_real_repo_plan_smoke.py --required-edit-spec`
+with the configured local provider/model and writes
+`biber-real-repo-plan-latest.json`; it uses GPU/model only when executed with the
+runner's explicit `--allow-gpu --allow-live-provider`, and still performs no
+apply, GitHub request, OpenAI mentor call, or training. Next narrow step:
+validate locally, commit/push, fast-forward Vast, and run a `/tmp` resume-status
+spec-command smoke before using the command with any real `/workspace/outputs`
+spec.
+
 2026-08-12 latest BIBER required-edit spec checkpoint:
 `scripts/biber_live_provider_real_repo_plan_smoke.py` now accepts
 `--required-edit-spec`, a JSON object that can provide `path`/`required_path`,
