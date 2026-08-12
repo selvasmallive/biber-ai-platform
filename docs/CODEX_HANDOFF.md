@@ -50,6 +50,17 @@ harness, an actual CLI export smoke, `scripts/biber_local_confidence_smoke.py`,
 and `git diff --check`. Next narrow step: push this checkpoint, fast-forward Vast,
 run Vast py_compile plus a compact CLI export smoke, then refresh
 `/workspace/outputs/biber-live-mvp-resume-status-latest.json`.
+2026-08-12 follow-up: commits `16f24e1` and `853d0f8` were pushed to
+`biber/mvp-resume-20260712`; the current Vast GPU repo was fast-forwarded to
+`853d0f8`. Vast py_compile passed before the CLI smoke, and a compact stdin
+Python smoke invoked `export-mvp-failure-changed-paths` against a disposable
+artifact under `/workspace/outputs/biber-export-smoke`. The command returned
+`ok=True`, wrote `src/api.py` to
+`/workspace/outputs/biber-export-smoke/changed-paths.txt`, rejected
+`../outside.py`, and preserved `api_required=False`, `github_request_sent=False`,
+`mentor_used=False`, and `training_allowed=False`. Next narrow step: refresh the
+live MVP resume status, then continue with another local-first BIBER MVP agent
+flow improvement.
 
 2026-08-12 latest BIBER ready-command reader checkpoint:
 commit `7ab4594` adds
