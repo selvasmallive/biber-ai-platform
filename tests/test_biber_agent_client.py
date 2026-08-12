@@ -3084,6 +3084,87 @@ def test_build_mvp_failure_changed_paths_export_writes_changed_paths_file(
     assert "--max-context-files 6" in export["next_command"]
 
 
+def test_find_latest_mvp_failure_changed_path_hint_uses_safe_paths(
+    tmp_path: Path,
+) -> None:
+    old_artifact = tmp_path / "old-mvp-loop.json"
+    new_artifact = tmp_path / "new-mvp-loop.json"
+    old_artifact.write_text(
+        json.dumps(
+            {
+                "ok": False,
+                "steps": {
+                    "test_diagnosis": {
+                        "file_references": [{"path": "src/old.py", "line": 1}]
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    new_artifact.write_text(
+        json.dumps(
+            {
+                "ok": False,
+                "steps": {
+                    "test_diagnosis": {
+                        "file_references": [
+                            {"path": "src/new.py", "line": 2},
+                            {"path": "../outside.py", "line": 1},
+                        ]
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    os.utime(old_artifact, (1, 1))
+    os.utime(new_artifact, (2, 2))
+
+    hint = client.find_latest_mvp_failure_changed_path_hint(directory=str(tmp_path))
+
+    assert hint["ok"] is True
+    assert hint["artifact_path"] == str(new_artifact)
+    assert hint["candidate_changed_paths"] == ["src/new.py"]
+    assert hint["github_request_sent"] is False
+    assert hint["mentor_used"] is False
+    assert hint["training_allowed"] is False
+
+
+def test_live_mvp_resume_commands_include_failure_changed_paths_export() -> None:
+    commands = client.build_live_mvp_resume_next_commands(
+        directory="/workspace/outputs",
+        target_root="/workspace/biber-ai-platform",
+        next_action="start_next_narrow_biber_step",
+        python_command="/workspace/biber-venv/bin/python",
+        live_base_url="http://127.0.0.1:8001/v1",
+        live_model="biber-dev-core",
+        failure_changed_paths={
+            "ok": True,
+            "artifact_path": "/workspace/outputs/failure-mvp-loop.json",
+            "candidate_changed_paths": ["src/app.py"],
+        },
+    )
+
+    by_label = {str(item["label"]): item for item in commands}
+    export_command = by_label["export_latest_failure_changed_paths"]
+    assert export_command["ready_to_run"] is True
+    assert export_command["safe"] is True
+    assert export_command["mutates_repo"] is False
+    assert export_command["uses_gpu"] is False
+    assert export_command["uses_model"] is False
+    assert export_command["github_request_sent"] is False
+    assert export_command["mentor_used"] is False
+    assert export_command["training_allowed"] is False
+    assert "export-mvp-failure-changed-paths" in export_command["command_parts"]
+    assert "/workspace/outputs/failure-mvp-loop.json" in export_command["command"]
+    assert "--target-root /workspace/biber-ai-platform" in export_command["command"]
+    ready = client.filter_ready_live_mvp_resume_commands(commands)
+    assert "export_latest_failure_changed_paths" in [
+        str(item.get("label")) for item in ready
+    ]
+
+
 def test_build_mvp_loop_repair_request_uses_agent_report_context(
     tmp_path: Path,
 ) -> None:

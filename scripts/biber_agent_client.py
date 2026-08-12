@@ -14121,6 +14121,77 @@ def export_mvp_loop_failures(
     }
 
 
+def find_latest_mvp_failure_changed_path_hint(
+    *,
+    directory: str,
+    pattern: str = "*mvp-loop*.json",
+) -> dict[str, Any]:
+    root = Path(directory)
+    if not root.exists() or not root.is_dir():
+        return {
+            "ok": False,
+            "reason": "mvp_loop_artifact_directory_missing",
+            "directory": str(root),
+            "pattern": pattern,
+            "scanned": 0,
+            "failed": 0,
+            "candidate_changed_path_count": 0,
+            "api_required": False,
+            "github_request_sent": False,
+            "mentor_used": False,
+            "training_allowed": False,
+        }
+
+    paths = [path for path in root.rglob(pattern) if path.is_file()]
+    paths.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    scanned = 0
+    failed = 0
+    for artifact_path in paths:
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(artifact_path),
+                label="mvp-loop artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_mvp_loop_artifact(raw_payload)
+        if normalized is None or not is_failed_mvp_loop_artifact(normalized):
+            continue
+        failed += 1
+        candidate_changed_paths = artifact_candidate_changed_paths(normalized)
+        if not candidate_changed_paths:
+            continue
+        return {
+            "ok": True,
+            "reason": "latest_failed_mvp_loop_with_candidate_changed_paths",
+            "directory": str(root),
+            "pattern": pattern,
+            "artifact_path": str(artifact_path),
+            "candidate_changed_paths": candidate_changed_paths,
+            "candidate_changed_path_count": len(candidate_changed_paths),
+            "scanned": scanned,
+            "failed": failed,
+            "api_required": False,
+            "github_request_sent": False,
+            "mentor_used": False,
+            "training_allowed": False,
+        }
+    return {
+        "ok": False,
+        "reason": "no_failed_mvp_candidate_changed_paths",
+        "directory": str(root),
+        "pattern": pattern,
+        "scanned": scanned,
+        "failed": failed,
+        "candidate_changed_path_count": 0,
+        "api_required": False,
+        "github_request_sent": False,
+        "mentor_used": False,
+        "training_allowed": False,
+    }
+
+
 def load_workspace_edits(
     *,
     edit_json_values: list[str] | None,
@@ -15163,6 +15234,7 @@ def build_live_mvp_resume_next_commands(
     python_command: str = "python",
     live_base_url: str = DEFAULT_LOCAL_OPENAI_BASE_URL,
     live_model: str = DEFAULT_LOCAL_OPENAI_MODEL,
+    failure_changed_paths: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     root = Path(directory)
     target = target_root or "/workspace/biber-ai-platform"
@@ -15273,7 +15345,7 @@ def build_live_mvp_resume_next_commands(
         ]
 
     if next_action == "start_next_narrow_biber_step":
-        return [
+        start_next_commands = [
             command_entry(
                 label="run_cpu_local_confidence_gate",
                 description=(
@@ -15285,59 +15357,88 @@ def build_live_mvp_resume_next_commands(
                     "scripts/biber_local_confidence_smoke.py",
                 ],
             ),
-            command_entry(
-                label="rerun_live_provider_confidence_gate",
-                description=(
-                    "Refresh the live local-model confidence artifact without "
-                    "training, mentor, apply, or GitHub requests."
-                ),
-                environment="vast-gpu",
-                uses_gpu=True,
-                uses_model=True,
-                live_provider_required=True,
-                command_parts=[
-                    python_executable,
-                    "scripts/biber_live_provider_confidence_smoke.py",
-                    "--mode",
-                    "live",
-                    "--base-url",
-                    base_url,
-                    "--model",
-                    model,
-                    "--output",
-                    root / "biber-live-provider-confidence-latest.json",
-                ],
-            ),
-            command_entry(
-                label="prepare_next_plan_only_required_edit",
-                description=(
-                    "Template for the next exact real-repo plan-only smoke; "
-                    "fill the required old/new text files first."
-                ),
-                environment="vast-gpu",
-                ready_to_run=False,
-                uses_gpu=True,
-                uses_model=True,
-                live_provider_required=True,
-                command_parts=[
-                    python_executable,
-                    "scripts/biber_live_provider_real_repo_plan_smoke.py",
-                    "--base-url",
-                    base_url,
-                    "--model",
-                    model,
-                    "--target-root",
-                    target,
-                    "--required-path",
-                    "<workspace-relative-path>",
-                    "--required-old-text-file",
-                    str(root / "biber-old.txt"),
-                    "--required-new-text-file",
-                    str(root / "biber-new.txt"),
-                ],
-            ),
-            refresh_resume,
         ]
+        failure_hint = require_mapping(failure_changed_paths)
+        if failure_hint.get("ok") is True and failure_hint.get("artifact_path"):
+            start_next_commands.append(
+                command_entry(
+                    label="export_latest_failure_changed_paths",
+                    description=(
+                        "Export candidate changed paths from the latest failed "
+                        "MVP artifact for the next local mvp-loop context plan."
+                    ),
+                    environment="local-or-vast-artifact-reader",
+                    command_parts=[
+                        python_executable,
+                        "scripts/biber_agent_client.py",
+                        "export-mvp-failure-changed-paths",
+                        failure_hint.get("artifact_path"),
+                        "--output",
+                        root / "biber-latest-failure-changed-paths.txt",
+                        "--target-root",
+                        target,
+                        "--max-context-files",
+                        12,
+                    ],
+                )
+            )
+        start_next_commands.extend(
+            [
+                command_entry(
+                    label="rerun_live_provider_confidence_gate",
+                    description=(
+                        "Refresh the live local-model confidence artifact without "
+                        "training, mentor, apply, or GitHub requests."
+                    ),
+                    environment="vast-gpu",
+                    uses_gpu=True,
+                    uses_model=True,
+                    live_provider_required=True,
+                    command_parts=[
+                        python_executable,
+                        "scripts/biber_live_provider_confidence_smoke.py",
+                        "--mode",
+                        "live",
+                        "--base-url",
+                        base_url,
+                        "--model",
+                        model,
+                        "--output",
+                        root / "biber-live-provider-confidence-latest.json",
+                    ],
+                ),
+                command_entry(
+                    label="prepare_next_plan_only_required_edit",
+                    description=(
+                        "Template for the next exact real-repo plan-only smoke; "
+                        "fill the required old/new text files first."
+                    ),
+                    environment="vast-gpu",
+                    ready_to_run=False,
+                    uses_gpu=True,
+                    uses_model=True,
+                    live_provider_required=True,
+                    command_parts=[
+                        python_executable,
+                        "scripts/biber_live_provider_real_repo_plan_smoke.py",
+                        "--base-url",
+                        base_url,
+                        "--model",
+                        model,
+                        "--target-root",
+                        target,
+                        "--required-path",
+                        "<workspace-relative-path>",
+                        "--required-old-text-file",
+                        str(root / "biber-old.txt"),
+                        "--required-new-text-file",
+                        str(root / "biber-new.txt"),
+                    ],
+                ),
+                refresh_resume,
+            ]
+        )
+        return start_next_commands
 
     return [
         command_entry(
@@ -15397,6 +15498,7 @@ def build_live_mvp_resume_status(
     confidence: dict[str, Any]
     real_repo_plan: dict[str, Any]
     github_bridge: dict[str, Any]
+    failure_changed_paths: dict[str, Any]
     target_git_status: dict[str, Any] | None = None
     apply_hash_status: dict[str, Any] | None = None
     try:
@@ -15486,6 +15588,11 @@ def build_live_mvp_resume_status(
     except BiberAgentClientError as exc:
         github_bridge = compact_artifact_error(exc)
 
+    failure_changed_paths = find_latest_mvp_failure_changed_path_hint(
+        directory=directory,
+        pattern="*mvp-loop*.json",
+    )
+
     if target_root:
         try:
             target_git_status = git_status_local_target(Path(target_root))
@@ -15562,6 +15669,7 @@ def build_live_mvp_resume_status(
         python_command=python_command,
         live_base_url=live_base_url,
         live_model=live_model,
+        failure_changed_paths=failure_changed_paths,
     )
     next_ready_commands = filter_ready_live_mvp_resume_commands(next_commands)
     return {
@@ -15602,6 +15710,7 @@ def build_live_mvp_resume_status(
         "confidence": confidence,
         "real_repo_plan": real_repo_plan,
         "github_bridge": github_bridge,
+        "failure_changed_paths": failure_changed_paths,
         "target_git_status": target_git_status,
         "verified_apply_hash_status": apply_hash_status,
     }
@@ -15611,6 +15720,7 @@ def format_live_mvp_resume_status(payload: Mapping[str, Any]) -> str:
     confidence = require_mapping(payload.get("confidence"))
     real_repo_plan = require_mapping(payload.get("real_repo_plan"))
     github_bridge = require_mapping(payload.get("github_bridge"))
+    failure_changed_paths = require_mapping(payload.get("failure_changed_paths"))
     lines = [
         "BIBER live MVP resume status",
         f"ok: {payload.get('ok') is True}",
@@ -15658,6 +15768,12 @@ def format_live_mvp_resume_status(payload: Mapping[str, Any]) -> str:
             f"test_ok={github_bridge.get('test_ok')} "
             f"dry_runs={github_bridge.get('dry_run_artifacts_matched', 0)} "
             f"artifact={github_bridge.get('artifact_path', '-')}"
+        ),
+        (
+            "failure_changed_paths: "
+            f"ok={failure_changed_paths.get('ok')} "
+            f"count={failure_changed_paths.get('candidate_changed_path_count', 0)} "
+            f"artifact={failure_changed_paths.get('artifact_path', '-')}"
         ),
     ]
     next_commands = [
