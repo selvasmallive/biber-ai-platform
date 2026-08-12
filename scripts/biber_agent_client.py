@@ -15910,6 +15910,94 @@ def select_live_mvp_resume_ready_command(
     }
 
 
+def normalize_live_mvp_resume_status_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") != "biber_live_mvp_resume_status":
+        return None
+    return dict(payload)
+
+
+def find_latest_live_mvp_resume_status_artifact(
+    *,
+    directory: str,
+    pattern: str,
+) -> dict[str, Any]:
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            f"Live MVP resume status artifact directory does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            f"Live MVP resume status artifact path is not a directory: {root}"
+        )
+
+    scanned = 0
+    matches: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="live MVP resume status artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_live_mvp_resume_status_artifact(raw_payload)
+        if normalized is None:
+            continue
+        matches.append(
+            {
+                "path": str(path),
+                "modified_epoch": path.stat().st_mtime,
+                "next_action": normalized.get("next_action"),
+                "next_ready_command_labels": [
+                    command.get("label")
+                    for command in require_list(
+                        normalized.get("next_ready_commands")
+                    )
+                    if isinstance(command, dict)
+                ],
+            }
+        )
+
+    matches.sort(
+        key=lambda item: float(item.get("modified_epoch") or 0.0),
+        reverse=True,
+    )
+    latest = next(iter(matches), None)
+    if not isinstance(latest, dict):
+        raise BiberAgentClientError(
+            "No matching live MVP resume status artifact found."
+        )
+    raw_payload = load_json_artifact(
+        str(latest.get("path")),
+        label="live MVP resume status artifact",
+    )
+    normalized = normalize_live_mvp_resume_status_artifact(raw_payload)
+    if normalized is None:
+        raise BiberAgentClientError(
+            "latest live MVP resume status artifact must have source "
+            "biber_live_mvp_resume_status."
+        )
+    return {
+        **normalized,
+        "artifact_path": latest.get("path"),
+        "artifact_list": {
+            "source": "biber_live_mvp_resume_status_artifact_list",
+            "directory": str(root),
+            "pattern": pattern,
+            "scanned": scanned,
+            "matched": len(matches),
+            "latest_path": latest.get("path"),
+            "latest_modified_epoch": latest.get("modified_epoch"),
+        },
+    }
+
+
 def normalize_ready_command_script_path(value: object) -> str:
     text = str(value or "").strip().replace("\\", "/")
     if "/scripts/" in text:
@@ -16018,6 +16106,7 @@ def run_live_mvp_resume_ready_command(
         "source": "biber_live_mvp_ready_command_run",
         "ok": False,
         "artifact_path": artifact_path,
+        "status_artifact_path": artifact_path,
         "status_next_action": payload.get("next_action"),
         "label": selection.get("label"),
         "selected_index": selection.get("selected_index"),
@@ -19843,6 +19932,44 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     run_live_mvp_ready_command.add_argument("--max-output-chars", type=int, default=4000)
     run_live_mvp_ready_command.add_argument("--output")
 
+    run_latest_live_mvp_ready_command = subparsers.add_parser(
+        "run-latest-live-mvp-ready-command",
+        help=(
+            "Find the newest saved live-mvp-resume-status artifact and run one "
+            "guarded next_ready_commands entry from it."
+        ),
+    )
+    run_latest_live_mvp_ready_command.add_argument("directory")
+    run_latest_live_mvp_ready_command.add_argument(
+        "--pattern",
+        default="*live-mvp-resume-status*.json",
+    )
+    run_latest_live_mvp_ready_command.add_argument("--label")
+    run_latest_live_mvp_ready_command.add_argument("--index", type=int, default=0)
+    run_latest_live_mvp_ready_command.add_argument("--cwd")
+    run_latest_live_mvp_ready_command.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=300.0,
+    )
+    run_latest_live_mvp_ready_command.add_argument(
+        "--allow-gpu",
+        action="store_true",
+        help="Permit ready commands marked uses_gpu=true.",
+    )
+    run_latest_live_mvp_ready_command.add_argument(
+        "--allow-live-provider",
+        action="store_true",
+        help="Permit ready commands that require the live local-model endpoint.",
+    )
+    run_latest_live_mvp_ready_command.add_argument("--dry-run", action="store_true")
+    run_latest_live_mvp_ready_command.add_argument(
+        "--max-output-chars",
+        type=int,
+        default=4000,
+    )
+    run_latest_live_mvp_ready_command.add_argument("--output")
+
     show_real_repo_plan_smoke = subparsers.add_parser(
         "show-real-repo-plan-smoke",
         help="Summarize a saved biber_live_provider_real_repo_plan_smoke.py artifact.",
@@ -21655,6 +21782,33 @@ def run(args: argparse.Namespace) -> str:
             dry_run=args.dry_run,
             max_output_chars=args.max_output_chars,
         )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_live_mvp_ready_command_run(result)
+        )
+    if args.command == "run-latest-live-mvp-ready-command":
+        artifact = find_latest_live_mvp_resume_status_artifact(
+            directory=args.directory,
+            pattern=args.pattern,
+        )
+        selected_status_artifact_path = str(artifact.get("artifact_path") or "")
+        result = run_live_mvp_resume_ready_command(
+            artifact,
+            label=args.label,
+            index=args.index,
+            artifact_path=selected_status_artifact_path,
+            cwd=args.cwd,
+            timeout_seconds=args.timeout_seconds,
+            allow_gpu=args.allow_gpu,
+            allow_live_provider=args.allow_live_provider,
+            dry_run=args.dry_run,
+            max_output_chars=args.max_output_chars,
+        )
+        result["artifact_discovery"] = require_mapping(artifact.get("artifact_list"))
         if args.output:
             result["artifact_path"] = str(Path(args.output))
             write_json_artifact(result, args.output)

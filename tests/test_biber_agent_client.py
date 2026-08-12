@@ -2135,6 +2135,140 @@ def test_run_live_mvp_ready_command_blocks_gpu_without_explicit_flags(
     assert dry_run["dry_run"] is True
 
 
+def test_run_latest_live_mvp_ready_command_uses_newest_status_artifact(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    older_artifact = tmp_path / "older-live-mvp-resume-status.json"
+    newer_artifact = tmp_path / "newer-live-mvp-resume-status.json"
+    unrelated_artifact = tmp_path / "other-live-mvp-resume-status.json"
+    older_artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_live_mvp_resume_status",
+                "next_action": "older",
+                "next_ready_commands": [
+                    {
+                        "label": "older_refresh",
+                        "ready_to_run": True,
+                        "safe": True,
+                        "mutates_repo": False,
+                        "api_required": False,
+                        "external_network_required": False,
+                        "github_request_sent": False,
+                        "mentor_used": False,
+                        "training_allowed": False,
+                        "uses_gpu": False,
+                        "live_provider_required": False,
+                        "command_parts": [
+                            sys.executable,
+                            "scripts/biber_agent_client.py",
+                            "live-mvp-resume-status",
+                            str(tmp_path),
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    newer_command_parts = [
+        sys.executable,
+        "scripts/biber_agent_client.py",
+        "live-mvp-resume-status",
+        str(tmp_path),
+        "--output",
+        str(tmp_path / "latest.json"),
+    ]
+    newer_artifact.write_text(
+        json.dumps(
+            {
+                "source": "biber_live_mvp_resume_status",
+                "next_action": "start_next_narrow_biber_step",
+                "next_ready_commands": [
+                    {
+                        "label": "refresh_resume_status",
+                        "ready_to_run": True,
+                        "safe": True,
+                        "mutates_repo": False,
+                        "api_required": False,
+                        "external_network_required": False,
+                        "github_request_sent": False,
+                        "mentor_used": False,
+                        "training_allowed": False,
+                        "uses_gpu": False,
+                        "live_provider_required": False,
+                        "command_parts": newer_command_parts,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    unrelated_artifact.write_text(
+        json.dumps({"source": "not_biber_live_mvp_resume_status"}),
+        encoding="utf-8",
+    )
+    os.utime(older_artifact, (100.0, 100.0))
+    os.utime(unrelated_artifact, (150.0, 150.0))
+    os.utime(newer_artifact, (200.0, 200.0))
+
+    run_calls: dict[str, object] = {}
+
+    def fake_subprocess_run(
+        command_parts: list[str],
+        *,
+        cwd: str | None,
+        capture_output: bool,
+        check: bool,
+        text: bool,
+        timeout: float,
+    ) -> object:
+        run_calls["command_parts"] = list(command_parts)
+        run_calls["cwd"] = cwd
+        assert capture_output is True
+        assert check is False
+        assert text is True
+        assert timeout == 300.0
+        return client.subprocess.CompletedProcess(
+            command_parts,
+            0,
+            "latest refreshed\n",
+            "",
+        )
+
+    monkeypatch.setattr(client.subprocess, "run", fake_subprocess_run)
+    ready_run = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "run-latest-live-mvp-ready-command",
+                    str(tmp_path),
+                    "--label",
+                    "refresh_resume_status",
+                    "--cwd",
+                    str(tmp_path),
+                ]
+            )
+        )
+    )
+
+    assert ready_run["source"] == "biber_live_mvp_ready_command_run"
+    assert ready_run["ok"] is True
+    assert ready_run["executed"] is True
+    assert ready_run["label"] == "refresh_resume_status"
+    assert ready_run["status_artifact_path"] == str(newer_artifact)
+    assert ready_run["artifact_discovery"]["scanned"] == 3
+    assert ready_run["artifact_discovery"]["matched"] == 2
+    assert ready_run["artifact_discovery"]["latest_path"] == str(newer_artifact)
+    assert ready_run["github_request_sent"] is False
+    assert ready_run["mentor_used"] is False
+    assert ready_run["training_allowed"] is False
+    assert run_calls["cwd"] == str(tmp_path)
+    assert run_calls["command_parts"] == newer_command_parts
+
+
 def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     monkeypatch,
     tmp_path: Path,

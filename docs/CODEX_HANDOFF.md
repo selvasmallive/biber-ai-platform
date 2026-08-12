@@ -4,6 +4,26 @@ Last updated: 2026-08-12
 
 ## Current Goal
 
+2026-08-12 latest BIBER ready-command latest-artifact checkpoint:
+`scripts/biber_agent_client.py` now has
+`run-latest-live-mvp-ready-command <outputs-dir>`, which finds the newest valid
+saved `biber_live_mvp_resume_status` artifact by source under the given
+directory and then delegates to the existing guarded
+`run-live-mvp-ready-command` executor. The safety gates are unchanged: repo
+mutation, GitHub requests, OpenAI mentor, training, API-required commands, and
+external-network-required commands remain blocked, while GPU/live-provider
+commands still require explicit `--allow-gpu --allow-live-provider`. The run
+result now preserves `status_artifact_path` so an output artifact can record
+both its own path and the selected resume-status input. `docs/BIBER_ONLY_WORKSPACE.md`
+documents the new command for `/workspace/outputs`. Local validation passed
+bundled Python `py_compile`, a focused direct latest-artifact harness,
+`scripts/biber_local_confidence_smoke.py`, and `git diff --check`. Focused
+pytest was attempted but the bundled local Python still does not have pytest
+installed. Next narrow step: commit/push this checkpoint, fast-forward the
+current Vast GPU repo, run Vast py_compile plus
+`run-latest-live-mvp-ready-command /workspace/outputs --label refresh_resume_status`,
+then refresh `/workspace/outputs/biber-live-mvp-resume-status-latest.json`.
+
 2026-08-12 latest BIBER guarded ready-command runner checkpoint:
 commit `fcead37` adds
 `run-live-mvp-ready-command <live-mvp-resume-status.json>` to

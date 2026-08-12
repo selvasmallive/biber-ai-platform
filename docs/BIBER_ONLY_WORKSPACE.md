@@ -257,6 +257,17 @@ python scripts/biber_agent_client.py run-live-mvp-ready-command \
   --cwd /workspace/biber-ai-platform
 ```
 
+If the exact resume-status JSON path is not known, let the client discover the
+newest valid saved status artifact under the outputs directory and then run the
+same guarded command:
+
+```bash
+python scripts/biber_agent_client.py run-latest-live-mvp-ready-command \
+  /workspace/outputs \
+  --label refresh_resume_status \
+  --cwd /workspace/biber-ai-platform
+```
+
 The runner executes only commands already present in `next_ready_commands` and
 still rejects repo mutation, GitHub requests, OpenAI mentor use, training,
 external-network requirements, and API-required commands. GPU/live-provider
