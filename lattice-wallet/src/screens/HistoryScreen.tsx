@@ -4,15 +4,15 @@ import { Screen, shortAddr } from '../components/ui';
 import { colors, font, radius, spacing } from '../theme/theme';
 import { useWallet } from '../state/WalletProvider';
 import { formatUnits } from '../core/format';
-import { NATIVE_SYMBOL } from '../core/config';
 import type { HistoryEntry } from '../core/rpc';
 
 export function HistoryScreen() {
   const w = useWallet();
+  const { symbol, decimals } = w.activeChain;
 
   return (
     <Screen>
-      <Text style={[font.h2, { marginVertical: spacing(4) }]}>Activity</Text>
+      <Text style={[font.h2, { marginVertical: spacing(4) }]}>Activity · {symbol}</Text>
       <FlatList
         data={w.history}
         keyExtractor={(item, i) => item.hash || String(i)}
@@ -20,7 +20,7 @@ export function HistoryScreen() {
           <RefreshControl refreshing={w.refreshing} onRefresh={w.refresh} tintColor={colors.accent} />
         }
         ItemSeparatorComponent={() => <View style={styles.sep} />}
-        renderItem={({ item }) => <TxRow item={item} />}
+        renderItem={({ item }) => <TxRow item={item} symbol={symbol} decimals={decimals} />}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyGlyph}>◇</Text>
@@ -35,7 +35,7 @@ export function HistoryScreen() {
   );
 }
 
-function TxRow({ item }: { item: HistoryEntry }) {
+function TxRow({ item, symbol, decimals }: { item: HistoryEntry; symbol: string; decimals: number }) {
   const outgoing = item.direction === 'out';
   const sign = outgoing ? '−' : item.direction === 'in' ? '+' : '';
   const color = outgoing ? colors.text : item.direction === 'in' ? colors.success : colors.textDim;
@@ -53,9 +53,9 @@ function TxRow({ item }: { item: HistoryEntry }) {
       </View>
       <View style={{ alignItems: 'flex-end' }}>
         <Text style={[styles.amount, { color }]}>
-          {item.amountBaseUnits !== undefined ? `${sign}${formatUnits(item.amountBaseUnits)}` : '—'}
+          {item.amountBaseUnits !== undefined ? `${sign}${formatUnits(item.amountBaseUnits, decimals)}` : '—'}
         </Text>
-        <Text style={styles.symbol}>{NATIVE_SYMBOL}</Text>
+        <Text style={styles.symbol}>{symbol}</Text>
       </View>
     </View>
   );

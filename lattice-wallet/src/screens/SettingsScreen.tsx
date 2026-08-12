@@ -3,7 +3,8 @@ import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 import { Screen, Button, Card, StatusBanner, Divider } from '../components/ui';
 import { colors, font, radius, spacing } from '../theme/theme';
 import { useWallet } from '../state/WalletProvider';
-import { NETWORKS, SECURITY_STATUS } from '../core/config';
+import { SECURITY_STATUS } from '../core/config';
+import { shortAddr } from '../components/ui';
 
 export function SettingsScreen({ navigation }: any) {
   const w = useWallet();
@@ -41,20 +42,22 @@ export function SettingsScreen({ navigation }: any) {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={font.h2}>Settings</Text>
 
-        <Text style={styles.section}>Network</Text>
+        <Text style={styles.section}>Networks</Text>
         <Card style={{ gap: spacing(2) }}>
-          {Object.values(NETWORKS).map((n) => {
-            const active = n.key === w.network.key;
+          {w.chains.map((c) => {
+            const active = c.id === w.activeChain.id;
             return (
-              <View key={n.key} style={styles.netRow}>
+              <View key={c.id} style={styles.netRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.netName}>{n.label}</Text>
-                  <Text style={styles.netSub}>{n.chainId} · {n.rpcUrl}</Text>
+                  <Text style={styles.netName}>{c.name}{c.isTestnet ? ' · testnet' : ''}</Text>
+                  <Text style={styles.netSub}>
+                    {w.addresses[c.id] ? shortAddr(w.addresses[c.id]) : c.symbol} · {c.rpcUrl}
+                  </Text>
                 </View>
                 <Button
                   title={active ? '✓ Active' : 'Use'}
                   variant={active ? 'secondary' : 'ghost'}
-                  onPress={() => w.setNetworkKey(n.key)}
+                  onPress={() => w.setActiveChain(c.id)}
                 />
               </View>
             );

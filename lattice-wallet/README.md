@@ -1,11 +1,32 @@
 # Lattice
 
-A non-custodial mobile wallet for the **XRIQ** chain, built with Expo / React Native so
-one codebase ships to **both iOS and Android**. Keys are generated and transactions are
-signed **on the device**; only public keys and signatures ever reach a node.
+A non-custodial, **multi-chain** mobile wallet built with Expo / React Native so one
+codebase ships to **both iOS and Android**. One recovery phrase derives an account on
+every supported chain. Keys are generated and transactions are signed **on the device**;
+only public keys and signatures ever reach a node.
 
 The name nods to the lattice-based mathematics behind the post-quantum signature scheme
-the wallet already produces (ML-DSA / CRYSTALS-Dilithium).
+the wallet produces on XRIQ (ML-DSA / CRYSTALS-Dilithium).
+
+## Supported chains
+
+| Chain | Status | Signing | Address | Proven against |
+| --- | --- | --- | --- | --- |
+| **XRIQ** (devnet) | ✅ live | Ed25519 | `xriqdev1…` | Rust chain golden vectors |
+| **Ethereum + EVM** (Polygon, Base, Sepolia) | ✅ live | secp256k1 | EIP-55 `0x…` | EIP-155 / EIP-55 golden vectors |
+| Bitcoin | 🔜 planned | secp256k1 (UTXO) | bech32 | — |
+| Solana | 🔜 planned | Ed25519 | base58 | — |
+| Zcash (transparent) | 🔜 planned | secp256k1 | t-addr | — |
+| Monero, shielded Zcash | ⛔ out of scope | ring sig / zk-SNARK | — | see below |
+
+Adding a chain is a `ChainAdapter` (`src/core/chains/`) plus one line in the registry —
+the wallet shell, keystore, biometrics, PQ, and UI are chain-agnostic.
+
+**Why Monero and shielded Zcash are out of scope:** their privacy cryptography (Monero's
+ring signatures + RingCT + on-device output scanning; Zcash's zk-SNARK proving) has no
+safe, practical pure-JavaScript implementation for React Native today — real support means
+embedding large C++/WASM proving libraries. A subtly-wrong privacy-coin wallet loses funds
+irreversibly, so these are deferred to a dedicated effort rather than shipped half-built.
 
 > ## ⚠️ Status: testnet · unaudited
 > XRIQ has **not** completed an independent third-party security audit or legal review.
@@ -40,12 +61,17 @@ the wallet already produces (ML-DSA / CRYSTALS-Dilithium).
 
 ```
 src/core/        protocol + security (unit-testable, no UI)
+  chains/        multi-chain seam
+    types.ts     ChainAdapter interface (derive/validate/balance/history/send)
+    registry.ts  supported chains + adapter factory
+    xriqAdapter.ts  XRIQ over the Rust-conformant core
+    evm.ts       Ethereum + EVM (secp256k1, keccak, RLP, EIP-1559 + EIP-155)
   xriq.ts        canonical encoding, address derivation, tx signing, submit envelope
   pq.ts          ML-DSA-65 hybrid post-quantum signing (algorithm id 250)
   keystore.ts    hardware-backed secret storage + biometric gate (the only secret sink)
   rpc.ts         XRIQ HTTP API client (accounts, history, faucet, submit-signed)
   agna.ts        AGNA DEX interface (pluggable; null until the exchange API ships)
-  config.ts      networks, symbols, honest security status
+  config.ts      symbols, honest security status
   format.ts      base-unit <-> human amount
 src/state/       WalletProvider — coordinates keystore + rpc + signing
 src/screens/     Onboarding, Backup, Import, Home, Send, Receive, History, Swap, Settings

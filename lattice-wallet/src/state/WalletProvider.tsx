@@ -1,174 +1,166 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { NETWORKS, DEFAULT_NETWORK_KEY, type NetworkConfig } from '../core/config';
 import * as keystore from '../core/keystore';
-import { XriqRpc, type AccountInfo, type HistoryEntry, type NetworkInfo } from '../core/rpc';
-import {
-  keypairFromMnemonic,
-  newMnemonic,
-  isValidMnemonic,
-  signTransfer,
-  DEFAULT_PATH,
-  hex,
-  type XriqTransaction,
-} from '../core/xriq';
-import { pqKeypairFromMnemonic, hybridSign } from '../core/pq';
+import { type HistoryEntry } from '../core/rpc';
+import { newMnemonic, isValidMnemonic } from '../core/xriq';
+import { CHAINS, DEFAULT_CHAIN_ID, getChainConfig, makeAdapter } from '../core/chains/registry';
+import type { ChainAdapter, ChainConfig, TransferRequest } from '../core/chains/types';
 
 type Status = 'loading' | 'no-wallet' | 'ready';
 
-interface SendParams {
-  to: string;
-  amountBaseUnits: bigint;
-  feeBaseUnits: bigint;
-}
-
 interface WalletState {
   status: Status;
-  address: string | null;
-  network: NetworkConfig;
-  account: AccountInfo | null;
+  chains: ChainConfig[];
+  activeChain: ChainConfig;
+  activeAdapter: ChainAdapter;
+  address: string | null; // active chain
+  addresses: Record<string, string>; // all chains
+  balance: bigint | null; // active chain, base units
   history: HistoryEntry[];
-  networkInfo: NetworkInfo | null;
   online: boolean;
   refreshing: boolean;
   pqEnabled: boolean;
 
-  createWallet: () => Promise<string>; // returns mnemonic for one-time backup
+  createWallet: () => Promise<string>;
   importWallet: (mnemonic: string) => Promise<void>;
   refresh: () => Promise<void>;
-  send: (p: SendParams) => Promise<{ transactionHash: string; response: unknown }>;
+  setActiveChain: (id: string) => Promise<void>;
+  send: (req: TransferRequest) => Promise<{ hash: string }>;
   requestFaucet: () => Promise<void>;
   revealPhrase: () => Promise<string>;
-  setNetworkKey: (key: string) => void;
   setPqEnabled: (on: boolean) => Promise<void>;
   wipe: () => Promise<void>;
 }
 
 const Ctx = createContext<WalletState | null>(null);
 
-const DERIVATION_PATH_LABEL = "m/44'/1'/0'/0'/0'";
+// Derive the public address for every supported chain from the mnemonic (addresses are
+// non-secret and safe to persist for display without a biometric prompt).
+function deriveAllAddresses(mnemonic: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const cfg of CHAINS) {
+    try {
+      out[cfg.id] = makeAdapter(cfg).deriveAccount(mnemonic).address;
+    } catch {
+      /* skip a chain that fails to derive */
+    }
+  }
+  return out;
+}
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<Status>('loading');
-  const [address, setAddress] = useState<string | null>(null);
-  const [networkKey, setNetworkKey] = useState<string>(DEFAULT_NETWORK_KEY);
-  const [account, setAccount] = useState<AccountInfo | null>(null);
+  const [addresses, setAddresses] = useState<Record<string, string>>({});
+  const [activeChainId, setActiveChainId] = useState<string>(DEFAULT_CHAIN_ID);
+  const [balance, setBalance] = useState<bigint | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [networkInfo, setNetworkInfo] = useState<NetworkInfo | null>(null);
   const [online, setOnline] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [pqEnabled, setPqEnabledState] = useState(false);
 
-  const network = NETWORKS[networkKey] ?? NETWORKS[DEFAULT_NETWORK_KEY];
-  const rpc = useMemo(() => new XriqRpc(network), [network]);
-
-  const bootstrap = useCallback(async () => {
-    const meta = await keystore.getMeta();
-    if (meta) {
-      setAddress(meta.address);
-      setPqEnabledState(meta.pqEnabled);
-      setStatus('ready');
-    } else {
-      setStatus('no-wallet');
-    }
-  }, []);
+  const activeChain = useMemo(() => getChainConfig(activeChainId), [activeChainId]);
+  const activeAdapter = useMemo(() => makeAdapter(activeChain), [activeChain]);
+  const address = addresses[activeChainId] ?? null;
 
   useEffect(() => {
-    bootstrap();
-  }, [bootstrap]);
+    (async () => {
+      const meta = await keystore.getMeta();
+      if (meta) {
+        setAddresses(meta.addresses);
+        setActiveChainId(meta.activeChainId ?? DEFAULT_CHAIN_ID);
+        setPqEnabledState(meta.pqEnabled);
+        setStatus('ready');
+      } else {
+        setStatus('no-wallet');
+      }
+    })();
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!address) return;
     setRefreshing(true);
+    setBalance(null);
+    setHistory([]);
     try {
-      const healthy = await rpc.health();
-      setOnline(healthy);
-      const [acct, hist, net] = await Promise.allSettled([
-        rpc.getAccount(address),
-        rpc.getHistory(address),
-        rpc.getNetwork(),
+      const [bal, hist] = await Promise.allSettled([
+        activeAdapter.getBalance(address),
+        activeAdapter.getHistory(address),
       ]);
-      if (acct.status === 'fulfilled') setAccount(acct.value);
+      if (bal.status === 'fulfilled') {
+        setBalance(bal.value);
+        setOnline(true);
+      } else {
+        setOnline(false);
+      }
       if (hist.status === 'fulfilled') setHistory(hist.value);
-      if (net.status === 'fulfilled') setNetworkInfo(net.value);
     } finally {
       setRefreshing(false);
     }
-  }, [address, rpc]);
+  }, [address, activeAdapter]);
 
   useEffect(() => {
     if (status === 'ready') refresh();
-  }, [status, refresh]);
+  }, [status, activeChainId, refresh]);
+
+  const persistNewWallet = useCallback(async (mnemonic: string) => {
+    const addrs = deriveAllAddresses(mnemonic);
+    await keystore.storeMnemonic(mnemonic, {
+      addresses: addrs,
+      activeChainId: DEFAULT_CHAIN_ID,
+      createdAt: Date.now(),
+      pqEnabled: false,
+    });
+    setAddresses(addrs);
+    setActiveChainId(DEFAULT_CHAIN_ID);
+    setStatus('ready');
+  }, []);
 
   const createWallet = useCallback(async () => {
     const mnemonic = newMnemonic(256);
-    const kp = keypairFromMnemonic(mnemonic);
-    await keystore.storeMnemonic(mnemonic, {
-      address: kp.address,
-      createdAt: Date.now(),
-      derivationPath: DERIVATION_PATH_LABEL,
-      pqEnabled: false,
-    });
-    setAddress(kp.address);
-    setStatus('ready');
+    await persistNewWallet(mnemonic);
     return mnemonic;
-  }, []);
+  }, [persistNewWallet]);
 
-  const importWallet = useCallback(async (mnemonic: string) => {
-    const trimmed = mnemonic.trim().replace(/\s+/g, ' ');
-    if (!isValidMnemonic(trimmed)) throw new Error('Invalid recovery phrase');
-    const kp = keypairFromMnemonic(trimmed);
-    await keystore.storeMnemonic(trimmed, {
-      address: kp.address,
-      createdAt: Date.now(),
-      derivationPath: DERIVATION_PATH_LABEL,
-      pqEnabled: false,
-    });
-    setAddress(kp.address);
-    setStatus('ready');
+  const importWallet = useCallback(
+    async (mnemonic: string) => {
+      const trimmed = mnemonic.trim().replace(/\s+/g, ' ');
+      if (!isValidMnemonic(trimmed)) throw new Error('Invalid recovery phrase');
+      await persistNewWallet(trimmed);
+    },
+    [persistNewWallet],
+  );
+
+  const setActiveChain = useCallback(async (id: string) => {
+    setActiveChainId(id);
+    const meta = await keystore.getMeta();
+    if (meta) await keystore.setMeta({ ...meta, activeChainId: id });
   }, []);
 
   const send = useCallback(
-    async ({ to, amountBaseUnits, feeBaseUnits }: SendParams) => {
-      if (!address) throw new Error('No wallet');
-      // Always read the authoritative nonce from the chain right before signing.
-      const acct = await rpc.getAccount(address);
+    async (req: TransferRequest) => {
       const mnemonic = await keystore.unlockMnemonic('Confirm to sign transfer');
-      const kp = keypairFromMnemonic(mnemonic, DEFAULT_PATH);
-      const tx: XriqTransaction = {
-        version: 1,
-        chainId: network.chainId,
-        from: address,
-        to: to.trim(),
-        amountBaseUnits,
-        feeBaseUnits,
-        nonce: acct.nonce,
-        memoHash: null,
-        expiresAtHeight: null,
-        publicKey: kp.publicKey,
-      };
-      const signed = signTransfer(tx, kp.privateSeed);
-      // Forward-compatible: when PQ is enabled, produce a real hybrid signature too.
-      // The chain currently verifies the Ed25519 leg; the hybrid is retained for the
-      // PQ migration and offline verification.
-      if (pqEnabled) {
-        const pq = pqKeypairFromMnemonic(mnemonic, DEFAULT_PATH);
-        hybridSign(signed.signingHash, kp.privateSeed, pq);
-      }
-      const response = await rpc.submitSigned(tx, signed);
+      const result = await activeAdapter.send(mnemonic, req);
       await refresh();
-      return {
-        transactionHash: hex.toHex(signed.transactionHash),
-        response,
-      };
+      return { hash: result.hash };
     },
-    [address, rpc, network.chainId, pqEnabled, refresh],
+    [activeAdapter, refresh],
   );
 
   const requestFaucet = useCallback(async () => {
+    if (activeChain.family !== 'xriq') throw new Error('Faucet only available on XRIQ testnet');
     if (!address) throw new Error('No wallet');
+    // XRIQ adapter exposes faucet via its rpc; reach it through a fresh adapter call.
+    const { XriqRpc } = await import('../core/rpc');
+    const rpc = new XriqRpc({
+      key: activeChain.id,
+      label: activeChain.name,
+      chainId: 'xriq-devnet',
+      rpcUrl: activeChain.rpcUrl,
+      isTestnet: true,
+      faucetEnabled: true,
+    });
     await rpc.faucet(address);
     await refresh();
-  }, [address, rpc, refresh]);
+  }, [activeChain, address, refresh]);
 
   const revealPhrase = useCallback(() => keystore.revealMnemonic(), []);
 
@@ -180,29 +172,31 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const wipe = useCallback(async () => {
     await keystore.wipeWallet();
-    setAddress(null);
-    setAccount(null);
+    setAddresses({});
+    setBalance(null);
     setHistory([]);
     setStatus('no-wallet');
   }, []);
 
   const value: WalletState = {
     status,
+    chains: CHAINS,
+    activeChain,
+    activeAdapter,
     address,
-    network,
-    account,
+    addresses,
+    balance,
     history,
-    networkInfo,
     online,
     refreshing,
     pqEnabled,
     createWallet,
     importWallet,
     refresh,
+    setActiveChain,
     send,
     requestFaucet,
     revealPhrase,
-    setNetworkKey,
     setPqEnabled,
     wipe,
   };

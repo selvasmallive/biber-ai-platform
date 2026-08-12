@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Screen, Button, Card, StatusBanner, shortAddr } from '../components/ui';
 import { colors, font, radius, spacing } from '../theme/theme';
 import { useWallet } from '../state/WalletProvider';
 import { formatUnits } from '../core/format';
-import { NATIVE_SYMBOL, SECURITY_STATUS } from '../core/config';
+import { SECURITY_STATUS } from '../core/config';
+import type { ChainConfig } from '../core/chains/types';
 
 export function HomeScreen({ navigation }: any) {
   const w = useWallet();
@@ -33,12 +34,7 @@ export function HomeScreen({ navigation }: any) {
         }
       >
         <View style={styles.header}>
-          <View>
-            <Text style={styles.appName}>Lattice</Text>
-            <Text style={styles.net}>
-              {w.network.label} {w.online ? '· online' : '· offline'}
-            </Text>
-          </View>
+          <Text style={styles.appName}>Lattice</Text>
           <View style={[styles.statusPill, { borderColor: w.online ? colors.success : colors.textFaint }]}>
             <View style={[styles.dot, { backgroundColor: w.online ? colors.success : colors.textFaint }]} />
             <Text style={{ color: w.online ? colors.success : colors.textFaint, fontSize: 12, fontWeight: '700' }}>
@@ -47,55 +43,76 @@ export function HomeScreen({ navigation }: any) {
           </View>
         </View>
 
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          {w.chains.map((c) => (
+            <ChainChip key={c.id} chain={c} active={c.id === w.activeChain.id} onPress={() => w.setActiveChain(c.id)} />
+          ))}
+        </ScrollView>
+
         <StatusBanner text={SECURITY_STATUS.banner} tone="warning" />
 
         <Card style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Total balance</Text>
+          <Text style={styles.balanceLabel}>{w.activeChain.name} balance</Text>
           <Text style={styles.balance}>
-            {w.account ? formatUnits(w.account.balanceBaseUnits) : '—'}{' '}
-            <Text style={styles.symbol}>{NATIVE_SYMBOL}</Text>
+            {w.balance !== null ? formatUnits(w.balance, w.activeChain.decimals) : '—'}{' '}
+            <Text style={styles.symbol}>{w.activeChain.symbol}</Text>
           </Text>
-          <Text style={styles.addr} onPress={() => navigation.navigate('Receive')}>
-            {w.address ? shortAddr(w.address) : ''}
-          </Text>
+          <Pressable onPress={() => navigation.navigate('Receive')}>
+            <Text style={styles.addr}>{w.address ? shortAddr(w.address) : ''}</Text>
+          </Pressable>
           <View style={styles.actionRow}>
             <Button title="Send" onPress={() => navigation.navigate('Send')} style={styles.flex} />
             <Button title="Receive" variant="secondary" onPress={() => navigation.navigate('Receive')} style={styles.flex} />
           </View>
-          {w.network.faucetEnabled && (
+          {w.activeChain.family === 'xriq' && (
             <Button title="Request testnet funds" variant="ghost" onPress={doFaucet} loading={faucetBusy} />
           )}
           {msg && <Text style={styles.msg}>{msg}</Text>}
         </Card>
 
-        <Text style={styles.sectionTitle}>Assets</Text>
+        <Text style={styles.sectionTitle}>Networks</Text>
         <Card>
-          <View style={styles.assetRow}>
-            <View style={styles.assetIcon}><Text style={styles.assetGlyph}>◇</Text></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.assetName}>XRIQ</Text>
-              <Text style={styles.assetSub}>Native unit</Text>
-            </View>
-            <Text style={styles.assetAmount}>
-              {w.account ? formatUnits(w.account.balanceBaseUnits) : '—'}
-            </Text>
-          </View>
-          <View style={styles.sep} />
-          <View style={styles.assetRow}>
-            <View style={[styles.assetIcon, { backgroundColor: colors.accentSoft }]}>
-              <Text style={styles.assetGlyph}>⇄</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.assetName}>AGNA swaps</Text>
-              <Text style={styles.assetSub}>DEX — coming online</Text>
-            </View>
-            <Button title="Open" variant="ghost" onPress={() => navigation.navigate('SwapTab')} />
-          </View>
+          {w.chains.map((c, i) => (
+            <React.Fragment key={c.id}>
+              {i > 0 && <View style={styles.sep} />}
+              <Pressable style={styles.assetRow} onPress={() => w.setActiveChain(c.id)}>
+                <View style={[styles.assetIcon, { backgroundColor: (c.color ?? colors.accent) + '22' }]}>
+                  <Text style={[styles.assetGlyph, { color: c.color ?? colors.accent }]}>◇</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.assetName}>{c.name}</Text>
+                  <Text style={styles.assetSub}>
+                    {w.addresses[c.id] ? shortAddr(w.addresses[c.id]) : c.symbol}
+                    {c.isTestnet ? ' · testnet' : ''}
+                  </Text>
+                </View>
+                {c.id === w.activeChain.id ? (
+                  <Text style={styles.activeTag}>Active</Text>
+                ) : (
+                  <Text style={styles.symbolTag}>{c.symbol}</Text>
+                )}
+              </Pressable>
+            </React.Fragment>
+          ))}
         </Card>
 
-        <Text style={styles.nonce}>Account nonce: {w.account ? String(w.account.nonce) : '—'}</Text>
+        <Text style={styles.footnote}>
+          One recovery phrase · {w.chains.length} networks · keys stored in the device secure enclave
+        </Text>
       </ScrollView>
     </Screen>
+  );
+}
+
+function ChainChip({ chain, active, onPress }: { chain: ChainConfig; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[styles.chip, active && { borderColor: chain.color ?? colors.accent, backgroundColor: (chain.color ?? colors.accent) + '22' }]}
+    >
+      <View style={[styles.chipDot, { backgroundColor: chain.color ?? colors.accent }]} />
+      <Text style={[styles.chipText, active && { color: colors.text }]}>{chain.symbol}</Text>
+    </Pressable>
   );
 }
 
@@ -103,30 +120,35 @@ const styles = StyleSheet.create({
   content: { gap: spacing(4), paddingVertical: spacing(4), paddingBottom: spacing(10) },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   appName: { ...font.h2 },
-  net: { ...font.dim, fontSize: 12, marginTop: 2 },
   statusPill: {
     flexDirection: 'row', alignItems: 'center', gap: spacing(2),
     borderWidth: 1, borderRadius: radius.pill, paddingVertical: 4, paddingHorizontal: spacing(3),
   },
   dot: { width: 7, height: 7, borderRadius: 4 },
+  chips: { gap: spacing(2), paddingVertical: spacing(1) },
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing(2),
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill,
+    paddingVertical: spacing(2), paddingHorizontal: spacing(3),
+  },
+  chipDot: { width: 8, height: 8, borderRadius: 4 },
+  chipText: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   balanceCard: { gap: spacing(3) },
   balanceLabel: { ...font.dim, fontSize: 13 },
-  balance: { fontSize: 40, fontWeight: '800', color: colors.text },
+  balance: { fontSize: 38, fontWeight: '800', color: colors.text },
   symbol: { fontSize: 20, color: colors.textDim, fontWeight: '600' },
   addr: { color: colors.accent, fontSize: 13, marginBottom: spacing(2) },
   actionRow: { flexDirection: 'row', gap: spacing(3) },
   flex: { flex: 1 },
   msg: { color: colors.textDim, fontSize: 13, textAlign: 'center' },
   sectionTitle: { ...font.h3, marginTop: spacing(2) },
-  assetRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(3), paddingVertical: spacing(1) },
-  assetIcon: {
-    width: 40, height: 40, borderRadius: 12, backgroundColor: colors.surfaceAlt,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  assetGlyph: { color: colors.accent, fontSize: 20 },
-  assetName: { color: colors.text, fontSize: 16, fontWeight: '600' },
+  assetRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(3), paddingVertical: spacing(2) },
+  assetIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  assetGlyph: { fontSize: 20 },
+  assetName: { color: colors.text, fontSize: 15, fontWeight: '600' },
   assetSub: { color: colors.textFaint, fontSize: 12 },
-  assetAmount: { color: colors.text, fontSize: 16, fontWeight: '700' },
-  sep: { height: 1, backgroundColor: colors.border, marginVertical: spacing(3) },
-  nonce: { color: colors.textFaint, fontSize: 12, textAlign: 'center' },
+  activeTag: { color: colors.success, fontSize: 12, fontWeight: '700' },
+  symbolTag: { color: colors.textFaint, fontSize: 13, fontWeight: '600' },
+  sep: { height: 1, backgroundColor: colors.border, marginVertical: spacing(1) },
+  footnote: { color: colors.textFaint, fontSize: 12, textAlign: 'center', marginTop: spacing(2) },
 });

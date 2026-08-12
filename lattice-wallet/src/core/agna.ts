@@ -8,8 +8,6 @@
 //
 // Per the wallet's safety posture, executing real trades/transfers is out of scope for
 // automated flows; swaps are prepared and require explicit on-device user confirmation.
-import type { XriqRpc } from './rpc';
-
 export interface TokenRef {
   symbol: string;
   assetId: string; // chain/asset identifier
@@ -55,7 +53,7 @@ export interface AgnaStatus {
  * Resolve the active AGNA client. Returns null until a backend is configured.
  * Wire a concrete implementation here (or via Settings) when AGNA is available.
  */
-export function resolveAgnaClient(_rpc: XriqRpc): AgnaClient | null {
+export function resolveAgnaClient(): AgnaClient | null {
   return null;
 }
 

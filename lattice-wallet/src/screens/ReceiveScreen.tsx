@@ -5,10 +5,9 @@ import * as Clipboard from 'expo-clipboard';
 import { Screen, Button, Card } from '../components/ui';
 import { colors, font, spacing } from '../theme/theme';
 import { useWallet } from '../state/WalletProvider';
-import { NATIVE_SYMBOL } from '../core/config';
 
 export function ReceiveScreen() {
-  const { address } = useWallet();
+  const { address, activeChain } = useWallet();
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
@@ -21,8 +20,8 @@ export function ReceiveScreen() {
   return (
     <Screen>
       <View style={styles.wrap}>
-        <Text style={font.h2}>Receive {NATIVE_SYMBOL}</Text>
-        <Text style={styles.p}>Share this address or QR code to receive funds.</Text>
+        <Text style={font.h2}>Receive {activeChain.symbol}</Text>
+        <Text style={styles.p}>Share this {activeChain.name} address or QR code to receive funds.</Text>
         <Card style={styles.qrCard}>
           <View style={styles.qrBox}>
             {address ? (

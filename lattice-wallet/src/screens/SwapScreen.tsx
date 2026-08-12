@@ -4,14 +4,10 @@ import { Screen, Button, Card, StatusBanner } from '../components/ui';
 import { colors, font, radius, spacing } from '../theme/theme';
 import { useWallet } from '../state/WalletProvider';
 import { resolveAgnaClient, agnaStatus } from '../core/agna';
-import { XriqRpc } from '../core/rpc';
 
 export function SwapScreen() {
   const w = useWallet();
-  const status = useMemo(() => {
-    const client = resolveAgnaClient(new XriqRpc(w.network));
-    return agnaStatus(client);
-  }, [w.network]);
+  const status = useMemo(() => agnaStatus(resolveAgnaClient()), []);
 
   return (
     <Screen>
@@ -21,7 +17,7 @@ export function SwapScreen() {
         <View style={styles.leg}>
           <Text style={styles.legLabel}>You pay</Text>
           <View style={styles.legRow}>
-            <View style={styles.token}><Text style={styles.tokenGlyph}>◇</Text><Text style={styles.tokenSym}>XRIQ</Text></View>
+            <View style={styles.token}><Text style={styles.tokenGlyph}>◇</Text><Text style={styles.tokenSym}>{w.activeChain.symbol}</Text></View>
             <Text style={styles.amount}>0</Text>
           </View>
         </View>

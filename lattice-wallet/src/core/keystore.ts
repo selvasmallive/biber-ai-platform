@@ -12,9 +12,10 @@ const MNEMONIC_KEY = 'lattice.mnemonic.v1';
 const META_KEY = 'lattice.meta.v1';
 
 export interface WalletMeta {
-  address: string;
+  /** Public receive addresses per chain id (non-secret; safe to persist for display). */
+  addresses: Record<string, string>;
+  activeChainId: string;
   createdAt: number;
-  derivationPath: string;
   pqEnabled: boolean;
 }
 
