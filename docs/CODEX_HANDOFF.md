@@ -51,6 +51,22 @@ reports `next_action=save_verified_change_to_github_if_requested`,
 and `verified_apply_file_hashes_match=True`. The Vast repo is intentionally
 dirty with the verified docs edit. Next step requires explicit approval to
 save/push this verified edit to GitHub branch `biber/mvp-resume-20260712`.
+2026-08-12 save follow-up: the user explicitly approved saving/pushing the
+verified docs edit for plan hash
+`06a6bb6baf64be6e3b1389f99a4508d97405881a21c79433ddf4fc36888ebc77`.
+The exact verified edit was mirrored into the local BIBER-only checkout,
+committed as `6f47e56` (`Document replacing completed BIBER required edit
+specs`), and pushed to `biber/mvp-resume-20260712`. The Vast checkout was
+reconciled to the pushed commit after confirming the dirty file matched
+`FETCH_HEAD`, and refreshed resume status now reports
+`next_action=start_next_narrow_biber_step`, `target_git_clean=True`,
+`pending_apply_decision=False`,
+`apply_decision_status=already_verified_current_file_hashes_match`,
+`verified_apply_history_matches_plan=True`, `verified_apply_matches_plan=True`,
+and `verified_apply_file_hashes_match=True`. The canonical
+`/workspace/outputs/biber-next-required-edit.json` still describes the completed
+stale-spec docs edit; replace it with a new required-edit spec before running
+`run_next_required_edit_spec_plan` again.
 
 2026-08-12 latest BIBER live required-edit plan checkpoint:
 A real `/workspace/outputs/biber-next-required-edit.json` was created on the
