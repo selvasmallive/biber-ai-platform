@@ -236,6 +236,13 @@ python scripts/biber_agent_client.py show-live-mvp-ready-command \
   --command-only
 ```
 
+To list every saved ready command in a compact read-only view:
+
+```bash
+python scripts/biber_agent_client.py list-live-mvp-ready-commands \
+  /workspace/outputs/biber-live-mvp-resume-status-latest.json
+```
+
 This keeps Qwen2.5, Qwen3, llama.cpp, vLLM wrappers, and future local runners
 swappable without enabling OpenAI mentor, API auth, GPU training, or file apply.
 `scripts/biber_local_openai_provider.py` is the stdlib OpenAI-compatible

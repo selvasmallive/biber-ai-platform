@@ -1935,6 +1935,25 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
             ]
         )
     )
+    ready_list = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "list-live-mvp-ready-commands",
+                    str(status_artifact),
+                ]
+            )
+        )
+    )
+    ready_list_summary = client.run(
+        client.parse_args(
+            [
+                "list-live-mvp-ready-commands",
+                str(status_artifact),
+            ]
+        )
+    )
     assert ready_by_label["source"] == "biber_live_mvp_ready_command_selection"
     assert ready_by_label["label"] == "refresh_resume_status"
     assert ready_by_label["safe"] is True
@@ -1946,6 +1965,18 @@ def test_run_live_mvp_resume_status_summarizes_latest_saved_artifacts(
     assert ready_by_index["label"] == "inspect_pending_real_repo_plan"
     assert ready_command_only == ready_by_label["command_text"]
     assert "--live-base-url" in ready_command_only
+    assert ready_list["source"] == "biber_live_mvp_ready_command_list"
+    assert ready_list["count"] == 2
+    assert ready_list["labels"] == [
+        "inspect_pending_real_repo_plan",
+        "refresh_resume_status",
+    ]
+    assert ready_list["mutates_repo"] is False
+    assert ready_list["github_request_sent"] is False
+    assert ready_list["mentor_used"] is False
+    assert ready_list["training_allowed"] is False
+    assert "BIBER live MVP ready commands (2)" in ready_list_summary
+    assert "[1] refresh_resume_status" in ready_list_summary
     assert "BIBER live MVP ready command" in ready_summary
     assert "label: refresh_resume_status" in ready_summary
     assert "BIBER live MVP resume status" in summary

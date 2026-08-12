@@ -15571,6 +15571,80 @@ def select_live_mvp_resume_ready_command(
     }
 
 
+def list_live_mvp_resume_ready_commands(
+    payload: Mapping[str, Any],
+    *,
+    artifact_path: str | None = None,
+) -> dict[str, Any]:
+    if payload.get("source") != "biber_live_mvp_resume_status":
+        raise BiberAgentClientError(
+            "live MVP ready command artifact must have source "
+            "biber_live_mvp_resume_status."
+        )
+    ready_commands = [
+        dict(item)
+        for item in require_list(payload.get("next_ready_commands"))
+        if isinstance(item, dict)
+    ]
+    return {
+        "source": "biber_live_mvp_ready_command_list",
+        "ok": True,
+        "artifact_path": artifact_path,
+        "status_next_action": payload.get("next_action"),
+        "count": len(ready_commands),
+        "labels": [command.get("label") for command in ready_commands],
+        "commands": ready_commands,
+        "api_required": any(
+            command.get("api_required") is True for command in ready_commands
+        ),
+        "external_network_required": any(
+            command.get("external_network_required") is True
+            for command in ready_commands
+        ),
+        "github_request_sent": any(
+            command.get("github_request_sent") is True for command in ready_commands
+        ),
+        "mentor_used": any(
+            command.get("mentor_used") is True for command in ready_commands
+        ),
+        "training_allowed": any(
+            command.get("training_allowed") is True for command in ready_commands
+        ),
+        "mutates_repo": any(
+            command.get("mutates_repo") is True for command in ready_commands
+        ),
+    }
+
+
+def format_live_mvp_ready_command_list(payload: Mapping[str, Any]) -> str:
+    commands = [
+        item
+        for item in require_list(payload.get("commands"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        f"BIBER live MVP ready commands ({len(commands)})",
+        f"ok: {payload.get('ok') is True}",
+        f"artifact_path: {payload.get('artifact_path') or '-'}",
+        f"status_next_action: {payload.get('status_next_action') or '-'}",
+    ]
+    for index, command in enumerate(commands):
+        label = command.get("label") or "-"
+        lines.append(
+            f"- [{index}] {label} "
+            f"safe={command.get('safe') is True} "
+            f"gpu={command.get('uses_gpu') is True} "
+            f"model={command.get('uses_model') is True}"
+        )
+        description = command.get("description")
+        if description:
+            lines.append(f"  description: {description}")
+        command_text = command.get("command")
+        if command_text:
+            lines.append(f"  command: {command_text}")
+    return "\n".join(lines)
+
+
 def format_live_mvp_ready_command_selection(payload: Mapping[str, Any]) -> str:
     command = require_mapping(payload.get("command"))
     lines = [
@@ -19171,6 +19245,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Print only the selected command text.",
     )
 
+    list_live_mvp_ready_commands = subparsers.add_parser(
+        "list-live-mvp-ready-commands",
+        help=(
+            "List all next_ready_commands entries from a saved "
+            "live-mvp-resume-status artifact."
+        ),
+    )
+    list_live_mvp_ready_commands.add_argument("artifact")
+
     show_real_repo_plan_smoke = subparsers.add_parser(
         "show-real-repo-plan-smoke",
         help="Summarize a saved biber_live_provider_real_repo_plan_smoke.py artifact.",
@@ -20938,6 +21021,20 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(selection, indent=2, sort_keys=True)
             if args.print_json
             else format_live_mvp_ready_command_selection(selection)
+        )
+    if args.command == "list-live-mvp-ready-commands":
+        artifact = load_json_artifact(
+            args.artifact,
+            label="live MVP resume status artifact",
+        )
+        ready_commands = list_live_mvp_resume_ready_commands(
+            artifact,
+            artifact_path=args.artifact,
+        )
+        return (
+            json.dumps(ready_commands, indent=2, sort_keys=True)
+            if args.print_json
+            else format_live_mvp_ready_command_list(ready_commands)
         )
     if args.command == "show-real-repo-plan-smoke":
         artifact = load_json_artifact(
