@@ -2681,6 +2681,88 @@ def test_live_mvp_resume_status_exposes_prepare_latest_repair_ready_command(
         ),
         encoding="utf-8",
     )
+    nested_smoke = tmp_path / "disposable-smoke" / "artifacts"
+    nested_smoke.mkdir(parents=True)
+    (nested_smoke / "biber-live-provider-confidence-latest.json").write_text(
+        json.dumps(
+            {
+                "source": "biber_live_provider_confidence_smoke",
+                "ok": True,
+                "mode": "live",
+                "github_request_sent": False,
+                "mentor_used": False,
+                "training_allowed": False,
+                "checks": [{"name": "disposable", "ok": True}],
+                "readiness": {"ok": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    nested_apply = nested_smoke / "disposable-repair-edit-apply.json"
+    nested_apply.write_text(
+        json.dumps(
+            {
+                "source": "biber_mvp_loop_repair_edit_apply",
+                "ok": True,
+                "plan_hash": "disposable-plan",
+                "apply_status": "applied",
+                "edit_apply": {
+                    "ok": True,
+                    "applied": [
+                        {
+                            "path": "docs/BIBER_ONLY_WORKSPACE.md",
+                            "new_sha256": target_sha,
+                        }
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (nested_smoke / "biber-real-repo-plan-latest.json").write_text(
+        json.dumps(
+            {
+                "source": "biber_live_provider_real_repo_plan_smoke",
+                "ok": True,
+                "mode": "live",
+                "target_root": str(target_root),
+                "github_request_sent": False,
+                "mentor_used": False,
+                "training_allowed": False,
+                "mutation_performed": False,
+                "repo_status_unchanged": True,
+                "plan_outcome": "planned_for_review",
+                "review_status": "ready_for_explicit_apply_approval",
+                "apply_recommendation": "ready_for_explicit_apply_approval",
+                "planned": 1,
+                "rejected": 0,
+                "plan_hash": "disposable-plan",
+                "explicit_apply_approval": {"required": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (nested_smoke / "biber-live-verified-github-dry-run-latest.json").write_text(
+        json.dumps(
+            {
+                "source": "biber_live_verified_repair_github_dry_run_smoke",
+                "ok": True,
+                "mode": "artifact",
+                "target_root": str(target_root),
+                "chain_status": "verified",
+                "verification_status": "passed",
+                "test_ok": True,
+                "plan_hash": "disposable-plan",
+                "apply_artifact": str(nested_apply),
+                "paths": ["docs/BIBER_ONLY_WORKSPACE.md"],
+                "dry_run_artifacts_matched": 2,
+                "github_request_sent": False,
+                "mentor_used": False,
+                "training_allowed": False,
+            }
+        ),
+        encoding="utf-8",
+    )
     failed_loop = tmp_path / "failed-mvp-loop.json"
     failed_loop.write_text(
         json.dumps(
@@ -2731,6 +2813,16 @@ def test_live_mvp_resume_status_exposes_prepare_latest_repair_ready_command(
     }
 
     assert status["next_action"] == "start_next_narrow_biber_step"
+    assert status["plan_hash"] == "plan-verified"
+    assert status["confidence"]["artifact_path"] == str(
+        tmp_path / "biber-live-provider-confidence-latest.json"
+    )
+    assert status["real_repo_plan"]["artifact_path"] == str(
+        tmp_path / "biber-real-repo-plan-latest.json"
+    )
+    assert status["github_bridge"]["artifact_path"] == str(
+        tmp_path / "biber-live-verified-github-dry-run-latest.json"
+    )
     assert status["latest_failed_mvp_loop"]["ok"] is True
     assert status["latest_failed_mvp_loop"]["artifact_path"] == str(failed_loop)
     assert "prepare_latest_repair" in status["next_ready_command_labels"]
@@ -2741,6 +2833,24 @@ def test_live_mvp_resume_status_exposes_prepare_latest_repair_ready_command(
     assert next_commands["prepare_latest_repair"]["training_allowed"] is False
     assert "prepare-latest-repair" in next_commands["prepare_latest_repair"]["command_parts"]
     assert "--target-root" in next_commands["prepare_latest_repair"]["command_parts"]
+    resume_status = tmp_path / "biber-live-mvp-resume-status-latest.json"
+    resume_status.write_text(json.dumps(status), encoding="utf-8")
+    (nested_smoke / "biber-live-mvp-resume-status-latest.json").write_text(
+        json.dumps(
+            {
+                "source": "biber_live_mvp_resume_status",
+                "next_action": "wrong_disposable_status",
+                "next_ready_commands": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    latest_status = client.find_latest_live_mvp_resume_status_artifact(
+        directory=str(tmp_path),
+        pattern="*live-mvp-resume-status*.json",
+    )
+    assert latest_status["artifact_path"] == str(resume_status)
+    assert latest_status["artifact_list"]["preferred_canonical"] is True
 
 
 def test_run_mvp_loop_can_include_github_dry_run_without_api_key(

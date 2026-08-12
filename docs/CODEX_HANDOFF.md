@@ -4,6 +4,19 @@ Last updated: 2026-08-12
 
 ## Current Goal
 
+2026-08-12 latest BIBER canonical-artifact resume safety checkpoint:
+`live-mvp-resume-status` and latest ready-command discovery now prefer canonical
+top-level `*-latest.json` artifacts in the requested outputs directory before
+falling back to recursive search. This prevents newer nested disposable smoke
+artifacts from becoming the real resume state. The GitHub bridge lookup now also
+passes `--target-root` filtering from resume status. Local validation passed
+bundled Python `py_compile`, `git diff --check`, a direct no-pytest pollution
+harness, and `scripts/biber_local_confidence_smoke.py`; focused pytest is still
+unavailable in the bundled local Python. Next narrow step: commit/push,
+fast-forward Vast, run Vast `py_compile`, run a disposable canonical-preference
+smoke outside canonical output paths, refresh real Vast status, and record the
+follow-up here.
+
 2026-08-12 latest BIBER prepare-latest-repair ready-command checkpoint:
 `live-mvp-resume-status` now summarizes the latest target-root-matching failed
 saved `mvp-loop` artifact and, when the current verified plan is already

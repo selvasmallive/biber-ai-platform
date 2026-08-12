@@ -238,6 +238,14 @@ the currently served local provider or candidate model. Treat commands with
 `ready_to_run=false` as templates that need exact task inputs first. These hints
 do not override the normal gates: real-repo apply, training, OpenAI mentor, and
 real GitHub save/PR still need separate explicit approval.
+When top-level canonical files such as
+`/workspace/outputs/biber-live-provider-confidence-latest.json`,
+`/workspace/outputs/biber-real-repo-plan-latest.json`,
+`/workspace/outputs/biber-live-verified-github-dry-run-latest.json`, or
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json` exist, latest
+artifact discovery prefers those files over newer nested disposable smoke
+artifacts. This keeps throwaway validation directories from accidentally
+becoming the real resume state.
 Automation should prefer `next_ready_commands` when it wants only fully
 specified safe commands; this filtered subset excludes templates and any command
 that would mutate the repo, send GitHub requests, use OpenAI mentor, or allow

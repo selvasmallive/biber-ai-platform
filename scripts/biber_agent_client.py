@@ -14,7 +14,7 @@ import urllib.parse
 import urllib.request
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
@@ -14938,6 +14938,58 @@ def normalize_path_filter_text(value: Any) -> str:
     return str(value or "").replace("\\", "/").rstrip("/")
 
 
+def load_preferred_canonical_artifact(
+    *,
+    directory: str,
+    filename: str,
+    pattern: str,
+    label: str,
+    list_source: str,
+    normalizer: Callable[[Mapping[str, Any]], dict[str, Any] | None],
+    failed_only: bool = False,
+    target_root: str | None = None,
+) -> dict[str, Any] | None:
+    root = Path(directory)
+    path = root / filename
+    if not path.is_file() or not Path(path.name).match(pattern):
+        return None
+    try:
+        raw_payload = load_json_artifact(str(path), label=label)
+    except BiberAgentClientError:
+        return None
+    normalized = normalizer(raw_payload)
+    if normalized is None:
+        return None
+    if failed_only and normalized.get("ok") is True:
+        return None
+    target_root_filter = normalize_path_filter_text(target_root)
+    if target_root_filter and (
+        normalize_path_filter_text(normalized.get("target_root")) != target_root_filter
+    ):
+        return None
+    try:
+        modified_epoch = path.stat().st_mtime
+    except OSError:
+        modified_epoch = 0.0
+    return {
+        **normalized,
+        "artifact_path": str(path),
+        "artifact_list": {
+            "source": list_source,
+            "directory": str(root),
+            "pattern": pattern,
+            "failed_only": failed_only,
+            "target_root": target_root,
+            "scanned": 1,
+            "matched": 1,
+            "failed": 0 if normalized.get("ok") is True else 1,
+            "latest_path": str(path),
+            "latest_modified_epoch": modified_epoch,
+            "preferred_canonical": True,
+        },
+    }
+
+
 def list_real_repo_plan_smoke_artifacts(
     *,
     directory: str,
@@ -15018,6 +15070,18 @@ def find_latest_real_repo_plan_smoke_artifact(
     failed_only: bool = False,
     target_root: str | None = None,
 ) -> dict[str, Any]:
+    canonical = load_preferred_canonical_artifact(
+        directory=directory,
+        filename="biber-real-repo-plan-latest.json",
+        pattern=pattern,
+        label="real-repo plan smoke artifact",
+        list_source="biber_real_repo_plan_smoke_artifact_list",
+        normalizer=normalize_real_repo_plan_smoke_artifact,
+        failed_only=failed_only,
+        target_root=target_root,
+    )
+    if canonical is not None:
+        return canonical
     artifacts = list_real_repo_plan_smoke_artifacts(
         directory=directory,
         pattern=pattern,
@@ -15174,6 +15238,18 @@ def find_latest_live_verified_github_dry_run_artifact(
     failed_only: bool = False,
     target_root: str | None = None,
 ) -> dict[str, Any]:
+    canonical = load_preferred_canonical_artifact(
+        directory=directory,
+        filename="biber-live-verified-github-dry-run-latest.json",
+        pattern=pattern,
+        label="live verified GitHub dry-run artifact",
+        list_source="biber_live_verified_github_dry_run_artifact_list",
+        normalizer=normalize_live_verified_github_dry_run_artifact,
+        failed_only=failed_only,
+        target_root=target_root,
+    )
+    if canonical is not None:
+        return canonical
     artifacts = list_live_verified_github_dry_run_artifacts(
         directory=directory,
         pattern=pattern,
@@ -15744,6 +15820,7 @@ def build_live_mvp_resume_status(
         bridge_artifact = find_latest_live_verified_github_dry_run_artifact(
             directory=directory,
             pattern="*live-verified-github-dry-run*.json",
+            target_root=target_root,
         )
         github_bridge = {
             "ok": bridge_artifact.get("ok") is True,
@@ -16105,6 +16182,17 @@ def find_latest_live_mvp_resume_status_artifact(
         raise BiberAgentClientError(
             f"Live MVP resume status artifact path is not a directory: {root}"
         )
+
+    canonical = load_preferred_canonical_artifact(
+        directory=directory,
+        filename="biber-live-mvp-resume-status-latest.json",
+        pattern=pattern,
+        label="live MVP resume status artifact",
+        list_source="biber_live_mvp_resume_status_artifact_list",
+        normalizer=normalize_live_mvp_resume_status_artifact,
+    )
+    if canonical is not None:
+        return canonical
 
     scanned = 0
     matches: list[dict[str, Any]] = []
@@ -16876,6 +16964,17 @@ def find_latest_live_provider_confidence_artifact(
     pattern: str,
     failed_only: bool = False,
 ) -> dict[str, Any]:
+    canonical = load_preferred_canonical_artifact(
+        directory=directory,
+        filename="biber-live-provider-confidence-latest.json",
+        pattern=pattern,
+        label="live-provider confidence artifact",
+        list_source="biber_live_provider_confidence_artifact_list",
+        normalizer=normalize_live_provider_confidence_artifact,
+        failed_only=failed_only,
+    )
+    if canonical is not None:
+        return canonical
     artifacts = list_live_provider_confidence_artifacts(
         directory=directory,
         pattern=pattern,
