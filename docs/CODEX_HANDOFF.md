@@ -16,6 +16,17 @@ unavailable in the bundled local Python. Next narrow step: commit/push,
 fast-forward Vast, run Vast `py_compile`, run a disposable canonical-preference
 smoke outside canonical output paths, refresh real Vast status, and record the
 follow-up here.
+2026-08-12 follow-up: commit `6632c17` was pushed to
+`biber/mvp-resume-20260712`; the current SSH-enabled Vast GPU repo was
+fast-forwarded to it. Vast `py_compile` passed. A `/tmp` disposable smoke
+confirmed top-level canonical confidence, real-repo plan, GitHub bridge, and
+resume-status artifacts are preferred over newer nested disposable artifacts,
+including when the nested artifacts share the same target root. The real
+`/workspace/outputs/biber-live-mvp-resume-status-latest.json` was refreshed
+afterward and now reports canonical top-level artifacts, `plan_hash=6f6ad3b211279cded393cb00b04a6df029287a0a1c1540f5390f68a94f9617aa`,
+`target_git_clean=True`, `next_action=start_next_narrow_biber_step`, and latest
+ready labels `run_cpu_local_confidence_gate`,
+`rerun_live_provider_confidence_gate`, and `refresh_resume_status`.
 
 2026-08-12 latest BIBER prepare-latest-repair ready-command checkpoint:
 `live-mvp-resume-status` now summarizes the latest target-root-matching failed
