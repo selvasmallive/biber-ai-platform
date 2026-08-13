@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from fastapi.testclient import TestClient
 
 import biber_api.main as main_module
 from biber_api.config import BiberSettings
+from biber_api.schemas import ChatRequest
 
 
 def make_settings(workspace: Path) -> BiberSettings:
@@ -51,10 +53,31 @@ def test_agent_capabilities_describes_client_workflows(tmp_path: Path) -> None:
     assert body["service"] == "biber-agent"
     assert body["version"] == "mvp-v1"
     assert body["default_model"] == "biber-dev-core-v1"
+    assert body["endpoints"]["models"] == "GET /v1/models"
+    assert body["endpoints"]["chat"] == "POST /v1/chat"
+    assert body["endpoints"]["openai_chat_completions"] == "POST /v1/chat/completions"
+    assert body["endpoints"]["agent_capabilities"] == "GET /v1/agent/capabilities"
     assert body["endpoints"]["create_session"] == "POST /v1/agent/sessions"
     assert body["endpoints"]["diagnose_test_failure"] == "POST /v1/tests/diagnose"
     assert body["endpoints"]["edit_plan"] == "POST /v1/files/edit/plan"
     assert body["endpoints"]["edit_apply"] == "POST /v1/files/edit/apply"
+    external_api = body["features"]["external_agent_api"]
+    assert external_api["enabled"] is True
+    assert external_api["protocol"] == "openai-compatible-chat-completions"
+    assert external_api["authentication"]["type"] == "bearer_api_key_or_x_api_key"
+    assert "Authorization: Bearer <api-key>" in external_api["authentication"]["headers"]
+    assert external_api["authentication"]["admin_key_management_ui"] == "planned"
+    assert external_api["authentication"]["per_user_key_issuance"] == "planned"
+    assert external_api["endpoints"]["chat_completions"] == "POST /v1/chat/completions"
+    assert external_api["provider_swappable"] is True
+    assert external_api["local_gpu_model_source"] is True
+    assert external_api["openai_mentor_optional"] is True
+    assert external_api["openai_mentor_disabled_by_default"] is True
+    assert external_api["streaming_supported"] is False
+    assert external_api["domain_required_for_local_mvp"] is False
+    assert external_api["public_https_required_for_external_internet_clients"] is True
+    assert "custom_conversational_agent" in external_api["intended_clients"]
+    assert "github_copilot_extension_or_agent_gateway" in external_api["intended_clients"]
     assert body["features"]["repo_context"]["max_files"] == 7
     assert body["features"]["repo_context"]["planner_supported"] is True
     assert body["features"]["repo_context"]["plan_endpoint"] == "POST /v1/repo/context/plan"
@@ -113,3 +136,84 @@ def test_agent_capabilities_requires_api_key(tmp_path: Path) -> None:
         main_module.app.dependency_overrides.clear()
 
     assert response.status_code == 401
+
+
+def test_openai_chat_completions_accepts_bearer_key_and_disables_mentor_by_default(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    settings = make_settings(tmp_path)
+
+    class FakeBiberChatService:
+        last_request: ChatRequest | None = None
+
+        def __init__(self, service_settings: BiberSettings) -> None:
+            self.service_settings = service_settings
+
+        async def generate(
+            self,
+            request: ChatRequest,
+        ) -> tuple[str, str | None, dict[str, Any], str]:
+            self.__class__.last_request = request
+            return (
+                "local model answer",
+                None,
+                {"usage": {"prompt_tokens": 3, "completion_tokens": 4, "total_tokens": 7}},
+                request.model or "biber-dev-core-v1",
+            )
+
+    monkeypatch.setattr(main_module, "BiberChatService", FakeBiberChatService)
+    main_module.app.dependency_overrides[main_module.get_settings] = lambda: settings
+    try:
+        response = TestClient(main_module.app).post(
+            "/v1/chat/completions",
+            headers={"Authorization": "Bearer test-key"},
+            json={
+                "model": "biber-dev-core-v1",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Review with OpenAI mentor: answer locally.",
+                    }
+                ],
+                "max_tokens": 64,
+            },
+        )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["object"] == "chat.completion"
+    assert body["model"] == "biber-dev-core-v1"
+    assert body["choices"][0]["message"] == {
+        "role": "assistant",
+        "content": "local model answer",
+    }
+    assert body["usage"]["total_tokens"] == 7
+    assert body["biber"]["mentor_used"] is False
+    assert body["biber"]["openai_mentor_disabled_by_default"] is True
+    assert FakeBiberChatService.last_request is not None
+    assert FakeBiberChatService.last_request.use_mentor is False
+    assert FakeBiberChatService.last_request.task_type == "external_agent_chat"
+    assert "test-key" not in json.dumps(body)
+
+
+def test_openai_chat_completions_rejects_streaming_for_mvp(tmp_path: Path) -> None:
+    settings = make_settings(tmp_path)
+    main_module.app.dependency_overrides[main_module.get_settings] = lambda: settings
+    try:
+        response = TestClient(main_module.app).post(
+            "/v1/chat/completions",
+            headers={"x-api-key": "test-key"},
+            json={
+                "model": "biber-dev-core-v1",
+                "messages": [{"role": "user", "content": "hello"}],
+                "stream": True,
+            },
+        )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 400
+    assert "Streaming chat completions are not supported" in response.json()["detail"]

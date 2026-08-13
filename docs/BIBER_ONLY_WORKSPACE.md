@@ -14,6 +14,7 @@ reason about the separate XRIS-Coin/XRIQ project.
 Continue BIBER MVP only:
 
 - swappable model providers and model registry
+- authenticated external-agent API compatibility through `/v1/chat/completions`
 - repo-context selection
 - safe workspace edit planning and apply
 - test execution and diagnosis
@@ -436,6 +437,14 @@ only, must not use Markdown fences/prose, must copy `old_text` exactly from the
 prepared repair source snippets, and must return `{"edits":[]}` instead of
 inventing file contents or paths. Source snippets are bounded and skip
 secret-like files, dependency/cache folders, and symlinks.
+
+For client tools that want to consume BIBER itself as a model source, use the
+BIBER API gateway endpoint `POST /v1/chat/completions` with
+`Authorization: Bearer <api-key>` or `x-api-key: <api-key>`. This endpoint is
+OpenAI-compatible, uses the same swappable model registry, and keeps OpenAI
+mentor disabled by default. A `.com` domain is not needed for local/private MVP
+testing; public internet clients need a later HTTPS domain/reverse-proxy layer
+and admin key-management portal. See `docs/BIBER_EXTERNAL_AGENT_API.md`.
 Then run `review-local-repair-chain` on that combined artifact before asking
 for explicit apply approval. The review is deterministic, no-API, and reports
 blockers, warnings, plan hash, target root, and the next test id.

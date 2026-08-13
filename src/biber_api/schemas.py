@@ -37,6 +37,19 @@ class ChatRequest(BaseModel):
     backup_to_azure: bool = False
 
 
+class OpenAIChatCompletionRequest(BaseModel):
+    model: str | None = None
+    messages: list[ChatMessage] = Field(min_length=1)
+    temperature: float = Field(default=0.2, ge=0, le=2)
+    max_tokens: int | None = Field(default=None, gt=0, le=32000)
+    stream: bool = False
+    use_mentor: bool = False
+    language: str | None = None
+    task_type: str = "external_agent_chat"
+    repo_context_paths: list[str] = Field(default_factory=list, max_length=12)
+    runtime_profile_ids: list[str] = Field(default_factory=list, max_length=4)
+
+
 class ChatResponse(BaseModel):
     id: str
     created_at: str

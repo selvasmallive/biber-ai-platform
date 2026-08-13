@@ -4,6 +4,25 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER external-agent API checkpoint:
+In progress: BIBER MVP now includes an explicit external-agent model-source
+API slice. The narrow implementation adds authenticated
+`POST /v1/chat/completions` in both API entry points, backed by the existing
+swappable BIBER model registry and local/OpenAI-compatible provider layer.
+The endpoint accepts standard OpenAI-style `messages` payloads, supports
+`Authorization: Bearer <api-key>`/`x-api-key`, rejects streaming for the MVP,
+and keeps OpenAI mentor disabled by default unless a caller explicitly opts in.
+`GET /v1/agent/capabilities` now advertises this external-agent API contract,
+including generic IDE/custom-agent/Copilot-gateway use, local GPU model source,
+provider swappability, and future admin key-management/user portal status.
+New doc: `docs/BIBER_EXTERNAL_AGENT_API.md`. A `.com` domain is not required
+for local/private MVP; public clients later need HTTPS DNS/reverse proxy and
+admin key-management. Local validation passed bundled Python `py_compile`,
+`git diff --check`, and `scripts/biber_local_confidence_smoke.py`. Local
+FastAPI endpoint tests could not run because the bundled local runtime lacks
+FastAPI; run focused endpoint tests on Vast after push/pull. No OpenAI mentor,
+external paid API, training, or credential rotation was used.
+
 2026-08-13 latest BIBER stale apply status checkpoint:
 In progress: `live-mvp-resume-status` now distinguishes historical verified
 apply evidence whose target file hashes no longer match current files. When the

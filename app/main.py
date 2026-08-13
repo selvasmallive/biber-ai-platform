@@ -146,6 +146,19 @@ class ChatRequest(BaseModel):
         raise ValueError("Either message or messages is required.")
 
 
+class OpenAIChatCompletionRequest(BaseModel):
+    model: str | None = None
+    messages: list[ChatMessage] = Field(min_length=1)
+    temperature: float = Field(default=0.2, ge=0, le=2)
+    max_tokens: int | None = Field(default=None, gt=0, le=32000)
+    stream: bool = False
+    use_mentor: bool = False
+    language: str | None = None
+    task_type: str = "external_agent_chat"
+    repo_context_paths: list[str] = Field(default_factory=list, max_length=12)
+    runtime_profile_ids: list[str] = Field(default_factory=list, max_length=4)
+
+
 class ChatResponse(BaseModel):
     id: str
     created_at: str
@@ -451,6 +464,10 @@ def _agent_capabilities() -> dict[str, object]:
         "version": "mvp-v1",
         "default_model": default_model,
         "endpoints": {
+            "models": "GET /v1/models",
+            "chat": "POST /v1/chat",
+            "openai_chat_completions": "POST /v1/chat/completions",
+            "agent_capabilities": "GET /v1/agent/capabilities",
             "create_session": "POST /v1/agent/sessions",
             "list_sessions": "GET /v1/agent/sessions",
             "get_session": "GET /v1/agent/sessions/{session_id}",
@@ -495,6 +512,39 @@ def _agent_capabilities() -> dict[str, object]:
             "github_workflow": {
                 "save_configured": bool(settings.github_token),
                 "pull_request_configured": bool(settings.github_token),
+            },
+            "external_agent_api": {
+                "enabled": True,
+                "protocol": "openai-compatible-chat-completions",
+                "authentication": {
+                    "type": "bearer_api_key_or_x_api_key",
+                    "headers": [
+                        "Authorization: Bearer <api-key>",
+                        "x-api-key: <api-key>",
+                    ],
+                    "current_key_source": "BIBER_API_KEYS",
+                    "admin_key_management_ui": "planned",
+                    "per_user_key_issuance": "planned",
+                },
+                "endpoints": {
+                    "models": "GET /v1/models",
+                    "chat_completions": "POST /v1/chat/completions",
+                    "native_chat": "POST /v1/chat",
+                    "agent_capabilities": "GET /v1/agent/capabilities",
+                },
+                "intended_clients": [
+                    "custom_conversational_agent",
+                    "ide_agent_or_extension",
+                    "github_copilot_extension_or_agent_gateway",
+                    "internal_application",
+                ],
+                "provider_swappable": True,
+                "local_gpu_model_source": True,
+                "openai_mentor_optional": True,
+                "openai_mentor_disabled_by_default": True,
+                "streaming_supported": False,
+                "domain_required_for_local_mvp": False,
+                "public_https_required_for_external_internet_clients": True,
             },
             "openai_mentor": {
                 "enabled": settings.mentor_enabled,
@@ -561,6 +611,38 @@ def _agent_capabilities() -> dict[str, object]:
             "github_actions_explicit_only": True,
             "mentor_calls_disabled_by_default": True,
             "credentials_returned": False,
+        },
+    }
+
+
+def _openai_chat_completion_response(
+    *,
+    content: str,
+    model_id: str,
+    raw: dict[str, Any],
+    mentor_notes: str | None,
+) -> dict[str, object]:
+    usage = raw.get("usage") if isinstance(raw.get("usage"), dict) else None
+    if usage is None:
+        usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    return {
+        "id": f"chatcmpl-{uuid4()}",
+        "object": "chat.completion",
+        "created": int(datetime.now(UTC).timestamp()),
+        "model": model_id,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": usage,
+        "biber": {
+            "provider": "local_or_configured_openai_compatible_model",
+            "mentor_used": mentor_notes is not None,
+            "openai_mentor_optional": True,
+            "openai_mentor_disabled_by_default": True,
         },
     }
 
@@ -906,6 +988,49 @@ async def run_agent_session(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     response.artifact_path = str(artifact["artifact_path"])
     return response
+
+
+@app.post("/v1/chat/completions")
+async def openai_chat_completions(
+    req: OpenAIChatCompletionRequest,
+    auth=Depends(require_api_key),
+):
+    if req.stream:
+        raise HTTPException(
+            status_code=400,
+            detail="Streaming chat completions are not supported by the BIBER MVP API yet.",
+        )
+
+    try:
+        content, mentor_notes, raw, model_id = await BiberChatService().generate(
+            messages=[message.model_dump() for message in req.messages],
+            language=req.language,
+            task_type=req.task_type,
+            use_mentor=req.use_mentor,
+            model=req.model,
+            repo_context_paths=req.repo_context_paths,
+            runtime_profile_ids=req.runtime_profile_ids,
+            temperature=req.temperature,
+            max_tokens=req.max_tokens,
+        )
+    except ModelRegistryError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RepoContextError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Model endpoint returned {exc.response.status_code}.",
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Model endpoint failed: {exc}") from exc
+
+    return _openai_chat_completion_response(
+        content=content,
+        model_id=model_id,
+        raw=raw,
+        mentor_notes=mentor_notes,
+    )
 
 
 @app.post("/v1/chat")

@@ -44,6 +44,34 @@ curl -X POST http://localhost:8000/v1/chat \
 applies file-count and byte limits and rejects `.env`, private-key-looking
 files, cache directories, and paths outside the configured repo context root.
 
+## Use BIBER As An External Agent Model Source
+
+Use this endpoint when an IDE agent, custom conversational agent, internal app,
+or future Copilot-style agent gateway needs BIBER as its model source. The
+endpoint is OpenAI-compatible, bearer-key protected, and routes through the
+swappable BIBER model registry instead of exposing raw vLLM directly.
+
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Authorization: Bearer dev-api-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "biber-dev-core-v1",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Write one concise Rust review note."
+      }
+    ],
+    "max_tokens": 120
+}'
+```
+
+OpenAI mentor is disabled by default on this generic endpoint. Pass BIBER's
+base URL and API key only to clients that support custom OpenAI-compatible
+model endpoints. GitHub Copilot may require a Copilot extension or gateway
+rather than direct arbitrary endpoint configuration.
+
 ## Optional Runtime Profiles
 
 Runtime profiles are narrow prompt contracts for known model gaps. They are

@@ -31,10 +31,13 @@ async def require_api_key(
         return AuthContext(api_key_id="dev-no-key-configured", priority=0)
 
     api_key = request.headers.get("x-api-key")
+    authorization = request.headers.get("authorization")
+    if authorization and authorization.startswith("Bearer "):
+        api_key = authorization.removeprefix("Bearer ").strip()
     if api_key not in settings.api_keys:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing or invalid x-api-key.",
+            detail="Missing or invalid API key.",
         )
 
     passcode = request.headers.get("x-biber-passcode")
