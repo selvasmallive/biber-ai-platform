@@ -146,7 +146,9 @@ before any apply or GitHub save:
 python scripts/biber_live_provider_real_repo_plan_smoke.py \
   --base-url http://127.0.0.1:8001/v1 \
   --model biber-dev-core \
-  --target-root /workspace/biber-ai-platform
+  --target-root /workspace/biber-ai-platform \
+  --changed-paths-file /workspace/outputs/biber-changed-paths.txt \
+  --pinned-paths-file /workspace/outputs/biber-pinned-paths.txt
 ```
 
 Use `--mode mock --cleanup` for the no-GPU/no-network local check. A passing

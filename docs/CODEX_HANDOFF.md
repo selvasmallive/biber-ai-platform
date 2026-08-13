@@ -4,6 +4,23 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER live plan path-file checkpoint:
+`scripts/biber_live_provider_real_repo_plan_smoke.py` now accepts
+`--changed-paths-file` and `--pinned-paths-file` directly. The script applies
+any required-edit spec defaults first, then appends path-list file entries
+through the existing `biber_agent_client.combine_cli_paths` parser, preserving
+blank-line/comment handling and dedupe behavior. This makes the live GPU
+plan-only command match the spec-writer and mvp-loop path-list workflow without
+enabling apply, GitHub, mentor, OpenAI, or training. `live-mvp-resume-status`
+now includes the same path-file placeholders in the
+`prepare_next_plan_only_required_edit` command. Local validation is pending.
+Local validation passed bundled Python `py_compile`, `git diff --check`, a
+direct no-pytest path-file helper/template harness, a mock/no-apply
+`biber_live_provider_real_repo_plan_smoke.py` run with both path-file flags, and
+`scripts/biber_local_confidence_smoke.py`. Next narrow step: commit/push,
+fast-forward Vast, and run a mock/no-apply path-file plan smoke plus refreshed
+resume status on Vast.
+
 2026-08-13 latest BIBER resume-status path-file template checkpoint:
 `live-mvp-resume-status` now emits the `write_next_required_edit_spec_template`
 with `--changed-paths-file /workspace/outputs/biber-changed-paths.txt` and

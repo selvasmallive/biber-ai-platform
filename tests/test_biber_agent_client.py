@@ -2517,6 +2517,18 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert "/workspace/outputs/biber-new.txt" in next_commands[
         "prepare_next_plan_only_required_edit"
     ]["command_parts"]
+    assert "--changed-paths-file" in next_commands[
+        "prepare_next_plan_only_required_edit"
+    ]["command_parts"]
+    assert "--pinned-paths-file" in next_commands[
+        "prepare_next_plan_only_required_edit"
+    ]["command_parts"]
+    assert "/workspace/outputs/biber-changed-paths.txt" in next_commands[
+        "prepare_next_plan_only_required_edit"
+    ]["command_parts"]
+    assert "/workspace/outputs/biber-pinned-paths.txt" in next_commands[
+        "prepare_next_plan_only_required_edit"
+    ]["command_parts"]
     assert next_commands["write_next_required_edit_spec_template"][
         "ready_to_run"
     ] is False
@@ -9544,6 +9556,8 @@ def test_live_provider_real_repo_plan_smoke_has_code_profile() -> None:
     assert "Preferred JSON edit" in text
     assert "required_edit_json" in text
     assert "--required-edit-spec" in text
+    assert "--changed-paths-file" in text
+    assert "--pinned-paths-file" in text
     assert "--required-edit-fallback" in text
     assert "--mock-safe-noop" in text
     assert "required_edit_fallback" in text
@@ -9647,6 +9661,40 @@ def test_real_repo_plan_required_edit_spec_applies_defaults(
     assert args.context_instruction == "Select only the docs context."
     assert args.plan_instruction == "Plan only from the exact spec."
     assert args.max_context_files == 2
+
+
+def test_real_repo_plan_smoke_accepts_path_files_after_spec_defaults(
+    tmp_path: Path,
+) -> None:
+    changed_paths_file = tmp_path / "changed-paths.txt"
+    pinned_paths_file = tmp_path / "pinned-paths.txt"
+    changed_paths_file.write_text(
+        "# changed\nscripts/biber_agent_client.py\n\n"
+        "docs/BIBER_ONLY_WORKSPACE.md\n",
+        encoding="utf-8",
+    )
+    pinned_paths_file.write_text(
+        "# pinned\nREADME.md\nscripts/biber_agent_client.py\n",
+        encoding="utf-8",
+    )
+    args = SimpleNamespace(
+        changed_path=["docs/BIBER_ONLY_WORKSPACE.md"],
+        changed_paths_file=str(changed_paths_file),
+        pinned_path=["docs/CODEX_HANDOFF.md"],
+        pinned_paths_file=str(pinned_paths_file),
+    )
+
+    real_repo_smoke.apply_path_list_files(args)
+
+    assert args.changed_path == [
+        "docs/BIBER_ONLY_WORKSPACE.md",
+        "scripts/biber_agent_client.py",
+    ]
+    assert args.pinned_path == [
+        "docs/CODEX_HANDOFF.md",
+        "README.md",
+        "scripts/biber_agent_client.py",
+    ]
 
 
 def test_local_verified_repair_github_dry_run_smoke_documents_handoff() -> None:

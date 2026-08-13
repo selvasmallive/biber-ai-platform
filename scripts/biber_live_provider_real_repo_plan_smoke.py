@@ -234,6 +234,23 @@ def apply_required_edit_spec(
     return spec, spec_path
 
 
+def apply_path_list_files(args: argparse.Namespace) -> None:
+    args.changed_path = client.dedupe_strings(
+        client.combine_cli_paths(
+            args.changed_path,
+            getattr(args, "changed_paths_file", None),
+            label="--changed-paths-file",
+        )
+    ) or []
+    args.pinned_path = client.dedupe_strings(
+        client.combine_cli_paths(
+            args.pinned_path,
+            getattr(args, "pinned_paths_file", None),
+            label="--pinned-paths-file",
+        )
+    ) or []
+
+
 def resolve_profile_required_texts(
     *,
     target_root: Path,
@@ -929,6 +946,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     )
     profile = SMOKE_PROFILES[args.smoke_profile]
     required_edit_spec, required_edit_spec_path = apply_required_edit_spec(args)
+    apply_path_list_files(args)
     context_instruction = (
         args.context_instruction
         or profile.get("context_instruction")
@@ -1227,7 +1245,9 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--changed-path", action="append", default=None)
+    parser.add_argument("--changed-paths-file")
     parser.add_argument("--pinned-path", action="append", default=None)
+    parser.add_argument("--pinned-paths-file")
     parser.add_argument("--test-id", default=DEFAULT_TEST_ID)
     parser.add_argument("--context-instruction")
     parser.add_argument(
