@@ -5,8 +5,8 @@ Last updated: 2026-08-13
 ## Current Goal
 
 2026-08-13 latest BIBER external-agent connection checkpoint:
-In progress: the next narrow BIBER MVP step adds a stdlib
-`external-agent-connection` command to `scripts/biber_agent_client.py`. The
+Complete: BIBER MVP now has a stdlib `external-agent-connection` command in
+`scripts/biber_agent_client.py`. The
 command fetches `/v1/runtime` and `/v1/models`, chooses the stable enabled model
 for external-agent setup, and writes a non-secret profile containing the BIBER
 API base URL, OpenAI-compatible `/v1` base URL, `/v1/models`,
@@ -17,9 +17,18 @@ updated in `docs/BIBER_EXTERNAL_AGENT_API.md`, `docs/API_EXAMPLES.md`, and
 `docs/BIBER_ONLY_WORKSPACE.md`. Local validation passed bundled Python
 bytecode-redirected `py_compile`, `git diff --check`, a direct no-pytest
 external-agent connection command harness, and
-`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. GitHub
-push and Vast validation are pending. No GPU inference, OpenAI mentor, external
-paid API, credential rotation, training, or XRIQ/XRIS work was used.
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. Commit
+`85faf0b` (`Add BIBER external agent connection profile`) was pushed to
+`biber/mvp-resume-20260712`. The SSH-enabled Vast checkout fast-forwarded to
+`85faf0b`. Vast validation passed `py_compile` for
+`scripts/biber_agent_client.py` and `tests/test_biber_agent_client.py`, then
+live `external-agent-connection --output` against `http://127.0.0.1:8000`
+using the existing `.env` user key without printing it. Live artifact:
+`/workspace/outputs/biber-external-agent-connection-live-latest.json`. It
+reports `ok=true`, `openai_base_url=http://127.0.0.1:8000/v1`,
+`default_model=biber-dev-core-v1`, `enabled_models=[biber-dev-core-v1]`, and
+`api_key_included=false`. No GPU inference, OpenAI mentor, external paid API,
+credential rotation, training, or XRIQ/XRIS work was used.
 
 2026-08-13 latest BIBER runtime client checkpoint:
 Complete: BIBER MVP now has a stdlib `runtime` command in
