@@ -20875,10 +20875,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     subparsers.add_parser("capabilities", help="Discover BIBER agent capabilities.")
 
-    subparsers.add_parser(
+    models = subparsers.add_parser(
         "models",
         help="List OpenAI-compatible BIBER model metadata from /v1/models.",
     )
+    models.add_argument("--output", help="Optional JSON artifact path.")
 
     subparsers.add_parser(
         "list-api-keys",
@@ -20930,6 +20931,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     chat_completions.add_argument("--runtime-profile-id", action="append", default=None)
     chat_completions.add_argument("--max-tokens", type=int)
     chat_completions.add_argument("--temperature", type=float, default=0.2)
+    chat_completions.add_argument("--output", help="Optional JSON artifact path.")
     chat_completions.add_argument(
         "--use-mentor",
         action="store_true",
@@ -25364,6 +25366,9 @@ def run(args: argparse.Namespace) -> str:
             api_key=api_key,
             timeout_seconds=args.timeout_seconds,
         )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
         return (
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
@@ -25664,6 +25669,9 @@ def run(args: argparse.Namespace) -> str:
             ),
             timeout_seconds=args.timeout_seconds,
         )
+        if args.output:
+            response["artifact_path"] = str(Path(args.output))
+            write_json_artifact(response, args.output)
         return (
             json.dumps(response, indent=2, sort_keys=True)
             if args.print_json

@@ -1006,8 +1006,9 @@ def test_format_models_summary_lists_stable_and_candidate() -> None:
     assert "enabled=False" in output
 
 
-def test_run_models_uses_user_key(monkeypatch) -> None:
+def test_run_models_uses_user_key(monkeypatch, tmp_path: Path) -> None:
     captured: dict[str, object] = {}
+    output_path = tmp_path / "models.json"
 
     def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
         captured["api_cli"] = cli_api_key
@@ -1032,14 +1033,19 @@ def test_run_models_uses_user_key(monkeypatch) -> None:
                 "--api-key",
                 "cli-user-key",
                 "models",
+                "--output",
+                str(output_path),
             ]
         )
     )
 
+    artifact = json.loads(output_path.read_text(encoding="utf-8"))
     assert "BIBER models (0)" in output
     assert captured["api_cli"] == "cli-user-key"
     assert captured["models"]["api_key"] == "user-key"
     assert captured["models"]["base_url"] == "http://biber.local"
+    assert artifact["artifact_path"] == str(output_path)
+    assert artifact["object"] == "list"
 
 
 def test_resolve_admin_api_key_reads_env(monkeypatch) -> None:
@@ -1311,8 +1317,9 @@ def test_format_chat_completions_summary_extracts_first_message() -> None:
     assert "Use a small adapter." in output
 
 
-def test_run_chat_completions_uses_user_key(monkeypatch) -> None:
+def test_run_chat_completions_uses_user_key(monkeypatch, tmp_path: Path) -> None:
     captured: dict[str, object] = {}
+    output_path = tmp_path / "chat-completion.json"
 
     def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
         captured["api_cli"] = cli_api_key
@@ -1348,10 +1355,13 @@ def test_run_chat_completions_uses_user_key(monkeypatch) -> None:
                 "biber-dev-core-v1",
                 "--max-tokens",
                 "16",
+                "--output",
+                str(output_path),
             ]
         )
     )
 
+    artifact = json.loads(output_path.read_text(encoding="utf-8"))
     payload = captured["chat_completion"]["payload"]
     assert "BIBER chat completion response" in output
     assert "ok" in output
@@ -1362,6 +1372,8 @@ def test_run_chat_completions_uses_user_key(monkeypatch) -> None:
     assert payload["use_mentor"] is False
     assert payload["model"] == "biber-dev-core-v1"
     assert payload["max_tokens"] == 16
+    assert artifact["artifact_path"] == str(output_path)
+    assert artifact["object"] == "chat.completion"
 
 
 def test_validate_runtime_profile_ids_rejects_unknown_ids() -> None:

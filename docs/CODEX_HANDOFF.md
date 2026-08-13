@@ -4,6 +4,17 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER external-agent artifact checkpoint:
+Complete locally: the next narrow BIBER MVP step adds `--output` JSON artifact
+support to the client-side `models` and `chat-completions` commands. This lets
+future smoke runs save proof artifacts without shell redirection and keeps the
+external-agent setup flow easier to reproduce on Vast or a workstation. Local
+validation passed bundled Python `py_compile`, `git diff --check`, a direct
+no-pytest artifact-output harness for both commands, and
+`scripts/biber_local_confidence_smoke.py`. GitHub push and Vast validation are
+pending. No GPU inference, OpenAI mentor, external paid API, credential
+rotation, training, or XRIQ/XRIS work was used.
+
 2026-08-13 latest BIBER models client checkpoint:
 Complete locally: the next narrow BIBER MVP step adds a stdlib `models` command to
 `scripts/biber_agent_client.py` for `/v1/models`, so users and external agent

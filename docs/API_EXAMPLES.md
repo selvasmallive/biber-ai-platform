@@ -80,7 +80,8 @@ python scripts/biber_agent_client.py models
 python scripts/biber_agent_client.py chat-completions \
   --model biber-dev-core-v1 \
   --message "Write one concise Rust review note." \
-  --max-tokens 120
+  --max-tokens 120 \
+  --output /workspace/outputs/biber-chat-completions-smoke.json
 ```
 
 ## Issue A User API Key
