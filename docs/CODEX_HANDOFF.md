@@ -5,17 +5,21 @@ Last updated: 2026-08-13
 ## Current Goal
 
 2026-08-13 latest BIBER admin client checkpoint:
-In progress: the next narrow BIBER MVP step adds admin API-key management
-commands to `scripts/biber_agent_client.py` so external agent users can be
-listed, issued, and revoked without hand-written curl payloads. Planned commands
-are `list-api-keys`, `issue-api-key --user-id <id> --label <label>`, and
+Complete locally: BIBER MVP now has admin API-key management commands in
+`scripts/biber_agent_client.py` so external agent users can be listed, issued,
+and revoked without hand-written curl payloads. Commands:
+`list-api-keys`, `issue-api-key --user-id <id> --label <label>`, and
 `revoke-api-key <key_id>`, protected by `BIBER_ADMIN_API_KEY` or
-`--admin-api-key`. The command summaries must never print plaintext keys except
-for the one-time issue response, and list/revoke summaries must keep hashes and
-plaintext hidden. Local validation and GitHub push are pending. This is
-CPU-local client/docs/test work only; no GPU inference, OpenAI mentor, external
-paid API, credential rotation, training, or XRIQ/XRIS work is approved for this
-step.
+`--admin-api-key`. The command summaries never print plaintext keys except for
+the one-time issue response, and list/revoke summaries keep hashes and plaintext
+hidden. Docs were updated in `docs/BIBER_EXTERNAL_AGENT_API.md`,
+`docs/API_EXAMPLES.md`, and `docs/BIBER_ONLY_WORKSPACE.md`. Local validation
+passed bundled Python `py_compile`, `git diff --check`, a direct no-pytest
+admin helper/formatter harness, a direct no-pytest command-dispatch harness,
+and `scripts/biber_local_confidence_smoke.py`. Commit `783f86c` (`Add BIBER
+admin key client commands`) was created locally; GitHub push and Vast
+fast-forward validation are pending. No GPU inference, OpenAI mentor, external
+paid API, credential rotation, training, or XRIQ/XRIS work was used.
 
 2026-08-13 latest BIBER API key management checkpoint:
 In progress: BIBER MVP external-agent API now has the backend foundation for
