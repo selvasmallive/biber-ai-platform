@@ -17,7 +17,15 @@ verified apply artifact. This is CPU-local status/reporting work only; no GPU,
 model, GitHub request, OpenAI mentor, or training is used. Local validation
 passed bundled Python `py_compile`, `git diff --check`, a direct no-pytest stale
 apply status harness, and `scripts/biber_local_confidence_smoke.py`. Push/Vast
-validation are pending.
+validation are complete. Commit `185024a` (`Clarify stale verified BIBER apply
+status`) was pushed to `biber/mvp-resume-20260712`; the SSH-enabled Vast
+checkout fast-forwarded to `185024a`. Vast validation passed `py_compile` for
+`scripts/biber_agent_client.py` and `tests/test_biber_agent_client.py`, then
+refreshed `/workspace/outputs/biber-live-mvp-resume-status-latest.json`.
+The refreshed status reports
+`apply_decision_status=already_verified_history_stale_file_hashes`,
+`verified_apply_history_stale_file_hashes=True`,
+`target_git_clean=True`, and `next_action=start_next_narrow_biber_step`.
 
 2026-08-13 latest BIBER live provider confidence checkpoint:
 After commit `1f735f9`, the current SSH-enabled Vast checkout was clean and
