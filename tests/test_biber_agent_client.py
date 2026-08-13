@@ -978,7 +978,7 @@ def test_format_models_summary_lists_stable_and_candidate() -> None:
     output = client.format_models_summary(
         {
             "object": "list",
-            "data": [
+            "models": [
                 {
                     "id": "biber-dev-core-v1",
                     "lifecycle": "stable",

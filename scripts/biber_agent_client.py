@@ -913,7 +913,7 @@ def format_capabilities_summary(payload: Mapping[str, Any]) -> str:
 def format_models_summary(payload: Mapping[str, Any]) -> str:
     models = [
         item
-        for item in require_list(payload.get("data"))
+        for item in require_list(payload.get("data") or payload.get("models"))
         if isinstance(item, dict)
     ]
     lines = [f"BIBER models ({len(models)})"]
