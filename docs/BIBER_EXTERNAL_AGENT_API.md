@@ -65,6 +65,9 @@ The stdlib BIBER agent client can exercise the same OpenAI-compatible endpoint:
 
 ```bash
 export BIBER_API_KEY="<user-api-key>"
+python scripts/biber_agent_client.py external-agent-readiness \
+  --client-base-url http://127.0.0.1:8000 \
+  --output /workspace/outputs/biber-external-agent-readiness.json
 python scripts/biber_agent_client.py external-agent-connection \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-connection.json
@@ -82,6 +85,8 @@ python scripts/biber_agent_client.py chat-completions \
 `external-agent-connection` writes a non-secret profile with the OpenAI-style
 base URL, `/v1/models`, `/v1/chat/completions`, the selected stable model, and
 auth header names. It never writes the API key into the artifact.
+`external-agent-readiness` saves that profile together with capabilities,
+runtime, and model metadata in one artifact.
 Use `--client-base-url` when the URL an IDE should configure differs from the
 private URL used by the smoke command, such as an SSH tunnel or HTTPS gateway.
 

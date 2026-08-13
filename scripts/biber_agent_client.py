@@ -311,6 +311,69 @@ def build_external_agent_connection_profile(
     }
 
 
+def build_external_agent_readiness_result(
+    *,
+    base_url: str,
+    client_base_url: str | None = None,
+    capabilities: Mapping[str, Any],
+    runtime_status: Mapping[str, Any],
+    models_payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    connection = build_external_agent_connection_profile(
+        base_url=base_url,
+        client_base_url=client_base_url,
+        runtime_status=runtime_status,
+        models_payload=models_payload,
+    )
+    features = require_mapping(capabilities.get("features"))
+    enabled_ids = enabled_model_ids(models_payload)
+    checks = [
+        {
+            "name": "capabilities",
+            "ok": bool(capabilities.get("service")),
+            "service": capabilities.get("service"),
+            "feature_keys": sorted(str(key) for key in features.keys()),
+        },
+        {
+            "name": "runtime",
+            "ok": bool(runtime_status.get("service")),
+            "service": runtime_status.get("service"),
+            "local_model_name": runtime_status.get("local_model_name"),
+            "mentor_configured": bool(runtime_status.get("mentor_configured")),
+        },
+        {
+            "name": "models",
+            "ok": bool(enabled_ids),
+            "enabled_count": len(enabled_ids),
+            "enabled_models": enabled_ids,
+        },
+        {
+            "name": "connection_profile",
+            "ok": bool(connection.get("ok")),
+            "openai_base_url": connection.get("openai_base_url"),
+            "default_model": connection.get("default_model"),
+            "api_key_included": bool(
+                require_mapping(connection.get("auth")).get("api_key_included")
+            ),
+        },
+    ]
+    return {
+        "source": "biber_external_agent_readiness",
+        "ok": all(bool(check.get("ok")) for check in checks),
+        "probe_base_url": connection.get("probe_base_url"),
+        "biber_api_base_url": connection.get("biber_api_base_url"),
+        "openai_base_url": connection.get("openai_base_url"),
+        "default_model": connection.get("default_model"),
+        "enabled_models": enabled_ids,
+        "checks": checks,
+        "connection": connection,
+        "capabilities": dict(capabilities),
+        "runtime": dict(runtime_status),
+        "models": dict(models_payload),
+        "api_key_included": False,
+    }
+
+
 def list_api_keys(
     *,
     base_url: str,
@@ -1101,6 +1164,37 @@ def format_external_agent_connection_summary(payload: Mapping[str, Any]) -> str:
             f"mentor_configured: {bool(runtime.get('mentor_configured'))}",
         ]
     )
+
+
+def format_external_agent_readiness_summary(payload: Mapping[str, Any]) -> str:
+    checks = [
+        check
+        for check in require_list(payload.get("checks"))
+        if isinstance(check, dict)
+    ]
+    lines = [
+        "BIBER external-agent readiness",
+        f"ok: {bool(payload.get('ok'))}",
+        f"probe_base_url: {payload.get('probe_base_url', '-')}",
+        f"openai_base_url: {payload.get('openai_base_url', '-')}",
+        f"default_model: {payload.get('default_model') or '-'}",
+        "enabled_models: "
+        + (
+            ", ".join(str(item) for item in require_list(payload.get("enabled_models")))
+            if require_list(payload.get("enabled_models"))
+            else "-"
+        ),
+        "checks:",
+    ]
+    lines.extend(
+        (
+            f"- {check.get('name', '-')} ok={bool(check.get('ok'))} "
+            f"service={check.get('service', '-')}"
+        )
+        for check in checks
+    )
+    lines.append(f"api_key_included: {bool(payload.get('api_key_included'))}")
+    return "\n".join(lines)
 
 
 def format_api_key_record(record: Mapping[str, Any]) -> str:
@@ -21078,6 +21172,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
 
+    external_agent_readiness = subparsers.add_parser(
+        "external-agent-readiness",
+        help=(
+            "Write one non-secret readiness artifact for external agent "
+            "model-source setup."
+        ),
+    )
+    external_agent_readiness.add_argument(
+        "--output",
+        help="Optional JSON artifact path.",
+    )
+    external_agent_readiness.add_argument(
+        "--client-base-url",
+        help=(
+            "Optional client-facing BIBER API base URL for the saved profile. "
+            "Use this when probing a private URL but configuring an SSH tunnel, "
+            "reverse proxy, or HTTPS domain."
+        ),
+    )
+
     subparsers.add_parser(
         "list-api-keys",
         help="List safe API-key metadata through the admin key-management API.",
@@ -25614,6 +25728,40 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_external_agent_connection_summary(result)
+        )
+
+    if args.command == "external-agent-readiness":
+        api_key = resolve_api_key(args.api_key)
+        base_url = args.base_url.rstrip("/")
+        capabilities = fetch_capabilities(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        runtime_status = fetch_runtime_status(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        models_payload = list_models(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        result = build_external_agent_readiness_result(
+            base_url=base_url,
+            client_base_url=args.client_base_url,
+            capabilities=capabilities,
+            runtime_status=runtime_status,
+            models_payload=models_payload,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_agent_readiness_summary(result)
         )
 
     mvp_loop_uses_only_local_steps = (

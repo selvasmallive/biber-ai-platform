@@ -82,6 +82,9 @@ The stdlib client can hit the same endpoint:
 
 ```bash
 export BIBER_API_KEY="dev-api-key-change-me"
+python scripts/biber_agent_client.py external-agent-readiness \
+  --client-base-url http://127.0.0.1:8000 \
+  --output /workspace/outputs/biber-external-agent-readiness.json
 python scripts/biber_agent_client.py external-agent-connection \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-connection.json
@@ -99,6 +102,8 @@ python scripts/biber_agent_client.py chat-completions \
 The `external-agent-connection` artifact is safe to share with another local
 agent setup because it includes URLs, model IDs, and auth header names, but not
 the API key itself.
+Use `external-agent-readiness` when you want one combined non-secret setup
+artifact with connection, capabilities, runtime, and model metadata.
 Use `--client-base-url` if the agent should call an SSH tunnel, reverse proxy,
 or HTTPS domain instead of the private URL used by the smoke command.
 

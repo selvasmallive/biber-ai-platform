@@ -4,6 +4,24 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER external-agent readiness checkpoint:
+In progress: the next narrow BIBER MVP improvement adds a stdlib
+`external-agent-readiness` command to `scripts/biber_agent_client.py`. It fetches
+`/v1/agent/capabilities`, `/v1/runtime`, and `/v1/models`, derives the existing
+non-secret external-agent connection profile, and writes one combined setup
+artifact with checks, client URLs, enabled model metadata, capabilities,
+runtime, and models. The command intentionally does not call chat/completions,
+so it avoids GPU inference and OpenAI mentor use. It uses normal user API-key
+resolution, not admin key resolution, and supports `--client-base-url` plus
+`--output`. Docs were updated in `docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md`,
+`docs/BIBER_EXTERNAL_AGENT_API.md`, `docs/API_EXAMPLES.md`, and
+`docs/BIBER_ONLY_WORKSPACE.md`. Local validation passed bundled Python
+bytecode-redirected `py_compile`, `git diff --check`, a direct no-pytest
+external-agent readiness harness, and `scripts/biber_local_confidence_smoke.py`
+with `ok=True` and 11 checks. GitHub push and Vast validation are pending. No
+GPU inference, OpenAI mentor, external paid API, credential rotation, training,
+or XRIQ/XRIS work was used.
+
 2026-08-13 latest BIBER external-agent client setup runbook checkpoint:
 Complete: BIBER MVP now has
 `docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md`, a concise setup runbook for using

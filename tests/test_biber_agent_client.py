@@ -1321,6 +1321,115 @@ def test_run_external_agent_connection_uses_user_key(monkeypatch, tmp_path: Path
     assert artifact["auth"]["api_key_included"] is False
 
 
+def test_build_external_agent_readiness_result_is_non_secret() -> None:
+    result = client.build_external_agent_readiness_result(
+        base_url="http://private.local:8000",
+        client_base_url="https://biber.example.com/v1",
+        capabilities=sample_capabilities(),
+        runtime_status={
+            "service": "biber-api",
+            "local_model_name": "biber-dev-core",
+            "local_model_base_url": "http://127.0.0.1:8001/v1",
+            "mentor_configured": False,
+        },
+        models_payload={
+            "models": [
+                {
+                    "id": "biber-dev-core-v1",
+                    "lifecycle": "stable",
+                    "enabled": True,
+                }
+            ]
+        },
+    )
+
+    assert result["source"] == "biber_external_agent_readiness"
+    assert result["ok"] is True
+    assert result["probe_base_url"] == "http://private.local:8000"
+    assert result["openai_base_url"] == "https://biber.example.com/v1"
+    assert result["default_model"] == "biber-dev-core-v1"
+    assert result["enabled_models"] == ["biber-dev-core-v1"]
+    assert result["api_key_included"] is False
+    assert result["connection"]["auth"]["api_key_included"] is False
+    assert "api_key" not in result
+    assert [check["name"] for check in result["checks"]] == [
+        "capabilities",
+        "runtime",
+        "models",
+        "connection_profile",
+    ]
+
+
+def test_run_external_agent_readiness_uses_user_key(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+    output_path = tmp_path / "external-agent-readiness.json"
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        captured["api_cli"] = cli_api_key
+        return "user-key"
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        raise AssertionError("admin API key should not be resolved")
+
+    def fake_fetch_capabilities(**kwargs):
+        captured["capabilities"] = kwargs
+        return sample_capabilities()
+
+    def fake_fetch_runtime_status(**kwargs):
+        captured["runtime"] = kwargs
+        return {
+            "service": "biber-api",
+            "local_model_name": "biber-dev-core",
+            "local_model_base_url": "http://127.0.0.1:8001/v1",
+        }
+
+    def fake_list_models(**kwargs):
+        captured["models"] = kwargs
+        return {
+            "models": [
+                {
+                    "id": "biber-dev-core-v1",
+                    "lifecycle": "stable",
+                    "enabled": True,
+                }
+            ]
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+    monkeypatch.setattr(client, "fetch_capabilities", fake_fetch_capabilities)
+    monkeypatch.setattr(client, "fetch_runtime_status", fake_fetch_runtime_status)
+    monkeypatch.setattr(client, "list_models", fake_list_models)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--base-url",
+                "http://biber.local",
+                "--api-key",
+                "cli-user-key",
+                "external-agent-readiness",
+                "--client-base-url",
+                "https://biber.example.com",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+
+    artifact = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "BIBER external-agent readiness" in output
+    assert captured["api_cli"] == "cli-user-key"
+    assert captured["capabilities"]["api_key"] == "user-key"
+    assert captured["runtime"]["api_key"] == "user-key"
+    assert captured["models"]["api_key"] == "user-key"
+    assert artifact["artifact_path"] == str(output_path)
+    assert artifact["ok"] is True
+    assert artifact["openai_base_url"] == "https://biber.example.com/v1"
+    assert artifact["default_model"] == "biber-dev-core-v1"
+    assert artifact["api_key_included"] is False
+
+
 def test_resolve_admin_api_key_reads_env(monkeypatch) -> None:
     monkeypatch.delenv("BIBER_ADMIN_API_KEY", raising=False)
     monkeypatch.delenv("BIBER_TEST_ADMIN_API_KEY", raising=False)

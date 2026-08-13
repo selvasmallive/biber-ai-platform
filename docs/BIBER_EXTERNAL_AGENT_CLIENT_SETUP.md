@@ -37,6 +37,10 @@ Then, in another terminal from the repo checkout:
 export BIBER_API_BASE_URL="http://127.0.0.1:8000"
 export BIBER_API_KEY="<user-api-key>"
 
+python scripts/biber_agent_client.py external-agent-readiness \
+  --client-base-url "$BIBER_API_BASE_URL" \
+  --output /workspace/outputs/biber-external-agent-readiness.json
+
 python scripts/biber_agent_client.py external-agent-connection \
   --client-base-url "$BIBER_API_BASE_URL" \
   --output /workspace/outputs/biber-external-agent-connection.json
@@ -51,9 +55,9 @@ python scripts/biber_agent_client.py models \
   --output /workspace/outputs/biber-models.json
 ```
 
-The connection artifact is safe to share with a local agent setup because it
-does not contain the API key. The API key must be configured separately in the
-client's secret or environment setting.
+The readiness and connection artifacts are safe to share with a local agent
+setup because they do not contain the API key. The API key must be configured
+separately in the client's secret or environment setting.
 
 ## Public HTTPS Gateway Later
 
@@ -62,6 +66,10 @@ is needed later, place HTTPS in front of BIBER with a reverse proxy, load
 balancer, or cloud API gateway, then generate the profile with the public URL:
 
 ```bash
+python scripts/biber_agent_client.py external-agent-readiness \
+  --client-base-url https://api.example.com \
+  --output /workspace/outputs/biber-external-agent-readiness-public.json
+
 python scripts/biber_agent_client.py external-agent-connection \
   --client-base-url https://api.example.com \
   --output /workspace/outputs/biber-external-agent-connection-public.json
