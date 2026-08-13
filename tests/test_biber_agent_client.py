@@ -3273,6 +3273,94 @@ def test_write_next_required_edit_spec_validates_target_and_writes(
     )
 
 
+def test_write_next_required_edit_spec_accepts_path_files(
+    tmp_path: Path,
+) -> None:
+    target_root = tmp_path / "target-repo"
+    target_file = target_root / "docs" / "BIBER_ONLY_WORKSPACE.md"
+    target_file.parent.mkdir(parents=True)
+    old_text = "before exact line\n"
+    new_text = "after exact line\n"
+    target_file.write_text(old_text, encoding="utf-8")
+    old_text_file = tmp_path / "old.txt"
+    new_text_file = tmp_path / "new.txt"
+    old_text_file.write_text(old_text, encoding="utf-8")
+    new_text_file.write_text(new_text, encoding="utf-8")
+    changed_paths_file = tmp_path / "changed-paths.txt"
+    pinned_paths_file = tmp_path / "pinned-paths.txt"
+    changed_paths_file.write_text(
+        "\n".join(
+            [
+                "# changed context",
+                "docs/BIBER_ONLY_WORKSPACE.md",
+                "",
+                "scripts/biber_agent_client.py",
+                "docs/BIBER_ONLY_WORKSPACE.md",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    pinned_paths_file.write_text(
+        "\n".join(
+            [
+                "# pinned context",
+                "docs/BIBER_ONLY_WORKSPACE.md",
+                "docs/PINNED.md",
+                "docs/PINNED.md",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "write-next-required-edit-spec",
+                    str(tmp_path),
+                    "--target-root",
+                    str(target_root),
+                    "--required-path",
+                    "docs/BIBER_ONLY_WORKSPACE.md",
+                    "--old-text-file",
+                    str(old_text_file),
+                    "--new-text-file",
+                    str(new_text_file),
+                    "--changed-path",
+                    "docs/EXTRA.md",
+                    "--changed-paths-file",
+                    str(changed_paths_file),
+                    "--pinned-path",
+                    "docs/CLI_PINNED.md",
+                    "--pinned-paths-file",
+                    str(pinned_paths_file),
+                ]
+            )
+        )
+    )
+
+    spec_payload = json.loads(
+        Path(result["spec_path"]).read_text(encoding="utf-8")
+    )
+    assert result["ok"] is True
+    assert result["written"] is True
+    assert result["mutates_repo"] is False
+    assert result["github_request_sent"] is False
+    assert result["mentor_used"] is False
+    assert result["training_allowed"] is False
+    assert spec_payload["changed_paths"] == [
+        "docs/EXTRA.md",
+        "docs/BIBER_ONLY_WORKSPACE.md",
+        "scripts/biber_agent_client.py",
+    ]
+    assert spec_payload["pinned_paths"] == [
+        "docs/CLI_PINNED.md",
+        "docs/BIBER_ONLY_WORKSPACE.md",
+        "docs/PINNED.md",
+    ]
+
+
 def test_write_next_required_edit_spec_refuses_existing_without_replace(
     tmp_path: Path,
 ) -> None:

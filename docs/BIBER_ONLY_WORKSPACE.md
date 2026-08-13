@@ -196,12 +196,18 @@ python scripts/biber_agent_client.py --json write-next-required-edit-spec \
   --required-path docs/BIBER_ONLY_WORKSPACE.md \
   --old-text-file /workspace/outputs/biber-old.txt \
   --new-text-file /workspace/outputs/biber-new.txt \
+  --changed-paths-file /workspace/outputs/biber-changed-paths.txt \
+  --pinned-paths-file /workspace/outputs/biber-pinned-paths.txt \
   --output /workspace/outputs/biber-next-required-edit-write-latest.json
 ```
 
 The helper refuses unsafe paths, refuses to overwrite an existing active spec
 unless `--replace` is passed, and probes `--target-root` before writing when a
-target root is provided. Inspect the active spec before running the live model:
+target root is provided. It accepts repeated `--changed-path`/`--pinned-path`
+flags plus newline-delimited `--changed-paths-file`/`--pinned-paths-file`
+inputs; blank lines and `#` comments are ignored, and file entries are appended
+after repeated CLI path flags. Inspect the active spec before running the live
+model:
 
 ```bash
 python scripts/biber_agent_client.py show-next-required-edit-spec \

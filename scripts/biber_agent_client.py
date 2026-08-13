@@ -20884,11 +20884,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="append",
         dest="changed_paths",
     )
+    write_next_required_edit_spec_parser.add_argument("--changed-paths-file")
     write_next_required_edit_spec_parser.add_argument(
         "--pinned-path",
         action="append",
         dest="pinned_paths",
     )
+    write_next_required_edit_spec_parser.add_argument("--pinned-paths-file")
     write_next_required_edit_spec_parser.add_argument(
         "--max-context-files",
         type=int,
@@ -22839,6 +22841,16 @@ def run(args: argparse.Namespace) -> str:
             else format_next_required_edit_spec_archive(result)
         )
     if args.command == "write-next-required-edit-spec":
+        changed_paths = combine_cli_paths(
+            args.changed_paths,
+            args.changed_paths_file,
+            label="--changed-paths-file",
+        )
+        pinned_paths = combine_cli_paths(
+            args.pinned_paths,
+            args.pinned_paths_file,
+            label="--pinned-paths-file",
+        )
         result = write_next_required_edit_spec(
             directory=args.directory,
             required_path=args.required_path,
@@ -22846,8 +22858,8 @@ def run(args: argparse.Namespace) -> str:
             old_text_file=args.old_text_file,
             new_text=args.new_text,
             new_text_file=args.new_text_file,
-            changed_paths=args.changed_paths,
-            pinned_paths=args.pinned_paths,
+            changed_paths=changed_paths,
+            pinned_paths=pinned_paths,
             max_context_files=args.max_context_files,
             context_instruction=args.context_instruction,
             plan_instruction=args.plan_instruction,

@@ -4,6 +4,20 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER required-edit spec writer path-file checkpoint:
+`write-next-required-edit-spec` now accepts `--changed-paths-file` and
+`--pinned-paths-file`, matching the existing BIBER agent flow path-list
+behavior. The files are newline-delimited, ignore blank lines and `#` comments,
+and append entries after repeated `--changed-path`/`--pinned-path` flags before
+normal dedupe/path validation. This keeps future exact-edit specs short enough
+for shell/Jupyter copy-paste while preserving the guarded CPU-local workflow:
+`mutates_repo=False`, `github_request_sent=False`, `mentor_used=False`, and
+`training_allowed=False`. Local validation passed bundled Python `py_compile`,
+`git diff --check`, a direct no-pytest path-file writer harness, and
+`scripts/biber_local_confidence_smoke.py`. Next narrow step: commit/push,
+fast-forward Vast, and run the disposable Vast writer check with both path-file
+flags.
+
 2026-08-13 latest BIBER completed required-edit archive checkpoint:
 `scripts/biber_agent_client.py` now has an
 `archive-next-required-edit-spec` helper/CLI command. It only archives
