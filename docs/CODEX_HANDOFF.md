@@ -38,6 +38,21 @@ and `refresh_resume_status`. Next narrow step: create a fresh
 `/workspace/outputs/biber-next-required-edit.json` only when there is a specific
 small BIBER edit to plan, or run the live provider confidence gate if refreshing
 model confidence is the immediate goal.
+2026-08-13 confidence follow-up: the safe ready command
+`rerun_live_provider_confidence_gate` was run on the current SSH-enabled Vast GPU
+with `--allow-gpu --allow-live-provider`. It did not use OpenAI, GitHub, mentor,
+training, or repo mutation. Output:
+`/workspace/outputs/biber-ready-command-live-confidence-latest.json`; refreshed
+confidence artifact:
+`/workspace/outputs/biber-live-provider-confidence-latest.json`.
+The run passed with `confidence_run_ok=True`, `exit_code=0`,
+`confidence_ok=True`, `confidence_failed_checks=0`, and refreshed resume status
+still reports `next_action=start_next_narrow_biber_step`,
+`next_required_edit_spec.reason=not_found`, `target_git_clean=True`, and ready
+labels `run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`,
+and `refresh_resume_status`. Next useful development step is to create one fresh
+narrow exact-edit spec for the next BIBER MVP capability improvement, then run
+the guarded plan-only/apply/verify/save chain.
 
 2026-08-12 latest BIBER completed required-edit spec guard checkpoint:
 `live-mvp-resume-status` now passes `target_root` into
