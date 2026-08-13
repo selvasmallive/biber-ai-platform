@@ -18,10 +18,20 @@ provider swappability, and future admin key-management/user portal status.
 New doc: `docs/BIBER_EXTERNAL_AGENT_API.md`. A `.com` domain is not required
 for local/private MVP; public clients later need HTTPS DNS/reverse proxy and
 admin key-management. Local validation passed bundled Python `py_compile`,
-`git diff --check`, and `scripts/biber_local_confidence_smoke.py`. Local
-FastAPI endpoint tests could not run because the bundled local runtime lacks
-FastAPI; run focused endpoint tests on Vast after push/pull. No OpenAI mentor,
-external paid API, training, or credential rotation was used.
+`git diff --check`, and `scripts/biber_local_confidence_smoke.py`. Commit
+`591cceb` (`Add BIBER external agent API endpoint`) was pushed to
+`biber/mvp-resume-20260712`; the SSH-enabled Vast checkout fast-forwarded to
+`591cceb`. Vast validation passed `py_compile` and a direct FastAPI TestClient
+harness for capabilities, bearer auth, mentor-off default, and streaming
+rejection. The live FastAPI process was restarted from the new commit without
+restarting vLLM: vLLM stayed on pid `1553`, API restarted to pid `8220`.
+Live HTTP smoke passed against `http://127.0.0.1:8000` using the local GPU
+model: capabilities reported `external_agent_api`, `/v1/chat/completions`
+returned `object=chat.completion`, `model=biber-dev-core-v1`,
+`choice_count=1`, and `mentor_used=false`. Live artifacts:
+`/workspace/outputs/biber-external-agent-live-capabilities-after-restart.json`
+and `/workspace/outputs/biber-external-agent-live-chat-completions.json`.
+No OpenAI mentor, external paid API, training, or credential rotation was used.
 
 2026-08-13 latest BIBER stale apply status checkpoint:
 In progress: `live-mvp-resume-status` now distinguishes historical verified
