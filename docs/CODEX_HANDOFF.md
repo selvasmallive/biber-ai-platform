@@ -13,7 +13,14 @@ not spend GPU/model time on files the workspace edit apply guard will later
 reject. This is CPU-local source/docs/test work only; local validation passed
 bundled Python `py_compile`, `git diff --check`, a direct no-pytest oversized
 preflight harness, a CLI-level oversized preflight check, and
-`scripts/biber_local_confidence_smoke.py`. Push/Vast validation are pending.
+`scripts/biber_local_confidence_smoke.py`. Commit `95b256c` (`Block oversized
+BIBER live plan targets`) was pushed to `biber/mvp-resume-20260712`; the
+SSH-enabled Vast checkout fast-forwarded to `95b256c`. Vast validation passed
+`py_compile` for the changed smoke/test files and a live-mode oversized-target
+preflight CLI check at
+`/workspace/outputs/biber-oversized-preflight-vast-check-20260813T162517Z`;
+that check blocked before readiness/model calls with `readiness_sent=False` and
+`model_request_sent=False`. Vast repo status is clean at `95b256c`.
 Expected blocked summaries report
 `plan_outcome=blocked_preflight_required_edit_target_too_large`,
 `readiness_sent=False`, `model_request_sent=False`,
