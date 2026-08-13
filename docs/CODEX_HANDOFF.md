@@ -11,8 +11,17 @@ future smoke runs save proof artifacts without shell redirection and keeps the
 external-agent setup flow easier to reproduce on Vast or a workstation. Local
 validation passed bundled Python `py_compile`, `git diff --check`, a direct
 no-pytest artifact-output harness for both commands, and
-`scripts/biber_local_confidence_smoke.py`. GitHub push and Vast validation are
-pending. No GPU inference, OpenAI mentor, external paid API, credential
+`scripts/biber_local_confidence_smoke.py`. Commit `e78ae73` (`Save BIBER
+external agent client artifacts`) was pushed to `biber/mvp-resume-20260712`.
+The SSH-enabled Vast checkout fast-forwarded to `e78ae73`. Vast validation
+passed `py_compile` and live `--output` artifact checks for both commands using
+the existing `.env` user key without printing it. Live artifacts:
+`/workspace/outputs/biber-models-client-output-live-latest.json` and
+`/workspace/outputs/biber-chat-completions-client-output-live-latest.json`.
+The models artifact includes `biber-dev-core-v1` and
+`biber-dev-core-v2-candidate`; the chat artifact returned
+`object=chat.completion` with one choice. This used one local Vast/GPU-backed
+BIBER API inference smoke only; no OpenAI mentor, external paid API, credential
 rotation, training, or XRIQ/XRIS work was used.
 
 2026-08-13 latest BIBER models client checkpoint:
