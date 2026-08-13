@@ -1048,6 +1048,91 @@ def test_run_models_uses_user_key(monkeypatch, tmp_path: Path) -> None:
     assert artifact["object"] == "list"
 
 
+def test_runtime_helper_calls_runtime_endpoint(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_request_json(**kwargs):
+        captured.update(kwargs)
+        return {"service": "biber-api"}
+
+    monkeypatch.setattr(client, "request_json", fake_request_json)
+
+    result = client.fetch_runtime_status(
+        base_url="http://biber.local",
+        api_key="user-key",
+        timeout_seconds=5,
+    )
+
+    assert result == {"service": "biber-api"}
+    assert captured["base_url"] == "http://biber.local"
+    assert captured["api_key"] == "user-key"
+    assert captured["path"] == "/v1/runtime"
+
+
+def test_format_runtime_summary_reports_provider_and_integrations() -> None:
+    output = client.format_runtime_summary(
+        {
+            "service": "biber-api",
+            "local_model_name": "biber-dev-core",
+            "local_model_base_url": "http://127.0.0.1:8001/v1",
+            "chat_mode": "infer",
+            "mentor_enabled": False,
+            "mentor_configured": False,
+            "github_configured": True,
+            "azure_backup_configured": False,
+        }
+    )
+
+    assert "BIBER runtime status" in output
+    assert "service: biber-api" in output
+    assert "local_model_name: biber-dev-core" in output
+    assert "chat_mode: infer" in output
+    assert "mentor_enabled: False" in output
+    assert "github_configured: True" in output
+
+
+def test_run_runtime_uses_user_key(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+    output_path = tmp_path / "runtime.json"
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        captured["api_cli"] = cli_api_key
+        return "user-key"
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        raise AssertionError("admin API key should not be resolved")
+
+    def fake_fetch_runtime_status(**kwargs):
+        captured["runtime"] = kwargs
+        return {"service": "biber-api", "local_model_name": "biber-dev-core"}
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+    monkeypatch.setattr(client, "fetch_runtime_status", fake_fetch_runtime_status)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--base-url",
+                "http://biber.local",
+                "--api-key",
+                "cli-user-key",
+                "runtime",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+
+    artifact = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "BIBER runtime status" in output
+    assert captured["api_cli"] == "cli-user-key"
+    assert captured["runtime"]["api_key"] == "user-key"
+    assert captured["runtime"]["base_url"] == "http://biber.local"
+    assert artifact["artifact_path"] == str(output_path)
+    assert artifact["service"] == "biber-api"
+
+
 def test_resolve_admin_api_key_reads_env(monkeypatch) -> None:
     monkeypatch.delenv("BIBER_ADMIN_API_KEY", raising=False)
     monkeypatch.delenv("BIBER_TEST_ADMIN_API_KEY", raising=False)

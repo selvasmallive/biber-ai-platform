@@ -192,6 +192,20 @@ def list_models(
     )
 
 
+def fetch_runtime_status(
+    *,
+    base_url: str,
+    api_key: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/runtime",
+        timeout_seconds=timeout_seconds,
+    )
+
+
 def list_api_keys(
     *,
     base_url: str,
@@ -934,6 +948,22 @@ def format_models_summary(payload: Mapping[str, Any]) -> str:
             )
         )
     return "\n".join(lines)
+
+
+def format_runtime_summary(payload: Mapping[str, Any]) -> str:
+    return "\n".join(
+        [
+            "BIBER runtime status",
+            f"service: {payload.get('service', '-')}",
+            f"local_model_name: {payload.get('local_model_name', '-')}",
+            f"local_model_base_url: {payload.get('local_model_base_url', '-')}",
+            f"chat_mode: {payload.get('chat_mode', '-')}",
+            f"mentor_enabled: {bool(payload.get('mentor_enabled'))}",
+            f"mentor_configured: {bool(payload.get('mentor_configured'))}",
+            f"github_configured: {bool(payload.get('github_configured'))}",
+            f"azure_backup_configured: {bool(payload.get('azure_backup_configured'))}",
+        ]
+    )
 
 
 def format_api_key_record(record: Mapping[str, Any]) -> str:
@@ -20881,6 +20911,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     models.add_argument("--output", help="Optional JSON artifact path.")
 
+    runtime = subparsers.add_parser(
+        "runtime",
+        help="Show BIBER runtime/provider status from /v1/runtime.",
+    )
+    runtime.add_argument("--output", help="Optional JSON artifact path.")
+
     subparsers.add_parser(
         "list-api-keys",
         help="List safe API-key metadata through the admin key-management API.",
@@ -25373,6 +25409,22 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_models_summary(result)
+        )
+
+    if args.command == "runtime":
+        api_key = resolve_api_key(args.api_key)
+        result = fetch_runtime_status(
+            base_url=args.base_url.rstrip("/"),
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_runtime_summary(result)
         )
 
     mvp_loop_uses_only_local_steps = (

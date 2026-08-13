@@ -62,6 +62,7 @@ The stdlib BIBER agent client can exercise the same OpenAI-compatible endpoint:
 
 ```bash
 export BIBER_API_KEY="<user-api-key>"
+python scripts/biber_agent_client.py runtime
 python scripts/biber_agent_client.py models
 python scripts/biber_agent_client.py chat-completions \
   --model biber-dev-core-v1 \

@@ -4,6 +4,18 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER runtime client checkpoint:
+Complete locally: the next narrow BIBER MVP step adds a stdlib `runtime` command to
+`scripts/biber_agent_client.py` for authenticated `/v1/runtime` status. This
+lets a workstation, Vast session, or external agent gateway save a non-secret
+health/provider configuration proof with `--output` before using BIBER as a
+model source. The command should use normal user API-key resolution, not admin
+key resolution. Local validation passed bundled Python `py_compile`,
+`git diff --check`, a direct no-pytest runtime endpoint/summary/dispatch
+harness, and `scripts/biber_local_confidence_smoke.py`. GitHub push and Vast
+validation are pending. No GPU inference, OpenAI mentor, external paid API,
+credential rotation, training, or XRIQ/XRIS work was used.
+
 2026-08-13 latest BIBER external-agent artifact checkpoint:
 Complete locally: the next narrow BIBER MVP step adds `--output` JSON artifact
 support to the client-side `models` and `chat-completions` commands. This lets

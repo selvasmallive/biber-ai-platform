@@ -81,6 +81,9 @@ is explicitly passed.
 Use `models` to inspect `/v1/models` stable/candidate metadata from the same
 client before configuring an external agent or gateway. Both `models` and
 `chat-completions` accept `--output` to save JSON proof artifacts.
+Use `runtime --output <artifact.json>` to save a non-secret health/provider
+configuration proof from `/v1/runtime` before handing a base URL to another
+agent or gateway.
 Use `--include-git-state` for repo work so the artifact records the local
 branch, short HEAD, dirty status, and `git status --short` before edits/tests.
 Repo-context and safe-edit paths must stay workspace-relative; Windows

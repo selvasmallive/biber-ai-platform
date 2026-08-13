@@ -19,6 +19,12 @@ curl http://localhost:8000/v1/runtime \
   -H "Authorization: Bearer dev-api-key-change-me"
 ```
 
+```bash
+export BIBER_API_KEY="dev-api-key-change-me"
+python scripts/biber_agent_client.py runtime \
+  --output /workspace/outputs/biber-runtime-smoke.json
+```
+
 ## Generate Code With biber-dev-core
 
 ```bash
@@ -76,6 +82,7 @@ The stdlib client can hit the same endpoint:
 
 ```bash
 export BIBER_API_KEY="dev-api-key-change-me"
+python scripts/biber_agent_client.py runtime
 python scripts/biber_agent_client.py models
 python scripts/biber_agent_client.py chat-completions \
   --model biber-dev-core-v1 \
