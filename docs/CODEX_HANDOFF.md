@@ -144,6 +144,23 @@ archive, but not plan. Local validation passed bundled Python `py_compile`,
 `scripts/biber_local_confidence_smoke.py`. Next narrow step: commit/push,
 fast-forward Vast, run Vast `py_compile`, and refresh live MVP resume status to
 confirm the clean no-spec state still omits the inspect command.
+2026-08-13 follow-up: commit `6c84850` (`Expose BIBER spec inspection ready
+command`) was pushed to `biber/mvp-resume-20260712`; GitHub initially returned
+transient server-side Internal Server Error for the target branch, so the same
+commit was temporarily pushed to backup branch
+`biber/mvp-resume-20260712-inspect-ready-20260813`, after which the target
+branch push succeeded. The current SSH-enabled Vast checkout was fast-forwarded
+to `6c84850`; Vast `py_compile` passed for `scripts/biber_agent_client.py` and
+`tests/test_biber_agent_client.py`. Refreshed live MVP resume status reports
+`ok=True`, `head=6c84850`, `target_git_clean=True`,
+`next_action=start_next_narrow_biber_step`,
+`next_required_edit_spec.reason=not_found`,
+`inspect_in_next_commands=False`, `inspect_in_ready=False`, and ready labels
+`run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`, and
+`refresh_resume_status`. Next narrow step: choose one specific small BIBER MVP
+edit, create the active spec with `write-next-required-edit-spec`, inspect it
+with `show-next-required-edit-spec` or the ready command, then run the guarded
+live plan-only chain.
 
 2026-08-12 latest BIBER completed required-edit spec guard checkpoint:
 `live-mvp-resume-status` now passes `target_root` into
