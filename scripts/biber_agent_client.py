@@ -178,6 +178,20 @@ def fetch_capabilities(
     )
 
 
+def list_models(
+    *,
+    base_url: str,
+    api_key: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/models",
+        timeout_seconds=timeout_seconds,
+    )
+
+
 def list_api_keys(
     *,
     base_url: str,
@@ -893,6 +907,32 @@ def format_capabilities_summary(payload: Mapping[str, Any]) -> str:
         f"external_agent_api: {bool(external_agent_api.get('enabled'))}",
         f"admin_key_management_api: {external_auth.get('admin_key_management_api', '-')}",
     ]
+    return "\n".join(lines)
+
+
+def format_models_summary(payload: Mapping[str, Any]) -> str:
+    models = [
+        item
+        for item in require_list(payload.get("data"))
+        if isinstance(item, dict)
+    ]
+    lines = [f"BIBER models ({len(models)})"]
+    for model in models:
+        permission = require_mapping(model.get("permission"))
+        aliases = require_list(model.get("aliases"))
+        alias_text = ",".join(str(alias) for alias in aliases) if aliases else "-"
+        lines.append(
+            " ".join(
+                [
+                    f"- {model.get('id', '-')}",
+                    f"lifecycle={model.get('lifecycle', '-')}",
+                    f"provider={model.get('provider_id', '-')}",
+                    f"enabled={bool(model.get('enabled', True))}",
+                    f"aliases={alias_text}",
+                    f"fine_tuning={bool(permission.get('allow_fine_tuning'))}",
+                ]
+            )
+        )
     return "\n".join(lines)
 
 
@@ -20836,6 +20876,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     subparsers.add_parser("capabilities", help="Discover BIBER agent capabilities.")
 
     subparsers.add_parser(
+        "models",
+        help="List OpenAI-compatible BIBER model metadata from /v1/models.",
+    )
+
+    subparsers.add_parser(
         "list-api-keys",
         help="List safe API-key metadata through the admin key-management API.",
     )
@@ -25310,6 +25355,19 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_api_key_revoke_summary(result)
+        )
+
+    if args.command == "models":
+        api_key = resolve_api_key(args.api_key)
+        result = list_models(
+            base_url=args.base_url.rstrip("/"),
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_models_summary(result)
         )
 
     mvp_loop_uses_only_local_steps = (

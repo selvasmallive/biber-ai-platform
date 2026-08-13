@@ -953,6 +953,95 @@ def test_format_capabilities_summary_includes_presets_and_tests() -> None:
     assert "admin_key_management_api: -" in output
 
 
+def test_models_helper_calls_models_endpoint(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_request_json(**kwargs):
+        captured.update(kwargs)
+        return {"object": "list", "data": []}
+
+    monkeypatch.setattr(client, "request_json", fake_request_json)
+
+    result = client.list_models(
+        base_url="http://biber.local",
+        api_key="user-key",
+        timeout_seconds=5,
+    )
+
+    assert result == {"object": "list", "data": []}
+    assert captured["base_url"] == "http://biber.local"
+    assert captured["api_key"] == "user-key"
+    assert captured["path"] == "/v1/models"
+
+
+def test_format_models_summary_lists_stable_and_candidate() -> None:
+    output = client.format_models_summary(
+        {
+            "object": "list",
+            "data": [
+                {
+                    "id": "biber-dev-core-v1",
+                    "lifecycle": "stable",
+                    "provider_id": "local-vllm",
+                    "enabled": True,
+                    "aliases": ["biber-dev-core"],
+                    "permission": {"allow_fine_tuning": False},
+                },
+                {
+                    "id": "biber-dev-core-v2-candidate",
+                    "lifecycle": "candidate",
+                    "provider_id": "candidate-vllm",
+                    "enabled": False,
+                    "aliases": [],
+                    "permission": {"allow_fine_tuning": False},
+                },
+            ],
+        }
+    )
+
+    assert "BIBER models (2)" in output
+    assert "biber-dev-core-v1 lifecycle=stable" in output
+    assert "aliases=biber-dev-core" in output
+    assert "biber-dev-core-v2-candidate lifecycle=candidate" in output
+    assert "enabled=False" in output
+
+
+def test_run_models_uses_user_key(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        captured["api_cli"] = cli_api_key
+        return "user-key"
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        raise AssertionError("admin API key should not be resolved")
+
+    def fake_list_models(**kwargs):
+        captured["models"] = kwargs
+        return {"object": "list", "data": []}
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+    monkeypatch.setattr(client, "list_models", fake_list_models)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--base-url",
+                "http://biber.local",
+                "--api-key",
+                "cli-user-key",
+                "models",
+            ]
+        )
+    )
+
+    assert "BIBER models (0)" in output
+    assert captured["api_cli"] == "cli-user-key"
+    assert captured["models"]["api_key"] == "user-key"
+    assert captured["models"]["base_url"] == "http://biber.local"
+
+
 def test_resolve_admin_api_key_reads_env(monkeypatch) -> None:
     monkeypatch.delenv("BIBER_ADMIN_API_KEY", raising=False)
     monkeypatch.delenv("BIBER_TEST_ADMIN_API_KEY", raising=False)

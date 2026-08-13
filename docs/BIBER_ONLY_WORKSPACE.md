@@ -78,6 +78,8 @@ Use `chat-completions --message <text> --model biber-dev-core-v1` to smoke-test
 the OpenAI-compatible `/v1/chat/completions` model-source endpoint from the same
 client; it sends `stream=false` and keeps OpenAI mentor off unless `--use-mentor`
 is explicitly passed.
+Use `models` to inspect `/v1/models` stable/candidate metadata from the same
+client before configuring an external agent or gateway.
 Use `--include-git-state` for repo work so the artifact records the local
 branch, short HEAD, dirty status, and `git status --short` before edits/tests.
 Repo-context and safe-edit paths must stay workspace-relative; Windows

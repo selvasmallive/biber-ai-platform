@@ -4,6 +4,18 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER models client checkpoint:
+Complete locally: the next narrow BIBER MVP step adds a stdlib `models` command to
+`scripts/biber_agent_client.py` for `/v1/models`, so users and external agent
+gateways can inspect stable/candidate BIBER model metadata without hand-written
+curl. The command should use normal user API-key resolution, not admin key
+resolution, and summarize model id, lifecycle, provider, enabled state, aliases,
+and fine-tuning permission. Local validation passed bundled Python `py_compile`,
+`git diff --check`, a direct no-pytest models endpoint/summary/dispatch harness,
+and `scripts/biber_local_confidence_smoke.py`. GitHub push and Vast validation
+are pending. No GPU inference, OpenAI mentor, external paid API, credential
+rotation, training, or XRIQ/XRIS work was used.
+
 2026-08-13 latest BIBER chat-completions client checkpoint:
 Complete locally: BIBER MVP now has a stdlib client command for the
 OpenAI-compatible model-source endpoint: `chat-completions --message <text>

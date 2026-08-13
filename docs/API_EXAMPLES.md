@@ -76,6 +76,7 @@ The stdlib client can hit the same endpoint:
 
 ```bash
 export BIBER_API_KEY="dev-api-key-change-me"
+python scripts/biber_agent_client.py models
 python scripts/biber_agent_client.py chat-completions \
   --model biber-dev-core-v1 \
   --message "Write one concise Rust review note." \
