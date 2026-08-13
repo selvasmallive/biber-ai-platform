@@ -4,6 +4,25 @@ Last updated: 2026-08-12
 
 ## Current Goal
 
+2026-08-12 latest BIBER completed required-edit spec guard checkpoint:
+`live-mvp-resume-status` now passes `target_root` into
+`summarize_next_required_edit_spec`, and the summary probes the target file for
+the spec's exact old/new text. If the old text is gone and the new text is
+already present, the spec is reported as `ok=False`,
+`reason=completed_required_edit`, with blocker
+`required_edit_already_applied`; this suppresses the
+`run_next_required_edit_spec_plan` ready command so completed specs are not
+replanned. The probe also blocks unsafe paths, missing target files,
+non-unique old text, missing old text, unreadable text files, and text-file
+paths outside the spec directory. Local validation passed bundled Python
+`py_compile`, `git diff --check`, a direct no-pytest completed-spec resume
+status harness, and `scripts/biber_local_confidence_smoke.py`; focused pytest
+was attempted but the bundled local Python still does not have pytest installed.
+Next narrow step: commit/push this checkpoint, fast-forward Vast, run Vast
+`py_compile`, refresh real `/workspace/outputs/biber-live-mvp-resume-status-latest.json`,
+and confirm the current completed `/workspace/outputs/biber-next-required-edit.json`
+no longer exposes `run_next_required_edit_spec_plan`.
+
 2026-08-12 latest BIBER stale-spec docs plan checkpoint:
 After the previous verified docs edit was saved, the completed
 `/workspace/outputs/biber-next-required-edit.json` was replaced on the current

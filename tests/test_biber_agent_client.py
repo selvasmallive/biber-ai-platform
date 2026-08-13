@@ -2964,6 +2964,155 @@ def test_run_mvp_loop_can_include_github_dry_run_without_api_key(
     assert "github_request_sent: False" in summary
 
 
+def test_live_mvp_resume_status_suppresses_completed_required_edit_spec(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    target_root = tmp_path / "target-repo"
+    target_root.mkdir()
+    target_file = target_root / "docs" / "BIBER_ONLY_WORKSPACE.md"
+    target_file.parent.mkdir()
+    old_text = "save it as\n"
+    new_text = "save the guarded exact-edit spec as\n"
+    target_file.write_text(new_text, encoding="utf-8")
+    target_sha = hashlib.sha256(target_file.read_bytes()).hexdigest()
+
+    def fake_git_status(target: Path) -> dict[str, object]:
+        assert target == target_root
+        return {
+            "available": True,
+            "target_root": str(target_root),
+            "branch": "biber/mvp-resume-20260712",
+            "head": "abc1234",
+            "dirty": False,
+            "status_short": [],
+            "modified_count": 0,
+            "untracked_count": 0,
+        }
+
+    monkeypatch.setattr(client, "git_status_local_target", fake_git_status)
+    (tmp_path / "biber-live-provider-confidence-latest.json").write_text(
+        json.dumps(
+            {
+                "source": "biber_live_provider_confidence_smoke",
+                "ok": True,
+                "mode": "live",
+                "checks": [{}, {}, {}],
+                "failed_checks": [],
+                "readiness": {"ok": True},
+                "github_request_sent": False,
+                "mentor_used": False,
+                "training_allowed": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "biber-real-repo-plan-latest.json").write_text(
+        json.dumps(
+            {
+                "source": "biber_live_provider_real_repo_plan_smoke",
+                "ok": True,
+                "target_root": str(target_root),
+                "mode": "live",
+                "plan_hash": "plan-completed-spec",
+                "plan_outcome": "planned_for_review",
+                "review_status": "ready_for_explicit_apply_approval",
+                "apply_recommendation": "ready_for_explicit_apply_approval",
+                "required_edit": {"path": "docs/BIBER_ONLY_WORKSPACE.md"},
+                "planned": 1,
+                "rejected": 0,
+                "mutation_performed": False,
+                "repo_status_unchanged": True,
+                "github_request_sent": False,
+                "mentor_used": False,
+                "training_allowed": False,
+                "explicit_apply_approval": {"required": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    apply_artifact = tmp_path / "verified-apply.json"
+    apply_artifact.write_text(
+        json.dumps(
+            {
+                "edit_apply": {
+                    "applied": [
+                        {
+                            "path": "docs/BIBER_ONLY_WORKSPACE.md",
+                            "new_sha256": target_sha,
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "biber-live-verified-github-dry-run-latest.json").write_text(
+        json.dumps(
+            {
+                "source": "biber_live_verified_repair_github_dry_run_smoke",
+                "ok": True,
+                "mode": "artifact",
+                "target_root": str(target_root),
+                "chain_status": "verified",
+                "verification_status": "passed",
+                "test_ok": True,
+                "plan_hash": "plan-completed-spec",
+                "apply_artifact": str(apply_artifact),
+                "paths": ["docs/BIBER_ONLY_WORKSPACE.md"],
+                "dry_run_artifacts_matched": 2,
+                "github_request_sent": False,
+                "mentor_used": False,
+                "training_allowed": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "biber-next-required-edit.json").write_text(
+        json.dumps(
+            {
+                "path": "docs/BIBER_ONLY_WORKSPACE.md",
+                "old_text": old_text,
+                "new_text": new_text,
+                "changed_paths": ["docs/BIBER_ONLY_WORKSPACE.md"],
+                "max_context_files": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    status = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "live-mvp-resume-status",
+                    str(tmp_path),
+                    "--target-root",
+                    str(target_root),
+                ]
+            )
+        )
+    )
+    next_commands = {
+        str(item.get("label")): item
+        for item in status["next_commands"]
+        if isinstance(item, dict)
+    }
+
+    assert status["next_action"] == "start_next_narrow_biber_step"
+    assert status["next_required_edit_spec"]["ok"] is False
+    assert status["next_required_edit_spec"]["reason"] == "completed_required_edit"
+    assert status["next_required_edit_spec"]["target_probe"]["reason"] == (
+        "required_edit_already_applied"
+    )
+    assert "required_edit_already_applied" in status["next_required_edit_spec"][
+        "blockers"
+    ]
+    assert "run_next_required_edit_spec_plan" not in next_commands
+    assert "run_next_required_edit_spec_plan" not in status["next_ready_command_labels"]
+
+
 def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
     output = client.format_mvp_loop_summary(
         {

@@ -14208,6 +14208,7 @@ def summarize_next_required_edit_spec(
     *,
     directory: str,
     filename: str = "biber-next-required-edit.json",
+    target_root: str | None = None,
 ) -> dict[str, Any]:
     root = Path(directory)
     path = root / filename
@@ -14221,6 +14222,8 @@ def summarize_next_required_edit_spec(
         "mentor_used": False,
         "training_allowed": False,
     }
+    if target_root:
+        base["target_root"] = target_root
     if not path.is_file():
         return {**base, "ok": False, "reason": "not_found"}
     try:
@@ -14253,15 +14256,179 @@ def summarize_next_required_edit_spec(
         blockers.append("missing_old_text")
     if not has_new:
         blockers.append("missing_new_text")
+    target_probe = None
+    if target_root and has_path:
+        target_probe = probe_next_required_edit_target(
+            target_root=target_root,
+            spec_path=path,
+            required_path=str(required_path),
+            old_text=old_text,
+            old_text_file=old_text_file,
+            new_text=new_text,
+            new_text_file=new_text_file,
+        )
+        blockers.extend(
+            str(item) for item in require_list(target_probe.get("blockers"))
+        )
     return {
         **base,
         "ok": not blockers,
-        "reason": "ready" if not blockers else "missing_required_fields",
+        "reason": next_required_edit_reason(blockers),
         "blockers": blockers,
         "required_path": required_path if has_path else None,
         "uses_old_text_file": isinstance(old_text_file, str),
         "uses_new_text_file": isinstance(new_text_file, str),
         "keys": sorted(str(key) for key in payload),
+        "target_probe": target_probe,
+    }
+
+
+def next_required_edit_reason(blockers: Sequence[str]) -> str:
+    if not blockers:
+        return "ready"
+    if "required_edit_already_applied" in blockers:
+        return "completed_required_edit"
+    if "required_old_text_not_found" in blockers:
+        return "required_old_text_not_found"
+    if "required_old_text_not_unique" in blockers:
+        return "required_old_text_not_unique"
+    if any(str(item).startswith("target_") for item in blockers):
+        return "target_probe_failed"
+    return "missing_required_fields"
+
+
+def read_required_edit_text(
+    *,
+    spec_path: Path,
+    inline_text: object,
+    text_file: object,
+    label: str,
+) -> tuple[str | None, list[str]]:
+    if isinstance(inline_text, str):
+        return inline_text, []
+    if not isinstance(text_file, str) or not text_file.strip():
+        return None, [f"missing_{label}"]
+    raw_path = Path(text_file.strip())
+    if raw_path.is_absolute():
+        return None, [f"{label}_file_not_relative"]
+    resolved = (spec_path.parent / raw_path).resolve()
+    spec_dir = spec_path.parent.resolve()
+    if resolved != spec_dir and spec_dir not in resolved.parents:
+        return None, [f"{label}_file_outside_spec_dir"]
+    try:
+        return resolved.read_text(encoding="utf-8"), []
+    except OSError:
+        return None, [f"{label}_file_unreadable"]
+
+
+def normalized_text_count(haystack: str, needle: str) -> int:
+    return haystack.replace("\r\n", "\n").count(needle.replace("\r\n", "\n"))
+
+
+def probe_next_required_edit_target(
+    *,
+    target_root: str,
+    spec_path: Path,
+    required_path: str,
+    old_text: object,
+    old_text_file: object,
+    new_text: object,
+    new_text_file: object,
+) -> dict[str, Any]:
+    probe: dict[str, Any] = {
+        "source": "biber_next_required_edit_target_probe",
+        "target_root": target_root,
+        "required_path": required_path,
+        "ok": False,
+        "blockers": [],
+    }
+    clean_path = safe_repo_relative_path(required_path)
+    if clean_path is None:
+        return {
+            **probe,
+            "reason": "unsafe_required_path",
+            "blockers": ["unsafe_required_path"],
+        }
+    try:
+        root = validate_local_target_root(Path(target_root))
+    except BiberAgentClientError:
+        return {
+            **probe,
+            "reason": "target_root_invalid",
+            "blockers": ["target_root_invalid"],
+        }
+    target_path = (root / clean_path).resolve()
+    if target_path != root and root not in target_path.parents:
+        return {
+            **probe,
+            "reason": "target_path_outside_root",
+            "blockers": ["target_path_outside_root"],
+        }
+    probe["target_path"] = str(target_path)
+    if not target_path.is_file():
+        return {
+            **probe,
+            "reason": "target_file_not_found",
+            "blockers": ["target_file_not_found"],
+        }
+    old_value, old_blockers = read_required_edit_text(
+        spec_path=spec_path,
+        inline_text=old_text,
+        text_file=old_text_file,
+        label="old_text",
+    )
+    new_value, new_blockers = read_required_edit_text(
+        spec_path=spec_path,
+        inline_text=new_text,
+        text_file=new_text_file,
+        label="new_text",
+    )
+    blockers = [*old_blockers, *new_blockers]
+    if old_value == "":
+        blockers.append("empty_old_text")
+    if blockers:
+        return {**probe, "reason": "text_unavailable", "blockers": blockers}
+    assert old_value is not None
+    assert new_value is not None
+    try:
+        target_text = target_path.read_text(encoding="utf-8")
+    except OSError:
+        return {
+            **probe,
+            "reason": "target_file_unreadable",
+            "blockers": ["target_file_unreadable"],
+        }
+    exact_old = target_text.count(old_value)
+    exact_new = target_text.count(new_value) if new_value else 0
+    normalized_old = normalized_text_count(target_text, old_value)
+    normalized_new = normalized_text_count(target_text, new_value) if new_value else 0
+    probe = {
+        **probe,
+        "exact_old_text_replacements": exact_old,
+        "exact_new_text_replacements": exact_new,
+        "normalized_old_text_replacements": normalized_old,
+        "normalized_new_text_replacements": normalized_new,
+    }
+    effective_old = exact_old or normalized_old
+    effective_new = exact_new or normalized_new
+    if effective_old == 1:
+        return {**probe, "ok": True, "reason": "exactly_one_required_old_text"}
+    if effective_old > 1:
+        return {
+            **probe,
+            "reason": "required_old_text_not_unique",
+            "blockers": ["required_old_text_not_unique"],
+        }
+    if effective_new > 0:
+        return {
+            **probe,
+            "reason": "required_edit_already_applied",
+            "blockers": ["required_edit_already_applied"],
+        }
+    return {
+        **probe,
+        "reason": "required_old_text_not_found",
+        "blockers": ["required_old_text_not_found"],
     }
 
 
@@ -15946,7 +16113,10 @@ def build_live_mvp_resume_status(
         pattern="*mvp-loop*.json",
         target_root=target_root,
     )
-    next_required_edit_spec = summarize_next_required_edit_spec(directory=directory)
+    next_required_edit_spec = summarize_next_required_edit_spec(
+        directory=directory,
+        target_root=target_root,
+    )
 
     if target_root:
         try:
