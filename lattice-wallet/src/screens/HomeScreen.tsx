@@ -1,16 +1,39 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Screen, Button, Card, StatusBanner, shortAddr } from '../components/ui';
 import { colors, font, radius, spacing } from '../theme/theme';
 import { useWallet } from '../state/WalletProvider';
 import { formatUnits } from '../core/format';
 import { SECURITY_STATUS } from '../core/config';
+import { tokensForChain, type Token } from '../core/tokens';
 import type { ChainConfig } from '../core/chains/types';
 
 export function HomeScreen({ navigation }: any) {
   const w = useWallet();
   const [faucetBusy, setFaucetBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [tokens, setTokens] = useState<Token[]>([]);
+  const [tokenBalances, setTokenBalances] = useState<Record<string, bigint>>({});
+
+  const isEvm = w.activeChain.family === 'evm';
+
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      if (!isEvm) { setTokens([]); return; }
+      (async () => {
+        const list = await tokensForChain(w.activeChain.id);
+        if (!alive) return;
+        setTokens(list);
+        const entries = await Promise.all(
+          list.map(async (t) => [t.address, await w.getTokenBalance(t).catch(() => 0n)] as const),
+        );
+        if (alive) setTokenBalances(Object.fromEntries(entries));
+      })();
+      return () => { alive = false; };
+    }, [isEvm, w.activeChain.id, w.address, w.refreshing]),
+  );
 
   const doFaucet = async () => {
     setMsg(null);
@@ -69,6 +92,43 @@ export function HomeScreen({ navigation }: any) {
           )}
           {msg && <Text style={styles.msg}>{msg}</Text>}
         </Card>
+
+        {isEvm && (
+          <>
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionTitle}>Tokens</Text>
+              <Pressable onPress={() => navigation.navigate('AddToken')}>
+                <Text style={styles.addLink}>+ Add token</Text>
+              </Pressable>
+            </View>
+            <Card>
+              {tokens.length === 0 ? (
+                <Text style={styles.emptyTokens}>
+                  No tokens yet. Add an ERC-20 by contract address — read from your own RPC, no
+                  tracker.
+                </Text>
+              ) : (
+                tokens.map((t, i) => (
+                  <React.Fragment key={t.address}>
+                    {i > 0 && <View style={styles.sep} />}
+                    <Pressable style={styles.assetRow} onPress={() => navigation.navigate('TokenSend', { token: t })}>
+                      <View style={[styles.assetIcon, { backgroundColor: colors.accentSoft }]}>
+                        <Text style={[styles.assetGlyph, { color: colors.accent }]}>◈</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.assetName}>{t.symbol}</Text>
+                        <Text style={styles.assetSub}>{t.name}</Text>
+                      </View>
+                      <Text style={styles.assetAmount}>
+                        {tokenBalances[t.address] !== undefined ? formatUnits(tokenBalances[t.address], t.decimals) : '…'}
+                      </Text>
+                    </Pressable>
+                  </React.Fragment>
+                ))
+              )}
+            </Card>
+          </>
+        )}
 
         <Text style={styles.sectionTitle}>Networks</Text>
         <Card>
@@ -142,6 +202,10 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   msg: { color: colors.textDim, fontSize: 13, textAlign: 'center' },
   sectionTitle: { ...font.h3, marginTop: spacing(2) },
+  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing(2) },
+  addLink: { color: colors.accent, fontSize: 13, fontWeight: '700' },
+  emptyTokens: { color: colors.textFaint, fontSize: 13, lineHeight: 19 },
+  assetAmount: { color: colors.text, fontSize: 15, fontWeight: '700' },
   assetRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(3), paddingVertical: spacing(2) },
   assetIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   assetGlyph: { fontSize: 20 },

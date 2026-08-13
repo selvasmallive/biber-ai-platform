@@ -18,6 +18,9 @@ import { ReceiveScreen } from './src/screens/ReceiveScreen';
 import { HistoryScreen } from './src/screens/HistoryScreen';
 import { SwapScreen } from './src/screens/SwapScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { AddTokenScreen } from './src/screens/AddTokenScreen';
+import { TokenSendScreen } from './src/screens/TokenSendScreen';
+import { AddressBookScreen } from './src/screens/AddressBookScreen';
 
 const Stack = createNativeStackNavigator();
 const Tabs = createBottomTabNavigator();
@@ -88,6 +91,9 @@ function Root() {
           <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
           <Stack.Screen name="Send" component={SendScreen} options={{ presentation: 'modal', title: 'Send' }} />
           <Stack.Screen name="Receive" component={ReceiveScreen} options={{ presentation: 'modal', title: 'Receive' }} />
+          <Stack.Screen name="AddToken" component={AddTokenScreen} options={{ presentation: 'modal', title: 'Add token' }} />
+          <Stack.Screen name="TokenSend" component={TokenSendScreen} options={{ presentation: 'modal', title: 'Send token' }} />
+          <Stack.Screen name="AddressBook" component={AddressBookScreen} options={{ title: 'Address book' }} />
           {/* Reachable after wipe */}
           <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Backup" component={BackupScreen} options={{ title: 'Back up' }} />

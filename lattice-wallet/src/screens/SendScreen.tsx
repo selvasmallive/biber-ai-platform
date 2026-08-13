@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Screen, Button, Card, StatusBanner, shortAddr } from '../components/ui';
 import { colors, font, radius, spacing } from '../theme/theme';
 import { useWallet } from '../state/WalletProvider';
 import { formatUnits, parseUnits } from '../core/format';
+import { isEnsName } from '../core/ens';
 
 type Step = 'edit' | 'review' | 'done';
 
@@ -18,15 +19,40 @@ export function SendScreen({ navigation }: any) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [resolvedName, setResolvedName] = useState<string | null>(null);
+  const [resolving, setResolving] = useState(false);
+
+  // Resolve ENS names on-chain (Ethereum mainnet) via the wallet's own RPC.
+  const nameInput = to.trim();
+  useEffect(() => {
+    let alive = true;
+    if (isEnsName(nameInput)) {
+      setResolving(true);
+      setResolvedName(null);
+      w.resolveName(nameInput)
+        .then((addr) => alive && setResolvedName(addr))
+        .catch(() => alive && setResolvedName(null))
+        .finally(() => alive && setResolving(false));
+    } else {
+      setResolvedName(null);
+      setResolving(false);
+    }
+    return () => { alive = false; };
+  }, [nameInput, w]);
+
+  // The address we actually send to: the ENS resolution when the input is a name.
+  const targetAddress = isEnsName(nameInput) ? resolvedName ?? '' : nameInput;
 
   const parsed = useMemo(() => {
     try {
       if (!to || !amount) return null;
-      if (!w.activeAdapter.validateAddress(to.trim()))
+      if (isEnsName(nameInput) && resolving) return { error: 'Resolving name…' };
+      if (isEnsName(nameInput) && !resolvedName) return { error: 'Name did not resolve to an address' };
+      if (!w.activeAdapter.validateAddress(targetAddress))
         return { error: `Not a valid ${chain.name} address` };
       const amountBaseUnits = parseUnits(amount, chain.decimals);
       if (amountBaseUnits <= 0n) return { error: 'Amount must be greater than zero' };
-      if (w.address && to.trim().toLowerCase() === w.address.toLowerCase())
+      if (w.address && targetAddress.toLowerCase() === w.address.toLowerCase())
         return { error: 'Cannot send to your own address' };
       const feeBaseUnits = isXriq ? parseUnits(fee || '0', chain.decimals) : 0n;
       const spend = isXriq ? amountBaseUnits + feeBaseUnits : amountBaseUnits;
@@ -36,7 +62,7 @@ export function SendScreen({ navigation }: any) {
     } catch (e) {
       return { error: (e as Error).message };
     }
-  }, [to, amount, fee, isXriq, chain, w.activeAdapter, w.address, w.balance]);
+  }, [to, amount, fee, isXriq, chain, nameInput, resolving, resolvedName, targetAddress, w.activeAdapter, w.address, w.balance]);
 
   const valid = parsed && !('error' in parsed);
 
@@ -45,10 +71,11 @@ export function SendScreen({ navigation }: any) {
     setError(null);
     setBusy(true);
     try {
+      const displayAmount = `${formatUnits((parsed as any).amountBaseUnits, chain.decimals)} ${chain.symbol}`;
       const req = isXriq
-        ? { to, amountBaseUnits: (parsed as any).amountBaseUnits, feeBaseUnits: (parsed as any).feeBaseUnits }
-        : { to, amountBaseUnits: (parsed as any).amountBaseUnits };
-      const res = await w.send(req);
+        ? { to: targetAddress, amountBaseUnits: (parsed as any).amountBaseUnits, feeBaseUnits: (parsed as any).feeBaseUnits }
+        : { to: targetAddress, amountBaseUnits: (parsed as any).amountBaseUnits };
+      const res = await w.send(req, displayAmount);
       setTxHash(res.hash);
       setStep('done');
     } catch (e) {
@@ -83,16 +110,21 @@ export function SendScreen({ navigation }: any) {
         <Text style={styles.chainTag}>on {chain.name}</Text>
 
         <View>
-          <Text style={styles.label}>Recipient address</Text>
+          <Text style={styles.label}>Recipient address{chain.family === 'evm' ? ' or ENS name' : ''}</Text>
           <TextInput
             style={styles.input}
             value={to}
             onChangeText={(v) => { setTo(v); setStep('edit'); }}
-            placeholder={isXriq ? 'xriqdev1…' : '0x…'}
+            placeholder={isXriq ? 'xriqdev1…' : chain.family === 'evm' ? '0x… or name.eth' : '0x…'}
             placeholderTextColor={colors.textFaint}
             autoCapitalize="none"
             autoCorrect={false}
           />
+          {isEnsName(nameInput) && (
+            <Text style={[styles.avail, { color: resolvedName ? colors.success : colors.textFaint }]}>
+              {resolving ? 'Resolving…' : resolvedName ? `→ ${shortAddr(resolvedName)}` : 'no address record'}
+            </Text>
+          )}
         </View>
 
         <View>

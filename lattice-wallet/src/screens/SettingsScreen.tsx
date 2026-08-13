@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Screen, Button, Card, StatusBanner, Divider } from '../components/ui';
 import { colors, font, radius, spacing } from '../theme/theme';
 import { useWallet } from '../state/WalletProvider';
@@ -9,6 +9,14 @@ import { shortAddr } from '../components/ui';
 export function SettingsScreen({ navigation }: any) {
   const w = useWallet();
   const [revealed, setRevealed] = useState<string | null>(null);
+  const [rpcInput, setRpcInput] = useState('');
+  const [rpcSaved, setRpcSaved] = useState(false);
+
+  const saveRpc = async () => {
+    await w.setRpcOverride(w.activeChain.id, rpcInput.trim());
+    setRpcSaved(true);
+    setTimeout(() => setRpcSaved(false), 1500);
+  };
 
   const reveal = async () => {
     try {
@@ -62,6 +70,44 @@ export function SettingsScreen({ navigation }: any) {
               </View>
             );
           })}
+        </Card>
+
+        <Text style={styles.section}>Privacy</Text>
+        <Card style={{ gap: spacing(3) }}>
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>Indexer transaction history</Text>
+              <Text style={styles.rowSub}>
+                Off (recommended): history stays private — the app shows transactions you make on
+                this device and links to a block explorer, never sending your address to a history
+                service. On: fetch full history from a third-party indexer.
+              </Text>
+            </View>
+            <Switch
+              value={w.historyMode === 'indexer'}
+              onValueChange={(on) => w.setHistoryMode(on ? 'indexer' : 'basic')}
+              trackColor={{ true: colors.warning, false: colors.surfaceAlt }}
+              thumbColor="#fff"
+            />
+          </View>
+          <Divider />
+          <Text style={styles.rowTitle}>Custom RPC — {w.activeChain.name}</Text>
+          <Text style={styles.rowSub}>
+            Point this chain at your own node so no third party sees your queries. Blank uses the
+            default ({w.activeChain.rpcUrl}).
+          </Text>
+          <TextInput
+            style={styles.input}
+            value={rpcInput}
+            onChangeText={setRpcInput}
+            placeholder={w.rpcOverrides[w.activeChain.id] ?? w.activeChain.rpcUrl}
+            placeholderTextColor={colors.textFaint}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Button title={rpcSaved ? '✓ Saved' : 'Save RPC endpoint'} variant="ghost" onPress={saveRpc} />
+          <Divider />
+          <Button title="Address book" variant="ghost" onPress={() => navigation.navigate('AddressBook')} />
         </Card>
 
         <Text style={styles.section}>Security</Text>
@@ -128,6 +174,7 @@ const styles = StyleSheet.create({
   netName: { color: colors.text, fontSize: 15, fontWeight: '600' },
   netSub: { color: colors.textFaint, fontSize: 11, marginTop: 2 },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(3) },
+  input: { height: 48, backgroundColor: colors.surfaceAlt, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, color: colors.text, paddingHorizontal: spacing(3), fontSize: 13 },
   rowTitle: { color: colors.text, fontSize: 15, fontWeight: '600' },
   rowSub: { color: colors.textDim, fontSize: 12, lineHeight: 18, marginTop: 2 },
   phraseBox: {

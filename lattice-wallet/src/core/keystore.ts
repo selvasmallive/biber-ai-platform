@@ -17,6 +17,8 @@ export interface WalletMeta {
   activeChainId: string;
   createdAt: number;
   pqEnabled: boolean;
+  /** 'basic' = privacy-first (local activity + explorer links); 'indexer' = opt-in remote history. */
+  historyMode?: 'basic' | 'indexer';
 }
 
 const secureOptions: SecureStore.SecureStoreOptions = {

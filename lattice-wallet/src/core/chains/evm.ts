@@ -9,6 +9,7 @@ import { mnemonicToSeedSync } from '@scure/bip39';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { keccak_256 } from '@noble/hashes/sha3';
 import { hex } from '../xriq';
+import { encodeBalanceOf, encodeTransfer, encodeCall, decodeUint, decodeString, ERC20_SELECTORS } from '../evmAbi';
 import type { HistoryEntry } from '../rpc';
 import type {
   ChainAdapter,
@@ -270,6 +271,53 @@ export class EvmAdapter implements ChainAdapter {
       to: req.to.trim(),
       value: req.amountBaseUnits,
       data: new Uint8Array(0),
+    };
+    const { raw, hash } = signEip1559(tx, k.privateKey);
+    const broadcastHash = await jsonRpc<string>(this.config.rpcUrl, 'eth_sendRawTransaction', [raw]);
+    return { hash: broadcastHash || hash, raw };
+  }
+
+  // ---- ERC-20 tokens (read from the user's own RPC; no third-party tracker) ----
+
+  async getErc20Balance(tokenAddress: string, owner: string): Promise<bigint> {
+    const data = encodeBalanceOf(owner);
+    const res = await jsonRpc<string>(this.config.rpcUrl, 'eth_call', [{ to: tokenAddress, data }, 'latest']);
+    return decodeUint(res);
+  }
+
+  async fetchErc20Metadata(tokenAddress: string): Promise<{ symbol: string; decimals: number; name: string }> {
+    const [sym, dec, nm] = await Promise.all([
+      jsonRpc<string>(this.config.rpcUrl, 'eth_call', [{ to: tokenAddress, data: encodeCall(ERC20_SELECTORS.symbol) }, 'latest']).catch(() => '0x'),
+      jsonRpc<string>(this.config.rpcUrl, 'eth_call', [{ to: tokenAddress, data: encodeCall(ERC20_SELECTORS.decimals) }, 'latest']).catch(() => '0x'),
+      jsonRpc<string>(this.config.rpcUrl, 'eth_call', [{ to: tokenAddress, data: encodeCall(ERC20_SELECTORS.name) }, 'latest']).catch(() => '0x'),
+    ]);
+    return {
+      symbol: decodeString(sym) || 'TOKEN',
+      decimals: Number(decodeUint(dec)) || 18,
+      name: decodeString(nm) || 'Unknown token',
+    };
+  }
+
+  /** Build, sign, and broadcast an ERC-20 transfer. `amount` is in token base units. */
+  async sendErc20(mnemonic: string, tokenAddress: string, to: string, amount: bigint): Promise<BroadcastResult> {
+    const k = deriveEvmKey(mnemonic);
+    const data = encodeTransfer(to.trim(), amount);
+    const dataBytes = hex.fromHex(data.slice(2));
+    const [nonceHex, fee, gasHex] = await Promise.all([
+      jsonRpc<string>(this.config.rpcUrl, 'eth_getTransactionCount', [k.address, 'pending']),
+      this.feeData(),
+      jsonRpc<string>(this.config.rpcUrl, 'eth_estimateGas', [{ from: k.address, to: tokenAddress, data }]).catch(() => '0x186a0'),
+    ]);
+    const gasLimit = (hexToBig(gasHex) * 12n) / 10n; // +20% headroom
+    const tx: Eip1559Tx = {
+      chainId: BigInt(this.config.evmChainId!),
+      nonce: hexToBig(nonceHex),
+      maxPriorityFeePerGas: fee.maxPriorityFeePerGas,
+      maxFeePerGas: fee.maxFeePerGas,
+      gasLimit,
+      to: tokenAddress.trim(),
+      value: 0n,
+      data: dataBytes,
     };
     const { raw, hash } = signEip1559(tx, k.privateKey);
     const broadcastHash = await jsonRpc<string>(this.config.rpcUrl, 'eth_sendRawTransaction', [raw]);

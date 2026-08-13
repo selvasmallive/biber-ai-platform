@@ -67,6 +67,25 @@ irreversibly, so these are deferred to a dedicated effort rather than shipped ha
   security: the chain still verifies the classical leg today, and the PQ leg is carried
   forward for when XRIQ wires id-250 verification.
 
+## Privacy-first wallet features
+
+Everything here is designed so the wallet reveals as little as possible about you:
+
+- **Privacy-first history (default).** Lattice keeps a **local, on-device activity log** of
+  transactions you send, and offers **"view full history on explorer"** deep links — it
+  never sends your address to a history indexer by default. Full indexer history is an
+  explicit opt-in (Settings → Privacy). Rationale: every indexer lookup leaks your address
+  to that provider.
+- **ERC-20 tokens, added by contract address.** No third-party token-discovery service —
+  you paste a contract, metadata is read from *your* RPC, and balances/transfers use your
+  RPC too. Sends show a human-readable "you are sending X TOKEN to …" preview before signing.
+- **ENS resolution** — `name.eth` resolves fully on-chain via your own RPC (no name service),
+  verified against the EIP-137 namehash vectors.
+- **Local address book** — contacts stored only on-device; send by name to defend against
+  clipboard/paste address-swap attacks.
+- **Custom RPC per chain** — point any chain at your own node so no third party sees your
+  queries (Settings → Privacy).
+
 ## Architecture
 
 ```
@@ -154,3 +173,22 @@ the XRIQ security audit and legal review noted above.
   `@noble/post-quantum` (ML-DSA-65), `@scure/bip39`.
 - Deterministic derivation; nonce is read from chain state immediately before signing.
 - **Not** a substitute for an independent audit. See the status banner above.
+
+## Roadmap — deferred, with reasons
+
+Kept out of this build deliberately. Some need *your* accounts/keys; some conflict with the
+privacy-first stance; some can't be done safely in a pure-JS/React-Native app.
+
+- **WalletConnect v2 (dApp connect)** — needs a WalletConnect Cloud project id (your account).
+- **Fiat on-ramp & in-app swaps** — third-party KYC / order-flow that leaks data; not
+  privacy-first. (AGNA swap remains wired but pending its API.)
+- **Push notifications / price alerts** — a server would have to watch your addresses, which
+  is exactly the privacy leak the history design avoids.
+- **Ledger hardware wallet** — large native BLE/HID integration.
+- **Multiple accounts per chain** — a focused cross-adapter derivation-index change; safe to
+  add on its own.
+- **SPL token sends & NFTs** — SPL needs associated-token-account logic; NFT discovery needs
+  an indexer (privacy leak).
+- **Shielded Zcash (z-address)** — requires zk-SNARK proving (`librustzcash`); there is no
+  pure-JS prover and Hermes has no WASM. The correct path is a native Zcash light-client SDK
+  module, which is a separate project. Transparent ZEC is fully supported.
