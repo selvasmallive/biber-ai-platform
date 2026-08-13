@@ -4,6 +4,21 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER live provider confidence checkpoint:
+After commit `1f735f9`, the current SSH-enabled Vast checkout was clean and
+`live-mvp-resume-status` returned `status_ok=True`,
+`target_git_clean=True`, `next_required_edit_spec.reason=not_found`, and
+`next_action=start_next_narrow_biber_step`. The generated
+`rerun_live_provider_confidence_gate` command was run on Vast against
+`http://127.0.0.1:8001/v1` with model `biber-dev-core`; it passed with
+`ok=True`. Artifact:
+`/workspace/outputs/biber-live-provider-confidence-latest.json`; work root:
+`/workspace/outputs/biber-live-provider-confidence-20260813T165036557052Z`.
+Checks passed: live provider readiness, live fixture plan, and disposable live
+repair. The run used the local Vast provider only:
+`github_request_sent=False`, `api_required=False`, `mentor_used=False`, and
+`training_allowed=False`.
+
 2026-08-13 latest BIBER required-edit spec size checkpoint:
 In progress: the next narrow BIBER MVP improvement extends the same 200000-byte
 target-size guard into `write-next-required-edit-spec` and
