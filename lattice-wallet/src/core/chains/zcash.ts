@@ -50,14 +50,46 @@ export function deriveZcashKey(mnemonic: string, accountIndex = 0): { privateKey
   return { privateKey: child.privateKey, publicKey, address: zcashTransparentAddress(publicKey), path };
 }
 
-async function esploraGet(base: string, path: string): Promise<any> {
-  const res = await fetch(`${base}${path}`);
-  if (!res.ok) throw new Error(`explorer ${path}: HTTP ${res.status}`);
-  const text = await res.text();
+// ---------------------------------------------------------------------------
+// Data backend: Blockchair Zcash API (public). No public Esplora instance exists for
+// Zcash; Blockchair is the verified default. Override `rpcUrl` for a self-hosted node.
+//   balance/utxo/history: GET /dashboards/address/{addr}
+//   tip height:           GET /stats
+//   broadcast:            POST /push/transaction  (form: data=<rawhex>)
+// ---------------------------------------------------------------------------
+interface ZcashUtxo {
+  txid: string; // display order
+  vout: number;
+  value: bigint;
+}
+
+async function bcGet(base: string, path: string): Promise<any> {
+  const res = await fetch(`${base}${path}`, { headers: { accept: 'application/json' } });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json) throw new Error(`blockchair ${path}: HTTP ${res.status}`);
+  return json;
+}
+
+async function bcAddress(
+  base: string,
+  addr: string,
+): Promise<{ balance: bigint; utxo: ZcashUtxo[]; txids: string[] }> {
+  const json = await bcGet(base, `/dashboards/address/${encodeURIComponent(addr)}?limit=50`);
+  const a = json?.data?.[addr];
+  if (!a) return { balance: 0n, utxo: [], txids: [] };
+  return {
+    balance: BigInt(a.address?.balance ?? 0),
+    utxo: (a.utxo ?? []).map((u: any) => ({ txid: u.transaction_hash, vout: u.index, value: BigInt(u.value) })),
+    txids: (a.transactions ?? []) as string[],
+  };
+}
+
+async function bcTipHeight(base: string): Promise<number> {
   try {
-    return JSON.parse(text);
+    const json = await bcGet(base, '/stats');
+    return Number(json?.data?.best_block_height ?? 0);
   } catch {
-    return text;
+    return 0;
   }
 }
 
@@ -85,11 +117,8 @@ export class ZcashTransparentAdapter implements ChainAdapter {
   }
 
   async getBalance(address: string): Promise<bigint> {
-    // Esplora-compatible shape; returns 0 if no endpoint is configured/reachable.
     try {
-      const info = await esploraGet(this.base, `/address/${address}`);
-      const c = info.chain_stats ?? {};
-      return BigInt(c.funded_txo_sum ?? 0) - BigInt(c.spent_txo_sum ?? 0);
+      return (await bcAddress(this.base, address)).balance;
     } catch {
       return 0n;
     }
@@ -97,12 +126,8 @@ export class ZcashTransparentAdapter implements ChainAdapter {
 
   async getHistory(address: string): Promise<HistoryEntry[]> {
     try {
-      const txs: any[] = await esploraGet(this.base, `/address/${address}/txs`);
-      return (txs ?? []).slice(0, 50).map((t) => ({
-        hash: t.txid,
-        direction: 'unknown' as const,
-        height: t.status?.block_height ? BigInt(t.status.block_height) : undefined,
-      }));
+      const { txids } = await bcAddress(this.base, address);
+      return txids.slice(0, 50).map((hash) => ({ hash, direction: 'unknown' as const }));
     } catch {
       return [];
     }
@@ -112,8 +137,7 @@ export class ZcashTransparentAdapter implements ChainAdapter {
     // ZIP-317 conventional fee: 5000 zats × max(2, #inputs + #outputs).
     let nIn = 1;
     try {
-      const utxos = await esploraGet(this.base, `/address/${from}/utxo`);
-      nIn = Math.max(1, (utxos ?? []).length);
+      nIn = Math.max(1, (await bcAddress(this.base, from)).utxo.length);
     } catch {
       /* keep default */
     }
@@ -132,18 +156,16 @@ export class ZcashTransparentAdapter implements ChainAdapter {
     if (!this.validateAddress(req.to)) throw new Error('Recipient is not a transparent Zcash (t1) address');
 
     const myScript = p2pkhScript(hash160(k.publicKey));
-    const [utxosRaw, tipHeight] = await Promise.all([
-      esploraGet(this.base, `/address/${k.address}/utxo`),
-      esploraGet(this.base, '/blocks/tip/height').catch(() => 0),
+    const [{ utxo }, tipHeight] = await Promise.all([
+      bcAddress(this.base, k.address),
+      bcTipHeight(this.base),
     ]);
-    const utxos = (utxosRaw ?? [])
-      .map((u: any) => ({ txid: u.txid as string, vout: u.vout as number, value: BigInt(u.value) }))
-      .sort((a: any, b: any) => (b.value > a.value ? 1 : -1));
+    const utxos = [...utxo].sort((a, b) => (b.value > a.value ? 1 : -1));
     if (utxos.length === 0) throw new Error('No spendable Zcash UTXOs');
 
     const target = req.amountBaseUnits;
     const fee = BigInt(5000 * Math.max(2, utxos.length + 2));
-    const selected: any[] = [];
+    const selected: ZcashUtxo[] = [];
     let sum = 0n;
     for (const u of utxos) {
       selected.push(u);
@@ -164,12 +186,20 @@ export class ZcashTransparentAdapter implements ChainAdapter {
     const change = sum - target - fee;
     if (change >= 1000n) outputs.push({ value: change, scriptPubKey: myScript });
 
-    const expiryHeight = typeof tipHeight === 'number' && tipHeight > 0 ? tipHeight + 40 : Number(tipHeight) + 40 || 0;
-    const signed = buildAndSignTransparent(inputs, outputs, 0, Number.isFinite(expiryHeight) ? expiryHeight : 0);
+    const expiryHeight = tipHeight > 0 ? tipHeight + 40 : 0;
+    const signed = buildAndSignTransparent(inputs, outputs, 0, expiryHeight);
 
-    const res = await fetch(`${this.base}/tx`, { method: 'POST', body: signed.rawHex });
-    const body = await res.text();
-    if (!res.ok) throw new Error(`broadcast failed: ${body}`);
-    return { hash: body.trim() || signed.txid, raw: signed.rawHex };
+    // Broadcast via Blockchair push endpoint (form-encoded raw hex).
+    const res = await fetch(`${this.base}/push/transaction`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: `data=${signed.rawHex}`,
+    });
+    const json = await res.json().catch(() => null);
+    const broadcastHash = json?.data?.transaction_hash;
+    if (!res.ok || !broadcastHash) {
+      throw new Error(`broadcast failed: ${JSON.stringify(json)?.slice(0, 200) ?? res.status}`);
+    }
+    return { hash: broadcastHash, raw: signed.rawHex };
   }
 }

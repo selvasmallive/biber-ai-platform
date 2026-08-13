@@ -104,7 +104,9 @@ export const CHAINS: ChainConfig[] = [
     decimals: 8,
     coinType: 133,
     family: 'zcash-t',
-    rpcUrl: 'https://zec.explorer.example/api', // set to a Zcash Esplora-compatible endpoint
+    // Blockchair public Zcash API (no public Esplora instance exists for Zcash).
+    // Free tier is rate-limited; swap for a self-hosted node or keyed endpoint at scale.
+    rpcUrl: 'https://api.blockchair.com/zcash',
     explorerUrl: 'https://blockchair.com/zcash',
     isTestnet: false,
     color: '#ECB244',

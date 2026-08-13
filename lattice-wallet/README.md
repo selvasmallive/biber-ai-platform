@@ -24,8 +24,10 @@ ZIP-244 algorithm including the Sapling and Orchard sub-digests — implemented 
 `src/core/chains/zcashTx.ts` and **verified byte-for-byte against the official
 [zcash-test-vectors](https://github.com/zcash/zcash-test-vectors)** (10/10 txids, 6/6
 transparent sighashes; see `__tests__/zec-sighash-vectors.ts`). Balance, history, and
-broadcast require `rpcUrl` to point at an Esplora-compatible Zcash endpoint. Only
-transparent (t-address) funds are supported; shielded (z-address) is out of scope below.
+broadcast use the public **Blockchair** Zcash API (`https://api.blockchair.com/zcash`) —
+there is no public Esplora instance for Zcash; the free tier is rate-limited, so point
+`rpcUrl` at a self-hosted node or keyed endpoint at scale. Only transparent (t-address)
+funds are supported; shielded (z-address) is out of scope below.
 
 Adding a chain is a `ChainAdapter` (`src/core/chains/`) plus one line in the registry —
 the wallet shell, keystore, biometrics, PQ, and UI are chain-agnostic.
