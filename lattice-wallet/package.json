@@ -10,7 +10,12 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "test:core": "tsx __tests__/conformance.ts && tsx __tests__/rust-vectors.ts && tsx __tests__/eth-vectors.ts && tsx __tests__/btc-vectors.ts && tsx __tests__/sol-vectors.ts && tsx __tests__/zec-vectors.ts && tsx __tests__/zec-sighash-vectors.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "bundle:check": "expo export --platform all --output-dir dist",
+    "build:android:preview": "eas build --platform android --profile preview",
+    "build:android": "eas build --platform android --profile production",
+    "build:ios": "eas build --platform ios --profile production",
+    "build:all": "eas build --platform all --profile production"
   },
   "dependencies": {
     "@noble/curves": "^1.6.0",
@@ -24,12 +29,13 @@
     "@scure/bip39": "^1.4.0",
     "@scure/btc-signer": "^1.8.1",
     "expo": "~52.0.0",
+    "expo-asset": "~11.0.5",
     "expo-clipboard": "~7.0.0",
     "expo-local-authentication": "~15.0.0",
     "expo-secure-store": "~14.0.0",
     "expo-status-bar": "~2.0.0",
     "react": "18.3.1",
-    "react-native": "0.76.5",
+    "react-native": "0.76.9",
     "react-native-get-random-values": "~1.11.0",
     "react-native-qrcode-svg": "^6.3.2",
     "react-native-safe-area-context": "4.12.0",

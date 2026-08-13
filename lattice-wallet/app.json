@@ -13,7 +13,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#0B0E14"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.lattice.wallet",
@@ -27,14 +29,20 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B0E14"
       },
-      "permissions": ["USE_BIOMETRIC", "USE_FINGERPRINT"]
+      "permissions": [
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ]
     },
     "plugins": [
       "expo-secure-store",
       [
         "expo-local-authentication",
-        { "faceIDPermission": "Lattice uses Face ID to unlock your wallet and authorize signing." }
-      ]
+        {
+          "faceIDPermission": "Lattice uses Face ID to unlock your wallet and authorize signing."
+        }
+      ],
+      "expo-asset"
     ]
   }
 }
