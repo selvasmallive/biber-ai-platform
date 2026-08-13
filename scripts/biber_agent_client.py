@@ -16157,6 +16157,34 @@ def build_live_mvp_resume_next_commands(
                     ],
                 )
             )
+        if required_spec.get("reason") == "not_found":
+            start_next_commands.append(
+                command_entry(
+                    label="write_next_required_edit_spec_template",
+                    description=(
+                        "Template for creating the next guarded exact-edit "
+                        "spec before running a live real-repo plan."
+                    ),
+                    environment="vast-or-local-artifact-writer",
+                    ready_to_run=False,
+                    command_parts=[
+                        python_executable,
+                        "scripts/biber_agent_client.py",
+                        "write-next-required-edit-spec",
+                        directory,
+                        "--target-root",
+                        target,
+                        "--required-path",
+                        "<workspace-relative-path>",
+                        "--old-text-file",
+                        str(root / "biber-old.txt"),
+                        "--new-text-file",
+                        str(root / "biber-new.txt"),
+                        "--output",
+                        root / "biber-next-required-edit-write-latest.json",
+                    ],
+                )
+            )
         start_next_commands.extend(
             [
                 command_entry(

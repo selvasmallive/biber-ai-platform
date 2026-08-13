@@ -2488,6 +2488,7 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert set(next_commands) == {
         "run_cpu_local_confidence_gate",
         "rerun_live_provider_confidence_gate",
+        "write_next_required_edit_spec_template",
         "prepare_next_plan_only_required_edit",
         "refresh_resume_status",
     }
@@ -2510,12 +2511,29 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert next_commands["prepare_next_plan_only_required_edit"]["training_allowed"] is False
     assert "http://127.0.0.1:9009/v1" in next_commands["prepare_next_plan_only_required_edit"]["command_parts"]
     assert "biber-dev-core-v2-candidate" in next_commands["prepare_next_plan_only_required_edit"]["command_parts"]
+    assert next_commands["write_next_required_edit_spec_template"][
+        "ready_to_run"
+    ] is False
+    assert next_commands["write_next_required_edit_spec_template"][
+        "mutates_repo"
+    ] is False
+    assert next_commands["write_next_required_edit_spec_template"][
+        "uses_gpu"
+    ] is False
+    assert (
+        "write-next-required-edit-spec"
+        in next_commands["write_next_required_edit_spec_template"]["command_parts"]
+    )
     assert status["next_ready_command_labels"] == [
         "run_cpu_local_confidence_gate",
         "rerun_live_provider_confidence_gate",
         "refresh_resume_status",
     ]
     assert "prepare_next_plan_only_required_edit" not in status["next_ready_command_labels"]
+    assert (
+        "write_next_required_edit_spec_template"
+        not in status["next_ready_command_labels"]
+    )
     assert [
         item["label"] for item in status["next_ready_commands"]
     ] == status["next_ready_command_labels"]

@@ -78,6 +78,18 @@ A disposable Vast writer check under
 narrow step: select one real small BIBER MVP capability/doc/code edit, create
 the exact active spec with `write-next-required-edit-spec`, then run the
 guarded live plan-only/apply/verify/save chain.
+2026-08-13 latest BIBER spec-writer template checkpoint:
+`live-mvp-resume-status` now includes a non-ready
+`write_next_required_edit_spec_template` command when
+`next_required_edit_spec.reason=not_found`. This shows future sessions the
+exact `write-next-required-edit-spec` command shape before the live plan-only
+template, while keeping `next_ready_command_labels` unchanged because the path
+and text files still need task-specific values. `docs/BIBER_ONLY_WORKSPACE.md`
+documents this. Local validation passed bundled Python `py_compile`,
+`git diff --check`, a direct no-pytest clean-resume status/template harness,
+and `scripts/biber_local_confidence_smoke.py`. Next narrow step: commit/push,
+fast-forward Vast, refresh live MVP resume status, and confirm the new template
+appears in `next_commands` but not `next_ready_commands`.
 
 2026-08-12 latest BIBER completed required-edit spec guard checkpoint:
 `live-mvp-resume-status` now passes `target_root` into

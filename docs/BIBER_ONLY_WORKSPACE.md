@@ -290,6 +290,9 @@ Automation should prefer `next_ready_commands` when it wants only fully
 specified safe commands; this filtered subset excludes templates and any command
 that would mutate the repo, send GitHub requests, use OpenAI mentor, or allow
 training.
+When no active `biber-next-required-edit.json` exists, `next_commands` includes
+a non-ready `write_next_required_edit_spec_template` to show the exact helper
+shape for the next spec; fill in the path and text files before running it.
 When a target-root-matching failed saved `mvp-loop` artifact exists and the
 current verified plan is already handled, `live-mvp-resume-status` may include a
 safe ready command labeled `prepare_latest_repair`. That command runs
