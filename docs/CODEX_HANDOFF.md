@@ -116,6 +116,19 @@ no-pytest ready/completed/missing spec inspection harness, and
 `scripts/biber_local_confidence_smoke.py`. Next narrow step: commit/push,
 fast-forward Vast, run Vast `py_compile`, and verify `show-next-required-edit-spec`
 against the current clean `/workspace/outputs` state.
+2026-08-13 follow-up: commit `015623c` (`Add BIBER required edit spec
+inspection`) was pushed to `biber/mvp-resume-20260712`; the current
+SSH-enabled Vast checkout was fast-forwarded to it. Vast `py_compile` passed
+for `scripts/biber_agent_client.py` and `tests/test_biber_agent_client.py`.
+Running `show-next-required-edit-spec /workspace/outputs --target-root
+/workspace/biber-ai-platform --output
+/workspace/outputs/biber-next-required-edit-summary-latest.json` returned
+`reason=not_found`, `github_request_sent=False`, `mentor_used=False`, and
+`training_allowed=False`, which is expected because the active spec slot is
+currently clean. Vast repo remained clean at `015623c`. Next narrow step:
+choose a specific small BIBER MVP edit, use `write-next-required-edit-spec` to
+create the active spec, inspect it with `show-next-required-edit-spec`, then run
+the guarded live plan-only chain.
 
 2026-08-12 latest BIBER completed required-edit spec guard checkpoint:
 `live-mvp-resume-status` now passes `target_root` into
