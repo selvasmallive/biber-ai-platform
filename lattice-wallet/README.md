@@ -16,13 +16,16 @@ the wallet produces on XRIQ (ML-DSA / CRYSTALS-Dilithium).
 | **Ethereum + EVM** (Polygon, Base, Sepolia) | ✅ send/receive | secp256k1 | EIP-55 `0x…` | EIP-155 / EIP-55 golden vectors |
 | **Bitcoin** | ✅ send/receive | secp256k1 (P2WPKH) | bech32 `bc1q…` | BIP84 golden addresses; `@scure/btc-signer` |
 | **Solana** | ✅ send/receive | Ed25519 | base58 | derivation + tx bytes vs `@solana/web3.js` |
-| **Zcash (transparent)** | ◐ receive/balance/history; send gated | secp256k1 | `t1…` | base58check vs Bitcoin genesis address |
+| **Zcash (transparent)** | ✅ send/receive | secp256k1 | `t1…` | ZIP-244 txid + sighash vs official zcash-test-vectors |
 | Monero, shielded Zcash | ⛔ out of scope | ring sig / zk-SNARK | — | see below |
 
-**Transparent Zcash spend** is intentionally disabled until its ZIP-243/244 transaction
-digest is implemented and verified against the official ZIP test vectors — Zcash's sighash
-is not Bitcoin's, and an unverified signer risks invalid or fund-losing transactions.
-Receiving, balance, and history work today.
+**Transparent Zcash spend** uses Zcash's own v5 (NU5) transaction digest — the full
+ZIP-244 algorithm including the Sapling and Orchard sub-digests — implemented in
+`src/core/chains/zcashTx.ts` and **verified byte-for-byte against the official
+[zcash-test-vectors](https://github.com/zcash/zcash-test-vectors)** (10/10 txids, 6/6
+transparent sighashes; see `__tests__/zec-sighash-vectors.ts`). Balance, history, and
+broadcast require `rpcUrl` to point at an Esplora-compatible Zcash endpoint. Only
+transparent (t-address) funds are supported; shielded (z-address) is out of scope below.
 
 Adding a chain is a `ChainAdapter` (`src/core/chains/`) plus one line in the registry —
 the wallet shell, keystore, biometrics, PQ, and UI are chain-agnostic.
@@ -73,7 +76,8 @@ src/core/        protocol + security (unit-testable, no UI)
     evm.ts       Ethereum + EVM (secp256k1, keccak, RLP, EIP-1559 + EIP-155)
     bitcoin.ts   Bitcoin BIP84 P2WPKH (@scure/btc-signer, Esplora backend)
     solana.ts    Solana Ed25519 + hand-rolled transfer message (web3.js-verified)
-    zcash.ts     Zcash transparent t-addr (receive/balance; spend gated)
+    zcash.ts     Zcash transparent t-addr adapter (derive/balance/history/send)
+    zcashTx.ts   Zcash v5/NU5 ZIP-244 digest + transparent signer (vector-verified)
   xriq.ts        canonical encoding, address derivation, tx signing, submit envelope
   pq.ts          ML-DSA-65 hybrid post-quantum signing (algorithm id 250)
   keystore.ts    hardware-backed secret storage + biometric gate (the only secret sink)

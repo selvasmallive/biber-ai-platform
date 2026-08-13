@@ -10,8 +10,18 @@ import {
   deriveZcashKey,
   ZcashTransparentAdapter,
 } from '../src/core/chains/zcash';
+import {
+  buildAndSignTransparent,
+  parseV5,
+  computeTxid,
+  p2pkhScript,
+  type SpendInput,
+  type SpendOutput,
+} from '../src/core/chains/zcashTx';
 import { getChainConfig } from '../src/core/chains/registry';
 import { hex } from '../src/core/xriq';
+import { ripemd160 } from '@noble/hashes/ripemd160';
+import { sha256 as sha256h } from '@noble/hashes/sha256';
 
 let fail = 0;
 function eq(name: string, got: string, want: string) {
@@ -46,12 +56,34 @@ console.log('Derivation from mnemonic');
 const derived = deriveZcashKey('test test test test test test test test test test test junk');
 ok('derived t-address is valid', adapter.validateAddress(derived.address), derived.address);
 
-console.log('Spend is honestly gated');
-let gated = false;
-adapter.send('x', { to: tAddr, amountBaseUnits: 1n }).catch((e) => {
-  gated = /ZIP-243\/244|not yet enabled/.test((e as Error).message);
-}).finally(() => {
-  ok('send() refuses until ZIP-243/244 sighash is verified', gated);
-  console.log(`\n${fail === 0 ? 'ALL ZCASH VECTORS MATCH ✓' : `${fail} FAILED`}`);
-  if (fail > 0) process.exit(1);
-});
+console.log('Build + sign a transparent v5 spend (verified ZIP-244 digest)');
+const k = deriveZcashKey('test test test test test test test test test test test junk');
+const myScript = p2pkhScript(ripemd160(sha256h(k.publicKey)));
+const inputs: SpendInput[] = [
+  {
+    txidLE: Uint8Array.from(hex.fromHex('b'.repeat(64))).reverse(),
+    vout: 0,
+    value: 100_000n,
+    scriptPubKey: myScript,
+    privateKey: k.privateKey,
+    publicKey: k.publicKey,
+  },
+];
+const outputs: SpendOutput[] = [
+  { value: 60_000n, scriptPubKey: myScript },
+  { value: 30_000n, scriptPubKey: myScript }, // change (fee 10000)
+];
+const signed = buildAndSignTransparent(inputs, outputs, 0, 2_500_000);
+ok('produces a display txid', /^[0-9a-f]{64}$/.test(signed.txid), signed.txid);
+ok('raw is v5/NU5 (version+group+branch)', signed.rawHex.startsWith('050000800a27a726b4d0d6c2'), signed.rawHex.slice(0, 24));
+const reparsed = parseV5(hex.fromHex(signed.rawHex));
+ok('reparses to 1 input', reparsed.vin.length === 1);
+ok('reparses to 2 outputs', reparsed.vout.length === 2);
+ok('input got a scriptSig (signed)', reparsed.vin[0].scriptSig.length > 100);
+ok('no shielded components', reparsed.spends.length === 0 && reparsed.actions.length === 0);
+// txid over the reparsed (signed) tx equals the returned txid — ZIP-244 txid excludes scriptSig.
+const reTxid = Buffer.from(Uint8Array.from(computeTxid(reparsed)).reverse()).toString('hex');
+eq('txid stable across signing (scriptSig not in txid)', reTxid, signed.txid);
+
+console.log(`\n${fail === 0 ? 'ALL ZCASH VECTORS MATCH ✓' : `${fail} FAILED`}`);
+if (fail > 0) process.exit(1);

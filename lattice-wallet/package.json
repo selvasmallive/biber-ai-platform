@@ -9,7 +9,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "test:core": "tsx __tests__/conformance.ts && tsx __tests__/rust-vectors.ts && tsx __tests__/eth-vectors.ts && tsx __tests__/btc-vectors.ts && tsx __tests__/sol-vectors.ts && tsx __tests__/zec-vectors.ts",
+    "test:core": "tsx __tests__/conformance.ts && tsx __tests__/rust-vectors.ts && tsx __tests__/eth-vectors.ts && tsx __tests__/btc-vectors.ts && tsx __tests__/sol-vectors.ts && tsx __tests__/zec-vectors.ts && tsx __tests__/zec-sighash-vectors.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

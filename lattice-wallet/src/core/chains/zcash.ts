@@ -1,15 +1,11 @@
 // Zcash TRANSPARENT adapter — t-addresses (t1…), which are Bitcoin-style P2PKH over
 // secp256k1 with the Zcash mainnet version prefix 0x1CB8.
 //
-// Derivation, address validation, balance, history, and RECEIVE are fully implemented
-// and the address scheme is proven (base58check verified against the Bitcoin genesis
-// address; the Zcash prefix is the only delta).
-//
-// SPENDING is deliberately gated: a transparent Zcash spend needs Zcash's own
-// transaction digest / sighash (ZIP-243 for v4 Sapling, ZIP-244 for v5 NU5) — NOT
-// Bitcoin's BIP143 — including the consensus branch id and expiry. Shipping that without
-// verifying it against the official ZIP test vectors risks producing invalid or
-// fund-losing transactions, so send() refuses until that verification lands.
+// Derivation, address validation, balance, history, receive, and SEND are implemented.
+// The spend uses Zcash's own v5 (NU5) transaction digest / SIGHASH_ALL from `zcashTx.ts`,
+// which is verified byte-for-byte against the official ZIP-244 test vectors
+// (__tests__/zec-sighash-vectors.ts). Broadcasting requires `rpcUrl` to point at an
+// Esplora-compatible Zcash endpoint that accepts POST /tx.
 import { HDKey } from '@scure/bip32';
 import { mnemonicToSeedSync } from '@scure/bip39';
 import { secp256k1 } from '@noble/curves/secp256k1';
@@ -17,6 +13,12 @@ import { sha256 } from '@noble/hashes/sha256';
 import { ripemd160 } from '@noble/hashes/ripemd160';
 import { base58check } from '@scure/base';
 import { hex } from '../xriq';
+import {
+  buildAndSignTransparent,
+  p2pkhScript,
+  type SpendInput,
+  type SpendOutput,
+} from './zcashTx';
 import type { HistoryEntry } from '../rpc';
 import type {
   ChainAdapter,
@@ -106,15 +108,68 @@ export class ZcashTransparentAdapter implements ChainAdapter {
     }
   }
 
-  async estimateFee(): Promise<FeeEstimate> {
-    return { feeBaseUnits: 1000n, detail: 'ZIP-317 conventional fee (approx)' };
+  async estimateFee(from: string, _req: TransferRequest): Promise<FeeEstimate> {
+    // ZIP-317 conventional fee: 5000 zats × max(2, #inputs + #outputs).
+    let nIn = 1;
+    try {
+      const utxos = await esploraGet(this.base, `/address/${from}/utxo`);
+      nIn = Math.max(1, (utxos ?? []).length);
+    } catch {
+      /* keep default */
+    }
+    const logical = Math.max(2, nIn + 2);
+    return { feeBaseUnits: BigInt(5000 * logical), detail: 'ZIP-317 conventional fee' };
   }
 
-  async send(_mnemonic: string, _req: TransferRequest): Promise<BroadcastResult> {
-    throw new Error(
-      'Transparent Zcash spend is not yet enabled: it requires a ZIP-243/244 sighash ' +
-        'implementation verified against the official test vectors. Receiving, balance, and ' +
-        'history work today.',
-    );
+  private hash160FromAddress(address: string): Uint8Array {
+    const decoded = b58c.decode(address.trim());
+    if (decoded.length !== 22) throw new Error('invalid Zcash transparent address');
+    return decoded.subarray(2); // strip 2-byte t1 prefix
+  }
+
+  async send(mnemonic: string, req: TransferRequest): Promise<BroadcastResult> {
+    const k = deriveZcashKey(mnemonic);
+    if (!this.validateAddress(req.to)) throw new Error('Recipient is not a transparent Zcash (t1) address');
+
+    const myScript = p2pkhScript(hash160(k.publicKey));
+    const [utxosRaw, tipHeight] = await Promise.all([
+      esploraGet(this.base, `/address/${k.address}/utxo`),
+      esploraGet(this.base, '/blocks/tip/height').catch(() => 0),
+    ]);
+    const utxos = (utxosRaw ?? [])
+      .map((u: any) => ({ txid: u.txid as string, vout: u.vout as number, value: BigInt(u.value) }))
+      .sort((a: any, b: any) => (b.value > a.value ? 1 : -1));
+    if (utxos.length === 0) throw new Error('No spendable Zcash UTXOs');
+
+    const target = req.amountBaseUnits;
+    const fee = BigInt(5000 * Math.max(2, utxos.length + 2));
+    const selected: any[] = [];
+    let sum = 0n;
+    for (const u of utxos) {
+      selected.push(u);
+      sum += u.value;
+      if (sum >= target + fee) break;
+    }
+    if (sum < target + fee) throw new Error('Insufficient balance for amount + fee');
+
+    const inputs: SpendInput[] = selected.map((u) => ({
+      txidLE: Uint8Array.from(hex.fromHex(u.txid)).reverse(), // display -> internal order
+      vout: u.vout,
+      value: u.value,
+      scriptPubKey: myScript,
+      privateKey: k.privateKey,
+      publicKey: k.publicKey,
+    }));
+    const outputs: SpendOutput[] = [{ value: target, scriptPubKey: p2pkhScript(this.hash160FromAddress(req.to)) }];
+    const change = sum - target - fee;
+    if (change >= 1000n) outputs.push({ value: change, scriptPubKey: myScript });
+
+    const expiryHeight = typeof tipHeight === 'number' && tipHeight > 0 ? tipHeight + 40 : Number(tipHeight) + 40 || 0;
+    const signed = buildAndSignTransparent(inputs, outputs, 0, Number.isFinite(expiryHeight) ? expiryHeight : 0);
+
+    const res = await fetch(`${this.base}/tx`, { method: 'POST', body: signed.rawHex });
+    const body = await res.text();
+    if (!res.ok) throw new Error(`broadcast failed: ${body}`);
+    return { hash: body.trim() || signed.txid, raw: signed.rawHex };
   }
 }
