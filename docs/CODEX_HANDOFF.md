@@ -66,6 +66,18 @@ helper before manual JSON creation. Local validation passed bundled Python
 harness, and `scripts/biber_local_confidence_smoke.py`. Next narrow step:
 commit/push this checkpoint, fast-forward Vast, run Vast `py_compile`, and use
 the helper only when a specific fresh small BIBER exact edit is selected.
+2026-08-13 follow-up: commit `bd1b791` (`Add BIBER required edit spec writer`)
+was pushed to `biber/mvp-resume-20260712`; the current SSH-enabled Vast checkout
+was fast-forwarded to it. Vast `py_compile` passed for
+`scripts/biber_agent_client.py` and `tests/test_biber_agent_client.py`.
+A disposable Vast writer check under
+`/workspace/outputs/biber-spec-writer-vast-check-20260813T033003Z/` returned
+`write_ok=True`, `written=True`, `reason=written`, `target_probe_ok=True`,
+`mutates_repo=False`, `github_request_sent=False`, `mentor_used=False`, and
+`training_allowed=False`. Vast repo remained clean at `bd1b791`. Next useful
+narrow step: select one real small BIBER MVP capability/doc/code edit, create
+the exact active spec with `write-next-required-edit-spec`, then run the
+guarded live plan-only/apply/verify/save chain.
 
 2026-08-12 latest BIBER completed required-edit spec guard checkpoint:
 `live-mvp-resume-status` now passes `target_root` into
