@@ -4,6 +4,21 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER stale apply status checkpoint:
+In progress: `live-mvp-resume-status` now distinguishes historical verified
+apply evidence whose target file hashes no longer match current files. When the
+plan hash still matches a verified apply history but current file hashes differ,
+the status reports
+`apply_decision_status=already_verified_history_stale_file_hashes` and
+`verified_apply_history_stale_file_hashes=True`, while still keeping
+`pending_apply_decision=False`. This matches the current Vast situation after
+later docs commits changed `docs/BIBER_ONLY_WORKSPACE.md` beyond the old
+verified apply artifact. This is CPU-local status/reporting work only; no GPU,
+model, GitHub request, OpenAI mentor, or training is used. Local validation
+passed bundled Python `py_compile`, `git diff --check`, a direct no-pytest stale
+apply status harness, and `scripts/biber_local_confidence_smoke.py`. Push/Vast
+validation are pending.
+
 2026-08-13 latest BIBER live provider confidence checkpoint:
 After commit `1f735f9`, the current SSH-enabled Vast checkout was clean and
 `live-mvp-resume-status` returned `status_ok=True`,

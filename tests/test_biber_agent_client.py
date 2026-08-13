@@ -2473,6 +2473,7 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert status["pending_apply_decision"] is False
     assert status["ready_for_apply_decision"] is False
     assert status["verified_apply_history_matches_plan"] is True
+    assert status["verified_apply_history_stale_file_hashes"] is False
     assert status["verified_apply_matches_plan"] is True
     assert status["verified_apply_file_hashes_match"] is True
     assert status["target_git_clean"] is True
@@ -2597,6 +2598,7 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert "pending_apply_decision: False" in summary
     assert "ready_for_apply_decision: False" in summary
     assert "verified_apply_history_matches_plan: True" in summary
+    assert "verified_apply_history_stale_file_hashes: False" in summary
     assert "verified_apply_matches_plan: True" in summary
     assert "verified_apply_file_hashes_match: True" in summary
     assert "target_git_clean: True" in summary
@@ -2623,10 +2625,13 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     )
 
     assert moved_status["apply_candidate_available"] is True
-    assert moved_status["apply_decision_status"] == "already_verified_history_only"
+    assert moved_status["apply_decision_status"] == (
+        "already_verified_history_stale_file_hashes"
+    )
     assert moved_status["pending_apply_decision"] is False
     assert moved_status["ready_for_apply_decision"] is False
     assert moved_status["verified_apply_history_matches_plan"] is True
+    assert moved_status["verified_apply_history_stale_file_hashes"] is True
     assert moved_status["verified_apply_matches_plan"] is False
     assert moved_status["verified_apply_file_hashes_match"] is False
     assert moved_status["target_git_clean"] is True

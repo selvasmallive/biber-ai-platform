@@ -16535,6 +16535,12 @@ def build_live_mvp_resume_status(
         verified_apply_history_matches_plan
         and verified_apply_file_hashes_match
     )
+    verified_apply_history_stale_file_hashes = (
+        verified_apply_history_matches_plan
+        and not verified_apply_file_hashes_match
+        and apply_hash_status is not None
+        and int(apply_hash_status.get("checked") or 0) > 0
+    )
     apply_candidate_available = (
         real_repo_plan.get("ok") is True
         and real_repo_plan.get("review_status") == "ready_for_explicit_apply_approval"
@@ -16550,6 +16556,8 @@ def build_live_mvp_resume_status(
         apply_decision_status = "requires_explicit_apply_approval"
     elif verified_apply_matches_plan:
         apply_decision_status = "already_verified_current_file_hashes_match"
+    elif verified_apply_history_stale_file_hashes:
+        apply_decision_status = "already_verified_history_stale_file_hashes"
     elif verified_apply_history_matches_plan:
         apply_decision_status = "already_verified_history_only"
     elif apply_candidate_available:
@@ -16609,6 +16617,9 @@ def build_live_mvp_resume_status(
         "pending_apply_decision": pending_apply_decision,
         "ready_for_apply_decision": ready_for_apply_decision,
         "verified_apply_history_matches_plan": verified_apply_history_matches_plan,
+        "verified_apply_history_stale_file_hashes": (
+            verified_apply_history_stale_file_hashes
+        ),
         "verified_apply_matches_plan": verified_apply_matches_plan,
         "verified_apply_file_hashes_match": verified_apply_file_hashes_match,
         "target_git_clean": target_git_clean,
@@ -16651,6 +16662,7 @@ def format_live_mvp_resume_status(payload: Mapping[str, Any]) -> str:
         f"pending_apply_decision: {payload.get('pending_apply_decision') is True}",
         f"ready_for_apply_decision: {payload.get('ready_for_apply_decision') is True}",
         f"verified_apply_history_matches_plan: {payload.get('verified_apply_history_matches_plan') is True}",
+        f"verified_apply_history_stale_file_hashes: {payload.get('verified_apply_history_stale_file_hashes') is True}",
         f"verified_apply_matches_plan: {payload.get('verified_apply_matches_plan') is True}",
         f"verified_apply_file_hashes_match: {payload.get('verified_apply_file_hashes_match') is True}",
         f"target_git_clean: {payload.get('target_git_clean') is True}",

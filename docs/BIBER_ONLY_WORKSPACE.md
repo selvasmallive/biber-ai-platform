@@ -317,6 +317,11 @@ Automation should prefer `next_ready_commands` when it wants only fully
 specified safe commands; this filtered subset excludes templates and any command
 that would mutate the repo, send GitHub requests, use OpenAI mentor, or allow
 training.
+If `apply_decision_status` is
+`already_verified_history_stale_file_hashes`, the saved apply history still
+matches the plan hash, but the target file has moved since that verified apply.
+Treat it as historical evidence, not a fresh apply candidate; if the target Git
+status is clean, continue with the next narrow BIBER step.
 When no active `biber-next-required-edit.json` exists, `next_commands` includes
 a non-ready `write_next_required_edit_spec_template` to show the exact helper
 shape for the next spec; fill in the path and text files before running it.
