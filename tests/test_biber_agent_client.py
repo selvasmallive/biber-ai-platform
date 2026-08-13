@@ -2856,6 +2856,19 @@ def test_live_mvp_resume_status_exposes_prepare_latest_repair_ready_command(
     )
     assert status["next_required_edit_spec"]["ok"] is True
     assert status["next_required_edit_spec"]["path"] == str(next_required_edit_spec)
+    assert "inspect_next_required_edit_spec" in status["next_ready_command_labels"]
+    inspect_command = next_commands["inspect_next_required_edit_spec"]
+    assert inspect_command["ready_to_run"] is True
+    assert inspect_command["uses_gpu"] is False
+    assert inspect_command["uses_model"] is False
+    assert inspect_command["live_provider_required"] is False
+    assert inspect_command["mutates_repo"] is False
+    assert inspect_command["github_request_sent"] is False
+    assert "show-next-required-edit-spec" in inspect_command["command_parts"]
+    inspect_validation = client.validate_live_mvp_ready_command_execution(
+        inspect_command,
+    )
+    assert inspect_validation["ok"] is True
     assert "run_next_required_edit_spec_plan" in status["next_ready_command_labels"]
     spec_command = next_commands["run_next_required_edit_spec_plan"]
     assert spec_command["ready_to_run"] is True
@@ -3127,6 +3140,13 @@ def test_live_mvp_resume_status_suppresses_completed_required_edit_spec(
     assert "required_edit_already_applied" in status["next_required_edit_spec"][
         "blockers"
     ]
+    assert "inspect_next_required_edit_spec" in next_commands
+    assert "inspect_next_required_edit_spec" in status["next_ready_command_labels"]
+    inspect_command = next_commands["inspect_next_required_edit_spec"]
+    assert inspect_command["uses_gpu"] is False
+    assert inspect_command["uses_model"] is False
+    assert inspect_command["live_provider_required"] is False
+    assert "show-next-required-edit-spec" in inspect_command["command_parts"]
     assert "run_next_required_edit_spec_plan" not in next_commands
     assert "run_next_required_edit_spec_plan" not in status["next_ready_command_labels"]
     assert "archive_completed_required_edit_spec" in next_commands

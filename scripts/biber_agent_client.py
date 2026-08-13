@@ -16102,6 +16102,33 @@ def build_live_mvp_resume_next_commands(
                 )
             )
         required_spec = require_mapping(next_required_edit_spec)
+        if (
+            required_spec.get("path")
+            and required_spec.get("reason") != "not_found"
+        ):
+            start_next_commands.append(
+                command_entry(
+                    label="inspect_next_required_edit_spec",
+                    description=(
+                        "Inspect the active exact-edit spec and target probe "
+                        "before any live model plan."
+                    ),
+                    environment="vast-or-local-artifact-reader",
+                    command_parts=[
+                        python_executable,
+                        "scripts/biber_agent_client.py",
+                        "show-next-required-edit-spec",
+                        directory,
+                        "--filename",
+                        required_spec.get("filename")
+                        or "biber-next-required-edit.json",
+                        "--target-root",
+                        target,
+                        "--output",
+                        root / "biber-next-required-edit-summary-latest.json",
+                    ],
+                )
+            )
         if required_spec.get("ok") is True and required_spec.get("path"):
             start_next_commands.append(
                 command_entry(
@@ -16874,6 +16901,7 @@ def validate_live_mvp_ready_command_execution(
         "prepare-latest-repair",
         "show-latest-live-verified-github-dry-run",
         "show-latest-real-repo-plan-smoke",
+        "show-next-required-edit-spec",
         "write-next-required-edit-spec",
     }
     allowed_standalone_scripts = {

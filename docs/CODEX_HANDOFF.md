@@ -129,6 +129,21 @@ currently clean. Vast repo remained clean at `015623c`. Next narrow step:
 choose a specific small BIBER MVP edit, use `write-next-required-edit-spec` to
 create the active spec, inspect it with `show-next-required-edit-spec`, then run
 the guarded live plan-only chain.
+2026-08-13 latest BIBER inspect-spec ready-command checkpoint:
+`live-mvp-resume-status` now adds a safe ready command labeled
+`inspect_next_required_edit_spec` whenever an active
+`biber-next-required-edit.json` exists (`reason != not_found`). The command runs
+`show-next-required-edit-spec` with the current target root and writes
+`biber-next-required-edit-summary-latest.json`. It is allowlisted for
+`run-live-mvp-ready-command`, uses no GPU/model/live provider, does not mutate
+the repo, and still reports no GitHub, mentor, or training use. Ready specs now
+expose both `inspect_next_required_edit_spec` and
+`run_next_required_edit_spec_plan`; completed specs expose inspection plus
+archive, but not plan. Local validation passed bundled Python `py_compile`,
+`git diff --check`, a direct no-pytest ready-command harness, and
+`scripts/biber_local_confidence_smoke.py`. Next narrow step: commit/push,
+fast-forward Vast, run Vast `py_compile`, and refresh live MVP resume status to
+confirm the clean no-spec state still omits the inspect command.
 
 2026-08-12 latest BIBER completed required-edit spec guard checkpoint:
 `live-mvp-resume-status` now passes `target_root` into
