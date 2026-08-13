@@ -4,6 +4,9 @@ This is the MVP contract for using BIBER as a model source from an IDE agent,
 custom conversational agent, internal app, or a future GitHub Copilot extension
 or agent gateway.
 
+For the step-by-step client setup flow, see
+`docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md`.
+
 ## MVP Contract
 
 BIBER exposes an authenticated OpenAI-compatible chat-completions surface:

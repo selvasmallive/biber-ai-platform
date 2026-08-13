@@ -4,6 +4,19 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER external-agent client setup runbook checkpoint:
+In progress: the next narrow BIBER MVP improvement adds
+`docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md`, a concise setup runbook for using
+BIBER as an OpenAI-compatible model source from an IDE agent, custom
+conversational agent, gateway, or internal app. The runbook covers required
+client settings, private Vast/SSH tunnel setup, non-secret connection and
+capabilities/runtime/models artifacts, future public HTTPS gateway use,
+chat-completions smoke testing, and troubleshooting. It explicitly keeps raw
+vLLM private and OpenAI mentor disabled by default. Linked from
+`docs/BIBER_EXTERNAL_AGENT_API.md` and `docs/BIBER_ONLY_WORKSPACE.md`. GitHub
+push and Vast sync are pending. No GPU inference, OpenAI mentor, external paid
+API, credential rotation, training, or XRIQ/XRIS work was used.
+
 2026-08-13 latest BIBER capabilities artifact checkpoint:
 Complete: BIBER MVP now supports `--output` on the
 stdlib `capabilities` command in `scripts/biber_agent_client.py`, so

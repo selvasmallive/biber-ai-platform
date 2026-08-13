@@ -26,6 +26,10 @@ Continue BIBER MVP only:
 Do not continue XRIS-Coin/XRIQ from this workspace unless the user explicitly
 asks for it.
 
+For external IDE/gateway/client setup, use
+`docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md` together with
+`docs/BIBER_EXTERNAL_AGENT_API.md`.
+
 ## Start Prompt
 
 ```text
