@@ -90,6 +90,18 @@ documents this. Local validation passed bundled Python `py_compile`,
 and `scripts/biber_local_confidence_smoke.py`. Next narrow step: commit/push,
 fast-forward Vast, refresh live MVP resume status, and confirm the new template
 appears in `next_commands` but not `next_ready_commands`.
+2026-08-13 follow-up: commit `178ce0f` (`Expose BIBER required edit spec writer
+template`) was pushed to `biber/mvp-resume-20260712`; the current SSH-enabled
+Vast checkout was fast-forwarded to it. Vast `py_compile` passed for
+`scripts/biber_agent_client.py` and `tests/test_biber_agent_client.py`.
+Refreshed live MVP resume status reports `ok=True`, `head=178ce0f`,
+`target_git_clean=True`, `next_action=start_next_narrow_biber_step`,
+`next_required_edit_spec.reason=not_found`,
+`writer_template_in_next_commands=True`, `writer_template_in_ready=False`, and
+ready labels `run_cpu_local_confidence_gate`,
+`rerun_live_provider_confidence_gate`, and `refresh_resume_status`. Next narrow
+step: choose one specific BIBER MVP improvement and fill the
+`write_next_required_edit_spec_template` with exact path/old/new text.
 
 2026-08-12 latest BIBER completed required-edit spec guard checkpoint:
 `live-mvp-resume-status` now passes `target_root` into
