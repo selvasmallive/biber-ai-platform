@@ -17,9 +17,18 @@ hidden. Docs were updated in `docs/BIBER_EXTERNAL_AGENT_API.md`,
 passed bundled Python `py_compile`, `git diff --check`, a direct no-pytest
 admin helper/formatter harness, a direct no-pytest command-dispatch harness,
 and `scripts/biber_local_confidence_smoke.py`. Commit `783f86c` (`Add BIBER
-admin key client commands`) was created locally; GitHub push and Vast
-fast-forward validation are pending. No GPU inference, OpenAI mentor, external
-paid API, credential rotation, training, or XRIQ/XRIS work was used.
+admin key client commands`) and handoff commit `44a89e2` (`Update BIBER handoff
+for admin key client`) were pushed to `biber/mvp-resume-20260712`. The
+SSH-enabled Vast checkout fast-forwarded to `44a89e2`. Vast validation passed
+`py_compile` for `scripts/biber_agent_client.py` and
+`tests/test_biber_agent_client.py`, a direct admin helper/formatter harness, a
+direct command-dispatch harness proving normal API-key resolution is not used
+for admin commands, and `scripts/biber_local_confidence_smoke.py`. Vast
+confidence artifact:
+`/workspace/outputs/biber-admin-client-confidence-latest.json`, with `ok=True`
+and 11 checks. Vast repo status was clean after validation. No GPU inference,
+OpenAI mentor, external paid API, credential rotation, training, or XRIQ/XRIS
+work was used.
 
 2026-08-13 latest BIBER API key management checkpoint:
 In progress: BIBER MVP external-agent API now has the backend foundation for
