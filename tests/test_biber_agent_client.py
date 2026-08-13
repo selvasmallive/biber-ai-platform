@@ -3111,6 +3111,68 @@ def test_live_mvp_resume_status_suppresses_completed_required_edit_spec(
     ]
     assert "run_next_required_edit_spec_plan" not in next_commands
     assert "run_next_required_edit_spec_plan" not in status["next_ready_command_labels"]
+    assert "archive_completed_required_edit_spec" in next_commands
+    assert "archive_completed_required_edit_spec" in status["next_ready_command_labels"]
+    archive_command = next_commands["archive_completed_required_edit_spec"]
+    assert archive_command["uses_gpu"] is False
+    assert archive_command["uses_model"] is False
+    assert archive_command["live_provider_required"] is False
+    assert archive_command["mutates_repo"] is False
+    assert archive_command["github_request_sent"] is False
+    assert "archive-next-required-edit-spec" in archive_command["command_parts"]
+
+
+def test_archive_next_required_edit_spec_moves_completed_spec(tmp_path: Path) -> None:
+    target_root = tmp_path / "target-repo"
+    target_root.mkdir()
+    target_file = target_root / "docs" / "BIBER_ONLY_WORKSPACE.md"
+    target_file.parent.mkdir()
+    old_text = "save it as\n"
+    new_text = "save the guarded exact-edit spec as\n"
+    target_file.write_text(new_text, encoding="utf-8")
+
+    spec_path = tmp_path / "biber-next-required-edit.json"
+    spec_payload = {
+        "path": "docs/BIBER_ONLY_WORKSPACE.md",
+        "old_text": old_text,
+        "new_text": new_text,
+        "changed_paths": ["docs/BIBER_ONLY_WORKSPACE.md"],
+        "max_context_files": 1,
+    }
+    spec_path.write_text(json.dumps(spec_payload), encoding="utf-8")
+    output_path = tmp_path / "biber-next-required-edit-archive-latest.json"
+
+    result = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "archive-next-required-edit-spec",
+                    str(tmp_path),
+                    "--target-root",
+                    str(target_root),
+                    "--output",
+                    str(output_path),
+                ]
+            )
+        )
+    )
+
+    archive_path = Path(result["archive_path"])
+    assert result["ok"] is True
+    assert result["archived"] is True
+    assert result["reason"] == "completed_required_edit"
+    assert result["mutates_repo"] is False
+    assert result["github_request_sent"] is False
+    assert result["mentor_used"] is False
+    assert result["training_allowed"] is False
+    assert result["post_archive_summary"]["reason"] == "not_found"
+    assert not spec_path.exists()
+    assert archive_path.is_file()
+    assert json.loads(archive_path.read_text(encoding="utf-8")) == spec_payload
+    assert json.loads(output_path.read_text(encoding="utf-8"))["archive_path"] == str(
+        archive_path
+    )
 
 
 def test_format_mvp_loop_summary_lists_steps_and_results() -> None:

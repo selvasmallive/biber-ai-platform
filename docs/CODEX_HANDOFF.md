@@ -1,8 +1,27 @@
 # Codex Handoff
 
-Last updated: 2026-08-12
+Last updated: 2026-08-13
 
 ## Current Goal
+
+2026-08-13 latest BIBER completed required-edit archive checkpoint:
+`scripts/biber_agent_client.py` now has an
+`archive-next-required-edit-spec` helper/CLI command. It only archives
+`biber-next-required-edit.json` when `summarize_next_required_edit_spec` reports
+`reason=completed_required_edit`, meaning the target probe shows the old text is
+gone and the new text is already present. The command moves the stale canonical
+spec into `archived-required-edits/`, writes optional JSON output, and reports
+`mutates_repo=False`, `github_request_sent=False`, `mentor_used=False`, and
+`training_allowed=False`. `live-mvp-resume-status` now exposes a safe ready
+command labeled `archive_completed_required_edit_spec` for that exact stale
+state, while still suppressing `run_next_required_edit_spec_plan`. Local
+validation passed bundled Python `py_compile`, `git diff --check`, a direct
+no-pytest completed-spec archive harness, and
+`scripts/biber_local_confidence_smoke.py`. Next narrow step: commit/push this
+checkpoint, fast-forward the current SSH-enabled Vast checkout, refresh the live
+MVP resume status, run the safe `archive_completed_required_edit_spec` ready
+command if the stale `/workspace/outputs/biber-next-required-edit.json` is still
+present, then refresh status again.
 
 2026-08-12 latest BIBER completed required-edit spec guard checkpoint:
 `live-mvp-resume-status` now passes `target_root` into

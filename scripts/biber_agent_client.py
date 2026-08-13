@@ -13,6 +13,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Mapping
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
@@ -14283,6 +14284,79 @@ def summarize_next_required_edit_spec(
     }
 
 
+def archive_next_required_edit_spec(
+    *,
+    directory: str,
+    filename: str = "biber-next-required-edit.json",
+    target_root: str | None = None,
+    archive_dirname: str = "archived-required-edits",
+) -> dict[str, Any]:
+    root = Path(directory)
+    original_path = root / filename
+    summary = summarize_next_required_edit_spec(
+        directory=directory,
+        filename=filename,
+        target_root=target_root,
+    )
+    base: dict[str, Any] = {
+        "source": "biber_next_required_edit_spec_archive",
+        "ok": False,
+        "archived": False,
+        "directory": str(root),
+        "filename": filename,
+        "original_path": str(original_path),
+        "target_root": target_root,
+        "next_required_edit_spec": summary,
+        "api_required": False,
+        "external_network_required": False,
+        "github_request_sent": False,
+        "mentor_used": False,
+        "training_allowed": False,
+        "mutates_repo": False,
+    }
+    if summary.get("reason") != "completed_required_edit":
+        return {
+            **base,
+            "reason": "not_completed_required_edit",
+            "spec_reason": summary.get("reason"),
+        }
+
+    archive_dir = root / archive_dirname
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    suffix = original_path.suffix or ".json"
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    archive_path = archive_dir / f"{original_path.stem}-{timestamp}{suffix}"
+    counter = 1
+    while archive_path.exists():
+        archive_path = archive_dir / (
+            f"{original_path.stem}-{timestamp}-{counter}{suffix}"
+        )
+        counter += 1
+    try:
+        original_path.replace(archive_path)
+    except OSError as exc:
+        return {
+            **base,
+            "reason": "archive_failed",
+            "error": str(exc),
+            "exception": exc.__class__.__name__,
+        }
+
+    return {
+        **base,
+        "ok": True,
+        "archived": True,
+        "reason": "completed_required_edit",
+        "archive_dir": str(archive_dir),
+        "archive_path": str(archive_path),
+        "post_archive_summary": summarize_next_required_edit_spec(
+            directory=directory,
+            filename=filename,
+            target_root=target_root,
+        ),
+    }
+
+
 def next_required_edit_reason(blockers: Sequence[str]) -> str:
     if not blockers:
         return "ready"
@@ -15894,6 +15968,33 @@ def build_live_mvp_resume_next_commands(
                     ],
                 )
             )
+        if (
+            required_spec.get("reason") == "completed_required_edit"
+            and required_spec.get("path")
+        ):
+            start_next_commands.append(
+                command_entry(
+                    label="archive_completed_required_edit_spec",
+                    description=(
+                        "Archive the completed canonical required-edit spec so "
+                        "the next exact edit can start from a fresh JSON file."
+                    ),
+                    environment="vast-or-local-artifact-reader",
+                    command_parts=[
+                        python_executable,
+                        "scripts/biber_agent_client.py",
+                        "archive-next-required-edit-spec",
+                        directory,
+                        "--filename",
+                        required_spec.get("filename")
+                        or "biber-next-required-edit.json",
+                        "--target-root",
+                        target,
+                        "--output",
+                        root / "biber-next-required-edit-archive-latest.json",
+                    ],
+                )
+            )
         start_next_commands.extend(
             [
                 command_entry(
@@ -16577,6 +16678,7 @@ def validate_live_mvp_ready_command_execution(
         raw_subcommand if script_path == "scripts/biber_agent_client.py" else None
     )
     allowed_agent_subcommands = {
+        "archive-next-required-edit-spec",
         "export-mvp-failure-changed-paths",
         "live-mvp-resume-status",
         "prepare-latest-repair",
@@ -16847,6 +16949,25 @@ def format_live_mvp_ready_command_run(payload: Mapping[str, Any]) -> str:
     if payload.get("error"):
         lines.append(f"error: {payload.get('error')}")
     return "\n".join(lines)
+
+
+def format_next_required_edit_spec_archive(payload: Mapping[str, Any]) -> str:
+    return "\n".join(
+        [
+            "BIBER next required edit spec archive",
+            f"ok: {payload.get('ok') is True}",
+            f"archived: {payload.get('archived') is True}",
+            f"reason: {payload.get('reason') or '-'}",
+            f"spec_reason: {payload.get('spec_reason') or '-'}",
+            f"original_path: {payload.get('original_path') or '-'}",
+            f"archive_path: {payload.get('archive_path') or '-'}",
+            f"target_root: {payload.get('target_root') or '-'}",
+            f"mutates_repo: {payload.get('mutates_repo') is True}",
+            f"github_request_sent: {payload.get('github_request_sent') is True}",
+            f"mentor_used: {payload.get('mentor_used') is True}",
+            f"training_allowed: {payload.get('training_allowed') is True}",
+        ]
+    )
 
 
 def format_real_repo_plan_smoke_artifact_summary(
@@ -20424,6 +20545,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     live_mvp_resume_status.add_argument("--output")
 
+    archive_next_required_edit_spec_parser = subparsers.add_parser(
+        "archive-next-required-edit-spec",
+        help=(
+            "Archive biber-next-required-edit.json only when the target probe "
+            "shows the required edit is already completed."
+        ),
+    )
+    archive_next_required_edit_spec_parser.add_argument("directory")
+    archive_next_required_edit_spec_parser.add_argument(
+        "--filename",
+        default="biber-next-required-edit.json",
+    )
+    archive_next_required_edit_spec_parser.add_argument("--target-root")
+    archive_next_required_edit_spec_parser.add_argument(
+        "--archive-dirname",
+        default="archived-required-edits",
+    )
+    archive_next_required_edit_spec_parser.add_argument("--output")
+
     show_live_mvp_ready_command = subparsers.add_parser(
         "show-live-mvp-ready-command",
         help=(
@@ -22332,6 +22472,21 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(status, indent=2, sort_keys=True)
             if args.print_json
             else format_live_mvp_resume_status(status)
+        )
+    if args.command == "archive-next-required-edit-spec":
+        result = archive_next_required_edit_spec(
+            directory=args.directory,
+            filename=args.filename,
+            target_root=args.target_root,
+            archive_dirname=args.archive_dirname,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_next_required_edit_spec_archive(result)
         )
     if args.command == "show-live-mvp-ready-command":
         artifact = load_json_artifact(
