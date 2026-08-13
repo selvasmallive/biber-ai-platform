@@ -2511,6 +2511,12 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert next_commands["prepare_next_plan_only_required_edit"]["training_allowed"] is False
     assert "http://127.0.0.1:9009/v1" in next_commands["prepare_next_plan_only_required_edit"]["command_parts"]
     assert "biber-dev-core-v2-candidate" in next_commands["prepare_next_plan_only_required_edit"]["command_parts"]
+    assert "/workspace/outputs/biber-old.txt" in next_commands[
+        "prepare_next_plan_only_required_edit"
+    ]["command_parts"]
+    assert "/workspace/outputs/biber-new.txt" in next_commands[
+        "prepare_next_plan_only_required_edit"
+    ]["command_parts"]
     assert next_commands["write_next_required_edit_spec_template"][
         "ready_to_run"
     ] is False
@@ -2522,6 +2528,30 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     ] is False
     assert (
         "write-next-required-edit-spec"
+        in next_commands["write_next_required_edit_spec_template"]["command_parts"]
+    )
+    assert (
+        "/workspace/outputs/biber-old.txt"
+        in next_commands["write_next_required_edit_spec_template"]["command_parts"]
+    )
+    assert (
+        "/workspace/outputs/biber-new.txt"
+        in next_commands["write_next_required_edit_spec_template"]["command_parts"]
+    )
+    assert (
+        "--changed-paths-file"
+        in next_commands["write_next_required_edit_spec_template"]["command_parts"]
+    )
+    assert (
+        "--pinned-paths-file"
+        in next_commands["write_next_required_edit_spec_template"]["command_parts"]
+    )
+    assert (
+        "/workspace/outputs/biber-changed-paths.txt"
+        in next_commands["write_next_required_edit_spec_template"]["command_parts"]
+    )
+    assert (
+        "/workspace/outputs/biber-pinned-paths.txt"
         in next_commands["write_next_required_edit_spec_template"]["command_parts"]
     )
     assert status["next_ready_command_labels"] == [

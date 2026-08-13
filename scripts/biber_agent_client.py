@@ -15935,6 +15935,12 @@ def build_live_mvp_resume_next_commands(
     python_executable = python_command or "python"
     base_url = live_base_url or DEFAULT_LOCAL_OPENAI_BASE_URL
     model = live_model or DEFAULT_LOCAL_OPENAI_MODEL
+    directory_text = str(directory)
+
+    def artifact_cli_path(filename: str) -> str:
+        if directory_text.startswith("/"):
+            return f"{directory_text.rstrip('/')}/{filename}"
+        return str(root / filename)
 
     def command_entry(
         *,
@@ -15988,7 +15994,7 @@ def build_live_mvp_resume_next_commands(
             "--live-model",
             model,
             "--output",
-            root / "biber-live-mvp-resume-status-latest.json",
+            artifact_cli_path("biber-live-mvp-resume-status-latest.json"),
         ],
     )
 
@@ -16068,7 +16074,7 @@ def build_live_mvp_resume_next_commands(
                         "export-mvp-failure-changed-paths",
                         failure_hint.get("artifact_path"),
                         "--output",
-                        root / "biber-latest-failure-changed-paths.txt",
+                        artifact_cli_path("biber-latest-failure-changed-paths.txt"),
                         "--target-root",
                         target,
                         "--max-context-files",
@@ -16086,7 +16092,7 @@ def build_live_mvp_resume_next_commands(
                 "--pattern",
                 "*mvp-loop*.json",
                 "--output",
-                root / "biber-prepared-latest-repair.json",
+                artifact_cli_path("biber-prepared-latest-repair.json"),
             ]
             if target_root:
                 prepare_parts.extend(["--target-root", target])
@@ -16125,7 +16131,7 @@ def build_live_mvp_resume_next_commands(
                         "--target-root",
                         target,
                         "--output",
-                        root / "biber-next-required-edit-summary-latest.json",
+                        artifact_cli_path("biber-next-required-edit-summary-latest.json"),
                     ],
                 )
             )
@@ -16153,7 +16159,7 @@ def build_live_mvp_resume_next_commands(
                         "--required-edit-spec",
                         required_spec.get("path"),
                         "--output",
-                        root / "biber-real-repo-plan-latest.json",
+                        artifact_cli_path("biber-real-repo-plan-latest.json"),
                     ],
                 )
             )
@@ -16180,7 +16186,7 @@ def build_live_mvp_resume_next_commands(
                         "--target-root",
                         target,
                         "--output",
-                        root / "biber-next-required-edit-archive-latest.json",
+                        artifact_cli_path("biber-next-required-edit-archive-latest.json"),
                     ],
                 )
             )
@@ -16204,11 +16210,15 @@ def build_live_mvp_resume_next_commands(
                         "--required-path",
                         "<workspace-relative-path>",
                         "--old-text-file",
-                        str(root / "biber-old.txt"),
+                        artifact_cli_path("biber-old.txt"),
                         "--new-text-file",
-                        str(root / "biber-new.txt"),
+                        artifact_cli_path("biber-new.txt"),
+                        "--changed-paths-file",
+                        artifact_cli_path("biber-changed-paths.txt"),
+                        "--pinned-paths-file",
+                        artifact_cli_path("biber-pinned-paths.txt"),
                         "--output",
-                        root / "biber-next-required-edit-write-latest.json",
+                        artifact_cli_path("biber-next-required-edit-write-latest.json"),
                     ],
                 )
             )
@@ -16234,7 +16244,7 @@ def build_live_mvp_resume_next_commands(
                         "--model",
                         model,
                         "--output",
-                        root / "biber-live-provider-confidence-latest.json",
+                        artifact_cli_path("biber-live-provider-confidence-latest.json"),
                     ],
                 ),
                 command_entry(
@@ -16260,9 +16270,9 @@ def build_live_mvp_resume_next_commands(
                         "--required-path",
                         "<workspace-relative-path>",
                         "--required-old-text-file",
-                        str(root / "biber-old.txt"),
+                        artifact_cli_path("biber-old.txt"),
                         "--required-new-text-file",
-                        str(root / "biber-new.txt"),
+                        artifact_cli_path("biber-new.txt"),
                     ],
                 ),
                 refresh_resume,
@@ -16291,7 +16301,7 @@ def build_live_mvp_resume_next_commands(
                 "--model",
                 model,
                 "--output",
-                root / "biber-live-provider-confidence-latest.json",
+                artifact_cli_path("biber-live-provider-confidence-latest.json"),
             ],
         ),
         refresh_resume,

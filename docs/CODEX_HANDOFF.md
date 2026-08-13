@@ -4,6 +4,20 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER resume-status path-file template checkpoint:
+`live-mvp-resume-status` now emits the `write_next_required_edit_spec_template`
+with `--changed-paths-file /workspace/outputs/biber-changed-paths.txt` and
+`--pinned-paths-file /workspace/outputs/biber-pinned-paths.txt` placeholders
+whenever no active `biber-next-required-edit.json` exists. This keeps the
+generated next-command aligned with the path-file capable spec writer and avoids
+long fragile shell/Jupyter commands for future exact edits. The resume-status
+command builder also preserves POSIX-style `/workspace/outputs/...` artifact
+paths when Codex is running from Windows. Local validation passed bundled Python
+`py_compile`, `git diff --check`, a direct no-pytest resume-status template
+harness, and `scripts/biber_local_confidence_smoke.py`. Next narrow step:
+commit/push, fast-forward Vast, and confirm the refreshed Vast resume status
+includes both flags in the template command.
+
 2026-08-13 latest BIBER required-edit spec writer path-file checkpoint:
 `write-next-required-edit-spec` now accepts `--changed-paths-file` and
 `--pinned-paths-file`, matching the existing BIBER agent flow path-list
