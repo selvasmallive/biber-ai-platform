@@ -22,6 +22,20 @@ Next narrow step: commit/push this checkpoint, fast-forward Vast, run Vast
 `py_compile`, refresh real `/workspace/outputs/biber-live-mvp-resume-status-latest.json`,
 and confirm the current completed `/workspace/outputs/biber-next-required-edit.json`
 no longer exposes `run_next_required_edit_spec_plan`.
+2026-08-12 follow-up: commit `7323fb6` (`Suppress completed BIBER required
+edit specs`) was pushed to `biber/mvp-resume-20260712`; the current
+SSH-enabled Vast checkout was fast-forwarded to it. Vast `py_compile` passed
+for `scripts/biber_agent_client.py` and `tests/test_biber_agent_client.py`.
+Refreshing the real live MVP resume status now reports
+`next_action=start_next_narrow_biber_step`, `target_git_clean=True`, and
+`next_required_edit_spec.ok=False` with `reason=completed_required_edit`,
+blocker `required_edit_already_applied`, and target probe counts
+`exact_old_text_replacements=0` / `exact_new_text_replacements=1`. The ready
+labels are now only `run_cpu_local_confidence_gate`,
+`rerun_live_provider_confidence_gate`, and `refresh_resume_status`; the stale
+completed spec no longer exposes `run_next_required_edit_spec_plan`.
+Before the next exact plan-only GPU run, create a fresh
+`/workspace/outputs/biber-next-required-edit.json`.
 
 2026-08-12 latest BIBER stale-spec docs plan checkpoint:
 After the previous verified docs edit was saved, the completed
