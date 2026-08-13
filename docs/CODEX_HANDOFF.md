@@ -17,8 +17,19 @@ safe metadata are stored/listed. The website admin portal remains planned; this
 is the backend API foundation it will use later. Local validation passed bundled
 Python `py_compile`, `git diff --check`, a no-FastAPI key-store harness proving
 no plaintext persistence/listing and revoke behavior, and
-`scripts/biber_local_confidence_smoke.py`. Vast endpoint validation is pending.
-No OpenAI mentor, external paid API, training, or credential rotation was used.
+`scripts/biber_local_confidence_smoke.py`. Commit `841c796` (`Add BIBER API
+key management backend`) was pushed to `biber/mvp-resume-20260712`; the
+SSH-enabled Vast checkout fast-forwarded to `841c796`. Vast validation passed
+`py_compile` and a direct FastAPI TestClient harness for admin issue/list/revoke,
+issued-key auth, safe listing without plaintext/hash exposure, and revoked-key
+rejection. The live FastAPI process was restarted from the new commit without
+restarting vLLM: vLLM stayed on pid `1553`, API restarted to pid `8517`. Live
+capabilities smoke reports `admin_key_management_api=mvp`,
+`admin_api_keys=GET/POST/DELETE /v1/admin/api-keys`, and
+`admin_api_key_required=true`. The live admin route currently returns 503 until
+`BIBER_ADMIN_API_KEY` is configured, which is expected; no credential rotation or
+new live admin secret was created. No OpenAI mentor, external paid API,
+training, or credential rotation was used.
 
 2026-08-13 latest BIBER external-agent API checkpoint:
 In progress: BIBER MVP now includes an explicit external-agent model-source
