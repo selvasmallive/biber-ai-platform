@@ -15,7 +15,15 @@ existing oversized specs. This is CPU-local source/docs/test work only; no GPU,
 model, GitHub request, OpenAI mentor, or training is used. Validation/push are
 pending. Local validation passed bundled Python `py_compile`, `git diff --check`,
 a direct no-pytest required-edit spec size guard harness, and
-`scripts/biber_local_confidence_smoke.py`.
+`scripts/biber_local_confidence_smoke.py`. Commit `a3b7930` (`Guard BIBER
+required edit specs by size`) was pushed to `biber/mvp-resume-20260712`; the
+SSH-enabled Vast checkout fast-forwarded to `a3b7930`. Vast validation passed
+`py_compile` for `scripts/biber_agent_client.py` and
+`tests/test_biber_agent_client.py`, plus a required-edit spec size guard harness
+at `/workspace/outputs/biber-required-spec-size-vast-check-20260813T163213Z`.
+That harness confirmed the writer refuses oversized active specs and the show
+command reports `target_file_exceeds_max_required_edit_target_bytes`. Vast repo
+status was clean at `a3b7930`.
 
 2026-08-13 latest BIBER preflight guard checkpoint:
 In progress: the next narrow BIBER MVP improvement is adding an oversized-target
