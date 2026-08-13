@@ -23,9 +23,15 @@ SSH-enabled Vast checkout fast-forwarded to `bef3cc4`. Vast validation passed
 payload/dispatch harness, and `scripts/biber_local_confidence_smoke.py`. Vast
 confidence artifact:
 `/workspace/outputs/biber-chat-completions-client-confidence-latest.json`, with
-`ok=True` and 11 checks. Vast repo status was clean after validation. No GPU
-inference, OpenAI mentor, external paid API, credential rotation, training, or
-XRIQ/XRIS work was used.
+`ok=True` and 11 checks. A live BIBER API smoke then used the existing Vast
+`.env` key without printing it and called the new client command against
+`http://127.0.0.1:8000/v1/chat/completions`; it returned
+`object=chat.completion`, `model=biber-dev-core-v1`, and `choice_count=1`.
+Live artifact:
+`/workspace/outputs/biber-chat-completions-client-live-latest.json`. Vast repo
+status was clean after validation. This used one local Vast/GPU-backed BIBER API
+inference smoke only; no OpenAI mentor, external paid API, credential rotation,
+training, or XRIQ/XRIS work was used.
 
 2026-08-13 latest BIBER admin client checkpoint:
 Complete locally: BIBER MVP now has admin API-key management commands in
