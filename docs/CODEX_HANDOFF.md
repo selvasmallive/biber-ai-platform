@@ -15,9 +15,17 @@ keeps OpenAI mentor off unless `--use-mentor` is explicitly passed, and uses
 normal user API-key resolution, not admin key resolution. Local validation passed
 bundled Python `py_compile`, `git diff --check`, a direct no-pytest
 chat-completions payload/dispatch harness, and
-`scripts/biber_local_confidence_smoke.py`. Commit, GitHub push, and Vast
-fast-forward validation are pending. No GPU inference, OpenAI mentor, external
-paid API, credential rotation, training, or XRIQ/XRIS work was used.
+`scripts/biber_local_confidence_smoke.py`. Commit `bef3cc4` (`Add BIBER chat
+completions client command`) was pushed to `biber/mvp-resume-20260712`. The
+SSH-enabled Vast checkout fast-forwarded to `bef3cc4`. Vast validation passed
+`py_compile` for `scripts/biber_agent_client.py` and
+`tests/test_biber_agent_client.py`, a direct no-pytest chat-completions
+payload/dispatch harness, and `scripts/biber_local_confidence_smoke.py`. Vast
+confidence artifact:
+`/workspace/outputs/biber-chat-completions-client-confidence-latest.json`, with
+`ok=True` and 11 checks. Vast repo status was clean after validation. No GPU
+inference, OpenAI mentor, external paid API, credential rotation, training, or
+XRIQ/XRIS work was used.
 
 2026-08-13 latest BIBER admin client checkpoint:
 Complete locally: BIBER MVP now has admin API-key management commands in
