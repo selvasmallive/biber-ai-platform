@@ -4,6 +4,19 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER required-edit spec size checkpoint:
+In progress: the next narrow BIBER MVP improvement extends the same 200000-byte
+target-size guard into `write-next-required-edit-spec` and
+`show-next-required-edit-spec`. The spec writer should now refuse to save an
+active exact-edit spec when the target file is larger than
+`BIBER_WORKSPACE_EDIT_MAX_FILE_BYTES`/`--max-required-edit-target-bytes`, and
+the show command should surface target size fields plus the size blocker for
+existing oversized specs. This is CPU-local source/docs/test work only; no GPU,
+model, GitHub request, OpenAI mentor, or training is used. Validation/push are
+pending. Local validation passed bundled Python `py_compile`, `git diff --check`,
+a direct no-pytest required-edit spec size guard harness, and
+`scripts/biber_local_confidence_smoke.py`.
+
 2026-08-13 latest BIBER preflight guard checkpoint:
 In progress: the next narrow BIBER MVP improvement is adding an oversized-target
 preflight to `scripts/biber_live_provider_real_repo_plan_smoke.py`. The guard

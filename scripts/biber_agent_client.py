@@ -22,6 +22,9 @@ DEFAULT_BASE_URL = "http://127.0.0.1:8000"
 DEFAULT_LOCAL_OPENAI_BASE_URL = "http://127.0.0.1:8001/v1"
 DEFAULT_LOCAL_OPENAI_MODEL = "biber-dev-core"
 API_KEY_ENV_NAMES = ("BIBER_API_KEY", "BIBER_TEST_API_KEY", "BIBER_DEMO_API_KEY")
+DEFAULT_REQUIRED_EDIT_TARGET_MAX_BYTES = int(
+    os.getenv("BIBER_WORKSPACE_EDIT_MAX_FILE_BYTES", "200000")
+)
 DEFAULT_REPAIR_INSTRUCTION = (
     "Repair the failed BIBER MVP loop using the smallest safe code change. "
     "Use the selected repository context, diagnosis, and relevant test output. "
@@ -14210,6 +14213,7 @@ def summarize_next_required_edit_spec(
     directory: str,
     filename: str = "biber-next-required-edit.json",
     target_root: str | None = None,
+    max_required_edit_target_bytes: int = DEFAULT_REQUIRED_EDIT_TARGET_MAX_BYTES,
 ) -> dict[str, Any]:
     root = Path(directory)
     path = root / filename
@@ -14222,6 +14226,7 @@ def summarize_next_required_edit_spec(
         "github_request_sent": False,
         "mentor_used": False,
         "training_allowed": False,
+        "max_required_edit_target_bytes": max_required_edit_target_bytes,
     }
     if target_root:
         base["target_root"] = target_root
@@ -14267,6 +14272,7 @@ def summarize_next_required_edit_spec(
             old_text_file=old_text_file,
             new_text=new_text,
             new_text_file=new_text_file,
+            max_required_edit_target_bytes=max_required_edit_target_bytes,
         )
         blockers.extend(
             str(item) for item in require_list(target_probe.get("blockers"))
@@ -14290,6 +14296,7 @@ def archive_next_required_edit_spec(
     filename: str = "biber-next-required-edit.json",
     target_root: str | None = None,
     archive_dirname: str = "archived-required-edits",
+    max_required_edit_target_bytes: int = DEFAULT_REQUIRED_EDIT_TARGET_MAX_BYTES,
 ) -> dict[str, Any]:
     root = Path(directory)
     original_path = root / filename
@@ -14297,6 +14304,7 @@ def archive_next_required_edit_spec(
         directory=directory,
         filename=filename,
         target_root=target_root,
+        max_required_edit_target_bytes=max_required_edit_target_bytes,
     )
     base: dict[str, Any] = {
         "source": "biber_next_required_edit_spec_archive",
@@ -14306,6 +14314,7 @@ def archive_next_required_edit_spec(
         "filename": filename,
         "original_path": str(original_path),
         "target_root": target_root,
+        "max_required_edit_target_bytes": max_required_edit_target_bytes,
         "next_required_edit_spec": summary,
         "api_required": False,
         "external_network_required": False,
@@ -14353,6 +14362,7 @@ def archive_next_required_edit_spec(
             directory=directory,
             filename=filename,
             target_root=target_root,
+            max_required_edit_target_bytes=max_required_edit_target_bytes,
         ),
     }
 
@@ -14394,6 +14404,7 @@ def write_next_required_edit_spec(
     filename: str = "biber-next-required-edit.json",
     target_root: str | None = None,
     replace: bool = False,
+    max_required_edit_target_bytes: int = DEFAULT_REQUIRED_EDIT_TARGET_MAX_BYTES,
 ) -> dict[str, Any]:
     root = Path(directory)
     spec_path = root / filename
@@ -14405,6 +14416,7 @@ def write_next_required_edit_spec(
         "filename": filename,
         "spec_path": str(spec_path),
         "target_root": target_root,
+        "max_required_edit_target_bytes": max_required_edit_target_bytes,
         "api_required": False,
         "external_network_required": False,
         "github_request_sent": False,
@@ -14425,6 +14437,7 @@ def write_next_required_edit_spec(
                 directory=directory,
                 filename=filename,
                 target_root=target_root,
+                max_required_edit_target_bytes=max_required_edit_target_bytes,
             ),
         }
     if old_text is None and not old_text_file:
@@ -14474,6 +14487,7 @@ def write_next_required_edit_spec(
             old_text_file=None,
             new_text=new_text_value,
             new_text_file=None,
+            max_required_edit_target_bytes=max_required_edit_target_bytes,
         )
         if target_probe.get("ok") is not True:
             return {
@@ -14503,6 +14517,7 @@ def write_next_required_edit_spec(
         directory=directory,
         filename=filename,
         target_root=target_root,
+        max_required_edit_target_bytes=max_required_edit_target_bytes,
     )
     return {
         **base,
@@ -14570,11 +14585,13 @@ def probe_next_required_edit_target(
     old_text_file: object,
     new_text: object,
     new_text_file: object,
+    max_required_edit_target_bytes: int = DEFAULT_REQUIRED_EDIT_TARGET_MAX_BYTES,
 ) -> dict[str, Any]:
     probe: dict[str, Any] = {
         "source": "biber_next_required_edit_target_probe",
         "target_root": target_root,
         "required_path": required_path,
+        "max_required_edit_target_bytes": max_required_edit_target_bytes,
         "ok": False,
         "blockers": [],
     }
@@ -14601,11 +14618,32 @@ def probe_next_required_edit_target(
             "blockers": ["target_path_outside_root"],
         }
     probe["target_path"] = str(target_path)
+    if max_required_edit_target_bytes < 1:
+        return {
+            **probe,
+            "reason": "invalid_required_edit_target_max_bytes",
+            "blockers": ["invalid_required_edit_target_max_bytes"],
+        }
     if not target_path.is_file():
         return {
             **probe,
             "reason": "target_file_not_found",
             "blockers": ["target_file_not_found"],
+        }
+    try:
+        target_size_bytes = target_path.stat().st_size
+    except OSError:
+        return {
+            **probe,
+            "reason": "target_file_unreadable",
+            "blockers": ["target_file_unreadable"],
+        }
+    probe["target_size_bytes"] = target_size_bytes
+    if target_size_bytes > max_required_edit_target_bytes:
+        return {
+            **probe,
+            "reason": "target_file_exceeds_max_required_edit_target_bytes",
+            "blockers": ["target_file_exceeds_max_required_edit_target_bytes"],
         }
     old_value, old_blockers = read_required_edit_text(
         spec_path=spec_path,
@@ -17236,6 +17274,14 @@ def format_next_required_edit_spec_summary(payload: Mapping[str, Any]) -> str:
                 (
                     "exact_new_text_replacements: "
                     f"{target_probe.get('exact_new_text_replacements', '-')}"
+                ),
+                (
+                    "target_size_bytes: "
+                    f"{target_probe.get('target_size_bytes', '-')}"
+                ),
+                (
+                    "max_required_edit_target_bytes: "
+                    f"{target_probe.get('max_required_edit_target_bytes', '-')}"
                 ),
             ]
         )
@@ -20857,6 +20903,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="biber-next-required-edit.json",
     )
     show_next_required_edit_spec_parser.add_argument("--target-root")
+    show_next_required_edit_spec_parser.add_argument(
+        "--max-required-edit-target-bytes",
+        type=int,
+        default=DEFAULT_REQUIRED_EDIT_TARGET_MAX_BYTES,
+    )
     show_next_required_edit_spec_parser.add_argument("--output")
 
     archive_next_required_edit_spec_parser = subparsers.add_parser(
@@ -20872,6 +20923,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="biber-next-required-edit.json",
     )
     archive_next_required_edit_spec_parser.add_argument("--target-root")
+    archive_next_required_edit_spec_parser.add_argument(
+        "--max-required-edit-target-bytes",
+        type=int,
+        default=DEFAULT_REQUIRED_EDIT_TARGET_MAX_BYTES,
+    )
     archive_next_required_edit_spec_parser.add_argument(
         "--archive-dirname",
         default="archived-required-edits",
@@ -20915,6 +20971,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     write_next_required_edit_spec_parser.add_argument("--context-instruction")
     write_next_required_edit_spec_parser.add_argument("--plan-instruction")
     write_next_required_edit_spec_parser.add_argument("--target-root")
+    write_next_required_edit_spec_parser.add_argument(
+        "--max-required-edit-target-bytes",
+        type=int,
+        default=DEFAULT_REQUIRED_EDIT_TARGET_MAX_BYTES,
+    )
     write_next_required_edit_spec_parser.add_argument("--replace", action="store_true")
     write_next_required_edit_spec_parser.add_argument("--output")
 
@@ -22832,6 +22893,7 @@ def run(args: argparse.Namespace) -> str:
             directory=args.directory,
             filename=args.filename,
             target_root=args.target_root,
+            max_required_edit_target_bytes=args.max_required_edit_target_bytes,
         )
         if args.output:
             summary["artifact_path"] = str(Path(args.output))
@@ -22847,6 +22909,7 @@ def run(args: argparse.Namespace) -> str:
             filename=args.filename,
             target_root=args.target_root,
             archive_dirname=args.archive_dirname,
+            max_required_edit_target_bytes=args.max_required_edit_target_bytes,
         )
         if args.output:
             result["artifact_path"] = str(Path(args.output))
@@ -22882,6 +22945,7 @@ def run(args: argparse.Namespace) -> str:
             filename=args.filename,
             target_root=args.target_root,
             replace=args.replace,
+            max_required_edit_target_bytes=args.max_required_edit_target_bytes,
         )
         if args.output:
             result["artifact_path"] = str(Path(args.output))

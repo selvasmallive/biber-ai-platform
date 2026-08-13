@@ -3307,6 +3307,8 @@ def test_write_next_required_edit_spec_validates_target_and_writes(
     assert result["written"] is True
     assert result["reason"] == "written"
     assert result["target_probe"]["ok"] is True
+    assert result["target_probe"]["target_size_bytes"] == len(old_text.encode("utf-8"))
+    assert result["target_probe"]["max_required_edit_target_bytes"] == 200000
     assert result["mutates_repo"] is False
     assert result["github_request_sent"] is False
     assert result["mentor_used"] is False
@@ -3319,6 +3321,49 @@ def test_write_next_required_edit_spec_validates_target_and_writes(
     assert json.loads(output_path.read_text(encoding="utf-8"))["spec_path"] == str(
         spec_path
     )
+
+
+def test_write_next_required_edit_spec_refuses_oversized_target(
+    tmp_path: Path,
+) -> None:
+    target_root = tmp_path / "target-repo"
+    target_file = target_root / "docs" / "LARGE.md"
+    target_file.parent.mkdir(parents=True)
+    old_text = "before exact line\n"
+    target_file.write_text(old_text + ("x" * 250), encoding="utf-8")
+
+    result = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "write-next-required-edit-spec",
+                    str(tmp_path),
+                    "--target-root",
+                    str(target_root),
+                    "--required-path",
+                    "docs/LARGE.md",
+                    "--old-text",
+                    old_text,
+                    "--new-text",
+                    "after exact line\n",
+                    "--max-required-edit-target-bytes",
+                    "200",
+                ]
+            )
+        )
+    )
+
+    assert result["ok"] is False
+    assert result["written"] is False
+    assert result["reason"] == "target_probe_failed"
+    assert result["blockers"] == ["target_file_exceeds_max_required_edit_target_bytes"]
+    assert result["target_probe"]["reason"] == (
+        "target_file_exceeds_max_required_edit_target_bytes"
+    )
+    assert result["target_probe"]["target_size_bytes"] > 200
+    assert result["target_probe"]["max_required_edit_target_bytes"] == 200
+    assert not (tmp_path / "biber-next-required-edit.json").exists()
 
 
 def test_write_next_required_edit_spec_accepts_path_files(
@@ -3493,10 +3538,61 @@ def test_show_next_required_edit_spec_reports_ready_target_probe(
     assert result["target_probe"]["ok"] is True
     assert result["target_probe"]["exact_old_text_replacements"] == 1
     assert result["target_probe"]["exact_new_text_replacements"] == 0
+    assert result["target_probe"]["target_size_bytes"] == len(
+        "old exact line\n".encode("utf-8")
+    )
+    assert result["target_probe"]["max_required_edit_target_bytes"] == 200000
     assert result["github_request_sent"] is False
     assert result["mentor_used"] is False
     assert result["training_allowed"] is False
     assert json.loads(output_path.read_text(encoding="utf-8"))["reason"] == "ready"
+
+
+def test_show_next_required_edit_spec_reports_oversized_target_probe(
+    tmp_path: Path,
+) -> None:
+    target_root = tmp_path / "target-repo"
+    target_file = target_root / "docs" / "LARGE.md"
+    target_file.parent.mkdir(parents=True)
+    target_file.write_text("old exact line\n" + ("x" * 250), encoding="utf-8")
+    (tmp_path / "biber-next-required-edit.json").write_text(
+        json.dumps(
+            {
+                "path": "docs/LARGE.md",
+                "old_text": "old exact line\n",
+                "new_text": "new exact line\n",
+                "changed_paths": ["docs/LARGE.md"],
+                "max_context_files": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "show-next-required-edit-spec",
+                    str(tmp_path),
+                    "--target-root",
+                    str(target_root),
+                    "--max-required-edit-target-bytes",
+                    "200",
+                ]
+            )
+        )
+    )
+    summary = client.format_next_required_edit_spec_summary(result)
+
+    assert result["ok"] is False
+    assert result["reason"] == "target_probe_failed"
+    assert result["blockers"] == ["target_file_exceeds_max_required_edit_target_bytes"]
+    assert result["target_probe"]["target_size_bytes"] > 200
+    assert result["target_probe"]["max_required_edit_target_bytes"] == 200
+    assert "target_probe_reason: target_file_exceeds_max_required_edit_target_bytes" in summary
+    assert "target_size_bytes: " in summary
+    assert "max_required_edit_target_bytes: 200" in summary
 
 
 def test_show_next_required_edit_spec_reports_completed_target_probe(

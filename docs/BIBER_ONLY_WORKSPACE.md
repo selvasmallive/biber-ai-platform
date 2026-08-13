@@ -210,7 +210,11 @@ python scripts/biber_agent_client.py --json write-next-required-edit-spec \
 
 The helper refuses unsafe paths, refuses to overwrite an existing active spec
 unless `--replace` is passed, and probes `--target-root` before writing when a
-target root is provided. It accepts repeated `--changed-path`/`--pinned-path`
+target root is provided. That target probe also refuses files larger than
+`BIBER_WORKSPACE_EDIT_MAX_FILE_BYTES` or 200000 bytes by default, before the
+spec is saved; override only with `--max-required-edit-target-bytes` when the
+workspace edit apply guard has been intentionally raised too. It accepts
+repeated `--changed-path`/`--pinned-path`
 flags plus newline-delimited `--changed-paths-file`/`--pinned-paths-file`
 inputs; blank lines and `#` comments are ignored, and file entries are appended
 after repeated CLI path flags. Inspect the active spec before running the live
