@@ -5,16 +5,25 @@ Last updated: 2026-08-13
 ## Current Goal
 
 2026-08-13 latest BIBER runtime client checkpoint:
-Complete locally: the next narrow BIBER MVP step adds a stdlib `runtime` command to
+Complete: BIBER MVP now has a stdlib `runtime` command in
 `scripts/biber_agent_client.py` for authenticated `/v1/runtime` status. This
 lets a workstation, Vast session, or external agent gateway save a non-secret
 health/provider configuration proof with `--output` before using BIBER as a
-model source. The command should use normal user API-key resolution, not admin
-key resolution. Local validation passed bundled Python `py_compile`,
+model source. The command uses normal user API-key resolution, not admin key
+resolution. Local validation passed bundled Python `py_compile`,
 `git diff --check`, a direct no-pytest runtime endpoint/summary/dispatch
-harness, and `scripts/biber_local_confidence_smoke.py`. GitHub push and Vast
-validation are pending. No GPU inference, OpenAI mentor, external paid API,
-credential rotation, training, or XRIQ/XRIS work was used.
+harness, and `scripts/biber_local_confidence_smoke.py`. Commit `f133530` (`Add
+BIBER runtime client command`) was pushed to `biber/mvp-resume-20260712`. The
+SSH-enabled Vast checkout fast-forwarded to `f133530`. Vast validation passed
+`py_compile` for `scripts/biber_agent_client.py` and
+`tests/test_biber_agent_client.py`, then live `runtime --output` against
+`http://127.0.0.1:8000/v1/runtime` using the existing `.env` user key without
+printing it. Live artifact:
+`/workspace/outputs/biber-runtime-client-output-live-latest.json`. It reports
+`service=biber-api`, `local_model_name=biber-dev-core`,
+`local_model_base_url=http://127.0.0.1:8001/v1`, `mentor_configured=false`,
+and `github_configured=false`. No GPU inference, OpenAI mentor, external paid
+API, credential rotation, training, or XRIQ/XRIS work was used.
 
 2026-08-13 latest BIBER external-agent artifact checkpoint:
 Complete locally: the next narrow BIBER MVP step adds `--output` JSON artifact
