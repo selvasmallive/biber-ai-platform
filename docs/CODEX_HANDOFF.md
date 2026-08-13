@@ -5,7 +5,7 @@ Last updated: 2026-08-13
 ## Current Goal
 
 2026-08-13 latest BIBER capabilities artifact checkpoint:
-In progress: the next narrow BIBER MVP improvement adds `--output` to the
+Complete: BIBER MVP now supports `--output` on the
 stdlib `capabilities` command in `scripts/biber_agent_client.py`, so
 `/v1/agent/capabilities` can be saved as a non-secret setup/proof artifact
 without shell redirection. The command uses normal user API-key resolution, not
@@ -13,9 +13,18 @@ admin key resolution. Docs were updated in `docs/BIBER_EXTERNAL_AGENT_API.md`,
 `docs/API_EXAMPLES.md`, and `docs/BIBER_ONLY_WORKSPACE.md`. Local validation
 passed bundled Python bytecode-redirected `py_compile`, `git diff --check`, a
 direct no-pytest capabilities artifact harness, and
-`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. GitHub
-push and Vast validation are pending. No GPU inference, OpenAI mentor, external
-paid API, credential rotation, training, or XRIQ/XRIS work was used.
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. Commit
+`9fa6c2c` (`Add BIBER capabilities artifact output`) was pushed to
+`biber/mvp-resume-20260712`. The SSH-enabled Vast checkout fast-forwarded to
+`9fa6c2c`. Vast validation passed `py_compile` for
+`scripts/biber_agent_client.py` and `tests/test_biber_agent_client.py`, then
+live `capabilities --output` against `http://127.0.0.1:8000` using the existing
+`.env` user key without printing it. Live artifact:
+`/workspace/outputs/biber-capabilities-live-latest.json`. It reports
+`service=biber-agent`, `default_model=biber-dev-core-v1`, and feature keys for
+`external_agent_api`, `repo_context`, `test_runner`, `workspace_edit`, and the
+other advertised MVP features. No GPU inference, OpenAI mentor, external paid
+API, credential rotation, training, or XRIQ/XRIS work was used.
 
 2026-08-13 latest BIBER external-agent client URL checkpoint:
 Complete: BIBER MVP `external-agent-connection` now supports
