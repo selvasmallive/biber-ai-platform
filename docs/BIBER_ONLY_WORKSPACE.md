@@ -74,6 +74,10 @@ client after the server sets `BIBER_ADMIN_API_KEY`: `list-api-keys`,
 `issue-api-key --user-id <id> --label <label>`, and
 `revoke-api-key <key_id>`. These commands use the admin key only; normal
 agent/chat commands continue to use `BIBER_API_KEY` or another user key.
+Use `chat-completions --message <text> --model biber-dev-core-v1` to smoke-test
+the OpenAI-compatible `/v1/chat/completions` model-source endpoint from the same
+client; it sends `stream=false` and keeps OpenAI mentor off unless `--use-mentor`
+is explicitly passed.
 Use `--include-git-state` for repo work so the artifact records the local
 branch, short HEAD, dirty status, and `git status --short` before edits/tests.
 Repo-context and safe-edit paths must stay workspace-relative; Windows

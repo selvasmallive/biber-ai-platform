@@ -1154,6 +1154,127 @@ def test_build_chat_payload_includes_runtime_profiles() -> None:
     }
 
 
+def test_build_chat_completions_payload_defaults_to_openai_surface() -> None:
+    payload = client.build_chat_completions_payload(
+        message="Return ok.",
+        model="biber-dev-core-v1",
+        language="TypeScript",
+        task_type="external_agent_chat",
+        repo_context_paths=["src/example.ts"],
+        runtime_profile_ids=["api-error-response"],
+        max_tokens=64,
+        temperature=0.1,
+    )
+
+    assert payload == {
+        "messages": [{"role": "user", "content": "Return ok."}],
+        "stream": False,
+        "use_mentor": False,
+        "model": "biber-dev-core-v1",
+        "language": "TypeScript",
+        "task_type": "external_agent_chat",
+        "repo_context_paths": ["src/example.ts"],
+        "runtime_profile_ids": ["api-error-response"],
+        "max_tokens": 64,
+        "temperature": 0.1,
+    }
+
+
+def test_chat_completions_helper_calls_openai_endpoint(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_request_json(**kwargs):
+        captured.update(kwargs)
+        return {"object": "chat.completion", "choices": []}
+
+    monkeypatch.setattr(client, "request_json", fake_request_json)
+
+    result = client.create_chat_completion(
+        base_url="http://biber.local",
+        api_key="user-key",
+        payload={"messages": [{"role": "user", "content": "Return ok."}]},
+        timeout_seconds=5,
+    )
+
+    assert result == {"object": "chat.completion", "choices": []}
+    assert captured["base_url"] == "http://biber.local"
+    assert captured["api_key"] == "user-key"
+    assert captured["path"] == "/v1/chat/completions"
+    assert captured["method"] == "POST"
+
+
+def test_format_chat_completions_summary_extracts_first_message() -> None:
+    output = client.format_chat_completions_summary(
+        {
+            "id": "chatcmpl-1",
+            "object": "chat.completion",
+            "model": "biber-dev-core-v1",
+            "choices": [
+                {"message": {"role": "assistant", "content": "Use a small adapter."}}
+            ],
+        }
+    )
+
+    assert "BIBER chat completion response" in output
+    assert "object: chat.completion" in output
+    assert "model: biber-dev-core-v1" in output
+    assert "choices: 1" in output
+    assert "Use a small adapter." in output
+
+
+def test_run_chat_completions_uses_user_key(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        captured["api_cli"] = cli_api_key
+        return "user-key"
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        raise AssertionError("admin API key should not be resolved")
+
+    def fake_create_chat_completion(**kwargs):
+        captured["chat_completion"] = kwargs
+        return {
+            "id": "chatcmpl-1",
+            "object": "chat.completion",
+            "model": "biber-dev-core-v1",
+            "choices": [{"message": {"content": "ok"}}],
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+    monkeypatch.setattr(client, "create_chat_completion", fake_create_chat_completion)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--base-url",
+                "http://biber.local",
+                "--api-key",
+                "cli-user-key",
+                "chat-completions",
+                "--message",
+                "Return ok.",
+                "--model",
+                "biber-dev-core-v1",
+                "--max-tokens",
+                "16",
+            ]
+        )
+    )
+
+    payload = captured["chat_completion"]["payload"]
+    assert "BIBER chat completion response" in output
+    assert "ok" in output
+    assert captured["api_cli"] == "cli-user-key"
+    assert captured["chat_completion"]["api_key"] == "user-key"
+    assert captured["chat_completion"]["base_url"] == "http://biber.local"
+    assert payload["stream"] is False
+    assert payload["use_mentor"] is False
+    assert payload["model"] == "biber-dev-core-v1"
+    assert payload["max_tokens"] == 16
+
+
 def test_validate_runtime_profile_ids_rejects_unknown_ids() -> None:
     try:
         client.validate_runtime_profile_ids(

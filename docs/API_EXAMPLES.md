@@ -72,6 +72,16 @@ base URL and API key only to clients that support custom OpenAI-compatible
 model endpoints. GitHub Copilot may require a Copilot extension or gateway
 rather than direct arbitrary endpoint configuration.
 
+The stdlib client can hit the same endpoint:
+
+```bash
+export BIBER_API_KEY="dev-api-key-change-me"
+python scripts/biber_agent_client.py chat-completions \
+  --model biber-dev-core-v1 \
+  --message "Write one concise Rust review note." \
+  --max-tokens 120
+```
+
 ## Issue A User API Key
 
 Configure `BIBER_ADMIN_API_KEY` on the server first. The issued plaintext key is

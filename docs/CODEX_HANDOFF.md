@@ -4,6 +4,21 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER chat-completions client checkpoint:
+Complete locally: BIBER MVP now has a stdlib client command for the
+OpenAI-compatible model-source endpoint: `chat-completions --message <text>
+--model biber-dev-core-v1`. This is separate from the richer BIBER `/v1/chat`
+workflow command and is intended for testing the generic external-agent API
+surface that custom agents, IDE gateways, and future Copilot-style integrations
+can consume with a base URL plus user API key. The command sends `stream=false`,
+keeps OpenAI mentor off unless `--use-mentor` is explicitly passed, and uses
+normal user API-key resolution, not admin key resolution. Local validation passed
+bundled Python `py_compile`, `git diff --check`, a direct no-pytest
+chat-completions payload/dispatch harness, and
+`scripts/biber_local_confidence_smoke.py`. Commit, GitHub push, and Vast
+fast-forward validation are pending. No GPU inference, OpenAI mentor, external
+paid API, credential rotation, training, or XRIQ/XRIS work was used.
+
 2026-08-13 latest BIBER admin client checkpoint:
 Complete locally: BIBER MVP now has admin API-key management commands in
 `scripts/biber_agent_client.py` so external agent users can be listed, issued,

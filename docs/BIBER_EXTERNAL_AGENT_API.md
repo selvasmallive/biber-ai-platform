@@ -58,6 +58,16 @@ curl http://localhost:8000/v1/chat/completions \
 Any client that supports an OpenAI-compatible base URL and API key can point at
 the BIBER API base URL and use `/v1/models` plus `/v1/chat/completions`.
 
+The stdlib BIBER agent client can exercise the same OpenAI-compatible endpoint:
+
+```bash
+export BIBER_API_KEY="<user-api-key>"
+python scripts/biber_agent_client.py chat-completions \
+  --model biber-dev-core-v1 \
+  --message "Write one concise Rust review note." \
+  --max-tokens 120
+```
+
 GitHub Copilot itself may require a Copilot extension, approved integration, or
 agent gateway rather than direct arbitrary model endpoint configuration. Keep
 the BIBER side generic: OpenAI-compatible HTTP, bearer API key, stable model

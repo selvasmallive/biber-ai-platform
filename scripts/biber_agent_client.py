@@ -375,6 +375,23 @@ def chat_with_biber(
     )
 
 
+def create_chat_completion(
+    *,
+    base_url: str,
+    api_key: str,
+    payload: Mapping[str, Any],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=api_key,
+        path="/v1/chat/completions",
+        method="POST",
+        payload=payload,
+        timeout_seconds=timeout_seconds,
+    )
+
+
 def diagnose_test_failure(
     *,
     base_url: str,
@@ -766,6 +783,40 @@ def build_chat_payload(
     return payload
 
 
+def build_chat_completions_payload(
+    *,
+    message: str,
+    model: str | None = None,
+    language: str | None = None,
+    task_type: str | None = None,
+    repo_context_paths: list[str] | None = None,
+    runtime_profile_ids: list[str] | None = None,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+    use_mentor: bool = False,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "messages": [{"role": "user", "content": message}],
+        "stream": False,
+        "use_mentor": use_mentor,
+    }
+    if model:
+        payload["model"] = model
+    if language:
+        payload["language"] = language
+    if task_type:
+        payload["task_type"] = task_type
+    if repo_context_paths is not None:
+        payload["repo_context_paths"] = repo_context_paths
+    if runtime_profile_ids is not None:
+        payload["runtime_profile_ids"] = runtime_profile_ids
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
+    if temperature is not None:
+        payload["temperature"] = temperature
+    return payload
+
+
 def build_session_payload(
     *,
     capabilities: Mapping[str, Any],
@@ -901,6 +952,31 @@ def format_chat_summary(payload: Mapping[str, Any]) -> str:
             f"mentor_used: {payload.get('mentor_used', False)}",
             "content:",
             str(payload.get("content") or ""),
+        ]
+    )
+
+
+def extract_chat_completion_content(payload: Mapping[str, Any]) -> str:
+    for choice in require_list(payload.get("choices")):
+        if not isinstance(choice, dict):
+            continue
+        message = require_mapping(choice.get("message"))
+        content = message.get("content")
+        if isinstance(content, str):
+            return content
+    return ""
+
+
+def format_chat_completions_summary(payload: Mapping[str, Any]) -> str:
+    return "\n".join(
+        [
+            "BIBER chat completion response",
+            f"id: {payload.get('id', '-')}",
+            f"object: {payload.get('object', '-')}",
+            f"model: {payload.get('model', '-')}",
+            f"choices: {len(require_list(payload.get('choices')))}",
+            "content:",
+            extract_chat_completion_content(payload),
         ]
     )
 
@@ -20796,6 +20872,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Allow OpenAI mentor use when the server is configured and the prompt requests it.",
     )
 
+    chat_completions = subparsers.add_parser(
+        "chat-completions",
+        help="Send one OpenAI-compatible /v1/chat/completions request.",
+    )
+    chat_completions.add_argument("--message")
+    chat_completions.add_argument("--message-file")
+    chat_completions.add_argument("--model")
+    chat_completions.add_argument("--language")
+    chat_completions.add_argument("--task-type")
+    chat_completions.add_argument("--repo-context", action="append", default=None)
+    chat_completions.add_argument("--runtime-profile-id", action="append", default=None)
+    chat_completions.add_argument("--max-tokens", type=int)
+    chat_completions.add_argument("--temperature", type=float, default=0.2)
+    chat_completions.add_argument(
+        "--use-mentor",
+        action="store_true",
+        help="Allow OpenAI mentor use when the server is configured and the prompt requests it.",
+    )
+
     session = subparsers.add_parser(
         "create-session",
         help="Create a tracked agent session from a discovered preset.",
@@ -25473,6 +25568,48 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(response, indent=2, sort_keys=True)
             if args.print_json
             else format_chat_summary(response)
+        )
+    if args.command == "chat-completions":
+        runtime_profile_ids = dedupe_strings(args.runtime_profile_id)
+        if runtime_profile_ids:
+            capabilities = fetch_capabilities(
+                base_url=base_url,
+                api_key=api_key,
+                timeout_seconds=args.timeout_seconds,
+            )
+            validate_runtime_profile_ids(
+                capabilities=capabilities,
+                runtime_profile_ids=runtime_profile_ids,
+            )
+        message = load_text_argument(
+            value=args.message,
+            file_path=args.message_file,
+            label="--message",
+        )
+        if not message:
+            raise BiberAgentClientError(
+                "chat-completions requires --message or --message-file."
+            )
+        response = create_chat_completion(
+            base_url=base_url,
+            api_key=api_key,
+            payload=build_chat_completions_payload(
+                message=message,
+                model=args.model,
+                language=args.language,
+                task_type=args.task_type,
+                repo_context_paths=args.repo_context,
+                runtime_profile_ids=runtime_profile_ids,
+                max_tokens=args.max_tokens,
+                temperature=args.temperature,
+                use_mentor=args.use_mentor,
+            ),
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(response, indent=2, sort_keys=True)
+            if args.print_json
+            else format_chat_completions_summary(response)
         )
     if args.command == "create-session":
         capabilities = fetch_capabilities(
