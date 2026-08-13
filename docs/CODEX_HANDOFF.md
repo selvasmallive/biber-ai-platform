@@ -12,9 +12,21 @@ curl. The command should use normal user API-key resolution, not admin key
 resolution, and summarize model id, lifecycle, provider, enabled state, aliases,
 and fine-tuning permission. Local validation passed bundled Python `py_compile`,
 `git diff --check`, a direct no-pytest models endpoint/summary/dispatch harness,
-and `scripts/biber_local_confidence_smoke.py`. GitHub push and Vast validation
-are pending. No GPU inference, OpenAI mentor, external paid API, credential
-rotation, training, or XRIQ/XRIS work was used.
+and `scripts/biber_local_confidence_smoke.py`. Commit `69fee84` (`Add BIBER
+models client command`) was pushed to `biber/mvp-resume-20260712`. Live Vast
+validation first exposed a response-shape mismatch: BIBER returns model metadata
+under `models`, not OpenAI-style `data`, while the client formatter initially
+looked only at `data`. Follow-up commit `2b7e56f` (`Support BIBER models
+response shape in client`) fixed the formatter to accept either `data` or
+`models`. The SSH-enabled Vast checkout fast-forwarded to `2b7e56f`. Vast
+validation passed `py_compile` for `scripts/biber_agent_client.py` and
+`tests/test_biber_agent_client.py`, and the live `models` command against
+`http://127.0.0.1:8000/v1/models` printed two entries:
+`biber-dev-core-v1 lifecycle=stable` and
+`biber-dev-core-v2-candidate lifecycle=candidate`. Live summary artifact:
+`/workspace/outputs/biber-models-client-live-summary-latest.txt`. No GPU
+inference, OpenAI mentor, external paid API, credential rotation, training, or
+XRIQ/XRIS work was used.
 
 2026-08-13 latest BIBER chat-completions client checkpoint:
 Complete locally: BIBER MVP now has a stdlib client command for the
