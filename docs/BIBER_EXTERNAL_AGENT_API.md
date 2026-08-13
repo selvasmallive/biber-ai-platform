@@ -21,8 +21,16 @@ Authorization: Bearer <api-key>
 x-api-key: <api-key>
 ```
 
-The current MVP key source is `BIBER_API_KEYS`. Put comma-separated keys in the
-server environment or `.env` file. Do not commit `.env` or paste keys into chat.
+The bootstrap key source is `BIBER_API_KEYS`. Put comma-separated bootstrap
+keys in the server environment or `.env` file. Do not commit `.env` or paste
+keys into chat.
+
+The MVP also supports issued per-user API keys through a hashed file-backed
+store at `BIBER_API_KEY_STORE_PATH`. If that variable is not set, the direct
+Vast path defaults to `/workspace/outputs/biber-api-keys.json`; local CPU runs
+default to `.biber-runtime/biber-api-keys.json` under the repo context root.
+The store records key hashes and safe metadata only. The plaintext API key is
+returned once when the admin issues it.
 
 `POST /v1/chat/completions` defaults to the configured swappable BIBER model
 registry. The raw GPU runtime remains behind BIBER; external clients should talk
@@ -77,14 +85,33 @@ When public access is needed:
 
 ## Planned Admin Portal
 
-The MVP does not need a website admin portal before proving the API contract.
+The website admin portal is still planned, but the backend MVP now has admin
+API-key management endpoints protected by `BIBER_ADMIN_API_KEY`:
+
+```text
+GET    /v1/admin/api-keys
+POST   /v1/admin/api-keys
+DELETE /v1/admin/api-keys/{key_id}
+```
+
+Example:
+
+```bash
+curl -X POST http://localhost:8000/v1/admin/api-keys \
+  -H "Authorization: Bearer <admin-api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"user-1","label":"IDE agent"}'
+```
+
+The response includes `api_key` one time plus a safe `record`. List/revoke
+responses never include plaintext keys or key hashes.
+
 The planned production portal should add:
 
 - Admin login with secure password or SSO.
 - Registered users.
-- Per-user API key issuance.
-- Hashed API key storage, not plaintext key storage.
-- Key revoke/disable/rotate controls.
+- Browser UI for per-user API key issuance.
+- Browser UI for revoke/disable/rotate controls.
 - Usage audit events.
 - Rate limits and monthly quotas.
 - Optional passcode or policy-based GPU priority scheduling.

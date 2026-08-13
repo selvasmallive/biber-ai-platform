@@ -15,6 +15,7 @@ from .agent_sessions import (
     load_agent_session,
     persist_agent_session,
 )
+from .api_key_store import issue_api_key, list_public_key_records, revoke_api_key
 from .azure_backup import AzureBackupDisabled, AzureBlobBackup
 from .config import BiberSettings, get_settings
 from .github import (
@@ -36,6 +37,11 @@ from .schemas import (
     AgentSessionRequest,
     AgentSessionResponse,
     AgentSessionStep,
+    ApiKeyIssueRequest,
+    ApiKeyIssueResponse,
+    ApiKeyListResponse,
+    ApiKeyRecord,
+    ApiKeyRevokeResponse,
     AzureBackupRequest,
     AzureBackupResponse,
     ChatMessage,
@@ -60,7 +66,7 @@ from .schemas import (
     WorkspaceEditPlanResponse,
     WorkspaceEditResponse,
 )
-from .security import AuthContext, require_api_key
+from .security import AuthContext, require_admin_api_key, require_api_key
 from .test_runner import (
     TestRunnerConfigurationError,
     UnknownTestCommandError,
@@ -181,6 +187,7 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
             "edit_apply": "POST /v1/files/edit/apply",
             "github_save": "POST /v1/save/github",
             "github_pull_request": "POST /v1/github/pull-request",
+            "admin_api_keys": "GET/POST/DELETE /v1/admin/api-keys",
         },
         "features": {
             "repo_context": {
@@ -226,14 +233,17 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
                         "x-api-key: <api-key>",
                     ],
                     "current_key_source": "BIBER_API_KEYS",
+                    "issued_key_store": "BIBER_API_KEY_STORE_PATH",
+                    "admin_key_management_api": "mvp",
                     "admin_key_management_ui": "planned",
-                    "per_user_key_issuance": "planned",
+                    "per_user_key_issuance": "mvp",
                 },
                 "endpoints": {
                     "models": "GET /v1/models",
                     "chat_completions": "POST /v1/chat/completions",
                     "native_chat": "POST /v1/chat",
                     "agent_capabilities": "GET /v1/agent/capabilities",
+                    "admin_api_keys": "GET/POST/DELETE /v1/admin/api-keys",
                 },
                 "intended_clients": [
                     "custom_conversational_agent",
@@ -248,6 +258,7 @@ def _agent_capabilities(settings: BiberSettings) -> dict[str, object]:
                 "streaming_supported": False,
                 "domain_required_for_local_mvp": False,
                 "public_https_required_for_external_internet_clients": True,
+                "admin_api_key_required": True,
             },
             "openai_mentor": {
                 "enabled": settings.mentor_enabled,
@@ -432,6 +443,47 @@ async def agent_capabilities(
     settings: BiberSettings = Depends(get_settings),
 ) -> dict[str, object]:
     return _agent_capabilities(settings)
+
+
+@app.get("/v1/admin/api-keys", response_model=ApiKeyListResponse)
+async def list_api_keys(
+    _: object = Depends(require_admin_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> ApiKeyListResponse:
+    records = [
+        ApiKeyRecord.model_validate(record)
+        for record in list_public_key_records(settings.api_key_store_path)
+    ]
+    return ApiKeyListResponse(keys=records)
+
+
+@app.post("/v1/admin/api-keys", response_model=ApiKeyIssueResponse)
+async def create_api_key(
+    request_body: ApiKeyIssueRequest,
+    _: object = Depends(require_admin_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> ApiKeyIssueResponse:
+    issued = issue_api_key(
+        settings.api_key_store_path,
+        user_id=request_body.user_id,
+        label=request_body.label,
+    )
+    return ApiKeyIssueResponse(
+        api_key=str(issued["api_key"]),
+        record=ApiKeyRecord.model_validate(issued["record"]),
+    )
+
+
+@app.delete("/v1/admin/api-keys/{key_id}", response_model=ApiKeyRevokeResponse)
+async def revoke_api_key_record(
+    key_id: str = ApiPath(..., min_length=1),
+    _: object = Depends(require_admin_api_key),
+    settings: BiberSettings = Depends(get_settings),
+) -> ApiKeyRevokeResponse:
+    record = revoke_api_key(settings.api_key_store_path, key_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="API key record not found.")
+    return ApiKeyRevokeResponse(record=ApiKeyRecord.model_validate(record))
 
 
 @app.post("/v1/repo/context/plan", response_model=RepoContextPlanResponse)

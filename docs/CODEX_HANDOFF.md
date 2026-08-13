@@ -4,6 +4,22 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER API key management checkpoint:
+In progress: BIBER MVP external-agent API now has the backend foundation for
+admin-issued user API keys. The narrow implementation adds hashed file-backed
+API-key storage in both API entry points, `BIBER_ADMIN_API_KEY` admin auth,
+`BIBER_API_KEY_STORE_PATH`, and admin routes:
+`GET /v1/admin/api-keys`, `POST /v1/admin/api-keys`, and
+`DELETE /v1/admin/api-keys/{key_id}`. Normal API auth still accepts bootstrap
+`BIBER_API_KEYS`, and now also accepts active issued keys from the file-backed
+store. Issued plaintext keys are returned once at creation; only key hashes and
+safe metadata are stored/listed. The website admin portal remains planned; this
+is the backend API foundation it will use later. Local validation passed bundled
+Python `py_compile`, `git diff --check`, a no-FastAPI key-store harness proving
+no plaintext persistence/listing and revoke behavior, and
+`scripts/biber_local_confidence_smoke.py`. Vast endpoint validation is pending.
+No OpenAI mentor, external paid API, training, or credential rotation was used.
+
 2026-08-13 latest BIBER external-agent API checkpoint:
 In progress: BIBER MVP now includes an explicit external-agent model-source
 API slice. The narrow implementation adds authenticated

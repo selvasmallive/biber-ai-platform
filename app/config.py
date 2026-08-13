@@ -39,6 +39,15 @@ def _default_agent_session_dir(repo_context_root: str) -> str:
     return os.path.join(repo_context_root, ".biber-runtime", "agent-sessions")
 
 
+def _default_api_key_store_path(repo_context_root: str) -> str:
+    configured = os.getenv("BIBER_API_KEY_STORE_PATH")
+    if configured:
+        return configured
+    if os.path.isdir("/workspace") and os.access("/workspace", os.W_OK):
+        return "/workspace/outputs/biber-api-keys.json"
+    return os.path.join(repo_context_root, ".biber-runtime", "biber-api-keys.json")
+
+
 @dataclass
 class Settings:
     env: str = os.getenv("BIBER_ENV", "dev")
@@ -46,6 +55,7 @@ class Settings:
     admin_password: str = os.getenv("BIBER_ADMIN_PASSWORD", "ChangeMeImmediately!123")
     demo_api_key: str = os.getenv("BIBER_DEMO_API_KEY", "dev-api-key-change-me")
     api_keys: tuple[str, ...] = _csv(os.getenv("BIBER_API_KEYS"))
+    admin_api_key: str | None = os.getenv("BIBER_ADMIN_API_KEY") or None
 
     passcode_full_gpu: str = os.getenv("BIBER_PASSCODE_FULL_GPU", "BIBER_FULL_GPU_DEMO")
     passcode_20_gpu: str = os.getenv("BIBER_PASSCODE_20_GPU", "BIBER_20_GPU_DEMO")
@@ -64,6 +74,7 @@ class Settings:
     local_model_timeout_seconds: float = float(os.getenv("BIBER_LOCAL_MODEL_TIMEOUT_SECONDS", "180"))
     repo_context_root: str = os.getenv("BIBER_REPO_CONTEXT_ROOT") or os.getcwd()
     agent_session_dir: str = _default_agent_session_dir(repo_context_root)
+    api_key_store_path: str = _default_api_key_store_path(repo_context_root)
     repo_context_max_files: int = int(os.getenv("BIBER_REPO_CONTEXT_MAX_FILES", "12"))
     repo_context_max_bytes_per_file: int = int(
         os.getenv("BIBER_REPO_CONTEXT_MAX_BYTES_PER_FILE", "12000")

@@ -62,6 +62,33 @@ class ChatResponse(BaseModel):
     priority: int
 
 
+class ApiKeyRecord(BaseModel):
+    key_id: str
+    user_id: str
+    label: str = ""
+    created_at: str | None = None
+    revoked_at: str | None = None
+    active: bool
+
+
+class ApiKeyIssueRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=128)
+    label: str = Field(default="", max_length=128)
+
+
+class ApiKeyIssueResponse(BaseModel):
+    api_key: str
+    record: ApiKeyRecord
+
+
+class ApiKeyListResponse(BaseModel):
+    keys: list[ApiKeyRecord]
+
+
+class ApiKeyRevokeResponse(BaseModel):
+    record: ApiKeyRecord
+
+
 class SaveToGitHubRequest(BaseModel):
     target: GitHubSaveTarget
     content: str = Field(min_length=1)

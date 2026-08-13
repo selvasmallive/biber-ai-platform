@@ -72,6 +72,31 @@ base URL and API key only to clients that support custom OpenAI-compatible
 model endpoints. GitHub Copilot may require a Copilot extension or gateway
 rather than direct arbitrary endpoint configuration.
 
+## Issue A User API Key
+
+Configure `BIBER_ADMIN_API_KEY` on the server first. The issued plaintext key is
+returned only once; the key store keeps a hash and safe metadata.
+
+```bash
+curl -X POST http://localhost:8000/v1/admin/api-keys \
+  -H "Authorization: Bearer <admin-api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "user-1",
+    "label": "IDE agent"
+}'
+```
+
+List and revoke keys:
+
+```bash
+curl http://localhost:8000/v1/admin/api-keys \
+  -H "Authorization: Bearer <admin-api-key>"
+
+curl -X DELETE http://localhost:8000/v1/admin/api-keys/<key_id> \
+  -H "Authorization: Bearer <admin-api-key>"
+```
+
 ## Optional Runtime Profiles
 
 Runtime profiles are narrow prompt contracts for known model gaps. They are

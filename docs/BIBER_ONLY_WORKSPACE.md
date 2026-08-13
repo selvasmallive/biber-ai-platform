@@ -444,7 +444,10 @@ BIBER API gateway endpoint `POST /v1/chat/completions` with
 OpenAI-compatible, uses the same swappable model registry, and keeps OpenAI
 mentor disabled by default. A `.com` domain is not needed for local/private MVP
 testing; public internet clients need a later HTTPS domain/reverse-proxy layer
-and admin key-management portal. See `docs/BIBER_EXTERNAL_AGENT_API.md`.
+and admin key-management portal. The backend key-management MVP is
+`GET/POST/DELETE /v1/admin/api-keys`, protected by `BIBER_ADMIN_API_KEY`, with
+issued user keys stored as hashes under `BIBER_API_KEY_STORE_PATH`. See
+`docs/BIBER_EXTERNAL_AGENT_API.md`.
 Then run `review-local-repair-chain` on that combined artifact before asking
 for explicit apply approval. The review is deterministic, no-API, and reports
 blockers, warnings, plan hash, target root, and the next test id.

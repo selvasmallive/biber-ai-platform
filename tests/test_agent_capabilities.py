@@ -66,9 +66,12 @@ def test_agent_capabilities_describes_client_workflows(tmp_path: Path) -> None:
     assert external_api["protocol"] == "openai-compatible-chat-completions"
     assert external_api["authentication"]["type"] == "bearer_api_key_or_x_api_key"
     assert "Authorization: Bearer <api-key>" in external_api["authentication"]["headers"]
+    assert external_api["authentication"]["issued_key_store"] == "BIBER_API_KEY_STORE_PATH"
+    assert external_api["authentication"]["admin_key_management_api"] == "mvp"
     assert external_api["authentication"]["admin_key_management_ui"] == "planned"
-    assert external_api["authentication"]["per_user_key_issuance"] == "planned"
+    assert external_api["authentication"]["per_user_key_issuance"] == "mvp"
     assert external_api["endpoints"]["chat_completions"] == "POST /v1/chat/completions"
+    assert external_api["endpoints"]["admin_api_keys"] == "GET/POST/DELETE /v1/admin/api-keys"
     assert external_api["provider_swappable"] is True
     assert external_api["local_gpu_model_source"] is True
     assert external_api["openai_mentor_optional"] is True
@@ -76,6 +79,7 @@ def test_agent_capabilities_describes_client_workflows(tmp_path: Path) -> None:
     assert external_api["streaming_supported"] is False
     assert external_api["domain_required_for_local_mvp"] is False
     assert external_api["public_https_required_for_external_internet_clients"] is True
+    assert external_api["admin_api_key_required"] is True
     assert "custom_conversational_agent" in external_api["intended_clients"]
     assert "github_copilot_extension_or_agent_gateway" in external_api["intended_clients"]
     assert body["features"]["repo_context"]["max_files"] == 7

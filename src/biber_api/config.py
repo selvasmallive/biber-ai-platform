@@ -39,6 +39,15 @@ def _default_agent_session_dir(repo_context_root: str) -> str:
     return os.path.join(repo_context_root, ".biber-runtime", "agent-sessions")
 
 
+def _default_api_key_store_path(repo_context_root: str) -> str:
+    configured = os.getenv("BIBER_API_KEY_STORE_PATH")
+    if configured:
+        return configured
+    if os.path.isdir("/workspace") and os.access("/workspace", os.W_OK):
+        return "/workspace/outputs/biber-api-keys.json"
+    return os.path.join(repo_context_root, ".biber-runtime", "biber-api-keys.json")
+
+
 @dataclass(frozen=True)
 class BiberSettings:
     env: str
@@ -56,6 +65,8 @@ class BiberSettings:
     github_default_repo: str | None
     azure_storage_connection_string: str | None
     azure_blob_container: str
+    admin_api_key: str | None = None
+    api_key_store_path: str = ""
     default_model: str = "biber-dev-core-v1"
     runtime_profiles_enabled: bool = False
     repo_context_root: str = "."
@@ -86,6 +97,8 @@ def get_settings() -> BiberSettings:
     return BiberSettings(
         env=os.getenv("BIBER_ENV", "dev"),
         api_keys=_csv(os.getenv("BIBER_API_KEYS")),
+        admin_api_key=os.getenv("BIBER_ADMIN_API_KEY") or None,
+        api_key_store_path=_default_api_key_store_path(repo_context_root),
         priority_passcodes=_priority_passcodes(os.getenv("BIBER_PRIORITY_PASSCODES")),
         local_model_base_url=os.getenv("BIBER_LOCAL_MODEL_BASE_URL", "http://localhost:8000/v1"),
         local_model_name=os.getenv("BIBER_LOCAL_MODEL_NAME", "biber-dev-core"),
