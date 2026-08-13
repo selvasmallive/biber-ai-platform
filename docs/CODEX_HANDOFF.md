@@ -102,6 +102,20 @@ ready labels `run_cpu_local_confidence_gate`,
 `rerun_live_provider_confidence_gate`, and `refresh_resume_status`. Next narrow
 step: choose one specific BIBER MVP improvement and fill the
 `write_next_required_edit_spec_template` with exact path/old/new text.
+2026-08-13 latest BIBER spec inspection checkpoint:
+`scripts/biber_agent_client.py` now has a read-only
+`show-next-required-edit-spec` CLI command. It summarizes the active
+`biber-next-required-edit.json`, optionally probes `--target-root`, and reports
+whether the spec is `ready`, `not_found`, `completed_required_edit`, or blocked
+by target-path/text issues without running the live model. It can save its
+summary with `--output` and reports `github_request_sent=False`,
+`mentor_used=False`, and `training_allowed=False`. `docs/BIBER_ONLY_WORKSPACE.md`
+now documents inspecting the active spec before live plan-only runs. Local
+validation passed bundled Python `py_compile`, `git diff --check`, a direct
+no-pytest ready/completed/missing spec inspection harness, and
+`scripts/biber_local_confidence_smoke.py`. Next narrow step: commit/push,
+fast-forward Vast, run Vast `py_compile`, and verify `show-next-required-edit-spec`
+against the current clean `/workspace/outputs` state.
 
 2026-08-12 latest BIBER completed required-edit spec guard checkpoint:
 `live-mvp-resume-status` now passes `target_root` into

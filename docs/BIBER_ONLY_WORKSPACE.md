@@ -201,7 +201,15 @@ python scripts/biber_agent_client.py --json write-next-required-edit-spec \
 
 The helper refuses unsafe paths, refuses to overwrite an existing active spec
 unless `--replace` is passed, and probes `--target-root` before writing when a
-target root is provided. The manual JSON shape is:
+target root is provided. Inspect the active spec before running the live model:
+
+```bash
+python scripts/biber_agent_client.py show-next-required-edit-spec \
+  /workspace/outputs \
+  --target-root /workspace/biber-ai-platform
+```
+
+The manual JSON shape is:
 
 ```json
 {

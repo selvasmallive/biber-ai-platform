@@ -3294,6 +3294,100 @@ def test_write_next_required_edit_spec_refuses_existing_without_replace(
     assert json.loads(spec_path.read_text(encoding="utf-8"))["path"] == "README.md"
 
 
+def test_show_next_required_edit_spec_reports_ready_target_probe(
+    tmp_path: Path,
+) -> None:
+    target_root = tmp_path / "target-repo"
+    target_root.mkdir()
+    target_file = target_root / "docs" / "BIBER_ONLY_WORKSPACE.md"
+    target_file.parent.mkdir()
+    target_file.write_text("old exact line\n", encoding="utf-8")
+    (tmp_path / "biber-next-required-edit.json").write_text(
+        json.dumps(
+            {
+                "path": "docs/BIBER_ONLY_WORKSPACE.md",
+                "old_text": "old exact line\n",
+                "new_text": "new exact line\n",
+                "changed_paths": ["docs/BIBER_ONLY_WORKSPACE.md"],
+                "max_context_files": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "spec-summary.json"
+
+    result = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "show-next-required-edit-spec",
+                    str(tmp_path),
+                    "--target-root",
+                    str(target_root),
+                    "--output",
+                    str(output_path),
+                ]
+            )
+        )
+    )
+
+    assert result["ok"] is True
+    assert result["reason"] == "ready"
+    assert result["target_probe"]["ok"] is True
+    assert result["target_probe"]["exact_old_text_replacements"] == 1
+    assert result["target_probe"]["exact_new_text_replacements"] == 0
+    assert result["github_request_sent"] is False
+    assert result["mentor_used"] is False
+    assert result["training_allowed"] is False
+    assert json.loads(output_path.read_text(encoding="utf-8"))["reason"] == "ready"
+
+
+def test_show_next_required_edit_spec_reports_completed_target_probe(
+    tmp_path: Path,
+) -> None:
+    target_root = tmp_path / "target-repo"
+    target_root.mkdir()
+    target_file = target_root / "docs" / "BIBER_ONLY_WORKSPACE.md"
+    target_file.parent.mkdir()
+    target_file.write_text("new exact line\n", encoding="utf-8")
+    (tmp_path / "biber-next-required-edit.json").write_text(
+        json.dumps(
+            {
+                "path": "docs/BIBER_ONLY_WORKSPACE.md",
+                "old_text": "old exact line\n",
+                "new_text": "new exact line\n",
+                "changed_paths": ["docs/BIBER_ONLY_WORKSPACE.md"],
+                "max_context_files": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "show-next-required-edit-spec",
+                    str(tmp_path),
+                    "--target-root",
+                    str(target_root),
+                ]
+            )
+        )
+    )
+    summary = client.format_next_required_edit_spec_summary(result)
+
+    assert result["ok"] is False
+    assert result["reason"] == "completed_required_edit"
+    assert "required_edit_already_applied" in result["blockers"]
+    assert result["target_probe"]["reason"] == "required_edit_already_applied"
+    assert "reason: completed_required_edit" in summary
+    assert "exact_old_text_replacements: 0" in summary
+    assert "exact_new_text_replacements: 1" in summary
+
+
 def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
     output = client.format_mvp_loop_summary(
         {

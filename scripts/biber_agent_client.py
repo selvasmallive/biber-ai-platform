@@ -17161,6 +17161,50 @@ def format_next_required_edit_spec_archive(payload: Mapping[str, Any]) -> str:
     )
 
 
+def format_next_required_edit_spec_summary(payload: Mapping[str, Any]) -> str:
+    blockers = require_list(payload.get("blockers"))
+    target_probe = require_mapping(payload.get("target_probe"))
+    probe_blockers = require_list(target_probe.get("blockers"))
+    lines = [
+        "BIBER next required edit spec",
+        f"ok: {payload.get('ok') is True}",
+        f"reason: {payload.get('reason') or '-'}",
+        f"path: {payload.get('path') or '-'}",
+        f"required_path: {payload.get('required_path') or '-'}",
+        f"target_root: {payload.get('target_root') or '-'}",
+        f"uses_old_text_file: {payload.get('uses_old_text_file') is True}",
+        f"uses_new_text_file: {payload.get('uses_new_text_file') is True}",
+        f"blockers: {', '.join(str(item) for item in blockers) or '-'}",
+    ]
+    if target_probe:
+        lines.extend(
+            [
+                f"target_probe_ok: {target_probe.get('ok') is True}",
+                f"target_probe_reason: {target_probe.get('reason') or '-'}",
+                (
+                    "target_probe_blockers: "
+                    f"{', '.join(str(item) for item in probe_blockers) or '-'}"
+                ),
+                (
+                    "exact_old_text_replacements: "
+                    f"{target_probe.get('exact_old_text_replacements', '-')}"
+                ),
+                (
+                    "exact_new_text_replacements: "
+                    f"{target_probe.get('exact_new_text_replacements', '-')}"
+                ),
+            ]
+        )
+    lines.extend(
+        [
+            f"github_request_sent: {payload.get('github_request_sent') is True}",
+            f"mentor_used: {payload.get('mentor_used') is True}",
+            f"training_allowed: {payload.get('training_allowed') is True}",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def format_next_required_edit_spec_write(payload: Mapping[str, Any]) -> str:
     return "\n".join(
         [
@@ -20756,6 +20800,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     live_mvp_resume_status.add_argument("--output")
 
+    show_next_required_edit_spec_parser = subparsers.add_parser(
+        "show-next-required-edit-spec",
+        help=(
+            "Summarize the active biber-next-required-edit.json and optionally "
+            "probe the target root without running the live model."
+        ),
+    )
+    show_next_required_edit_spec_parser.add_argument("directory")
+    show_next_required_edit_spec_parser.add_argument(
+        "--filename",
+        default="biber-next-required-edit.json",
+    )
+    show_next_required_edit_spec_parser.add_argument("--target-root")
+    show_next_required_edit_spec_parser.add_argument("--output")
+
     archive_next_required_edit_spec_parser = subparsers.add_parser(
         "archive-next-required-edit-spec",
         help=(
@@ -22721,6 +22780,20 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(status, indent=2, sort_keys=True)
             if args.print_json
             else format_live_mvp_resume_status(status)
+        )
+    if args.command == "show-next-required-edit-spec":
+        summary = summarize_next_required_edit_spec(
+            directory=args.directory,
+            filename=args.filename,
+            target_root=args.target_root,
+        )
+        if args.output:
+            summary["artifact_path"] = str(Path(args.output))
+            write_json_artifact(summary, args.output)
+        return (
+            json.dumps(summary, indent=2, sort_keys=True)
+            if args.print_json
+            else format_next_required_edit_spec_summary(summary)
         )
     if args.command == "archive-next-required-edit-spec":
         result = archive_next_required_edit_spec(
