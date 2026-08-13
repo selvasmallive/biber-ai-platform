@@ -1136,6 +1136,7 @@ def test_run_runtime_uses_user_key(monkeypatch, tmp_path: Path) -> None:
 def test_build_external_agent_connection_profile_is_non_secret() -> None:
     result = client.build_external_agent_connection_profile(
         base_url="http://biber.local",
+        client_base_url="https://api.example.com/v1",
         runtime_status={
             "service": "biber-api",
             "local_model_name": "biber-dev-core",
@@ -1163,9 +1164,11 @@ def test_build_external_agent_connection_profile_is_non_secret() -> None:
     )
 
     assert result["ok"] is True
-    assert result["openai_base_url"] == "http://biber.local/v1"
+    assert result["probe_base_url"] == "http://biber.local"
+    assert result["biber_api_base_url"] == "https://api.example.com"
+    assert result["openai_base_url"] == "https://api.example.com/v1"
     assert result["chat_completions_url"] == (
-        "http://biber.local/v1/chat/completions"
+        "https://api.example.com/v1/chat/completions"
     )
     assert result["default_model"] == "biber-dev-core-v1"
     assert result["enabled_models"] == ["biber-dev-core-v1"]
@@ -1179,6 +1182,7 @@ def test_format_external_agent_connection_summary() -> None:
     output = client.format_external_agent_connection_summary(
         {
             "ok": True,
+            "probe_base_url": "http://127.0.0.1:8000",
             "openai_base_url": "http://biber.local/v1",
             "biber_api_base_url": "http://biber.local",
             "chat_completions_url": "http://biber.local/v1/chat/completions",
@@ -1201,6 +1205,7 @@ def test_format_external_agent_connection_summary() -> None:
 
     assert "BIBER external-agent connection" in output
     assert "ok: True" in output
+    assert "probe_base_url: http://127.0.0.1:8000" in output
     assert "openai_base_url: http://biber.local/v1" in output
     assert "default_model: biber-dev-core-v1" in output
     assert "api_key_included: False" in output
@@ -1251,6 +1256,8 @@ def test_run_external_agent_connection_uses_user_key(monkeypatch, tmp_path: Path
                 "--api-key",
                 "cli-user-key",
                 "external-agent-connection",
+                "--client-base-url",
+                "https://biber.example.com",
                 "--output",
                 str(output_path),
             ]
@@ -1263,6 +1270,8 @@ def test_run_external_agent_connection_uses_user_key(monkeypatch, tmp_path: Path
     assert captured["runtime"]["api_key"] == "user-key"
     assert captured["models"]["api_key"] == "user-key"
     assert artifact["artifact_path"] == str(output_path)
+    assert artifact["probe_base_url"] == "http://biber.local"
+    assert artifact["openai_base_url"] == "https://biber.example.com/v1"
     assert artifact["default_model"] == "biber-dev-core-v1"
     assert artifact["auth"]["api_key_included"] is False
 

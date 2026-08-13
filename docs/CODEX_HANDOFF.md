@@ -4,6 +4,22 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER external-agent client URL checkpoint:
+In progress: the next narrow BIBER MVP improvement extends
+`external-agent-connection` with `--client-base-url`. The command still probes
+BIBER through `--base-url`, but the saved non-secret profile can advertise a
+different client-facing URL for an SSH tunnel, reverse proxy, or future HTTPS
+domain. The profile now records `probe_base_url` separately, normalizes a
+client URL ending in `/v1` back to the BIBER API root, then derives the
+OpenAI-compatible `/v1` URL and endpoint URLs from that client-facing base. Docs
+were updated in `docs/BIBER_EXTERNAL_AGENT_API.md`, `docs/API_EXAMPLES.md`, and
+`docs/BIBER_ONLY_WORKSPACE.md`. Local validation passed bundled Python
+bytecode-redirected `py_compile`, `git diff --check`, a direct no-pytest
+`--client-base-url` harness, and `scripts/biber_local_confidence_smoke.py` with
+`ok=True` and 11 checks. GitHub push and Vast validation are pending. No GPU
+inference, OpenAI mentor, external paid API, credential rotation, training, or
+XRIQ/XRIS work was used.
+
 2026-08-13 latest BIBER external-agent connection checkpoint:
 Complete: BIBER MVP now has a stdlib `external-agent-connection` command in
 `scripts/biber_agent_client.py`. The

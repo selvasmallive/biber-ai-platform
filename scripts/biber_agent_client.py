@@ -237,13 +237,24 @@ def choose_external_agent_default_model(models_payload: Mapping[str, Any]) -> st
     return ""
 
 
+def normalize_external_agent_client_base_url(base_url: str) -> str:
+    clean_base_url = base_url.rstrip("/")
+    if clean_base_url.endswith("/v1"):
+        return clean_base_url[:-3].rstrip("/")
+    return clean_base_url
+
+
 def build_external_agent_connection_profile(
     *,
     base_url: str,
+    client_base_url: str | None = None,
     runtime_status: Mapping[str, Any],
     models_payload: Mapping[str, Any],
 ) -> dict[str, Any]:
-    clean_base_url = base_url.rstrip("/")
+    probe_base_url = base_url.rstrip("/")
+    clean_base_url = normalize_external_agent_client_base_url(
+        client_base_url or base_url
+    )
     model_records = model_records_from_payload(models_payload)
     enabled_ids = enabled_model_ids(models_payload)
     candidate_ids = [
@@ -255,6 +266,7 @@ def build_external_agent_connection_profile(
     return {
         "source": "biber_external_agent_connection",
         "ok": bool(runtime_status.get("service")) and bool(enabled_ids),
+        "probe_base_url": probe_base_url,
         "biber_api_base_url": clean_base_url,
         "openai_base_url": build_url(clean_base_url, "/v1"),
         "models_url": build_url(clean_base_url, "/v1/models"),
@@ -1065,6 +1077,7 @@ def format_external_agent_connection_summary(payload: Mapping[str, Any]) -> str:
         [
             "BIBER external-agent connection",
             f"ok: {bool(payload.get('ok'))}",
+            f"probe_base_url: {payload.get('probe_base_url', '-')}",
             f"openai_base_url: {payload.get('openai_base_url', '-')}",
             f"biber_api_base_url: {payload.get('biber_api_base_url', '-')}",
             f"chat_completions_url: {payload.get('chat_completions_url', '-')}",
@@ -21052,6 +21065,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output",
         help="Optional JSON artifact path.",
     )
+    external_agent_connection.add_argument(
+        "--client-base-url",
+        help=(
+            "Optional client-facing BIBER API base URL for the saved profile. "
+            "Use this when probing a private URL but configuring an SSH tunnel, "
+            "reverse proxy, or HTTPS domain."
+        ),
+    )
 
     subparsers.add_parser(
         "list-api-keys",
@@ -25578,6 +25599,7 @@ def run(args: argparse.Namespace) -> str:
         )
         result = build_external_agent_connection_profile(
             base_url=base_url,
+            client_base_url=args.client_base_url,
             runtime_status=runtime_status,
             models_payload=models_payload,
         )

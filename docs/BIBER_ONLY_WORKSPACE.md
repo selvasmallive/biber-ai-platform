@@ -88,6 +88,8 @@ Use `external-agent-connection --output <artifact.json>` when configuring an
 IDE, gateway, or custom conversational agent: it bundles the OpenAI-compatible
 base URL, `/v1/models`, `/v1/chat/completions`, the selected stable model, and
 auth header names without writing the API key into the artifact.
+Add `--client-base-url <url>` when the saved profile should advertise an SSH
+tunnel, reverse proxy, or HTTPS domain instead of the private probe URL.
 Use `--include-git-state` for repo work so the artifact records the local
 branch, short HEAD, dirty status, and `git status --short` before edits/tests.
 Repo-context and safe-edit paths must stay workspace-relative; Windows
