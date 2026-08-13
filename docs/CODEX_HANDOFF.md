@@ -17,6 +17,19 @@ for shell/Jupyter copy-paste while preserving the guarded CPU-local workflow:
 `scripts/biber_local_confidence_smoke.py`. Next narrow step: commit/push,
 fast-forward Vast, and run the disposable Vast writer check with both path-file
 flags.
+2026-08-13 follow-up: commit `a13391a` (`Add BIBER spec writer path files`)
+was pushed to `biber/mvp-resume-20260712`; the current SSH-enabled Vast checkout
+was fast-forwarded to it. Vast `py_compile` passed for
+`scripts/biber_agent_client.py` and `tests/test_biber_agent_client.py`. A
+disposable Vast writer check under
+`/workspace/outputs/biber-spec-writer-path-file-vast-check-20260813T145117Z/`
+returned `write_ok=True`, `written=True`, `reason=written`,
+`changed_paths=["docs/EXTRA.md", "scripts/biber_agent_client.py"]`,
+`pinned_paths=["docs/BIBER_ONLY_WORKSPACE.md"]`, `mutates_repo=False`,
+`github_request_sent=False`, `mentor_used=False`, and
+`training_allowed=False`. Vast repo remained clean at `a13391a`. Next useful
+narrow step: use the path-file capable spec writer for the next small real BIBER
+MVP edit, then run the guarded live plan-only/apply/verify/save chain.
 
 2026-08-13 latest BIBER completed required-edit archive checkpoint:
 `scripts/biber_agent_client.py` now has an
