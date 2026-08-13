@@ -14357,6 +14357,168 @@ def archive_next_required_edit_spec(
     }
 
 
+def normalize_required_edit_context_paths(
+    *,
+    required_path: str,
+    paths: Sequence[str] | None,
+    default_to_required: bool,
+) -> tuple[list[str] | None, list[str]]:
+    raw_paths = list(paths or [])
+    if default_to_required and not raw_paths:
+        raw_paths.append(required_path)
+    normalized: list[str] = []
+    blockers: list[str] = []
+    for raw_path in raw_paths:
+        clean_path = safe_repo_relative_path(raw_path)
+        if clean_path is None:
+            blockers.append(f"unsafe_context_path:{raw_path}")
+            continue
+        if clean_path not in normalized:
+            normalized.append(clean_path)
+    return (normalized or None), blockers
+
+
+def write_next_required_edit_spec(
+    *,
+    directory: str,
+    required_path: str,
+    old_text: str | None = None,
+    old_text_file: str | None = None,
+    new_text: str | None = None,
+    new_text_file: str | None = None,
+    changed_paths: Sequence[str] | None = None,
+    pinned_paths: Sequence[str] | None = None,
+    max_context_files: int = 1,
+    context_instruction: str | None = None,
+    plan_instruction: str | None = None,
+    filename: str = "biber-next-required-edit.json",
+    target_root: str | None = None,
+    replace: bool = False,
+) -> dict[str, Any]:
+    root = Path(directory)
+    spec_path = root / filename
+    base: dict[str, Any] = {
+        "source": "biber_next_required_edit_spec_write",
+        "ok": False,
+        "written": False,
+        "directory": str(root),
+        "filename": filename,
+        "spec_path": str(spec_path),
+        "target_root": target_root,
+        "api_required": False,
+        "external_network_required": False,
+        "github_request_sent": False,
+        "mentor_used": False,
+        "training_allowed": False,
+        "mutates_repo": False,
+    }
+    clean_required_path = safe_repo_relative_path(required_path)
+    if clean_required_path is None:
+        return {**base, "reason": "unsafe_required_path"}
+    if max_context_files < 1:
+        return {**base, "reason": "max_context_files_must_be_positive"}
+    if spec_path.exists() and not replace:
+        return {
+            **base,
+            "reason": "existing_required_edit_spec_present",
+            "existing_spec": summarize_next_required_edit_spec(
+                directory=directory,
+                filename=filename,
+                target_root=target_root,
+            ),
+        }
+    if old_text is None and not old_text_file:
+        return {**base, "reason": "missing_old_text"}
+    if new_text is None and not new_text_file:
+        return {**base, "reason": "missing_new_text"}
+
+    old_text_value = load_text_argument(
+        value=old_text,
+        file_path=old_text_file,
+        label="--old-text",
+    )
+    new_text_value = load_text_argument(
+        value=new_text,
+        file_path=new_text_file,
+        label="--new-text",
+    )
+    normalized_changed_paths, changed_path_blockers = (
+        normalize_required_edit_context_paths(
+            required_path=clean_required_path,
+            paths=changed_paths,
+            default_to_required=True,
+        )
+    )
+    normalized_pinned_paths, pinned_path_blockers = (
+        normalize_required_edit_context_paths(
+            required_path=clean_required_path,
+            paths=pinned_paths,
+            default_to_required=False,
+        )
+    )
+    context_blockers = changed_path_blockers + pinned_path_blockers
+    if context_blockers:
+        return {
+            **base,
+            "reason": "unsafe_context_paths",
+            "blockers": context_blockers,
+        }
+
+    target_probe = None
+    if target_root:
+        target_probe = probe_next_required_edit_target(
+            target_root=target_root,
+            spec_path=spec_path,
+            required_path=clean_required_path,
+            old_text=old_text_value,
+            old_text_file=None,
+            new_text=new_text_value,
+            new_text_file=None,
+        )
+        if target_probe.get("ok") is not True:
+            return {
+                **base,
+                "reason": "target_probe_failed",
+                "target_probe": target_probe,
+                "blockers": require_list(target_probe.get("blockers")),
+            }
+
+    payload: dict[str, Any] = {
+        "path": clean_required_path,
+        "old_text": old_text_value,
+        "new_text": new_text_value,
+        "changed_paths": normalized_changed_paths or [clean_required_path],
+        "max_context_files": max_context_files,
+    }
+    if normalized_pinned_paths:
+        payload["pinned_paths"] = normalized_pinned_paths
+    if context_instruction:
+        payload["context_instruction"] = context_instruction
+    if plan_instruction:
+        payload["plan_instruction"] = plan_instruction
+
+    root.mkdir(parents=True, exist_ok=True)
+    write_json_artifact(payload, str(spec_path))
+    summary = summarize_next_required_edit_spec(
+        directory=directory,
+        filename=filename,
+        target_root=target_root,
+    )
+    return {
+        **base,
+        "ok": summary.get("ok") is True,
+        "written": True,
+        "reason": "written" if summary.get("ok") is True else "written_not_ready",
+        "required_path": clean_required_path,
+        "changed_paths": payload["changed_paths"],
+        "pinned_paths": payload.get("pinned_paths", []),
+        "old_text_chars": len(old_text_value),
+        "new_text_chars": len(new_text_value),
+        "target_probe": target_probe,
+        "next_required_edit_spec": summary,
+    }
+
+
 def next_required_edit_reason(blockers: Sequence[str]) -> str:
     if not blockers:
         return "ready"
@@ -16684,6 +16846,7 @@ def validate_live_mvp_ready_command_execution(
         "prepare-latest-repair",
         "show-latest-live-verified-github-dry-run",
         "show-latest-real-repo-plan-smoke",
+        "write-next-required-edit-spec",
     }
     allowed_standalone_scripts = {
         "scripts/biber_local_confidence_smoke.py",
@@ -16962,6 +17125,26 @@ def format_next_required_edit_spec_archive(payload: Mapping[str, Any]) -> str:
             f"original_path: {payload.get('original_path') or '-'}",
             f"archive_path: {payload.get('archive_path') or '-'}",
             f"target_root: {payload.get('target_root') or '-'}",
+            f"mutates_repo: {payload.get('mutates_repo') is True}",
+            f"github_request_sent: {payload.get('github_request_sent') is True}",
+            f"mentor_used: {payload.get('mentor_used') is True}",
+            f"training_allowed: {payload.get('training_allowed') is True}",
+        ]
+    )
+
+
+def format_next_required_edit_spec_write(payload: Mapping[str, Any]) -> str:
+    return "\n".join(
+        [
+            "BIBER next required edit spec write",
+            f"ok: {payload.get('ok') is True}",
+            f"written: {payload.get('written') is True}",
+            f"reason: {payload.get('reason') or '-'}",
+            f"spec_path: {payload.get('spec_path') or '-'}",
+            f"required_path: {payload.get('required_path') or '-'}",
+            f"target_root: {payload.get('target_root') or '-'}",
+            f"old_text_chars: {payload.get('old_text_chars', '-')}",
+            f"new_text_chars: {payload.get('new_text_chars', '-')}",
             f"mutates_repo: {payload.get('mutates_repo') is True}",
             f"github_request_sent: {payload.get('github_request_sent') is True}",
             f"mentor_used: {payload.get('mentor_used') is True}",
@@ -20564,6 +20747,44 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     archive_next_required_edit_spec_parser.add_argument("--output")
 
+    write_next_required_edit_spec_parser = subparsers.add_parser(
+        "write-next-required-edit-spec",
+        help=(
+            "Write a guarded biber-next-required-edit.json from exact old/new "
+            "text and optionally probe the target root before saving it."
+        ),
+    )
+    write_next_required_edit_spec_parser.add_argument("directory")
+    write_next_required_edit_spec_parser.add_argument(
+        "--filename",
+        default="biber-next-required-edit.json",
+    )
+    write_next_required_edit_spec_parser.add_argument("--required-path", required=True)
+    write_next_required_edit_spec_parser.add_argument("--old-text")
+    write_next_required_edit_spec_parser.add_argument("--old-text-file")
+    write_next_required_edit_spec_parser.add_argument("--new-text")
+    write_next_required_edit_spec_parser.add_argument("--new-text-file")
+    write_next_required_edit_spec_parser.add_argument(
+        "--changed-path",
+        action="append",
+        dest="changed_paths",
+    )
+    write_next_required_edit_spec_parser.add_argument(
+        "--pinned-path",
+        action="append",
+        dest="pinned_paths",
+    )
+    write_next_required_edit_spec_parser.add_argument(
+        "--max-context-files",
+        type=int,
+        default=1,
+    )
+    write_next_required_edit_spec_parser.add_argument("--context-instruction")
+    write_next_required_edit_spec_parser.add_argument("--plan-instruction")
+    write_next_required_edit_spec_parser.add_argument("--target-root")
+    write_next_required_edit_spec_parser.add_argument("--replace", action="store_true")
+    write_next_required_edit_spec_parser.add_argument("--output")
+
     show_live_mvp_ready_command = subparsers.add_parser(
         "show-live-mvp-ready-command",
         help=(
@@ -22487,6 +22708,31 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_next_required_edit_spec_archive(result)
+        )
+    if args.command == "write-next-required-edit-spec":
+        result = write_next_required_edit_spec(
+            directory=args.directory,
+            required_path=args.required_path,
+            old_text=args.old_text,
+            old_text_file=args.old_text_file,
+            new_text=args.new_text,
+            new_text_file=args.new_text_file,
+            changed_paths=args.changed_paths,
+            pinned_paths=args.pinned_paths,
+            max_context_files=args.max_context_files,
+            context_instruction=args.context_instruction,
+            plan_instruction=args.plan_instruction,
+            filename=args.filename,
+            target_root=args.target_root,
+            replace=args.replace,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_next_required_edit_spec_write(result)
         )
     if args.command == "show-live-mvp-ready-command":
         artifact = load_json_artifact(

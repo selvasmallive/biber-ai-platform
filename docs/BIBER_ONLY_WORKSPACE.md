@@ -186,8 +186,22 @@ separate evidence.
 For the next real task, pass `--required-path` plus either
 `--required-old-text`/`--required-new-text` or the `*-file` variants. The
 summary records `required_edit`, and the flow still stops before apply.
-For less fragile shell quoting, prepare a JSON spec and pass it with
-`--required-edit-spec` instead:
+For less fragile shell quoting, write a guarded JSON spec first and pass it with
+`--required-edit-spec`:
+
+```bash
+python scripts/biber_agent_client.py --json write-next-required-edit-spec \
+  /workspace/outputs \
+  --target-root /workspace/biber-ai-platform \
+  --required-path docs/BIBER_ONLY_WORKSPACE.md \
+  --old-text-file /workspace/outputs/biber-old.txt \
+  --new-text-file /workspace/outputs/biber-new.txt \
+  --output /workspace/outputs/biber-next-required-edit-write-latest.json
+```
+
+The helper refuses unsafe paths, refuses to overwrite an existing active spec
+unless `--replace` is passed, and probes `--target-root` before writing when a
+target root is provided. The manual JSON shape is:
 
 ```json
 {

@@ -53,6 +53,19 @@ labels `run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`,
 and `refresh_resume_status`. Next useful development step is to create one fresh
 narrow exact-edit spec for the next BIBER MVP capability improvement, then run
 the guarded plan-only/apply/verify/save chain.
+2026-08-13 latest BIBER required-edit spec writer checkpoint:
+`scripts/biber_agent_client.py` now has `write-next-required-edit-spec`, a
+CPU-local helper that writes `/workspace/outputs/biber-next-required-edit.json`
+from exact old/new text or text files. It validates workspace-relative paths,
+refuses to overwrite an existing active spec unless `--replace` is passed, and
+probes the target root before writing when `--target-root` is provided. It
+reports `mutates_repo=False`, `github_request_sent=False`, `mentor_used=False`,
+and `training_allowed=False`. `docs/BIBER_ONLY_WORKSPACE.md` now recommends this
+helper before manual JSON creation. Local validation passed bundled Python
+`py_compile`, `git diff --check`, a direct no-pytest write/overwrite-guard
+harness, and `scripts/biber_local_confidence_smoke.py`. Next narrow step:
+commit/push this checkpoint, fast-forward Vast, run Vast `py_compile`, and use
+the helper only when a specific fresh small BIBER exact edit is selected.
 
 2026-08-12 latest BIBER completed required-edit spec guard checkpoint:
 `live-mvp-resume-status` now passes `target_root` into

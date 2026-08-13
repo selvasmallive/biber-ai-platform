@@ -3175,6 +3175,107 @@ def test_archive_next_required_edit_spec_moves_completed_spec(tmp_path: Path) ->
     )
 
 
+def test_write_next_required_edit_spec_validates_target_and_writes(
+    tmp_path: Path,
+) -> None:
+    target_root = tmp_path / "target-repo"
+    target_root.mkdir()
+    target_file = target_root / "docs" / "BIBER_ONLY_WORKSPACE.md"
+    target_file.parent.mkdir()
+    old_text = "before exact line\n"
+    new_text = "after exact line\n"
+    target_file.write_text(old_text, encoding="utf-8")
+    old_text_file = tmp_path / "old.txt"
+    new_text_file = tmp_path / "new.txt"
+    old_text_file.write_text(old_text, encoding="utf-8")
+    new_text_file.write_text(new_text, encoding="utf-8")
+    output_path = tmp_path / "write-result.json"
+
+    result = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "write-next-required-edit-spec",
+                    str(tmp_path),
+                    "--target-root",
+                    str(target_root),
+                    "--required-path",
+                    "docs/BIBER_ONLY_WORKSPACE.md",
+                    "--old-text-file",
+                    str(old_text_file),
+                    "--new-text-file",
+                    str(new_text_file),
+                    "--pinned-path",
+                    "docs/BIBER_ONLY_WORKSPACE.md",
+                    "--output",
+                    str(output_path),
+                ]
+            )
+        )
+    )
+
+    spec_path = tmp_path / "biber-next-required-edit.json"
+    spec_payload = json.loads(spec_path.read_text(encoding="utf-8"))
+    assert result["ok"] is True
+    assert result["written"] is True
+    assert result["reason"] == "written"
+    assert result["target_probe"]["ok"] is True
+    assert result["mutates_repo"] is False
+    assert result["github_request_sent"] is False
+    assert result["mentor_used"] is False
+    assert result["training_allowed"] is False
+    assert spec_payload["path"] == "docs/BIBER_ONLY_WORKSPACE.md"
+    assert spec_payload["old_text"] == old_text
+    assert spec_payload["new_text"] == new_text
+    assert spec_payload["changed_paths"] == ["docs/BIBER_ONLY_WORKSPACE.md"]
+    assert spec_payload["pinned_paths"] == ["docs/BIBER_ONLY_WORKSPACE.md"]
+    assert json.loads(output_path.read_text(encoding="utf-8"))["spec_path"] == str(
+        spec_path
+    )
+
+
+def test_write_next_required_edit_spec_refuses_existing_without_replace(
+    tmp_path: Path,
+) -> None:
+    spec_path = tmp_path / "biber-next-required-edit.json"
+    spec_path.write_text(
+        json.dumps(
+            {
+                "path": "README.md",
+                "old_text": "old\n",
+                "new_text": "new\n",
+                "changed_paths": ["README.md"],
+                "max_context_files": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "write-next-required-edit-spec",
+                    str(tmp_path),
+                    "--required-path",
+                    "docs/BIBER_ONLY_WORKSPACE.md",
+                    "--old-text",
+                    "before\n",
+                    "--new-text",
+                    "after\n",
+                ]
+            )
+        )
+    )
+
+    assert result["ok"] is False
+    assert result["written"] is False
+    assert result["reason"] == "existing_required_edit_spec_present"
+    assert json.loads(spec_path.read_text(encoding="utf-8"))["path"] == "README.md"
+
+
 def test_format_mvp_loop_summary_lists_steps_and_results() -> None:
     output = client.format_mvp_loop_summary(
         {
