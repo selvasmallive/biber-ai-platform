@@ -953,6 +953,51 @@ def test_format_capabilities_summary_includes_presets_and_tests() -> None:
     assert "admin_key_management_api: -" in output
 
 
+def test_run_capabilities_can_write_artifact_with_user_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    output_path = tmp_path / "capabilities.json"
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        captured["api_cli"] = cli_api_key
+        return "user-key"
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        raise AssertionError("admin API key should not be resolved")
+
+    def fake_fetch_capabilities(**kwargs):
+        captured["capabilities"] = kwargs
+        return sample_capabilities()
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+    monkeypatch.setattr(client, "fetch_capabilities", fake_fetch_capabilities)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--base-url",
+                "http://biber.local",
+                "--api-key",
+                "cli-user-key",
+                "capabilities",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+
+    artifact = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "BIBER agent capabilities" in output
+    assert captured["api_cli"] == "cli-user-key"
+    assert captured["capabilities"]["api_key"] == "user-key"
+    assert captured["capabilities"]["base_url"] == "http://biber.local"
+    assert artifact["artifact_path"] == str(output_path)
+    assert artifact["service"] == "biber-api"
+
+
 def test_models_helper_calls_models_endpoint(monkeypatch) -> None:
     captured: dict[str, object] = {}
 

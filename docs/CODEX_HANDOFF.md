@@ -4,6 +4,19 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER capabilities artifact checkpoint:
+In progress: the next narrow BIBER MVP improvement adds `--output` to the
+stdlib `capabilities` command in `scripts/biber_agent_client.py`, so
+`/v1/agent/capabilities` can be saved as a non-secret setup/proof artifact
+without shell redirection. The command uses normal user API-key resolution, not
+admin key resolution. Docs were updated in `docs/BIBER_EXTERNAL_AGENT_API.md`,
+`docs/API_EXAMPLES.md`, and `docs/BIBER_ONLY_WORKSPACE.md`. Local validation
+passed bundled Python bytecode-redirected `py_compile`, `git diff --check`, a
+direct no-pytest capabilities artifact harness, and
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. GitHub
+push and Vast validation are pending. No GPU inference, OpenAI mentor, external
+paid API, credential rotation, training, or XRIQ/XRIS work was used.
+
 2026-08-13 latest BIBER external-agent client URL checkpoint:
 Complete: BIBER MVP `external-agent-connection` now supports
 `--client-base-url`. The command still probes

@@ -85,6 +85,8 @@ export BIBER_API_KEY="dev-api-key-change-me"
 python scripts/biber_agent_client.py external-agent-connection \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-connection.json
+python scripts/biber_agent_client.py capabilities \
+  --output /workspace/outputs/biber-capabilities.json
 python scripts/biber_agent_client.py runtime
 python scripts/biber_agent_client.py models
 python scripts/biber_agent_client.py chat-completions \

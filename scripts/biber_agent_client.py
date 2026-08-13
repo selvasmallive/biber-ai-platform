@@ -21040,7 +21040,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     add_common_args(parser)
     subparsers = parser.add_subparsers(dest="command")
 
-    subparsers.add_parser("capabilities", help="Discover BIBER agent capabilities.")
+    capabilities = subparsers.add_parser(
+        "capabilities",
+        help="Discover BIBER agent capabilities.",
+    )
+    capabilities.add_argument("--output", help="Optional JSON artifact path.")
 
     models = subparsers.add_parser(
         "models",
@@ -25824,6 +25828,9 @@ def run(args: argparse.Namespace) -> str:
             api_key=api_key,
             timeout_seconds=args.timeout_seconds,
         )
+        if args.output:
+            capabilities["artifact_path"] = str(Path(args.output))
+            write_json_artifact(capabilities, args.output)
         return (
             json.dumps(capabilities, indent=2, sort_keys=True)
             if args.print_json

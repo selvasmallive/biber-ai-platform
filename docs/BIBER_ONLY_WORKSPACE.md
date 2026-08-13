@@ -84,6 +84,8 @@ client before configuring an external agent or gateway. Both `models` and
 Use `runtime --output <artifact.json>` to save a non-secret health/provider
 configuration proof from `/v1/runtime` before handing a base URL to another
 agent or gateway.
+Use `capabilities --output <artifact.json>` to save a non-secret feature and
+workflow contract from `/v1/agent/capabilities`.
 Use `external-agent-connection --output <artifact.json>` when configuring an
 IDE, gateway, or custom conversational agent: it bundles the OpenAI-compatible
 base URL, `/v1/models`, `/v1/chat/completions`, the selected stable model, and
