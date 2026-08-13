@@ -17,6 +17,22 @@ paths when Codex is running from Windows. Local validation passed bundled Python
 harness, and `scripts/biber_local_confidence_smoke.py`. Next narrow step:
 commit/push, fast-forward Vast, and confirm the refreshed Vast resume status
 includes both flags in the template command.
+2026-08-13 follow-up: commit `2f010cd` (`Expose BIBER spec path files in resume
+status`) was pushed to `biber/mvp-resume-20260712`; the current SSH-enabled Vast
+checkout was fast-forwarded to it. Vast `py_compile` passed for
+`scripts/biber_agent_client.py` and `tests/test_biber_agent_client.py`. A
+refreshed Vast `live-mvp-resume-status` run returned `status_ok=True`,
+`target_git_clean=True`, `next_action=start_next_narrow_biber_step`,
+`next_required_edit_spec.reason=not_found`, and ready labels
+`run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`, and
+`refresh_resume_status`. The generated `write_next_required_edit_spec_template`
+includes both `--changed-paths-file` and `--pinned-paths-file`, points to
+`/workspace/outputs/biber-changed-paths.txt` and
+`/workspace/outputs/biber-pinned-paths.txt`, and preserves POSIX `/workspace`
+paths when generated from Windows. Vast repo remained clean at `2f010cd`. Next
+useful narrow step: select the next real BIBER MVP edit, write the exact old/new
+text files plus changed/pinned path-list files, create the guarded spec, and run
+the live plan-only path on the GPU.
 
 2026-08-13 latest BIBER required-edit spec writer path-file checkpoint:
 `write-next-required-edit-spec` now accepts `--changed-paths-file` and
