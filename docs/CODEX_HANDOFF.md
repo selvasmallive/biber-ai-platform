@@ -5,8 +5,8 @@ Last updated: 2026-08-13
 ## Current Goal
 
 2026-08-13 latest BIBER external-agent client URL checkpoint:
-In progress: the next narrow BIBER MVP improvement extends
-`external-agent-connection` with `--client-base-url`. The command still probes
+Complete: BIBER MVP `external-agent-connection` now supports
+`--client-base-url`. The command still probes
 BIBER through `--base-url`, but the saved non-secret profile can advertise a
 different client-facing URL for an SSH tunnel, reverse proxy, or future HTTPS
 domain. The profile now records `probe_base_url` separately, normalizes a
@@ -16,7 +16,18 @@ were updated in `docs/BIBER_EXTERNAL_AGENT_API.md`, `docs/API_EXAMPLES.md`, and
 `docs/BIBER_ONLY_WORKSPACE.md`. Local validation passed bundled Python
 bytecode-redirected `py_compile`, `git diff --check`, a direct no-pytest
 `--client-base-url` harness, and `scripts/biber_local_confidence_smoke.py` with
-`ok=True` and 11 checks. GitHub push and Vast validation are pending. No GPU
+`ok=True` and 11 checks. Commit `d6cd231` (`Add BIBER external agent client URL
+override`) was pushed to `biber/mvp-resume-20260712`. The SSH-enabled Vast
+checkout fast-forwarded to `d6cd231`. Vast validation passed `py_compile` for
+`scripts/biber_agent_client.py` and `tests/test_biber_agent_client.py`, then
+live `external-agent-connection --client-base-url https://biber.example.com/v1
+--output` against `http://127.0.0.1:8000` using the existing `.env` user key
+without printing it. Live artifact:
+`/workspace/outputs/biber-external-agent-client-url-live-latest.json`. It
+reports `ok=true`, `probe_base_url=http://127.0.0.1:8000`,
+`biber_api_base_url=https://biber.example.com`,
+`openai_base_url=https://biber.example.com/v1`,
+`default_model=biber-dev-core-v1`, and `api_key_included=false`. No GPU
 inference, OpenAI mentor, external paid API, credential rotation, training, or
 XRIQ/XRIS work was used.
 
