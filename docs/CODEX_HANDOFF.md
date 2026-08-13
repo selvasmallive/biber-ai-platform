@@ -22,6 +22,22 @@ checkpoint, fast-forward the current SSH-enabled Vast checkout, refresh the live
 MVP resume status, run the safe `archive_completed_required_edit_spec` ready
 command if the stale `/workspace/outputs/biber-next-required-edit.json` is still
 present, then refresh status again.
+2026-08-13 follow-up: commit `9cc4a8e` (`Archive completed BIBER required edit
+specs`) was pushed to `biber/mvp-resume-20260712`; the current SSH-enabled Vast
+checkout was fast-forwarded to it. Vast `py_compile` passed for
+`scripts/biber_agent_client.py` and `tests/test_biber_agent_client.py`.
+Refreshing live MVP resume status exposed the safe ready command
+`archive_completed_required_edit_spec`, which was run successfully through
+`run-live-mvp-ready-command` without GPU/model/live-provider permissions. It
+archived the stale canonical spec to
+`/workspace/outputs/archived-required-edits/biber-next-required-edit-20260813T032121768753Z.json`.
+The second refresh reports `next_action=start_next_narrow_biber_step`,
+`target_git_clean=True`, `next_required_edit_spec.reason=not_found`, and ready
+labels `run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`,
+and `refresh_resume_status`. Next narrow step: create a fresh
+`/workspace/outputs/biber-next-required-edit.json` only when there is a specific
+small BIBER edit to plan, or run the live provider confidence gate if refreshing
+model confidence is the immediate goal.
 
 2026-08-12 latest BIBER completed required-edit spec guard checkpoint:
 `live-mvp-resume-status` now passes `target_root` into
