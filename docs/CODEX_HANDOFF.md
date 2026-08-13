@@ -24,6 +24,22 @@ The user explicitly approved the produced plan hash before apply. The guarded
 `verification_status=passed` and `test_ok=True`. Next narrow step: save this
 verified change to GitHub, then restore/fast-forward the Vast checkout so it is
 clean at the pushed commit.
+2026-08-13 follow-up: commit `e2b098f` (`Apply BIBER live plan doc output
+example`) was pushed to `biber/mvp-resume-20260712`. The current SSH-enabled
+Vast checkout restored the transient working-tree copy of
+`docs/BIBER_ONLY_WORKSPACE.md` and fast-forwarded to `e2b098f`, preserving the
+same verified change from GitHub. The completed active spec was archived to
+`/workspace/outputs/archived-required-edits/biber-next-required-edit-20260813T161055764871Z.json`.
+The no-request verified GitHub dry-run bridge then passed in artifact mode for
+`docs/BIBER_ONLY_WORKSPACE.md` with `chain_status=verified`,
+`verification_status=passed`, `test_ok=True`, `github_request_sent=False`, and
+plan hash `b7c4ba360a099adcd487fd3cc7246baefdfc96faa907dd0d4ff7cf0f757e59f0`.
+Refreshed Vast `live-mvp-resume-status` returned
+`apply_decision_status=already_verified_current_file_hashes_match`,
+`verified_apply_history_matches_plan=True`, `verified_apply_file_hashes_match=True`,
+`next_required_edit_spec.reason=not_found`, `target_git_clean=True`, and
+`next_action=start_next_narrow_biber_step`. Next useful narrow step: start a
+fresh exact-edit spec for the next BIBER MVP capability/doc improvement.
 
 2026-08-13 latest BIBER plan template output checkpoint:
 `live-mvp-resume-status` now emits `prepare_next_plan_only_required_edit` with
