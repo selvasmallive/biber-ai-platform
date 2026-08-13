@@ -4,6 +4,18 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER plan template output checkpoint:
+`live-mvp-resume-status` now emits `prepare_next_plan_only_required_edit` with
+`--output /workspace/outputs/biber-real-repo-plan-latest.json`, so manual
+old/new-text live plan-only runs save to the same predictable latest artifact
+path as the required-edit-spec plan command. This is CPU-local command-template
+work only; it does not apply edits, call GitHub, use OpenAI mentor, or permit
+training. Local validation passed bundled Python `py_compile`,
+`git diff --check`, a direct no-pytest plan-template output harness, and
+`scripts/biber_local_confidence_smoke.py`. Next narrow step: commit/push,
+fast-forward Vast, and confirm refreshed Vast resume status shows the output
+path in the template.
+
 2026-08-13 latest BIBER live plan path-file checkpoint:
 `scripts/biber_live_provider_real_repo_plan_smoke.py` now accepts
 `--changed-paths-file` and `--pinned-paths-file` directly. The script applies

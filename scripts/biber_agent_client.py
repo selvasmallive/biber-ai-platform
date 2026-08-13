@@ -16277,6 +16277,8 @@ def build_live_mvp_resume_next_commands(
                         artifact_cli_path("biber-changed-paths.txt"),
                         "--pinned-paths-file",
                         artifact_cli_path("biber-pinned-paths.txt"),
+                        "--output",
+                        artifact_cli_path("biber-real-repo-plan-latest.json"),
                     ],
                 ),
                 refresh_resume,

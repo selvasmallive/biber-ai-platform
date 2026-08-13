@@ -2529,6 +2529,12 @@ def test_run_live_mvp_resume_status_detects_verified_clean_saved_plan(
     assert "/workspace/outputs/biber-pinned-paths.txt" in next_commands[
         "prepare_next_plan_only_required_edit"
     ]["command_parts"]
+    assert "--output" in next_commands[
+        "prepare_next_plan_only_required_edit"
+    ]["command_parts"]
+    assert "/workspace/outputs/biber-real-repo-plan-latest.json" in next_commands[
+        "prepare_next_plan_only_required_edit"
+    ]["command_parts"]
     assert next_commands["write_next_required_edit_spec_template"][
         "ready_to_run"
     ] is False
