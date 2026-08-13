@@ -949,6 +949,186 @@ def test_format_capabilities_summary_includes_presets_and_tests() -> None:
     assert "runtime_profiles_enabled: False" in output
     assert "api-error-response" in output
     assert "rust-xriq-codegen" in output
+    assert "external_agent_api: False" in output
+    assert "admin_key_management_api: -" in output
+
+
+def test_resolve_admin_api_key_reads_env(monkeypatch) -> None:
+    monkeypatch.delenv("BIBER_ADMIN_API_KEY", raising=False)
+    monkeypatch.delenv("BIBER_TEST_ADMIN_API_KEY", raising=False)
+
+    try:
+        client.resolve_admin_api_key()
+    except client.BiberAgentClientError as exc:
+        assert "BIBER_ADMIN_API_KEY" in str(exc)
+    else:
+        raise AssertionError("expected missing admin key to fail")
+
+    monkeypatch.setenv("BIBER_TEST_ADMIN_API_KEY", "test-admin")
+    assert client.resolve_admin_api_key() == "test-admin"
+    assert client.resolve_admin_api_key("cli-admin") == "cli-admin"
+
+
+def test_api_key_management_helpers_call_admin_endpoints(monkeypatch) -> None:
+    captured: list[dict[str, object]] = []
+
+    def fake_request_json(**kwargs):
+        captured.append(kwargs)
+        return {"keys": []}
+
+    monkeypatch.setattr(client, "request_json", fake_request_json)
+
+    listed = client.list_api_keys(
+        base_url="http://biber.local",
+        admin_api_key="admin-key",
+        timeout_seconds=5,
+    )
+    issued = client.issue_api_key(
+        base_url="http://biber.local",
+        admin_api_key="admin-key",
+        user_id="user-1",
+        label="IDE agent",
+        timeout_seconds=6,
+    )
+    revoked = client.revoke_api_key(
+        base_url="http://biber.local",
+        admin_api_key="admin-key",
+        key_id="key id/1",
+        timeout_seconds=7,
+    )
+
+    assert listed == {"keys": []}
+    assert issued == {"keys": []}
+    assert revoked == {"keys": []}
+    assert captured[0]["path"] == "/v1/admin/api-keys"
+    assert captured[0]["api_key"] == "admin-key"
+    assert captured[1]["method"] == "POST"
+    assert captured[1]["payload"] == {"user_id": "user-1", "label": "IDE agent"}
+    assert captured[2]["method"] == "DELETE"
+    assert captured[2]["path"] == "/v1/admin/api-keys/key%20id%2F1"
+
+
+def test_format_api_key_summaries_avoid_plaintext_except_issue() -> None:
+    listed = client.format_api_key_list_summary(
+        {
+            "keys": [
+                {
+                    "key_id": "abc123",
+                    "user_id": "user-1",
+                    "label": "IDE agent",
+                    "active": True,
+                }
+            ]
+        }
+    )
+    issued = client.format_api_key_issue_summary(
+        {
+            "api_key": "biber_plaintext_once",
+            "record": {
+                "key_id": "abc123",
+                "user_id": "user-1",
+                "label": "IDE agent",
+                "active": True,
+            },
+        }
+    )
+    revoked = client.format_api_key_revoke_summary(
+        {
+            "record": {
+                "key_id": "abc123",
+                "user_id": "user-1",
+                "active": False,
+                "revoked_at": "2026-08-13T00:00:00+00:00",
+            }
+        }
+    )
+
+    assert "BIBER API keys (1)" in listed
+    assert "abc123 user=user-1 label=IDE agent active=True" in listed
+    assert "biber_plaintext_once" not in listed
+    assert "api_key: biber_plaintext_once" in issued
+    assert "returned only once" in issued
+    assert "BIBER API key revoked" in revoked
+    assert "active: False" in revoked
+
+
+def test_run_api_key_management_commands_use_admin_key(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    admin_cli_values: list[str | None] = []
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("normal API key should not be resolved")
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        admin_cli_values.append(cli_admin_api_key)
+        return "admin-key"
+
+    def fake_list_api_keys(**kwargs):
+        captured["list"] = kwargs
+        return {"keys": []}
+
+    def fake_issue_api_key(**kwargs):
+        captured["issue"] = kwargs
+        return {
+            "api_key": "biber_once",
+            "record": {"key_id": "key-1", "user_id": "user-1", "active": True},
+        }
+
+    def fake_revoke_api_key(**kwargs):
+        captured["revoke"] = kwargs
+        return {
+            "record": {"key_id": "key-1", "user_id": "user-1", "active": False}
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+    monkeypatch.setattr(client, "list_api_keys", fake_list_api_keys)
+    monkeypatch.setattr(client, "issue_api_key", fake_issue_api_key)
+    monkeypatch.setattr(client, "revoke_api_key", fake_revoke_api_key)
+
+    list_output = client.run(
+        client.parse_args(
+            [
+                "--base-url",
+                "http://biber.local",
+                "--admin-api-key",
+                "cli-admin",
+                "list-api-keys",
+            ]
+        )
+    )
+    issue_output = client.run(
+        client.parse_args(
+            [
+                "--base-url",
+                "http://biber.local",
+                "issue-api-key",
+                "--user-id",
+                "user-1",
+                "--label",
+                "IDE agent",
+            ]
+        )
+    )
+    revoke_output = client.run(
+        client.parse_args(
+            [
+                "--base-url",
+                "http://biber.local",
+                "revoke-api-key",
+                "key-1",
+            ]
+        )
+    )
+
+    assert "BIBER API keys (0)" in list_output
+    assert "api_key: biber_once" in issue_output
+    assert "BIBER API key revoked" in revoke_output
+    assert admin_cli_values == ["cli-admin", None, None]
+    assert captured["list"]["base_url"] == "http://biber.local"
+    assert captured["issue"]["user_id"] == "user-1"
+    assert captured["issue"]["label"] == "IDE agent"
+    assert captured["revoke"]["key_id"] == "key-1"
 
 
 def test_build_chat_payload_includes_runtime_profiles() -> None:

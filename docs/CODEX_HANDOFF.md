@@ -4,6 +4,19 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER admin client checkpoint:
+In progress: the next narrow BIBER MVP step adds admin API-key management
+commands to `scripts/biber_agent_client.py` so external agent users can be
+listed, issued, and revoked without hand-written curl payloads. Planned commands
+are `list-api-keys`, `issue-api-key --user-id <id> --label <label>`, and
+`revoke-api-key <key_id>`, protected by `BIBER_ADMIN_API_KEY` or
+`--admin-api-key`. The command summaries must never print plaintext keys except
+for the one-time issue response, and list/revoke summaries must keep hashes and
+plaintext hidden. Local validation and GitHub push are pending. This is
+CPU-local client/docs/test work only; no GPU inference, OpenAI mentor, external
+paid API, credential rotation, training, or XRIQ/XRIS work is approved for this
+step.
+
 2026-08-13 latest BIBER API key management checkpoint:
 In progress: BIBER MVP external-agent API now has the backend foundation for
 admin-issued user API keys. The narrow implementation adds hashed file-backed

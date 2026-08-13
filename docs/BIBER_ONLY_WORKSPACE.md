@@ -69,6 +69,11 @@ JSON artifacts, then use `show-github-dry-run <artifact>` or
 `list-github-dry-runs <directory>` to inspect them later. Use
 `mvp-loop --github-dry-run` when you want the same payload inspection inside a
 local MVP-loop artifact without resolving API credentials.
+For external agent API users, admin API-key management is available through the
+client after the server sets `BIBER_ADMIN_API_KEY`: `list-api-keys`,
+`issue-api-key --user-id <id> --label <label>`, and
+`revoke-api-key <key_id>`. These commands use the admin key only; normal
+agent/chat commands continue to use `BIBER_API_KEY` or another user key.
 Use `--include-git-state` for repo work so the artifact records the local
 branch, short HEAD, dirty status, and `git status --short` before edits/tests.
 Repo-context and safe-edit paths must stay workspace-relative; Windows

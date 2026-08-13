@@ -22,6 +22,7 @@ DEFAULT_BASE_URL = "http://127.0.0.1:8000"
 DEFAULT_LOCAL_OPENAI_BASE_URL = "http://127.0.0.1:8001/v1"
 DEFAULT_LOCAL_OPENAI_MODEL = "biber-dev-core"
 API_KEY_ENV_NAMES = ("BIBER_API_KEY", "BIBER_TEST_API_KEY", "BIBER_DEMO_API_KEY")
+ADMIN_API_KEY_ENV_NAMES = ("BIBER_ADMIN_API_KEY", "BIBER_TEST_ADMIN_API_KEY")
 DEFAULT_REQUIRED_EDIT_TARGET_MAX_BYTES = int(
     os.getenv("BIBER_WORKSPACE_EDIT_MAX_FILE_BYTES", "200000")
 )
@@ -102,6 +103,18 @@ def resolve_api_key(cli_api_key: str | None = None) -> str:
     )
 
 
+def resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+    if cli_admin_api_key:
+        return cli_admin_api_key
+    for env_name in ADMIN_API_KEY_ENV_NAMES:
+        admin_api_key = os.environ.get(env_name)
+        if admin_api_key:
+            return admin_api_key
+    raise BiberAgentClientError(
+        "Admin API key required. Set BIBER_ADMIN_API_KEY or pass --admin-api-key."
+    )
+
+
 def request_json(
     *,
     base_url: str,
@@ -161,6 +174,55 @@ def fetch_capabilities(
         base_url=base_url,
         api_key=api_key,
         path="/v1/agent/capabilities",
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def list_api_keys(
+    *,
+    base_url: str,
+    admin_api_key: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=admin_api_key,
+        path="/v1/admin/api-keys",
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def issue_api_key(
+    *,
+    base_url: str,
+    admin_api_key: str,
+    user_id: str,
+    label: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    return request_json(
+        base_url=base_url,
+        api_key=admin_api_key,
+        path="/v1/admin/api-keys",
+        method="POST",
+        payload={"user_id": user_id, "label": label},
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def revoke_api_key(
+    *,
+    base_url: str,
+    admin_api_key: str,
+    key_id: str,
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    quoted_key_id = urllib.parse.quote(key_id, safe="")
+    return request_json(
+        base_url=base_url,
+        api_key=admin_api_key,
+        path=f"/v1/admin/api-keys/{quoted_key_id}",
+        method="DELETE",
         timeout_seconds=timeout_seconds,
     )
 
@@ -764,6 +826,8 @@ def format_capabilities_summary(payload: Mapping[str, Any]) -> str:
         for profile in require_list(runtime_profiles.get("available_profiles"))
         if isinstance(profile, dict) and profile.get("id")
     ]
+    external_agent_api = require_mapping(features.get("external_agent_api"))
+    external_auth = require_mapping(external_agent_api.get("authentication"))
     lines = [
         "BIBER agent capabilities",
         f"service: {payload.get('service', '-')}",
@@ -775,8 +839,57 @@ def format_capabilities_summary(payload: Mapping[str, Any]) -> str:
         f"mentor_configured: {bool(mentor.get('configured'))}",
         f"runtime_profiles_enabled: {bool(runtime_profiles.get('enabled'))}",
         f"runtime_profiles: {', '.join(runtime_profile_ids) if runtime_profile_ids else '-'}",
+        f"external_agent_api: {bool(external_agent_api.get('enabled'))}",
+        f"admin_key_management_api: {external_auth.get('admin_key_management_api', '-')}",
     ]
     return "\n".join(lines)
+
+
+def format_api_key_record(record: Mapping[str, Any]) -> str:
+    return (
+        f"{record.get('key_id', '-')} "
+        f"user={record.get('user_id', '-')} "
+        f"label={record.get('label') or '-'} "
+        f"active={bool(record.get('active'))}"
+    )
+
+
+def format_api_key_list_summary(payload: Mapping[str, Any]) -> str:
+    keys = [
+        item
+        for item in require_list(payload.get("keys"))
+        if isinstance(item, dict)
+    ]
+    lines = [f"BIBER API keys ({len(keys)})"]
+    lines.extend(format_api_key_record(record) for record in keys)
+    return "\n".join(lines)
+
+
+def format_api_key_issue_summary(payload: Mapping[str, Any]) -> str:
+    record = require_mapping(payload.get("record"))
+    return "\n".join(
+        [
+            "BIBER API key issued",
+            f"key_id: {record.get('key_id', '-')}",
+            f"user_id: {record.get('user_id', '-')}",
+            f"label: {record.get('label') or '-'}",
+            "api_key: " + str(payload.get("api_key") or ""),
+            "note: store this API key now; it is returned only once.",
+        ]
+    )
+
+
+def format_api_key_revoke_summary(payload: Mapping[str, Any]) -> str:
+    record = require_mapping(payload.get("record"))
+    return "\n".join(
+        [
+            "BIBER API key revoked",
+            f"key_id: {record.get('key_id', '-')}",
+            f"user_id: {record.get('user_id', '-')}",
+            f"active: {bool(record.get('active'))}",
+            f"revoked_at: {record.get('revoked_at', '-')}",
+        ]
+    )
 
 
 def format_chat_summary(payload: Mapping[str, Any]) -> str:
@@ -20620,6 +20733,14 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="BIBER API key. Prefer BIBER_API_KEY so it is not visible in shell history.",
     )
+    parser.add_argument(
+        "--admin-api-key",
+        default=None,
+        help=(
+            "BIBER admin API key for key-management commands. Prefer "
+            "BIBER_ADMIN_API_KEY so it is not visible in shell history."
+        ),
+    )
     parser.add_argument("--timeout-seconds", type=float, default=180.0)
     parser.add_argument(
         "--json",
@@ -20637,6 +20758,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command")
 
     subparsers.add_parser("capabilities", help="Discover BIBER agent capabilities.")
+
+    subparsers.add_parser(
+        "list-api-keys",
+        help="List safe API-key metadata through the admin key-management API.",
+    )
+
+    issue_api_key_parser = subparsers.add_parser(
+        "issue-api-key",
+        help="Issue one user API key through the admin key-management API.",
+    )
+    issue_api_key_parser.add_argument("--user-id", required=True)
+    issue_api_key_parser.add_argument("--label", default="")
+
+    revoke_api_key_parser = subparsers.add_parser(
+        "revoke-api-key",
+        help="Revoke one issued API key by key id through the admin API.",
+    )
+    revoke_api_key_parser.add_argument("key_id")
 
     chat = subparsers.add_parser(
         "chat",
@@ -25037,6 +25176,45 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_github_pull_request_dry_run_summary(result)
+        )
+
+    if args.command in {"list-api-keys", "issue-api-key", "revoke-api-key"}:
+        admin_api_key = resolve_admin_api_key(args.admin_api_key)
+        base_url = args.base_url.rstrip("/")
+        if args.command == "list-api-keys":
+            result = list_api_keys(
+                base_url=base_url,
+                admin_api_key=admin_api_key,
+                timeout_seconds=args.timeout_seconds,
+            )
+            return (
+                json.dumps(result, indent=2, sort_keys=True)
+                if args.print_json
+                else format_api_key_list_summary(result)
+            )
+        if args.command == "issue-api-key":
+            result = issue_api_key(
+                base_url=base_url,
+                admin_api_key=admin_api_key,
+                user_id=args.user_id,
+                label=args.label,
+                timeout_seconds=args.timeout_seconds,
+            )
+            return (
+                json.dumps(result, indent=2, sort_keys=True)
+                if args.print_json
+                else format_api_key_issue_summary(result)
+            )
+        result = revoke_api_key(
+            base_url=base_url,
+            admin_api_key=admin_api_key,
+            key_id=args.key_id,
+            timeout_seconds=args.timeout_seconds,
+        )
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_api_key_revoke_summary(result)
         )
 
     mvp_loop_uses_only_local_steps = (

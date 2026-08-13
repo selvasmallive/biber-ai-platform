@@ -97,6 +97,18 @@ curl -X DELETE http://localhost:8000/v1/admin/api-keys/<key_id> \
   -H "Authorization: Bearer <admin-api-key>"
 ```
 
+The agent client exposes the same flow without copying curl payloads:
+
+```bash
+export BIBER_ADMIN_API_KEY="<admin-api-key>"
+python scripts/biber_agent_client.py list-api-keys
+python scripts/biber_agent_client.py issue-api-key --user-id user-1 --label "IDE agent"
+python scripts/biber_agent_client.py revoke-api-key <key_id>
+```
+
+Use `--json` with these commands when another tool or admin UI needs the raw
+response.
+
 ## Optional Runtime Profiles
 
 Runtime profiles are narrow prompt contracts for known model gaps. They are

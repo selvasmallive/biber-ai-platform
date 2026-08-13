@@ -106,6 +106,28 @@ curl -X POST http://localhost:8000/v1/admin/api-keys \
 The response includes `api_key` one time plus a safe `record`. List/revoke
 responses never include plaintext keys or key hashes.
 
+The stdlib BIBER agent client wraps the same admin endpoints. Prefer setting
+the admin key in the shell environment so it does not appear in command
+history:
+
+PowerShell:
+
+```powershell
+$env:BIBER_ADMIN_API_KEY = "<admin-api-key>"
+python scripts/biber_agent_client.py list-api-keys
+python scripts/biber_agent_client.py issue-api-key --user-id user-1 --label "IDE agent"
+python scripts/biber_agent_client.py revoke-api-key <key_id>
+```
+
+Bash:
+
+```bash
+export BIBER_ADMIN_API_KEY="<admin-api-key>"
+python scripts/biber_agent_client.py list-api-keys
+python scripts/biber_agent_client.py issue-api-key --user-id user-1 --label "IDE agent"
+python scripts/biber_agent_client.py revoke-api-key <key_id>
+```
+
 The planned production portal should add:
 
 - Admin login with secure password or SSO.
