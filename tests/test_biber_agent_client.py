@@ -9564,6 +9564,8 @@ def test_live_provider_real_repo_plan_smoke_has_code_profile() -> None:
     assert "--required-edit-spec" in text
     assert "--changed-paths-file" in text
     assert "--pinned-paths-file" in text
+    assert "--max-required-edit-target-bytes" in text
+    assert "required_edit_target_exceeds_local_apply_limit" in text
     assert "--required-edit-fallback" in text
     assert "--mock-safe-noop" in text
     assert "required_edit_fallback" in text
@@ -9701,6 +9703,84 @@ def test_real_repo_plan_smoke_accepts_path_files_after_spec_defaults(
         "README.md",
         "scripts/biber_agent_client.py",
     ]
+
+
+def test_real_repo_plan_required_edit_target_size_probe_blocks_large_file(
+    tmp_path: Path,
+) -> None:
+    target_file = tmp_path / "docs" / "CODEX_HANDOFF.md"
+    target_file.parent.mkdir()
+    target_file.write_text("x" * 201, encoding="utf-8")
+
+    probe = real_repo_smoke.required_edit_target_size_probe(
+        target_root=tmp_path,
+        required_path="docs/CODEX_HANDOFF.md",
+        max_bytes=200,
+    )
+
+    assert probe["ok"] is False
+    assert probe["reason"] == "required_edit_target_exceeds_local_apply_limit"
+    assert probe["path"] == "docs/CODEX_HANDOFF.md"
+    assert probe["size_bytes"] == 201
+    assert probe["max_bytes"] == 200
+
+
+def test_real_repo_plan_smoke_blocks_oversized_target_before_live_provider(
+    tmp_path: Path,
+) -> None:
+    target_root = tmp_path / "target-repo"
+    target_file = target_root / "docs" / "LARGE.md"
+    output_root = tmp_path / "outputs"
+    target_file.parent.mkdir(parents=True)
+    target_file.write_text("old line\n" + ("x" * 250), encoding="utf-8")
+    args = SimpleNamespace(
+        mode="live",
+        mock_safe_noop=False,
+        smoke_profile="docs-line",
+        base_url="http://127.0.0.1:1/v1",
+        model="biber-dev-core",
+        api_key_env="BIBER_LOCAL_OPENAI_API_KEY",
+        target_root=str(target_root),
+        output_root=str(output_root),
+        required_edit_spec=None,
+        changed_path=None,
+        changed_paths_file=None,
+        pinned_path=None,
+        pinned_paths_file=None,
+        test_id=real_repo_smoke.DEFAULT_TEST_ID,
+        context_instruction=None,
+        plan_instruction=None,
+        required_path="docs/LARGE.md",
+        required_old_text="old line\n",
+        required_old_text_file=None,
+        required_new_text="new line\n",
+        required_new_text_file=None,
+        max_context_files=None,
+        max_scan_files=2000,
+        max_required_edit_target_bytes=200,
+        model_command=None,
+        model_command_timeout_seconds=180.0,
+        command_timeout_seconds=180.0,
+        readiness_timeout_seconds=10.0,
+        required_edit_fallback=True,
+        require_ready=True,
+        cleanup=False,
+        output=None,
+    )
+
+    summary = real_repo_smoke.run_smoke(args)
+
+    assert summary["ok"] is False
+    assert summary["plan_outcome"] == "blocked_preflight_required_edit_target_too_large"
+    assert summary["blockers"] == ["required_edit_target_exceeds_local_apply_limit"]
+    assert summary["readiness_sent"] is False
+    assert summary["model_request_sent"] is False
+    assert summary["live_provider_request_sent"] is False
+    assert summary["mutation_performed"] is False
+    assert summary["github_request_sent"] is False
+    assert summary["repo_status_unchanged"] is True
+    assert summary["required_target_size_probe"]["size_bytes"] > 200
+    assert Path(summary["artifacts"]["summary"]).is_file()
 
 
 def test_local_verified_repair_github_dry_run_smoke_documents_handoff() -> None:

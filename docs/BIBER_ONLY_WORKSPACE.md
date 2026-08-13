@@ -160,6 +160,10 @@ result must report `target_is_disposable=false`, `mutation_performed=false`,
 unusable edit, inspect `plan_outcome`, `model_response_content_preview`,
 `extraction_status`, and rejection fields before retrying. Do not apply any
 real-repo plan without a separate explicit apply approval.
+The smoke preflights the required edit target size before readiness or model
+calls. By default it refuses files larger than `BIBER_WORKSPACE_EDIT_MAX_FILE_BYTES`
+or 200000 bytes, matching the workspace edit apply guard; split oversized
+targets or choose a smaller required path before using the live GPU provider.
 The default smoke edit uses a single exact docs line so the live 3B provider is
 not judged on preserving wrapped paragraph line breaks.
 That docs-line profile can choose between the accepted `BIBER-only` and

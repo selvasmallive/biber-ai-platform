@@ -29,6 +29,9 @@ DEFAULT_BASE_URL = "http://127.0.0.1:8001/v1"
 DEFAULT_MODEL = "biber-dev-core"
 DEFAULT_TIMEOUT_SECONDS = 180.0
 DEFAULT_MAX_CONTEXT_FILES = 4
+DEFAULT_REQUIRED_EDIT_TARGET_MAX_BYTES = int(
+    os.getenv("BIBER_WORKSPACE_EDIT_MAX_FILE_BYTES", "200000")
+)
 DEFAULT_CHANGED_PATH = "docs/BIBER_ONLY_WORKSPACE.md"
 DEFAULT_TEST_ID = "python-compileall-api"
 DOCS_LINE_BIBER_ONLY_TEXT = (
@@ -737,6 +740,50 @@ def required_old_text_probe(
     }
 
 
+def required_edit_target_size_probe(
+    *,
+    target_root: Path,
+    required_path: str,
+    max_bytes: int,
+) -> dict[str, Any]:
+    target_path = (target_root / required_path).resolve()
+    try:
+        relative = target_path.relative_to(target_root.resolve())
+    except ValueError:
+        return {
+            "ok": False,
+            "reason": "required_path_outside_target_root",
+            "path": required_path,
+            "max_bytes": max_bytes,
+        }
+    relative_path = str(relative).replace("\\", "/")
+    if max_bytes < 1:
+        return {
+            "ok": False,
+            "reason": "invalid_required_edit_target_max_bytes",
+            "path": relative_path,
+            "max_bytes": max_bytes,
+        }
+    if not target_path.is_file():
+        return {
+            "ok": False,
+            "reason": "required_path_not_file",
+            "path": relative_path,
+            "max_bytes": max_bytes,
+        }
+    size_bytes = target_path.stat().st_size
+    ok = size_bytes <= max_bytes
+    return {
+        "ok": ok,
+        "reason": "required_edit_target_size_ok"
+        if ok
+        else "required_edit_target_exceeds_local_apply_limit",
+        "path": relative_path,
+        "size_bytes": size_bytes,
+        "max_bytes": max_bytes,
+    }
+
+
 def required_edit_response_text(
     *,
     required_path: str,
@@ -768,6 +815,7 @@ def build_summary(
     required_old_text: str,
     required_new_text: str,
     required_target_probe: dict[str, Any],
+    required_target_size_probe: dict[str, Any],
     work_root: Path,
     artifact_dir: Path,
     target_root: Path,
@@ -844,6 +892,7 @@ def build_summary(
             "spec_path": args.required_edit_spec,
         },
         "required_target_probe": required_target_probe,
+        "required_target_size_probe": required_target_size_probe,
         "max_context_files": args.max_context_files,
         "max_scan_files": args.max_scan_files,
         "work_root": str(work_root),
@@ -932,6 +981,101 @@ def build_summary(
     return summary
 
 
+def build_preflight_blocked_summary(
+    *,
+    args: argparse.Namespace,
+    base_url: str,
+    model: str,
+    required_path: str,
+    required_old_text: str,
+    required_new_text: str,
+    required_target_size_probe: dict[str, Any],
+    work_root: Path,
+    artifact_dir: Path,
+    target_root: Path,
+    git_before: dict[str, Any],
+    git_after: dict[str, Any],
+) -> dict[str, Any]:
+    reason = str(required_target_size_probe.get("reason") or "preflight_blocked")
+    return {
+        "source": "biber_live_provider_real_repo_plan_smoke",
+        "ok": False,
+        "mode": args.mode,
+        "base_url": base_url,
+        "model": model,
+        "external_network_required": False,
+        "gpu_required": args.mode == "live",
+        "api_required": False,
+        "mentor_used": False,
+        "training_allowed": False,
+        "live_provider_required": args.mode == "live",
+        "live_provider_request_sent": False,
+        "readiness_sent": False,
+        "model_request_sent": False,
+        "target_is_disposable": False,
+        "mutation_performed": False,
+        "auto_applied": False,
+        "auto_saved": False,
+        "github_request_sent": False,
+        "apply_status": None,
+        "verification_status": None,
+        "smoke_profile": args.smoke_profile,
+        "required_edit": {
+            "path": required_path,
+            "old_text_chars": len(required_old_text),
+            "new_text_chars": len(required_new_text),
+            "old_text_preview": compact_preview(required_old_text),
+            "new_text_preview": compact_preview(required_new_text),
+            "spec_path": args.required_edit_spec,
+        },
+        "required_target_probe": None,
+        "required_target_size_probe": required_target_size_probe,
+        "max_context_files": args.max_context_files,
+        "max_scan_files": args.max_scan_files,
+        "work_root": str(work_root),
+        "artifact_dir": str(artifact_dir),
+        "target_root": str(target_root),
+        "readiness_ok": None,
+        "mvp_ok": None,
+        "request_kind": None,
+        "source_context_snippets_available": False,
+        "selected_context_paths": [],
+        "chain_status": "blocked_preflight",
+        "review_status": "blocked_before_model",
+        "apply_recommendation": "do_not_apply",
+        "blockers": [reason],
+        "planned": 0,
+        "rejected": 0,
+        "plan_hash": None,
+        "apply_allowed": None,
+        "required_edit_fallback_enabled": args.required_edit_fallback,
+        "required_edit_fallback": None,
+        "plan_outcome": "blocked_preflight_required_edit_target_too_large"
+        if reason == "required_edit_target_exceeds_local_apply_limit"
+        else "blocked_preflight_required_edit_target_unavailable",
+        "extraction_status": None,
+        "extracted_edits": 0,
+        "extraction_rejected": 0,
+        "extraction_rejection_reasons": [],
+        "plan_rejected": 0,
+        "plan_rejection_reasons": [],
+        "json_values_found": None,
+        "unified_diff_candidates_found": None,
+        "model_response_content_chars": 0,
+        "model_response_content_preview": "",
+        "next_action": "choose_smaller_required_path_or_split_large_file"
+        if reason == "required_edit_target_exceeds_local_apply_limit"
+        else "fix_required_edit_target_before_live_plan",
+        "repo_status_unchanged": git_before.get("status_short")
+        == git_after.get("status_short"),
+        "git_before": git_before,
+        "git_after": git_after,
+        "artifacts": {
+            "summary": str(artifact_dir / "real-repo-plan-smoke-summary.json"),
+        },
+    }
+
+
 def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     repo_root = Path(__file__).resolve().parents[1]
     target_root = Path(args.target_root).resolve() if args.target_root else repo_root
@@ -963,6 +1107,39 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         profile=profile,
         args=args,
     )
+    output_root = Path(args.output_root) if args.output_root else default_output_root()
+    work_root = output_root / f"biber-real-repo-plan-smoke-{timestamp()}"
+    artifact_dir = work_root / "artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=False)
+    required_target_size_probe = required_edit_target_size_probe(
+        target_root=target_root,
+        required_path=required_path,
+        max_bytes=args.max_required_edit_target_bytes,
+    )
+    if required_target_size_probe.get("ok") is not True:
+        git_before = git_status_short(target_root)
+        git_after = git_status_short(target_root)
+        summary = build_preflight_blocked_summary(
+            args=args,
+            base_url=base_url,
+            model=model,
+            required_path=required_path,
+            required_old_text=required_old_text,
+            required_new_text=required_new_text,
+            required_target_size_probe=required_target_size_probe,
+            work_root=work_root,
+            artifact_dir=artifact_dir,
+            target_root=target_root,
+            git_before=git_before,
+            git_after=git_after,
+        )
+        if required_edit_spec_path is not None:
+            summary["required_edit_spec"] = {
+                "path": str(required_edit_spec_path),
+                "keys": sorted(str(key) for key in required_edit_spec),
+            }
+        write_json(artifact_dir / "real-repo-plan-smoke-summary.json", summary)
+        return summary
     required_target_probe = required_old_text_probe(
         target_root=target_root,
         required_path=required_path,
@@ -974,10 +1151,6 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         required_new_text=required_new_text,
         preflight_probe=required_target_probe,
     )
-    output_root = Path(args.output_root) if args.output_root else default_output_root()
-    work_root = output_root / f"biber-real-repo-plan-smoke-{timestamp()}"
-    artifact_dir = work_root / "artifacts"
-    artifact_dir.mkdir(parents=True, exist_ok=False)
 
     readiness: dict[str, Any] | None = None
     model_command = args.model_command
@@ -1174,6 +1347,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         required_old_text=required_old_text,
         required_new_text=required_new_text,
         required_target_probe=required_target_probe,
+        required_target_size_probe=required_target_size_probe,
         work_root=work_root,
         artifact_dir=artifact_dir,
         target_root=target_root,
@@ -1290,6 +1464,15 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--max-scan-files", type=int, default=2000)
+    parser.add_argument(
+        "--max-required-edit-target-bytes",
+        type=int,
+        default=DEFAULT_REQUIRED_EDIT_TARGET_MAX_BYTES,
+        help=(
+            "Preflight guard for the required edit target file size. Defaults "
+            "to BIBER_WORKSPACE_EDIT_MAX_FILE_BYTES or 200000 bytes."
+        ),
+    )
     parser.add_argument(
         "--model-command",
         help=(

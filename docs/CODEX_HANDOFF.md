@@ -4,6 +4,21 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER preflight guard checkpoint:
+In progress: the next narrow BIBER MVP improvement is adding an oversized-target
+preflight to `scripts/biber_live_provider_real_repo_plan_smoke.py`. The guard
+checks the required exact-edit target against `BIBER_WORKSPACE_EDIT_MAX_FILE_BYTES`
+(default 200000 bytes) before readiness/model calls, so live plan-only runs do
+not spend GPU/model time on files the workspace edit apply guard will later
+reject. This is CPU-local source/docs/test work only; local validation passed
+bundled Python `py_compile`, `git diff --check`, a direct no-pytest oversized
+preflight harness, a CLI-level oversized preflight check, and
+`scripts/biber_local_confidence_smoke.py`. Push/Vast validation are pending.
+Expected blocked summaries report
+`plan_outcome=blocked_preflight_required_edit_target_too_large`,
+`readiness_sent=False`, `model_request_sent=False`,
+`mutation_performed=False`, and `github_request_sent=False`.
+
 2026-08-13 latest BIBER live exact-edit apply checkpoint:
 A live GPU plan-only run using `biber-dev-core` created plan hash
 `b7c4ba360a099adcd487fd3cc7246baefdfc96faa907dd0d4ff7cf0f757e59f0` for a
