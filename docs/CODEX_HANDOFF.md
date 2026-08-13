@@ -15,6 +15,19 @@ training. Local validation passed bundled Python `py_compile`,
 `scripts/biber_local_confidence_smoke.py`. Next narrow step: commit/push,
 fast-forward Vast, and confirm refreshed Vast resume status shows the output
 path in the template.
+2026-08-13 follow-up: commit `223e072` (`Save BIBER plan template output path`)
+was pushed to `biber/mvp-resume-20260712`; the current SSH-enabled Vast checkout
+was fast-forwarded to it. Vast `py_compile` passed for
+`scripts/biber_agent_client.py` and `tests/test_biber_agent_client.py`.
+Refreshed Vast `live-mvp-resume-status` returned `status_ok=True`,
+`target_git_clean=True`, `next_action=start_next_narrow_biber_step`, and ready
+labels `run_cpu_local_confidence_gate`, `rerun_live_provider_confidence_gate`,
+and `refresh_resume_status`. The generated `prepare_next_plan_only_required_edit`
+template now includes `--output /workspace/outputs/biber-real-repo-plan-latest.json`.
+Vast repo remained clean at `223e072`. Next useful narrow step: create a real
+small exact-edit spec with old/new text plus changed/pinned path files and run
+the live GPU plan-only command, stopping before apply unless a separate explicit
+plan-hash approval is given.
 
 2026-08-13 latest BIBER live plan path-file checkpoint:
 `scripts/biber_live_provider_real_repo_plan_smoke.py` now accepts
