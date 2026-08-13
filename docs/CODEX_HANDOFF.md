@@ -4,6 +4,27 @@ Last updated: 2026-08-13
 
 ## Current Goal
 
+2026-08-13 latest BIBER live exact-edit apply checkpoint:
+A live GPU plan-only run using `biber-dev-core` created plan hash
+`b7c4ba360a099adcd487fd3cc7246baefdfc96faa907dd0d4ff7cf0f757e59f0` for a
+small exact doc edit in `docs/BIBER_ONLY_WORKSPACE.md`: the plan-only command
+example now includes `--output /workspace/outputs/biber-real-repo-plan-latest.json`.
+The first attempted exact edit against `docs/CODEX_HANDOFF.md` produced hash
+`6818e5e996b96d43c7b9bab8dafe0c886f305b3ccde7bb35dce96772aade0487`, but the
+guard rejected it with `apply_recommendation=do_not_apply` because the handoff
+file exceeds the current 200 KB edit target limit; it was not applied. The
+second plan for `docs/BIBER_ONLY_WORKSPACE.md` returned
+`ready_for_explicit_apply_approval`, `planned=1`, `rejected=0`,
+`mutation_performed=False`, `repo_status_unchanged=True`,
+`github_request_sent=False`, `mentor_used=False`, and `training_allowed=False`.
+The user explicitly approved the produced plan hash before apply. The guarded
+`apply-repair-edits --approve` path applied hash
+`b7c4ba360a099adcd487fd3cc7246baefdfc96faa907dd0d4ff7cf0f757e59f0`, and
+`local-verify-chain --test-id python-compileall-api` passed with
+`verification_status=passed` and `test_ok=True`. Next narrow step: save this
+verified change to GitHub, then restore/fast-forward the Vast checkout so it is
+clean at the pushed commit.
+
 2026-08-13 latest BIBER plan template output checkpoint:
 `live-mvp-resume-status` now emits `prepare_next_plan_only_required_edit` with
 `--output /workspace/outputs/biber-real-repo-plan-latest.json`, so manual
