@@ -20,6 +20,24 @@ direct no-pytest path-file helper/template harness, a mock/no-apply
 `scripts/biber_local_confidence_smoke.py`. Next narrow step: commit/push,
 fast-forward Vast, and run a mock/no-apply path-file plan smoke plus refreshed
 resume status on Vast.
+2026-08-13 follow-up: commit `f7c4026` (`Add BIBER live plan path files`) was
+pushed to `biber/mvp-resume-20260712`; the current SSH-enabled Vast checkout was
+fast-forwarded to it. Vast `py_compile` passed for `scripts/biber_agent_client.py`,
+`scripts/biber_live_provider_real_repo_plan_smoke.py`, and
+`tests/test_biber_agent_client.py`. A mock/no-apply Vast run of
+`biber_live_provider_real_repo_plan_smoke.py` with both path-file flags returned
+`mock_plan_ok=True`, `mode=mock`, `mutation_performed=False`,
+`github_request_sent=False`, `mentor_used=False`, and `training_allowed=False`;
+selected context paths were `README.md`, `docs/CODEX_HANDOFF.md`,
+`docs/BIBER_ONLY_WORKSPACE.md`, and
+`scripts/biber_live_provider_real_repo_plan_smoke.py`. Refreshed Vast
+`live-mvp-resume-status` returned `status_ok=True`, `target_git_clean=True`,
+`next_action=start_next_narrow_biber_step`, and the generated
+`prepare_next_plan_only_required_edit` template includes both
+`--changed-paths-file` and `--pinned-paths-file`. Vast repo remained clean at
+`f7c4026`. Next useful narrow step: create the next real exact-edit spec using
+the path-list files and run the live GPU plan-only command, stopping for a
+separate explicit apply decision only if a plan hash is produced.
 
 2026-08-13 latest BIBER resume-status path-file template checkpoint:
 `live-mvp-resume-status` now emits the `write_next_required_edit_spec_template`
