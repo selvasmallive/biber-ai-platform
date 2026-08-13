@@ -206,6 +206,99 @@ def fetch_runtime_status(
     )
 
 
+def model_records_from_payload(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
+    return [
+        item
+        for item in require_list(payload.get("data") or payload.get("models"))
+        if isinstance(item, dict)
+    ]
+
+
+def enabled_model_ids(models_payload: Mapping[str, Any]) -> list[str]:
+    ids: list[str] = []
+    for model in model_records_from_payload(models_payload):
+        model_id = model.get("id")
+        if isinstance(model_id, str) and bool(model.get("enabled", True)):
+            ids.append(model_id)
+    return ids
+
+
+def choose_external_agent_default_model(models_payload: Mapping[str, Any]) -> str:
+    enabled_models = [
+        model
+        for model in model_records_from_payload(models_payload)
+        if isinstance(model.get("id"), str) and bool(model.get("enabled", True))
+    ]
+    for model in enabled_models:
+        if model.get("lifecycle") == "stable":
+            return str(model["id"])
+    if enabled_models:
+        return str(enabled_models[0]["id"])
+    return ""
+
+
+def build_external_agent_connection_profile(
+    *,
+    base_url: str,
+    runtime_status: Mapping[str, Any],
+    models_payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    clean_base_url = base_url.rstrip("/")
+    model_records = model_records_from_payload(models_payload)
+    enabled_ids = enabled_model_ids(models_payload)
+    candidate_ids = [
+        str(model["id"])
+        for model in model_records
+        if isinstance(model.get("id"), str) and model.get("lifecycle") == "candidate"
+    ]
+    default_model = choose_external_agent_default_model(models_payload)
+    return {
+        "source": "biber_external_agent_connection",
+        "ok": bool(runtime_status.get("service")) and bool(enabled_ids),
+        "biber_api_base_url": clean_base_url,
+        "openai_base_url": build_url(clean_base_url, "/v1"),
+        "models_url": build_url(clean_base_url, "/v1/models"),
+        "chat_completions_url": build_url(clean_base_url, "/v1/chat/completions"),
+        "runtime_url": build_url(clean_base_url, "/v1/runtime"),
+        "default_model": default_model,
+        "enabled_models": enabled_ids,
+        "candidate_models": candidate_ids,
+        "auth": {
+            "type": "bearer_api_key",
+            "api_key_env": "BIBER_API_KEY",
+            "accepted_headers": [
+                "Authorization: Bearer <api-key>",
+                "x-api-key: <api-key>",
+            ],
+            "api_key_included": False,
+        },
+        "compatibility": {
+            "openai_compatible_chat_completions": True,
+            "streaming_supported": False,
+            "mentor_default_enabled": False,
+            "provider_swappable": True,
+        },
+        "runtime": {
+            "service": runtime_status.get("service"),
+            "local_model_name": runtime_status.get("local_model_name"),
+            "local_model_base_url": runtime_status.get("local_model_base_url"),
+            "chat_mode": runtime_status.get("chat_mode"),
+            "mentor_enabled": bool(runtime_status.get("mentor_enabled")),
+            "mentor_configured": bool(runtime_status.get("mentor_configured")),
+            "github_configured": bool(runtime_status.get("github_configured")),
+            "azure_backup_configured": bool(
+                runtime_status.get("azure_backup_configured")
+            ),
+        },
+        "notes": [
+            "Use openai_base_url for clients that ask for an OpenAI-compatible base URL.",
+            "Use biber_api_base_url for BIBER's own agent client commands.",
+            "Do not expose the raw local_model_base_url outside the private GPU host.",
+            "GitHub Copilot may need an extension or gateway to consume custom model sources.",
+        ],
+    }
+
+
 def list_api_keys(
     *,
     base_url: str,
@@ -925,11 +1018,7 @@ def format_capabilities_summary(payload: Mapping[str, Any]) -> str:
 
 
 def format_models_summary(payload: Mapping[str, Any]) -> str:
-    models = [
-        item
-        for item in require_list(payload.get("data") or payload.get("models"))
-        if isinstance(item, dict)
-    ]
+    models = model_records_from_payload(payload)
     lines = [f"BIBER models ({len(models)})"]
     for model in models:
         permission = require_mapping(model.get("permission"))
@@ -962,6 +1051,41 @@ def format_runtime_summary(payload: Mapping[str, Any]) -> str:
             f"mentor_configured: {bool(payload.get('mentor_configured'))}",
             f"github_configured: {bool(payload.get('github_configured'))}",
             f"azure_backup_configured: {bool(payload.get('azure_backup_configured'))}",
+        ]
+    )
+
+
+def format_external_agent_connection_summary(payload: Mapping[str, Any]) -> str:
+    auth = require_mapping(payload.get("auth"))
+    compatibility = require_mapping(payload.get("compatibility"))
+    runtime = require_mapping(payload.get("runtime"))
+    enabled_models = require_list(payload.get("enabled_models"))
+    candidate_models = require_list(payload.get("candidate_models"))
+    return "\n".join(
+        [
+            "BIBER external-agent connection",
+            f"ok: {bool(payload.get('ok'))}",
+            f"openai_base_url: {payload.get('openai_base_url', '-')}",
+            f"biber_api_base_url: {payload.get('biber_api_base_url', '-')}",
+            f"chat_completions_url: {payload.get('chat_completions_url', '-')}",
+            f"models_url: {payload.get('models_url', '-')}",
+            f"default_model: {payload.get('default_model') or '-'}",
+            "enabled_models: "
+            + (", ".join(str(item) for item in enabled_models) if enabled_models else "-"),
+            "candidate_models: "
+            + (
+                ", ".join(str(item) for item in candidate_models)
+                if candidate_models
+                else "-"
+            ),
+            f"api_key_env: {auth.get('api_key_env', '-')}",
+            f"api_key_included: {bool(auth.get('api_key_included'))}",
+            "openai_compatible_chat_completions: "
+            + str(bool(compatibility.get("openai_compatible_chat_completions"))),
+            f"streaming_supported: {bool(compatibility.get('streaming_supported'))}",
+            f"provider_swappable: {bool(compatibility.get('provider_swappable'))}",
+            f"runtime_local_model_name: {runtime.get('local_model_name', '-')}",
+            f"mentor_configured: {bool(runtime.get('mentor_configured'))}",
         ]
     )
 
@@ -20917,6 +21041,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     runtime.add_argument("--output", help="Optional JSON artifact path.")
 
+    external_agent_connection = subparsers.add_parser(
+        "external-agent-connection",
+        help=(
+            "Write a non-secret connection profile for OpenAI-compatible "
+            "external agent clients."
+        ),
+    )
+    external_agent_connection.add_argument(
+        "--output",
+        help="Optional JSON artifact path.",
+    )
+
     subparsers.add_parser(
         "list-api-keys",
         help="List safe API-key metadata through the admin key-management API.",
@@ -25425,6 +25561,33 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_runtime_summary(result)
+        )
+
+    if args.command == "external-agent-connection":
+        api_key = resolve_api_key(args.api_key)
+        base_url = args.base_url.rstrip("/")
+        runtime_status = fetch_runtime_status(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        models_payload = list_models(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        result = build_external_agent_connection_profile(
+            base_url=base_url,
+            runtime_status=runtime_status,
+            models_payload=models_payload,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_agent_connection_summary(result)
         )
 
     mvp_loop_uses_only_local_steps = (

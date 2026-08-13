@@ -84,6 +84,10 @@ client before configuring an external agent or gateway. Both `models` and
 Use `runtime --output <artifact.json>` to save a non-secret health/provider
 configuration proof from `/v1/runtime` before handing a base URL to another
 agent or gateway.
+Use `external-agent-connection --output <artifact.json>` when configuring an
+IDE, gateway, or custom conversational agent: it bundles the OpenAI-compatible
+base URL, `/v1/models`, `/v1/chat/completions`, the selected stable model, and
+auth header names without writing the API key into the artifact.
 Use `--include-git-state` for repo work so the artifact records the local
 branch, short HEAD, dirty status, and `git status --short` before edits/tests.
 Repo-context and safe-edit paths must stay workspace-relative; Windows

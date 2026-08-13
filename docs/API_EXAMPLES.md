@@ -82,6 +82,8 @@ The stdlib client can hit the same endpoint:
 
 ```bash
 export BIBER_API_KEY="dev-api-key-change-me"
+python scripts/biber_agent_client.py external-agent-connection \
+  --output /workspace/outputs/biber-external-agent-connection.json
 python scripts/biber_agent_client.py runtime
 python scripts/biber_agent_client.py models
 python scripts/biber_agent_client.py chat-completions \
@@ -90,6 +92,10 @@ python scripts/biber_agent_client.py chat-completions \
   --max-tokens 120 \
   --output /workspace/outputs/biber-chat-completions-smoke.json
 ```
+
+The `external-agent-connection` artifact is safe to share with another local
+agent setup because it includes URLs, model IDs, and auth header names, but not
+the API key itself.
 
 ## Issue A User API Key
 

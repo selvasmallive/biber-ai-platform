@@ -62,6 +62,8 @@ The stdlib BIBER agent client can exercise the same OpenAI-compatible endpoint:
 
 ```bash
 export BIBER_API_KEY="<user-api-key>"
+python scripts/biber_agent_client.py external-agent-connection \
+  --output /workspace/outputs/biber-external-agent-connection.json
 python scripts/biber_agent_client.py runtime
 python scripts/biber_agent_client.py models
 python scripts/biber_agent_client.py chat-completions \
@@ -70,6 +72,10 @@ python scripts/biber_agent_client.py chat-completions \
   --max-tokens 120 \
   --output /workspace/outputs/biber-chat-completions-smoke.json
 ```
+
+`external-agent-connection` writes a non-secret profile with the OpenAI-style
+base URL, `/v1/models`, `/v1/chat/completions`, the selected stable model, and
+auth header names. It never writes the API key into the artifact.
 
 GitHub Copilot itself may require a Copilot extension, approved integration, or
 agent gateway rather than direct arbitrary model endpoint configuration. Keep
