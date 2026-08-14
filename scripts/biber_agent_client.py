@@ -32,6 +32,10 @@ DEFAULT_REPAIR_INSTRUCTION = (
     "Return a concise repair plan with exact file edit suggestions where possible, "
     "then name the test that should be rerun."
 )
+DEFAULT_EXTERNAL_AGENT_SMOKE_MESSAGE = (
+    "Reply with one concise sentence confirming BIBER external-agent "
+    "model-source access."
+)
 DEFAULT_REPAIR_CONTEXT_SNIPPET_MAX_FILES = 6
 DEFAULT_REPAIR_CONTEXT_SNIPPET_MAX_BYTES = 6000
 REPAIR_CONTEXT_EXCLUDED_PATH_PARTS = {
@@ -371,6 +375,71 @@ def build_external_agent_readiness_result(
         "runtime": dict(runtime_status),
         "models": dict(models_payload),
         "api_key_included": False,
+    }
+
+
+def build_external_agent_smoke_result(
+    *,
+    readiness: Mapping[str, Any],
+    chat_payload: Mapping[str, Any],
+    chat_response: Mapping[str, Any],
+) -> dict[str, Any]:
+    content = extract_chat_completion_content(chat_response)
+    requested_model = str(
+        chat_payload.get("model")
+        or readiness.get("default_model")
+        or chat_response.get("model")
+        or ""
+    )
+    message = ""
+    for item in require_list(chat_payload.get("messages")):
+        if not isinstance(item, dict):
+            continue
+        if item.get("role") == "user" and isinstance(item.get("content"), str):
+            message = str(item["content"])
+            break
+    choices = require_list(chat_response.get("choices"))
+    checks = [
+        {
+            "name": "readiness",
+            "ok": bool(readiness.get("ok")),
+            "default_model": readiness.get("default_model"),
+        },
+        {
+            "name": "model_selected",
+            "ok": bool(requested_model),
+            "requested_model": requested_model,
+        },
+        {
+            "name": "chat_completion",
+            "ok": bool(choices) and bool(content.strip()),
+            "response_model": chat_response.get("model"),
+            "choice_count": len(choices),
+        },
+    ]
+    return {
+        "source": "biber_external_agent_smoke",
+        "ok": all(bool(check.get("ok")) for check in checks),
+        "probe_base_url": readiness.get("probe_base_url"),
+        "openai_base_url": readiness.get("openai_base_url"),
+        "default_model": readiness.get("default_model"),
+        "requested_model": requested_model,
+        "response_model": chat_response.get("model"),
+        "checks": checks,
+        "readiness": dict(readiness),
+        "chat_request": {
+            "model": chat_payload.get("model"),
+            "max_tokens": chat_payload.get("max_tokens"),
+            "temperature": chat_payload.get("temperature"),
+            "stream": bool(chat_payload.get("stream")),
+            "use_mentor": bool(chat_payload.get("use_mentor")),
+            "message_preview": compact_text(message, max_chars=240),
+        },
+        "chat_response": dict(chat_response),
+        "chat_content_preview": compact_text(content, max_chars=1000),
+        "api_key_included": False,
+        "mentor_used": bool(chat_payload.get("use_mentor"))
+        or bool(chat_response.get("mentor_used")),
     }
 
 
@@ -1194,6 +1263,40 @@ def format_external_agent_readiness_summary(payload: Mapping[str, Any]) -> str:
         for check in checks
     )
     lines.append(f"api_key_included: {bool(payload.get('api_key_included'))}")
+    return "\n".join(lines)
+
+
+def format_external_agent_smoke_summary(payload: Mapping[str, Any]) -> str:
+    checks = [
+        check
+        for check in require_list(payload.get("checks"))
+        if isinstance(check, dict)
+    ]
+    lines = [
+        "BIBER external-agent smoke",
+        f"ok: {bool(payload.get('ok'))}",
+        f"probe_base_url: {payload.get('probe_base_url', '-')}",
+        f"openai_base_url: {payload.get('openai_base_url', '-')}",
+        f"default_model: {payload.get('default_model') or '-'}",
+        f"requested_model: {payload.get('requested_model') or '-'}",
+        f"response_model: {payload.get('response_model') or '-'}",
+        f"mentor_used: {bool(payload.get('mentor_used'))}",
+        "checks:",
+    ]
+    lines.extend(
+        (
+            f"- {check.get('name', '-')} ok={bool(check.get('ok'))} "
+            f"model={check.get('requested_model') or check.get('response_model') or check.get('default_model') or '-'}"
+        )
+        for check in checks
+    )
+    lines.extend(
+        [
+            f"api_key_included: {bool(payload.get('api_key_included'))}",
+            "content:",
+            str(payload.get("chat_content_preview") or ""),
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -21192,6 +21295,31 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
 
+    external_agent_smoke = subparsers.add_parser(
+        "external-agent-smoke",
+        help=(
+            "Run readiness plus one short OpenAI-compatible chat-completions "
+            "smoke for external agent model-source setup."
+        ),
+    )
+    external_agent_smoke.add_argument(
+        "--output",
+        help="Optional JSON artifact path.",
+    )
+    external_agent_smoke.add_argument(
+        "--client-base-url",
+        help=(
+            "Optional client-facing BIBER API base URL for the saved profile. "
+            "Use this when probing a private URL but configuring an SSH tunnel, "
+            "reverse proxy, or HTTPS domain."
+        ),
+    )
+    external_agent_smoke.add_argument("--message")
+    external_agent_smoke.add_argument("--message-file")
+    external_agent_smoke.add_argument("--model")
+    external_agent_smoke.add_argument("--max-tokens", type=int, default=80)
+    external_agent_smoke.add_argument("--temperature", type=float, default=0.0)
+
     subparsers.add_parser(
         "list-api-keys",
         help="List safe API-key metadata through the admin key-management API.",
@@ -25762,6 +25890,70 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_external_agent_readiness_summary(result)
+        )
+
+    if args.command == "external-agent-smoke":
+        api_key = resolve_api_key(args.api_key)
+        base_url = args.base_url.rstrip("/")
+        capabilities = fetch_capabilities(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        runtime_status = fetch_runtime_status(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        models_payload = list_models(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        readiness = build_external_agent_readiness_result(
+            base_url=base_url,
+            client_base_url=args.client_base_url,
+            capabilities=capabilities,
+            runtime_status=runtime_status,
+            models_payload=models_payload,
+        )
+        message = load_text_argument(
+            value=args.message,
+            file_path=args.message_file,
+            label="--message",
+        )
+        if not message:
+            message = DEFAULT_EXTERNAL_AGENT_SMOKE_MESSAGE
+        model = args.model or str(readiness.get("default_model") or "")
+        if not model:
+            raise BiberAgentClientError(
+                "external-agent-smoke could not select an enabled model."
+            )
+        chat_payload = build_chat_completions_payload(
+            message=message,
+            model=model,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            use_mentor=False,
+        )
+        chat_response = create_chat_completion(
+            base_url=base_url,
+            api_key=api_key,
+            payload=chat_payload,
+            timeout_seconds=args.timeout_seconds,
+        )
+        result = build_external_agent_smoke_result(
+            readiness=readiness,
+            chat_payload=chat_payload,
+            chat_response=chat_response,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_agent_smoke_summary(result)
         )
 
     mvp_loop_uses_only_local_steps = (

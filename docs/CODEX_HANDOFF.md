@@ -1,8 +1,19 @@
 # Codex Handoff
 
-Last updated: 2026-08-13
+Last updated: 2026-08-14
 
 ## Current Goal
+
+2026-08-14 latest BIBER external-agent smoke checkpoint:
+In progress: add a stdlib `external-agent-smoke` command to
+`scripts/biber_agent_client.py` for the BIBER MVP external-agent model-source
+flow. The command should fetch `/v1/agent/capabilities`, `/v1/runtime`, and
+`/v1/models`, build the existing non-secret readiness artifact, choose the
+stable/default model, run one short `/v1/chat/completions` request with OpenAI
+mentor disabled, and write one combined non-secret proof artifact. Keep this
+client-side only, provider-swappable, and safe for generic IDE/conversational
+agent setup. Do not use OpenAI mentor, training, credential rotation, paid
+external APIs, or XRIQ/XRIS work for this checkpoint.
 
 2026-08-13 latest BIBER external-agent readiness checkpoint:
 Complete: BIBER MVP now has a stdlib `external-agent-readiness` command in

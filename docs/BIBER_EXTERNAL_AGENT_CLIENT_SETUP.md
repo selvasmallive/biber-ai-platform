@@ -80,7 +80,19 @@ gateway.
 
 ## Smoke Test
 
-After the connection profile, send one short OpenAI-compatible request:
+After the connection profile, run one readiness-plus-chat smoke:
+
+```bash
+python scripts/biber_agent_client.py external-agent-smoke \
+  --client-base-url "$BIBER_API_BASE_URL" \
+  --output /workspace/outputs/biber-external-agent-smoke.json
+```
+
+This writes one non-secret proof artifact with readiness checks, selected model
+metadata, and one short OpenAI-compatible chat-completions response.
+
+You can also send a raw OpenAI-compatible request when debugging a specific
+prompt or model:
 
 ```bash
 python scripts/biber_agent_client.py chat-completions \
