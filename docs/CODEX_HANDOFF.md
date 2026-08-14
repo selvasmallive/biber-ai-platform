@@ -5,15 +5,29 @@ Last updated: 2026-08-14
 ## Current Goal
 
 2026-08-14 latest BIBER external-agent smoke checkpoint:
-In progress: add a stdlib `external-agent-smoke` command to
-`scripts/biber_agent_client.py` for the BIBER MVP external-agent model-source
-flow. The command should fetch `/v1/agent/capabilities`, `/v1/runtime`, and
-`/v1/models`, build the existing non-secret readiness artifact, choose the
-stable/default model, run one short `/v1/chat/completions` request with OpenAI
-mentor disabled, and write one combined non-secret proof artifact. Keep this
-client-side only, provider-swappable, and safe for generic IDE/conversational
-agent setup. Do not use OpenAI mentor, training, credential rotation, paid
-external APIs, or XRIQ/XRIS work for this checkpoint.
+Complete: BIBER MVP now has a stdlib `external-agent-smoke` command in
+`scripts/biber_agent_client.py` for the external-agent model-source flow. It
+fetches `/v1/agent/capabilities`, `/v1/runtime`, and `/v1/models`, builds the
+existing non-secret readiness artifact, chooses the stable/default model, runs
+one short `/v1/chat/completions` request with OpenAI mentor disabled, and writes
+one combined non-secret proof artifact. Docs were updated in
+`docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md`, `docs/BIBER_EXTERNAL_AGENT_API.md`,
+`docs/API_EXAMPLES.md`, and `docs/BIBER_ONLY_WORKSPACE.md`. Local validation
+passed bundled Python bytecode-redirected `py_compile`, `git diff --check`, a
+direct no-pytest `external-agent-smoke` harness, and
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. Commit
+`5a3bdf4` (`Add BIBER external agent smoke command`) was pushed to
+`biber/mvp-resume-20260712`. The SSH-enabled Vast checkout fast-forwarded to
+`5a3bdf4`; after reading `/etc/vast-agents-guide.md`, live validation passed
+`py_compile` and `external-agent-smoke --client-base-url
+https://biber.example.com/v1 --output` against `http://127.0.0.1:8000` using the
+existing `.env` user key without printing it. Live artifact:
+`/workspace/outputs/biber-external-agent-smoke-live-latest.json`. It reports
+`ok=true`, `requested_model=biber-dev-core-v1`,
+`response_model=biber-dev-core-v1`, `mentor_used=false`,
+`api_key_included=false`, and content confirming BIBER external-agent
+model-source access. No OpenAI mentor, training, credential rotation, paid
+external APIs, or XRIQ/XRIS work was used.
 
 2026-08-13 latest BIBER external-agent readiness checkpoint:
 Complete: BIBER MVP now has a stdlib `external-agent-readiness` command in
