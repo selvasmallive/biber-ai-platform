@@ -5,13 +5,34 @@ Last updated: 2026-08-15
 ## Current Goal
 
 2026-08-15 latest BIBER external-agent client contract report checkpoint:
-In progress: add a stdlib `external-agent-client-contract-report` command that
-loads a saved `external-agent-bundle`, computes bundle health offline, and emits
-a compact non-secret setup report for a gateway/client: `BIBER_OPENAI_BASE_URL`,
-`BIBER_MODEL`, API-key placeholder, auth header forms, endpoint URLs, protocol
-flags, validation commands, docs/examples, and readiness status. It must not
-resolve API keys, call the model, use training, rotate credentials, use paid
-external APIs, or touch XRIQ/XRIS work.
+Complete: BIBER MVP now has a stdlib
+`external-agent-client-contract-report` command in
+`scripts/biber_agent_client.py`. It loads a saved `external-agent-bundle`,
+computes bundle health offline, and emits a compact non-secret setup report for
+a gateway/client: `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, API-key placeholder,
+auth header forms, endpoint URLs, protocol flags, validation commands,
+docs/examples, and readiness status. The generated `external-agent-bundle`
+validation commands now include `client_contract_report`. Docs were updated in
+`docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md`, `docs/BIBER_EXTERNAL_AGENT_API.md`,
+`docs/API_EXAMPLES.md`, and `docs/BIBER_ONLY_WORKSPACE.md`. Local validation
+passed Python `py_compile` with a temp pycache, `git diff --check`, a direct
+no-pytest client-contract-report harness, and
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. `pytest`
+was not available in the bundled local Python, so the focused unit test path was
+covered by the direct harness. Commit `1422661` (`Add BIBER external agent
+contract report`) was pushed to `biber/mvp-resume-20260712`. The SSH-enabled
+Vast checkout fast-forwarded to `1422661`; Vast validation passed `py_compile`,
+live `external-agent-bundle`, and offline `external-agent-client-contract-report`
+against the freshly generated bundle using the existing `.env` user key only for
+bundle generation, without printing it. Live artifacts:
+`/workspace/outputs/biber-external-agent-contract-report-20260815T183853Z/biber-external-agent-bundle-live.json`
+and
+`/workspace/outputs/biber-external-agent-contract-report-20260815T183853Z/biber-external-agent-client-contract-live.json`.
+The report artifact reports `ok=True`, `ready_for_client_configuration=True`,
+`BIBER_OPENAI_BASE_URL=http://127.0.0.1:8000/v1`,
+`BIBER_MODEL=biber-dev-core-v1`, `api_key_included=False`, `mentor_used=False`,
+and `training_allowed=False`. No model call, training, credential rotation,
+paid external APIs, or XRIQ/XRIS work was used for this checkpoint.
 
 2026-08-15 latest BIBER external-agent bundle chat-smoke checkpoint:
 Complete: BIBER MVP now has a stdlib `external-agent-bundle-chat-smoke` command
