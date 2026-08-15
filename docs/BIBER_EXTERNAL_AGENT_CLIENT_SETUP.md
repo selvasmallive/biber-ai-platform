@@ -59,6 +59,18 @@ The readiness and connection artifacts are safe to share with a local agent
 setup because they do not contain the API key. The API key must be configured
 separately in the client's secret or environment setting.
 
+## Minimal Client Examples
+
+Use `examples/external_agent/` when wiring a generic client or gateway. The
+examples only need `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and `BIBER_API_KEY`;
+they call `/v1/chat/completions` with `stream=false` and OpenAI mentor disabled.
+
+Validate the examples offline before pointing them at the live GPU:
+
+```bash
+python scripts/biber_external_agent_examples_smoke.py
+```
+
 ## Public HTTPS Gateway Later
 
 A domain is not required for local MVP work. If an internet-accessible endpoint

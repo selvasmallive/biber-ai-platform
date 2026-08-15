@@ -4,6 +4,15 @@ Last updated: 2026-08-14
 
 ## Current Goal
 
+2026-08-15 latest BIBER external-agent examples checkpoint:
+In progress: add a minimal `examples/external_agent/` package for generic
+external-agent clients. Keep it dependency-free and BIBER MVP only. The examples
+should require only `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and `BIBER_API_KEY`,
+call `/v1/chat/completions`, set `stream=false`, and keep OpenAI mentor disabled.
+Validate with an offline fake-server smoke before any live Vast check. Do not use
+OpenAI mentor, training, credential rotation, paid external APIs, or XRIQ/XRIS
+work for this checkpoint.
+
 2026-08-14 latest BIBER external-agent smoke checkpoint:
 Complete: BIBER MVP now has a stdlib `external-agent-smoke` command in
 `scripts/biber_agent_client.py` for the external-agent model-source flow. It

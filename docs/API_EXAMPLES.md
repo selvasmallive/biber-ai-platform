@@ -113,6 +113,19 @@ response with OpenAI mentor off.
 Use `--client-base-url` if the agent should call an SSH tunnel, reverse proxy,
 or HTTPS domain instead of the private URL used by the smoke command.
 
+Minimal external-agent client examples:
+
+```bash
+python scripts/biber_external_agent_examples_smoke.py
+python examples/external_agent/python_minimal_client.py \
+  --message "Write one concise API review note."
+node examples/external_agent/javascript_fetch_client.mjs \
+  "Write one concise API review note."
+```
+
+These examples require only `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and
+`BIBER_API_KEY`. They keep `stream=false` and OpenAI mentor off.
+
 ## Issue A User API Key
 
 Configure `BIBER_ADMIN_API_KEY` on the server first. The issued plaintext key is

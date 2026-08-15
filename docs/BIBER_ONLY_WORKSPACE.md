@@ -101,6 +101,10 @@ Use `external-agent-smoke --output <artifact.json>` when you want readiness plus
 one short OpenAI-compatible chat-completions response in a single non-secret
 artifact. This is the preferred MVP proof before handing BIBER to an external
 agent client.
+Use `examples/external_agent/` for minimal generic-client examples that require
+only `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and `BIBER_API_KEY`. Run
+`python scripts/biber_external_agent_examples_smoke.py` for an offline
+fake-server validation before live GPU testing.
 Add `--client-base-url <url>` when the saved profile should advertise an SSH
 tunnel, reverse proxy, or HTTPS domain instead of the private probe URL.
 Use `--include-git-state` for repo work so the artifact records the local

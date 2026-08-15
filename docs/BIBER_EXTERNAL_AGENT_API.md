@@ -96,6 +96,12 @@ off.
 Use `--client-base-url` when the URL an IDE should configure differs from the
 private URL used by the smoke command, such as an SSH tunnel or HTTPS gateway.
 
+Minimal dependency-free client examples live in `examples/external_agent/`.
+They demonstrate the same contract with only `BIBER_OPENAI_BASE_URL`,
+`BIBER_MODEL`, and `BIBER_API_KEY`. Run
+`python scripts/biber_external_agent_examples_smoke.py` for an offline fake-server
+check before testing against the live GPU.
+
 GitHub Copilot itself may require a Copilot extension, approved integration, or
 agent gateway rather than direct arbitrary model endpoint configuration. Keep
 the BIBER side generic: OpenAI-compatible HTTP, bearer API key, stable model
