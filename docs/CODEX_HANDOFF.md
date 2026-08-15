@@ -5,13 +5,36 @@ Last updated: 2026-08-15
 ## Current Goal
 
 2026-08-15 latest BIBER external-agent bundle chat-smoke checkpoint:
-In progress: add a stdlib `external-agent-bundle-chat-smoke` command that loads
-a saved `external-agent-bundle` artifact, verifies the bundle health first, and
-then sends one OpenAI-compatible `/v1/chat/completions` request using the
-bundle's `BIBER_OPENAI_BASE_URL` and `BIBER_MODEL`. It must keep OpenAI mentor
-off, avoid writing API keys to artifacts, and remain provider/model swappable.
-Do not use training, credential rotation, paid external APIs, or XRIQ/XRIS work
-for this checkpoint.
+Complete: BIBER MVP now has a stdlib `external-agent-bundle-chat-smoke` command
+in `scripts/biber_agent_client.py`. It loads a saved `external-agent-bundle`
+artifact, verifies bundle health first, converts the bundle's
+`BIBER_OPENAI_BASE_URL` into the internal BIBER API root only for the stdlib
+request helper, and sends one OpenAI-compatible `/v1/chat/completions` request
+using the bundle's `BIBER_MODEL`. It keeps OpenAI mentor off, writes no API keys
+to artifacts, and stays provider/model swappable. The generated
+`external-agent-bundle` validation commands now include
+`bundle_chat_smoke`. Docs were updated in
+`docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md`, `docs/BIBER_EXTERNAL_AGENT_API.md`,
+`docs/API_EXAMPLES.md`, and `docs/BIBER_ONLY_WORKSPACE.md`. Local validation
+passed Python `py_compile` with a temp pycache, `git diff --check`, a direct
+no-pytest bundle-chat-smoke harness, and `scripts/biber_local_confidence_smoke.py`
+with `ok=True` and 11 checks. `pytest` was not available in the bundled local
+Python, so the focused unit test path was covered by the direct harness. Commit
+`845f389` (`Add BIBER external agent bundle chat smoke`) was pushed to
+`biber/mvp-resume-20260712`. The SSH-enabled Vast checkout fast-forwarded to
+`845f389`; Vast validation passed `py_compile`, live `external-agent-bundle`,
+live `external-agent-bundle-health-check`, and live
+`external-agent-bundle-chat-smoke` against `http://127.0.0.1:8000` using the
+existing `.env` user key without printing it. Live artifacts:
+`/workspace/outputs/biber-external-agent-bundle-chat-smoke-20260815T162352Z/biber-external-agent-bundle-live.json`,
+`/workspace/outputs/biber-external-agent-bundle-chat-smoke-20260815T162352Z/biber-external-agent-bundle-health-live.json`,
+and
+`/workspace/outputs/biber-external-agent-bundle-chat-smoke-20260815T162352Z/biber-external-agent-bundle-chat-smoke-live.json`.
+The chat-smoke artifact reports `ok=True`, `requested_model=biber-dev-core-v1`,
+`api_key_included=False`, `mentor_used=False`, and `training_allowed=False`, and
+the live content preview was `BIBER external-agent model-source access
+confirmed.` No training, credential rotation, paid external APIs, or XRIQ/XRIS
+work was used for this checkpoint.
 
 2026-08-15 latest BIBER external-agent bundle health checkpoint:
 Complete: BIBER MVP now has a stdlib `external-agent-bundle-health-check`
