@@ -49,3 +49,17 @@ export const SECURITY_STATUS = {
   legalReviewed: false,
   banner: 'Testnet · unaudited — do not store real value',
 };
+
+// WalletConnect / Reown project id. This is NOT a secret — it ships in every wallet build
+// and is protected by allowlisting/rate-limits on the WalletConnect dashboard. Override at
+// build time with EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID.
+export const WALLETCONNECT_PROJECT_ID =
+  process.env.EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID ?? 'fd0f6aef030f7d5f80ca7ec0cf0c04a6';
+
+export const WALLETCONNECT_METADATA = {
+  name: 'Lattice',
+  description: 'Non-custodial, privacy-first multi-chain wallet with verified signing.',
+  url: 'https://lattice.app',
+  icons: ['https://lattice.app/icon.png'],
+  redirect: { native: 'lattice://', universal: 'https://lattice.app' },
+};

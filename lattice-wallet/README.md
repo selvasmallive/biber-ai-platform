@@ -86,6 +86,19 @@ Everything here is designed so the wallet reveals as little as possible about yo
 - **Custom RPC per chain** — point any chain at your own node so no third party sees your
   queries (Settings → Privacy).
 
+## WalletConnect (dApp connections)
+
+Lattice connects to dApps via **Reown WalletKit** (Settings → WalletConnect): paste the
+`wc:` pairing link, approve the session, and each request is confirmed on-device behind
+biometrics with a **human-readable "what am I signing" screen**. Supported EVM methods:
+`personal_sign`, `eth_signTypedData` / `_v4`, and `eth_sendTransaction`, across the EVM
+chains Lattice ships (Ethereum, Polygon, Base, Sepolia). The **EIP-191 and EIP-712 v4
+hashing is verified against ethers** (`__tests__/evm-sign-vectors.ts`); signatures always
+recover to the signer. WalletKit has native dependencies, so this requires a custom dev/EAS
+build (it does not run in Expo Go), and the live pairing handshake is best tested against a
+real dApp. The project id is public and set in `src/core/config.ts`
+(override with `EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID`).
+
 ## Architecture
 
 ```
@@ -179,7 +192,6 @@ the XRIQ security audit and legal review noted above.
 Kept out of this build deliberately. Some need *your* accounts/keys; some conflict with the
 privacy-first stance; some can't be done safely in a pure-JS/React-Native app.
 
-- **WalletConnect v2 (dApp connect)** — needs a WalletConnect Cloud project id (your account).
 - **Fiat on-ramp & in-app swaps** — third-party KYC / order-flow that leaks data; not
   privacy-first. (AGNA swap remains wired but pending its API.)
 - **Push notifications / price alerts** — a server would have to watch your addresses, which

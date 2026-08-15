@@ -323,4 +323,33 @@ export class EvmAdapter implements ChainAdapter {
     const broadcastHash = await jsonRpc<string>(this.config.rpcUrl, 'eth_sendRawTransaction', [raw]);
     return { hash: broadcastHash || hash, raw };
   }
+
+  /** eth_sendTransaction from raw dApp params (WalletConnect). Hex-string fields. */
+  async sendTxParams(
+    mnemonic: string,
+    p: { to?: string; value?: string; data?: string; gas?: string; maxFeePerGas?: string; maxPriorityFeePerGas?: string; nonce?: string },
+  ): Promise<BroadcastResult> {
+    const k = deriveEvmKey(mnemonic);
+    const fee =
+      p.maxFeePerGas && p.maxPriorityFeePerGas
+        ? { maxFeePerGas: BigInt(p.maxFeePerGas), maxPriorityFeePerGas: BigInt(p.maxPriorityFeePerGas) }
+        : await this.feeData();
+    const nonce = p.nonce != null ? BigInt(p.nonce) : hexToBig(await jsonRpc<string>(this.config.rpcUrl, 'eth_getTransactionCount', [k.address, 'pending']));
+    const gasLimit = p.gas != null
+      ? BigInt(p.gas)
+      : hexToBig(await jsonRpc<string>(this.config.rpcUrl, 'eth_estimateGas', [{ from: k.address, to: p.to, value: p.value ?? '0x0', data: p.data ?? '0x' }]).catch(() => '0x5208'));
+    const tx: Eip1559Tx = {
+      chainId: BigInt(this.config.evmChainId!),
+      nonce,
+      maxPriorityFeePerGas: fee.maxPriorityFeePerGas,
+      maxFeePerGas: fee.maxFeePerGas,
+      gasLimit,
+      to: p.to ?? '0x',
+      value: p.value ? BigInt(p.value) : 0n,
+      data: p.data ? hex.fromHex(p.data.replace(/^0x/, '')) : new Uint8Array(0),
+    };
+    const { raw, hash } = signEip1559(tx, k.privateKey);
+    const broadcastHash = await jsonRpc<string>(this.config.rpcUrl, 'eth_sendRawTransaction', [raw]);
+    return { hash: broadcastHash || hash, raw };
+  }
 }

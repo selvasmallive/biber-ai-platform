@@ -108,6 +108,7 @@ export function SettingsScreen({ navigation }: any) {
           <Button title={rpcSaved ? '✓ Saved' : 'Save RPC endpoint'} variant="ghost" onPress={saveRpc} />
           <Divider />
           <Button title="Address book" variant="ghost" onPress={() => navigation.navigate('AddressBook')} />
+          <Button title="WalletConnect — connect to dApps" variant="ghost" onPress={() => navigation.navigate('WalletConnect')} />
         </Card>
 
         <Text style={styles.section}>Security</Text>

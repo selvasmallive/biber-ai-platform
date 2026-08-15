@@ -119,6 +119,13 @@ export function getChainConfig(id: string): ChainConfig {
   return c;
 }
 
+/** EVM chains Lattice supports (for WalletConnect namespaces). */
+export const EVM_CHAINS = CHAINS.filter((c) => c.family === 'evm');
+
+export function evmConfigByChainId(evmChainId: number): ChainConfig | null {
+  return CHAINS.find((c) => c.family === 'evm' && c.evmChainId === evmChainId) ?? null;
+}
+
 export function makeAdapter(config: ChainConfig): ChainAdapter {
   switch (config.family) {
     case 'xriq':

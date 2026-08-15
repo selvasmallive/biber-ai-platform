@@ -8,6 +8,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Text } from 'react-native';
 
 import { WalletProvider, useWallet } from './src/state/WalletProvider';
+import { WalletConnectProvider } from './src/state/WalletConnectProvider';
+import { WalletConnectModals } from './src/components/WalletConnectModals';
 import { colors } from './src/theme/theme';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { BackupScreen } from './src/screens/BackupScreen';
@@ -18,6 +20,7 @@ import { ReceiveScreen } from './src/screens/ReceiveScreen';
 import { HistoryScreen } from './src/screens/HistoryScreen';
 import { SwapScreen } from './src/screens/SwapScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { WalletConnectScreen } from './src/screens/WalletConnectScreen';
 import { AddTokenScreen } from './src/screens/AddTokenScreen';
 import { TokenSendScreen } from './src/screens/TokenSendScreen';
 import { AddressBookScreen } from './src/screens/AddressBookScreen';
@@ -94,6 +97,7 @@ function Root() {
           <Stack.Screen name="AddToken" component={AddTokenScreen} options={{ presentation: 'modal', title: 'Add token' }} />
           <Stack.Screen name="TokenSend" component={TokenSendScreen} options={{ presentation: 'modal', title: 'Send token' }} />
           <Stack.Screen name="AddressBook" component={AddressBookScreen} options={{ title: 'Address book' }} />
+          <Stack.Screen name="WalletConnect" component={WalletConnectScreen} options={{ title: 'WalletConnect' }} />
           {/* Reachable after wipe */}
           <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Backup" component={BackupScreen} options={{ title: 'Back up' }} />
@@ -109,8 +113,11 @@ export default function App() {
     <SafeAreaProvider>
       <NavigationContainer theme={navTheme}>
         <WalletProvider>
-          <StatusBar style="light" />
-          <Root />
+          <WalletConnectProvider>
+            <StatusBar style="light" />
+            <Root />
+            <WalletConnectModals />
+          </WalletConnectProvider>
         </WalletProvider>
       </NavigationContainer>
     </SafeAreaProvider>
