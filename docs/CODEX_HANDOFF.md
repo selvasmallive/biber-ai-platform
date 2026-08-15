@@ -4,6 +4,15 @@ Last updated: 2026-08-15
 
 ## Current Goal
 
+2026-08-15 latest BIBER external-agent bundle health checkpoint:
+In progress: add a stdlib `external-agent-bundle-health-check` command that
+validates a saved `external-agent-bundle` artifact before it is handed to another
+client or gateway. It should be offline, avoid API-key resolution, avoid model
+calls, verify the bundle is non-secret, verify required env/model/base URL
+consistency, and verify docs/examples paths exist under a supplied repo root. Do
+not use OpenAI mentor, training, credential rotation, paid external APIs, or
+XRIQ/XRIS work for this checkpoint.
+
 2026-08-15 latest BIBER external-agent bundle checkpoint:
 Complete: BIBER MVP now has a stdlib `external-agent-bundle` command in
 `scripts/biber_agent_client.py`. It fetches capabilities/runtime/models, reuses

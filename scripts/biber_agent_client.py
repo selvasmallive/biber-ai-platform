@@ -491,6 +491,147 @@ def build_external_agent_connection_bundle(
     }
 
 
+def build_external_agent_bundle_health_check(
+    *,
+    bundle: Mapping[str, Any],
+    artifact_path: str,
+    repo_root: Path,
+) -> dict[str, Any]:
+    client_env = require_mapping(bundle.get("client_env"))
+    client_contract = require_mapping(bundle.get("client_contract"))
+    connection = require_mapping(bundle.get("connection"))
+    auth = require_mapping(connection.get("auth"))
+    docs = [str(item) for item in require_list(bundle.get("docs"))]
+    examples = [str(item) for item in require_list(bundle.get("examples"))]
+    validation_commands = [
+        item
+        for item in require_list(bundle.get("validation_commands"))
+        if isinstance(item, dict)
+    ]
+    api_key_placeholder = str(client_env.get("BIBER_API_KEY") or "")
+    openai_base_url = str(client_env.get("BIBER_OPENAI_BASE_URL") or "")
+    model = str(client_env.get("BIBER_MODEL") or "")
+    default_model = str(bundle.get("default_model") or "")
+    raw_local_model_base_url = str(
+        require_mapping(connection.get("runtime")).get("local_model_base_url") or ""
+    )
+    required_paths = docs + examples
+    missing_paths = [
+        path
+        for path in required_paths
+        if not (repo_root / path).is_file()
+    ]
+    command_names = {
+        str(command.get("name"))
+        for command in validation_commands
+        if command.get("name")
+    }
+    expected_command_names = {
+        "offline_examples_smoke",
+        "live_connection_smoke",
+        "python_minimal_client",
+    }
+    checks = [
+        {
+            "name": "bundle_source",
+            "ok": bundle.get("source") == "biber_external_agent_connection_bundle",
+            "source": bundle.get("source"),
+        },
+        {
+            "name": "bundle_ok",
+            "ok": bool(bundle.get("ok")),
+        },
+        {
+            "name": "client_env",
+            "ok": bool(openai_base_url) and bool(model) and bool(api_key_placeholder),
+            "openai_base_url": openai_base_url,
+            "model": model,
+        },
+        {
+            "name": "api_key_placeholder",
+            "ok": (
+                bool(api_key_placeholder)
+                and api_key_placeholder.startswith("<")
+                and api_key_placeholder.endswith(">")
+                and bundle.get("api_key_included") is False
+            ),
+            "api_key_included": bool(bundle.get("api_key_included")),
+        },
+        {
+            "name": "model_consistency",
+            "ok": bool(model) and model == default_model,
+            "client_model": model,
+            "default_model": default_model,
+        },
+        {
+            "name": "openai_base_url_shape",
+            "ok": bool(openai_base_url) and openai_base_url.rstrip("/").endswith("/v1"),
+            "openai_base_url": openai_base_url,
+        },
+        {
+            "name": "external_url_not_raw_provider",
+            "ok": not raw_local_model_base_url
+            or openai_base_url.rstrip("/") != raw_local_model_base_url.rstrip("/"),
+            "raw_local_model_base_url_present": bool(raw_local_model_base_url),
+        },
+        {
+            "name": "client_contract",
+            "ok": (
+                client_contract.get("models_endpoint") == "/v1/models"
+                and client_contract.get("chat_completions_endpoint")
+                == "/v1/chat/completions"
+                and bool(client_contract.get("provider_swappable"))
+                and not bool(client_contract.get("mentor_default_enabled"))
+            ),
+            "streaming_supported": bool(client_contract.get("streaming_supported")),
+            "mentor_default_enabled": bool(
+                client_contract.get("mentor_default_enabled")
+            ),
+        },
+        {
+            "name": "auth_contract",
+            "ok": (
+                auth.get("api_key_included") is False
+                and bool(auth.get("accepted_headers"))
+            ),
+            "auth_type": auth.get("type"),
+        },
+        {
+            "name": "docs_and_examples",
+            "ok": bool(required_paths) and not missing_paths,
+            "checked": len(required_paths),
+            "missing": missing_paths,
+        },
+        {
+            "name": "validation_commands",
+            "ok": expected_command_names.issubset(command_names),
+            "expected": sorted(expected_command_names),
+            "found": sorted(command_names),
+        },
+    ]
+    return {
+        "source": "biber_external_agent_bundle_health_check",
+        "ok": all(bool(check.get("ok")) for check in checks),
+        "ready_for_external_client_handoff": all(
+            bool(check.get("ok")) for check in checks
+        ),
+        "bundle_artifact": str(Path(artifact_path)),
+        "repo_root": str(repo_root),
+        "openai_base_url": openai_base_url,
+        "default_model": default_model,
+        "client_env": {
+            "BIBER_OPENAI_BASE_URL": openai_base_url,
+            "BIBER_MODEL": model,
+            "BIBER_API_KEY": api_key_placeholder,
+        },
+        "checks": checks,
+        "api_key_included": False,
+        "external_network_required": False,
+        "mentor_used": False,
+        "training_allowed": False,
+    }
+
+
 def build_external_agent_smoke_result(
     *,
     readiness: Mapping[str, Any],
@@ -1405,6 +1546,31 @@ def format_external_agent_bundle_summary(payload: Mapping[str, Any]) -> str:
     lines.extend(
         f"- {item.get('name', '-')} live={bool(item.get('requires_live_biber'))}"
         for item in commands
+    )
+    return "\n".join(lines)
+
+
+def format_external_agent_bundle_health_summary(payload: Mapping[str, Any]) -> str:
+    checks = [
+        check
+        for check in require_list(payload.get("checks"))
+        if isinstance(check, dict)
+    ]
+    lines = [
+        "BIBER external-agent bundle health check",
+        f"ok: {bool(payload.get('ok'))}",
+        "ready_for_external_client_handoff: "
+        + str(bool(payload.get("ready_for_external_client_handoff"))),
+        f"bundle_artifact: {payload.get('bundle_artifact', '-')}",
+        f"repo_root: {payload.get('repo_root', '-')}",
+        f"openai_base_url: {payload.get('openai_base_url', '-')}",
+        f"default_model: {payload.get('default_model') or '-'}",
+        f"api_key_included: {bool(payload.get('api_key_included'))}",
+        "checks:",
+    ]
+    lines.extend(
+        f"- {check.get('name', '-')} ok={bool(check.get('ok'))}"
+        for check in checks
     )
     return "\n".join(lines)
 
@@ -21458,6 +21624,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
 
+    external_agent_bundle_health = subparsers.add_parser(
+        "external-agent-bundle-health-check",
+        help=(
+            "Validate a saved external-agent-bundle artifact before handing it "
+            "to another client or gateway."
+        ),
+    )
+    external_agent_bundle_health.add_argument("artifact")
+    external_agent_bundle_health.add_argument(
+        "--repo-root",
+        default=".",
+        help="Repo root used to verify docs and example paths.",
+    )
+    external_agent_bundle_health.add_argument(
+        "--output",
+        help="Optional JSON artifact path.",
+    )
+
     external_agent_smoke = subparsers.add_parser(
         "external-agent-smoke",
         help=(
@@ -26087,6 +26271,25 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_external_agent_bundle_summary(result)
+        )
+
+    if args.command == "external-agent-bundle-health-check":
+        bundle = load_json_artifact(
+            args.artifact,
+            label="external-agent-bundle artifact",
+        )
+        result = build_external_agent_bundle_health_check(
+            bundle=bundle,
+            artifact_path=args.artifact,
+            repo_root=Path(args.repo_root),
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_agent_bundle_health_summary(result)
         )
 
     if args.command == "external-agent-smoke":

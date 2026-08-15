@@ -91,6 +91,10 @@ python scripts/biber_agent_client.py external-agent-connection \
 python scripts/biber_agent_client.py external-agent-bundle \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-bundle.json
+python scripts/biber_agent_client.py external-agent-bundle-health-check \
+  /workspace/outputs/biber-external-agent-bundle.json \
+  --repo-root /workspace/biber-ai-platform \
+  --output /workspace/outputs/biber-external-agent-bundle-health.json
 python scripts/biber_agent_client.py external-agent-smoke \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-smoke.json
@@ -114,6 +118,9 @@ Use `external-agent-bundle` when you want a compact non-secret handoff artifact
 for another client or gateway. It includes `BIBER_OPENAI_BASE_URL`,
 `BIBER_MODEL`, an API-key placeholder, docs/examples paths, and validation
 commands.
+Use `external-agent-bundle-health-check` to verify that saved bundle is
+non-secret, internally consistent, and ready to hand to another client. It is an
+offline check and does not resolve API keys.
 Use `external-agent-smoke` when you want one combined non-secret proof that the
 readiness probes pass and `/v1/chat/completions` returns a short local model
 response with OpenAI mentor off.

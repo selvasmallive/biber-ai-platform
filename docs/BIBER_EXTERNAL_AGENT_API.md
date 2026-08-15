@@ -74,6 +74,10 @@ python scripts/biber_agent_client.py external-agent-connection \
 python scripts/biber_agent_client.py external-agent-bundle \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-bundle.json
+python scripts/biber_agent_client.py external-agent-bundle-health-check \
+  /workspace/outputs/biber-external-agent-bundle.json \
+  --repo-root /workspace/biber-ai-platform \
+  --output /workspace/outputs/biber-external-agent-bundle-health.json
 python scripts/biber_agent_client.py external-agent-smoke \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-smoke.json
@@ -95,6 +99,8 @@ auth header names. It never writes the API key into the artifact.
 runtime, and model metadata in one artifact.
 `external-agent-bundle` saves the non-secret env values, docs/examples paths,
 and validation commands that another client or gateway needs for setup.
+`external-agent-bundle-health-check` validates that saved bundle before handoff
+without resolving any API key or calling the model.
 `external-agent-smoke` runs readiness plus one short chat-completions request
 and saves a single non-secret end-to-end setup proof. It keeps OpenAI mentor
 off.

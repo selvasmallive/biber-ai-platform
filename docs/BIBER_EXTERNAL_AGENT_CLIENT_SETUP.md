@@ -49,6 +49,11 @@ python scripts/biber_agent_client.py external-agent-bundle \
   --client-base-url "$BIBER_API_BASE_URL" \
   --output /workspace/outputs/biber-external-agent-bundle.json
 
+python scripts/biber_agent_client.py external-agent-bundle-health-check \
+  /workspace/outputs/biber-external-agent-bundle.json \
+  --repo-root /workspace/biber-ai-platform \
+  --output /workspace/outputs/biber-external-agent-bundle-health.json
+
 python scripts/biber_agent_client.py capabilities \
   --output /workspace/outputs/biber-capabilities.json
 
@@ -65,6 +70,9 @@ separately in the client's secret or environment setting.
 The bundle artifact is the preferred handoff file for another client: it
 includes the non-secret env values, docs/examples paths, and validation commands
 without embedding the API key.
+Run `external-agent-bundle-health-check` before handing the bundle to another
+client or gateway; it verifies the bundle is non-secret, internally consistent,
+and points at docs/examples that exist in the repo.
 
 ## Minimal Client Examples
 
