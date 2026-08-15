@@ -487,6 +487,19 @@ def build_external_agent_connection_bundle(
                 "api_key_env": "BIBER_API_KEY",
             },
             {
+                "name": "client_contract_report",
+                "command": (
+                    "python scripts/biber_agent_client.py "
+                    "external-agent-client-contract-report "
+                    "/workspace/outputs/biber-external-agent-bundle.json "
+                    "--repo-root /workspace/biber-ai-platform "
+                    "--output "
+                    "/workspace/outputs/biber-external-agent-client-contract.json"
+                ),
+                "requires_live_biber": False,
+                "api_key_required": False,
+            },
+            {
                 "name": "python_minimal_client",
                 "command": (
                     "python examples/external_agent/python_minimal_client.py "
@@ -641,6 +654,138 @@ def build_external_agent_bundle_health_check(
             "BIBER_MODEL": model,
             "BIBER_API_KEY": api_key_placeholder,
         },
+        "checks": checks,
+        "api_key_included": False,
+        "external_network_required": False,
+        "mentor_used": False,
+        "training_allowed": False,
+    }
+
+
+def build_external_agent_client_contract_report(
+    *,
+    bundle: Mapping[str, Any],
+    artifact_path: str,
+    repo_root: Path,
+) -> dict[str, Any]:
+    bundle_health = build_external_agent_bundle_health_check(
+        bundle=bundle,
+        artifact_path=artifact_path,
+        repo_root=repo_root,
+    )
+    client_env = require_mapping(bundle.get("client_env"))
+    client_contract = require_mapping(bundle.get("client_contract"))
+    connection = require_mapping(bundle.get("connection"))
+    auth = require_mapping(connection.get("auth"))
+    openai_base_url = str(
+        client_env.get("BIBER_OPENAI_BASE_URL")
+        or bundle.get("openai_base_url")
+        or ""
+    ).rstrip("/")
+    model = str(client_env.get("BIBER_MODEL") or bundle.get("default_model") or "")
+    validation_steps = [
+        {
+            "name": str(command.get("name") or ""),
+            "command": str(command.get("command") or ""),
+            "requires_live_biber": bool(command.get("requires_live_biber")),
+            "api_key_required": bool(
+                command.get("api_key_env") or command.get("api_key_required")
+            ),
+            "api_key_env": str(command.get("api_key_env") or ""),
+        }
+        for command in require_list(bundle.get("validation_commands"))
+        if isinstance(command, dict)
+    ]
+    docs = [str(item) for item in require_list(bundle.get("docs"))]
+    examples = [str(item) for item in require_list(bundle.get("examples"))]
+    checks = [
+        {
+            "name": "bundle_health",
+            "ok": bool(bundle_health.get("ok")),
+            "ready_for_external_client_handoff": bool(
+                bundle_health.get("ready_for_external_client_handoff")
+            ),
+        },
+        {
+            "name": "client_env",
+            "ok": bool(openai_base_url) and bool(model),
+            "openai_base_url": openai_base_url,
+            "model": model,
+        },
+        {
+            "name": "auth_headers",
+            "ok": bool(require_list(auth.get("accepted_headers"))),
+            "count": len(require_list(auth.get("accepted_headers"))),
+        },
+        {
+            "name": "client_contract",
+            "ok": (
+                client_contract.get("models_endpoint") == "/v1/models"
+                and client_contract.get("chat_completions_endpoint")
+                == "/v1/chat/completions"
+                and bool(client_contract.get("provider_swappable"))
+                and not bool(client_contract.get("mentor_default_enabled"))
+            ),
+            "protocol": client_contract.get("protocol"),
+        },
+        {
+            "name": "validation_steps",
+            "ok": bool(validation_steps),
+            "count": len(validation_steps),
+        },
+    ]
+    return {
+        "source": "biber_external_agent_client_contract_report",
+        "ok": all(bool(check.get("ok")) for check in checks),
+        "ready_for_client_configuration": bool(bundle_health.get("ok")),
+        "bundle_artifact": str(Path(artifact_path)),
+        "repo_root": str(repo_root),
+        "readiness_status": {
+            "bundle_health_ok": bool(bundle_health.get("ok")),
+            "ready_for_external_client_handoff": bool(
+                bundle_health.get("ready_for_external_client_handoff")
+            ),
+            "live_chat_smoke_recommended": True,
+        },
+        "required_client_env": {
+            "BIBER_OPENAI_BASE_URL": openai_base_url,
+            "BIBER_MODEL": model,
+            "BIBER_API_KEY": "<set-user-api-key-in-secret-store>",
+        },
+        "endpoints": {
+            "models": build_url(openai_base_url, "/models")
+            if openai_base_url
+            else "",
+            "chat_completions": build_url(openai_base_url, "/chat/completions")
+            if openai_base_url
+            else "",
+        },
+        "auth": {
+            "type": auth.get("type") or client_contract.get("auth_type"),
+            "accepted_headers": [
+                str(item) for item in require_list(auth.get("accepted_headers"))
+            ],
+            "api_key_env": str(auth.get("api_key_env") or "BIBER_API_KEY"),
+            "api_key_included": False,
+        },
+        "client_contract": {
+            "protocol": client_contract.get("protocol"),
+            "models_endpoint": client_contract.get("models_endpoint"),
+            "chat_completions_endpoint": client_contract.get(
+                "chat_completions_endpoint"
+            ),
+            "streaming_supported": bool(
+                client_contract.get("streaming_supported")
+            ),
+            "mentor_default_enabled": bool(
+                client_contract.get("mentor_default_enabled")
+            ),
+            "provider_swappable": bool(client_contract.get("provider_swappable")),
+        },
+        "validation_steps": validation_steps,
+        "docs": docs,
+        "examples": examples,
+        "bundle_health": dict(bundle_health),
         "checks": checks,
         "api_key_included": False,
         "external_network_required": False,
@@ -1680,6 +1825,57 @@ def format_external_agent_bundle_health_summary(payload: Mapping[str, Any]) -> s
         f"- {check.get('name', '-')} ok={bool(check.get('ok'))}"
         for check in checks
     )
+    return "\n".join(lines)
+
+
+def format_external_agent_client_contract_report_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    required_env = require_mapping(payload.get("required_client_env"))
+    endpoints = require_mapping(payload.get("endpoints"))
+    auth = require_mapping(payload.get("auth"))
+    contract = require_mapping(payload.get("client_contract"))
+    readiness_status = require_mapping(payload.get("readiness_status"))
+    validation_steps = [
+        item
+        for item in require_list(payload.get("validation_steps"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER external-agent client contract report",
+        f"ok: {bool(payload.get('ok'))}",
+        "ready_for_client_configuration: "
+        + str(bool(payload.get("ready_for_client_configuration"))),
+        "ready_for_external_client_handoff: "
+        + str(bool(readiness_status.get("ready_for_external_client_handoff"))),
+        f"BIBER_OPENAI_BASE_URL: {required_env.get('BIBER_OPENAI_BASE_URL', '-')}",
+        f"BIBER_MODEL: {required_env.get('BIBER_MODEL', '-')}",
+        f"BIBER_API_KEY: {required_env.get('BIBER_API_KEY', '-')}",
+        f"models_url: {endpoints.get('models', '-')}",
+        f"chat_completions_url: {endpoints.get('chat_completions', '-')}",
+        f"auth_type: {auth.get('type', '-')}",
+        "auth_headers:",
+    ]
+    lines.extend(f"- {item}" for item in require_list(auth.get("accepted_headers")))
+    lines.extend(
+        [
+            f"protocol: {contract.get('protocol', '-')}",
+            f"streaming_supported: {bool(contract.get('streaming_supported'))}",
+            "mentor_default_enabled: "
+            + str(bool(contract.get("mentor_default_enabled"))),
+            f"provider_swappable: {bool(contract.get('provider_swappable'))}",
+            "validation_steps:",
+        ]
+    )
+    lines.extend(
+        (
+            f"- {item.get('name', '-')} live="
+            f"{bool(item.get('requires_live_biber'))} "
+            f"api_key_required={bool(item.get('api_key_required'))}"
+        )
+        for item in validation_steps
+    )
+    lines.append(f"api_key_included: {bool(payload.get('api_key_included'))}")
     return "\n".join(lines)
 
 
@@ -21786,6 +21982,24 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Optional JSON artifact path.",
     )
 
+    external_agent_client_contract_report = subparsers.add_parser(
+        "external-agent-client-contract-report",
+        help=(
+            "Summarize the non-secret client/gateway configuration contract "
+            "from a saved external-agent-bundle artifact."
+        ),
+    )
+    external_agent_client_contract_report.add_argument("artifact")
+    external_agent_client_contract_report.add_argument(
+        "--repo-root",
+        default=".",
+        help="Repo root used to verify bundle docs and example paths first.",
+    )
+    external_agent_client_contract_report.add_argument(
+        "--output",
+        help="Optional JSON artifact path.",
+    )
+
     external_agent_smoke = subparsers.add_parser(
         "external-agent-smoke",
         help=(
@@ -26465,6 +26679,25 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_external_agent_bundle_health_summary(result)
+        )
+
+    if args.command == "external-agent-client-contract-report":
+        bundle = load_json_artifact(
+            args.artifact,
+            label="external-agent-bundle artifact",
+        )
+        result = build_external_agent_client_contract_report(
+            bundle=bundle,
+            artifact_path=args.artifact,
+            repo_root=Path(args.repo_root),
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_agent_client_contract_report_summary(result)
         )
 
     if args.command == "external-agent-smoke":

@@ -54,6 +54,11 @@ python scripts/biber_agent_client.py external-agent-bundle-health-check \
   --repo-root /workspace/biber-ai-platform \
   --output /workspace/outputs/biber-external-agent-bundle-health.json
 
+python scripts/biber_agent_client.py external-agent-client-contract-report \
+  /workspace/outputs/biber-external-agent-bundle.json \
+  --repo-root /workspace/biber-ai-platform \
+  --output /workspace/outputs/biber-external-agent-client-contract.json
+
 python scripts/biber_agent_client.py external-agent-bundle-chat-smoke \
   /workspace/outputs/biber-external-agent-bundle.json \
   --repo-root /workspace/biber-ai-platform \
@@ -78,6 +83,9 @@ without embedding the API key.
 Run `external-agent-bundle-health-check` before handing the bundle to another
 client or gateway; it verifies the bundle is non-secret, internally consistent,
 and points at docs/examples that exist in the repo.
+Run `external-agent-client-contract-report` to produce a compact non-secret
+setup sheet for another gateway or client engineer: URL, model, auth headers,
+endpoints, validation commands, and readiness status.
 Run `external-agent-bundle-chat-smoke` when you want a live proof that the saved
 bundle's `BIBER_OPENAI_BASE_URL` and `BIBER_MODEL` can complete one
 OpenAI-compatible chat request with OpenAI mentor off.

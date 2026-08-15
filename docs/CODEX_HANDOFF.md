@@ -4,6 +4,15 @@ Last updated: 2026-08-15
 
 ## Current Goal
 
+2026-08-15 latest BIBER external-agent client contract report checkpoint:
+In progress: add a stdlib `external-agent-client-contract-report` command that
+loads a saved `external-agent-bundle`, computes bundle health offline, and emits
+a compact non-secret setup report for a gateway/client: `BIBER_OPENAI_BASE_URL`,
+`BIBER_MODEL`, API-key placeholder, auth header forms, endpoint URLs, protocol
+flags, validation commands, docs/examples, and readiness status. It must not
+resolve API keys, call the model, use training, rotate credentials, use paid
+external APIs, or touch XRIQ/XRIS work.
+
 2026-08-15 latest BIBER external-agent bundle chat-smoke checkpoint:
 Complete: BIBER MVP now has a stdlib `external-agent-bundle-chat-smoke` command
 in `scripts/biber_agent_client.py`. It loads a saved `external-agent-bundle`

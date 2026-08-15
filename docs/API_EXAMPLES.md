@@ -95,6 +95,10 @@ python scripts/biber_agent_client.py external-agent-bundle-health-check \
   /workspace/outputs/biber-external-agent-bundle.json \
   --repo-root /workspace/biber-ai-platform \
   --output /workspace/outputs/biber-external-agent-bundle-health.json
+python scripts/biber_agent_client.py external-agent-client-contract-report \
+  /workspace/outputs/biber-external-agent-bundle.json \
+  --repo-root /workspace/biber-ai-platform \
+  --output /workspace/outputs/biber-external-agent-client-contract.json
 python scripts/biber_agent_client.py external-agent-bundle-chat-smoke \
   /workspace/outputs/biber-external-agent-bundle.json \
   --repo-root /workspace/biber-ai-platform \
@@ -125,6 +129,9 @@ commands.
 Use `external-agent-bundle-health-check` to verify that saved bundle is
 non-secret, internally consistent, and ready to hand to another client. It is an
 offline check and does not resolve API keys.
+Use `external-agent-client-contract-report` to turn that bundle into a compact
+client/gateway setup report with URL, model, auth headers, endpoints, validation
+commands, and readiness status.
 Use `external-agent-bundle-chat-smoke` to prove that the saved bundle itself can
 drive one OpenAI-compatible chat request through `BIBER_OPENAI_BASE_URL` and
 `BIBER_MODEL` with OpenAI mentor off.
