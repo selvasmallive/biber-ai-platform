@@ -5,13 +5,29 @@ Last updated: 2026-08-14
 ## Current Goal
 
 2026-08-15 latest BIBER external-agent examples checkpoint:
-In progress: add a minimal `examples/external_agent/` package for generic
-external-agent clients. Keep it dependency-free and BIBER MVP only. The examples
-should require only `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and `BIBER_API_KEY`,
-call `/v1/chat/completions`, set `stream=false`, and keep OpenAI mentor disabled.
-Validate with an offline fake-server smoke before any live Vast check. Do not use
-OpenAI mentor, training, credential rotation, paid external APIs, or XRIQ/XRIS
-work for this checkpoint.
+Complete: BIBER MVP now has a minimal `examples/external_agent/` package for
+generic external-agent clients. It includes a dependency-free Python stdlib
+client, a Node.js `fetch` client, an env template, and a README. The examples
+require only `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and `BIBER_API_KEY`, call
+`/v1/chat/completions`, set `stream=false`, and keep OpenAI mentor disabled.
+`scripts/biber_external_agent_examples_smoke.py` validates the Python example
+against an offline fake OpenAI-compatible server. Docs were updated in
+`docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md`, `docs/BIBER_EXTERNAL_AGENT_API.md`,
+`docs/API_EXAMPLES.md`, and `docs/BIBER_ONLY_WORKSPACE.md`. Local validation
+passed Python `py_compile`, `git diff --check`, JavaScript `node --check`, the
+offline fake-server examples smoke with `ok=true`, and
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. Commit
+`0b9631f` (`Add BIBER external agent client examples`) was pushed to
+`biber/mvp-resume-20260712`. The SSH-enabled Vast checkout fast-forwarded to
+`0b9631f`; Vast validation passed `py_compile`,
+`scripts/biber_external_agent_examples_smoke.py`, and one live
+`examples/external_agent/python_minimal_client.py` call against
+`http://127.0.0.1:8000/v1` using the existing `.env` user key without printing
+it. Live artifact:
+`/workspace/outputs/biber-external-agent-python-example-live-latest.json`. It
+reports `object=chat.completion`, `model=biber-dev-core-v1`, and content
+confirming the BIBER Python example client works. No OpenAI mentor, training,
+credential rotation, paid external APIs, or XRIQ/XRIS work was used.
 
 2026-08-14 latest BIBER external-agent smoke checkpoint:
 Complete: BIBER MVP now has a stdlib `external-agent-smoke` command in
