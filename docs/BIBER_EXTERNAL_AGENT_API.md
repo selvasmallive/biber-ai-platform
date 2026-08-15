@@ -78,6 +78,10 @@ python scripts/biber_agent_client.py external-agent-bundle-health-check \
   /workspace/outputs/biber-external-agent-bundle.json \
   --repo-root /workspace/biber-ai-platform \
   --output /workspace/outputs/biber-external-agent-bundle-health.json
+python scripts/biber_agent_client.py external-agent-bundle-chat-smoke \
+  /workspace/outputs/biber-external-agent-bundle.json \
+  --repo-root /workspace/biber-ai-platform \
+  --output /workspace/outputs/biber-external-agent-bundle-chat-smoke.json
 python scripts/biber_agent_client.py external-agent-smoke \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-smoke.json
@@ -101,6 +105,9 @@ runtime, and model metadata in one artifact.
 and validation commands that another client or gateway needs for setup.
 `external-agent-bundle-health-check` validates that saved bundle before handoff
 without resolving any API key or calling the model.
+`external-agent-bundle-chat-smoke` loads that saved bundle and sends one short
+chat-completions request through the bundle's `BIBER_OPENAI_BASE_URL` and
+`BIBER_MODEL`, with OpenAI mentor off.
 `external-agent-smoke` runs readiness plus one short chat-completions request
 and saves a single non-secret end-to-end setup proof. It keeps OpenAI mentor
 off.

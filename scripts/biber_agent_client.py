@@ -248,6 +248,10 @@ def normalize_external_agent_client_base_url(base_url: str) -> str:
     return clean_base_url
 
 
+def biber_api_base_url_from_openai_base_url(openai_base_url: str) -> str:
+    return normalize_external_agent_client_base_url(openai_base_url)
+
+
 def build_external_agent_connection_profile(
     *,
     base_url: str,
@@ -465,6 +469,19 @@ def build_external_agent_connection_bundle(
                     "python scripts/biber_agent_client.py external-agent-smoke "
                     "--client-base-url \"$BIBER_OPENAI_BASE_URL\" "
                     "--output /workspace/outputs/biber-external-agent-smoke.json"
+                ),
+                "requires_live_biber": True,
+                "api_key_env": "BIBER_API_KEY",
+            },
+            {
+                "name": "bundle_chat_smoke",
+                "command": (
+                    "python scripts/biber_agent_client.py "
+                    "external-agent-bundle-chat-smoke "
+                    "/workspace/outputs/biber-external-agent-bundle.json "
+                    "--repo-root /workspace/biber-ai-platform "
+                    "--output "
+                    "/workspace/outputs/biber-external-agent-bundle-chat-smoke.json"
                 ),
                 "requires_live_biber": True,
                 "api_key_env": "BIBER_API_KEY",
@@ -694,6 +711,97 @@ def build_external_agent_smoke_result(
         "api_key_included": False,
         "mentor_used": bool(chat_payload.get("use_mentor"))
         or bool(chat_response.get("mentor_used")),
+    }
+
+
+def build_external_agent_bundle_chat_smoke_result(
+    *,
+    bundle: Mapping[str, Any],
+    bundle_health: Mapping[str, Any],
+    artifact_path: str,
+    openai_base_url: str,
+    chat_payload: Mapping[str, Any],
+    chat_response: Mapping[str, Any],
+) -> dict[str, Any]:
+    client_env = require_mapping(bundle.get("client_env"))
+    content = extract_chat_completion_content(chat_response)
+    requested_model = str(
+        chat_payload.get("model")
+        or client_env.get("BIBER_MODEL")
+        or bundle.get("default_model")
+        or chat_response.get("model")
+        or ""
+    )
+    choices = require_list(chat_response.get("choices"))
+    message = ""
+    for item in require_list(chat_payload.get("messages")):
+        if not isinstance(item, dict):
+            continue
+        if item.get("role") == "user" and isinstance(item.get("content"), str):
+            message = str(item["content"])
+            break
+    checks = [
+        {
+            "name": "bundle_health",
+            "ok": bool(bundle_health.get("ok")),
+            "ready_for_external_client_handoff": bool(
+                bundle_health.get("ready_for_external_client_handoff")
+            ),
+        },
+        {
+            "name": "openai_base_url_shape",
+            "ok": bool(openai_base_url)
+            and openai_base_url.rstrip("/").endswith("/v1"),
+            "openai_base_url": openai_base_url,
+        },
+        {
+            "name": "model_selected",
+            "ok": bool(requested_model),
+            "requested_model": requested_model,
+        },
+        {
+            "name": "chat_payload_contract",
+            "ok": (
+                bool(require_list(chat_payload.get("messages")))
+                and not bool(chat_payload.get("stream"))
+                and not bool(chat_payload.get("use_mentor"))
+            ),
+            "stream": bool(chat_payload.get("stream")),
+            "use_mentor": bool(chat_payload.get("use_mentor")),
+        },
+        {
+            "name": "chat_completion",
+            "ok": bool(choices) and bool(content.strip()),
+            "response_model": chat_response.get("model"),
+            "choice_count": len(choices),
+        },
+    ]
+    return {
+        "source": "biber_external_agent_bundle_chat_smoke",
+        "ok": all(bool(check.get("ok")) for check in checks),
+        "bundle_artifact": str(Path(artifact_path)),
+        "openai_base_url": openai_base_url,
+        "default_model": bundle.get("default_model"),
+        "requested_model": requested_model,
+        "response_model": chat_response.get("model"),
+        "checks": checks,
+        "bundle_health": dict(bundle_health),
+        "chat_request": {
+            "model": chat_payload.get("model"),
+            "max_tokens": chat_payload.get("max_tokens"),
+            "temperature": chat_payload.get("temperature"),
+            "stream": bool(chat_payload.get("stream")),
+            "use_mentor": bool(chat_payload.get("use_mentor")),
+            "message_preview": compact_text(message, max_chars=240),
+        },
+        "chat_response": dict(chat_response),
+        "chat_content_preview": compact_text(content, max_chars=1000),
+        "api_key_included": False,
+        "external_network_required": False,
+        "live_biber_required": True,
+        "mentor_used": bool(chat_payload.get("use_mentor"))
+        or bool(chat_response.get("mentor_used")),
+        "training_allowed": False,
     }
 
 
@@ -1596,6 +1704,42 @@ def format_external_agent_smoke_summary(payload: Mapping[str, Any]) -> str:
         (
             f"- {check.get('name', '-')} ok={bool(check.get('ok'))} "
             f"model={check.get('requested_model') or check.get('response_model') or check.get('default_model') or '-'}"
+        )
+        for check in checks
+    )
+    lines.extend(
+        [
+            f"api_key_included: {bool(payload.get('api_key_included'))}",
+            "content:",
+            str(payload.get("chat_content_preview") or ""),
+        ]
+    )
+    return "\n".join(lines)
+
+
+def format_external_agent_bundle_chat_smoke_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    checks = [
+        check
+        for check in require_list(payload.get("checks"))
+        if isinstance(check, dict)
+    ]
+    lines = [
+        "BIBER external-agent bundle chat smoke",
+        f"ok: {bool(payload.get('ok'))}",
+        f"bundle_artifact: {payload.get('bundle_artifact', '-')}",
+        f"openai_base_url: {payload.get('openai_base_url', '-')}",
+        f"default_model: {payload.get('default_model') or '-'}",
+        f"requested_model: {payload.get('requested_model') or '-'}",
+        f"response_model: {payload.get('response_model') or '-'}",
+        f"mentor_used: {bool(payload.get('mentor_used'))}",
+        "checks:",
+    ]
+    lines.extend(
+        (
+            f"- {check.get('name', '-')} ok={bool(check.get('ok'))} "
+            f"model={check.get('requested_model') or check.get('response_model') or '-'}"
         )
         for check in checks
     )
@@ -21667,6 +21811,37 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     external_agent_smoke.add_argument("--max-tokens", type=int, default=80)
     external_agent_smoke.add_argument("--temperature", type=float, default=0.0)
 
+    external_agent_bundle_chat_smoke = subparsers.add_parser(
+        "external-agent-bundle-chat-smoke",
+        help=(
+            "Load an external-agent-bundle artifact and send one "
+            "OpenAI-compatible chat-completions smoke through its client env."
+        ),
+    )
+    external_agent_bundle_chat_smoke.add_argument("artifact")
+    external_agent_bundle_chat_smoke.add_argument(
+        "--repo-root",
+        default=".",
+        help="Repo root used to verify bundle docs and example paths first.",
+    )
+    external_agent_bundle_chat_smoke.add_argument(
+        "--output",
+        help="Optional JSON artifact path.",
+    )
+    external_agent_bundle_chat_smoke.add_argument("--message")
+    external_agent_bundle_chat_smoke.add_argument("--message-file")
+    external_agent_bundle_chat_smoke.add_argument("--model")
+    external_agent_bundle_chat_smoke.add_argument(
+        "--max-tokens",
+        type=int,
+        default=80,
+    )
+    external_agent_bundle_chat_smoke.add_argument(
+        "--temperature",
+        type=float,
+        default=0.0,
+    )
+
     subparsers.add_parser(
         "list-api-keys",
         help="List safe API-key metadata through the admin key-management API.",
@@ -26354,6 +26529,76 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_external_agent_smoke_summary(result)
+        )
+
+    if args.command == "external-agent-bundle-chat-smoke":
+        api_key = resolve_api_key(args.api_key)
+        bundle = load_json_artifact(
+            args.artifact,
+            label="external-agent-bundle artifact",
+        )
+        bundle_health = build_external_agent_bundle_health_check(
+            bundle=bundle,
+            artifact_path=args.artifact,
+            repo_root=Path(args.repo_root),
+        )
+        if not bundle_health.get("ok"):
+            raise BiberAgentClientError(
+                "external-agent-bundle-chat-smoke requires a healthy bundle. "
+                "Run external-agent-bundle-health-check for details."
+            )
+        client_env = require_mapping(bundle.get("client_env"))
+        openai_base_url = str(
+            client_env.get("BIBER_OPENAI_BASE_URL")
+            or bundle.get("openai_base_url")
+            or ""
+        ).rstrip("/")
+        if not openai_base_url:
+            raise BiberAgentClientError(
+                "external-agent-bundle artifact is missing BIBER_OPENAI_BASE_URL."
+            )
+        message = load_text_argument(
+            value=args.message,
+            file_path=args.message_file,
+            label="--message",
+        )
+        if not message:
+            message = DEFAULT_EXTERNAL_AGENT_SMOKE_MESSAGE
+        model = args.model or str(client_env.get("BIBER_MODEL") or "")
+        if not model:
+            model = str(bundle.get("default_model") or "")
+        if not model:
+            raise BiberAgentClientError(
+                "external-agent-bundle-chat-smoke could not select a model."
+            )
+        chat_payload = build_chat_completions_payload(
+            message=message,
+            model=model,
+            max_tokens=args.max_tokens,
+            temperature=args.temperature,
+            use_mentor=False,
+        )
+        chat_response = create_chat_completion(
+            base_url=biber_api_base_url_from_openai_base_url(openai_base_url),
+            api_key=api_key,
+            payload=chat_payload,
+            timeout_seconds=args.timeout_seconds,
+        )
+        result = build_external_agent_bundle_chat_smoke_result(
+            bundle=bundle,
+            bundle_health=bundle_health,
+            artifact_path=args.artifact,
+            openai_base_url=openai_base_url,
+            chat_payload=chat_payload,
+            chat_response=chat_response,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_agent_bundle_chat_smoke_summary(result)
         )
 
     mvp_loop_uses_only_local_steps = (

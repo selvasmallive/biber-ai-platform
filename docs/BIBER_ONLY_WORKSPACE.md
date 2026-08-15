@@ -103,6 +103,9 @@ commands, and an API-key placeholder for another client or gateway.
 Use `external-agent-bundle-health-check <artifact.json> --repo-root <repo>` to
 verify the bundle is non-secret, internally consistent, and ready for handoff.
 This check is offline and does not resolve API credentials.
+Use `external-agent-bundle-chat-smoke <artifact.json> --repo-root <repo>` to
+prove a saved bundle can drive one live `/v1/chat/completions` request through
+its `BIBER_OPENAI_BASE_URL` and `BIBER_MODEL`, with OpenAI mentor off.
 Use `external-agent-smoke --output <artifact.json>` when you want readiness plus
 one short OpenAI-compatible chat-completions response in a single non-secret
 artifact. This is the preferred MVP proof before handing BIBER to an external

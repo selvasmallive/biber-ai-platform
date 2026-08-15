@@ -4,6 +4,15 @@ Last updated: 2026-08-15
 
 ## Current Goal
 
+2026-08-15 latest BIBER external-agent bundle chat-smoke checkpoint:
+In progress: add a stdlib `external-agent-bundle-chat-smoke` command that loads
+a saved `external-agent-bundle` artifact, verifies the bundle health first, and
+then sends one OpenAI-compatible `/v1/chat/completions` request using the
+bundle's `BIBER_OPENAI_BASE_URL` and `BIBER_MODEL`. It must keep OpenAI mentor
+off, avoid writing API keys to artifacts, and remain provider/model swappable.
+Do not use training, credential rotation, paid external APIs, or XRIQ/XRIS work
+for this checkpoint.
+
 2026-08-15 latest BIBER external-agent bundle health checkpoint:
 Complete: BIBER MVP now has a stdlib `external-agent-bundle-health-check`
 command in `scripts/biber_agent_client.py`. It validates a saved

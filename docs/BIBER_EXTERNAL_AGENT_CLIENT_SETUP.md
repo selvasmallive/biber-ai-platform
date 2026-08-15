@@ -54,6 +54,11 @@ python scripts/biber_agent_client.py external-agent-bundle-health-check \
   --repo-root /workspace/biber-ai-platform \
   --output /workspace/outputs/biber-external-agent-bundle-health.json
 
+python scripts/biber_agent_client.py external-agent-bundle-chat-smoke \
+  /workspace/outputs/biber-external-agent-bundle.json \
+  --repo-root /workspace/biber-ai-platform \
+  --output /workspace/outputs/biber-external-agent-bundle-chat-smoke.json
+
 python scripts/biber_agent_client.py capabilities \
   --output /workspace/outputs/biber-capabilities.json
 
@@ -73,6 +78,9 @@ without embedding the API key.
 Run `external-agent-bundle-health-check` before handing the bundle to another
 client or gateway; it verifies the bundle is non-secret, internally consistent,
 and points at docs/examples that exist in the repo.
+Run `external-agent-bundle-chat-smoke` when you want a live proof that the saved
+bundle's `BIBER_OPENAI_BASE_URL` and `BIBER_MODEL` can complete one
+OpenAI-compatible chat request with OpenAI mentor off.
 
 ## Minimal Client Examples
 
@@ -117,6 +125,9 @@ python scripts/biber_agent_client.py external-agent-smoke \
 
 This writes one non-secret proof artifact with readiness checks, selected model
 metadata, and one short OpenAI-compatible chat-completions response.
+When validating a saved handoff bundle specifically, prefer
+`external-agent-bundle-chat-smoke`; it starts from the bundle artifact that a
+future gateway or conversational agent will consume.
 
 You can also send a raw OpenAI-compatible request when debugging a specific
 prompt or model:

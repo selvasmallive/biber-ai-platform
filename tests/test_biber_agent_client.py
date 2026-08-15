@@ -1849,6 +1849,155 @@ def test_run_external_agent_smoke_uses_user_key_and_default_model(
     assert artifact["api_key_included"] is False
 
 
+def test_build_external_agent_bundle_chat_smoke_result_is_non_secret(
+    tmp_path: Path,
+) -> None:
+    _write_external_agent_bundle_paths(tmp_path)
+    bundle = client.build_external_agent_connection_bundle(
+        base_url="http://private.local:8000",
+        client_base_url="https://biber.example.com/v1",
+        capabilities=sample_capabilities(),
+        runtime_status={
+            "service": "biber-api",
+            "local_model_name": "biber-dev-core",
+            "local_model_base_url": "http://127.0.0.1:8001/v1",
+            "mentor_configured": False,
+        },
+        models_payload={
+            "models": [
+                {
+                    "id": "biber-dev-core-v1",
+                    "lifecycle": "stable",
+                    "enabled": True,
+                }
+            ]
+        },
+    )
+    bundle_health = client.build_external_agent_bundle_health_check(
+        bundle=bundle,
+        artifact_path=str(tmp_path / "external-agent-bundle.json"),
+        repo_root=tmp_path,
+    )
+    chat_payload = client.build_chat_completions_payload(
+        message="Reply with ready.",
+        model="biber-dev-core-v1",
+        max_tokens=16,
+        temperature=0.0,
+        use_mentor=False,
+    )
+    chat_response = {
+        "id": "chatcmpl-1",
+        "object": "chat.completion",
+        "model": "biber-dev-core-v1",
+        "choices": [{"message": {"content": "BIBER bundle access is ready."}}],
+    }
+
+    result = client.build_external_agent_bundle_chat_smoke_result(
+        bundle=bundle,
+        bundle_health=bundle_health,
+        artifact_path=str(tmp_path / "external-agent-bundle.json"),
+        openai_base_url="https://biber.example.com/v1",
+        chat_payload=chat_payload,
+        chat_response=chat_response,
+    )
+
+    assert result["source"] == "biber_external_agent_bundle_chat_smoke"
+    assert result["ok"] is True
+    assert result["api_key_included"] is False
+    assert result["external_network_required"] is False
+    assert result["live_biber_required"] is True
+    assert result["mentor_used"] is False
+    assert result["training_allowed"] is False
+    assert result["requested_model"] == "biber-dev-core-v1"
+    assert result["chat_request"]["stream"] is False
+    assert result["chat_request"]["use_mentor"] is False
+    assert "api_key" not in result
+
+
+def test_run_external_agent_bundle_chat_smoke_uses_bundle_env(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    _write_external_agent_bundle_paths(tmp_path)
+    captured: dict[str, object] = {}
+    bundle = client.build_external_agent_connection_bundle(
+        base_url="http://private.local:8000",
+        client_base_url="https://biber.example.com/v1",
+        capabilities=sample_capabilities(),
+        runtime_status={
+            "service": "biber-api",
+            "local_model_name": "biber-dev-core",
+            "local_model_base_url": "http://127.0.0.1:8001/v1",
+            "mentor_configured": False,
+        },
+        models_payload={
+            "models": [
+                {
+                    "id": "biber-dev-core-v1",
+                    "lifecycle": "stable",
+                    "enabled": True,
+                }
+            ]
+        },
+    )
+    bundle_path = tmp_path / "external-agent-bundle.json"
+    bundle_path.write_text(json.dumps(bundle), encoding="utf-8")
+    output_path = tmp_path / "external-agent-bundle-chat-smoke.json"
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        captured["api_cli"] = cli_api_key
+        return "user-key"
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        raise AssertionError("admin API key should not be resolved")
+
+    def fake_create_chat_completion(**kwargs):
+        captured["chat_completion"] = kwargs
+        return {
+            "id": "chatcmpl-1",
+            "object": "chat.completion",
+            "model": "biber-dev-core-v1",
+            "choices": [{"message": {"content": "Bundle client is ready."}}],
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+    monkeypatch.setattr(client, "create_chat_completion", fake_create_chat_completion)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--api-key",
+                "cli-user-key",
+                "external-agent-bundle-chat-smoke",
+                str(bundle_path),
+                "--repo-root",
+                str(tmp_path),
+                "--max-tokens",
+                "12",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+
+    artifact = json.loads(output_path.read_text(encoding="utf-8"))
+    payload = captured["chat_completion"]["payload"]
+    assert "BIBER external-agent bundle chat smoke" in output
+    assert "Bundle client is ready." in output
+    assert captured["api_cli"] == "cli-user-key"
+    assert captured["chat_completion"]["base_url"] == "https://biber.example.com"
+    assert captured["chat_completion"]["api_key"] == "user-key"
+    assert payload["model"] == "biber-dev-core-v1"
+    assert payload["stream"] is False
+    assert payload["use_mentor"] is False
+    assert payload["max_tokens"] == 12
+    assert artifact["artifact_path"] == str(output_path)
+    assert artifact["ok"] is True
+    assert artifact["openai_base_url"] == "https://biber.example.com/v1"
+    assert artifact["api_key_included"] is False
+
+
 def test_resolve_admin_api_key_reads_env(monkeypatch) -> None:
     monkeypatch.delenv("BIBER_ADMIN_API_KEY", raising=False)
     monkeypatch.delenv("BIBER_TEST_ADMIN_API_KEY", raising=False)
