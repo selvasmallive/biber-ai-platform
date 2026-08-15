@@ -88,6 +88,9 @@ python scripts/biber_agent_client.py external-agent-readiness \
 python scripts/biber_agent_client.py external-agent-connection \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-connection.json
+python scripts/biber_agent_client.py external-agent-bundle \
+  --client-base-url http://127.0.0.1:8000 \
+  --output /workspace/outputs/biber-external-agent-bundle.json
 python scripts/biber_agent_client.py external-agent-smoke \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-smoke.json
@@ -107,6 +110,10 @@ agent setup because it includes URLs, model IDs, and auth header names, but not
 the API key itself.
 Use `external-agent-readiness` when you want one combined non-secret setup
 artifact with connection, capabilities, runtime, and model metadata.
+Use `external-agent-bundle` when you want a compact non-secret handoff artifact
+for another client or gateway. It includes `BIBER_OPENAI_BASE_URL`,
+`BIBER_MODEL`, an API-key placeholder, docs/examples paths, and validation
+commands.
 Use `external-agent-smoke` when you want one combined non-secret proof that the
 readiness probes pass and `/v1/chat/completions` returns a short local model
 response with OpenAI mentor off.

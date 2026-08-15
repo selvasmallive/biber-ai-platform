@@ -71,6 +71,9 @@ python scripts/biber_agent_client.py external-agent-readiness \
 python scripts/biber_agent_client.py external-agent-connection \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-connection.json
+python scripts/biber_agent_client.py external-agent-bundle \
+  --client-base-url http://127.0.0.1:8000 \
+  --output /workspace/outputs/biber-external-agent-bundle.json
 python scripts/biber_agent_client.py external-agent-smoke \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-smoke.json
@@ -90,6 +93,8 @@ base URL, `/v1/models`, `/v1/chat/completions`, the selected stable model, and
 auth header names. It never writes the API key into the artifact.
 `external-agent-readiness` saves that profile together with capabilities,
 runtime, and model metadata in one artifact.
+`external-agent-bundle` saves the non-secret env values, docs/examples paths,
+and validation commands that another client or gateway needs for setup.
 `external-agent-smoke` runs readiness plus one short chat-completions request
 and saves a single non-secret end-to-end setup proof. It keeps OpenAI mentor
 off.

@@ -378,6 +378,119 @@ def build_external_agent_readiness_result(
     }
 
 
+def build_external_agent_connection_bundle(
+    *,
+    base_url: str,
+    client_base_url: str | None = None,
+    capabilities: Mapping[str, Any],
+    runtime_status: Mapping[str, Any],
+    models_payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    connection = build_external_agent_connection_profile(
+        base_url=base_url,
+        client_base_url=client_base_url,
+        runtime_status=runtime_status,
+        models_payload=models_payload,
+    )
+    features = require_mapping(capabilities.get("features"))
+    external_agent_api = require_mapping(features.get("external_agent_api"))
+    openai_base_url = str(connection.get("openai_base_url") or "")
+    default_model = str(connection.get("default_model") or "")
+    return {
+        "source": "biber_external_agent_connection_bundle",
+        "ok": (
+            bool(connection.get("ok"))
+            and bool(openai_base_url)
+            and bool(default_model)
+        ),
+        "probe_base_url": connection.get("probe_base_url"),
+        "openai_base_url": openai_base_url,
+        "default_model": default_model,
+        "connection": connection,
+        "client_env": {
+            "BIBER_OPENAI_BASE_URL": openai_base_url,
+            "BIBER_MODEL": default_model,
+            "BIBER_API_KEY": "<set-user-api-key-in-secret-store>",
+        },
+        "client_contract": {
+            "protocol": external_agent_api.get(
+                "protocol",
+                "openai-compatible-chat-completions",
+            ),
+            "models_endpoint": "/v1/models",
+            "chat_completions_endpoint": "/v1/chat/completions",
+            "auth_type": require_mapping(connection.get("auth")).get("type"),
+            "auth_headers": require_mapping(connection.get("auth")).get(
+                "accepted_headers",
+                [],
+            ),
+            "streaming_supported": bool(
+                require_mapping(connection.get("compatibility")).get(
+                    "streaming_supported"
+                )
+            ),
+            "mentor_default_enabled": bool(
+                require_mapping(connection.get("compatibility")).get(
+                    "mentor_default_enabled"
+                )
+            ),
+            "provider_swappable": bool(
+                require_mapping(connection.get("compatibility")).get(
+                    "provider_swappable"
+                )
+            ),
+        },
+        "docs": [
+            "docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md",
+            "docs/BIBER_EXTERNAL_AGENT_API.md",
+            "docs/API_EXAMPLES.md",
+            "docs/BIBER_ONLY_WORKSPACE.md",
+        ],
+        "examples": [
+            "examples/external_agent/README.md",
+            "examples/external_agent/connection.env.example",
+            "examples/external_agent/python_minimal_client.py",
+            "examples/external_agent/javascript_fetch_client.mjs",
+        ],
+        "validation_commands": [
+            {
+                "name": "offline_examples_smoke",
+                "command": "python scripts/biber_external_agent_examples_smoke.py",
+                "requires_live_biber": False,
+                "api_key_required": False,
+            },
+            {
+                "name": "live_connection_smoke",
+                "command": (
+                    "python scripts/biber_agent_client.py external-agent-smoke "
+                    "--client-base-url \"$BIBER_OPENAI_BASE_URL\" "
+                    "--output /workspace/outputs/biber-external-agent-smoke.json"
+                ),
+                "requires_live_biber": True,
+                "api_key_env": "BIBER_API_KEY",
+            },
+            {
+                "name": "python_minimal_client",
+                "command": (
+                    "python examples/external_agent/python_minimal_client.py "
+                    "--message \"Reply with one concise setup confirmation.\""
+                ),
+                "requires_live_biber": True,
+                "api_key_env": "BIBER_API_KEY",
+            },
+        ],
+        "notes": [
+            "Store BIBER_API_KEY in the consuming client's secret manager.",
+            "Do not commit API keys or paste them into chat.",
+            "Use BIBER_OPENAI_BASE_URL for clients that ask for an OpenAI base URL.",
+            "Use BIBER_MODEL as the model id.",
+            "Do not point external clients at the raw local_model_base_url.",
+            "OpenAI mentor remains disabled unless separately configured and requested.",
+        ],
+        "api_key_included": False,
+    }
+
+
 def build_external_agent_smoke_result(
     *,
     readiness: Mapping[str, Any],
@@ -1263,6 +1376,36 @@ def format_external_agent_readiness_summary(payload: Mapping[str, Any]) -> str:
         for check in checks
     )
     lines.append(f"api_key_included: {bool(payload.get('api_key_included'))}")
+    return "\n".join(lines)
+
+
+def format_external_agent_bundle_summary(payload: Mapping[str, Any]) -> str:
+    client_env = require_mapping(payload.get("client_env"))
+    docs = require_list(payload.get("docs"))
+    examples = require_list(payload.get("examples"))
+    commands = [
+        item
+        for item in require_list(payload.get("validation_commands"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER external-agent connection bundle",
+        f"ok: {bool(payload.get('ok'))}",
+        f"probe_base_url: {payload.get('probe_base_url', '-')}",
+        f"openai_base_url: {payload.get('openai_base_url', '-')}",
+        f"default_model: {payload.get('default_model') or '-'}",
+        f"BIBER_OPENAI_BASE_URL: {client_env.get('BIBER_OPENAI_BASE_URL', '-')}",
+        f"BIBER_MODEL: {client_env.get('BIBER_MODEL', '-')}",
+        f"api_key_included: {bool(payload.get('api_key_included'))}",
+        "docs: " + (", ".join(str(item) for item in docs) if docs else "-"),
+        "examples: "
+        + (", ".join(str(item) for item in examples) if examples else "-"),
+        "validation_commands:",
+    ]
+    lines.extend(
+        f"- {item.get('name', '-')} live={bool(item.get('requires_live_biber'))}"
+        for item in commands
+    )
     return "\n".join(lines)
 
 
@@ -21295,6 +21438,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
 
+    external_agent_bundle = subparsers.add_parser(
+        "external-agent-bundle",
+        help=(
+            "Write a non-secret connection bundle for configuring a generic "
+            "external agent client."
+        ),
+    )
+    external_agent_bundle.add_argument(
+        "--output",
+        help="Optional JSON artifact path.",
+    )
+    external_agent_bundle.add_argument(
+        "--client-base-url",
+        help=(
+            "Optional client-facing BIBER API base URL for the saved bundle. "
+            "Use this when probing a private URL but configuring an SSH tunnel, "
+            "reverse proxy, or HTTPS domain."
+        ),
+    )
+
     external_agent_smoke = subparsers.add_parser(
         "external-agent-smoke",
         help=(
@@ -25890,6 +26053,40 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_external_agent_readiness_summary(result)
+        )
+
+    if args.command == "external-agent-bundle":
+        api_key = resolve_api_key(args.api_key)
+        base_url = args.base_url.rstrip("/")
+        capabilities = fetch_capabilities(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        runtime_status = fetch_runtime_status(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        models_payload = list_models(
+            base_url=base_url,
+            api_key=api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        result = build_external_agent_connection_bundle(
+            base_url=base_url,
+            client_base_url=args.client_base_url,
+            capabilities=capabilities,
+            runtime_status=runtime_status,
+            models_payload=models_payload,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_agent_bundle_summary(result)
         )
 
     if args.command == "external-agent-smoke":

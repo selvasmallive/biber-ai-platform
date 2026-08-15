@@ -45,6 +45,10 @@ python scripts/biber_agent_client.py external-agent-connection \
   --client-base-url "$BIBER_API_BASE_URL" \
   --output /workspace/outputs/biber-external-agent-connection.json
 
+python scripts/biber_agent_client.py external-agent-bundle \
+  --client-base-url "$BIBER_API_BASE_URL" \
+  --output /workspace/outputs/biber-external-agent-bundle.json
+
 python scripts/biber_agent_client.py capabilities \
   --output /workspace/outputs/biber-capabilities.json
 
@@ -58,6 +62,9 @@ python scripts/biber_agent_client.py models \
 The readiness and connection artifacts are safe to share with a local agent
 setup because they do not contain the API key. The API key must be configured
 separately in the client's secret or environment setting.
+The bundle artifact is the preferred handoff file for another client: it
+includes the non-secret env values, docs/examples paths, and validation commands
+without embedding the API key.
 
 ## Minimal Client Examples
 

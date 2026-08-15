@@ -97,6 +97,9 @@ Use `external-agent-connection --output <artifact.json>` when configuring an
 IDE, gateway, or custom conversational agent: it bundles the OpenAI-compatible
 base URL, `/v1/models`, `/v1/chat/completions`, the selected stable model, and
 auth header names without writing the API key into the artifact.
+Use `external-agent-bundle --output <artifact.json>` for a compact non-secret
+handoff artifact containing env values, docs/examples paths, validation
+commands, and an API-key placeholder for another client or gateway.
 Use `external-agent-smoke --output <artifact.json>` when you want readiness plus
 one short OpenAI-compatible chat-completions response in a single non-secret
 artifact. This is the preferred MVP proof before handing BIBER to an external

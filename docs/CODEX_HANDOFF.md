@@ -4,6 +4,16 @@ Last updated: 2026-08-15
 
 ## Current Goal
 
+2026-08-15 latest BIBER external-agent bundle checkpoint:
+In progress: add a stdlib `external-agent-bundle` command that produces a
+compact non-secret handoff artifact for generic external-agent clients and
+gateways. It should fetch capabilities/runtime/models, reuse the existing
+external-agent connection profile, and include only client env values,
+docs/examples paths, validation commands, and an API-key placeholder. Do not
+include the actual API key. Keep OpenAI mentor disabled by default and do not use
+training, credential rotation, paid external APIs, or XRIQ/XRIS work for this
+checkpoint.
+
 2026-08-15 latest BIBER external-agent examples checkpoint:
 Complete: BIBER MVP now has a minimal `examples/external_agent/` package for
 generic external-agent clients. It includes a dependency-free Python stdlib
