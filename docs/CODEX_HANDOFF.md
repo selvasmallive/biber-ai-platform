@@ -5,13 +5,29 @@ Last updated: 2026-08-15
 ## Current Goal
 
 2026-08-15 latest BIBER external-agent bundle health checkpoint:
-In progress: add a stdlib `external-agent-bundle-health-check` command that
-validates a saved `external-agent-bundle` artifact before it is handed to another
-client or gateway. It should be offline, avoid API-key resolution, avoid model
-calls, verify the bundle is non-secret, verify required env/model/base URL
-consistency, and verify docs/examples paths exist under a supplied repo root. Do
-not use OpenAI mentor, training, credential rotation, paid external APIs, or
-XRIQ/XRIS work for this checkpoint.
+Complete: BIBER MVP now has a stdlib `external-agent-bundle-health-check`
+command in `scripts/biber_agent_client.py`. It validates a saved
+`external-agent-bundle` artifact before handing it to another client or gateway.
+The check is offline, does not resolve API keys, does not call the model, verifies
+the bundle is non-secret, checks env/model/base URL consistency, verifies the
+client/auth contract, and confirms docs/examples paths exist under the supplied
+repo root. Docs were updated in `docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md`,
+`docs/BIBER_EXTERNAL_AGENT_API.md`, `docs/API_EXAMPLES.md`, and
+`docs/BIBER_ONLY_WORKSPACE.md`. Local validation passed Python `py_compile`,
+`git diff --check`, a direct no-pytest health-check harness, and
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. Commit
+`31abf25` (`Add BIBER external agent bundle health check`) was pushed to
+`biber/mvp-resume-20260712`. The SSH-enabled Vast checkout fast-forwarded to
+`31abf25`; Vast validation passed `py_compile`, live `external-agent-bundle`, and
+live `external-agent-bundle-health-check` against `http://127.0.0.1:8000` using
+the existing `.env` user key without printing it. Live artifacts:
+`/workspace/outputs/biber-external-agent-bundle-health-20260815T161201Z/biber-external-agent-bundle-live.json`
+and
+`/workspace/outputs/biber-external-agent-bundle-health-20260815T161201Z/biber-external-agent-bundle-health-live.json`.
+The health artifact reports `ok=True`, `ready_for_external_client_handoff=True`,
+`api_key_included=False`, `external_network_required=False`, `mentor_used=False`,
+and `training_allowed=False`. No OpenAI mentor, training, credential rotation,
+paid external APIs, or XRIQ/XRIS work was used for this checkpoint.
 
 2026-08-15 latest BIBER external-agent bundle checkpoint:
 Complete: BIBER MVP now has a stdlib `external-agent-bundle` command in
