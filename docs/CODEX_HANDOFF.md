@@ -5,14 +5,28 @@ Last updated: 2026-08-15
 ## Current Goal
 
 2026-08-15 latest BIBER external-agent bundle checkpoint:
-In progress: add a stdlib `external-agent-bundle` command that produces a
-compact non-secret handoff artifact for generic external-agent clients and
-gateways. It should fetch capabilities/runtime/models, reuse the existing
-external-agent connection profile, and include only client env values,
-docs/examples paths, validation commands, and an API-key placeholder. Do not
-include the actual API key. Keep OpenAI mentor disabled by default and do not use
-training, credential rotation, paid external APIs, or XRIQ/XRIS work for this
-checkpoint.
+Complete: BIBER MVP now has a stdlib `external-agent-bundle` command in
+`scripts/biber_agent_client.py`. It fetches capabilities/runtime/models, reuses
+the existing external-agent connection profile, and writes a compact non-secret
+handoff artifact for generic external-agent clients and gateways. The artifact
+includes `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, an API-key placeholder, docs
+and examples paths, validation commands, and the client contract. It never
+includes the actual API key. Docs were updated in
+`docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md`, `docs/BIBER_EXTERNAL_AGENT_API.md`,
+`docs/API_EXAMPLES.md`, and `docs/BIBER_ONLY_WORKSPACE.md`. Local validation
+passed Python `py_compile`, `git diff --check`, a direct no-pytest
+`external-agent-bundle` harness, and `scripts/biber_local_confidence_smoke.py`
+with `ok=True` and 11 checks. Commit `becf12e` (`Add BIBER external agent
+connection bundle`) was pushed to `biber/mvp-resume-20260712`. The SSH-enabled
+Vast checkout fast-forwarded to `becf12e`; Vast validation passed `py_compile`
+and live `external-agent-bundle --client-base-url https://biber.example.com/v1
+--output` against `http://127.0.0.1:8000` using the existing `.env` user key
+without printing it. Live artifact:
+`/workspace/outputs/biber-external-agent-bundle-live-latest.json`. It reports
+`ok=true`, `openai_base_url=https://biber.example.com/v1`,
+`default_model=biber-dev-core-v1`, `api_key_included=false`, and
+`BIBER_API_KEY=<set-user-api-key-in-secret-store>`. No OpenAI mentor, training,
+credential rotation, paid external APIs, or XRIQ/XRIS work was used.
 
 2026-08-15 latest BIBER external-agent examples checkpoint:
 Complete: BIBER MVP now has a minimal `examples/external_agent/` package for
