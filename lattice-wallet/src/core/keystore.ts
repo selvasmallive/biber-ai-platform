@@ -50,14 +50,21 @@ export interface BiometricResult {
   reason?: string;
 }
 
-/** Require a device biometric / passcode confirmation before releasing secrets. */
+const NO_DEVICE_SECURITY_MESSAGE =
+  'Set up a screen lock (biometrics or passcode) on your device to protect your wallet. ' +
+  'Lattice will not sign or reveal your recovery phrase without it.';
+
+/**
+ * Require a device biometric / passcode confirmation before releasing secrets.
+ *
+ * FAIL CLOSED: if the device has no lock at all (no biometrics AND no passcode), we
+ * refuse rather than releasing secrets with no user-presence check. `disableDeviceFallback`
+ * is false, so a passcode-only device still authenticates via the OS passcode prompt.
+ */
 export async function authenticate(prompt = 'Unlock Lattice'): Promise<BiometricResult> {
-  const hasHardware = await LocalAuthentication.hasHardwareAsync();
-  const enrolled = await LocalAuthentication.isEnrolledAsync();
-  if (!hasHardware || !enrolled) {
-    // No biometric/passcode enrolled. We still guard the store, but surface this so
-    // the UI can warn the user that device-level protection is weaker.
-    return { ok: true, reason: 'no-local-auth-enrolled' };
+  const level = await LocalAuthentication.getEnrolledLevelAsync();
+  if (level === LocalAuthentication.SecurityLevel.NONE) {
+    return { ok: false, reason: 'no-device-security' };
   }
   const res = await LocalAuthentication.authenticateAsync({
     promptMessage: prompt,
@@ -67,13 +74,17 @@ export async function authenticate(prompt = 'Unlock Lattice'): Promise<Biometric
   return { ok: res.success, reason: res.success ? undefined : (res as any).error };
 }
 
+function authError(auth: BiometricResult): Error {
+  return new Error(auth.reason === 'no-device-security' ? NO_DEVICE_SECURITY_MESSAGE : 'Authentication failed');
+}
+
 /**
  * Reveal the recovery phrase after a fresh biometric check. The returned string is
  * sensitive — callers must not persist, log, or transmit it.
  */
 export async function revealMnemonic(): Promise<string> {
   const auth = await authenticate('Reveal recovery phrase');
-  if (!auth.ok) throw new Error('Authentication failed');
+  if (!auth.ok) throw authError(auth);
   const mnemonic = await SecureStore.getItemAsync(MNEMONIC_KEY, secureOptions);
   if (!mnemonic) throw new Error('No wallet found');
   return mnemonic;
@@ -85,7 +96,7 @@ export async function revealMnemonic(): Promise<string> {
  */
 export async function unlockMnemonic(prompt = 'Confirm to sign'): Promise<string> {
   const auth = await authenticate(prompt);
-  if (!auth.ok) throw new Error('Authentication failed');
+  if (!auth.ok) throw authError(auth);
   const mnemonic = await SecureStore.getItemAsync(MNEMONIC_KEY, secureOptions);
   if (!mnemonic) throw new Error('No wallet found');
   return mnemonic;

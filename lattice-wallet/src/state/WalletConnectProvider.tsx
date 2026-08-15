@@ -143,6 +143,14 @@ export function WalletConnectProvider({ children }: { children: React.ReactNode 
       const method: string = params.request.method;
       const rp: any[] = params.request.params;
       const numericChain = Number(String(params.chainId).split(':')[1]);
+
+      // Defense-in-depth (do not rely solely on the SDK): the request must belong to an
+      // active session, use an allowed method, and target a chain we approved.
+      if (!kit.getActiveSessions()[topic]) throw new Error('No active session for this request');
+      if (!EVM_METHODS.includes(method)) throw new Error(`Unsupported method: ${method}`);
+      if (method === 'eth_sendTransaction' && !evmConfigByChainId(numericChain))
+        throw new Error(`Unsupported chain eip155:${numericChain}`);
+
       const mnemonic = await keystore.unlockMnemonic('Approve dApp request');
       let result: string;
 
