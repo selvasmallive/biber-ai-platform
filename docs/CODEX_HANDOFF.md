@@ -4,6 +4,17 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 in-progress BIBER external-client env-template checkpoint:
+In progress: adding an offline `external-client-env-template` command that
+turns a saved `biber_external_client_readiness_bundle` into a non-secret
+`.env.example`-style artifact for IDE agents, gateways, and conversational
+clients. It must not resolve user/admin API keys, call BIBER, create/rotate
+credentials, call OpenAI mentor, train models, use paid external APIs, or touch
+XRIQ/XRIS work. Validate with Python `py_compile`, focused no-pytest
+env-template tests, `git diff --check`, `scripts/biber_local_confidence_smoke.py`,
+then sync and run the command on the SSH-enabled Vast checkout against the
+latest readiness bundle.
+
 2026-08-16 latest BIBER external-client quickstart verification summary checkpoint:
 Complete: commit `0ba0107` (`Add BIBER external client quickstart summary`)
 adds a stdlib `show-external-client-quickstart-verification` command that prints

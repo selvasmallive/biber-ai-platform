@@ -1680,6 +1680,48 @@ def _write_external_client_quickstart_paths(repo_root: Path) -> None:
         path.write_text(examples_text + "\n", encoding="utf-8")
 
 
+def _sample_external_client_readiness_bundle(tmp_path: Path) -> dict[str, object]:
+    handoff = {
+        "source": "biber_external_agent_handoff_package",
+        "ok": True,
+        "ready_for_client_handoff": True,
+        "required_client_env": {
+            "BIBER_OPENAI_BASE_URL": "https://biber.example.com/v1",
+            "BIBER_MODEL": "biber-dev-core-v1",
+            "BIBER_API_KEY": "<set-user-api-key-in-secret-store>",
+        },
+        "endpoints": {
+            "models": "https://biber.example.com/v1/models",
+            "chat_completions": "https://biber.example.com/v1/chat/completions",
+        },
+        "api_key_management": {
+            "admin_api": "mvp",
+            "admin_ui": "planned",
+            "per_user_key_issuance": "mvp",
+            "admin_endpoint": "GET/POST/DELETE /v1/admin/api-keys",
+            "admin_key_env": "BIBER_ADMIN_API_KEY",
+            "user_key_env": "BIBER_API_KEY",
+            "api_key_included": False,
+        },
+        "readiness_status": {
+            "bundle_health_ok": True,
+            "contract_report_ok": True,
+            "chat_smoke_included": True,
+            "chat_smoke_ok": True,
+        },
+    }
+    admin_smoke = client.build_admin_api_key_contract_smoke_blocked_result(
+        base_url="http://biber.local",
+        blocked_reason="BIBER_ADMIN_API_KEY not configured",
+    )
+    return client.build_external_client_readiness_bundle(
+        handoff_package=handoff,
+        handoff_package_path=str(tmp_path / "external-agent-handoff-package.json"),
+        admin_smoke=admin_smoke,
+        admin_smoke_path=str(tmp_path / "admin-api-key-contract-smoke.json"),
+    )
+
+
 def test_build_external_agent_bundle_health_check_is_non_secret(tmp_path: Path) -> None:
     _write_external_agent_bundle_paths(tmp_path)
     bundle = client.build_external_agent_connection_bundle(
@@ -2486,6 +2528,102 @@ def test_run_show_external_client_readiness_bundle_does_not_use_api_key(
     assert "admin_key_management_ready: False" in output
     assert "admin_api_key_not_configured" in output
     assert "BIBER_OPENAI_BASE_URL: https://biber.example.com/v1" in output
+
+
+def test_build_external_client_env_template_is_non_secret(tmp_path: Path) -> None:
+    readiness_bundle = _sample_external_client_readiness_bundle(tmp_path)
+
+    result = client.build_external_client_env_template(
+        readiness_bundle=readiness_bundle,
+        readiness_bundle_path=str(tmp_path / "external-client-readiness.json"),
+    )
+    summary = client.format_external_client_env_template_summary(result)
+    encoded = json.dumps(result, sort_keys=True)
+
+    assert result["source"] == "biber_external_client_env_template"
+    assert result["ok"] is True
+    assert result["ready_for_external_client_env_template"] is True
+    assert result["required_client_env"]["BIBER_OPENAI_BASE_URL"] == (
+        "https://biber.example.com/v1"
+    )
+    assert result["required_client_env"]["BIBER_MODEL"] == "biber-dev-core-v1"
+    assert result["required_client_env"]["BIBER_API_KEY"] == (
+        "<set-user-api-key-in-secret-store>"
+    )
+    assert "BIBER_OPENAI_BASE_URL=https://biber.example.com/v1" in result[
+        "env_template"
+    ]
+    assert "BIBER_MODEL=biber-dev-core-v1" in result["env_template"]
+    assert "BIBER_API_KEY=<set-user-api-key-in-secret-store>" in result[
+        "env_template"
+    ]
+    assert result["blocked_items"] == ["admin_api_key_not_configured"]
+    assert result["mutation_performed"] is False
+    assert result["api_key_included"] is False
+    assert result["admin_api_key_included"] is False
+    assert result["issued_api_key_included"] is False
+    assert result["raw_key_records_included"] is False
+    assert result["external_network_required"] is False
+    assert result["live_biber_required"] is False
+    assert result["mentor_used"] is False
+    assert result["training_allowed"] is False
+    assert "BIBER external-client env template" in summary
+    assert "ready_for_external_client_env_template: True" in summary
+    assert "api_key_included: False" in summary
+    assert "biber_plaintext" not in encoded
+    assert "admin-secret" not in encoded
+
+
+def test_run_external_client_env_template_does_not_use_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    readiness_path = tmp_path / "external-client-readiness-bundle.json"
+    output_path = tmp_path / "external-client-env-template.json"
+    env_output_path = tmp_path / "biber-external-client.env.example"
+    readiness_bundle = _sample_external_client_readiness_bundle(tmp_path)
+    readiness_path.write_text(json.dumps(readiness_bundle), encoding="utf-8")
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("user API key should not be resolved")
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        raise AssertionError("admin API key should not be resolved")
+
+    def fake_list_api_keys(**kwargs):
+        raise AssertionError("admin API should not be called")
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+    monkeypatch.setattr(client, "list_api_keys", fake_list_api_keys)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "external-client-env-template",
+                str(readiness_path),
+                "--output",
+                str(output_path),
+                "--env-output",
+                str(env_output_path),
+            ]
+        )
+    )
+
+    artifact = json.loads(output_path.read_text(encoding="utf-8"))
+    env_template = env_output_path.read_text(encoding="utf-8")
+    assert "BIBER external-client env template" in output
+    assert "ready_for_external_client_env_template: True" in output
+    assert artifact["artifact_path"] == str(output_path)
+    assert artifact["env_template_path"] == str(env_output_path)
+    assert artifact["ok"] is True
+    assert artifact["ready_for_external_client_env_template"] is True
+    assert artifact["api_key_included"] is False
+    assert artifact["admin_api_key_included"] is False
+    assert artifact["raw_key_records_included"] is False
+    assert "BIBER_OPENAI_BASE_URL=https://biber.example.com/v1" in env_template
+    assert "BIBER_MODEL=biber-dev-core-v1" in env_template
+    assert "BIBER_API_KEY=<set-user-api-key-in-secret-store>" in env_template
 
 
 def test_build_external_client_quickstart_verification_accepts_missing_admin_key(

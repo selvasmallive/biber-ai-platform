@@ -1235,6 +1235,136 @@ def build_external_client_readiness_bundle(
     }
 
 
+def build_external_client_env_template(
+    *,
+    readiness_bundle: Mapping[str, Any],
+    readiness_bundle_path: str,
+) -> dict[str, Any]:
+    required_client_env = require_mapping(readiness_bundle.get("required_client_env"))
+    endpoints = require_mapping(readiness_bundle.get("endpoints"))
+    api_key_management = require_mapping(readiness_bundle.get("api_key_management"))
+    blocked_items = [
+        str(item) for item in require_list(readiness_bundle.get("blocked_items"))
+    ]
+    base_url = str(required_client_env.get("BIBER_OPENAI_BASE_URL") or "")
+    model = str(required_client_env.get("BIBER_MODEL") or "")
+    api_key_placeholder = str(
+        required_client_env.get("BIBER_API_KEY")
+        or "<set-user-api-key-in-secret-store>"
+    )
+    if not api_key_placeholder.startswith("<"):
+        api_key_placeholder = "<set-user-api-key-in-secret-store>"
+    env_lines = [
+        "# BIBER external-client environment template",
+        "# Store BIBER_API_KEY in the client secret manager; do not commit real keys.",
+        f"BIBER_OPENAI_BASE_URL={shlex.quote(base_url)}",
+        f"BIBER_MODEL={shlex.quote(model)}",
+        f"BIBER_API_KEY={api_key_placeholder}",
+    ]
+    endpoint_ready = bool(
+        str(endpoints.get("models") or "").rstrip("/").endswith("/v1/models")
+        and str(endpoints.get("chat_completions") or "")
+        .rstrip("/")
+        .endswith("/v1/chat/completions")
+    )
+    env_ready = bool(base_url and model and api_key_placeholder.startswith("<"))
+    redaction_ok = (
+        bool(readiness_bundle.get("api_key_included")) is False
+        and bool(readiness_bundle.get("admin_api_key_included")) is False
+        and bool(readiness_bundle.get("issued_api_key_included")) is False
+        and bool(readiness_bundle.get("raw_key_records_included")) is False
+    )
+    checks = [
+        {
+            "name": "readiness_bundle_source",
+            "ok": (
+                readiness_bundle.get("source")
+                == "biber_external_client_readiness_bundle"
+            ),
+            "source": readiness_bundle.get("source"),
+        },
+        {
+            "name": "readiness_bundle_ok",
+            "ok": bool(readiness_bundle.get("ok")),
+        },
+        {
+            "name": "ready_for_external_client_configuration",
+            "ok": bool(
+                readiness_bundle.get("ready_for_external_client_configuration")
+            ),
+        },
+        {
+            "name": "env_template_fields",
+            "ok": env_ready,
+            "required_env": [
+                "BIBER_OPENAI_BASE_URL",
+                "BIBER_MODEL",
+                "BIBER_API_KEY",
+            ],
+        },
+        {
+            "name": "endpoints",
+            "ok": endpoint_ready,
+            "endpoints": sorted(endpoints.keys()),
+        },
+        {
+            "name": "api_key_redaction",
+            "ok": redaction_ok,
+            "api_key_included": bool(readiness_bundle.get("api_key_included")),
+            "admin_api_key_included": bool(
+                readiness_bundle.get("admin_api_key_included")
+            ),
+            "issued_api_key_included": bool(
+                readiness_bundle.get("issued_api_key_included")
+            ),
+            "raw_key_records_included": bool(
+                readiness_bundle.get("raw_key_records_included")
+            ),
+        },
+    ]
+    return {
+        "source": "biber_external_client_env_template",
+        "ok": all(bool(check.get("ok")) for check in checks),
+        "ready_for_external_client_env_template": all(
+            bool(check.get("ok")) for check in checks
+        ),
+        "readiness_bundle_artifact": str(Path(readiness_bundle_path)),
+        "required_client_env": {
+            "BIBER_OPENAI_BASE_URL": base_url,
+            "BIBER_MODEL": model,
+            "BIBER_API_KEY": api_key_placeholder,
+        },
+        "endpoints": {
+            "models": str(endpoints.get("models") or ""),
+            "chat_completions": str(endpoints.get("chat_completions") or ""),
+        },
+        "api_key_management": {
+            "admin_api": str(api_key_management.get("admin_api") or ""),
+            "admin_ui": str(api_key_management.get("admin_ui") or ""),
+            "per_user_key_issuance": str(
+                api_key_management.get("per_user_key_issuance") or ""
+            ),
+            "admin_endpoint": str(api_key_management.get("admin_endpoint") or ""),
+            "admin_key_env": str(api_key_management.get("admin_key_env") or ""),
+            "user_key_env": str(api_key_management.get("user_key_env") or ""),
+            "api_key_included": False,
+        },
+        "blocked_items": blocked_items,
+        "env_template": "\n".join(env_lines) + "\n",
+        "env_lines": env_lines,
+        "checks": checks,
+        "mutation_performed": False,
+        "api_key_included": False,
+        "admin_api_key_included": False,
+        "issued_api_key_included": False,
+        "raw_key_records_included": False,
+        "external_network_required": False,
+        "live_biber_required": False,
+        "mentor_used": False,
+        "training_allowed": False,
+    }
+
+
 def build_external_client_quickstart_verification(
     *,
     readiness_bundle: Mapping[str, Any],
@@ -2728,6 +2858,57 @@ def format_external_client_readiness_bundle_summary(
     )
     lines.extend(
         [
+            f"mutation_performed: {bool(payload.get('mutation_performed'))}",
+            f"api_key_included: {bool(payload.get('api_key_included'))}",
+            "admin_api_key_included: "
+            + str(bool(payload.get("admin_api_key_included"))),
+            "issued_api_key_included: "
+            + str(bool(payload.get("issued_api_key_included"))),
+            "raw_key_records_included: "
+            + str(bool(payload.get("raw_key_records_included"))),
+        ]
+    )
+    return "\n".join(lines)
+
+
+def format_external_client_env_template_summary(payload: Mapping[str, Any]) -> str:
+    required_env = require_mapping(payload.get("required_client_env"))
+    endpoints = require_mapping(payload.get("endpoints"))
+    api_key_management = require_mapping(payload.get("api_key_management"))
+    checks = [
+        item
+        for item in require_list(payload.get("checks"))
+        if isinstance(item, dict)
+    ]
+    blocked_items = [str(item) for item in require_list(payload.get("blocked_items"))]
+    env_template = str(payload.get("env_template") or "").rstrip()
+    lines = [
+        "BIBER external-client env template",
+        f"ok: {bool(payload.get('ok'))}",
+        "ready_for_external_client_env_template: "
+        + str(bool(payload.get("ready_for_external_client_env_template"))),
+        f"readiness_bundle_artifact: {payload.get('readiness_bundle_artifact', '-')}",
+        f"env_template_path: {payload.get('env_template_path', '-')}",
+        f"BIBER_OPENAI_BASE_URL: {required_env.get('BIBER_OPENAI_BASE_URL', '-')}",
+        f"BIBER_MODEL: {required_env.get('BIBER_MODEL', '-')}",
+        f"BIBER_API_KEY: {required_env.get('BIBER_API_KEY', '-')}",
+        f"models_url: {endpoints.get('models', '-')}",
+        f"chat_completions_url: {endpoints.get('chat_completions', '-')}",
+        "api_key_management:",
+        f"- admin_endpoint: {api_key_management.get('admin_endpoint', '-')}",
+        f"- admin_key_env: {api_key_management.get('admin_key_env', '-')}",
+        f"- user_key_env: {api_key_management.get('user_key_env', '-')}",
+        f"- api_key_included: {bool(api_key_management.get('api_key_included'))}",
+        "blocked_items: " + (", ".join(blocked_items) if blocked_items else "-"),
+        "checks:",
+    ]
+    lines.extend(
+        f"- {item.get('name', '-')} ok={bool(item.get('ok'))}" for item in checks
+    )
+    lines.extend(
+        [
+            "env_template:",
+            env_template,
             f"mutation_performed: {bool(payload.get('mutation_performed'))}",
             f"api_key_included: {bool(payload.get('api_key_included'))}",
             "admin_api_key_included: "
@@ -23039,6 +23220,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     show_external_client_readiness_bundle.add_argument("artifact")
 
+    external_client_env_template = subparsers.add_parser(
+        "external-client-env-template",
+        help=(
+            "Write a non-secret env template from a saved external-client "
+            "readiness bundle."
+        ),
+    )
+    external_client_env_template.add_argument(
+        "artifact",
+        help="Saved external-client-readiness-bundle artifact.",
+    )
+    external_client_env_template.add_argument(
+        "--output",
+        help="Optional JSON artifact path.",
+    )
+    external_client_env_template.add_argument(
+        "--env-output",
+        help="Optional .env template text path.",
+    )
+
     external_client_quickstart_verify = subparsers.add_parser(
         "external-client-quickstart-verify",
         help=(
@@ -27932,6 +28133,35 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(readiness_bundle, indent=2, sort_keys=True)
             if args.print_json
             else format_external_client_readiness_bundle_summary(readiness_bundle)
+        )
+
+    if args.command == "external-client-env-template":
+        readiness_bundle = load_json_artifact(
+            args.artifact,
+            label="external-client-readiness-bundle artifact",
+        )
+        if readiness_bundle.get("source") != "biber_external_client_readiness_bundle":
+            raise BiberAgentClientError(
+                "external-client-env-template requires a "
+                "biber_external_client_readiness_bundle artifact."
+            )
+        result = build_external_client_env_template(
+            readiness_bundle=readiness_bundle,
+            readiness_bundle_path=args.artifact,
+        )
+        if args.env_output:
+            env_output_path = Path(args.env_output)
+            if env_output_path.parent != Path("."):
+                env_output_path.parent.mkdir(parents=True, exist_ok=True)
+            env_output_path.write_text(str(result["env_template"]), encoding="utf-8")
+            result["env_template_path"] = str(env_output_path)
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_client_env_template_summary(result)
         )
 
     if args.command == "external-client-quickstart-verify":

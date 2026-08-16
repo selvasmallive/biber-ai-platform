@@ -121,6 +121,10 @@ python scripts/biber_agent_client.py external-client-readiness-bundle \
   --output /workspace/outputs/biber-external-client-readiness-bundle.json
 python scripts/biber_agent_client.py show-external-client-readiness-bundle \
   /workspace/outputs/biber-external-client-readiness-bundle.json
+python scripts/biber_agent_client.py external-client-env-template \
+  /workspace/outputs/biber-external-client-readiness-bundle.json \
+  --output /workspace/outputs/biber-external-client-env-template.json \
+  --env-output /workspace/outputs/biber-external-client.env.example
 python scripts/biber_agent_client.py external-client-quickstart-verify \
   /workspace/outputs/biber-external-client-readiness-bundle.json \
   --repo-root /workspace/biber-ai-platform \
@@ -173,6 +177,9 @@ confirm model-source client readiness while making the admin-key blocker
 explicit.
 Use `show-external-client-readiness-bundle` to inspect the saved checklist later
 without rebuilding it or resolving API keys.
+Use `external-client-env-template` to generate a non-secret `.env.example`
+template with `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and a placeholder
+`BIBER_API_KEY` for IDE agents, gateways, or conversational apps.
 Use `external-client-quickstart-verify` to confirm that the readiness bundle,
 docs, examples, and setup command mentions still match before handing BIBER to a
 gateway, IDE agent, or conversational app.
