@@ -4,13 +4,26 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
-2026-08-16 in-progress BIBER external-client live smoke plan checkpoint:
-In progress: adding an offline `external-client-live-smoke-plan` command that
-creates non-secret curl/Python smoke commands from a saved
-`biber_external_client_integration_package` artifact. The command must not
+2026-08-16 latest BIBER external-client live smoke plan checkpoint:
+Complete: commit `256beef` (`Add BIBER external client live smoke plan`) adds
+an offline `external-client-live-smoke-plan` command that creates non-secret
+curl/Python smoke commands from a saved
+`biber_external_client_integration_package` artifact. The command does not
 resolve user/admin API keys, call BIBER, create/rotate credentials, call OpenAI
 mentor, train models, use paid external APIs, or touch XRIQ/XRIS work; it only
-plans the later live smoke after a user `BIBER_API_KEY` is configured.
+plans the later live smoke after a user `BIBER_API_KEY` is configured. Local
+validation passed Python `py_compile` with temp pycache, focused direct
+no-pytest builder/CLI tests, `git diff --check`, and
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. The
+SSH-enabled Vast checkout was fast-forwarded to `256beef` with a temporary git
+bundle because the Vast GitHub HTTPS remote is not credentialed; the temporary
+bundle was removed afterward. Vast passed `py_compile` and generated
+`/workspace/outputs/biber-external-client-live-smoke-plan-20260816T191447Z/biber-external-client-live-smoke-plan-live.json`.
+The summary was saved at
+`/workspace/outputs/biber-external-client-live-smoke-plan-20260816T191447Z/biber-external-client-live-smoke-plan-summary.txt`
+and reports `ready_for_external_client_live_smoke_plan=True`,
+`planned_live_biber_required=True`, `api_key_included=False`, and
+`admin_api_key_included=False`; the Vast checkout remained clean.
 
 2026-08-16 latest BIBER external-client integration package summary checkpoint:
 Complete: commit `a2c93ac` (`Add BIBER external client integration package
