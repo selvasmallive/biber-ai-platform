@@ -112,6 +112,8 @@ its `BIBER_OPENAI_BASE_URL` and `BIBER_MODEL`, with OpenAI mentor off.
 Use `external-agent-handoff-package <artifact.json> --repo-root <repo>` to
 create one non-secret index artifact linking the bundle, health report, client
 contract report, and optional chat-smoke proof for another gateway/client.
+Use `show-external-agent-handoff-package <package.json>` to inspect the saved
+handoff summary without opening JSON and without resolving API keys.
 Use `external-agent-smoke --output <artifact.json>` when you want readiness plus
 one short OpenAI-compatible chat-completions response in a single non-secret
 artifact. This is the preferred MVP proof before handing BIBER to an external

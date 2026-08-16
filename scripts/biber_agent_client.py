@@ -513,6 +513,16 @@ def build_external_agent_connection_bundle(
                 "api_key_required": False,
             },
             {
+                "name": "show_handoff_package",
+                "command": (
+                    "python scripts/biber_agent_client.py "
+                    "show-external-agent-handoff-package "
+                    "/workspace/outputs/biber-external-agent-handoff-package.json"
+                ),
+                "requires_live_biber": False,
+                "api_key_required": False,
+            },
+            {
                 "name": "python_minimal_client",
                 "command": (
                     "python examples/external_agent/python_minimal_client.py "
@@ -22245,6 +22255,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Optional JSON artifact path.",
     )
 
+    show_external_agent_handoff_package = subparsers.add_parser(
+        "show-external-agent-handoff-package",
+        help=(
+            "Show a concise terminal summary for a saved external-agent "
+            "handoff package."
+        ),
+    )
+    show_external_agent_handoff_package.add_argument("artifact")
+
     external_agent_smoke = subparsers.add_parser(
         "external-agent-smoke",
         help=(
@@ -26992,6 +27011,22 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_external_agent_handoff_package_summary(result)
+        )
+
+    if args.command == "show-external-agent-handoff-package":
+        package = load_json_artifact(
+            args.artifact,
+            label="external-agent-handoff-package artifact",
+        )
+        if package.get("source") != "biber_external_agent_handoff_package":
+            raise BiberAgentClientError(
+                "show-external-agent-handoff-package requires a "
+                "biber_external_agent_handoff_package artifact."
+            )
+        return (
+            json.dumps(package, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_agent_handoff_package_summary(package)
         )
 
     if args.command == "external-agent-smoke":

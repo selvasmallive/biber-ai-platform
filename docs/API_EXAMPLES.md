@@ -110,6 +110,8 @@ python scripts/biber_agent_client.py external-agent-handoff-package \
   --contract-report-artifact /workspace/outputs/biber-external-agent-client-contract.json \
   --chat-smoke-artifact /workspace/outputs/biber-external-agent-bundle-chat-smoke.json \
   --output /workspace/outputs/biber-external-agent-handoff-package.json
+python scripts/biber_agent_client.py show-external-agent-handoff-package \
+  /workspace/outputs/biber-external-agent-handoff-package.json
 python scripts/biber_agent_client.py external-agent-smoke \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-smoke.json
@@ -145,6 +147,8 @@ drive one OpenAI-compatible chat request through `BIBER_OPENAI_BASE_URL` and
 Use `external-agent-handoff-package` to create one non-secret index artifact
 that links the bundle, health report, contract report, and optional chat-smoke
 proof for another gateway/client.
+Use `show-external-agent-handoff-package` to inspect the saved package summary
+without opening JSON and without resolving API keys.
 Use `external-agent-smoke` when you want one combined non-secret proof that the
 readiness probes pass and `/v1/chat/completions` returns a short local model
 response with OpenAI mentor off.

@@ -4,6 +4,17 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 latest BIBER external-agent handoff package summary checkpoint:
+In progress: add a stdlib `show-external-agent-handoff-package` command to
+`scripts/biber_agent_client.py` so a future Codex/BIBER session or gateway
+engineer can inspect a saved non-secret handoff package from the terminal
+without opening JSON, resolving API keys, calling the local model, using OpenAI
+mentor, training, rotating credentials, or touching XRIQ/XRIS. Planned local
+checks: Python `py_compile` with temp pycache, `git diff --check`, a direct
+no-pytest summary-command harness, and `scripts/biber_local_confidence_smoke.py`.
+Planned Vast check: run the new command against
+`/workspace/outputs/biber-external-agent-handoff-package-20260816T005648Z/biber-external-agent-handoff-package-live.json`.
+
 2026-08-16 latest BIBER external-agent handoff package checkpoint:
 Complete: BIBER MVP now has a stdlib `external-agent-handoff-package` command
 in `scripts/biber_agent_client.py`. It loads a saved `external-agent-bundle`,

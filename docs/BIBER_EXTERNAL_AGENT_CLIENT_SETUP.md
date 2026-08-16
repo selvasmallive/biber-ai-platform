@@ -72,6 +72,9 @@ python scripts/biber_agent_client.py external-agent-handoff-package \
   --chat-smoke-artifact /workspace/outputs/biber-external-agent-bundle-chat-smoke.json \
   --output /workspace/outputs/biber-external-agent-handoff-package.json
 
+python scripts/biber_agent_client.py show-external-agent-handoff-package \
+  /workspace/outputs/biber-external-agent-handoff-package.json
+
 python scripts/biber_agent_client.py capabilities \
   --output /workspace/outputs/biber-capabilities.json
 
@@ -100,6 +103,8 @@ OpenAI-compatible chat request with OpenAI mentor off.
 Run `external-agent-handoff-package` when another gateway/client needs one
 non-secret index artifact linking the bundle, health report, contract report,
 and optional chat-smoke proof.
+Run `show-external-agent-handoff-package` to inspect the saved package summary
+without opening JSON and without resolving API keys.
 
 ## Minimal Client Examples
 
