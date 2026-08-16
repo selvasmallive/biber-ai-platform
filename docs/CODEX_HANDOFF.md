@@ -5,13 +5,26 @@ Last updated: 2026-08-16
 ## Current Goal
 
 2026-08-16 latest BIBER external-agent key-management handoff metadata checkpoint:
-In progress: carry the existing external-agent API-key management contract
+Complete: commit `19f9b39` (`Add BIBER external agent key management metadata`)
+carries the existing external-agent API-key management contract
 (`admin_key_management_api=mvp`, `admin_key_management_ui=planned`,
 `per_user_key_issuance=mvp`, `GET/POST/DELETE /v1/admin/api-keys`, guarded by
 `BIBER_ADMIN_API_KEY`) into the non-secret `external-agent-bundle`, client
-contract report, and handoff package artifacts. This is metadata-only and must
-not add key values, new endpoint behavior, paid external APIs, training,
-credential rotation, OpenAI mentor use, or XRIQ/XRIS work.
+contract report, handoff package artifact, and summary output. Local validation
+passed Python `py_compile` with temp pycache, `git diff --check`, a direct
+no-pytest handoff metadata harness, and `scripts/biber_local_confidence_smoke.py`
+with `ok=True` and 11 checks. The SSH-enabled Vast checkout fast-forwarded to
+`19f9b39`, passed `py_compile`, generated a fresh live bundle, health report,
+client contract report, and handoff package under
+`/workspace/outputs/biber-external-agent-key-metadata-20260816T163818Z/`, and
+verified the package reports `admin_api=mvp`, `admin_ui=planned`,
+`per_user_key_issuance=mvp`, and `api_key_included=False`. The package artifact
+is
+`/workspace/outputs/biber-external-agent-key-metadata-20260816T163818Z/biber-external-agent-handoff-package-live.json`.
+This checkpoint is metadata-only: it adds no key values, no new endpoint
+behavior, no paid external APIs, no training, no credential rotation, no OpenAI
+mentor use, and no XRIQ/XRIS work. The Vast checkout remained clean after
+validation.
 
 2026-08-16 latest BIBER external-agent handoff package summary checkpoint:
 Complete: commit `f5f8ff3` (`Add BIBER external agent handoff package summary`)
