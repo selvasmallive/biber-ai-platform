@@ -1,16 +1,45 @@
 # Codex Handoff
 
-Last updated: 2026-08-15
+Last updated: 2026-08-16
 
 ## Current Goal
 
-2026-08-15 latest BIBER external-agent handoff package checkpoint:
-In progress: add a stdlib `external-agent-handoff-package` command that loads a
-saved `external-agent-bundle`, computes or links bundle health and client
-contract report artifacts, optionally links a saved bundle chat-smoke artifact,
-and emits one compact non-secret index artifact for another gateway/client. It
-must not resolve API keys, call the model, use training, rotate credentials, use
-paid external APIs, or touch XRIQ/XRIS work.
+2026-08-16 latest BIBER external-agent handoff package checkpoint:
+Complete: BIBER MVP now has a stdlib `external-agent-handoff-package` command
+in `scripts/biber_agent_client.py`. It loads a saved `external-agent-bundle`,
+computes or links bundle health and client contract report artifacts,
+optionally links a saved bundle chat-smoke artifact, and emits one compact
+non-secret index artifact for another gateway/client. The generated
+`external-agent-bundle` validation commands now include `handoff_package`. Docs
+were updated in `docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md`,
+`docs/BIBER_EXTERNAL_AGENT_API.md`, `docs/API_EXAMPLES.md`, and
+`docs/BIBER_ONLY_WORKSPACE.md`. Local validation passed Python `py_compile` with
+a temp pycache, `git diff --check`, a direct no-pytest handoff-package harness,
+and `scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks.
+`pytest` was not available in the bundled local Python, so the focused unit test
+path was covered by the direct harness. Commit `cf286ca` (`Add BIBER external
+agent handoff package`) was pushed to `biber/mvp-resume-20260712`. The
+SSH-enabled Vast checkout fast-forwarded to `cf286ca`; Vast validation passed
+`py_compile`, live `external-agent-bundle`, offline
+`external-agent-bundle-health-check`, offline
+`external-agent-client-contract-report`, and offline
+`external-agent-handoff-package` against the freshly generated bundle. The
+script used the existing `.env` user key only for bundle generation, without
+printing it, and linked the previously saved chat-smoke artifact without
+creating a new model call. Live artifacts:
+`/workspace/outputs/biber-external-agent-handoff-package-20260816T005648Z/biber-external-agent-bundle-live.json`,
+`/workspace/outputs/biber-external-agent-handoff-package-20260816T005648Z/biber-external-agent-bundle-health-live.json`,
+`/workspace/outputs/biber-external-agent-handoff-package-20260816T005648Z/biber-external-agent-client-contract-live.json`,
+and
+`/workspace/outputs/biber-external-agent-handoff-package-20260816T005648Z/biber-external-agent-handoff-package-live.json`.
+It also linked existing chat-smoke proof:
+`/workspace/outputs/biber-external-agent-bundle-chat-smoke-20260815T162352Z/biber-external-agent-bundle-chat-smoke-live.json`.
+The package artifact reports `ok=True`, `ready_for_client_handoff=True`,
+`BIBER_OPENAI_BASE_URL=http://127.0.0.1:8000/v1`,
+`BIBER_MODEL=biber-dev-core-v1`, `chat_smoke_included=True`,
+`api_key_included=False`, `mentor_used=False`, and `training_allowed=False`. No
+new model call, training, credential rotation, paid external APIs, or XRIQ/XRIS
+work was used for this checkpoint.
 
 2026-08-15 latest BIBER external-agent client contract report checkpoint:
 Complete: BIBER MVP now has a stdlib
