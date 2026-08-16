@@ -172,6 +172,10 @@ only `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and `BIBER_API_KEY`. Run
 fake-server validation before live GPU testing.
 Add `--client-base-url <url>` when the saved profile should advertise an SSH
 tunnel, reverse proxy, or HTTPS domain instead of the private probe URL.
+For the real `beaverapi.com` domain, use
+[`docs/BIBER_PUBLIC_DOMAIN_SETUP.md`](BIBER_PUBLIC_DOMAIN_SETUP.md). The
+recommended MVP endpoint is `https://api.beaverapi.com/v1` through Cloudflare
+Tunnel to the Vast BIBER API on `127.0.0.1:8000`.
 Use `--include-git-state` for repo work so the artifact records the local
 branch, short HEAD, dirty status, and `git status --short` before edits/tests.
 Repo-context and safe-edit paths must stay workspace-relative; Windows

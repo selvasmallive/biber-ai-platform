@@ -219,6 +219,11 @@ python scripts/biber_agent_client.py external-agent-connection \
 Keep the GPU/vLLM port private. Public clients should reach only the BIBER API
 gateway.
 
+For the real `beaverapi.com` domain, use
+[`docs/BIBER_PUBLIC_DOMAIN_SETUP.md`](BIBER_PUBLIC_DOMAIN_SETUP.md). The
+recommended MVP endpoint is `https://api.beaverapi.com/v1` through Cloudflare
+Tunnel to the Vast BIBER API on `127.0.0.1:8000`.
+
 ## Smoke Test
 
 After the connection profile, run one readiness-plus-chat smoke:

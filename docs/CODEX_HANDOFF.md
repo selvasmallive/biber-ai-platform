@@ -4,6 +4,25 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 latest BIBER beaverapi.com public-domain checkpoint:
+In progress: local edits add `docs/BIBER_PUBLIC_DOMAIN_SETUP.md` and
+`scripts/vast_configure_cloudflare_tunnel.sh` for the real `beaverapi.com`
+domain. The recommended MVP endpoint is `https://api.beaverapi.com/v1`, using
+Cloudflare Tunnel to route to the Vast BIBER API at `127.0.0.1:8000` while
+keeping vLLM on `127.0.0.1:8001` private. Namecheap-only DNS is documented as
+insufficient for a clean HTTPS endpoint because DNS cannot hide Vast random
+public ports or terminate HTTPS. The script is guarded by
+`BIBER_CONFIGURE_PUBLIC_TUNNEL_APPROVED=1`, requires `CF_TUNNEL_TOKEN`, installs
+a supervisor-managed `cloudflared` connector, and must never print or commit the
+tunnel token. Validate locally with `bash -n`, Python compile/confidence smoke as
+needed, and `git diff --check`; then commit/push to
+`biber/mvp-resume-20260712`, fast-forward Vast with a temporary git bundle, run a
+dry-run of the script without a real token if possible, and update this handoff.
+Actual DNS/Cloudflare activation still requires the user to add `beaverapi.com`
+to Cloudflare, update Namecheap nameservers, create the tunnel route
+`api.beaverapi.com -> http://localhost:8000`, and provide/paste the tunnel token
+on Vast.
+
 2026-08-16 latest BIBER external-client latest live smoke plan summary checkpoint:
 Complete: commit `33169ca` (`Add latest BIBER external client live smoke plan
 summary`) adds an offline

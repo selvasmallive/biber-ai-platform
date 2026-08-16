@@ -236,6 +236,11 @@ When public access is needed:
 7. Configure API keys through environment/secret storage. Never place keys in
    GitHub.
 
+For the real `beaverapi.com` domain, follow
+[`docs/BIBER_PUBLIC_DOMAIN_SETUP.md`](BIBER_PUBLIC_DOMAIN_SETUP.md). The
+recommended MVP shape is `https://api.beaverapi.com/v1` using Cloudflare Tunnel
+to reach the Vast BIBER API on `127.0.0.1:8000` while keeping vLLM private.
+
 ## Planned Admin Portal
 
 The website admin portal is still planned, but the backend MVP now has admin
