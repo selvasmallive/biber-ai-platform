@@ -5,12 +5,24 @@ Last updated: 2026-08-16
 ## Current Goal
 
 2026-08-16 latest BIBER external-client readiness bundle summary checkpoint:
-In progress: adding a stdlib `show-external-client-readiness-bundle` command to
-print a concise terminal summary from a saved
-`biber_external_client_readiness_bundle` artifact without rebuilding it, opening
-JSON, resolving user/admin API keys, calling BIBER, creating/rotating
-credentials, calling OpenAI mentor, training models, using paid external APIs,
-or touching XRIQ/XRIS work.
+Complete: commit `57d08da` (`Add BIBER external client readiness summary`) adds
+a stdlib `show-external-client-readiness-bundle` command that prints a concise
+terminal summary from a saved `biber_external_client_readiness_bundle` artifact
+without rebuilding it, opening JSON, resolving user/admin API keys, calling
+BIBER, creating/rotating credentials, calling OpenAI mentor, training models,
+using paid external APIs, or touching XRIQ/XRIS work. Local validation passed
+Python `py_compile` with temp pycache, `git diff --check`, a direct no-pytest
+show-command test, and `scripts/biber_local_confidence_smoke.py` with `ok=True`
+and 11 checks. The SSH-enabled Vast checkout fast-forwarded to `57d08da`,
+passed `py_compile`, and ran
+`show-external-client-readiness-bundle` against
+`/workspace/outputs/biber-external-client-readiness-bundle-20260816T174338Z/biber-external-client-readiness-bundle-live.json`;
+the summary was saved at
+`/workspace/outputs/biber-external-client-readiness-bundle-20260816T174338Z/biber-external-client-readiness-bundle-show-summary.txt`
+and reports `ready_for_external_client_configuration=True`,
+`admin_key_management_ready=False`, `admin_api_key_not_configured`,
+`api_key_included=False`, `admin_api_key_included=False`, and
+`raw_key_records_included=False`. The Vast checkout remained clean.
 
 2026-08-16 latest BIBER external-client readiness bundle checkpoint:
 Complete: commit `2c15b3c` (`Add BIBER external client readiness bundle`) adds
