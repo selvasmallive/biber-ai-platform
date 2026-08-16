@@ -48,11 +48,17 @@ request; a malicious recipient or token contract; and physical access to the dev
   Lattice statically decodes common drain selectors (approve / setApprovalForAll / transfer,
   with unlimited-allowance flagged), **dry-runs via `eth_call`** to catch reverts, and — when
   the RPC exposes `debug_traceCall` — computes **net asset changes** for your address from the
-  trace (`src/core/simulate.ts`). All on your own RPC. It does not use a third-party risk API
-  (Phase 3, opt-in) that could flag known-malicious contracts, and Phase 2 is unavailable on
-  RPCs without a `debug` namespace (most public RPCs) — then it falls back to Phase 1. Unknown
-  contract calls without an asset preview are still surfaced with an explicit "only approve if
-  you trust this dApp" warning.
+  trace (`src/core/simulate.ts`). All on your own RPC. Phase 2 is unavailable on RPCs without a
+  `debug` namespace (most public RPCs) — then it falls back to Phase 1. Unknown contract calls
+  without an asset preview are surfaced with an explicit "only approve if you trust this dApp"
+  warning.
+- **Phase 3 (third-party risk API) is opt-in and not live-verified.** Blockaid scanning
+  (`src/core/risk.ts`) flags known-malicious contracts and previews asset changes, but is
+  **off by default** and **sends the transaction + your address to Blockaid** — a deliberate
+  privacy trade-off the user must enable with their own API key. The response mapping
+  (`riskMap.ts`) is pure and unit-tested against a synthetic payload, but the live HTTP contract
+  is **not verified in this repo** (no key) — confirm field names against Blockaid's current API
+  before depending on the verdict, and never treat "benign" as a guarantee.
 - **Live WalletConnect pairing is not covered by CI** — it requires a dev/EAS build and a real
   dApp. The signing paths it invokes are vector-verified; the handshake should be exercised
   manually before release.

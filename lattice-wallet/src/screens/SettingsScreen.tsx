@@ -5,12 +5,31 @@ import { colors, font, radius, spacing } from '../theme/theme';
 import { useWallet } from '../state/WalletProvider';
 import { SECURITY_STATUS } from '../core/config';
 import { shortAddr } from '../components/ui';
+import { loadRiskConfig, setRiskConfig, setRiskApiKey, hasRiskApiKey } from '../core/risk';
 
 export function SettingsScreen({ navigation }: any) {
   const w = useWallet();
   const [revealed, setRevealed] = useState<string | null>(null);
   const [rpcInput, setRpcInput] = useState('');
   const [rpcSaved, setRpcSaved] = useState(false);
+  const [riskEnabled, setRiskEnabled] = useState(false);
+  const [riskKeyInput, setRiskKeyInput] = useState('');
+  const [riskHasKey, setRiskHasKey] = useState(false);
+
+  React.useEffect(() => {
+    loadRiskConfig().then((c) => setRiskEnabled(c.enabled));
+    hasRiskApiKey().then(setRiskHasKey);
+  }, []);
+
+  const toggleRisk = async (on: boolean) => {
+    setRiskEnabled(on);
+    await setRiskConfig({ enabled: on, provider: 'blockaid' });
+  };
+  const saveRiskKey = async () => {
+    await setRiskApiKey(riskKeyInput);
+    setRiskHasKey(!!riskKeyInput.trim());
+    setRiskKeyInput('');
+  };
 
   const saveRpc = async () => {
     await w.setRpcOverride(w.activeChain.id, rpcInput.trim());
@@ -116,6 +135,45 @@ export function SettingsScreen({ navigation }: any) {
           <Divider />
           <Button title="Address book" variant="ghost" onPress={() => navigation.navigate('AddressBook')} />
           <Button title="WalletConnect — connect to dApps" variant="ghost" onPress={() => navigation.navigate('WalletConnect')} />
+        </Card>
+
+        <Text style={styles.section}>Transaction scanning</Text>
+        <Card style={{ gap: spacing(3) }}>
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>Scan transactions with Blockaid</Text>
+              <Text style={styles.rowSub}>
+                Off by default. When on, each EVM transaction and your address are sent to
+                Blockaid (a third party) to flag known scams / malicious contracts and preview
+                asset changes. This shares data with a third party — the rest of Lattice does not.
+                Requires your own Blockaid API key.
+              </Text>
+            </View>
+            <Switch
+              value={riskEnabled}
+              onValueChange={toggleRisk}
+              trackColor={{ true: colors.warning, false: colors.surfaceAlt }}
+              thumbColor="#fff"
+            />
+          </View>
+          <Divider />
+          <Text style={styles.rowTitle}>Blockaid API key {riskHasKey ? '· set ✓' : '· not set'}</Text>
+          <TextInput
+            style={styles.input}
+            value={riskKeyInput}
+            onChangeText={setRiskKeyInput}
+            placeholder={riskHasKey ? '•••••••• (replace)' : 'paste your API key'}
+            placeholderTextColor={colors.textFaint}
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry
+          />
+          <View style={styles.switchRow}>
+            <Button title="Save key" variant="ghost" onPress={saveRiskKey} style={{ flex: 1 }} />
+            {riskHasKey && (
+              <Button title="Clear key" variant="ghost" onPress={async () => { await setRiskApiKey(''); setRiskHasKey(false); }} style={{ flex: 1 }} />
+            )}
+          </View>
         </Card>
 
         <Text style={styles.section}>Security</Text>

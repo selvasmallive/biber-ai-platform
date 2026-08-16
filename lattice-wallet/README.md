@@ -96,7 +96,12 @@ Everything here is designed so the wallet reveals as little as possible about yo
   - *Phase 2* — when the RPC supports tracing (`debug_traceCall`), computes the **net balance
     changes** for your address from the call tree + Transfer logs — "you send X, you receive Y"
     (native, ERC-20, ERC-721). Degrades to Phase 1 when the RPC has no `debug` namespace.
-  See `src/core/simulate.ts` (`parseTraceAssetDeltas` is unit-tested).
+  - *Phase 3* — **OPT-IN** (Settings → Transaction scanning): a third-party risk API
+    (**Blockaid**) that flags **known malicious contracts / scams** and returns asset changes
+    without a trace RPC. This **crosses the privacy line** — the transaction and your address
+    are sent to Blockaid — so it is **off by default** and needs **your own API key**. Coded to
+    Blockaid's documented v0 API but not live-verified here; the response mapping is unit-tested.
+  See `src/core/simulate.ts` (Phases 1–2) and `src/core/risk.ts` / `riskMap.ts` (Phase 3).
 
 ## WalletConnect (dApp connections)
 

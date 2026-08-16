@@ -7,6 +7,7 @@ import { useWallet } from '../state/WalletProvider';
 import { formatUnits } from '../core/format';
 import { evmConfigByChainId } from '../core/chains/registry';
 import { decodeCalldata, dryRunEvm, assetDiffEvm, type SimStatus, type AssetDelta } from '../core/simulate';
+import { loadRiskConfig, getRiskApiKey, runRiskScan, type RiskResult } from '../core/risk';
 
 function decodeMessage(raw: string): string {
   if (typeof raw !== 'string') return String(raw);
@@ -84,6 +85,7 @@ interface SimState {
   changes?: AssetDelta[];
   traceSupported?: boolean;
   nativeSymbol?: string;
+  risk?: RiskResult | null;
 }
 
 // Simulation for eth_sendTransaction — Phase 1 (dry-run revert) + Phase 2 (asset diff via
@@ -102,11 +104,16 @@ function useSimulation(request: any): SimState | null {
     const params = { from: tx.from, to: tx.to, value: tx.value, data: tx.data };
     setState({ status: 'loading', nativeSymbol: cfg.symbol });
     (async () => {
-      const [run, diff] = await Promise.all([
+      const [run, diff, risk] = await Promise.all([
         dryRunEvm(cfg.rpcUrl, params),
         tx.from ? assetDiffEvm(cfg.rpcUrl, params, tx.from) : Promise.resolve({ supported: false, changes: [] as AssetDelta[] }),
+        // Phase 3 (opt-in): only runs if the user enabled it + supplied a key.
+        (async () => {
+          const [config, apiKey] = await Promise.all([loadRiskConfig(), getRiskApiKey()]);
+          return runRiskScan(config, apiKey, cfg, params);
+        })(),
       ]);
-      if (alive) setState({ status: run.status, reason: run.revertReason, changes: diff.changes, traceSupported: diff.supported, nativeSymbol: cfg.symbol });
+      if (alive) setState({ status: run.status, reason: run.revertReason, changes: diff.changes, traceSupported: diff.supported, nativeSymbol: cfg.symbol, risk });
     })().catch(() => { if (alive) setState({ status: 'unknown', nativeSymbol: cfg.symbol }); });
     return () => { alive = false; };
   }, [request, chains]);
@@ -168,6 +175,19 @@ export function WalletConnectModals() {
                   {/* Simulation result (eth_sendTransaction only) */}
                   {sim && (
                     <>
+                      {/* Phase 3: third-party risk verdict (opt-in) */}
+                      {sim.risk && sim.risk.level !== 'unknown' && (
+                        <View style={sim.risk.level === 'malicious' ? styles.dangerBox : sim.risk.level === 'warning' ? styles.warnBox : styles.benignBox}>
+                          <Text style={sim.risk.level === 'benign' ? styles.simOk : styles.warnText}>
+                            {sim.risk.level === 'malicious' ? '⛔ Blockaid: MALICIOUS' : sim.risk.level === 'warning' ? '⚠ Blockaid: warning' : '✓ Blockaid: benign'}
+                            {sim.risk.summary ? ` — ${sim.risk.summary}` : ''}
+                          </Text>
+                          {sim.risk.issues.slice(0, 5).map((iss, i) => (
+                            <Text key={i} style={styles.warnText}>• {iss}</Text>
+                          ))}
+                        </View>
+                      )}
+
                       {sim.status === 'loading' && <Text style={styles.simMuted}>Simulating…</Text>}
                       {sim.status === 'ok' && <Text style={styles.simOk}>✓ Simulation: transaction is expected to succeed.</Text>}
                       {sim.status === 'unknown' && <Text style={styles.simMuted}>Could not simulate (RPC unavailable).</Text>}
@@ -176,19 +196,25 @@ export function WalletConnectModals() {
                           <Text style={styles.warnText}>✗ Simulation: this transaction is expected to FAIL{sim.reason ? ` — ${sim.reason}` : ''}.</Text>
                         </View>
                       )}
-                      {sim.traceSupported && sim.changes && sim.changes.length > 0 && (
-                        <View style={styles.reqBox}>
-                          <Text style={styles.simSection}>Estimated balance changes</Text>
-                          {sim.changes.map((c, i) => (
-                            <Text key={i} style={c.direction === 'in' ? styles.simIn : styles.simOut}>
-                              {formatDelta(c, sim.nativeSymbol ?? 'ETH')}
-                            </Text>
-                          ))}
-                        </View>
-                      )}
-                      {sim.status === 'ok' && sim.traceSupported === false && (
-                        <Text style={styles.simMuted}>Asset preview unavailable — this RPC doesn't support tracing.</Text>
-                      )}
+                      {(() => {
+                        const changes = sim.traceSupported ? sim.changes : sim.risk?.assetChanges;
+                        if (changes && changes.length > 0) {
+                          return (
+                            <View style={styles.reqBox}>
+                              <Text style={styles.simSection}>Estimated balance changes{sim.traceSupported ? '' : ' · Blockaid'}</Text>
+                              {changes.map((c, i) => (
+                                <Text key={i} style={c.direction === 'in' ? styles.simIn : styles.simOut}>
+                                  {formatDelta(c, sim.nativeSymbol ?? 'ETH')}
+                                </Text>
+                              ))}
+                            </View>
+                          );
+                        }
+                        if (sim.status === 'ok' && sim.traceSupported === false) {
+                          return <Text style={styles.simMuted}>Asset preview unavailable — this RPC has no tracing (enable a trace RPC or risk scanning).</Text>;
+                        }
+                        return null;
+                      })()}
                     </>
                   )}
 
@@ -261,6 +287,8 @@ const styles = StyleSheet.create({
   simOut: { color: colors.text, fontSize: 14, lineHeight: 21, fontWeight: '600' },
   warnBox: { backgroundColor: '#2A1A1A', borderRadius: radius.md, padding: spacing(3), borderWidth: 1, borderColor: colors.danger },
   warnText: { color: colors.danger, fontSize: 13, lineHeight: 19, fontWeight: '600' },
+  dangerBox: { backgroundColor: '#3A0E0E', borderRadius: radius.md, padding: spacing(3), borderWidth: 2, borderColor: colors.danger, gap: spacing(1) },
+  benignBox: { backgroundColor: '#0E2A18', borderRadius: radius.md, padding: spacing(3), borderWidth: 1, borderColor: colors.success },
   err: { color: colors.danger, fontSize: 13 },
   actions: { flexDirection: 'row', gap: spacing(3), marginTop: spacing(2) },
   flex: { flex: 1 },
