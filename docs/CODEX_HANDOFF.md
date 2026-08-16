@@ -5,12 +5,25 @@ Last updated: 2026-08-16
 ## Current Goal
 
 2026-08-16 latest BIBER external-client quickstart verification summary checkpoint:
-In progress: adding a stdlib `show-external-client-quickstart-verification`
-command to print a concise terminal summary from a saved
+Complete: commit `0ba0107` (`Add BIBER external client quickstart summary`)
+adds a stdlib `show-external-client-quickstart-verification` command that prints
+a concise terminal summary from a saved
 `biber_external_client_quickstart_verification` artifact without rerunning
 checks, opening JSON, resolving user/admin API keys, calling BIBER,
 creating/rotating credentials, calling OpenAI mentor, training models, using
-paid external APIs, or touching XRIQ/XRIS work.
+paid external APIs, or touching XRIQ/XRIS work. Local validation passed Python
+`py_compile` with temp pycache, `git diff --check`, a direct no-pytest
+show-command test, and `scripts/biber_local_confidence_smoke.py` with `ok=True`
+and 11 checks. The SSH-enabled Vast checkout was fast-forwarded to `0ba0107`
+with a temporary git bundle because the Vast GitHub HTTPS remote is not
+credentialed; the temporary bundle was removed afterward. Vast passed
+`py_compile` and ran `show-external-client-quickstart-verification` against
+`/workspace/outputs/biber-external-client-quickstart-verify-20260816T180140Z/biber-external-client-quickstart-verification-live.json`.
+The summary was saved at
+`/workspace/outputs/biber-external-client-quickstart-verify-20260816T180140Z/biber-external-client-quickstart-verification-show-summary.txt`
+and reports `ready_for_external_client_quickstart=True`,
+`admin_api_key_not_configured`, `missing_docs=-`, and
+`api_key_included=False`; the Vast checkout remained clean.
 
 2026-08-16 latest BIBER external-client quickstart verification checkpoint:
 Complete: commit `612a0fa` (`Add BIBER external client quickstart verifier`)
