@@ -1,0 +1,13 @@
+{
+  "jurisdiction": "qc",
+  "tax_year": 2025,
+  "_comment": "Quebec: only the federal abatement rate is needed here.",
+  "scalars": {
+    "abatement_rate": {
+      "value": "0.165",
+      "source": "The refundable Quebec abatement is a percentage of basic federal tax. STRUCTURE-FIRST PLACEHOLDER. Not checked against QC428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    }
+  },
+  "brackets": {}
+}

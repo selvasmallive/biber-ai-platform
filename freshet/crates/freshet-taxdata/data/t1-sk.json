@@ -1,0 +1,548 @@
+{
+  "tax_year": 2025,
+  "province": "sk",
+  "_comment": "Saskatchewan. Built structure-first: the shape is real, every number is an unverified placeholder, and what is not yet modelled is declared in the checks rather than left silent.",
+  "summary": [
+    "fed.15000",
+    "fed.23600",
+    "fed.26000",
+    "fed.42000",
+    "prov.tax",
+    "summary.total_tax",
+    "summary.balance"
+  ],
+  "checks": [
+    {
+      "id": "sk.not_modelled_0",
+      "severity": "warning",
+      "message": "Saskatchewan refundable credits (low-income tax credit, home renovation credit) are not modelled.",
+      "help": "Freshet does not compute this yet, so a return for this jurisdiction may be incomplete. It is one of the reasons the return cannot be filed.",
+      "when": {
+        "cmp": "gte",
+        "left": {
+          "op": "const",
+          "value": "1"
+        },
+        "right": {
+          "op": "const",
+          "value": "1"
+        }
+      }
+    }
+  ],
+  "lines": [
+    {
+      "id": "sk.58040",
+      "label": "Saskatchewan basic personal amount",
+      "expr": {
+        "op": "param",
+        "key": "sk:bpa"
+      }
+    },
+    {
+      "id": "sk.58120",
+      "label": "Saskatchewan spouse or common-law partner amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "partner.present"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "sk:spouse_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "partner.net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "sk:spouse_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "sk.58160",
+      "label": "Saskatchewan amount for an eligible dependant",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "and",
+          "all": [
+            {
+              "cmp": "lt",
+              "left": {
+                "op": "fact",
+                "key": "partner.present"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "gte",
+              "left": {
+                "op": "fact",
+                "key": "dependants.eligible_dependant_claimed"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "sk:eligible_dependant_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.eligible_dependant_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "sk:eligible_dependant_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "sk.58185",
+      "label": "Saskatchewan caregiver amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "dependants.infirm_adult_claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "sk:caregiver_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.infirm_adult_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "sk:caregiver_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "sk.58080",
+      "label": "Saskatchewan age amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "taxpayer.age"
+          },
+          "right": {
+            "op": "const",
+            "value": "65"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "param",
+              "key": "sk:age_amount_max"
+            },
+            "minus": {
+              "op": "mul",
+              "of": {
+                "op": "floor_zero",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "line",
+                    "id": "fed.23600"
+                  },
+                  "minus": {
+                    "op": "param",
+                    "key": "sk:age_amount_threshold"
+                  }
+                }
+              },
+              "by": {
+                "op": "param",
+                "key": "sk:age_amount_clawback_rate"
+              }
+            }
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "sk.58360",
+      "label": "Saskatchewan pension income amount",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "sum",
+                "of": [
+                  {
+                    "op": "line",
+                    "id": "fed.11500"
+                  },
+                  {
+                    "op": "mul",
+                    "of": {
+                      "op": "line",
+                      "id": "fed.11600"
+                    },
+                    "by": {
+                      "op": "fact",
+                      "key": "pension.split_received_eligible"
+                    }
+                  }
+                ]
+              },
+              "minus": {
+                "op": "line",
+                "id": "fed.21000"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "sk:pension_income_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sk.58440",
+      "label": "Saskatchewan disability amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "disability.claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "param",
+          "key": "sk:disability_amount"
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "sk.58689",
+      "label": "Saskatchewan allowable medical expenses",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "fed.33099"
+          },
+          "minus": {
+            "op": "min",
+            "of": [
+              {
+                "op": "mul",
+                "of": {
+                  "op": "line",
+                  "id": "fed.23600"
+                },
+                "by": {
+                  "op": "param",
+                  "key": "sk:medical_threshold_rate"
+                }
+              },
+              {
+                "op": "param",
+                "key": "sk:medical_threshold_cap"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "sk.amounts_before_tuition",
+      "label": "Saskatchewan credit amounts before tuition",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "sk.58040"
+          },
+          {
+            "op": "line",
+            "id": "sk.58080"
+          },
+          {
+            "op": "line",
+            "id": "sk.58120"
+          },
+          {
+            "op": "line",
+            "id": "sk.58160"
+          },
+          {
+            "op": "line",
+            "id": "sk.58185"
+          },
+          {
+            "op": "line",
+            "id": "fed.30800"
+          },
+          {
+            "op": "line",
+            "id": "fed.31000"
+          },
+          {
+            "op": "line",
+            "id": "fed.31200"
+          },
+          {
+            "op": "line",
+            "id": "sk.58360"
+          },
+          {
+            "op": "line",
+            "id": "sk.58440"
+          },
+          {
+            "op": "line",
+            "id": "sk.58689"
+          }
+        ]
+      },
+      "note": "Saskatchewan abolished its tuition and education amounts, so unlike the federal return there is no tuition line here at all. Assuming a province follows the federal rule is wrong in both directions."
+    },
+    {
+      "id": "sk.own_amounts",
+      "label": "Your own Saskatchewan credit amounts",
+      "expr": {
+        "op": "line",
+        "id": "sk.amounts_before_tuition"
+      }
+    },
+    {
+      "id": "sk.58800",
+      "label": "Saskatchewan total credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "sk.own_amounts"
+          },
+          {
+            "op": "fact",
+            "key": "partner.sk_transfer_amount"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sk.credits",
+      "label": "Saskatchewan non-refundable tax credits",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "sk.58800"
+        },
+        "by": {
+          "op": "param",
+          "key": "sk:credit_rate"
+        }
+      }
+    },
+    {
+      "id": "sk.donations",
+      "label": "Saskatchewan donations and gifts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "mul",
+            "of": {
+              "op": "min",
+              "of": [
+                {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                {
+                  "op": "param",
+                  "key": "sk:donation_first_tier"
+                }
+              ]
+            },
+            "by": {
+              "op": "param",
+              "key": "sk:donation_rate_first"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "floor_zero",
+              "of": {
+                "op": "sub",
+                "from": {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "sk:donation_first_tier"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "sk:donation_rate_rest"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "sk.tax_before_surtax",
+      "label": "Saskatchewan tax before surtax",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "sub",
+            "from": {
+              "op": "bracket",
+              "table": "sk:income_tax",
+              "base": {
+                "op": "line",
+                "id": "fed.26000"
+              }
+            },
+            "minus": {
+              "op": "line",
+              "id": "sk.credits"
+            }
+          },
+          "minus": {
+            "op": "line",
+            "id": "sk.donations"
+          }
+        }
+      }
+    },
+    {
+      "id": "sk.42800",
+      "label": "Saskatchewan tax",
+      "expr": {
+        "op": "line",
+        "id": "sk.tax_before_surtax"
+      }
+    },
+    {
+      "id": "prov.tax",
+      "label": "Saskatchewan tax",
+      "expr": {
+        "op": "line",
+        "id": "sk.42800"
+      }
+    },
+    {
+      "id": "prov.refundable_credits",
+      "label": "Saskatchewan refundable credits",
+      "note": "Nil, and declared rather than assumed: what is not modelled is listed in the checks. Understating a refund is the safe direction; leaving it unsaid is not.",
+      "expr": {
+        "op": "const",
+        "value": "0"
+      }
+    }
+  ]
+}

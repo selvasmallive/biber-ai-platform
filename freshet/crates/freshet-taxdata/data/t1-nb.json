@@ -1,0 +1,627 @@
+{
+  "tax_year": 2025,
+  "province": "nb",
+  "_comment": "New Brunswick. Built structure-first: the shape is real, every number is an unverified placeholder, and what is not yet modelled is declared in the checks rather than left silent.",
+  "summary": [
+    "fed.15000",
+    "fed.23600",
+    "fed.26000",
+    "fed.42000",
+    "prov.tax",
+    "summary.total_tax",
+    "summary.balance"
+  ],
+  "checks": [
+    {
+      "id": "nb.not_modelled_0",
+      "severity": "warning",
+      "message": "The New Brunswick low-income tax reduction is not modelled.",
+      "help": "Freshet does not compute this yet, so a return for this jurisdiction may be incomplete. It is one of the reasons the return cannot be filed.",
+      "when": {
+        "cmp": "gte",
+        "left": {
+          "op": "const",
+          "value": "1"
+        },
+        "right": {
+          "op": "const",
+          "value": "1"
+        }
+      }
+    },
+    {
+      "id": "nb.not_modelled_1",
+      "severity": "warning",
+      "message": "New Brunswick refundable credits (HST credit, low-income seniors benefit) are not modelled.",
+      "help": "Freshet does not compute this yet, so a return for this jurisdiction may be incomplete. It is one of the reasons the return cannot be filed.",
+      "when": {
+        "cmp": "gte",
+        "left": {
+          "op": "const",
+          "value": "1"
+        },
+        "right": {
+          "op": "const",
+          "value": "1"
+        }
+      }
+    }
+  ],
+  "lines": [
+    {
+      "id": "nb.58040",
+      "label": "New Brunswick basic personal amount",
+      "expr": {
+        "op": "param",
+        "key": "nb:bpa"
+      }
+    },
+    {
+      "id": "nb.58120",
+      "label": "New Brunswick spouse or common-law partner amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "partner.present"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "nb:spouse_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "partner.net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "nb:spouse_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "nb.58160",
+      "label": "New Brunswick amount for an eligible dependant",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "and",
+          "all": [
+            {
+              "cmp": "lt",
+              "left": {
+                "op": "fact",
+                "key": "partner.present"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "gte",
+              "left": {
+                "op": "fact",
+                "key": "dependants.eligible_dependant_claimed"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "nb:eligible_dependant_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.eligible_dependant_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "nb:eligible_dependant_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "nb.58185",
+      "label": "New Brunswick caregiver amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "dependants.infirm_adult_claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "nb:caregiver_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.infirm_adult_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "nb:caregiver_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "nb.58080",
+      "label": "New Brunswick age amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "taxpayer.age"
+          },
+          "right": {
+            "op": "const",
+            "value": "65"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "param",
+              "key": "nb:age_amount_max"
+            },
+            "minus": {
+              "op": "mul",
+              "of": {
+                "op": "floor_zero",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "line",
+                    "id": "fed.23600"
+                  },
+                  "minus": {
+                    "op": "param",
+                    "key": "nb:age_amount_threshold"
+                  }
+                }
+              },
+              "by": {
+                "op": "param",
+                "key": "nb:age_amount_clawback_rate"
+              }
+            }
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "nb.58360",
+      "label": "New Brunswick pension income amount",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "sum",
+                "of": [
+                  {
+                    "op": "line",
+                    "id": "fed.11500"
+                  },
+                  {
+                    "op": "mul",
+                    "of": {
+                      "op": "line",
+                      "id": "fed.11600"
+                    },
+                    "by": {
+                      "op": "fact",
+                      "key": "pension.split_received_eligible"
+                    }
+                  }
+                ]
+              },
+              "minus": {
+                "op": "line",
+                "id": "fed.21000"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "nb:pension_income_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "nb.58440",
+      "label": "New Brunswick disability amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "disability.claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "param",
+          "key": "nb:disability_amount"
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "nb.58689",
+      "label": "New Brunswick allowable medical expenses",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "fed.33099"
+          },
+          "minus": {
+            "op": "min",
+            "of": [
+              {
+                "op": "mul",
+                "of": {
+                  "op": "line",
+                  "id": "fed.23600"
+                },
+                "by": {
+                  "op": "param",
+                  "key": "nb:medical_threshold_rate"
+                }
+              },
+              {
+                "op": "param",
+                "key": "nb:medical_threshold_cap"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "nb.amounts_before_tuition",
+      "label": "New Brunswick credit amounts before tuition",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "nb.58040"
+          },
+          {
+            "op": "line",
+            "id": "nb.58080"
+          },
+          {
+            "op": "line",
+            "id": "nb.58120"
+          },
+          {
+            "op": "line",
+            "id": "nb.58160"
+          },
+          {
+            "op": "line",
+            "id": "nb.58185"
+          },
+          {
+            "op": "line",
+            "id": "fed.30800"
+          },
+          {
+            "op": "line",
+            "id": "fed.31000"
+          },
+          {
+            "op": "line",
+            "id": "fed.31200"
+          },
+          {
+            "op": "line",
+            "id": "nb.58360"
+          },
+          {
+            "op": "line",
+            "id": "nb.58440"
+          },
+          {
+            "op": "line",
+            "id": "nb.58689"
+          }
+        ]
+      }
+    },
+    {
+      "id": "nb.58560",
+      "label": "New Brunswick tuition amount claimed by the student",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "fact",
+            "key": "tuition.fees"
+          },
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "line",
+                "id": "fed.26000"
+              },
+              "minus": {
+                "op": "line",
+                "id": "nb.amounts_before_tuition"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "nb.tuition_transferable",
+      "label": "New Brunswick tuition available to transfer",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "fact",
+                "key": "tuition.fees"
+              },
+              "minus": {
+                "op": "line",
+                "id": "nb.58560"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "nb:tuition_transfer_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "nb.own_amounts",
+      "label": "Your own New Brunswick credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "nb.amounts_before_tuition"
+          },
+          {
+            "op": "line",
+            "id": "nb.58560"
+          }
+        ]
+      }
+    },
+    {
+      "id": "nb.58800",
+      "label": "New Brunswick total credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "nb.own_amounts"
+          },
+          {
+            "op": "fact",
+            "key": "partner.nb_transfer_amount"
+          }
+        ]
+      }
+    },
+    {
+      "id": "nb.credits",
+      "label": "New Brunswick non-refundable tax credits",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "nb.58800"
+        },
+        "by": {
+          "op": "param",
+          "key": "nb:credit_rate"
+        }
+      }
+    },
+    {
+      "id": "nb.donations",
+      "label": "New Brunswick donations and gifts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "mul",
+            "of": {
+              "op": "min",
+              "of": [
+                {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                {
+                  "op": "param",
+                  "key": "nb:donation_first_tier"
+                }
+              ]
+            },
+            "by": {
+              "op": "param",
+              "key": "nb:donation_rate_first"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "floor_zero",
+              "of": {
+                "op": "sub",
+                "from": {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "nb:donation_first_tier"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "nb:donation_rate_rest"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "nb.tax_before_surtax",
+      "label": "New Brunswick tax before surtax",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "sub",
+            "from": {
+              "op": "bracket",
+              "table": "nb:income_tax",
+              "base": {
+                "op": "line",
+                "id": "fed.26000"
+              }
+            },
+            "minus": {
+              "op": "line",
+              "id": "nb.credits"
+            }
+          },
+          "minus": {
+            "op": "line",
+            "id": "nb.donations"
+          }
+        }
+      }
+    },
+    {
+      "id": "nb.42800",
+      "label": "New Brunswick tax",
+      "expr": {
+        "op": "line",
+        "id": "nb.tax_before_surtax"
+      }
+    },
+    {
+      "id": "prov.tax",
+      "label": "New Brunswick tax",
+      "expr": {
+        "op": "line",
+        "id": "nb.42800"
+      }
+    },
+    {
+      "id": "prov.refundable_credits",
+      "label": "New Brunswick refundable credits",
+      "note": "Nil, and declared rather than assumed: what is not modelled is listed in the checks. Understating a refund is the safe direction; leaving it unsaid is not.",
+      "expr": {
+        "op": "const",
+        "value": "0"
+      }
+    }
+  ]
+}

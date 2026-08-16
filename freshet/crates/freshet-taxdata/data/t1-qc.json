@@ -1,0 +1,68 @@
+{
+  "tax_year": 2025,
+  "province": "qc",
+  "_comment": "Quebec. The federal return only: no provincial tax section, and a refundable abatement instead. The inverse of every other jurisdiction, which is why it is worth having.",
+  "summary": [
+    "fed.15000",
+    "fed.23600",
+    "fed.26000",
+    "fed.42000",
+    "prov.tax",
+    "summary.total_tax",
+    "summary.balance"
+  ],
+  "checks": [
+    {
+      "id": "qc.tp1_not_included",
+      "severity": "warning",
+      "message": "This covers only the federal part of a Quebec return.",
+      "help": "Quebec assesses its own income tax on form TP1, filed separately with Revenu Quebec. Freshet does not prepare TP1, so a Quebec resident using this has only half of what they owe.",
+      "when": {
+        "cmp": "gte",
+        "left": {
+          "op": "const",
+          "value": "1"
+        },
+        "right": {
+          "op": "const",
+          "value": "1"
+        }
+      }
+    }
+  ],
+  "lines": [
+    {
+      "id": "qc.abatement",
+      "label": "Refundable Quebec abatement",
+      "note": "Line 44000. A Quebec resident pays no provincial tax on the federal return, and receives this abatement of basic federal tax instead, because Quebec collects its own income tax.",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "fed.42000"
+        },
+        "by": {
+          "op": "param",
+          "key": "qc:abatement_rate"
+        }
+      }
+    },
+    {
+      "id": "prov.tax",
+      "label": "Quebec tax on the federal return",
+      "note": "Nil by design, not by omission. Quebec income tax is assessed on form TP1 and filed with Revenu Quebec, which Freshet does not do. The check below says so.",
+      "expr": {
+        "op": "const",
+        "value": "0"
+      }
+    },
+    {
+      "id": "prov.refundable_credits",
+      "label": "Quebec refundable credits",
+      "expr": {
+        "op": "line",
+        "id": "qc.abatement"
+      }
+    }
+  ]
+}

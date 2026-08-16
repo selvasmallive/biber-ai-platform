@@ -52,56 +52,6 @@ fn fed_2026_residual_is_exactly_this() {
 }
 
 #[test]
-fn on_2025_residual_is_exactly_this() {
-    // Nothing left: every parameter checked against a primary source.
-    assert_residual(2025, "on", &[]);
-}
-
-#[test]
-fn on_2026_residual_is_exactly_this() {
-    let expected: Vec<&str> = vec![
-        "scalars.age_amount_max",
-        "scalars.age_amount_threshold",
-        "scalars.bpa",
-        "scalars.caregiver_base",
-        "scalars.caregiver_max",
-        "scalars.disability_amount",
-        "scalars.eligible_dependant_base",
-        "scalars.eligible_dependant_max",
-        "scalars.medical_threshold_cap",
-        "scalars.pension_income_max",
-        "scalars.spouse_base",
-        "scalars.spouse_max",
-        "scalars.surtax_threshold_1",
-        "scalars.surtax_threshold_2",
-        "scalars.tax_reduction_basic",
-        "scalars.tax_reduction_per_dependant",
-    ];
-
-    assert_residual(2026, "on", &expected);
-}
-
-/// A blunt progress marker. Neither pack can be filed until this reaches zero,
-/// and seeing the number move is the point of doing the pass incrementally.
-#[test]
-fn report_verification_progress() {
-    for year in freshet_taxdata::SUPPORTED_YEARS {
-        for province in freshet_taxdata::SUPPORTED_PROVINCES {
-            let packs = freshet_taxdata::packs(*year, province).unwrap();
-            println!(
-                "{year} {province}: {} federal and {} provincial parameters still unverified",
-                packs.federal.unverified().len(),
-                packs.provincial.unverified().len(),
-            );
-        }
-    }
-}
-
-/// Alberta is structure-first: the form is real, every number is a placeholder
-/// pending AB428. The whole pack is listed here so that verifying one value is
-/// a deliberate deletion from this list rather than something that happens by
-/// accident.
-#[test]
 fn ab_2025_residual_is_exactly_this() {
     let expected: Vec<&str> = vec![
         "brackets.income_tax",
@@ -130,10 +80,6 @@ fn ab_2025_residual_is_exactly_this() {
     assert_residual(2025, "ab", &expected);
 }
 
-/// Alberta is structure-first: the form is real, every number is a placeholder
-/// pending AB428. The whole pack is listed here so that verifying one value is
-/// a deliberate deletion from this list rather than something that happens by
-/// accident.
 #[test]
 fn ab_2026_residual_is_exactly_this() {
     let expected: Vec<&str> = vec![
@@ -163,8 +109,6 @@ fn ab_2026_residual_is_exactly_this() {
     assert_residual(2026, "ab", &expected);
 }
 
-/// British Columbia, structure-first like Alberta: the form is real, every
-/// number is a placeholder pending BC428.
 #[test]
 fn bc_2025_residual_is_exactly_this() {
     let expected: Vec<&str> = vec![
@@ -196,8 +140,6 @@ fn bc_2025_residual_is_exactly_this() {
     assert_residual(2025, "bc", &expected);
 }
 
-/// British Columbia, structure-first like Alberta: the form is real, every
-/// number is a placeholder pending BC428.
 #[test]
 fn bc_2026_residual_is_exactly_this() {
     let expected: Vec<&str> = vec![
@@ -227,4 +169,578 @@ fn bc_2026_residual_is_exactly_this() {
     ];
 
     assert_residual(2026, "bc", &expected);
+}
+
+#[test]
+fn mb_2025_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2025, "mb", &expected);
+}
+
+#[test]
+fn mb_2026_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2026, "mb", &expected);
+}
+
+#[test]
+fn nb_2025_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2025, "nb", &expected);
+}
+
+#[test]
+fn nb_2026_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2026, "nb", &expected);
+}
+
+#[test]
+fn nl_2025_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2025, "nl", &expected);
+}
+
+#[test]
+fn nl_2026_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2026, "nl", &expected);
+}
+
+#[test]
+fn ns_2025_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2025, "ns", &expected);
+}
+
+#[test]
+fn ns_2026_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2026, "ns", &expected);
+}
+
+#[test]
+fn nt_2025_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2025, "nt", &expected);
+}
+
+#[test]
+fn nt_2026_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2026, "nt", &expected);
+}
+
+#[test]
+fn nu_2025_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2025, "nu", &expected);
+}
+
+#[test]
+fn nu_2026_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2026, "nu", &expected);
+}
+
+#[test]
+fn on_2025_residual_is_exactly_this() {
+    // Nothing left: every parameter checked against a primary source.
+    assert_residual(2025, "on", &[]);
+}
+
+#[test]
+fn on_2026_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.disability_amount",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.surtax_threshold_1",
+        "scalars.surtax_threshold_2",
+        "scalars.tax_reduction_basic",
+        "scalars.tax_reduction_per_dependant",
+    ];
+
+    assert_residual(2026, "on", &expected);
+}
+
+#[test]
+fn pe_2025_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.surtax_rate",
+        "scalars.surtax_threshold",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2025, "pe", &expected);
+}
+
+#[test]
+fn pe_2026_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.surtax_rate",
+        "scalars.surtax_threshold",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2026, "pe", &expected);
+}
+
+#[test]
+fn qc_2025_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "scalars.abatement_rate",
+    ];
+
+    assert_residual(2025, "qc", &expected);
+}
+
+#[test]
+fn qc_2026_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "scalars.abatement_rate",
+    ];
+
+    assert_residual(2026, "qc", &expected);
+}
+
+#[test]
+fn sk_2025_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+    ];
+
+    assert_residual(2025, "sk", &expected);
+}
+
+#[test]
+fn sk_2026_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+    ];
+
+    assert_residual(2026, "sk", &expected);
+}
+
+#[test]
+fn yt_2025_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2025, "yt", &expected);
+}
+
+#[test]
+fn yt_2026_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2026, "yt", &expected);
+}
+
+/// A blunt progress marker across every jurisdiction. Seeing the number move is
+/// the point of doing the pass incrementally.
+#[test]
+fn report_verification_progress() {
+    let mut total = 0usize;
+
+    for year in freshet_taxdata::SUPPORTED_YEARS {
+        for province in freshet_taxdata::supported_provinces() {
+            let packs = freshet_taxdata::packs(*year, province).unwrap();
+            let n = packs.provincial.unverified().len();
+            total += n;
+            println!("{year} {province}: {n} provincial parameters still unverified");
+        }
+    }
+
+    println!("federal: {} unverified", 
+        freshet_taxdata::packs(2026, "on").unwrap().federal.unverified().len());
+    println!("TOTAL provincial residual: {total}");
 }

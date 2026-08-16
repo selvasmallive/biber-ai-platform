@@ -1,0 +1,662 @@
+{
+  "tax_year": 2025,
+  "province": "pe",
+  "_comment": "Prince Edward Island. Built structure-first: the shape is real, every number is an unverified placeholder, and what is not yet modelled is declared in the checks rather than left silent.",
+  "summary": [
+    "fed.15000",
+    "fed.23600",
+    "fed.26000",
+    "fed.42000",
+    "prov.tax",
+    "summary.total_tax",
+    "summary.balance"
+  ],
+  "checks": [
+    {
+      "id": "pe.not_modelled_0",
+      "severity": "warning",
+      "message": "The Prince Edward Island low-income tax reduction is not modelled.",
+      "help": "Freshet does not compute this yet, so a return for this jurisdiction may be incomplete. It is one of the reasons the return cannot be filed.",
+      "when": {
+        "cmp": "gte",
+        "left": {
+          "op": "const",
+          "value": "1"
+        },
+        "right": {
+          "op": "const",
+          "value": "1"
+        }
+      }
+    },
+    {
+      "id": "pe.not_modelled_1",
+      "severity": "warning",
+      "message": "Its volunteer firefighter and children's wellness credits are not modelled.",
+      "help": "Freshet does not compute this yet, so a return for this jurisdiction may be incomplete. It is one of the reasons the return cannot be filed.",
+      "when": {
+        "cmp": "gte",
+        "left": {
+          "op": "const",
+          "value": "1"
+        },
+        "right": {
+          "op": "const",
+          "value": "1"
+        }
+      }
+    }
+  ],
+  "lines": [
+    {
+      "id": "pe.58040",
+      "label": "Prince Edward Island basic personal amount",
+      "expr": {
+        "op": "param",
+        "key": "pe:bpa"
+      }
+    },
+    {
+      "id": "pe.58120",
+      "label": "Prince Edward Island spouse or common-law partner amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "partner.present"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "pe:spouse_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "partner.net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "pe:spouse_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "pe.58160",
+      "label": "Prince Edward Island amount for an eligible dependant",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "and",
+          "all": [
+            {
+              "cmp": "lt",
+              "left": {
+                "op": "fact",
+                "key": "partner.present"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "gte",
+              "left": {
+                "op": "fact",
+                "key": "dependants.eligible_dependant_claimed"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "pe:eligible_dependant_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.eligible_dependant_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "pe:eligible_dependant_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "pe.58185",
+      "label": "Prince Edward Island caregiver amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "dependants.infirm_adult_claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "pe:caregiver_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.infirm_adult_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "pe:caregiver_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "pe.58080",
+      "label": "Prince Edward Island age amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "taxpayer.age"
+          },
+          "right": {
+            "op": "const",
+            "value": "65"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "param",
+              "key": "pe:age_amount_max"
+            },
+            "minus": {
+              "op": "mul",
+              "of": {
+                "op": "floor_zero",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "line",
+                    "id": "fed.23600"
+                  },
+                  "minus": {
+                    "op": "param",
+                    "key": "pe:age_amount_threshold"
+                  }
+                }
+              },
+              "by": {
+                "op": "param",
+                "key": "pe:age_amount_clawback_rate"
+              }
+            }
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "pe.58360",
+      "label": "Prince Edward Island pension income amount",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "sum",
+                "of": [
+                  {
+                    "op": "line",
+                    "id": "fed.11500"
+                  },
+                  {
+                    "op": "mul",
+                    "of": {
+                      "op": "line",
+                      "id": "fed.11600"
+                    },
+                    "by": {
+                      "op": "fact",
+                      "key": "pension.split_received_eligible"
+                    }
+                  }
+                ]
+              },
+              "minus": {
+                "op": "line",
+                "id": "fed.21000"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "pe:pension_income_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "pe.58440",
+      "label": "Prince Edward Island disability amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "disability.claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "param",
+          "key": "pe:disability_amount"
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "pe.58689",
+      "label": "Prince Edward Island allowable medical expenses",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "fed.33099"
+          },
+          "minus": {
+            "op": "min",
+            "of": [
+              {
+                "op": "mul",
+                "of": {
+                  "op": "line",
+                  "id": "fed.23600"
+                },
+                "by": {
+                  "op": "param",
+                  "key": "pe:medical_threshold_rate"
+                }
+              },
+              {
+                "op": "param",
+                "key": "pe:medical_threshold_cap"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "pe.amounts_before_tuition",
+      "label": "Prince Edward Island credit amounts before tuition",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "pe.58040"
+          },
+          {
+            "op": "line",
+            "id": "pe.58080"
+          },
+          {
+            "op": "line",
+            "id": "pe.58120"
+          },
+          {
+            "op": "line",
+            "id": "pe.58160"
+          },
+          {
+            "op": "line",
+            "id": "pe.58185"
+          },
+          {
+            "op": "line",
+            "id": "fed.30800"
+          },
+          {
+            "op": "line",
+            "id": "fed.31000"
+          },
+          {
+            "op": "line",
+            "id": "fed.31200"
+          },
+          {
+            "op": "line",
+            "id": "pe.58360"
+          },
+          {
+            "op": "line",
+            "id": "pe.58440"
+          },
+          {
+            "op": "line",
+            "id": "pe.58689"
+          }
+        ]
+      }
+    },
+    {
+      "id": "pe.58560",
+      "label": "Prince Edward Island tuition amount claimed by the student",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "fact",
+            "key": "tuition.fees"
+          },
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "line",
+                "id": "fed.26000"
+              },
+              "minus": {
+                "op": "line",
+                "id": "pe.amounts_before_tuition"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "pe.tuition_transferable",
+      "label": "Prince Edward Island tuition available to transfer",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "fact",
+                "key": "tuition.fees"
+              },
+              "minus": {
+                "op": "line",
+                "id": "pe.58560"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "pe:tuition_transfer_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "pe.own_amounts",
+      "label": "Your own Prince Edward Island credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "pe.amounts_before_tuition"
+          },
+          {
+            "op": "line",
+            "id": "pe.58560"
+          }
+        ]
+      }
+    },
+    {
+      "id": "pe.58800",
+      "label": "Prince Edward Island total credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "pe.own_amounts"
+          },
+          {
+            "op": "fact",
+            "key": "partner.pe_transfer_amount"
+          }
+        ]
+      }
+    },
+    {
+      "id": "pe.credits",
+      "label": "Prince Edward Island non-refundable tax credits",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "pe.58800"
+        },
+        "by": {
+          "op": "param",
+          "key": "pe:credit_rate"
+        }
+      }
+    },
+    {
+      "id": "pe.donations",
+      "label": "Prince Edward Island donations and gifts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "mul",
+            "of": {
+              "op": "min",
+              "of": [
+                {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                {
+                  "op": "param",
+                  "key": "pe:donation_first_tier"
+                }
+              ]
+            },
+            "by": {
+              "op": "param",
+              "key": "pe:donation_rate_first"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "floor_zero",
+              "of": {
+                "op": "sub",
+                "from": {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "pe:donation_first_tier"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "pe:donation_rate_rest"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "pe.tax_before_surtax",
+      "label": "Prince Edward Island tax before surtax",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "sub",
+            "from": {
+              "op": "bracket",
+              "table": "pe:income_tax",
+              "base": {
+                "op": "line",
+                "id": "fed.26000"
+              }
+            },
+            "minus": {
+              "op": "line",
+              "id": "pe.credits"
+            }
+          },
+          "minus": {
+            "op": "line",
+            "id": "pe.donations"
+          }
+        }
+      }
+    },
+    {
+      "id": "pe.surtax",
+      "label": "Prince Edward Island surtax",
+      "note": "Prince Edward Island and Ontario are the only jurisdictions left with a surtax, and it is charged on tax payable rather than on income.",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "line",
+              "id": "pe.tax_before_surtax"
+            },
+            "minus": {
+              "op": "param",
+              "key": "pe:surtax_threshold"
+            }
+          }
+        },
+        "by": {
+          "op": "param",
+          "key": "pe:surtax_rate"
+        }
+      }
+    },
+    {
+      "id": "pe.42800",
+      "label": "Prince Edward Island tax",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "pe.tax_before_surtax"
+          },
+          {
+            "op": "line",
+            "id": "pe.surtax"
+          }
+        ]
+      }
+    },
+    {
+      "id": "prov.tax",
+      "label": "Prince Edward Island tax",
+      "expr": {
+        "op": "line",
+        "id": "pe.42800"
+      }
+    },
+    {
+      "id": "prov.refundable_credits",
+      "label": "Prince Edward Island refundable credits",
+      "note": "Nil, and declared rather than assumed: what is not modelled is listed in the checks. Understating a refund is the safe direction; leaving it unsaid is not.",
+      "expr": {
+        "op": "const",
+        "value": "0"
+      }
+    }
+  ]
+}

@@ -1,0 +1,627 @@
+{
+  "tax_year": 2025,
+  "province": "yt",
+  "_comment": "Yukon. Built structure-first: the shape is real, every number is an unverified placeholder, and what is not yet modelled is declared in the checks rather than left silent.",
+  "summary": [
+    "fed.15000",
+    "fed.23600",
+    "fed.26000",
+    "fed.42000",
+    "prov.tax",
+    "summary.total_tax",
+    "summary.balance"
+  ],
+  "checks": [
+    {
+      "id": "yt.not_modelled_0",
+      "severity": "warning",
+      "message": "The Yukon basic personal amount tracks the federal amount including its phase-out. The plain amount is modelled; the phase-out is not.",
+      "help": "Freshet does not compute this yet, so a return for this jurisdiction may be incomplete. It is one of the reasons the return cannot be filed.",
+      "when": {
+        "cmp": "gte",
+        "left": {
+          "op": "const",
+          "value": "1"
+        },
+        "right": {
+          "op": "const",
+          "value": "1"
+        }
+      }
+    },
+    {
+      "id": "yt.not_modelled_1",
+      "severity": "warning",
+      "message": "The Yukon carbon price rebate and the First Nations income tax abatement are not modelled.",
+      "help": "Freshet does not compute this yet, so a return for this jurisdiction may be incomplete. It is one of the reasons the return cannot be filed.",
+      "when": {
+        "cmp": "gte",
+        "left": {
+          "op": "const",
+          "value": "1"
+        },
+        "right": {
+          "op": "const",
+          "value": "1"
+        }
+      }
+    }
+  ],
+  "lines": [
+    {
+      "id": "yt.58040",
+      "label": "Yukon basic personal amount",
+      "expr": {
+        "op": "param",
+        "key": "yt:bpa"
+      }
+    },
+    {
+      "id": "yt.58120",
+      "label": "Yukon spouse or common-law partner amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "partner.present"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "yt:spouse_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "partner.net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "yt:spouse_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "yt.58160",
+      "label": "Yukon amount for an eligible dependant",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "and",
+          "all": [
+            {
+              "cmp": "lt",
+              "left": {
+                "op": "fact",
+                "key": "partner.present"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "gte",
+              "left": {
+                "op": "fact",
+                "key": "dependants.eligible_dependant_claimed"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "yt:eligible_dependant_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.eligible_dependant_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "yt:eligible_dependant_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "yt.58185",
+      "label": "Yukon caregiver amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "dependants.infirm_adult_claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "yt:caregiver_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.infirm_adult_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "yt:caregiver_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "yt.58080",
+      "label": "Yukon age amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "taxpayer.age"
+          },
+          "right": {
+            "op": "const",
+            "value": "65"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "param",
+              "key": "yt:age_amount_max"
+            },
+            "minus": {
+              "op": "mul",
+              "of": {
+                "op": "floor_zero",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "line",
+                    "id": "fed.23600"
+                  },
+                  "minus": {
+                    "op": "param",
+                    "key": "yt:age_amount_threshold"
+                  }
+                }
+              },
+              "by": {
+                "op": "param",
+                "key": "yt:age_amount_clawback_rate"
+              }
+            }
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "yt.58360",
+      "label": "Yukon pension income amount",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "sum",
+                "of": [
+                  {
+                    "op": "line",
+                    "id": "fed.11500"
+                  },
+                  {
+                    "op": "mul",
+                    "of": {
+                      "op": "line",
+                      "id": "fed.11600"
+                    },
+                    "by": {
+                      "op": "fact",
+                      "key": "pension.split_received_eligible"
+                    }
+                  }
+                ]
+              },
+              "minus": {
+                "op": "line",
+                "id": "fed.21000"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "yt:pension_income_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "yt.58440",
+      "label": "Yukon disability amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "disability.claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "param",
+          "key": "yt:disability_amount"
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "yt.58689",
+      "label": "Yukon allowable medical expenses",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "fed.33099"
+          },
+          "minus": {
+            "op": "min",
+            "of": [
+              {
+                "op": "mul",
+                "of": {
+                  "op": "line",
+                  "id": "fed.23600"
+                },
+                "by": {
+                  "op": "param",
+                  "key": "yt:medical_threshold_rate"
+                }
+              },
+              {
+                "op": "param",
+                "key": "yt:medical_threshold_cap"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "yt.amounts_before_tuition",
+      "label": "Yukon credit amounts before tuition",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "yt.58040"
+          },
+          {
+            "op": "line",
+            "id": "yt.58080"
+          },
+          {
+            "op": "line",
+            "id": "yt.58120"
+          },
+          {
+            "op": "line",
+            "id": "yt.58160"
+          },
+          {
+            "op": "line",
+            "id": "yt.58185"
+          },
+          {
+            "op": "line",
+            "id": "fed.30800"
+          },
+          {
+            "op": "line",
+            "id": "fed.31000"
+          },
+          {
+            "op": "line",
+            "id": "fed.31200"
+          },
+          {
+            "op": "line",
+            "id": "yt.58360"
+          },
+          {
+            "op": "line",
+            "id": "yt.58440"
+          },
+          {
+            "op": "line",
+            "id": "yt.58689"
+          }
+        ]
+      }
+    },
+    {
+      "id": "yt.58560",
+      "label": "Yukon tuition amount claimed by the student",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "fact",
+            "key": "tuition.fees"
+          },
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "line",
+                "id": "fed.26000"
+              },
+              "minus": {
+                "op": "line",
+                "id": "yt.amounts_before_tuition"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "yt.tuition_transferable",
+      "label": "Yukon tuition available to transfer",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "fact",
+                "key": "tuition.fees"
+              },
+              "minus": {
+                "op": "line",
+                "id": "yt.58560"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "yt:tuition_transfer_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "yt.own_amounts",
+      "label": "Your own Yukon credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "yt.amounts_before_tuition"
+          },
+          {
+            "op": "line",
+            "id": "yt.58560"
+          }
+        ]
+      }
+    },
+    {
+      "id": "yt.58800",
+      "label": "Yukon total credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "yt.own_amounts"
+          },
+          {
+            "op": "fact",
+            "key": "partner.yt_transfer_amount"
+          }
+        ]
+      }
+    },
+    {
+      "id": "yt.credits",
+      "label": "Yukon non-refundable tax credits",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "yt.58800"
+        },
+        "by": {
+          "op": "param",
+          "key": "yt:credit_rate"
+        }
+      }
+    },
+    {
+      "id": "yt.donations",
+      "label": "Yukon donations and gifts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "mul",
+            "of": {
+              "op": "min",
+              "of": [
+                {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                {
+                  "op": "param",
+                  "key": "yt:donation_first_tier"
+                }
+              ]
+            },
+            "by": {
+              "op": "param",
+              "key": "yt:donation_rate_first"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "floor_zero",
+              "of": {
+                "op": "sub",
+                "from": {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "yt:donation_first_tier"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "yt:donation_rate_rest"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "yt.tax_before_surtax",
+      "label": "Yukon tax before surtax",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "sub",
+            "from": {
+              "op": "bracket",
+              "table": "yt:income_tax",
+              "base": {
+                "op": "line",
+                "id": "fed.26000"
+              }
+            },
+            "minus": {
+              "op": "line",
+              "id": "yt.credits"
+            }
+          },
+          "minus": {
+            "op": "line",
+            "id": "yt.donations"
+          }
+        }
+      }
+    },
+    {
+      "id": "yt.42800",
+      "label": "Yukon tax",
+      "expr": {
+        "op": "line",
+        "id": "yt.tax_before_surtax"
+      }
+    },
+    {
+      "id": "prov.tax",
+      "label": "Yukon tax",
+      "expr": {
+        "op": "line",
+        "id": "yt.42800"
+      }
+    },
+    {
+      "id": "prov.refundable_credits",
+      "label": "Yukon refundable credits",
+      "note": "Nil, and declared rather than assumed: what is not modelled is listed in the checks. Understating a refund is the safe direction; leaving it unsaid is not.",
+      "expr": {
+        "op": "const",
+        "value": "0"
+      }
+    }
+  ]
+}

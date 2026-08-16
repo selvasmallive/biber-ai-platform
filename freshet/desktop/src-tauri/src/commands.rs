@@ -230,7 +230,7 @@ pub fn compute_return(input: ComputeInput) -> Result<ReturnView, String> {
 pub fn supported() -> serde_json::Value {
     serde_json::json!({
         "years": freshet_taxdata::SUPPORTED_YEARS,
-        "provinces": freshet_taxdata::SUPPORTED_PROVINCES,
+        "provinces": freshet_taxdata::supported_provinces(),
     })
 }
 

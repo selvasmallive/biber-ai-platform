@@ -1,0 +1,627 @@
+{
+  "tax_year": 2025,
+  "province": "mb",
+  "_comment": "Manitoba. Built structure-first: the shape is real, every number is an unverified placeholder, and what is not yet modelled is declared in the checks rather than left silent.",
+  "summary": [
+    "fed.15000",
+    "fed.23600",
+    "fed.26000",
+    "fed.42000",
+    "prov.tax",
+    "summary.total_tax",
+    "summary.balance"
+  ],
+  "checks": [
+    {
+      "id": "mb.not_modelled_0",
+      "severity": "warning",
+      "message": "Manitoba reduces its basic personal amount for higher incomes from 2025. The plain amount is modelled; the phase-out is not.",
+      "help": "Freshet does not compute this yet, so a return for this jurisdiction may be incomplete. It is one of the reasons the return cannot be filed.",
+      "when": {
+        "cmp": "gte",
+        "left": {
+          "op": "const",
+          "value": "1"
+        },
+        "right": {
+          "op": "const",
+          "value": "1"
+        }
+      }
+    },
+    {
+      "id": "mb.not_modelled_1",
+      "severity": "warning",
+      "message": "Manitoba refundable credits (education property tax, renters, fertility treatment, primary caregiver) are not modelled.",
+      "help": "Freshet does not compute this yet, so a return for this jurisdiction may be incomplete. It is one of the reasons the return cannot be filed.",
+      "when": {
+        "cmp": "gte",
+        "left": {
+          "op": "const",
+          "value": "1"
+        },
+        "right": {
+          "op": "const",
+          "value": "1"
+        }
+      }
+    }
+  ],
+  "lines": [
+    {
+      "id": "mb.58040",
+      "label": "Manitoba basic personal amount",
+      "expr": {
+        "op": "param",
+        "key": "mb:bpa"
+      }
+    },
+    {
+      "id": "mb.58120",
+      "label": "Manitoba spouse or common-law partner amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "partner.present"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "mb:spouse_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "partner.net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "mb:spouse_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "mb.58160",
+      "label": "Manitoba amount for an eligible dependant",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "and",
+          "all": [
+            {
+              "cmp": "lt",
+              "left": {
+                "op": "fact",
+                "key": "partner.present"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "gte",
+              "left": {
+                "op": "fact",
+                "key": "dependants.eligible_dependant_claimed"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "mb:eligible_dependant_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.eligible_dependant_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "mb:eligible_dependant_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "mb.58185",
+      "label": "Manitoba caregiver amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "dependants.infirm_adult_claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "mb:caregiver_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.infirm_adult_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "mb:caregiver_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "mb.58080",
+      "label": "Manitoba age amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "taxpayer.age"
+          },
+          "right": {
+            "op": "const",
+            "value": "65"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "param",
+              "key": "mb:age_amount_max"
+            },
+            "minus": {
+              "op": "mul",
+              "of": {
+                "op": "floor_zero",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "line",
+                    "id": "fed.23600"
+                  },
+                  "minus": {
+                    "op": "param",
+                    "key": "mb:age_amount_threshold"
+                  }
+                }
+              },
+              "by": {
+                "op": "param",
+                "key": "mb:age_amount_clawback_rate"
+              }
+            }
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "mb.58360",
+      "label": "Manitoba pension income amount",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "sum",
+                "of": [
+                  {
+                    "op": "line",
+                    "id": "fed.11500"
+                  },
+                  {
+                    "op": "mul",
+                    "of": {
+                      "op": "line",
+                      "id": "fed.11600"
+                    },
+                    "by": {
+                      "op": "fact",
+                      "key": "pension.split_received_eligible"
+                    }
+                  }
+                ]
+              },
+              "minus": {
+                "op": "line",
+                "id": "fed.21000"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "mb:pension_income_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "mb.58440",
+      "label": "Manitoba disability amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "disability.claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "param",
+          "key": "mb:disability_amount"
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "mb.58689",
+      "label": "Manitoba allowable medical expenses",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "fed.33099"
+          },
+          "minus": {
+            "op": "min",
+            "of": [
+              {
+                "op": "mul",
+                "of": {
+                  "op": "line",
+                  "id": "fed.23600"
+                },
+                "by": {
+                  "op": "param",
+                  "key": "mb:medical_threshold_rate"
+                }
+              },
+              {
+                "op": "param",
+                "key": "mb:medical_threshold_cap"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "mb.amounts_before_tuition",
+      "label": "Manitoba credit amounts before tuition",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "mb.58040"
+          },
+          {
+            "op": "line",
+            "id": "mb.58080"
+          },
+          {
+            "op": "line",
+            "id": "mb.58120"
+          },
+          {
+            "op": "line",
+            "id": "mb.58160"
+          },
+          {
+            "op": "line",
+            "id": "mb.58185"
+          },
+          {
+            "op": "line",
+            "id": "fed.30800"
+          },
+          {
+            "op": "line",
+            "id": "fed.31000"
+          },
+          {
+            "op": "line",
+            "id": "fed.31200"
+          },
+          {
+            "op": "line",
+            "id": "mb.58360"
+          },
+          {
+            "op": "line",
+            "id": "mb.58440"
+          },
+          {
+            "op": "line",
+            "id": "mb.58689"
+          }
+        ]
+      }
+    },
+    {
+      "id": "mb.58560",
+      "label": "Manitoba tuition amount claimed by the student",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "fact",
+            "key": "tuition.fees"
+          },
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "line",
+                "id": "fed.26000"
+              },
+              "minus": {
+                "op": "line",
+                "id": "mb.amounts_before_tuition"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mb.tuition_transferable",
+      "label": "Manitoba tuition available to transfer",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "fact",
+                "key": "tuition.fees"
+              },
+              "minus": {
+                "op": "line",
+                "id": "mb.58560"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "mb:tuition_transfer_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "mb.own_amounts",
+      "label": "Your own Manitoba credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "mb.amounts_before_tuition"
+          },
+          {
+            "op": "line",
+            "id": "mb.58560"
+          }
+        ]
+      }
+    },
+    {
+      "id": "mb.58800",
+      "label": "Manitoba total credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "mb.own_amounts"
+          },
+          {
+            "op": "fact",
+            "key": "partner.mb_transfer_amount"
+          }
+        ]
+      }
+    },
+    {
+      "id": "mb.credits",
+      "label": "Manitoba non-refundable tax credits",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "mb.58800"
+        },
+        "by": {
+          "op": "param",
+          "key": "mb:credit_rate"
+        }
+      }
+    },
+    {
+      "id": "mb.donations",
+      "label": "Manitoba donations and gifts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "mul",
+            "of": {
+              "op": "min",
+              "of": [
+                {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                {
+                  "op": "param",
+                  "key": "mb:donation_first_tier"
+                }
+              ]
+            },
+            "by": {
+              "op": "param",
+              "key": "mb:donation_rate_first"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "floor_zero",
+              "of": {
+                "op": "sub",
+                "from": {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "mb:donation_first_tier"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "mb:donation_rate_rest"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mb.tax_before_surtax",
+      "label": "Manitoba tax before surtax",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "sub",
+            "from": {
+              "op": "bracket",
+              "table": "mb:income_tax",
+              "base": {
+                "op": "line",
+                "id": "fed.26000"
+              }
+            },
+            "minus": {
+              "op": "line",
+              "id": "mb.credits"
+            }
+          },
+          "minus": {
+            "op": "line",
+            "id": "mb.donations"
+          }
+        }
+      }
+    },
+    {
+      "id": "mb.42800",
+      "label": "Manitoba tax",
+      "expr": {
+        "op": "line",
+        "id": "mb.tax_before_surtax"
+      }
+    },
+    {
+      "id": "prov.tax",
+      "label": "Manitoba tax",
+      "expr": {
+        "op": "line",
+        "id": "mb.42800"
+      }
+    },
+    {
+      "id": "prov.refundable_credits",
+      "label": "Manitoba refundable credits",
+      "note": "Nil, and declared rather than assumed: what is not modelled is listed in the checks. Understating a refund is the safe direction; leaving it unsaid is not.",
+      "expr": {
+        "op": "const",
+        "value": "0"
+      }
+    }
+  ]
+}

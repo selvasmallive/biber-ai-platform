@@ -1,0 +1,126 @@
+{
+  "jurisdiction": "nu",
+  "tax_year": 2026,
+  "_comment": "Built structure-first. Every value is an unverified placeholder pending the published form for this year.",
+  "scalars": {
+    "bpa": {
+      "value": "19659",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "spouse_base": {
+      "value": "12240",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "spouse_max": {
+      "value": "12240",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "eligible_dependant_base": {
+      "value": "12240",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "eligible_dependant_max": {
+      "value": "12240",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "caregiver_base": {
+      "value": "25500",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "caregiver_max": {
+      "value": "8160",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "age_amount_max": {
+      "value": "6120",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "age_amount_threshold": {
+      "value": "45900",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "age_amount_clawback_rate": {
+      "value": "0.15",
+      "source": "Mirrors the federal 15% clawback. STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "disability_amount": {
+      "value": "9690",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "pension_income_max": {
+      "value": "1530",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "medical_threshold_rate": {
+      "value": "0.03",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "medical_threshold_cap": {
+      "value": "2652",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "credit_rate": {
+      "value": "0.04",
+      "source": "The lowest bracket rate. STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "donation_first_tier": {
+      "value": "200",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "donation_rate_first": {
+      "value": "0.04",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "donation_rate_rest": {
+      "value": "0.115",
+      "source": "The high donation rate. STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    },
+    "tuition_transfer_max": {
+      "value": "5000",
+      "source": "This jurisdiction still allows a tuition transfer. STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    }
+  },
+  "brackets": {
+    "income_tax": {
+      "bands": [
+        {
+          "upto": "55801",
+          "rate": "0.04"
+        },
+        {
+          "upto": "111601",
+          "rate": "0.07"
+        },
+        {
+          "upto": "181439",
+          "rate": "0.09"
+        },
+        {
+          "upto": null,
+          "rate": "0.115"
+        }
+      ],
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against NU428. Must not be trusted for a filed return; the verification gate keeps this jurisdiction unfilable until it is sourced.",
+      "verified": false
+    }
+  }
+}

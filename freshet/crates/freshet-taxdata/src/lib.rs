@@ -8,37 +8,48 @@
 use freshet_engine::{EngineError, FormSet, PackSet, ParamPack};
 
 pub const FED_2025: &str = include_str!("../data/fed-2025.json");
-pub const ON_2025: &str = include_str!("../data/on-2025.json");
 pub const FED_2026: &str = include_str!("../data/fed-2026.json");
-pub const ON_2026: &str = include_str!("../data/on-2026.json");
-pub const AB_2025: &str = include_str!("../data/ab-2025.json");
-pub const AB_2026: &str = include_str!("../data/ab-2026.json");
-pub const BC_2025: &str = include_str!("../data/bc-2025.json");
-pub const BC_2026: &str = include_str!("../data/bc-2026.json");
 
-/// The federal T1, shared by every province.
+/// The federal T1, shared by every jurisdiction.
 ///
 /// Kept separate from the provincial forms because it is roughly three quarters
 /// of the return. Holding a copy per jurisdiction would mean a federal
-/// correction had to be made thirteen times identically — and the federal data
+/// correction had to be made fourteen times identically — and the federal data
 /// in this repository has already needed four corrections.
 pub const T1_FEDERAL: &str = include_str!("../data/t1-federal.json");
 
-/// One form definition serves every year whose *structure* is unchanged; only
-/// the parameter pack differs. This is the payoff from keeping the tax rules as
-/// data — a new year is a pack, not a fork. It splits into per-year files the
-/// first time a line is added or removed.
-pub const T1_ON: &str = include_str!("../data/t1-on.json");
+/// One row per jurisdiction: code, form definition, and the two parameter packs.
+///
+/// A table rather than match arms. With one province the arms were clearer;
+/// with fourteen they were three places to forget to edit, and the compiler
+/// could not tell you that a jurisdiction had a form but no 2026 pack.
+struct Jurisdiction {
+    code: &'static str,
+    form: &'static str,
+    pack_2025: &'static str,
+    pack_2026: &'static str,
+}
 
-/// Alberta. Eighteen lines to Ontario's thirty: no surtax, no health premium,
-/// no low-income reduction, no CARE credit, and no tuition credit — Alberta
-/// abolished that one in 2020, as Ontario did in 2017.
-pub const T1_AB: &str = include_str!("../data/t1-ab.json");
+macro_rules! jurisdictions {
+    ($($code:literal),+ $(,)?) => {
+        &[$(Jurisdiction {
+            code: $code,
+            form: include_str!(concat!("../data/t1-", $code, ".json")),
+            pack_2025: include_str!(concat!("../data/", $code, "-2025.json")),
+            pack_2026: include_str!(concat!("../data/", $code, "-2026.json")),
+        }),+]
+    };
+}
 
-/// British Columbia. Seven bands, a low-income reduction with a clawback, and
-/// a live tuition credit — the first province where those lines do real work,
-/// since Ontario abolished its credit in 2017 and Alberta in 2020.
-pub const T1_BC: &str = include_str!("../data/t1-bc.json");
+/// Every province and territory. Quebec is here because a Quebec resident
+/// still files a federal T1 — they simply pay no provincial tax through it.
+const JURISDICTIONS: &[Jurisdiction] = jurisdictions![
+    "ab", "bc", "mb", "nb", "nl", "ns", "nt", "nu", "on", "pe", "qc", "sk", "yt",
+];
+
+fn find(province: &str) -> Option<&'static Jurisdiction> {
+    JURISDICTIONS.iter().find(|j| j.code == province)
+}
 
 /// Tax years this build can compute. CRA certifies per tax year, so this list
 /// is also the list of years the product may claim support for.
@@ -65,24 +76,25 @@ pub fn is_certified(year: u16) -> bool {
     CERTIFIED_YEARS.contains(&year)
 }
 
-/// Provinces implemented so far.
-pub const SUPPORTED_PROVINCES: &[&str] = &["ab", "bc", "on"];
+/// Provinces and territories implemented so far.
+pub fn supported_provinces() -> Vec<&'static str> {
+    JURISDICTIONS.iter().map(|j| j.code).collect()
+}
 
 fn unsupported(year: u16, province: &str) -> EngineError {
     EngineError::Unsupported(format!(
-        "no tax data for {province}/{year}; this build supports {SUPPORTED_PROVINCES:?} for {SUPPORTED_YEARS:?}"
+        "no tax data for {province}/{year}; this build supports {:?} for {SUPPORTED_YEARS:?}",
+        supported_provinces()
     ))
 }
 
 /// Federal + provincial parameter packs for a return.
 pub fn packs(year: u16, province: &str) -> Result<PackSet, EngineError> {
-    let (fed, prov) = match (year, province) {
-        (2025, "on") => (FED_2025, ON_2025),
-        (2026, "on") => (FED_2026, ON_2026),
-        (2025, "ab") => (FED_2025, AB_2025),
-        (2026, "ab") => (FED_2026, AB_2026),
-        (2025, "bc") => (FED_2025, BC_2025),
-        (2026, "bc") => (FED_2026, BC_2026),
+    let j = find(province).ok_or_else(|| unsupported(year, province))?;
+
+    let (fed, prov) = match year {
+        2025 => (FED_2025, j.pack_2025),
+        2026 => (FED_2026, j.pack_2026),
         _ => return Err(unsupported(year, province)),
     };
 
@@ -99,16 +111,14 @@ pub fn packs(year: u16, province: &str) -> Result<PackSet, EngineError> {
 /// concatenation — provincial lines reference `fed.*` ids and are resolved in
 /// dependency order regardless of which file they arrived in.
 pub fn t1_forms(year: u16, province: &str) -> Result<FormSet, EngineError> {
-    let provincial = match (year, province) {
-        (2025 | 2026, "on") => T1_ON,
-        (2025 | 2026, "ab") => T1_AB,
-        (2025 | 2026, "bc") => T1_BC,
-        _ => return Err(unsupported(year, province)),
-    };
+    if !SUPPORTED_YEARS.contains(&year) {
+        return Err(unsupported(year, province));
+    }
+    let j = find(province).ok_or_else(|| unsupported(year, province))?;
 
     let mut forms = FormSet::compose(
         FormSet::from_json(T1_FEDERAL)?,
-        FormSet::from_json(provincial)?,
+        FormSet::from_json(j.form)?,
     )?;
 
     forms.tax_year = year;
@@ -122,7 +132,7 @@ mod tests {
     #[test]
     fn every_shipped_pack_parses() {
         for &year in SUPPORTED_YEARS {
-            for &prov in SUPPORTED_PROVINCES {
+            for prov in supported_provinces() {
                 packs(year, prov).expect("pack parses");
                 t1_forms(year, prov).expect("forms parse");
             }
@@ -135,7 +145,7 @@ mod tests {
     #[test]
     fn the_federal_form_is_not_duplicated_per_province() {
         let federal = FormSet::from_json(T1_FEDERAL).unwrap();
-        let ontario = FormSet::from_json(T1_ON).unwrap();
+        let ontario = FormSet::from_json(find("on").unwrap().form).unwrap();
 
         // A provincial form owns its own namespace plus the two `prov.*` lines
         // that are its contract with the federal return.
@@ -163,7 +173,7 @@ mod tests {
     #[test]
     fn a_province_cannot_override_a_federal_line() {
         let federal = FormSet::from_json(T1_FEDERAL).unwrap();
-        let mut rogue = FormSet::from_json(T1_ON).unwrap();
+        let mut rogue = FormSet::from_json(find("on").unwrap().form).unwrap();
 
         let stolen = federal.lines[0].clone();
         let stolen_id = stolen.id.clone();
@@ -177,7 +187,10 @@ mod tests {
 
     #[test]
     fn unsupported_combinations_are_rejected() {
-        assert!(packs(2024, "on").is_err());
-        assert!(t1_forms(2025, "sk").is_err());
+        assert!(packs(2024, "on").is_err(), "an uncomputable year was accepted");
+        assert!(t1_forms(2024, "on").is_err());
+        // Not a jurisdiction. Every real one is now implemented.
+        assert!(t1_forms(2025, "zz").is_err());
+        assert!(packs(2025, "zz").is_err());
     }
 }
