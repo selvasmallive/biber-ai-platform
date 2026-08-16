@@ -5,7 +5,7 @@ import { Screen, Button, Card, StatusBanner, shortAddr } from '../components/ui'
 import { colors, font, radius, spacing } from '../theme/theme';
 import { useWalletConnect } from '../state/WalletConnectProvider';
 
-export function WalletConnectScreen() {
+export function WalletConnectScreen({ navigation }: any) {
   const wc = useWalletConnect();
   const [uri, setUri] = useState('');
   const [busy, setBusy] = useState(false);
@@ -35,16 +35,19 @@ export function WalletConnectScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={font.h2}>WalletConnect</Text>
         <Text style={styles.p}>
-          Connect Lattice to a dApp. Open the dApp's "Connect Wallet → WalletConnect", copy the
-          pairing link, and paste it here. Every signature and transaction is confirmed on this
-          device behind biometrics.
+          Connect Lattice to a dApp. Scan the dApp's WalletConnect QR code, or copy its pairing
+          link and paste it here. On a phone, tapping "Lattice" in a dApp opens the app and pairs
+          automatically. Every signature and transaction is confirmed on this device behind
+          biometrics.
         </Text>
 
         {!wc.ready && <StatusBanner text="WalletConnect starting…" tone="info" />}
         {wc.error && <StatusBanner text={wc.error} tone="danger" />}
 
+        <Button title="Scan QR code" onPress={() => navigation.navigate('ScanQr')} disabled={!wc.ready} />
+
         <View>
-          <Text style={styles.label}>Pairing link (wc:…)</Text>
+          <Text style={styles.label}>Or paste a pairing link (wc:…)</Text>
           <TextInput
             style={styles.input}
             value={uri}

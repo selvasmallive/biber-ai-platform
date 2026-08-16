@@ -42,7 +42,13 @@
           "faceIDPermission": "Lattice uses Face ID to unlock your wallet and authorize signing."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Lattice uses the camera to scan WalletConnect QR codes."
+        }
+      ]
     ]
   }
 }

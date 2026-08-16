@@ -6,6 +6,7 @@
 // dev/EAS build (WalletKit has native deps and does not run in Expo Go) and a real dApp to
 // test end-to-end. The code compiles and bundles; live pairing is untested from CI.
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import * as Linking from 'expo-linking';
 import { WalletKit, type IWalletKit } from '@reown/walletkit';
 import { Core } from '@walletconnect/core';
 import { buildApprovedNamespaces, getSdkError } from '@walletconnect/utils';
@@ -13,6 +14,7 @@ import { WALLETCONNECT_METADATA, WALLETCONNECT_PROJECT_ID } from '../core/config
 import { EVM_CHAINS, evmConfigByChainId } from '../core/chains/registry';
 import { EvmAdapter, deriveEvmKey } from '../core/chains/evm';
 import { personalSign, signTypedDataV4, type TypedData } from '../core/chains/evmSign';
+import { extractWcUri } from '../core/deeplink';
 import * as keystore from '../core/keystore';
 
 const EVM_METHODS = ['eth_sendTransaction', 'personal_sign', 'eth_signTypedData', 'eth_signTypedData_v4'];
@@ -99,6 +101,40 @@ export function WalletConnectProvider({ children }: { children: React.ReactNode 
     setError(null);
     await kit.pair({ uri: uri.trim() });
   }, []);
+
+  // Deep-link auto-pairing: a dApp can hand the wallet a `wc:` URI via `lattice://wc?uri=…`
+  // (or a raw `wc:` link). We queue it and pair once WalletKit is ready. Each URI is paired
+  // at most once.
+  const pendingUriRef = useRef<string | null>(null);
+  const pairedRef = useRef<Set<string>>(new Set());
+  const tryPairPending = useCallback(async () => {
+    const uri = pendingUriRef.current;
+    if (!uri || !kitRef.current || pairedRef.current.has(uri)) return;
+    pendingUriRef.current = null;
+    pairedRef.current.add(uri);
+    try {
+      await kitRef.current.pair({ uri });
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handle = (url: string | null) => {
+      const uri = url ? extractWcUri(url) : null;
+      if (uri) {
+        pendingUriRef.current = uri;
+        tryPairPending();
+      }
+    };
+    Linking.getInitialURL().then(handle).catch(() => {});
+    const sub = Linking.addEventListener('url', (e) => handle(e.url));
+    return () => sub.remove();
+  }, [tryPairPending]);
+
+  useEffect(() => {
+    if (ready) tryPairPending();
+  }, [ready, tryPairPending]);
 
   const approveProposal = useCallback(async () => {
     const kit = kitRef.current;

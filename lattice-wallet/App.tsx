@@ -21,6 +21,7 @@ import { HistoryScreen } from './src/screens/HistoryScreen';
 import { SwapScreen } from './src/screens/SwapScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { WalletConnectScreen } from './src/screens/WalletConnectScreen';
+import { ScanQrScreen } from './src/screens/ScanQrScreen';
 import { AddTokenScreen } from './src/screens/AddTokenScreen';
 import { TokenSendScreen } from './src/screens/TokenSendScreen';
 import { AddressBookScreen } from './src/screens/AddressBookScreen';
@@ -98,6 +99,7 @@ function Root() {
           <Stack.Screen name="TokenSend" component={TokenSendScreen} options={{ presentation: 'modal', title: 'Send token' }} />
           <Stack.Screen name="AddressBook" component={AddressBookScreen} options={{ title: 'Address book' }} />
           <Stack.Screen name="WalletConnect" component={WalletConnectScreen} options={{ title: 'WalletConnect' }} />
+          <Stack.Screen name="ScanQr" component={ScanQrScreen} options={{ presentation: 'modal', headerShown: false }} />
           {/* Reachable after wipe */}
           <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Backup" component={BackupScreen} options={{ title: 'Back up' }} />
