@@ -13,6 +13,8 @@ pub const FED_2026: &str = include_str!("../data/fed-2026.json");
 pub const ON_2026: &str = include_str!("../data/on-2026.json");
 pub const AB_2025: &str = include_str!("../data/ab-2025.json");
 pub const AB_2026: &str = include_str!("../data/ab-2026.json");
+pub const BC_2025: &str = include_str!("../data/bc-2025.json");
+pub const BC_2026: &str = include_str!("../data/bc-2026.json");
 
 /// The federal T1, shared by every province.
 ///
@@ -32,6 +34,11 @@ pub const T1_ON: &str = include_str!("../data/t1-on.json");
 /// no low-income reduction, no CARE credit, and no tuition credit — Alberta
 /// abolished that one in 2020, as Ontario did in 2017.
 pub const T1_AB: &str = include_str!("../data/t1-ab.json");
+
+/// British Columbia. Seven bands, a low-income reduction with a clawback, and
+/// a live tuition credit — the first province where those lines do real work,
+/// since Ontario abolished its credit in 2017 and Alberta in 2020.
+pub const T1_BC: &str = include_str!("../data/t1-bc.json");
 
 /// Tax years this build can compute. CRA certifies per tax year, so this list
 /// is also the list of years the product may claim support for.
@@ -59,7 +66,7 @@ pub fn is_certified(year: u16) -> bool {
 }
 
 /// Provinces implemented so far.
-pub const SUPPORTED_PROVINCES: &[&str] = &["ab", "on"];
+pub const SUPPORTED_PROVINCES: &[&str] = &["ab", "bc", "on"];
 
 fn unsupported(year: u16, province: &str) -> EngineError {
     EngineError::Unsupported(format!(
@@ -74,6 +81,8 @@ pub fn packs(year: u16, province: &str) -> Result<PackSet, EngineError> {
         (2026, "on") => (FED_2026, ON_2026),
         (2025, "ab") => (FED_2025, AB_2025),
         (2026, "ab") => (FED_2026, AB_2026),
+        (2025, "bc") => (FED_2025, BC_2025),
+        (2026, "bc") => (FED_2026, BC_2026),
         _ => return Err(unsupported(year, province)),
     };
 
@@ -93,6 +102,7 @@ pub fn t1_forms(year: u16, province: &str) -> Result<FormSet, EngineError> {
     let provincial = match (year, province) {
         (2025 | 2026, "on") => T1_ON,
         (2025 | 2026, "ab") => T1_AB,
+        (2025 | 2026, "bc") => T1_BC,
         _ => return Err(unsupported(year, province)),
     };
 
@@ -168,6 +178,6 @@ mod tests {
     #[test]
     fn unsupported_combinations_are_rejected() {
         assert!(packs(2024, "on").is_err());
-        assert!(t1_forms(2025, "bc").is_err());
+        assert!(t1_forms(2025, "sk").is_err());
     }
 }

@@ -1,0 +1,153 @@
+{
+  "jurisdiction": "bc",
+  "tax_year": 2025,
+  "_comment": "British Columbia, built structure-first. Every value is an unverified placeholder pending BC428. The shape is the deliverable; the numbers are not.",
+  "scalars": {
+    "bpa": {
+      "value": "12932",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "spouse_base": {
+      "value": "11073",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "spouse_max": {
+      "value": "11073",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "eligible_dependant_base": {
+      "value": "11073",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "eligible_dependant_max": {
+      "value": "11073",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "caregiver_base": {
+      "value": "5090",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "caregiver_max": {
+      "value": "5090",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "age_amount_max": {
+      "value": "5811",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "age_amount_threshold": {
+      "value": "43056",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "age_amount_clawback_rate": {
+      "value": "0.15",
+      "source": "BC mirrors the federal 15% clawback. STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "disability_amount": {
+      "value": "9310",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "pension_income_max": {
+      "value": "1000",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "medical_threshold_rate": {
+      "value": "0.03",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "medical_threshold_cap": {
+      "value": "2834",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "credit_rate": {
+      "value": "0.0506",
+      "source": "BC's lowest bracket rate. STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "tuition_transfer_max": {
+      "value": "5000",
+      "source": "BC still allows a tuition transfer, unlike Ontario and Alberta. STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "tax_reduction_base": {
+      "value": "561",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "tax_reduction_threshold": {
+      "value": "25020",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "tax_reduction_rate": {
+      "value": "0.0356",
+      "source": "Clawback rate on the BC tax reduction. STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "donation_first_tier": {
+      "value": "200",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "donation_rate_first": {
+      "value": "0.0506",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    },
+    "donation_rate_rest": {
+      "value": "0.168",
+      "source": "BC's high donation rate. STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    }
+  },
+  "brackets": {
+    "income_tax": {
+      "bands": [
+        {
+          "upto": "49279",
+          "rate": "0.0506"
+        },
+        {
+          "upto": "98560",
+          "rate": "0.077"
+        },
+        {
+          "upto": "113158",
+          "rate": "0.105"
+        },
+        {
+          "upto": "137407",
+          "rate": "0.1229"
+        },
+        {
+          "upto": "186306",
+          "rate": "0.147"
+        },
+        {
+          "upto": "259829",
+          "rate": "0.168"
+        },
+        {
+          "upto": null,
+          "rate": "0.205"
+        }
+      ],
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against BC428. Must not be trusted for a filed return; the verification gate keeps British Columbia unfilable until it is sourced.",
+      "verified": false
+    }
+  }
+}

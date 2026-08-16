@@ -1,0 +1,700 @@
+{
+  "tax_year": 2025,
+  "province": "bc",
+  "_comment": "British Columbia. Seven bands -- more than any other province -- a low-income reduction with a clawback, and a live tuition credit that Ontario and Alberta both abolished.",
+  "summary": [
+    "fed.15000",
+    "fed.23600",
+    "fed.26000",
+    "fed.42000",
+    "prov.tax",
+    "summary.total_tax",
+    "summary.balance"
+  ],
+  "checks": [
+    {
+      "id": "bc.bc479_not_modelled",
+      "severity": "warning",
+      "message": "British Columbia's refundable credits (form BC479) are not included yet.",
+      "help": "BC479 carries the sales tax credit and several others. Freshet does not compute them, so any refund shown for a BC return may be understated. This is why a BC return cannot be filed.",
+      "when": {
+        "cmp": "gte",
+        "left": {
+          "op": "const",
+          "value": "1"
+        },
+        "right": {
+          "op": "const",
+          "value": "1"
+        }
+      }
+    },
+    {
+      "id": "bc.tax_reduction_applied",
+      "severity": "info",
+      "message": "The BC tax reduction has lowered your British Columbia tax.",
+      "help": "It is a flat amount clawed back as net income rises, so it disappears entirely above the phase-out point.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "line",
+          "id": "bc.tax_reduction"
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    }
+  ],
+  "lines": [
+    {
+      "id": "bc.58040",
+      "label": "BC basic personal amount",
+      "expr": {
+        "op": "param",
+        "key": "bc:bpa"
+      }
+    },
+    {
+      "id": "bc.58120",
+      "label": "BC spouse or common-law partner amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "partner.present"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "bc:spouse_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "partner.net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "bc:spouse_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "bc.58160",
+      "label": "BC amount for an eligible dependant",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "and",
+          "all": [
+            {
+              "cmp": "lt",
+              "left": {
+                "op": "fact",
+                "key": "partner.present"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "gte",
+              "left": {
+                "op": "fact",
+                "key": "dependants.eligible_dependant_claimed"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "bc:eligible_dependant_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.eligible_dependant_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "bc:eligible_dependant_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "bc.58185",
+      "label": "BC caregiver amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "dependants.infirm_adult_claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "bc:caregiver_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.infirm_adult_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "bc:caregiver_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "bc.58080",
+      "label": "BC age amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "taxpayer.age"
+          },
+          "right": {
+            "op": "const",
+            "value": "65"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "param",
+              "key": "bc:age_amount_max"
+            },
+            "minus": {
+              "op": "mul",
+              "of": {
+                "op": "floor_zero",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "line",
+                    "id": "fed.23600"
+                  },
+                  "minus": {
+                    "op": "param",
+                    "key": "bc:age_amount_threshold"
+                  }
+                }
+              },
+              "by": {
+                "op": "param",
+                "key": "bc:age_amount_clawback_rate"
+              }
+            }
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "bc.58360",
+      "label": "BC pension income amount",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "sum",
+                "of": [
+                  {
+                    "op": "line",
+                    "id": "fed.11500"
+                  },
+                  {
+                    "op": "mul",
+                    "of": {
+                      "op": "line",
+                      "id": "fed.11600"
+                    },
+                    "by": {
+                      "op": "fact",
+                      "key": "pension.split_received_eligible"
+                    }
+                  }
+                ]
+              },
+              "minus": {
+                "op": "line",
+                "id": "fed.21000"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "bc:pension_income_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "bc.58440",
+      "label": "BC disability amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "disability.claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "param",
+          "key": "bc:disability_amount"
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "bc.58689",
+      "label": "BC allowable medical expenses",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "fed.33099"
+          },
+          "minus": {
+            "op": "min",
+            "of": [
+              {
+                "op": "mul",
+                "of": {
+                  "op": "line",
+                  "id": "fed.23600"
+                },
+                "by": {
+                  "op": "param",
+                  "key": "bc:medical_threshold_rate"
+                }
+              },
+              {
+                "op": "param",
+                "key": "bc:medical_threshold_cap"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "bc.amounts_before_tuition",
+      "label": "BC credit amounts before tuition",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "bc.58040"
+          },
+          {
+            "op": "line",
+            "id": "bc.58080"
+          },
+          {
+            "op": "line",
+            "id": "bc.58120"
+          },
+          {
+            "op": "line",
+            "id": "bc.58160"
+          },
+          {
+            "op": "line",
+            "id": "bc.58185"
+          },
+          {
+            "op": "line",
+            "id": "fed.30800"
+          },
+          {
+            "op": "line",
+            "id": "fed.31000"
+          },
+          {
+            "op": "line",
+            "id": "fed.31200"
+          },
+          {
+            "op": "line",
+            "id": "bc.58360"
+          },
+          {
+            "op": "line",
+            "id": "bc.58440"
+          },
+          {
+            "op": "line",
+            "id": "bc.58689"
+          }
+        ]
+      }
+    },
+    {
+      "id": "bc.58560",
+      "label": "BC tuition amount claimed by the student",
+      "note": "British Columbia still offers a tuition credit, unlike Ontario and Alberta. Assuming provinces follow the federal return here is wrong in both directions, so each one is checked.",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "fact",
+            "key": "tuition.fees"
+          },
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "line",
+                "id": "fed.26000"
+              },
+              "minus": {
+                "op": "line",
+                "id": "bc.amounts_before_tuition"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "bc.tuition_transferable",
+      "label": "BC tuition available to transfer",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "fact",
+                "key": "tuition.fees"
+              },
+              "minus": {
+                "op": "line",
+                "id": "bc.58560"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "bc:tuition_transfer_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "bc.own_amounts",
+      "label": "Your own BC credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "bc.amounts_before_tuition"
+          },
+          {
+            "op": "line",
+            "id": "bc.58560"
+          }
+        ]
+      }
+    },
+    {
+      "id": "bc.58640",
+      "label": "BC amounts transferred from your spouse",
+      "expr": {
+        "op": "fact",
+        "key": "partner.bc_transfer_amount"
+      }
+    },
+    {
+      "id": "bc.58800",
+      "label": "BC total credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "bc.own_amounts"
+          },
+          {
+            "op": "line",
+            "id": "bc.58640"
+          }
+        ]
+      }
+    },
+    {
+      "id": "bc.60300",
+      "label": "BC non-refundable tax credits",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "bc.58800"
+        },
+        "by": {
+          "op": "param",
+          "key": "bc:credit_rate"
+        }
+      }
+    },
+    {
+      "id": "bc.donations",
+      "label": "BC donations and gifts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "mul",
+            "of": {
+              "op": "min",
+              "of": [
+                {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                {
+                  "op": "param",
+                  "key": "bc:donation_first_tier"
+                }
+              ]
+            },
+            "by": {
+              "op": "param",
+              "key": "bc:donation_rate_first"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "floor_zero",
+              "of": {
+                "op": "sub",
+                "from": {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "bc:donation_first_tier"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "bc:donation_rate_rest"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "bc.tax_before_reduction",
+      "label": "BC tax before the tax reduction",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "sub",
+            "from": {
+              "op": "bracket",
+              "table": "bc:income_tax",
+              "base": {
+                "op": "line",
+                "id": "fed.26000"
+              }
+            },
+            "minus": {
+              "op": "line",
+              "id": "bc.60300"
+            }
+          },
+          "minus": {
+            "op": "line",
+            "id": "bc.donations"
+          }
+        }
+      }
+    },
+    {
+      "id": "bc.tax_reduction_amount",
+      "label": "BC tax reduction before the cap",
+      "note": "A flat amount clawed back above a net income threshold. It is the reason BC's effective rate rises faster than its bracket table suggests over the phase-out range.",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "param",
+            "key": "bc:tax_reduction_base"
+          },
+          "minus": {
+            "op": "mul",
+            "of": {
+              "op": "floor_zero",
+              "of": {
+                "op": "sub",
+                "from": {
+                  "op": "line",
+                  "id": "fed.23600"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "bc:tax_reduction_threshold"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "bc:tax_reduction_rate"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "bc.tax_reduction",
+      "label": "BC tax reduction",
+      "note": "The reduction cannot exceed the tax it reduces; it is not refundable.",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "line",
+            "id": "bc.tax_reduction_amount"
+          },
+          {
+            "op": "line",
+            "id": "bc.tax_before_reduction"
+          }
+        ]
+      }
+    },
+    {
+      "id": "bc.42800",
+      "label": "British Columbia tax",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "bc.tax_before_reduction"
+          },
+          "minus": {
+            "op": "line",
+            "id": "bc.tax_reduction"
+          }
+        }
+      }
+    },
+    {
+      "id": "prov.tax",
+      "label": "British Columbia tax",
+      "expr": {
+        "op": "line",
+        "id": "bc.42800"
+      }
+    },
+    {
+      "id": "prov.refundable_credits",
+      "label": "BC refundable credits",
+      "note": "Nil, and deliberately so: BC's refundable credits live on form BC479, which is not modelled yet. Understating a refund is the safe direction, and the check below says so on screen rather than letting a quiet zero pass for a complete return.",
+      "expr": {
+        "op": "const",
+        "value": "0"
+      }
+    }
+  ]
+}

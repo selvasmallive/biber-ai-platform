@@ -162,3 +162,69 @@ fn ab_2026_residual_is_exactly_this() {
 
     assert_residual(2026, "ab", &expected);
 }
+
+/// British Columbia, structure-first like Alberta: the form is real, every
+/// number is a placeholder pending BC428.
+#[test]
+fn bc_2025_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tax_reduction_base",
+        "scalars.tax_reduction_rate",
+        "scalars.tax_reduction_threshold",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2025, "bc", &expected);
+}
+
+/// British Columbia, structure-first like Alberta: the form is real, every
+/// number is a placeholder pending BC428.
+#[test]
+fn bc_2026_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.tax_reduction_base",
+        "scalars.tax_reduction_rate",
+        "scalars.tax_reduction_threshold",
+        "scalars.tuition_transfer_max",
+    ];
+
+    assert_residual(2026, "bc", &expected);
+}
