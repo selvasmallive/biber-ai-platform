@@ -5,12 +5,27 @@ Last updated: 2026-08-16
 ## Current Goal
 
 2026-08-16 latest BIBER external-client quickstart verification checkpoint:
-In progress: adding a stdlib `external-client-quickstart-verify` command to
-validate a saved `biber_external_client_readiness_bundle` against the repo
-docs/examples quickstart contract before handing BIBER to a gateway, IDE agent,
-or conversational app. This step is offline only: it must not resolve
-user/admin API keys, call BIBER, create/rotate credentials, call OpenAI mentor,
-train models, use paid external APIs, or touch XRIQ/XRIS work.
+Complete: commit `612a0fa` (`Add BIBER external client quickstart verifier`)
+adds a stdlib `external-client-quickstart-verify` command that validates a saved
+`biber_external_client_readiness_bundle` against the repo docs/examples
+quickstart contract before handing BIBER to a gateway, IDE agent, or
+conversational app. The command is offline only: it does not resolve user/admin
+API keys, call BIBER, create/rotate credentials, call OpenAI mentor, train
+models, use paid external APIs, or touch XRIQ/XRIS work. Local validation passed
+Python `py_compile` with temp pycache, `git diff --check`, direct no-pytest
+quickstart-verifier tests, and `scripts/biber_local_confidence_smoke.py` with
+`ok=True` and 11 checks. The SSH-enabled Vast checkout fast-forwarded to
+`612a0fa`, passed `py_compile`, and ran
+`external-client-quickstart-verify` against
+`/workspace/outputs/biber-external-client-readiness-bundle-20260816T174338Z/biber-external-client-readiness-bundle-live.json`.
+The verifier artifact is
+`/workspace/outputs/biber-external-client-quickstart-verify-20260816T180140Z/biber-external-client-quickstart-verification-live.json`.
+It reports `ok=True`, `ready_for_external_client_quickstart=True`,
+`blocked_items=["admin_api_key_not_configured"]`, empty missing docs/examples
+and missing term lists, `mutation_performed=False`, `api_key_included=False`,
+`admin_api_key_included=False`, `raw_key_records_included=False`,
+`mentor_used=False`, and `training_allowed=False`; the Vast checkout remained
+clean.
 
 2026-08-16 latest BIBER external-client readiness bundle summary checkpoint:
 Complete: commit `57d08da` (`Add BIBER external client readiness summary`) adds
