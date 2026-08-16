@@ -5,15 +5,24 @@ Last updated: 2026-08-16
 ## Current Goal
 
 2026-08-16 latest BIBER admin API-key contract smoke checkpoint:
-In progress: add a stdlib `admin-api-key-contract-smoke` command to
-`scripts/biber_agent_client.py`. It should use `BIBER_ADMIN_API_KEY` only,
-call only `GET /v1/admin/api-keys`, write a non-secret artifact with counts and
-record field names, redact key IDs/user IDs/labels/plaintext keys/admin key,
-and report `mutation_performed=False`, `api_key_included=False`,
-`admin_api_key_included=False`, `issued_api_key_included=False`, and
-`raw_key_records_included=False`. Do not issue, revoke, rotate, or print any
-credentials. Do not use OpenAI mentor, training, paid external APIs, or
-XRIQ/XRIS.
+Complete: commit `7b23890` (`Add BIBER admin API key contract smoke`) adds a
+stdlib `admin-api-key-contract-smoke` command to `scripts/biber_agent_client.py`.
+It uses `BIBER_ADMIN_API_KEY` only, calls only `GET /v1/admin/api-keys`, writes a
+non-secret artifact with counts and record field names, redacts key IDs/user
+IDs/labels/plaintext keys/admin key, and reports `mutation_performed=False`,
+`api_key_included=False`, `admin_api_key_included=False`,
+`issued_api_key_included=False`, and `raw_key_records_included=False`. Docs were
+updated in `docs/BIBER_EXTERNAL_AGENT_API.md`, `docs/API_EXAMPLES.md`, and
+`docs/BIBER_ONLY_WORKSPACE.md`. Local validation passed Python `py_compile` with
+temp pycache, `git diff --check`, direct no-pytest admin-smoke tests, and
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. The
+SSH-enabled Vast checkout fast-forwarded to `7b23890` and passed `py_compile`.
+Live admin-smoke execution is blocked until `BIBER_ADMIN_API_KEY` is configured
+on that Vast instance; the validation script stopped with
+`{"ok": false, "blocked": "BIBER_ADMIN_API_KEY not configured"}` before issuing,
+revoking, rotating, or printing any credential. Do not create or rotate the admin
+key without explicit user approval. No OpenAI mentor, training, paid external
+APIs, or XRIQ/XRIS work was used.
 
 2026-08-16 latest BIBER external-agent key-management handoff metadata checkpoint:
 Complete: commit `19f9b39` (`Add BIBER external agent key management metadata`)
