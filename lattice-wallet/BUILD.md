@@ -34,7 +34,21 @@ eas login            # your Expo credentials — run this yourself
 eas init             # links the project, writes extra.eas.projectId to app.json
 ```
 
-## Build
+## Dev build (WalletConnect, camera, and the handshake self-test)
+
+WalletConnect (WalletKit) and the QR camera use native modules, so they **don't run in Expo
+Go** — you need a **custom dev client**. Build one, then everything runs on-device:
+
+```bash
+eas build --platform android --profile development   # or: npx expo run:android  (local, needs Android SDK)
+```
+
+Install the resulting dev client, then `npm start` and open it. To verify WalletConnect works
+end-to-end without an external dApp, go to **Settings → WalletConnect → Run handshake self-test**.
+It runs a real dApp↔wallet handshake over the relay (throwaway key, no biometric), signs a
+message, and checks the signature recovers — reporting each step ✓/✗. Needs a network connection.
+
+## Build (store binaries)
 
 Convenience scripts (in `package.json`) wrap the EAS commands:
 

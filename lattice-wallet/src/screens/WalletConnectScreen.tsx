@@ -84,6 +84,11 @@ export function WalletConnectScreen({ navigation }: any) {
           send requests are supported; other chains connect natively in Lattice, not via
           WalletConnect.
         </Text>
+
+        <Button title="Run handshake self-test" variant="ghost" onPress={() => navigation.navigate('WcSelfTest')} />
+        <Text style={styles.note}>
+          Verifies the full pairing → approve → sign → recover flow over the relay (dev build only).
+        </Text>
       </ScrollView>
     </Screen>
   );

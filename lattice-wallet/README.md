@@ -118,8 +118,10 @@ RPCs), across the EVM chains Lattice ships (Ethereum, Polygon, Base, Sepolia) pl
 EVM chains added this way. The **EIP-191 and EIP-712 v4
 hashing is verified against ethers** (`__tests__/evm-sign-vectors.ts`); signatures always
 recover to the signer. WalletKit has native dependencies, so this requires a custom dev/EAS
-build (it does not run in Expo Go), and the live pairing handshake is best tested against a
-real dApp. The project id is public and set in `src/core/config.ts`
+build (it does not run in Expo Go). A built-in **handshake self-test** (Settings →
+WalletConnect → Run handshake self-test) verifies the full pairing → approve → sign → recover
+flow over the real relay on a dev build — see `src/dev/wcSelfTest.ts` (the signature-recovery
+assertion is unit-verified). The project id is public and set in `src/core/config.ts`
 (override with `EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID`).
 
 ## Architecture
