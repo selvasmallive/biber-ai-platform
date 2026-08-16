@@ -183,8 +183,13 @@ function FilingStatus({ input, result }: { input: ComputeInput; result: ReturnVi
     ],
     [
       gate.year_certified,
-      `CRA certified for ${input.tax_year}`,
-      "CRA issues the confirmation letter after the certification tests pass.",
+      gate.in_scope
+        ? `CRA certified for ${input.tax_year}`
+        : `CRA certified for ${input.province.toUpperCase()}`,
+      gate.in_scope
+        ? "CRA issues the confirmation letter after the certification tests pass."
+        : "This release is certified for Ontario only. Returns for other " +
+          "provinces can be prepared, checked and printed, but not filed.",
     ],
     [
       gate.licensed,
@@ -199,6 +204,19 @@ function FilingStatus({ input, result }: { input: ComputeInput; result: ReturnVi
           months left says nothing here — the date lives in Settings, and
           repeating it on the screen people look at every day is how warnings
           get tuned out. */}
+      {!gate.in_scope && (
+        <div className="notice warn">
+          <strong>
+            {input.province.toUpperCase()} returns cannot be filed from this
+            release
+          </strong>
+          Freshet is seeking CRA certification for Ontario first. Everything
+          here still works — you can prepare, check and print a{" "}
+          {input.province.toUpperCase()} return — but it cannot be transmitted,
+          and its tax data has not been verified yet.
+        </div>
+      )}
+
       {licence?.standing_urgent && licence.standing_note && (
         <div className="notice warn">
           <strong>About your licence</strong>

@@ -203,3 +203,51 @@ Selva Kumaran Vadivel Murugan
 - **Dropped the competitive framing.** CRA is a regulator. The specificity of
   the questions demonstrates seriousness better than a claim about competing
   with established software.
+
+---
+
+## Follow-up: narrowing the first release to Ontario
+
+Send this if the original email has already gone. It corrects a scope point
+that email did not state either way, so it reads as a clarification rather than
+a change of plan.
+
+> Subject: Freshet — jurisdiction scope for our 2026 T1 certification
+>
+> Further to my earlier email about certifying Freshet for the 2026 T1, I want
+> to state our jurisdiction scope explicitly, since I did not cover it.
+>
+> **For the first release we are seeking certification for Ontario returns
+> only.**
+>
+> The software computes the federal return and all thirteen provincial and
+> territorial forms, and we intend to certify the rest over subsequent seasons.
+> We are limiting the first application because our tax parameters for the
+> other jurisdictions have not yet been checked against their published forms,
+> and we would rather narrow the scope than submit calculations we cannot
+> stand behind. Returns for other jurisdictions can be prepared and printed in
+> the product but the software refuses to transmit them, and says so on screen.
+>
+> Two questions:
+>
+> 1. Is jurisdiction scope declared as part of the certification application,
+>    or is it simply a matter of which test returns we are required to
+>    reproduce?
+> 2. Do the 2026 T1 certification test returns cover every province and
+>    territory, or only those a developer has declared support for? This
+>    determines whether an Ontario-only application still has to reproduce
+>    results for other jurisdictions.
+>
+> If narrowing the scope changes anything about the timeline or the test
+> package, I would be grateful to know before the November distribution.
+
+### Why the second question matters
+
+If CRA's test package covers every jurisdiction regardless of declared scope,
+then narrowing the application saves nothing technically — the software would
+still have to reproduce results everywhere, and the placeholder data would fail.
+If the package tracks declared scope, narrowing is exactly the right move.
+
+The answer decides whether the remaining verification work is urgent for
+November or can wait for a later season, so it is worth asking before the test
+returns arrive rather than after.

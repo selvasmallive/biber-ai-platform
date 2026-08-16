@@ -158,7 +158,7 @@ fn marginal_rate(input: &ComputeInput, base_tax: Decimal) -> Decimal {
 #[tauri::command]
 pub fn compute_return(input: ComputeInput) -> Result<ReturnView, String> {
     let a = assess(&input)?;
-    let certified = freshet_taxdata::is_certified(input.tax_year);
+    let certified = freshet_taxdata::is_certified(input.tax_year, &input.province);
 
     let total_income = line(&a, "fed.15000");
     let total_tax = line(&a, "summary.total_tax");
@@ -970,8 +970,13 @@ pub struct FilingGate {
     pub data_verified: bool,
     /// The return has no errors of its own.
     pub return_sound: bool,
-    /// CRA has certified this product for this tax year.
+    /// CRA has certified this product for this tax year and jurisdiction.
     pub year_certified: bool,
+    /// Whether this jurisdiction is even inside the certification application.
+    ///
+    /// Distinct from `year_certified` so the app can tell someone "not yet"
+    /// rather than "not ever, in this release". Those deserve different wording.
+    pub in_scope: bool,
     /// A licence permits filing this year.
     pub licensed: bool,
     /// One line per closed lock, in the words to show.
@@ -982,12 +987,14 @@ pub struct FilingGate {
 fn evaluate_gate(
     a: &Assessment,
     tax_year: u16,
+    province: &str,
     licence_token: Option<&str>,
     already_filed: u32,
 ) -> FilingGate {
     let data_verified = a.warnings.is_empty();
     let return_sound = !a.has_errors();
-    let year_certified = freshet_taxdata::is_certified(tax_year);
+    let in_scope = freshet_taxdata::in_certification_scope(province);
+    let year_certified = freshet_taxdata::is_certified(tax_year, province);
 
     let (licensed, licence_reason) = match licence_token {
         None => (
@@ -1014,9 +1021,17 @@ fn evaluate_gate(
         blocked_by.push("The return has errors that must be fixed.".to_string());
     }
     if !year_certified {
-        blocked_by.push(format!(
-            "Freshet is not CRA-certified to file {tax_year}."
-        ));
+        // Two different situations, and conflating them wastes someone's time:
+        // one resolves when the certification letter arrives, the other does
+        // not resolve in this release at all.
+        blocked_by.push(if in_scope {
+            format!("Freshet is not yet CRA-certified to file {tax_year}.")
+        } else {
+            format!(
+                "Freshet is not certified to file {} returns. This release covers                  Ontario only; other jurisdictions can be prepared and printed,                  but not filed.",
+                province.to_uppercase()
+            )
+        });
     }
     if let Some(reason) = licence_reason {
         blocked_by.push(reason);
@@ -1027,6 +1042,7 @@ fn evaluate_gate(
         data_verified,
         return_sound,
         year_certified,
+        in_scope,
         licensed,
         blocked_by,
     }
@@ -1038,7 +1054,7 @@ pub fn filing_gate(state: State<'_, AppState>, input: ComputeInput) -> Result<Fi
     let token = stored_licence(&state);
     let filed = returns_filed(&state);
 
-    Ok(evaluate_gate(&a, input.tax_year, token.as_deref(), filed))
+    Ok(evaluate_gate(&a, input.tax_year, &input.province, token.as_deref(), filed))
 }
 
 // -- capital cost allowance planner ---------------------------------------
@@ -1704,7 +1720,7 @@ mod tests {
         // 2026, whose Ontario amounts are still unverified, so all three of the
         // non-return locks are shut at once.
         let a = assess(&input_for(2026, &[("t4.employment_income", "60000")])).unwrap();
-        let gate = evaluate_gate(&a, 2026, None, 0);
+        let gate = evaluate_gate(&a, 2026, "on", None, 0);
 
         assert!(!gate.can_file);
         // Nothing about this return is wrong; it is the surrounding state.
@@ -1725,11 +1741,44 @@ mod tests {
         let verified = assess(&input_for(2025, &facts)).unwrap();
         let unverified = assess(&input_for(2026, &facts)).unwrap();
 
-        assert!(evaluate_gate(&verified, 2025, None, 0).data_verified);
-        assert!(!evaluate_gate(&unverified, 2026, None, 0).data_verified);
+        assert!(evaluate_gate(&verified, 2025, "on", None, 0).data_verified);
+        assert!(!evaluate_gate(&unverified, 2026, "on", None, 0).data_verified);
 
         // Verified data is still not permission to file.
-        assert!(!evaluate_gate(&verified, 2025, None, 0).can_file);
+        assert!(!evaluate_gate(&verified, 2025, "on", None, 0).can_file);
+    }
+
+    /// Ontario is inside the certification application and the other twelve are
+    /// not. Both are blocked today, but for reasons that resolve differently —
+    /// one when CRA sends a letter, the other not in this release at all.
+    #[test]
+    fn a_jurisdiction_outside_the_application_is_told_so_plainly() {
+        let a = assess(&input_for(2026, &[("t4.employment_income", "60000")])).unwrap();
+
+        let ontario = evaluate_gate(&a, 2026, "on", None, 0);
+        let alberta = evaluate_gate(&a, 2026, "ab", None, 0);
+
+        assert!(ontario.in_scope, "Ontario is the certification target");
+        assert!(!alberta.in_scope);
+
+        // Neither can file, but the wording differs.
+        assert!(!ontario.can_file && !alberta.can_file);
+        assert!(ontario.blocked_by.iter().any(|b| b.contains("not yet CRA-certified")));
+        assert!(alberta
+            .blocked_by
+            .iter()
+            .any(|b| b.contains("Ontario only") && b.contains("prepared and printed")));
+    }
+
+    /// Narrowing the application must not narrow what the software computes.
+    /// An Albertan can still prepare, check and print their return; they simply
+    /// cannot transmit it from this release.
+    #[test]
+    fn narrowing_certification_does_not_stop_a_return_being_prepared() {
+        let a = assess(&input_for(2025, &[("t4.employment_income", "60000")])).unwrap();
+
+        assert_eq!(a.get("fed.15000"), Some(Decimal::from(60_000)));
+        assert!(!evaluate_gate(&a, 2025, "ab", None, 0).can_file);
     }
 
     /// A person hitting a paywall should be told it is a paywall, not left
@@ -1737,7 +1786,7 @@ mod tests {
     #[test]
     fn a_missing_licence_says_preparing_is_free() {
         let a = assess(&input(&[("t4.employment_income", "60000")])).unwrap();
-        let gate = evaluate_gate(&a, 2026, None, 0);
+        let gate = evaluate_gate(&a, 2026, "on", None, 0);
 
         assert!(gate
             .blocked_by
@@ -1755,7 +1804,7 @@ mod tests {
             .token;
 
         let a = assess(&input_for(2026, &[("t4.employment_income", "60000")])).unwrap();
-        let gate = evaluate_gate(&a, 2026, Some(&token), 0);
+        let gate = evaluate_gate(&a, 2026, "on", Some(&token), 0);
 
         assert!(gate.licensed, "the development licence did not verify");
         // It grants a licence, not a certification and not verified data.
@@ -1770,7 +1819,7 @@ mod tests {
         let a = assess(&input(&[("t4.employment_income", "60000")])).unwrap();
 
         for bogus in ["", "not-a-licence", "AAAA.BBBB"] {
-            let gate = evaluate_gate(&a, 2026, Some(bogus), 0);
+            let gate = evaluate_gate(&a, 2026, "on", Some(bogus), 0);
             assert!(!gate.licensed, "accepted {bogus:?}");
         }
     }
@@ -1781,8 +1830,8 @@ mod tests {
         let built = freshet_license::dev::licences().into_iter().next().unwrap();
         let a = assess(&input(&[("t4.employment_income", "60000")])).unwrap();
 
-        let fresh = evaluate_gate(&a, 2026, Some(&built.token), 0);
-        let spent = evaluate_gate(&a, 2026, Some(&built.token), built.licence.allowance.remaining(0).expect("the built-in licence is counted"));
+        let fresh = evaluate_gate(&a, 2026, "on", Some(&built.token), 0);
+        let spent = evaluate_gate(&a, 2026, "on", Some(&built.token), built.licence.allowance.remaining(0).expect("the built-in licence is counted"));
 
         assert!(fresh.licensed);
         assert!(!spent.licensed);
@@ -1884,7 +1933,7 @@ mod tests {
         let token = expiring_at(long_ago);
 
         let a = assess(&input(&[("t4.employment_income", "60000")])).unwrap();
-        let gate = evaluate_gate(&a, 2026, Some(&token), 0);
+        let gate = evaluate_gate(&a, 2026, "on", Some(&token), 0);
 
         // Filing is closed, and nothing else is.
         assert!(!gate.licensed);
@@ -1911,7 +1960,7 @@ mod tests {
 
         let a = assess(&input(&[("t4.employment_income", "60000")])).unwrap();
         assert!(
-            evaluate_gate(&a, 2026, Some(&token), 0).licensed,
+            evaluate_gate(&a, 2026, "on", Some(&token), 0).licensed,
             "a lapse of one day must not stand between someone and a deadline"
         );
 

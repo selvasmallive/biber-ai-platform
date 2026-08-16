@@ -71,9 +71,39 @@ pub const SUPPORTED_YEARS: &[u16] = &[2025, 2026];
 /// strength of having asked.
 pub const CERTIFIED_YEARS: &[u16] = &[];
 
-/// Whether a return for this year may be transmitted to CRA.
-pub fn is_certified(year: u16) -> bool {
-    CERTIFIED_YEARS.contains(&year)
+/// The jurisdictions the certification application covers.
+///
+/// Ontario only, deliberately. The engine computes all thirteen, but a
+/// jurisdiction may only be *filed* once its tax data has been checked against
+/// the published form for that year — and only Ontario's has been. Applying for
+/// thirteen while nine carry placeholder parameters would be asking CRA to
+/// certify arithmetic nobody has verified.
+///
+/// Widening this is a data problem, not a code one: source the forms, clear the
+/// jurisdiction's residual in the verification ledger, then add it here.
+pub const CERTIFICATION_SCOPE: &[&str] = &["on"];
+
+/// The jurisdictions CRA has actually certified, as distinct from those applied
+/// for. Empty until a confirmation letter exists.
+pub const CERTIFIED_PROVINCES: &[&str] = &[];
+
+/// Whether a return for this year and jurisdiction may be transmitted to CRA.
+///
+/// Both halves must hold. CRA certifies per tax year, and the product declares
+/// which jurisdictions it supports — so a 2026 certification covering Ontario
+/// says nothing about filing an Alberta return, and the gate must not treat it
+/// as though it did.
+pub fn is_certified(year: u16, province: &str) -> bool {
+    CERTIFIED_YEARS.contains(&year) && CERTIFIED_PROVINCES.contains(&province)
+}
+
+/// Whether a jurisdiction is inside the scope being applied for.
+///
+/// Separate from [`is_certified`] so the app can distinguish "not certified
+/// yet" from "never going to be, in this release" — those deserve different
+/// wording on screen.
+pub fn in_certification_scope(province: &str) -> bool {
+    CERTIFICATION_SCOPE.contains(&province)
 }
 
 /// Provinces and territories implemented so far.

@@ -159,3 +159,40 @@ Confirm with CRA whether the certification agreement imposes any constraint on t
 - [Apply for EFILE (canada.ca)](https://www.canada.ca/en/revenue-agency/services/e-services/digital-services-individuals/efile-electronic-filers/apply-efile.html)
 - [Filing your T2 return electronically using certified software (canada.ca)](https://www.canada.ca/en/revenue-agency/news/newsroom/tax-tips/tax-tips-2022/filing-t2-return-electronically-using-certified-software.html)
 - [NETFILE certification, vendor description (UFile)](https://www.ufile.ca/get-started/netfile-certification)
+
+## Jurisdiction scope: Ontario only for the first release
+
+The engine computes the federal return and all thirteen provincial and
+territorial forms. The **certification application covers Ontario alone.**
+
+The reason is data, not code. Only the Ontario 2025 pack has every parameter
+checked against a published form. The other jurisdictions were built
+structure-first: the forms are real and the arithmetic runs, but their numbers
+are placeholders, and 468 of them across 24 packs cannot be sourced from what
+is publicly reachable today. Applying for thirteen jurisdictions while nine
+carry unverified parameters would be asking CRA to certify arithmetic nobody
+has checked.
+
+Narrowing costs nothing that matters. `CERTIFICATION_SCOPE` is separate from
+`SUPPORTED_PROVINCES`, so the other twelve stay in the product: a taxpayer in
+Alberta can prepare, review and print a complete return. They simply cannot
+transmit it, and the app says so plainly on the return itself rather than only
+at the point of filing.
+
+Widening it later is a data exercise:
+
+1. Source the published form for the jurisdiction and year.
+2. Verify its parameters and clear the residual in the verification ledger.
+3. Add the code to `CERTIFICATION_SCOPE`.
+4. Apply for that jurisdiction in the next certification cycle.
+
+No form definitions change, because they are already written.
+
+### The open question
+
+Whether CRA's test package tracks declared jurisdiction scope, or covers every
+province regardless. If it covers everything, narrowing the application saves
+nothing technically and the verification work becomes urgent for November. If
+it tracks scope, narrowing is exactly right. That question is in the follow-up
+email in [CRA-EMAILS.md](CRA-EMAILS.md), and it is worth an answer *before* the
+November distribution rather than after.

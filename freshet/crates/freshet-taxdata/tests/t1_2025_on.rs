@@ -1081,9 +1081,12 @@ fn shipped_2025_data_is_now_cleared_by_the_verification_gate() {
         got.warnings
     );
     assert!(
-        !freshet_taxdata::is_certified(2025),
+        !freshet_taxdata::is_certified(2025, "on"),
         "verified data must never be mistaken for CRA certification"
     );
+    // Ontario is what the application covers; nothing is certified yet.
+    assert!(freshet_taxdata::in_certification_scope("on"));
+    assert!(!freshet_taxdata::in_certification_scope("ab"));
 }
 
 // -- Ontario health premium and tax reduction -----------------------------

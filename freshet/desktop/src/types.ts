@@ -124,6 +124,7 @@ export interface FilingGate {
   data_verified: boolean;
   return_sound: boolean;
   year_certified: boolean;
+  in_scope: boolean;
   licensed: boolean;
   blocked_by: string[];
 }
