@@ -153,6 +153,10 @@ app.
 Use `show-external-client-integration-package <artifact.json>` to inspect that
 saved integration package later without regenerating it, resolving API keys, or
 opening JSON.
+Use `external-client-live-smoke-plan <artifact.json>` to write the non-secret
+curl/Python smoke commands to run later from the consuming client host after a
+user `BIBER_API_KEY` is configured. The plan command itself is offline and does
+not resolve keys.
 Use `external-agent-smoke --output <artifact.json>` when you want readiness plus
 one short OpenAI-compatible chat-completions response in a single non-secret
 artifact. This is the preferred MVP proof before handing BIBER to an external

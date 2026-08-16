@@ -1749,6 +1749,166 @@ def build_external_client_integration_package(
     }
 
 
+def build_external_client_live_smoke_plan(
+    *,
+    integration_package: Mapping[str, Any],
+    integration_package_path: str,
+) -> dict[str, Any]:
+    required_env = require_mapping(integration_package.get("required_client_env"))
+    endpoints = require_mapping(integration_package.get("endpoints"))
+    blocked_items = [
+        str(item) for item in require_list(integration_package.get("blocked_items"))
+    ]
+    base_url = str(required_env.get("BIBER_OPENAI_BASE_URL") or "")
+    model = str(required_env.get("BIBER_MODEL") or "")
+    api_key_placeholder = str(
+        required_env.get("BIBER_API_KEY")
+        or "<set-user-api-key-in-secret-store>"
+    )
+    chat_body = json.dumps(
+        {
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Reply with one concise BIBER smoke confirmation.",
+                }
+            ],
+            "stream": False,
+            "max_tokens": 80,
+        },
+        separators=(",", ":"),
+    )
+    smoke_commands = [
+        {
+            "name": "list_models_curl",
+            "description": "Confirm the OpenAI-compatible models endpoint is reachable.",
+            "requires_env": ["BIBER_OPENAI_BASE_URL", "BIBER_API_KEY"],
+            "command": (
+                'curl -sS "$BIBER_OPENAI_BASE_URL/models" '
+                '-H "Authorization: Bearer $BIBER_API_KEY"'
+            ),
+        },
+        {
+            "name": "chat_completions_curl",
+            "description": "Send one short OpenAI-compatible chat-completions smoke.",
+            "requires_env": [
+                "BIBER_OPENAI_BASE_URL",
+                "BIBER_MODEL",
+                "BIBER_API_KEY",
+            ],
+            "command": (
+                'curl -sS -X POST "$BIBER_OPENAI_BASE_URL/chat/completions" '
+                '-H "Authorization: Bearer $BIBER_API_KEY" '
+                '-H "Content-Type: application/json" '
+                f"-d {shlex.quote(chat_body)}"
+            ),
+        },
+        {
+            "name": "python_minimal_client",
+            "description": "Run the repo's dependency-free Python external-agent example.",
+            "requires_env": [
+                "BIBER_OPENAI_BASE_URL",
+                "BIBER_MODEL",
+                "BIBER_API_KEY",
+            ],
+            "command": (
+                'BIBER_OPENAI_BASE_URL="$BIBER_OPENAI_BASE_URL" '
+                'BIBER_MODEL="$BIBER_MODEL" '
+                'BIBER_API_KEY="$BIBER_API_KEY" '
+                "python examples/external_agent/python_minimal_client.py "
+                "--message "
+                + shlex.quote("Reply with one concise BIBER smoke confirmation.")
+            ),
+        },
+    ]
+    endpoint_ready = bool(
+        str(endpoints.get("models") or "").rstrip("/").endswith("/v1/models")
+        and str(endpoints.get("chat_completions") or "")
+        .rstrip("/")
+        .endswith("/v1/chat/completions")
+    )
+    env_ready = bool(base_url and model and api_key_placeholder.startswith("<"))
+    redaction_ok = (
+        bool(integration_package.get("api_key_included")) is False
+        and bool(integration_package.get("admin_api_key_included")) is False
+        and bool(integration_package.get("issued_api_key_included")) is False
+        and bool(integration_package.get("raw_key_records_included")) is False
+    )
+    commands_ready = all(
+        "$BIBER_API_KEY" in str(command.get("command") or "")
+        for command in smoke_commands
+    )
+    checks = [
+        {
+            "name": "integration_package_source",
+            "ok": (
+                integration_package.get("source")
+                == "biber_external_client_integration_package"
+            ),
+            "source": integration_package.get("source"),
+        },
+        {
+            "name": "integration_package_ready",
+            "ok": bool(
+                integration_package.get("ready_for_external_client_integration")
+            ),
+        },
+        {
+            "name": "client_env",
+            "ok": env_ready,
+        },
+        {
+            "name": "endpoints",
+            "ok": endpoint_ready,
+        },
+        {
+            "name": "smoke_commands_use_env_key",
+            "ok": commands_ready,
+        },
+        {
+            "name": "api_key_redaction",
+            "ok": redaction_ok,
+        },
+    ]
+    return {
+        "source": "biber_external_client_live_smoke_plan",
+        "ok": all(bool(check.get("ok")) for check in checks),
+        "ready_for_external_client_live_smoke_plan": all(
+            bool(check.get("ok")) for check in checks
+        ),
+        "integration_package_artifact": str(Path(integration_package_path)),
+        "required_client_env": {
+            "BIBER_OPENAI_BASE_URL": base_url,
+            "BIBER_MODEL": model,
+            "BIBER_API_KEY": api_key_placeholder,
+        },
+        "endpoints": {
+            "models": str(endpoints.get("models") or ""),
+            "chat_completions": str(endpoints.get("chat_completions") or ""),
+        },
+        "blocked_items": blocked_items,
+        "manual_steps": [
+            "Copy BIBER_OPENAI_BASE_URL and BIBER_MODEL from this plan.",
+            "Store the issued user BIBER_API_KEY in the client secret manager.",
+            "Run one smoke command from this plan from the consuming client host.",
+        ],
+        "smoke_commands": smoke_commands,
+        "checks": checks,
+        "mutation_performed": False,
+        "api_key_included": False,
+        "admin_api_key_included": False,
+        "issued_api_key_included": False,
+        "raw_key_records_included": False,
+        "external_network_required": False,
+        "live_biber_required": False,
+        "planned_external_network_required": True,
+        "planned_live_biber_required": True,
+        "mentor_used": False,
+        "training_allowed": False,
+    }
+
+
 def build_external_agent_smoke_result(
     *,
     readiness: Mapping[str, Any],
@@ -3169,6 +3329,62 @@ def format_external_client_integration_package_summary(
             + str(bool(payload.get("issued_api_key_included"))),
             "raw_key_records_included: "
             + str(bool(payload.get("raw_key_records_included"))),
+        ]
+    )
+    return "\n".join(lines)
+
+
+def format_external_client_live_smoke_plan_summary(payload: Mapping[str, Any]) -> str:
+    required_env = require_mapping(payload.get("required_client_env"))
+    endpoints = require_mapping(payload.get("endpoints"))
+    manual_steps = [str(item) for item in require_list(payload.get("manual_steps"))]
+    smoke_commands = [
+        item
+        for item in require_list(payload.get("smoke_commands"))
+        if isinstance(item, dict)
+    ]
+    checks = [
+        item
+        for item in require_list(payload.get("checks"))
+        if isinstance(item, dict)
+    ]
+    blocked_items = [str(item) for item in require_list(payload.get("blocked_items"))]
+    lines = [
+        "BIBER external-client live smoke plan",
+        f"ok: {bool(payload.get('ok'))}",
+        "ready_for_external_client_live_smoke_plan: "
+        + str(bool(payload.get("ready_for_external_client_live_smoke_plan"))),
+        f"integration_package_artifact: {payload.get('integration_package_artifact', '-')}",
+        f"BIBER_OPENAI_BASE_URL: {required_env.get('BIBER_OPENAI_BASE_URL', '-')}",
+        f"BIBER_MODEL: {required_env.get('BIBER_MODEL', '-')}",
+        f"BIBER_API_KEY: {required_env.get('BIBER_API_KEY', '-')}",
+        f"models_url: {endpoints.get('models', '-')}",
+        f"chat_completions_url: {endpoints.get('chat_completions', '-')}",
+        "blocked_items: " + (", ".join(blocked_items) if blocked_items else "-"),
+        "manual_steps:",
+    ]
+    lines.extend(f"- {item}" for item in manual_steps)
+    lines.append("smoke_commands:")
+    lines.extend(
+        f"- {item.get('name', '-')}: {item.get('command', '-')}"
+        for item in smoke_commands
+    )
+    lines.append("checks:")
+    lines.extend(
+        f"- {item.get('name', '-')} ok={bool(item.get('ok'))}" for item in checks
+    )
+    lines.extend(
+        [
+            f"mutation_performed: {bool(payload.get('mutation_performed'))}",
+            f"api_key_included: {bool(payload.get('api_key_included'))}",
+            "admin_api_key_included: "
+            + str(bool(payload.get("admin_api_key_included"))),
+            "issued_api_key_included: "
+            + str(bool(payload.get("issued_api_key_included"))),
+            "raw_key_records_included: "
+            + str(bool(payload.get("raw_key_records_included"))),
+            "planned_live_biber_required: "
+            + str(bool(payload.get("planned_live_biber_required"))),
         ]
     )
     return "\n".join(lines)
@@ -23536,6 +23752,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     show_external_client_integration_package.add_argument("artifact")
 
+    external_client_live_smoke_plan = subparsers.add_parser(
+        "external-client-live-smoke-plan",
+        help=(
+            "Write a non-secret plan for the live client smoke to run after "
+            "a user API key is configured."
+        ),
+    )
+    external_client_live_smoke_plan.add_argument(
+        "artifact",
+        help="Saved external-client-integration-package artifact.",
+    )
+    external_client_live_smoke_plan.add_argument(
+        "--output",
+        help="Optional JSON artifact path.",
+    )
+
     external_client_quickstart_verify = subparsers.add_parser(
         "external-client-quickstart-verify",
         help=(
@@ -28538,6 +28770,29 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(package, indent=2, sort_keys=True)
             if args.print_json
             else format_external_client_integration_package_summary(package)
+        )
+
+    if args.command == "external-client-live-smoke-plan":
+        package = load_json_artifact(
+            args.artifact,
+            label="external-client-integration-package artifact",
+        )
+        if package.get("source") != "biber_external_client_integration_package":
+            raise BiberAgentClientError(
+                "external-client-live-smoke-plan requires a "
+                "biber_external_client_integration_package artifact."
+            )
+        result = build_external_client_live_smoke_plan(
+            integration_package=package,
+            integration_package_path=args.artifact,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_client_live_smoke_plan_summary(result)
         )
 
     if args.command == "external-client-quickstart-verify":

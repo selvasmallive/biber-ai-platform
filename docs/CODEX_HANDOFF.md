@@ -4,6 +4,14 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 in-progress BIBER external-client live smoke plan checkpoint:
+In progress: adding an offline `external-client-live-smoke-plan` command that
+creates non-secret curl/Python smoke commands from a saved
+`biber_external_client_integration_package` artifact. The command must not
+resolve user/admin API keys, call BIBER, create/rotate credentials, call OpenAI
+mentor, train models, use paid external APIs, or touch XRIQ/XRIS work; it only
+plans the later live smoke after a user `BIBER_API_KEY` is configured.
+
 2026-08-16 latest BIBER external-client integration package summary checkpoint:
 Complete: commit `a2c93ac` (`Add BIBER external client integration package
 summary`) adds an offline `show-external-client-integration-package` command

@@ -112,6 +112,10 @@ python scripts/biber_agent_client.py external-client-integration-package \
 python scripts/biber_agent_client.py show-external-client-integration-package \
   /workspace/outputs/biber-external-client-integration-package.json
 
+python scripts/biber_agent_client.py external-client-live-smoke-plan \
+  /workspace/outputs/biber-external-client-integration-package.json \
+  --output /workspace/outputs/biber-external-client-live-smoke-plan.json
+
 python scripts/biber_agent_client.py capabilities \
   --output /workspace/outputs/biber-capabilities.json
 
@@ -170,6 +174,9 @@ the setup artifacts and next client steps for IDE agents, gateways, or
 conversational apps.
 Run `show-external-client-integration-package` to inspect the saved integration
 package later without regenerating it, resolving API keys, or opening JSON.
+Run `external-client-live-smoke-plan` to generate the non-secret curl/Python
+commands to run later from the consuming client host after a user
+`BIBER_API_KEY` is configured.
 
 ## Minimal Client Examples
 
