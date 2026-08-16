@@ -2944,6 +2944,59 @@ def test_run_external_client_live_smoke_plan_does_not_use_api_key(
     assert "$BIBER_API_KEY" in artifact["smoke_commands"][0]["command"]
 
 
+def test_run_show_external_client_live_smoke_plan_does_not_use_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    plan_path = tmp_path / "external-client-live-smoke-plan.json"
+    readiness_bundle, env_template, quickstart_verification = (
+        _sample_external_client_integration_artifacts(tmp_path)
+    )
+    package = client.build_external_client_integration_package(
+        readiness_bundle=readiness_bundle,
+        readiness_bundle_path=str(tmp_path / "external-client-readiness.json"),
+        env_template=env_template,
+        env_template_path=str(tmp_path / "external-client-env-template.json"),
+        quickstart_verification=quickstart_verification,
+        quickstart_verification_path=str(
+            tmp_path / "external-client-quickstart-verification.json"
+        ),
+    )
+    plan = client.build_external_client_live_smoke_plan(
+        integration_package=package,
+        integration_package_path=str(tmp_path / "external-client-package.json"),
+    )
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("user API key should not be resolved")
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        raise AssertionError("admin API key should not be resolved")
+
+    def fake_create_chat_completion(**kwargs):
+        raise AssertionError("live chat should not be called")
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+    monkeypatch.setattr(client, "create_chat_completion", fake_create_chat_completion)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "show-external-client-live-smoke-plan",
+                str(plan_path),
+            ]
+        )
+    )
+
+    assert "BIBER external-client live smoke plan" in output
+    assert "ready_for_external_client_live_smoke_plan: True" in output
+    assert "planned_live_biber_required: True" in output
+    assert "BIBER_API_KEY: <set-user-api-key-in-secret-store>" in output
+    assert "api_key_included: False" in output
+
+
 def test_build_external_client_quickstart_verification_accepts_missing_admin_key(
     tmp_path: Path,
 ) -> None:

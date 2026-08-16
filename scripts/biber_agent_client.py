@@ -23768,6 +23768,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Optional JSON artifact path.",
     )
 
+    show_external_client_live_smoke_plan = subparsers.add_parser(
+        "show-external-client-live-smoke-plan",
+        help=(
+            "Show a concise terminal summary for a saved external-client "
+            "live-smoke-plan artifact."
+        ),
+    )
+    show_external_client_live_smoke_plan.add_argument("artifact")
+
     external_client_quickstart_verify = subparsers.add_parser(
         "external-client-quickstart-verify",
         help=(
@@ -28793,6 +28802,22 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_external_client_live_smoke_plan_summary(result)
+        )
+
+    if args.command == "show-external-client-live-smoke-plan":
+        plan = load_json_artifact(
+            args.artifact,
+            label="external-client-live-smoke-plan artifact",
+        )
+        if plan.get("source") != "biber_external_client_live_smoke_plan":
+            raise BiberAgentClientError(
+                "show-external-client-live-smoke-plan requires a "
+                "biber_external_client_live_smoke_plan artifact."
+            )
+        return (
+            json.dumps(plan, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_client_live_smoke_plan_summary(plan)
         )
 
     if args.command == "external-client-quickstart-verify":

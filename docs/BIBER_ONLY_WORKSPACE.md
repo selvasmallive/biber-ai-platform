@@ -157,6 +157,8 @@ Use `external-client-live-smoke-plan <artifact.json>` to write the non-secret
 curl/Python smoke commands to run later from the consuming client host after a
 user `BIBER_API_KEY` is configured. The plan command itself is offline and does
 not resolve keys.
+Use `show-external-client-live-smoke-plan <artifact.json>` to inspect that saved
+plan later without regenerating it, resolving keys, or calling BIBER.
 Use `external-agent-smoke --output <artifact.json>` when you want readiness plus
 one short OpenAI-compatible chat-completions response in a single non-secret
 artifact. This is the preferred MVP proof before handing BIBER to an external
