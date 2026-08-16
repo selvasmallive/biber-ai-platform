@@ -112,12 +112,12 @@
     },
     "age_amount_max": {
       "value": "6341",
-      "source": "ESTIMATED: the 2025 figure of 6223, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "source": "DERIVED, NOT PUBLISHED. Ontario age amount: the verified 2025 figure of $6,223 indexed at Ontario's 1.9% rate gives exactly this value, and secondary sources (EY, commercial calculators) quote $6,223 for 2025 — which corroborates the derivation, not the published 2026 amount. Confirm against the CRA ON428 form for 2026 before filing.",
       "verified": false
     },
     "age_amount_threshold": {
       "value": "47210",
-      "source": "ESTIMATED: the 2025 figure of 46330, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "source": "DERIVED, NOT PUBLISHED. Ontario age amount income threshold: the verified 2025 figure of $46,330 indexed at Ontario's 1.9% rate gives exactly this value, and secondary sources (EY, commercial calculators) quote $46,330 for 2025 — which corroborates the derivation, not the published 2026 amount. Confirm against the CRA ON428 form for 2026 before filing.",
       "verified": false
     },
     "age_amount_clawback_rate": {
@@ -132,7 +132,7 @@
     },
     "disability_amount": {
       "value": "10494",
-      "source": "ESTIMATED: the 2025 figure of 10298, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "source": "DERIVED, NOT PUBLISHED. Ontario disability amount: the verified 2025 figure of $10,298 indexed at Ontario's 1.9% rate gives exactly this value, and secondary sources (EY, commercial calculators) quote $10,298 for 2025 — which corroborates the derivation, not the published 2026 amount. Confirm against the CRA ON428 form for 2026 before filing.",
       "verified": false
     },
     "tuition_transfer_max": {
@@ -167,7 +167,7 @@
     },
     "surtax_threshold_1": {
       "value": "5818",
-      "source": "ESTIMATED: the 2025 figure of 5710, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "source": "Ontario surtax threshold. Secondary sources quote this exact figure for 2026, so it is very likely right — but they are commercial tax blogs and calculators, not a primary source. Confirm against the CRA ON428 form for 2026 before filing.",
       "verified": false
     },
     "surtax_rate_1": {
@@ -177,7 +177,7 @@
     },
     "surtax_threshold_2": {
       "value": "7446",
-      "source": "ESTIMATED: the 2025 figure of 7307, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "source": "Ontario surtax threshold. Secondary sources quote this exact figure for 2026, so it is very likely right — but they are commercial tax blogs and calculators, not a primary source. Confirm against the CRA ON428 form for 2026 before filing.",
       "verified": false
     },
     "surtax_rate_2": {
@@ -192,7 +192,7 @@
     },
     "spouse_max": {
       "value": "11029",
-      "source": "ESTIMATED: the 2025 figure of 10823, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "source": "DERIVED, NOT PUBLISHED. Ontario spouse or common-law partner amount: the verified 2025 figure of $10,823 indexed at Ontario's 1.9% rate gives exactly this value, and secondary sources (EY, commercial calculators) quote $10,823 for 2025 — which corroborates the derivation, not the published 2026 amount. Confirm against the CRA ON428 form for 2026 before filing.",
       "verified": false
     },
     "eligible_dependant_base": {

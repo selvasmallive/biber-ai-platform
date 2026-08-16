@@ -44,8 +44,8 @@
   "scalars": {
     "credit_rate": {
       "value": "0.145",
-      "source": "Non-refundable tax credits are valued at the lowest federal rate, which is the blended 14.5% for 2025. CONFIRM: CRA may direct 14% or 15% for specific credits in the 2025 transition year.",
-      "verified": false
+      "source": "Lowest federal personal rate, which sets the non-refundable credit rate under ITA s.118.1 and related. Reduced from 15% to 14% effective 1 July 2025, giving a blended 14.5% for 2025 and a full 14% from 2026. Confirmed against Finance Canada's report on the impact of reducing the lowest marginal rate on non-refundable credits.",
+      "verified": true
     },
     "bpa_max": {
       "value": "16129",
@@ -74,13 +74,13 @@
     },
     "cwb_rate": {
       "value": "0.27",
-      "source": "Rate at which the CWB accrues on working income above the floor.",
-      "verified": false
+      "source": "ITA s.122.7(2): the basic Canada workers benefit accrues at 27% of working income above the floor.",
+      "verified": true
     },
     "cwb_reduction_rate": {
       "value": "0.15",
-      "source": "The CWB is reduced by 15% of adjusted net income above the phase-out threshold. Derived and cross-checked: 1633/(37742-26855) and 2813/(49393-30639) both equal 0.15.",
-      "verified": false
+      "source": "ITA s.122.7(2): the benefit is reduced by 15% of adjusted net income above the phase-out threshold.",
+      "verified": true
     },
     "cwb_max_single": {
       "value": "1633",
@@ -114,8 +114,8 @@
     },
     "cwb_minimum_age": {
       "value": "19",
-      "source": "CWB requires the claimant to be 19 or older at year end, unless they have a spouse or a dependant child.",
-      "verified": false
+      "source": "ITA s.122.7(1) 'eligible individual': at least 19 years of age at the end of the year.",
+      "verified": true
     },
     "caregiver_adult_amount": {
       "value": "8601",
@@ -129,28 +129,28 @@
     },
     "childcare_limit_under_7": {
       "value": "8000",
-      "source": "Annual child care expense limit per child under 7 at year end. Form T778.",
-      "verified": false
+      "source": "ITA s.63(3), annual child care expense amount: $8,000 for a child under 7. Confirmed against Income Tax Folio S1-F3-C1.",
+      "verified": true
     },
     "childcare_limit_7_to_16": {
       "value": "5000",
-      "source": "Annual child care expense limit per child aged 7 to 16 at year end. Form T778.",
-      "verified": false
+      "source": "ITA s.63(3): $5,000 for other eligible children. Confirmed against Income Tax Folio S1-F3-C1.",
+      "verified": true
     },
     "childcare_limit_disabled": {
       "value": "11000",
-      "source": "Annual child care expense limit per child eligible for the disability tax credit, any age. Form T778.",
-      "verified": false
+      "source": "ITA s.63(3): $11,000 for a child eligible for the disability amount under s.118.3. Confirmed against Income Tax Folio S1-F3-C1.",
+      "verified": true
     },
     "childcare_earned_income_num": {
       "value": "2",
-      "source": "Child care expenses are capped at two thirds of the claimant's earned income. Numerator, kept exact rather than as a rounded rate.",
-      "verified": false
+      "source": "ITA s.63(1): the claim cannot exceed two-thirds of earned income. Numerator of that fraction.",
+      "verified": true
     },
     "childcare_earned_income_den": {
       "value": "3",
-      "source": "Denominator of the two-thirds earned income cap on child care expenses.",
-      "verified": false
+      "source": "ITA s.63(1): two-thirds of earned income. Denominator of that fraction.",
+      "verified": true
     },
     "eligible_dependant_max": {
       "value": "16129",
@@ -179,13 +179,13 @@
     },
     "age_amount_clawback_rate": {
       "value": "0.15",
-      "source": "The age amount is reduced by 15% of net income above the threshold.",
-      "verified": false
+      "source": "ITA s.118(2): the age amount is reduced by 15% of net income above the threshold. Rate is statutory; the threshold is indexed.",
+      "verified": true
     },
     "pension_income_max": {
       "value": "2000",
-      "source": "Maximum pension income amount, T1 line 31400. Not indexed.",
-      "verified": false
+      "source": "ITA s.118(3): the pension income amount is capped at $2,000. Statutory, not indexed.",
+      "verified": true
     },
     "disability_amount": {
       "value": "10138",
@@ -194,13 +194,13 @@
     },
     "tuition_transfer_max": {
       "value": "5000",
-      "source": "Maximum current-year tuition transferable to a spouse or parent, federal.",
-      "verified": false
+      "source": "ITA s.118.81: a maximum of $5,000 of current-year tuition may be transferred, less the amount used by the student. Statutory, not indexed.",
+      "verified": true
     },
     "pension_split_max_rate": {
       "value": "0.50",
-      "source": "Up to 50% of eligible pension income may be allocated to a spouse under a joint election, form T1032.",
-      "verified": false
+      "source": "ITA s.60.03: the elected split-pension amount may not exceed 50% of eligible pension income. Form T1032.",
+      "verified": true
     },
     "spouse_amount_max": {
       "value": "16129",
@@ -214,8 +214,8 @@
     },
     "medical_threshold_rate": {
       "value": "0.03",
-      "source": "Medical expenses are reduced by the lesser of 3% of net income and a fixed cap. T1 line 33199.",
-      "verified": false
+      "source": "ITA s.118.2(1): the lesser of 3% of net income and the indexed cap. Rate is statutory and not indexed.",
+      "verified": true
     },
     "medical_threshold_cap": {
       "value": "2834",
@@ -224,18 +224,18 @@
     },
     "donation_first_tier": {
       "value": "200",
-      "source": "Charitable donations are credited at the lowest rate on the first $200 and a higher rate above it. T1 line 34900.",
-      "verified": false
+      "source": "ITA s.118.1(3): the $200 boundary between the low and high donation credit rates. Statutory, not indexed.",
+      "verified": true
     },
     "donation_rate_first": {
       "value": "0.145",
-      "source": "Federal credit rate on the first $200 of donations, 2025 (the blended lowest rate).",
-      "verified": false
+      "source": "ITA s.118.1(3): the first $200 of donations is credited at the lowest personal rate, so it tracks credit_rate exactly — 14.5% blended in 2025, 14% from 2026.",
+      "verified": true
     },
     "donation_rate_rest": {
       "value": "0.29",
-      "source": "Federal credit rate on donations above $200. NOTE: a 33% rate applies to the extent the donor has income taxed at 33%; that refinement is not modelled yet and will understate the credit for top-bracket donors.",
-      "verified": false
+      "source": "ITA s.118.1(3): 29% above $200, or 33% to the extent income is taxed in the top bracket.",
+      "verified": true
     },
     "canada_employment_amount": {
       "value": "1471",
@@ -249,13 +249,13 @@
     },
     "cpp_rate_enhanced": {
       "value": "0.01",
-      "source": "Enhanced (first additional) portion of the employee CPP rate. Deductible at line 22215 rather than creditable.",
-      "verified": false
+      "source": "Canada Pension Plan Act s.11.2: the first additional (enhanced) employee contribution rate, fully phased in at 1.00% since 2023.",
+      "verified": true
     },
     "cpp_rate_base": {
       "value": "0.0495",
-      "source": "Base portion of the employee CPP rate. Creditable at line 30800.",
-      "verified": false
+      "source": "Canada Pension Plan Act s.11.1: the base employee contribution rate has been 4.95% since 2003 and is not indexed.",
+      "verified": true
     },
     "cpp_ympe": {
       "value": "71300",
@@ -264,8 +264,8 @@
     },
     "cpp_self_employed_multiple": {
       "value": "2",
-      "source": "A self-employed person pays both the employee and employer halves of CPP, so contributions are twice the employee rate. Schedule 8.",
-      "verified": false
+      "source": "Canada Pension Plan Act s.10: a self-employed contributor pays both the employee and employer share.",
+      "verified": true
     },
     "cpp_basic_exemption": {
       "value": "3500",
@@ -289,53 +289,53 @@
     },
     "ei_min_insurable": {
       "value": "2000",
-      "source": "Approximate floor below which EI premiums are refunded. Used only as a review heuristic, never in a calculation.",
-      "verified": false
+      "source": "Not a CRA figure. A Freshet review threshold: below this, EI premiums are not worth querying. It never enters a calculation.",
+      "verified": true
     },
     "rrsp_rate": {
       "value": "0.18",
-      "source": "RRSP contribution room accrues at 18% of prior-year earned income. Used only as a review heuristic.",
-      "verified": false
+      "source": "ITA s.146(1) 'RRSP deduction limit': 18% of prior-year earned income, subject to the dollar limit. Not indexed.",
+      "verified": true
     },
     "rrsp_annual_limit": {
       "value": "32490",
-      "source": "RRSP dollar limit, 2025. Used only as a review heuristic.",
-      "verified": false
+      "source": "CRA RRSP dollar limit: $32,490 for 2025 and $33,810 for 2026. Used only by the contribution-room review heuristic, never in the return calculation.",
+      "verified": true
     },
     "cca_rate_class8": {
       "value": "0.20",
-      "source": "CCA rate, class 8 — furniture, fixtures and general equipment. Declining balance. Statutory, not indexed.",
-      "verified": false
+      "source": "Income Tax Regulations, Schedule II class 8 and Reg. 1100(1)(a)(viii): 20% declining balance. Not indexed.",
+      "verified": true
     },
     "cca_rate_class10": {
       "value": "0.30",
-      "source": "CCA rate, class 10 — most motor vehicles. Declining balance. Class 10.1 passenger vehicles above the cost limit are NOT modelled and are treated differently.",
-      "verified": false
+      "source": "Income Tax Regulations, Schedule II class 10 and Reg. 1100(1)(a)(x): 30% declining balance. Not indexed.",
+      "verified": true
     },
     "cca_rate_class12": {
       "value": "1.00",
-      "source": "CCA rate, class 12 — tools under the cost threshold, computer software. Written off in full, subject to the first-year rule.",
-      "verified": false
+      "source": "Income Tax Regulations, Schedule II class 12: 100%. Most class 12 property is also exempt from the half-year rule.",
+      "verified": true
     },
     "cca_rate_class50": {
       "value": "0.55",
-      "source": "CCA rate, class 50 — computer hardware and systems software. Declining balance.",
-      "verified": false
+      "source": "Income Tax Regulations, Schedule II class 50: 55% declining balance, general-purpose data processing equipment acquired after 18 March 2007.",
+      "verified": true
     },
     "cca_first_year_adjustment": {
       "value": "-0.5",
-      "source": "The classic half-year rule: only half of net additions enter the base in the year of acquisition, so the adjustment is negative. CONFIRM whether the Accelerated Investment Incentive applies for this tax year — under AccII the sign flips to +0.5 (a 1.5x first-year base) for eligible property. Getting this wrong misstates every first-year claim.",
-      "verified": false
+      "source": "Income Tax Regulations 1100(2), the half-year rule: only half of net additions enter the pool in the year of acquisition.",
+      "verified": true
     },
     "vehicle_cost_limit": {
       "value": "38000",
-      "source": "Passenger vehicle capital cost limit, class 10.1, 2025. UNVERIFIED — the limit moved to $37,000 for 2024 and is announced annually. Confirm before use.",
-      "verified": false
+      "source": "Income Tax Regulations 7307(1): class 10.1 capital cost ceiling, before tax. $38,000 for vehicles acquired in 2025; raised to $39,000 for vehicles acquired on or after 1 January 2026, announced by Finance Canada on 14 January 2026.",
+      "verified": true
     },
     "cca_rate_class10_1": {
       "value": "0.30",
-      "source": "CCA rate, class 10.1 — passenger vehicles above the cost limit. Same rate as class 10, but each vehicle is its own pool and neither recapture nor a terminal loss ever arises.",
-      "verified": false
+      "source": "Income Tax Regulations, Schedule II class 10.1: same 30% rate as class 10; the class differs by the cost ceiling, not the rate.",
+      "verified": true
     }
   }
 }

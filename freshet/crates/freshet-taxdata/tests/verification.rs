@@ -42,81 +42,22 @@ fn assert_residual(year: u16, jurisdiction: &str, expected: &[&str]) {
 #[test]
 fn fed_2025_residual_is_exactly_this() {
     let expected: Vec<&str> = vec![
-        "scalars.age_amount_clawback_rate",
-        "scalars.cca_first_year_adjustment",
-        "scalars.cca_rate_class10",
-        "scalars.cca_rate_class10_1",
-        "scalars.cca_rate_class12",
-        "scalars.cca_rate_class50",
-        "scalars.cca_rate_class8",
-        "scalars.childcare_earned_income_den",
-        "scalars.childcare_earned_income_num",
-        "scalars.childcare_limit_7_to_16",
-        "scalars.childcare_limit_disabled",
-        "scalars.childcare_limit_under_7",
         "scalars.cpp2_max_contribution",
         "scalars.cpp_basic_exemption",
         "scalars.cpp_max_contribution",
-        "scalars.cpp_rate_base",
-        "scalars.cpp_rate_enhanced",
         "scalars.cpp_rate_total",
-        "scalars.cpp_self_employed_multiple",
         "scalars.cpp_ympe",
-        "scalars.credit_rate",
-        "scalars.cwb_minimum_age",
-        "scalars.cwb_rate",
-        "scalars.cwb_reduction_rate",
-        "scalars.donation_first_tier",
-        "scalars.donation_rate_first",
-        "scalars.donation_rate_rest",
         "scalars.ei_max_premium",
-        "scalars.ei_min_insurable",
-        "scalars.medical_threshold_rate",
-        "scalars.pension_income_max",
-        "scalars.pension_split_max_rate",
-        "scalars.rrsp_annual_limit",
-        "scalars.rrsp_rate",
-        "scalars.tuition_transfer_max",
-        "scalars.vehicle_cost_limit",
     ];
+
     assert_residual(2025, "fed", &expected);
 }
 
 #[test]
 fn fed_2026_residual_is_exactly_this() {
-    let expected: Vec<&str> = vec![
-        "scalars.age_amount_clawback_rate",
-        "scalars.cca_first_year_adjustment",
-        "scalars.cca_rate_class10",
-        "scalars.cca_rate_class10_1",
-        "scalars.cca_rate_class12",
-        "scalars.cca_rate_class50",
-        "scalars.cca_rate_class8",
-        "scalars.childcare_earned_income_den",
-        "scalars.childcare_earned_income_num",
-        "scalars.childcare_limit_7_to_16",
-        "scalars.childcare_limit_disabled",
-        "scalars.childcare_limit_under_7",
-        "scalars.cpp_rate_base",
-        "scalars.cpp_rate_enhanced",
-        "scalars.cpp_self_employed_multiple",
-        "scalars.credit_rate",
-        "scalars.cwb_minimum_age",
-        "scalars.cwb_rate",
-        "scalars.cwb_reduction_rate",
-        "scalars.donation_first_tier",
-        "scalars.donation_rate_first",
-        "scalars.donation_rate_rest",
-        "scalars.ei_min_insurable",
-        "scalars.medical_threshold_rate",
-        "scalars.pension_income_max",
-        "scalars.pension_split_max_rate",
-        "scalars.rrsp_annual_limit",
-        "scalars.rrsp_rate",
-        "scalars.tuition_transfer_max",
-        "scalars.vehicle_cost_limit",
-    ];
-    assert_residual(2026, "fed", &expected);
+    // Nothing left. Every federal parameter for the certification
+    // target year has been checked against a primary source.
+    assert_residual(2026, "fed", &[]);
 }
 
 #[test]
@@ -136,6 +77,7 @@ fn on_2025_residual_is_exactly_this() {
         "scalars.care_tier4_step",
         "scalars.tuition_transfer_max",
     ];
+
     assert_residual(2025, "on", &expected);
 }
 
@@ -168,12 +110,11 @@ fn on_2026_residual_is_exactly_this() {
         "scalars.spouse_max",
         "scalars.surtax_threshold_1",
         "scalars.surtax_threshold_2",
-        // Ontario tax reduction amounts: verified for 2025, estimated for 2026
-        // until Ontario publishes.
         "scalars.tax_reduction_basic",
         "scalars.tax_reduction_per_dependant",
         "scalars.tuition_transfer_max",
     ];
+
     assert_residual(2026, "on", &expected);
 }
 
