@@ -2626,6 +2626,43 @@ def test_run_external_client_env_template_does_not_use_api_key(
     assert "BIBER_API_KEY=<set-user-api-key-in-secret-store>" in env_template
 
 
+def test_run_show_external_client_env_template_does_not_use_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    env_template_path = tmp_path / "external-client-env-template.json"
+    readiness_bundle = _sample_external_client_readiness_bundle(tmp_path)
+    env_template = client.build_external_client_env_template(
+        readiness_bundle=readiness_bundle,
+        readiness_bundle_path=str(tmp_path / "external-client-readiness.json"),
+    )
+    env_template_path.write_text(json.dumps(env_template), encoding="utf-8")
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("user API key should not be resolved")
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        raise AssertionError("admin API key should not be resolved")
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "show-external-client-env-template",
+                str(env_template_path),
+            ]
+        )
+    )
+
+    assert "BIBER external-client env template" in output
+    assert "ready_for_external_client_env_template: True" in output
+    assert "BIBER_OPENAI_BASE_URL: https://biber.example.com/v1" in output
+    assert "BIBER_API_KEY: <set-user-api-key-in-secret-store>" in output
+    assert "api_key_included: False" in output
+
+
 def test_build_external_client_quickstart_verification_accepts_missing_admin_key(
     tmp_path: Path,
 ) -> None:

@@ -4,6 +4,13 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 in-progress BIBER external-client env-template summary checkpoint:
+In progress: adding an offline `show-external-client-env-template` command that
+prints a concise summary from a saved `biber_external_client_env_template`
+artifact without regenerating it, opening JSON, resolving user/admin API keys,
+calling BIBER, creating/rotating credentials, calling OpenAI mentor, training
+models, using paid external APIs, or touching XRIQ/XRIS work.
+
 2026-08-16 latest BIBER external-client env-template checkpoint:
 Complete: commit `f9d0e33` (`Add BIBER external client env template`) adds an
 offline `external-client-env-template` command that turns a saved

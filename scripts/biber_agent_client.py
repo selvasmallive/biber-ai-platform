@@ -23240,6 +23240,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Optional .env template text path.",
     )
 
+    show_external_client_env_template = subparsers.add_parser(
+        "show-external-client-env-template",
+        help=(
+            "Show a concise terminal summary for a saved external-client "
+            "env-template artifact."
+        ),
+    )
+    show_external_client_env_template.add_argument("artifact")
+
     external_client_quickstart_verify = subparsers.add_parser(
         "external-client-quickstart-verify",
         help=(
@@ -28162,6 +28171,22 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_external_client_env_template_summary(result)
+        )
+
+    if args.command == "show-external-client-env-template":
+        env_template = load_json_artifact(
+            args.artifact,
+            label="external-client-env-template artifact",
+        )
+        if env_template.get("source") != "biber_external_client_env_template":
+            raise BiberAgentClientError(
+                "show-external-client-env-template requires a "
+                "biber_external_client_env_template artifact."
+            )
+        return (
+            json.dumps(env_template, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_client_env_template_summary(env_template)
         )
 
     if args.command == "external-client-quickstart-verify":

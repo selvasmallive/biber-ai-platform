@@ -135,6 +135,9 @@ Use `external-client-env-template <bundle.json> --env-output <path>` to write a
 non-secret `.env.example` template with `BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`,
 and a placeholder `BIBER_API_KEY` for IDE agents, gateways, or conversational
 clients. Replace the placeholder from the client's secret manager only.
+Use `show-external-client-env-template <artifact.json>` to inspect that saved
+template artifact later without regenerating it, resolving API keys, or opening
+JSON.
 Use `external-client-quickstart-verify <bundle.json> --repo-root <repo>` before
 handoff to confirm the saved readiness bundle, docs, examples, env names, and
 setup command mentions still line up. It is offline and does not resolve API

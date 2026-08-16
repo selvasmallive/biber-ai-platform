@@ -108,6 +108,8 @@ python scripts/biber_agent_client.py external-client-env-template \
   /workspace/outputs/biber-external-client-readiness-bundle.json \
   --output /workspace/outputs/biber-external-client-env-template.json \
   --env-output /workspace/outputs/biber-external-client.env.example
+python scripts/biber_agent_client.py show-external-client-env-template \
+  /workspace/outputs/biber-external-client-env-template.json
 python scripts/biber_agent_client.py external-client-quickstart-verify \
   /workspace/outputs/biber-external-client-readiness-bundle.json \
   --repo-root /workspace/biber-ai-platform \
@@ -163,6 +165,8 @@ without rebuilding it, resolving API keys, or opening JSON.
 the saved readiness bundle for IDE agents, gateways, or conversational clients.
 Only replace `BIBER_API_KEY` from the client's secret manager; never commit real
 keys.
+`show-external-client-env-template` prints a saved env-template summary without
+regenerating it, resolving API keys, or opening JSON.
 `external-client-quickstart-verify` checks a saved readiness bundle against the
 repo docs/examples quickstart contract without calling BIBER or resolving API
 keys.

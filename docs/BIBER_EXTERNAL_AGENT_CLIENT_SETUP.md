@@ -92,6 +92,9 @@ python scripts/biber_agent_client.py external-client-env-template \
   --output /workspace/outputs/biber-external-client-env-template.json \
   --env-output /workspace/outputs/biber-external-client.env.example
 
+python scripts/biber_agent_client.py show-external-client-env-template \
+  /workspace/outputs/biber-external-client-env-template.json
+
 python scripts/biber_agent_client.py external-client-quickstart-verify \
   /workspace/outputs/biber-external-client-readiness-bundle.json \
   --repo-root /workspace/biber-ai-platform \
@@ -145,6 +148,8 @@ Run `external-client-env-template` to generate a non-secret `.env.example`
 template for IDE agents, gateways, or conversational clients. Replace only the
 `BIBER_API_KEY` placeholder from the client secret manager; do not commit real
 keys.
+Run `show-external-client-env-template` to inspect the saved template artifact
+later without regenerating it, resolving API keys, or opening JSON.
 Run `external-client-quickstart-verify` before handing the setup to another
 engineer or agent. It checks the saved readiness bundle against the repo
 docs/examples quickstart contract without calling BIBER or resolving API keys.
