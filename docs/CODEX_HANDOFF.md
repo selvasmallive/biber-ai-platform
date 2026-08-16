@@ -5,7 +5,8 @@ Last updated: 2026-08-16
 ## Current Goal
 
 2026-08-16 latest BIBER beaverapi.com public-domain checkpoint:
-In progress: local edits add `docs/BIBER_PUBLIC_DOMAIN_SETUP.md` and
+Complete: commit `858d13e` (`Add BIBER public domain setup for beaverapi`) adds
+`docs/BIBER_PUBLIC_DOMAIN_SETUP.md` and
 `scripts/vast_configure_cloudflare_tunnel.sh` for the real `beaverapi.com`
 domain. The recommended MVP endpoint is `https://api.beaverapi.com/v1`, using
 Cloudflare Tunnel to route to the Vast BIBER API at `127.0.0.1:8000` while
@@ -14,14 +15,19 @@ insufficient for a clean HTTPS endpoint because DNS cannot hide Vast random
 public ports or terminate HTTPS. The script is guarded by
 `BIBER_CONFIGURE_PUBLIC_TUNNEL_APPROVED=1`, requires `CF_TUNNEL_TOKEN`, installs
 a supervisor-managed `cloudflared` connector, and must never print or commit the
-tunnel token. Validate locally with `bash -n`, Python compile/confidence smoke as
-needed, and `git diff --check`; then commit/push to
-`biber/mvp-resume-20260712`, fast-forward Vast with a temporary git bundle, run a
-dry-run of the script without a real token if possible, and update this handoff.
-Actual DNS/Cloudflare activation still requires the user to add `beaverapi.com`
-to Cloudflare, update Namecheap nameservers, create the tunnel route
-`api.beaverapi.com -> http://localhost:8000`, and provide/paste the tunnel token
-on Vast.
+tunnel token. Local validation passed Git Bash `bash -n`, Python `py_compile`
+with temp pycache, `git diff --check`, and
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. Vast was
+fast-forwarded to `858d13e` with a temporary git bundle; the bundle was removed.
+Vast passed `bash -n scripts/vast_configure_cloudflare_tunnel.sh` and a dry-run
+of the script, which found `/opt/instance-tools/bin/cloudflared`, reported
+`public_hostname=api.beaverapi.com`, `public_base_url=https://api.beaverapi.com/v1`,
+`local_service_url=http://127.0.0.1:8000`, and safely stopped with
+`CF_TUNNEL_TOKEN is required` because no token is configured yet; the Vast
+checkout remained clean. Actual DNS/Cloudflare activation still requires the
+user to add `beaverapi.com` to Cloudflare, update Namecheap nameservers, create
+the tunnel route `api.beaverapi.com -> http://localhost:8000`, and paste the
+tunnel token on Vast using the runbook.
 
 2026-08-16 latest BIBER external-client latest live smoke plan summary checkpoint:
 Complete: commit `33169ca` (`Add latest BIBER external client live smoke plan
