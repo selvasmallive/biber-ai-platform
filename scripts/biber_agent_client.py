@@ -500,6 +500,19 @@ def build_external_agent_connection_bundle(
                 "api_key_required": False,
             },
             {
+                "name": "handoff_package",
+                "command": (
+                    "python scripts/biber_agent_client.py "
+                    "external-agent-handoff-package "
+                    "/workspace/outputs/biber-external-agent-bundle.json "
+                    "--repo-root /workspace/biber-ai-platform "
+                    "--output "
+                    "/workspace/outputs/biber-external-agent-handoff-package.json"
+                ),
+                "requires_live_biber": False,
+                "api_key_required": False,
+            },
+            {
                 "name": "python_minimal_client",
                 "command": (
                     "python examples/external_agent/python_minimal_client.py "
@@ -790,6 +803,166 @@ def build_external_agent_client_contract_report(
         "api_key_included": False,
         "external_network_required": False,
         "mentor_used": False,
+        "training_allowed": False,
+    }
+
+
+def summarize_linked_artifact(
+    *,
+    name: str,
+    path: str | None,
+    payload: Mapping[str, Any] | None,
+    required: bool,
+) -> dict[str, Any]:
+    return {
+        "name": name,
+        "path": str(Path(path)) if path else "",
+        "included": payload is not None,
+        "required": required,
+        "source": payload.get("source") if payload else None,
+        "ok": bool(payload.get("ok")) if payload else (not required),
+    }
+
+
+def build_external_agent_handoff_package(
+    *,
+    bundle: Mapping[str, Any],
+    artifact_path: str,
+    repo_root: Path,
+    health_artifact: Mapping[str, Any] | None = None,
+    health_artifact_path: str | None = None,
+    contract_report: Mapping[str, Any] | None = None,
+    contract_report_artifact_path: str | None = None,
+    chat_smoke_artifact: Mapping[str, Any] | None = None,
+    chat_smoke_artifact_path: str | None = None,
+) -> dict[str, Any]:
+    bundle_health = (
+        dict(health_artifact)
+        if health_artifact is not None
+        else build_external_agent_bundle_health_check(
+            bundle=bundle,
+            artifact_path=artifact_path,
+            repo_root=repo_root,
+        )
+    )
+    client_contract_report = (
+        dict(contract_report)
+        if contract_report is not None
+        else build_external_agent_client_contract_report(
+            bundle=bundle,
+            artifact_path=artifact_path,
+            repo_root=repo_root,
+        )
+    )
+    chat_smoke = dict(chat_smoke_artifact) if chat_smoke_artifact is not None else None
+    artifacts = [
+        summarize_linked_artifact(
+            name="bundle",
+            path=artifact_path,
+            payload=bundle,
+            required=True,
+        ),
+        summarize_linked_artifact(
+            name="bundle_health",
+            path=health_artifact_path,
+            payload=bundle_health,
+            required=True,
+        ),
+        summarize_linked_artifact(
+            name="client_contract_report",
+            path=contract_report_artifact_path,
+            payload=client_contract_report,
+            required=True,
+        ),
+        summarize_linked_artifact(
+            name="bundle_chat_smoke",
+            path=chat_smoke_artifact_path,
+            payload=chat_smoke,
+            required=False,
+        ),
+    ]
+    required_env = require_mapping(
+        client_contract_report.get("required_client_env")
+    )
+    endpoints = require_mapping(client_contract_report.get("endpoints"))
+    readiness_status = require_mapping(
+        client_contract_report.get("readiness_status")
+    )
+    validation_steps = [
+        item
+        for item in require_list(client_contract_report.get("validation_steps"))
+        if isinstance(item, dict)
+    ]
+    docs = [str(item) for item in require_list(client_contract_report.get("docs"))]
+    examples = [
+        str(item) for item in require_list(client_contract_report.get("examples"))
+    ]
+    chat_smoke_ok = (
+        bool(chat_smoke.get("ok"))
+        if chat_smoke is not None
+        else None
+    )
+    checks = [
+        {
+            "name": "bundle",
+            "ok": bool(bundle.get("ok")),
+            "source": bundle.get("source"),
+        },
+        {
+            "name": "bundle_health",
+            "ok": bool(bundle_health.get("ok")),
+            "source": bundle_health.get("source"),
+        },
+        {
+            "name": "client_contract_report",
+            "ok": bool(client_contract_report.get("ok")),
+            "source": client_contract_report.get("source"),
+        },
+        {
+            "name": "optional_chat_smoke",
+            "ok": chat_smoke_ok is not False,
+            "included": chat_smoke is not None,
+            "source": chat_smoke.get("source") if chat_smoke else None,
+        },
+    ]
+    return {
+        "source": "biber_external_agent_handoff_package",
+        "ok": all(bool(check.get("ok")) for check in checks),
+        "ready_for_client_handoff": (
+            bool(bundle_health.get("ready_for_external_client_handoff"))
+            and bool(client_contract_report.get("ready_for_client_configuration"))
+            and chat_smoke_ok is not False
+        ),
+        "bundle_artifact": str(Path(artifact_path)),
+        "repo_root": str(repo_root),
+        "artifact_index": artifacts,
+        "required_client_env": {
+            "BIBER_OPENAI_BASE_URL": str(
+                required_env.get("BIBER_OPENAI_BASE_URL") or ""
+            ),
+            "BIBER_MODEL": str(required_env.get("BIBER_MODEL") or ""),
+            "BIBER_API_KEY": "<set-user-api-key-in-secret-store>",
+        },
+        "endpoints": {
+            "models": str(endpoints.get("models") or ""),
+            "chat_completions": str(endpoints.get("chat_completions") or ""),
+        },
+        "readiness_status": {
+            "bundle_health_ok": bool(bundle_health.get("ok")),
+            "contract_report_ok": bool(client_contract_report.get("ok")),
+            "ready_for_external_client_handoff": bool(
+                readiness_status.get("ready_for_external_client_handoff")
+            ),
+            "chat_smoke_included": chat_smoke is not None,
+            "chat_smoke_ok": chat_smoke_ok,
+        },
+        "validation_steps": validation_steps,
+        "docs": docs,
+        "examples": examples,
+        "checks": checks,
+        "api_key_included": False,
+        "external_network_required": False,
+        "mentor_used": bool(chat_smoke.get("mentor_used")) if chat_smoke else False,
         "training_allowed": False,
     }
 
@@ -1874,6 +2047,47 @@ def format_external_agent_client_contract_report_summary(
             f"api_key_required={bool(item.get('api_key_required'))}"
         )
         for item in validation_steps
+    )
+    lines.append(f"api_key_included: {bool(payload.get('api_key_included'))}")
+    return "\n".join(lines)
+
+
+def format_external_agent_handoff_package_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    required_env = require_mapping(payload.get("required_client_env"))
+    endpoints = require_mapping(payload.get("endpoints"))
+    readiness_status = require_mapping(payload.get("readiness_status"))
+    artifact_index = [
+        item
+        for item in require_list(payload.get("artifact_index"))
+        if isinstance(item, dict)
+    ]
+    lines = [
+        "BIBER external-agent handoff package",
+        f"ok: {bool(payload.get('ok'))}",
+        f"ready_for_client_handoff: {bool(payload.get('ready_for_client_handoff'))}",
+        f"BIBER_OPENAI_BASE_URL: {required_env.get('BIBER_OPENAI_BASE_URL', '-')}",
+        f"BIBER_MODEL: {required_env.get('BIBER_MODEL', '-')}",
+        f"BIBER_API_KEY: {required_env.get('BIBER_API_KEY', '-')}",
+        f"models_url: {endpoints.get('models', '-')}",
+        f"chat_completions_url: {endpoints.get('chat_completions', '-')}",
+        "readiness:",
+        f"- bundle_health_ok: {bool(readiness_status.get('bundle_health_ok'))}",
+        f"- contract_report_ok: {bool(readiness_status.get('contract_report_ok'))}",
+        "- ready_for_external_client_handoff: "
+        + str(bool(readiness_status.get("ready_for_external_client_handoff"))),
+        f"- chat_smoke_included: {bool(readiness_status.get('chat_smoke_included'))}",
+        f"- chat_smoke_ok: {readiness_status.get('chat_smoke_ok')}",
+        "artifact_index:",
+    ]
+    lines.extend(
+        (
+            f"- {item.get('name', '-')} included={bool(item.get('included'))} "
+            f"required={bool(item.get('required'))} ok={bool(item.get('ok'))} "
+            f"path={item.get('path') or '-'}"
+        )
+        for item in artifact_index
     )
     lines.append(f"api_key_included: {bool(payload.get('api_key_included'))}")
     return "\n".join(lines)
@@ -22000,6 +22214,37 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Optional JSON artifact path.",
     )
 
+    external_agent_handoff_package = subparsers.add_parser(
+        "external-agent-handoff-package",
+        help=(
+            "Write one non-secret index package for handing an external-agent "
+            "bundle, health report, contract report, and optional chat smoke "
+            "to another gateway or client."
+        ),
+    )
+    external_agent_handoff_package.add_argument("artifact")
+    external_agent_handoff_package.add_argument(
+        "--repo-root",
+        default=".",
+        help="Repo root used when health/report artifacts are computed inline.",
+    )
+    external_agent_handoff_package.add_argument(
+        "--health-artifact",
+        help="Optional saved external-agent-bundle-health-check artifact.",
+    )
+    external_agent_handoff_package.add_argument(
+        "--contract-report-artifact",
+        help="Optional saved external-agent-client-contract-report artifact.",
+    )
+    external_agent_handoff_package.add_argument(
+        "--chat-smoke-artifact",
+        help="Optional saved external-agent-bundle-chat-smoke artifact.",
+    )
+    external_agent_handoff_package.add_argument(
+        "--output",
+        help="Optional JSON artifact path.",
+    )
+
     external_agent_smoke = subparsers.add_parser(
         "external-agent-smoke",
         help=(
@@ -26698,6 +26943,55 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_external_agent_client_contract_report_summary(result)
+        )
+
+    if args.command == "external-agent-handoff-package":
+        bundle = load_json_artifact(
+            args.artifact,
+            label="external-agent-bundle artifact",
+        )
+        health_artifact = (
+            load_json_artifact(
+                args.health_artifact,
+                label="external-agent-bundle-health-check artifact",
+            )
+            if args.health_artifact
+            else None
+        )
+        contract_report_artifact = (
+            load_json_artifact(
+                args.contract_report_artifact,
+                label="external-agent-client-contract-report artifact",
+            )
+            if args.contract_report_artifact
+            else None
+        )
+        chat_smoke_artifact = (
+            load_json_artifact(
+                args.chat_smoke_artifact,
+                label="external-agent-bundle-chat-smoke artifact",
+            )
+            if args.chat_smoke_artifact
+            else None
+        )
+        result = build_external_agent_handoff_package(
+            bundle=bundle,
+            artifact_path=args.artifact,
+            repo_root=Path(args.repo_root),
+            health_artifact=health_artifact,
+            health_artifact_path=args.health_artifact,
+            contract_report=contract_report_artifact,
+            contract_report_artifact_path=args.contract_report_artifact,
+            chat_smoke_artifact=chat_smoke_artifact,
+            chat_smoke_artifact_path=args.chat_smoke_artifact,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_agent_handoff_package_summary(result)
         )
 
     if args.command == "external-agent-smoke":

@@ -109,6 +109,9 @@ model, auth headers, endpoints, validation commands, and readiness status.
 Use `external-agent-bundle-chat-smoke <artifact.json> --repo-root <repo>` to
 prove a saved bundle can drive one live `/v1/chat/completions` request through
 its `BIBER_OPENAI_BASE_URL` and `BIBER_MODEL`, with OpenAI mentor off.
+Use `external-agent-handoff-package <artifact.json> --repo-root <repo>` to
+create one non-secret index artifact linking the bundle, health report, client
+contract report, and optional chat-smoke proof for another gateway/client.
 Use `external-agent-smoke --output <artifact.json>` when you want readiness plus
 one short OpenAI-compatible chat-completions response in a single non-secret
 artifact. This is the preferred MVP proof before handing BIBER to an external

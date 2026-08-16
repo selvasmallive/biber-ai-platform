@@ -1878,6 +1878,187 @@ def test_run_external_agent_client_contract_report_does_not_use_api_key(
     assert artifact["required_client_env"]["BIBER_API_KEY"].startswith("<set-")
 
 
+def test_build_external_agent_handoff_package_is_non_secret(tmp_path: Path) -> None:
+    _write_external_agent_bundle_paths(tmp_path)
+    bundle_path = tmp_path / "external-agent-bundle.json"
+    health_path = tmp_path / "external-agent-bundle-health.json"
+    contract_path = tmp_path / "external-agent-client-contract.json"
+    chat_path = tmp_path / "external-agent-bundle-chat-smoke.json"
+    bundle = client.build_external_agent_connection_bundle(
+        base_url="http://private.local:8000",
+        client_base_url="https://biber.example.com/v1",
+        capabilities=sample_capabilities(),
+        runtime_status={
+            "service": "biber-api",
+            "local_model_name": "biber-dev-core",
+            "local_model_base_url": "http://127.0.0.1:8001/v1",
+            "mentor_configured": False,
+        },
+        models_payload={
+            "models": [
+                {
+                    "id": "biber-dev-core-v1",
+                    "lifecycle": "stable",
+                    "enabled": True,
+                }
+            ]
+        },
+    )
+    health = client.build_external_agent_bundle_health_check(
+        bundle=bundle,
+        artifact_path=str(bundle_path),
+        repo_root=tmp_path,
+    )
+    contract = client.build_external_agent_client_contract_report(
+        bundle=bundle,
+        artifact_path=str(bundle_path),
+        repo_root=tmp_path,
+    )
+    chat_smoke = {
+        "source": "biber_external_agent_bundle_chat_smoke",
+        "ok": True,
+        "requested_model": "biber-dev-core-v1",
+        "api_key_included": False,
+        "mentor_used": False,
+        "training_allowed": False,
+    }
+
+    result = client.build_external_agent_handoff_package(
+        bundle=bundle,
+        artifact_path=str(bundle_path),
+        repo_root=tmp_path,
+        health_artifact=health,
+        health_artifact_path=str(health_path),
+        contract_report=contract,
+        contract_report_artifact_path=str(contract_path),
+        chat_smoke_artifact=chat_smoke,
+        chat_smoke_artifact_path=str(chat_path),
+    )
+
+    assert result["source"] == "biber_external_agent_handoff_package"
+    assert result["ok"] is True
+    assert result["ready_for_client_handoff"] is True
+    assert result["api_key_included"] is False
+    assert result["external_network_required"] is False
+    assert result["mentor_used"] is False
+    assert result["training_allowed"] is False
+    assert result["required_client_env"] == {
+        "BIBER_OPENAI_BASE_URL": "https://biber.example.com/v1",
+        "BIBER_MODEL": "biber-dev-core-v1",
+        "BIBER_API_KEY": "<set-user-api-key-in-secret-store>",
+    }
+    assert result["readiness_status"]["chat_smoke_included"] is True
+    assert result["readiness_status"]["chat_smoke_ok"] is True
+    assert [item["name"] for item in result["artifact_index"]] == [
+        "bundle",
+        "bundle_health",
+        "client_contract_report",
+        "bundle_chat_smoke",
+    ]
+    assert result["artifact_index"][1]["path"] == str(health_path)
+    assert result["artifact_index"][2]["path"] == str(contract_path)
+    assert result["artifact_index"][3]["path"] == str(chat_path)
+    assert "handoff_package" in [
+        step["name"] for step in result["validation_steps"]
+    ]
+    assert "api_key" not in result
+
+
+def test_run_external_agent_handoff_package_does_not_use_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    _write_external_agent_bundle_paths(tmp_path)
+    bundle = client.build_external_agent_connection_bundle(
+        base_url="http://private.local:8000",
+        client_base_url="https://biber.example.com/v1",
+        capabilities=sample_capabilities(),
+        runtime_status={
+            "service": "biber-api",
+            "local_model_name": "biber-dev-core",
+            "local_model_base_url": "http://127.0.0.1:8001/v1",
+            "mentor_configured": False,
+        },
+        models_payload={
+            "models": [
+                {
+                    "id": "biber-dev-core-v1",
+                    "lifecycle": "stable",
+                    "enabled": True,
+                }
+            ]
+        },
+    )
+    bundle_path = tmp_path / "external-agent-bundle.json"
+    health_path = tmp_path / "external-agent-bundle-health.json"
+    contract_path = tmp_path / "external-agent-client-contract.json"
+    chat_path = tmp_path / "external-agent-bundle-chat-smoke.json"
+    output_path = tmp_path / "external-agent-handoff-package.json"
+    bundle_path.write_text(json.dumps(bundle), encoding="utf-8")
+    health = client.build_external_agent_bundle_health_check(
+        bundle=bundle,
+        artifact_path=str(bundle_path),
+        repo_root=tmp_path,
+    )
+    contract = client.build_external_agent_client_contract_report(
+        bundle=bundle,
+        artifact_path=str(bundle_path),
+        repo_root=tmp_path,
+    )
+    chat_smoke = {
+        "source": "biber_external_agent_bundle_chat_smoke",
+        "ok": True,
+        "requested_model": "biber-dev-core-v1",
+        "api_key_included": False,
+        "mentor_used": False,
+        "training_allowed": False,
+    }
+    health_path.write_text(json.dumps(health), encoding="utf-8")
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+    chat_path.write_text(json.dumps(chat_smoke), encoding="utf-8")
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("user API key should not be resolved")
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        raise AssertionError("admin API key should not be resolved")
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "external-agent-handoff-package",
+                str(bundle_path),
+                "--repo-root",
+                str(tmp_path),
+                "--health-artifact",
+                str(health_path),
+                "--contract-report-artifact",
+                str(contract_path),
+                "--chat-smoke-artifact",
+                str(chat_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+
+    artifact = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "BIBER external-agent handoff package" in output
+    assert "BIBER_OPENAI_BASE_URL: https://biber.example.com/v1" in output
+    assert artifact["artifact_path"] == str(output_path)
+    assert artifact["ok"] is True
+    assert artifact["ready_for_client_handoff"] is True
+    assert artifact["api_key_included"] is False
+    assert artifact["readiness_status"]["chat_smoke_included"] is True
+    assert artifact["artifact_index"][1]["path"] == str(health_path)
+    assert artifact["artifact_index"][2]["path"] == str(contract_path)
+    assert artifact["artifact_index"][3]["path"] == str(chat_path)
+    assert artifact["required_client_env"]["BIBER_API_KEY"].startswith("<set-")
+
+
 def test_run_external_agent_smoke_uses_user_key_and_default_model(
     monkeypatch,
     tmp_path: Path,

@@ -64,6 +64,14 @@ python scripts/biber_agent_client.py external-agent-bundle-chat-smoke \
   --repo-root /workspace/biber-ai-platform \
   --output /workspace/outputs/biber-external-agent-bundle-chat-smoke.json
 
+python scripts/biber_agent_client.py external-agent-handoff-package \
+  /workspace/outputs/biber-external-agent-bundle.json \
+  --repo-root /workspace/biber-ai-platform \
+  --health-artifact /workspace/outputs/biber-external-agent-bundle-health.json \
+  --contract-report-artifact /workspace/outputs/biber-external-agent-client-contract.json \
+  --chat-smoke-artifact /workspace/outputs/biber-external-agent-bundle-chat-smoke.json \
+  --output /workspace/outputs/biber-external-agent-handoff-package.json
+
 python scripts/biber_agent_client.py capabilities \
   --output /workspace/outputs/biber-capabilities.json
 
@@ -89,6 +97,9 @@ endpoints, validation commands, and readiness status.
 Run `external-agent-bundle-chat-smoke` when you want a live proof that the saved
 bundle's `BIBER_OPENAI_BASE_URL` and `BIBER_MODEL` can complete one
 OpenAI-compatible chat request with OpenAI mentor off.
+Run `external-agent-handoff-package` when another gateway/client needs one
+non-secret index artifact linking the bundle, health report, contract report,
+and optional chat-smoke proof.
 
 ## Minimal Client Examples
 

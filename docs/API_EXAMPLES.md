@@ -103,6 +103,13 @@ python scripts/biber_agent_client.py external-agent-bundle-chat-smoke \
   /workspace/outputs/biber-external-agent-bundle.json \
   --repo-root /workspace/biber-ai-platform \
   --output /workspace/outputs/biber-external-agent-bundle-chat-smoke.json
+python scripts/biber_agent_client.py external-agent-handoff-package \
+  /workspace/outputs/biber-external-agent-bundle.json \
+  --repo-root /workspace/biber-ai-platform \
+  --health-artifact /workspace/outputs/biber-external-agent-bundle-health.json \
+  --contract-report-artifact /workspace/outputs/biber-external-agent-client-contract.json \
+  --chat-smoke-artifact /workspace/outputs/biber-external-agent-bundle-chat-smoke.json \
+  --output /workspace/outputs/biber-external-agent-handoff-package.json
 python scripts/biber_agent_client.py external-agent-smoke \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-smoke.json
@@ -135,6 +142,9 @@ commands, and readiness status.
 Use `external-agent-bundle-chat-smoke` to prove that the saved bundle itself can
 drive one OpenAI-compatible chat request through `BIBER_OPENAI_BASE_URL` and
 `BIBER_MODEL` with OpenAI mentor off.
+Use `external-agent-handoff-package` to create one non-secret index artifact
+that links the bundle, health report, contract report, and optional chat-smoke
+proof for another gateway/client.
 Use `external-agent-smoke` when you want one combined non-secret proof that the
 readiness probes pass and `/v1/chat/completions` returns a short local model
 response with OpenAI mentor off.

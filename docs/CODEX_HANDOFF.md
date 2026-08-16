@@ -4,6 +4,14 @@ Last updated: 2026-08-15
 
 ## Current Goal
 
+2026-08-15 latest BIBER external-agent handoff package checkpoint:
+In progress: add a stdlib `external-agent-handoff-package` command that loads a
+saved `external-agent-bundle`, computes or links bundle health and client
+contract report artifacts, optionally links a saved bundle chat-smoke artifact,
+and emits one compact non-secret index artifact for another gateway/client. It
+must not resolve API keys, call the model, use training, rotate credentials, use
+paid external APIs, or touch XRIQ/XRIS work.
+
 2026-08-15 latest BIBER external-agent client contract report checkpoint:
 Complete: BIBER MVP now has a stdlib
 `external-agent-client-contract-report` command in
