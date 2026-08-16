@@ -44,13 +44,15 @@ request; a malicious recipient or token contract; and physical access to the dev
 - **Key material is not zeroed after use.** JavaScript/Hermes cannot reliably wipe memory.
   Mitigated by hardware-backed storage (`expo-secure-store`), on-demand derivation, and never
   logging secrets.
-- **Transaction simulation is Phase 1 only.** Before signing, Lattice statically decodes
-  common drain selectors (approve / setApprovalForAll / transfer, with unlimited-allowance
-  flagged) and **dry-runs the transaction via `eth_call` on your own RPC** to catch reverts and
-  show the revert reason (`src/core/simulate.ts`). It does **not** yet compute full asset-change
-  diffs (Phase 2, needs a trace-capable RPC) or use a third-party risk API (Phase 3, opt-in).
-  Unknown contract calls are still surfaced with an explicit "only approve if you trust this
-  dApp" warning. All of Phase 1 uses your own RPC — no third party.
+- **Transaction simulation is Phases 1–2 (no third-party risk API yet).** Before signing,
+  Lattice statically decodes common drain selectors (approve / setApprovalForAll / transfer,
+  with unlimited-allowance flagged), **dry-runs via `eth_call`** to catch reverts, and — when
+  the RPC exposes `debug_traceCall` — computes **net asset changes** for your address from the
+  trace (`src/core/simulate.ts`). All on your own RPC. It does not use a third-party risk API
+  (Phase 3, opt-in) that could flag known-malicious contracts, and Phase 2 is unavailable on
+  RPCs without a `debug` namespace (most public RPCs) — then it falls back to Phase 1. Unknown
+  contract calls without an asset preview are still surfaced with an explicit "only approve if
+  you trust this dApp" warning.
 - **Live WalletConnect pairing is not covered by CI** — it requires a dev/EAS build and a real
   dApp. The signing paths it invokes are vector-verified; the handshake should be exercised
   manually before release.

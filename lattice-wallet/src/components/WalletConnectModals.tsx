@@ -3,9 +3,10 @@ import { Modal, StyleSheet, Text, View } from 'react-native';
 import { Button, shortAddr } from './ui';
 import { colors, font, radius, spacing } from '../theme/theme';
 import { useWalletConnect } from '../state/WalletConnectProvider';
+import { useWallet } from '../state/WalletProvider';
 import { formatUnits } from '../core/format';
 import { evmConfigByChainId } from '../core/chains/registry';
-import { decodeCalldata, dryRunEvm, type SimStatus } from '../core/simulate';
+import { decodeCalldata, dryRunEvm, assetDiffEvm, type SimStatus, type AssetDelta } from '../core/simulate';
 
 function decodeMessage(raw: string): string {
   if (typeof raw !== 'string') return String(raw);
@@ -77,26 +78,46 @@ function describe(request: any): { title: string; lines: string[]; warnings: str
   return { title: method, lines: ['Unsupported request type — reject unless you trust it.'], warnings: [] };
 }
 
-// Async dry-run simulation for eth_sendTransaction (Phase 1: your RPC, no third party).
-function useSimulation(request: any) {
-  const [status, setStatus] = useState<SimStatus | 'loading' | null>(null);
-  const [reason, setReason] = useState<string | undefined>();
+interface SimState {
+  status: SimStatus | 'loading';
+  reason?: string;
+  changes?: AssetDelta[];
+  traceSupported?: boolean;
+  nativeSymbol?: string;
+}
+
+// Simulation for eth_sendTransaction — Phase 1 (dry-run revert) + Phase 2 (asset diff via
+// trace, when the RPC supports it). Uses the user's own RPC only.
+function useSimulation(request: any): SimState | null {
+  const { chains } = useWallet();
+  const [state, setState] = useState<SimState | null>(null);
   useEffect(() => {
     let alive = true;
-    setStatus(null);
-    setReason(undefined);
+    setState(null);
     if (!request || request.params.request.method !== 'eth_sendTransaction') return;
     const chainId = Number(String(request.params.chainId).split(':')[1]);
-    const cfg = evmConfigByChainId(chainId);
+    const cfg = chains.find((c) => c.evmChainId === chainId) ?? evmConfigByChainId(chainId);
     if (!cfg) return;
     const tx = request.params.request.params[0] ?? {};
-    setStatus('loading');
-    dryRunEvm(cfg.rpcUrl, { from: tx.from, to: tx.to, value: tx.value, data: tx.data })
-      .then((r) => { if (alive) { setStatus(r.status); setReason(r.revertReason); } })
-      .catch(() => { if (alive) setStatus('unknown'); });
+    const params = { from: tx.from, to: tx.to, value: tx.value, data: tx.data };
+    setState({ status: 'loading', nativeSymbol: cfg.symbol });
+    (async () => {
+      const [run, diff] = await Promise.all([
+        dryRunEvm(cfg.rpcUrl, params),
+        tx.from ? assetDiffEvm(cfg.rpcUrl, params, tx.from) : Promise.resolve({ supported: false, changes: [] as AssetDelta[] }),
+      ]);
+      if (alive) setState({ status: run.status, reason: run.revertReason, changes: diff.changes, traceSupported: diff.supported, nativeSymbol: cfg.symbol });
+    })().catch(() => { if (alive) setState({ status: 'unknown', nativeSymbol: cfg.symbol }); });
     return () => { alive = false; };
-  }, [request]);
-  return { status, reason };
+  }, [request, chains]);
+  return state;
+}
+
+function formatDelta(c: AssetDelta, nativeSymbol: string): string {
+  const sign = c.direction === 'in' ? '+' : '−';
+  if (c.kind === 'native') return `${sign} ${formatUnits(c.amount, 18)} ${nativeSymbol}`;
+  if (c.kind === 'erc721') return `${sign} NFT #${c.amount} (${shortAddr(c.token ?? '')})`;
+  return `${sign} ${formatUnits(c.amount, c.decimals ?? 18)} ${c.symbol ?? shortAddr(c.token ?? '')}`;
 }
 
 export function WalletConnectModals() {
@@ -145,13 +166,30 @@ export function WalletConnectModals() {
                   </View>
 
                   {/* Simulation result (eth_sendTransaction only) */}
-                  {sim.status === 'loading' && <Text style={styles.simMuted}>Simulating…</Text>}
-                  {sim.status === 'ok' && <Text style={styles.simOk}>✓ Simulation: transaction is expected to succeed.</Text>}
-                  {sim.status === 'unknown' && <Text style={styles.simMuted}>Could not simulate (RPC unavailable).</Text>}
-                  {sim.status === 'revert' && (
-                    <View style={styles.warnBox}>
-                      <Text style={styles.warnText}>✗ Simulation: this transaction is expected to FAIL{sim.reason ? ` — ${sim.reason}` : ''}.</Text>
-                    </View>
+                  {sim && (
+                    <>
+                      {sim.status === 'loading' && <Text style={styles.simMuted}>Simulating…</Text>}
+                      {sim.status === 'ok' && <Text style={styles.simOk}>✓ Simulation: transaction is expected to succeed.</Text>}
+                      {sim.status === 'unknown' && <Text style={styles.simMuted}>Could not simulate (RPC unavailable).</Text>}
+                      {sim.status === 'revert' && (
+                        <View style={styles.warnBox}>
+                          <Text style={styles.warnText}>✗ Simulation: this transaction is expected to FAIL{sim.reason ? ` — ${sim.reason}` : ''}.</Text>
+                        </View>
+                      )}
+                      {sim.traceSupported && sim.changes && sim.changes.length > 0 && (
+                        <View style={styles.reqBox}>
+                          <Text style={styles.simSection}>Estimated balance changes</Text>
+                          {sim.changes.map((c, i) => (
+                            <Text key={i} style={c.direction === 'in' ? styles.simIn : styles.simOut}>
+                              {formatDelta(c, sim.nativeSymbol ?? 'ETH')}
+                            </Text>
+                          ))}
+                        </View>
+                      )}
+                      {sim.status === 'ok' && sim.traceSupported === false && (
+                        <Text style={styles.simMuted}>Asset preview unavailable — this RPC doesn't support tracing.</Text>
+                      )}
+                    </>
                   )}
 
                   {d.warnings.map((wtext, i) => (
@@ -218,6 +256,9 @@ const styles = StyleSheet.create({
   reqLine: { color: colors.text, fontSize: 14, lineHeight: 21 },
   simOk: { color: colors.success, fontSize: 13, fontWeight: '600' },
   simMuted: { color: colors.textFaint, fontSize: 13 },
+  simSection: { color: colors.textDim, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: spacing(2) },
+  simIn: { color: colors.success, fontSize: 14, lineHeight: 21, fontWeight: '600' },
+  simOut: { color: colors.text, fontSize: 14, lineHeight: 21, fontWeight: '600' },
   warnBox: { backgroundColor: '#2A1A1A', borderRadius: radius.md, padding: spacing(3), borderWidth: 1, borderColor: colors.danger },
   warnText: { color: colors.danger, fontSize: 13, lineHeight: 19, fontWeight: '600' },
   err: { color: colors.danger, fontSize: 13 },

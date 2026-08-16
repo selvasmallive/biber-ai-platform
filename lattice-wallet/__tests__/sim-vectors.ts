@@ -1,6 +1,8 @@
-// Transaction-simulation static decode conformance (offline).
-// Run: npx tsx __tests__/sim-vectors.ts
-import { decodeCalldata } from '../src/core/simulate';
+// Transaction-simulation conformance (offline): static calldata decode (Phase 1) and
+// trace asset-delta parsing (Phase 2). Run: npx tsx __tests__/sim-vectors.ts
+import { decodeCalldata, parseTraceAssetDeltas, TRANSFER_TOPIC } from '../src/core/simulate';
+import { keccak_256 } from '@noble/hashes/sha3';
+import { hex } from '../src/core/xriq';
 
 let fail = 0;
 function ok(name: string, cond: boolean, detail = '') {
@@ -38,5 +40,36 @@ ok('unknown call warns', unknown.warnings.some((w) => /Unknown contract call/.te
 const empty = decodeCalldata('0x');
 ok('empty calldata => nothing', empty.lines.length === 0 && empty.warnings.length === 0);
 
-console.log(`\n${fail === 0 ? 'ALL SIMULATION DECODE VECTORS MATCH ✓' : `${fail} FAILED`}`);
+console.log('Phase 2 — parseTraceAssetDeltas (native + ERC-20 + ERC-721)');
+ok('TRANSFER_TOPIC = keccak(Transfer(address,address,uint256))',
+  TRANSFER_TOPIC === '0x' + hex.toHex(keccak_256(new TextEncoder().encode('Transfer(address,address,uint256)'))));
+
+const USER = '0x1111111111111111111111111111111111111111';
+const ROUTER = '0x2222222222222222222222222222222222222222';
+const USDC = '0x3333333333333333333333333333333333333333';
+const NFT = '0x4444444444444444444444444444444444444444';
+const topicAddr = (a: string) => '0x' + '0'.repeat(24) + a.slice(2);
+const word = (n: bigint) => '0x' + n.toString(16).padStart(64, '0');
+
+const trace = {
+  from: USER, to: ROUTER, value: word(1000000000000000000n), // 1 ETH in
+  calls: [
+    { from: ROUTER, to: USER, value: word(500000000000000000n), calls: [], logs: [] }, // 0.5 ETH back
+  ],
+  logs: [
+    { address: USDC, topics: [TRANSFER_TOPIC, topicAddr(ROUTER), topicAddr(USER)], data: word(100000000n) }, // +100 USDC (6dp)
+    { address: NFT, topics: [TRANSFER_TOPIC, topicAddr(ROUTER), topicAddr(USER), word(7n)] }, // NFT #7 in
+    { address: USDC, topics: [TRANSFER_TOPIC, topicAddr(USER), topicAddr(ROUTER)], data: word(4000000n) }, // -4 USDC out
+  ],
+};
+const d = parseTraceAssetDeltas(trace, USER);
+ok('native net = -0.5 ETH (out)', d.native === -500000000000000000n, String(d.native));
+ok('USDC net = +96,000,000 (in)', d.tokens[USDC.toLowerCase()] === 96000000n, String(d.tokens[USDC.toLowerCase()]));
+ok('NFT #7 received', d.nfts.length === 1 && d.nfts[0].id === 7n && d.nfts[0].dir === 'in');
+// From the router's perspective the diffs invert: native +0.5 ETH, USDC -96,000,000.
+const dr = parseTraceAssetDeltas(trace, ROUTER);
+ok('router native = +0.5 ETH', dr.native === 500000000000000000n, String(dr.native));
+ok('router USDC = -96,000,000', dr.tokens[USDC.toLowerCase()] === -96000000n, String(dr.tokens[USDC.toLowerCase()]));
+
+console.log(`\n${fail === 0 ? 'ALL SIMULATION VECTORS MATCH ✓' : `${fail} FAILED`}`);
 if (fail > 0) process.exit(1);

@@ -89,10 +89,14 @@ Everything here is designed so the wallet reveals as little as possible about yo
   network*, or via a dApp's `wallet_addEthereumChain`). Lattice **verifies the RPC reports the
   claimed chain id** and refuses plaintext RPCs. Added chains are **first-class networks** —
   they appear in the chain switcher and support balance / send / receive / WalletConnect.
-- **Transaction simulation (Phase 1)** — before you sign an EVM transaction (WalletConnect or
-  a token send), Lattice decodes the calldata (flagging unlimited approvals / blanket NFT
-  operators) and **dry-runs it via `eth_call` on your own RPC** to show whether it will succeed
-  or **revert** (with the reason) — no third-party simulation service. See `src/core/simulate.ts`.
+- **Transaction simulation** — before you sign an EVM transaction (WalletConnect or a token
+  send), Lattice previews it, entirely on **your own RPC** (no third-party simulator):
+  - *Phase 1* — decodes the calldata (flagging unlimited approvals / blanket NFT operators)
+    and **dry-runs via `eth_call`** to show whether it will succeed or **revert** (with reason).
+  - *Phase 2* — when the RPC supports tracing (`debug_traceCall`), computes the **net balance
+    changes** for your address from the call tree + Transfer logs — "you send X, you receive Y"
+    (native, ERC-20, ERC-721). Degrades to Phase 1 when the RPC has no `debug` namespace.
+  See `src/core/simulate.ts` (`parseTraceAssetDeltas` is unit-tested).
 
 ## WalletConnect (dApp connections)
 
