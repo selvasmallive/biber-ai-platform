@@ -115,7 +115,8 @@ auth header names. It never writes the API key into the artifact.
 `external-agent-readiness` saves that profile together with capabilities,
 runtime, and model metadata in one artifact.
 `external-agent-bundle` saves the non-secret env values, docs/examples paths,
-and validation commands that another client or gateway needs for setup.
+validation commands, and API-key management metadata that another client or
+gateway needs for setup.
 `external-agent-bundle-health-check` validates that saved bundle before handoff
 without resolving any API key or calling the model.
 `external-agent-client-contract-report` turns the saved bundle into a compact
@@ -126,7 +127,8 @@ chat-completions request through the bundle's `BIBER_OPENAI_BASE_URL` and
 `BIBER_MODEL`, with OpenAI mentor off.
 `external-agent-handoff-package` writes one non-secret index artifact for
 another gateway/client, linking the bundle, health report, contract report, and
-optional chat-smoke proof.
+optional chat-smoke proof. It carries only metadata for admin/user API-key
+management, never actual keys.
 `show-external-agent-handoff-package` prints the saved package summary without
 opening JSON and without resolving API keys.
 `external-agent-smoke` runs readiness plus one short chat-completions request

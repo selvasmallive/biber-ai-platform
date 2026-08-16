@@ -99,7 +99,8 @@ base URL, `/v1/models`, `/v1/chat/completions`, the selected stable model, and
 auth header names without writing the API key into the artifact.
 Use `external-agent-bundle --output <artifact.json>` for a compact non-secret
 handoff artifact containing env values, docs/examples paths, validation
-commands, and an API-key placeholder for another client or gateway.
+commands, API-key management metadata, and an API-key placeholder for another
+client or gateway.
 Use `external-agent-bundle-health-check <artifact.json> --repo-root <repo>` to
 verify the bundle is non-secret, internally consistent, and ready for handoff.
 This check is offline and does not resolve API credentials.
@@ -111,7 +112,8 @@ prove a saved bundle can drive one live `/v1/chat/completions` request through
 its `BIBER_OPENAI_BASE_URL` and `BIBER_MODEL`, with OpenAI mentor off.
 Use `external-agent-handoff-package <artifact.json> --repo-root <repo>` to
 create one non-secret index artifact linking the bundle, health report, client
-contract report, and optional chat-smoke proof for another gateway/client.
+contract report, optional chat-smoke proof, and API-key management metadata for
+another gateway/client.
 Use `show-external-agent-handoff-package <package.json>` to inspect the saved
 handoff summary without opening JSON and without resolving API keys.
 Use `external-agent-smoke --output <artifact.json>` when you want readiness plus

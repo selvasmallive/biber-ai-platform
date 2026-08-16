@@ -90,7 +90,9 @@ setup because they do not contain the API key. The API key must be configured
 separately in the client's secret or environment setting.
 The bundle artifact is the preferred handoff file for another client: it
 includes the non-secret env values, docs/examples paths, and validation commands
-without embedding the API key.
+without embedding the API key. It also includes non-secret admin/user API-key
+management metadata so gateway builders know the MVP uses
+`GET/POST/DELETE /v1/admin/api-keys` guarded by `BIBER_ADMIN_API_KEY`.
 Run `external-agent-bundle-health-check` before handing the bundle to another
 client or gateway; it verifies the bundle is non-secret, internally consistent,
 and points at docs/examples that exist in the repo.
@@ -102,7 +104,7 @@ bundle's `BIBER_OPENAI_BASE_URL` and `BIBER_MODEL` can complete one
 OpenAI-compatible chat request with OpenAI mentor off.
 Run `external-agent-handoff-package` when another gateway/client needs one
 non-secret index artifact linking the bundle, health report, contract report,
-and optional chat-smoke proof.
+optional chat-smoke proof, and API-key management metadata.
 Run `show-external-agent-handoff-package` to inspect the saved package summary
 without opening JSON and without resolving API keys.
 

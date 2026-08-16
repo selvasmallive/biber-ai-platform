@@ -133,8 +133,8 @@ Use `external-agent-readiness` when you want one combined non-secret setup
 artifact with connection, capabilities, runtime, and model metadata.
 Use `external-agent-bundle` when you want a compact non-secret handoff artifact
 for another client or gateway. It includes `BIBER_OPENAI_BASE_URL`,
-`BIBER_MODEL`, an API-key placeholder, docs/examples paths, and validation
-commands.
+`BIBER_MODEL`, an API-key placeholder, docs/examples paths, validation commands,
+and API-key management metadata.
 Use `external-agent-bundle-health-check` to verify that saved bundle is
 non-secret, internally consistent, and ready to hand to another client. It is an
 offline check and does not resolve API keys.
@@ -146,7 +146,8 @@ drive one OpenAI-compatible chat request through `BIBER_OPENAI_BASE_URL` and
 `BIBER_MODEL` with OpenAI mentor off.
 Use `external-agent-handoff-package` to create one non-secret index artifact
 that links the bundle, health report, contract report, and optional chat-smoke
-proof for another gateway/client.
+proof for another gateway/client. It includes admin/user key-management metadata
+without embedding any key value.
 Use `show-external-agent-handoff-package` to inspect the saved package summary
 without opening JSON and without resolving API keys.
 Use `external-agent-smoke` when you want one combined non-secret proof that the

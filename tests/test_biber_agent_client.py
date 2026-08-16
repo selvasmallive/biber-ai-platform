@@ -1884,10 +1884,24 @@ def test_build_external_agent_handoff_package_is_non_secret(tmp_path: Path) -> N
     health_path = tmp_path / "external-agent-bundle-health.json"
     contract_path = tmp_path / "external-agent-client-contract.json"
     chat_path = tmp_path / "external-agent-bundle-chat-smoke.json"
+    capabilities = sample_capabilities()
+    capabilities["features"]["external_agent_api"] = {
+        "enabled": True,
+        "protocol": "openai-compatible-chat-completions",
+        "authentication": {
+            "type": "bearer_api_key_or_x_api_key",
+            "admin_key_management_api": "mvp",
+            "admin_key_management_ui": "planned",
+            "per_user_key_issuance": "mvp",
+        },
+        "endpoints": {
+            "admin_api_keys": "GET/POST/DELETE /v1/admin/api-keys",
+        },
+    }
     bundle = client.build_external_agent_connection_bundle(
         base_url="http://private.local:8000",
         client_base_url="https://biber.example.com/v1",
-        capabilities=sample_capabilities(),
+        capabilities=capabilities,
         runtime_status={
             "service": "biber-api",
             "local_model_name": "biber-dev-core",
@@ -1947,6 +1961,19 @@ def test_build_external_agent_handoff_package_is_non_secret(tmp_path: Path) -> N
         "BIBER_MODEL": "biber-dev-core-v1",
         "BIBER_API_KEY": "<set-user-api-key-in-secret-store>",
     }
+    assert result["api_key_management"] == {
+        "admin_api": "mvp",
+        "admin_ui": "planned",
+        "per_user_key_issuance": "mvp",
+        "admin_endpoint": "GET/POST/DELETE /v1/admin/api-keys",
+        "admin_key_env": "BIBER_ADMIN_API_KEY",
+        "user_key_env": "BIBER_API_KEY",
+        "api_key_included": False,
+    }
+    summary = client.format_external_agent_handoff_package_summary(result)
+    assert "admin_api: mvp" in summary
+    assert "admin_ui: planned" in summary
+    assert "admin_endpoint: GET/POST/DELETE /v1/admin/api-keys" in summary
     assert result["readiness_status"]["chat_smoke_included"] is True
     assert result["readiness_status"]["chat_smoke_ok"] is True
     assert [item["name"] for item in result["artifact_index"]] == [

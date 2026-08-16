@@ -398,6 +398,8 @@ def build_external_agent_connection_bundle(
     )
     features = require_mapping(capabilities.get("features"))
     external_agent_api = require_mapping(features.get("external_agent_api"))
+    external_auth = require_mapping(external_agent_api.get("authentication"))
+    external_endpoints = require_mapping(external_agent_api.get("endpoints"))
     openai_base_url = str(connection.get("openai_base_url") or "")
     default_model = str(connection.get("default_model") or "")
     return {
@@ -443,6 +445,24 @@ def build_external_agent_connection_bundle(
                     "provider_swappable"
                 )
             ),
+        },
+        "api_key_management": {
+            "admin_api": str(
+                external_auth.get("admin_key_management_api") or "not_advertised"
+            ),
+            "admin_ui": str(
+                external_auth.get("admin_key_management_ui") or "not_advertised"
+            ),
+            "per_user_key_issuance": str(
+                external_auth.get("per_user_key_issuance") or "not_advertised"
+            ),
+            "admin_endpoint": str(
+                external_endpoints.get("admin_api_keys")
+                or "GET/POST/DELETE /v1/admin/api-keys"
+            ),
+            "admin_key_env": "BIBER_ADMIN_API_KEY",
+            "user_key_env": "BIBER_API_KEY",
+            "api_key_included": False,
         },
         "docs": [
             "docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md",
@@ -700,6 +720,7 @@ def build_external_agent_client_contract_report(
     client_contract = require_mapping(bundle.get("client_contract"))
     connection = require_mapping(bundle.get("connection"))
     auth = require_mapping(connection.get("auth"))
+    api_key_management = require_mapping(bundle.get("api_key_management"))
     openai_base_url = str(
         client_env.get("BIBER_OPENAI_BASE_URL")
         or bundle.get("openai_base_url")
@@ -789,6 +810,27 @@ def build_external_agent_client_contract_report(
                 str(item) for item in require_list(auth.get("accepted_headers"))
             ],
             "api_key_env": str(auth.get("api_key_env") or "BIBER_API_KEY"),
+            "api_key_included": False,
+        },
+        "api_key_management": {
+            "admin_api": str(
+                api_key_management.get("admin_api") or "not_advertised"
+            ),
+            "admin_ui": str(api_key_management.get("admin_ui") or "not_advertised"),
+            "per_user_key_issuance": str(
+                api_key_management.get("per_user_key_issuance")
+                or "not_advertised"
+            ),
+            "admin_endpoint": str(
+                api_key_management.get("admin_endpoint")
+                or "GET/POST/DELETE /v1/admin/api-keys"
+            ),
+            "admin_key_env": str(
+                api_key_management.get("admin_key_env") or "BIBER_ADMIN_API_KEY"
+            ),
+            "user_key_env": str(
+                api_key_management.get("user_key_env") or "BIBER_API_KEY"
+            ),
             "api_key_included": False,
         },
         "client_contract": {
@@ -895,6 +937,10 @@ def build_external_agent_handoff_package(
         client_contract_report.get("required_client_env")
     )
     endpoints = require_mapping(client_contract_report.get("endpoints"))
+    api_key_management = require_mapping(
+        client_contract_report.get("api_key_management")
+        or bundle.get("api_key_management")
+    )
     readiness_status = require_mapping(
         client_contract_report.get("readiness_status")
     )
@@ -956,6 +1002,27 @@ def build_external_agent_handoff_package(
         "endpoints": {
             "models": str(endpoints.get("models") or ""),
             "chat_completions": str(endpoints.get("chat_completions") or ""),
+        },
+        "api_key_management": {
+            "admin_api": str(
+                api_key_management.get("admin_api") or "not_advertised"
+            ),
+            "admin_ui": str(api_key_management.get("admin_ui") or "not_advertised"),
+            "per_user_key_issuance": str(
+                api_key_management.get("per_user_key_issuance")
+                or "not_advertised"
+            ),
+            "admin_endpoint": str(
+                api_key_management.get("admin_endpoint")
+                or "GET/POST/DELETE /v1/admin/api-keys"
+            ),
+            "admin_key_env": str(
+                api_key_management.get("admin_key_env") or "BIBER_ADMIN_API_KEY"
+            ),
+            "user_key_env": str(
+                api_key_management.get("user_key_env") or "BIBER_API_KEY"
+            ),
+            "api_key_included": False,
         },
         "readiness_status": {
             "bundle_health_ok": bool(bundle_health.get("ok")),
@@ -2017,6 +2084,7 @@ def format_external_agent_client_contract_report_summary(
     required_env = require_mapping(payload.get("required_client_env"))
     endpoints = require_mapping(payload.get("endpoints"))
     auth = require_mapping(payload.get("auth"))
+    api_key_management = require_mapping(payload.get("api_key_management"))
     contract = require_mapping(payload.get("client_contract"))
     readiness_status = require_mapping(payload.get("readiness_status"))
     validation_steps = [
@@ -2042,6 +2110,10 @@ def format_external_agent_client_contract_report_summary(
     lines.extend(f"- {item}" for item in require_list(auth.get("accepted_headers")))
     lines.extend(
         [
+            f"admin_key_management_api: {api_key_management.get('admin_api', '-')}",
+            f"admin_key_management_ui: {api_key_management.get('admin_ui', '-')}",
+            f"per_user_key_issuance: {api_key_management.get('per_user_key_issuance', '-')}",
+            f"admin_api_keys: {api_key_management.get('admin_endpoint', '-')}",
             f"protocol: {contract.get('protocol', '-')}",
             f"streaming_supported: {bool(contract.get('streaming_supported'))}",
             "mentor_default_enabled: "
@@ -2067,6 +2139,7 @@ def format_external_agent_handoff_package_summary(
 ) -> str:
     required_env = require_mapping(payload.get("required_client_env"))
     endpoints = require_mapping(payload.get("endpoints"))
+    api_key_management = require_mapping(payload.get("api_key_management"))
     readiness_status = require_mapping(payload.get("readiness_status"))
     artifact_index = [
         item
@@ -2082,6 +2155,12 @@ def format_external_agent_handoff_package_summary(
         f"BIBER_API_KEY: {required_env.get('BIBER_API_KEY', '-')}",
         f"models_url: {endpoints.get('models', '-')}",
         f"chat_completions_url: {endpoints.get('chat_completions', '-')}",
+        "api_key_management:",
+        f"- admin_api: {api_key_management.get('admin_api', '-')}",
+        f"- admin_ui: {api_key_management.get('admin_ui', '-')}",
+        f"- per_user_key_issuance: {api_key_management.get('per_user_key_issuance', '-')}",
+        f"- admin_endpoint: {api_key_management.get('admin_endpoint', '-')}",
+        f"- api_key_included: {bool(api_key_management.get('api_key_included'))}",
         "readiness:",
         f"- bundle_health_ok: {bool(readiness_status.get('bundle_health_ok'))}",
         f"- contract_report_ok: {bool(readiness_status.get('contract_report_ok'))}",

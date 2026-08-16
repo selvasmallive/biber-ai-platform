@@ -4,6 +4,15 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 latest BIBER external-agent key-management handoff metadata checkpoint:
+In progress: carry the existing external-agent API-key management contract
+(`admin_key_management_api=mvp`, `admin_key_management_ui=planned`,
+`per_user_key_issuance=mvp`, `GET/POST/DELETE /v1/admin/api-keys`, guarded by
+`BIBER_ADMIN_API_KEY`) into the non-secret `external-agent-bundle`, client
+contract report, and handoff package artifacts. This is metadata-only and must
+not add key values, new endpoint behavior, paid external APIs, training,
+credential rotation, OpenAI mentor use, or XRIQ/XRIS work.
+
 2026-08-16 latest BIBER external-agent handoff package summary checkpoint:
 Complete: commit `f5f8ff3` (`Add BIBER external agent handoff package summary`)
 adds a stdlib `show-external-agent-handoff-package` command to
