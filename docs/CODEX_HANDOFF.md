@@ -4,16 +4,33 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
-2026-08-16 in-progress BIBER external-client env-template checkpoint:
-In progress: adding an offline `external-client-env-template` command that
-turns a saved `biber_external_client_readiness_bundle` into a non-secret
-`.env.example`-style artifact for IDE agents, gateways, and conversational
-clients. It must not resolve user/admin API keys, call BIBER, create/rotate
-credentials, call OpenAI mentor, train models, use paid external APIs, or touch
-XRIQ/XRIS work. Validate with Python `py_compile`, focused no-pytest
-env-template tests, `git diff --check`, `scripts/biber_local_confidence_smoke.py`,
-then sync and run the command on the SSH-enabled Vast checkout against the
-latest readiness bundle.
+2026-08-16 latest BIBER external-client env-template checkpoint:
+Complete: commit `f9d0e33` (`Add BIBER external client env template`) adds an
+offline `external-client-env-template` command that turns a saved
+`biber_external_client_readiness_bundle` into a non-secret `.env.example`-style
+artifact for IDE agents, gateways, and conversational clients. It writes
+`BIBER_OPENAI_BASE_URL`, `BIBER_MODEL`, and a placeholder `BIBER_API_KEY`; it
+does not resolve user/admin API keys, call BIBER, create/rotate credentials,
+call OpenAI mentor, train models, use paid external APIs, or touch XRIQ/XRIS
+work. Local validation passed Python `py_compile` with temp pycache, focused
+direct no-pytest env-template builder/CLI tests, `git diff --check`, and
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. The
+SSH-enabled Vast checkout was fast-forwarded to `f9d0e33` with a temporary git
+bundle because the Vast GitHub HTTPS remote is not credentialed; the temporary
+bundle was removed afterward. Vast passed `py_compile` and generated the
+env-template artifacts from
+`/workspace/outputs/biber-external-client-readiness-bundle-20260816T174338Z/biber-external-client-readiness-bundle-live.json`.
+The JSON artifact is
+`/workspace/outputs/biber-external-client-env-template-20260816T182335Z/biber-external-client-env-template-live.json`;
+the `.env.example` template is
+`/workspace/outputs/biber-external-client-env-template-20260816T182335Z/biber-external-client.env.example`;
+the summary is
+`/workspace/outputs/biber-external-client-env-template-20260816T182335Z/biber-external-client-env-template-summary.txt`.
+Validation confirmed `ready_for_external_client_env_template=True`,
+`BIBER_OPENAI_BASE_URL=http://127.0.0.1:8000/v1`,
+`BIBER_MODEL=biber-dev-core-v1`,
+`BIBER_API_KEY=<set-user-api-key-in-secret-store>`, and the Vast checkout
+remained clean.
 
 2026-08-16 latest BIBER external-client quickstart verification summary checkpoint:
 Complete: commit `0ba0107` (`Add BIBER external client quickstart summary`)
