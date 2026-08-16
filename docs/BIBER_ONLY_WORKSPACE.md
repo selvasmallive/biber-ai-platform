@@ -145,6 +145,11 @@ keys or call BIBER.
 Use `show-external-client-quickstart-verification <artifact.json>` to inspect a
 saved quickstart verification summary without rerunning checks, resolving API
 keys, or calling BIBER.
+Use `external-client-integration-package <bundle.json> --env-template-artifact
+<env-template.json> --quickstart-verification-artifact <quickstart.json>` to
+create one non-secret package linking readiness, env-template, quickstart
+verification, and next client steps for an IDE agent, gateway, or conversational
+app.
 Use `external-agent-smoke --output <artifact.json>` when you want readiness plus
 one short OpenAI-compatible chat-completions response in a single non-secret
 artifact. This is the preferred MVP proof before handing BIBER to an external

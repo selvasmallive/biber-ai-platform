@@ -1722,6 +1722,23 @@ def _sample_external_client_readiness_bundle(tmp_path: Path) -> dict[str, object
     )
 
 
+def _sample_external_client_integration_artifacts(
+    tmp_path: Path,
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    _write_external_client_quickstart_paths(tmp_path)
+    readiness_bundle = _sample_external_client_readiness_bundle(tmp_path)
+    env_template = client.build_external_client_env_template(
+        readiness_bundle=readiness_bundle,
+        readiness_bundle_path=str(tmp_path / "external-client-readiness.json"),
+    )
+    quickstart_verification = client.build_external_client_quickstart_verification(
+        readiness_bundle=readiness_bundle,
+        readiness_bundle_path=str(tmp_path / "external-client-readiness.json"),
+        repo_root=tmp_path,
+    )
+    return readiness_bundle, env_template, quickstart_verification
+
+
 def test_build_external_agent_bundle_health_check_is_non_secret(tmp_path: Path) -> None:
     _write_external_agent_bundle_paths(tmp_path)
     bundle = client.build_external_agent_connection_bundle(
@@ -2661,6 +2678,113 @@ def test_run_show_external_client_env_template_does_not_use_api_key(
     assert "BIBER_OPENAI_BASE_URL: https://biber.example.com/v1" in output
     assert "BIBER_API_KEY: <set-user-api-key-in-secret-store>" in output
     assert "api_key_included: False" in output
+
+
+def test_build_external_client_integration_package_is_non_secret(
+    tmp_path: Path,
+) -> None:
+    readiness_bundle, env_template, quickstart_verification = (
+        _sample_external_client_integration_artifacts(tmp_path)
+    )
+
+    result = client.build_external_client_integration_package(
+        readiness_bundle=readiness_bundle,
+        readiness_bundle_path=str(tmp_path / "external-client-readiness.json"),
+        env_template=env_template,
+        env_template_path=str(tmp_path / "external-client-env-template.json"),
+        quickstart_verification=quickstart_verification,
+        quickstart_verification_path=str(
+            tmp_path / "external-client-quickstart-verification.json"
+        ),
+    )
+    summary = client.format_external_client_integration_package_summary(result)
+    encoded = json.dumps(result, sort_keys=True)
+
+    assert result["source"] == "biber_external_client_integration_package"
+    assert result["ok"] is True
+    assert result["ready_for_external_client_integration"] is True
+    assert result["required_client_env"]["BIBER_OPENAI_BASE_URL"] == (
+        "https://biber.example.com/v1"
+    )
+    assert result["required_client_env"]["BIBER_MODEL"] == "biber-dev-core-v1"
+    assert result["required_client_env"]["BIBER_API_KEY"] == (
+        "<set-user-api-key-in-secret-store>"
+    )
+    assert result["blocked_items"] == ["admin_api_key_not_configured"]
+    assert [item["name"] for item in result["artifact_index"]] == [
+        "external_client_readiness_bundle",
+        "external_client_env_template",
+        "external_client_quickstart_verification",
+    ]
+    assert result["mutation_performed"] is False
+    assert result["api_key_included"] is False
+    assert result["admin_api_key_included"] is False
+    assert result["issued_api_key_included"] is False
+    assert result["raw_key_records_included"] is False
+    assert result["external_network_required"] is False
+    assert result["live_biber_required"] is False
+    assert result["mentor_used"] is False
+    assert result["training_allowed"] is False
+    assert "BIBER external-client integration package" in summary
+    assert "ready_for_external_client_integration: True" in summary
+    assert "external_client_env_template" in summary
+    assert "api_key_included: False" in summary
+    assert "biber_plaintext" not in encoded
+    assert "admin-secret" not in encoded
+
+
+def test_run_external_client_integration_package_does_not_use_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    readiness_path = tmp_path / "external-client-readiness-bundle.json"
+    env_template_path = tmp_path / "external-client-env-template.json"
+    quickstart_path = tmp_path / "external-client-quickstart-verification.json"
+    output_path = tmp_path / "external-client-integration-package.json"
+    readiness_bundle, env_template, quickstart_verification = (
+        _sample_external_client_integration_artifacts(tmp_path)
+    )
+    readiness_path.write_text(json.dumps(readiness_bundle), encoding="utf-8")
+    env_template_path.write_text(json.dumps(env_template), encoding="utf-8")
+    quickstart_path.write_text(json.dumps(quickstart_verification), encoding="utf-8")
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("user API key should not be resolved")
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        raise AssertionError("admin API key should not be resolved")
+
+    def fake_list_api_keys(**kwargs):
+        raise AssertionError("admin API should not be called")
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+    monkeypatch.setattr(client, "list_api_keys", fake_list_api_keys)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "external-client-integration-package",
+                str(readiness_path),
+                "--env-template-artifact",
+                str(env_template_path),
+                "--quickstart-verification-artifact",
+                str(quickstart_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+
+    artifact = json.loads(output_path.read_text(encoding="utf-8"))
+    assert "BIBER external-client integration package" in output
+    assert "ready_for_external_client_integration: True" in output
+    assert artifact["artifact_path"] == str(output_path)
+    assert artifact["ok"] is True
+    assert artifact["ready_for_external_client_integration"] is True
+    assert artifact["api_key_included"] is False
+    assert artifact["admin_api_key_included"] is False
+    assert artifact["raw_key_records_included"] is False
 
 
 def test_build_external_client_quickstart_verification_accepts_missing_admin_key(

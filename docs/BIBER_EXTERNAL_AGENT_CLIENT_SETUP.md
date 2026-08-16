@@ -103,6 +103,12 @@ python scripts/biber_agent_client.py external-client-quickstart-verify \
 python scripts/biber_agent_client.py show-external-client-quickstart-verification \
   /workspace/outputs/biber-external-client-quickstart-verification.json
 
+python scripts/biber_agent_client.py external-client-integration-package \
+  /workspace/outputs/biber-external-client-readiness-bundle.json \
+  --env-template-artifact /workspace/outputs/biber-external-client-env-template.json \
+  --quickstart-verification-artifact /workspace/outputs/biber-external-client-quickstart-verification.json \
+  --output /workspace/outputs/biber-external-client-integration-package.json
+
 python scripts/biber_agent_client.py capabilities \
   --output /workspace/outputs/biber-capabilities.json
 
@@ -155,6 +161,10 @@ engineer or agent. It checks the saved readiness bundle against the repo
 docs/examples quickstart contract without calling BIBER or resolving API keys.
 Run `show-external-client-quickstart-verification` to inspect that saved
 verification summary later without rerunning the checks or resolving API keys.
+Run `external-client-integration-package` after readiness, env-template, and
+quickstart verification are complete. It creates one non-secret package linking
+the setup artifacts and next client steps for IDE agents, gateways, or
+conversational apps.
 
 ## Minimal Client Examples
 

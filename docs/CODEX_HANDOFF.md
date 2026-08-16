@@ -4,6 +4,14 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 in-progress BIBER external-client integration package checkpoint:
+In progress: adding an offline `external-client-integration-package` command
+that links a saved readiness bundle, env-template artifact, and quickstart
+verification into one non-secret package for IDE agents, gateways, and
+conversational apps. It must not resolve user/admin API keys, call BIBER,
+create/rotate credentials, call OpenAI mentor, train models, use paid external
+APIs, or touch XRIQ/XRIS work.
+
 2026-08-16 latest BIBER external-client env-template summary checkpoint:
 Complete: commit `7d43ac1` (`Add BIBER external client env template summary`)
 adds an offline `show-external-client-env-template` command that prints a
