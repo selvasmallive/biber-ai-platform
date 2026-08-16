@@ -92,6 +92,9 @@ python scripts/biber_agent_client.py external-client-quickstart-verify \
   --repo-root /workspace/biber-ai-platform \
   --output /workspace/outputs/biber-external-client-quickstart-verification.json
 
+python scripts/biber_agent_client.py show-external-client-quickstart-verification \
+  /workspace/outputs/biber-external-client-quickstart-verification.json
+
 python scripts/biber_agent_client.py capabilities \
   --output /workspace/outputs/biber-capabilities.json
 
@@ -136,6 +139,8 @@ without rebuilding it, resolving API keys, or opening JSON.
 Run `external-client-quickstart-verify` before handing the setup to another
 engineer or agent. It checks the saved readiness bundle against the repo
 docs/examples quickstart contract without calling BIBER or resolving API keys.
+Run `show-external-client-quickstart-verification` to inspect that saved
+verification summary later without rerunning the checks or resolving API keys.
 
 ## Minimal Client Examples
 

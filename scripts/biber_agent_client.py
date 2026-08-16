@@ -23060,6 +23060,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Optional JSON artifact path.",
     )
 
+    show_external_client_quickstart_verification = subparsers.add_parser(
+        "show-external-client-quickstart-verification",
+        help=(
+            "Show a concise terminal summary for a saved external-client "
+            "quickstart verification artifact."
+        ),
+    )
+    show_external_client_quickstart_verification.add_argument("artifact")
+
     external_agent_smoke = subparsers.add_parser(
         "external-agent-smoke",
         help=(
@@ -27947,6 +27956,22 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_external_client_quickstart_verification_summary(result)
+        )
+
+    if args.command == "show-external-client-quickstart-verification":
+        verification = load_json_artifact(
+            args.artifact,
+            label="external-client-quickstart-verification artifact",
+        )
+        if verification.get("source") != "biber_external_client_quickstart_verification":
+            raise BiberAgentClientError(
+                "show-external-client-quickstart-verification requires a "
+                "biber_external_client_quickstart_verification artifact."
+            )
+        return (
+            json.dumps(verification, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_client_quickstart_verification_summary(verification)
         )
 
     if args.command == "external-agent-smoke":

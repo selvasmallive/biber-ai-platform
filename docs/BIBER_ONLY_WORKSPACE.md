@@ -135,6 +135,9 @@ Use `external-client-quickstart-verify <bundle.json> --repo-root <repo>` before
 handoff to confirm the saved readiness bundle, docs, examples, env names, and
 setup command mentions still line up. It is offline and does not resolve API
 keys or call BIBER.
+Use `show-external-client-quickstart-verification <artifact.json>` to inspect a
+saved quickstart verification summary without rerunning checks, resolving API
+keys, or calling BIBER.
 Use `external-agent-smoke --output <artifact.json>` when you want readiness plus
 one short OpenAI-compatible chat-completions response in a single non-secret
 artifact. This is the preferred MVP proof before handing BIBER to an external

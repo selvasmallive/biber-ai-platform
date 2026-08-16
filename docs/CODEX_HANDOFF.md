@@ -4,6 +4,14 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 latest BIBER external-client quickstart verification summary checkpoint:
+In progress: adding a stdlib `show-external-client-quickstart-verification`
+command to print a concise terminal summary from a saved
+`biber_external_client_quickstart_verification` artifact without rerunning
+checks, opening JSON, resolving user/admin API keys, calling BIBER,
+creating/rotating credentials, calling OpenAI mentor, training models, using
+paid external APIs, or touching XRIQ/XRIS work.
+
 2026-08-16 latest BIBER external-client quickstart verification checkpoint:
 Complete: commit `612a0fa` (`Add BIBER external client quickstart verifier`)
 adds a stdlib `external-client-quickstart-verify` command that validates a saved

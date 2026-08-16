@@ -2640,6 +2640,74 @@ def test_run_external_client_quickstart_verify_does_not_use_api_key(
     assert artifact["raw_key_records_included"] is False
 
 
+def test_run_show_external_client_quickstart_verification_does_not_use_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    _write_external_client_quickstart_paths(tmp_path)
+    verification_path = tmp_path / "external-client-quickstart-verification.json"
+    handoff = {
+        "source": "biber_external_agent_handoff_package",
+        "ok": True,
+        "ready_for_client_handoff": True,
+        "required_client_env": {
+            "BIBER_OPENAI_BASE_URL": "https://biber.example.com/v1",
+            "BIBER_MODEL": "biber-dev-core-v1",
+            "BIBER_API_KEY": "<set-user-api-key-in-secret-store>",
+        },
+        "endpoints": {
+            "models": "https://biber.example.com/v1/models",
+            "chat_completions": "https://biber.example.com/v1/chat/completions",
+        },
+        "readiness_status": {
+            "bundle_health_ok": True,
+            "contract_report_ok": True,
+            "chat_smoke_included": True,
+            "chat_smoke_ok": True,
+        },
+    }
+    admin_smoke = client.build_admin_api_key_contract_smoke_blocked_result(
+        base_url="http://biber.local",
+        blocked_reason="BIBER_ADMIN_API_KEY not configured",
+    )
+    readiness_bundle = client.build_external_client_readiness_bundle(
+        handoff_package=handoff,
+        handoff_package_path=str(tmp_path / "external-agent-handoff-package.json"),
+        admin_smoke=admin_smoke,
+        admin_smoke_path=str(tmp_path / "admin-api-key-contract-smoke.json"),
+    )
+    verification = client.build_external_client_quickstart_verification(
+        readiness_bundle=readiness_bundle,
+        readiness_bundle_path=str(tmp_path / "external-client-readiness.json"),
+        repo_root=tmp_path,
+    )
+    verification_path.write_text(json.dumps(verification), encoding="utf-8")
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("user API key should not be resolved")
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        raise AssertionError("admin API key should not be resolved")
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "show-external-client-quickstart-verification",
+                str(verification_path),
+            ]
+        )
+    )
+
+    assert "BIBER external-client quickstart verification" in output
+    assert "ready_for_external_client_quickstart: True" in output
+    assert "admin_api_key_not_configured" in output
+    assert "missing_docs: -" in output
+    assert "api_key_included: False" in output
+
+
 def test_run_external_agent_smoke_uses_user_key_and_default_model(
     monkeypatch,
     tmp_path: Path,

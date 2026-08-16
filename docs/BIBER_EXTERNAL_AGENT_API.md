@@ -108,6 +108,8 @@ python scripts/biber_agent_client.py external-client-quickstart-verify \
   /workspace/outputs/biber-external-client-readiness-bundle.json \
   --repo-root /workspace/biber-ai-platform \
   --output /workspace/outputs/biber-external-client-quickstart-verification.json
+python scripts/biber_agent_client.py show-external-client-quickstart-verification \
+  /workspace/outputs/biber-external-client-quickstart-verification.json
 python scripts/biber_agent_client.py external-agent-smoke \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-smoke.json
@@ -155,6 +157,9 @@ key-management as blocked.
 without rebuilding it, resolving API keys, or opening JSON.
 `external-client-quickstart-verify` checks a saved readiness bundle against the
 repo docs/examples quickstart contract without calling BIBER or resolving API
+keys.
+`show-external-client-quickstart-verification` prints a saved quickstart
+verification summary without rerunning checks, calling BIBER, or resolving API
 keys.
 `external-agent-smoke` runs readiness plus one short chat-completions request
 and saves a single non-secret end-to-end setup proof. It keeps OpenAI mentor
