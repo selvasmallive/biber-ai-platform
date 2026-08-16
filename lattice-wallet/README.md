@@ -97,8 +97,9 @@ dApp's QR code** (camera), **paste** its `wc:` link, or let a **deep link auto-p
 tapping "Lattice" in a mobile dApp opens the app via `lattice://wc?uri=…` and pairs
 automatically (`extractWcUri` is unit-tested). Approve the session, and each request is
 confirmed on-device behind biometrics with a **human-readable "what am I signing" screen**. Supported EVM methods:
-`personal_sign`, `eth_signTypedData` / `_v4`, and `eth_sendTransaction`, across the EVM
-chains Lattice ships (Ethereum, Polygon, Base, Sepolia). The **EIP-191 and EIP-712 v4
+`personal_sign`, `eth_signTypedData` / `_v4`, `eth_sendTransaction`, and
+`wallet_switchEthereumChain` (EIP-3326 — auto-acknowledged for supported chains, `4902` for
+others), across the EVM chains Lattice ships (Ethereum, Polygon, Base, Sepolia). The **EIP-191 and EIP-712 v4
 hashing is verified against ethers** (`__tests__/evm-sign-vectors.ts`); signatures always
 recover to the signer. WalletKit has native dependencies, so this requires a custom dev/EAS
 build (it does not run in Expo Go), and the live pairing handshake is best tested against a

@@ -17,7 +17,7 @@ import { personalSign, signTypedDataV4, type TypedData } from '../core/chains/ev
 import { extractWcUri } from '../core/deeplink';
 import * as keystore from '../core/keystore';
 
-const EVM_METHODS = ['eth_sendTransaction', 'personal_sign', 'eth_signTypedData', 'eth_signTypedData_v4'];
+const EVM_METHODS = ['eth_sendTransaction', 'personal_sign', 'eth_signTypedData', 'eth_signTypedData_v4', 'wallet_switchEthereumChain'];
 const EVM_EVENTS = ['chainChanged', 'accountsChanged'];
 
 export interface WcSession {
@@ -41,6 +41,41 @@ interface WcState {
   rejectRequest: () => Promise<void>;
   disconnect: (topic: string) => Promise<void>;
   clearError: () => void;
+}
+
+/**
+ * Handle EIP-3326 wallet_switchEthereumChain. Params: [{ chainId: '0x89' }] (hex). We reply
+ * `null` (success) for chains Lattice supports — the session already granted every EVM chain,
+ * so switching between them needs no signature — and notify the dApp via `chainChanged`.
+ * Unsupported chains return error 4902 so the dApp can offer to add the chain.
+ */
+async function handleSwitchChain(kit: IWalletKit, event: any): Promise<void> {
+  const { topic, id } = event;
+  const requested: string | undefined = event?.params?.request?.params?.[0]?.chainId;
+  let num = NaN;
+  try {
+    if (requested) num = Number(BigInt(requested));
+  } catch {
+    /* invalid hex */
+  }
+  const supported = Number.isFinite(num) && !!evmConfigByChainId(num);
+  try {
+    if (supported) {
+      await kit.respondSessionRequest({ topic, response: { id, jsonrpc: '2.0', result: null } });
+      try {
+        await kit.emitSessionEvent({ topic, event: { name: 'chainChanged', data: num }, chainId: `eip155:${num}` });
+      } catch {
+        /* emitting the event is best-effort */
+      }
+    } else {
+      await kit.respondSessionRequest({
+        topic,
+        response: { id, jsonrpc: '2.0', error: { code: 4902, message: `Unrecognized chain id ${requested ?? ''}`.trim() } },
+      });
+    }
+  } catch {
+    /* a failed response is non-fatal */
+  }
 }
 
 const Ctx = createContext<WcState | null>(null);
@@ -77,7 +112,16 @@ export function WalletConnectProvider({ children }: { children: React.ReactNode 
         if (!alive) return;
         kitRef.current = kit;
         kit.on('session_proposal', (p: any) => setProposal(p));
-        kit.on('session_request', (r: any) => setRequest(r));
+        kit.on('session_request', (r: any) => {
+          // wallet_switchEthereumChain (EIP-3326) is a chain-switch acknowledgement, not a
+          // signature — handle it automatically (no biometric, no approval modal): succeed for
+          // chains we support, else return 4902 so the dApp can offer to add it.
+          if (r?.params?.request?.method === 'wallet_switchEthereumChain') {
+            void handleSwitchChain(kit, r);
+            return;
+          }
+          setRequest(r);
+        });
         kit.on('session_delete', () => refreshSessions());
         refreshSessions();
         setReady(true);
