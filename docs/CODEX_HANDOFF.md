@@ -5,12 +5,22 @@ Last updated: 2026-08-16
 ## Current Goal
 
 2026-08-16 latest BIBER admin API-key missing-key artifact checkpoint:
-In progress: add `--allow-missing-admin-key` to
-`admin-api-key-contract-smoke`. Default behavior should remain strict, but this
-flag should write a redacted blocked artifact when `BIBER_ADMIN_API_KEY` is not
-configured, without calling the admin list endpoint, issuing/revoking/rotating
-keys, printing credentials, using OpenAI mentor, training, paid external APIs,
-or touching XRIQ/XRIS.
+Complete: commit `d5101c8` (`Add BIBER admin smoke missing key artifact`) adds
+`--allow-missing-admin-key` to `admin-api-key-contract-smoke`. Default behavior
+remains strict, but this flag writes a redacted blocked artifact when
+`BIBER_ADMIN_API_KEY` is not configured, without calling the admin list endpoint,
+issuing/revoking/rotating keys, or printing credentials. Local validation passed
+Python `py_compile` with temp pycache, `git diff --check`, direct no-pytest
+missing-key artifact tests, and `scripts/biber_local_confidence_smoke.py` with
+`ok=True` and 11 checks. The SSH-enabled Vast checkout fast-forwarded to
+`d5101c8`, passed `py_compile`, and generated a blocked artifact at
+`/workspace/outputs/biber-admin-api-key-missing-key-20260816T171602Z/biber-admin-api-key-contract-smoke-missing-key-live.json`.
+The Vast summary reports `ok=False`, `blocked=True`,
+`mutation_performed=False`, `api_key_included=False`,
+`admin_api_key_included=False`, `issued_api_key_included=False`, and
+`raw_key_records_included=False`; the checkout remained clean. No credentials
+were created, rotated, resolved, or printed. No OpenAI mentor, training, paid
+external APIs, or XRIQ/XRIS work was used.
 
 2026-08-16 latest BIBER admin API-key contract smoke checkpoint:
 Complete: commit `7b23890` (`Add BIBER admin API key contract smoke`) adds a
