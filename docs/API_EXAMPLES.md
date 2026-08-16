@@ -119,6 +119,8 @@ python scripts/biber_agent_client.py external-client-readiness-bundle \
   /workspace/outputs/biber-external-agent-handoff-package.json \
   --admin-smoke-artifact /workspace/outputs/biber-admin-api-key-contract-smoke.json \
   --output /workspace/outputs/biber-external-client-readiness-bundle.json
+python scripts/biber_agent_client.py show-external-client-readiness-bundle \
+  /workspace/outputs/biber-external-client-readiness-bundle.json
 python scripts/biber_agent_client.py external-agent-smoke \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-smoke.json
@@ -163,6 +165,8 @@ Gemini Code Assist, custom IDE agents, gateways, or conversational apps. A
 blocked missing-admin-key smoke artifact is accepted so the bundle can still
 confirm model-source client readiness while making the admin-key blocker
 explicit.
+Use `show-external-client-readiness-bundle` to inspect the saved checklist later
+without rebuilding it or resolving API keys.
 Use `external-agent-smoke` when you want one combined non-secret proof that the
 readiness probes pass and `/v1/chat/completions` returns a short local model
 response with OpenAI mentor off.

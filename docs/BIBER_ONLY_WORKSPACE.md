@@ -129,6 +129,8 @@ Assist, custom IDE agents, gateways, or conversational apps. A blocked
 the bundle can still report `ready_for_external_client_configuration=true` while
 keeping `admin_key_management_ready=false` until the server is deliberately
 configured with `BIBER_ADMIN_API_KEY`.
+Use `show-external-client-readiness-bundle <bundle.json>` to inspect that saved
+checklist later without rebuilding it, resolving API keys, or opening JSON.
 Use `external-agent-smoke --output <artifact.json>` when you want readiness plus
 one short OpenAI-compatible chat-completions response in a single non-secret
 artifact. This is the preferred MVP proof before handing BIBER to an external

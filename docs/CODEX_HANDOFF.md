@@ -4,6 +4,14 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 latest BIBER external-client readiness bundle summary checkpoint:
+In progress: adding a stdlib `show-external-client-readiness-bundle` command to
+print a concise terminal summary from a saved
+`biber_external_client_readiness_bundle` artifact without rebuilding it, opening
+JSON, resolving user/admin API keys, calling BIBER, creating/rotating
+credentials, calling OpenAI mentor, training models, using paid external APIs,
+or touching XRIQ/XRIS work.
+
 2026-08-16 latest BIBER external-client readiness bundle checkpoint:
 Complete: commit `2c15b3c` (`Add BIBER external client readiness bundle`) adds
 a stdlib `external-client-readiness-bundle` command that combines a saved

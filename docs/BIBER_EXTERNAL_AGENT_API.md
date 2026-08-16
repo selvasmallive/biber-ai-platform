@@ -102,6 +102,8 @@ python scripts/biber_agent_client.py external-client-readiness-bundle \
   /workspace/outputs/biber-external-agent-handoff-package.json \
   --admin-smoke-artifact /workspace/outputs/biber-admin-api-key-contract-smoke.json \
   --output /workspace/outputs/biber-external-client-readiness-bundle.json
+python scripts/biber_agent_client.py show-external-client-readiness-bundle \
+  /workspace/outputs/biber-external-client-readiness-bundle.json
 python scripts/biber_agent_client.py external-agent-smoke \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-smoke.json
@@ -145,6 +147,8 @@ for external IDE agents, conversational apps, and API gateways. If
 `admin-api-key-contract-smoke --allow-missing-admin-key`; the readiness bundle
 can still confirm model-source client configuration while reporting admin
 key-management as blocked.
+`show-external-client-readiness-bundle` prints a saved readiness-bundle summary
+without rebuilding it, resolving API keys, or opening JSON.
 `external-agent-smoke` runs readiness plus one short chat-completions request
 and saves a single non-secret end-to-end setup proof. It keeps OpenAI mentor
 off.

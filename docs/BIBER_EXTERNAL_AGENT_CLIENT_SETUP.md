@@ -84,6 +84,9 @@ python scripts/biber_agent_client.py external-client-readiness-bundle \
   --admin-smoke-artifact /workspace/outputs/biber-admin-api-key-contract-smoke.json \
   --output /workspace/outputs/biber-external-client-readiness-bundle.json
 
+python scripts/biber_agent_client.py show-external-client-readiness-bundle \
+  /workspace/outputs/biber-external-client-readiness-bundle.json
+
 python scripts/biber_agent_client.py capabilities \
   --output /workspace/outputs/biber-capabilities.json
 
@@ -123,6 +126,8 @@ status. If the admin key is not configured yet, use the blocked
 `admin-api-key-contract-smoke --allow-missing-admin-key` artifact; the bundle can
 still be ready for client configuration while reporting
 `admin_key_management_ready=false`.
+Run `show-external-client-readiness-bundle` to inspect the saved checklist later
+without rebuilding it, resolving API keys, or opening JSON.
 
 ## Minimal Client Examples
 

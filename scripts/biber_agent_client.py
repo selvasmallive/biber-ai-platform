@@ -22770,6 +22770,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Optional JSON artifact path.",
     )
 
+    show_external_client_readiness_bundle = subparsers.add_parser(
+        "show-external-client-readiness-bundle",
+        help=(
+            "Show a concise terminal summary for a saved external-client "
+            "readiness bundle."
+        ),
+    )
+    show_external_client_readiness_bundle.add_argument("artifact")
+
     external_agent_smoke = subparsers.add_parser(
         "external-agent-smoke",
         help=(
@@ -27617,6 +27626,22 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_external_client_readiness_bundle_summary(result)
+        )
+
+    if args.command == "show-external-client-readiness-bundle":
+        readiness_bundle = load_json_artifact(
+            args.artifact,
+            label="external-client-readiness-bundle artifact",
+        )
+        if readiness_bundle.get("source") != "biber_external_client_readiness_bundle":
+            raise BiberAgentClientError(
+                "show-external-client-readiness-bundle requires a "
+                "biber_external_client_readiness_bundle artifact."
+            )
+        return (
+            json.dumps(readiness_bundle, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_client_readiness_bundle_summary(readiness_bundle)
         )
 
     if args.command == "external-agent-smoke":
