@@ -5,15 +5,28 @@ Last updated: 2026-08-16
 ## Current Goal
 
 2026-08-16 latest BIBER external-agent handoff package summary checkpoint:
-In progress: add a stdlib `show-external-agent-handoff-package` command to
+Complete: commit `f5f8ff3` (`Add BIBER external agent handoff package summary`)
+adds a stdlib `show-external-agent-handoff-package` command to
 `scripts/biber_agent_client.py` so a future Codex/BIBER session or gateway
 engineer can inspect a saved non-secret handoff package from the terminal
-without opening JSON, resolving API keys, calling the local model, using OpenAI
-mentor, training, rotating credentials, or touching XRIQ/XRIS. Planned local
-checks: Python `py_compile` with temp pycache, `git diff --check`, a direct
-no-pytest summary-command harness, and `scripts/biber_local_confidence_smoke.py`.
-Planned Vast check: run the new command against
+without opening JSON. The generated `external-agent-bundle` validation commands
+now include `show_handoff_package`. Docs were updated in
+`docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md`,
+`docs/BIBER_EXTERNAL_AGENT_API.md`, `docs/API_EXAMPLES.md`, and
+`docs/BIBER_ONLY_WORKSPACE.md`. Local validation passed Python `py_compile` with
+a temp pycache, `git diff --check`, a direct no-pytest
+`show-external-agent-handoff-package` harness, and
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. The
+SSH-enabled Vast checkout fast-forwarded to `f5f8ff3`, read the instance guide,
+passed `py_compile`, and ran `show-external-agent-handoff-package` against
 `/workspace/outputs/biber-external-agent-handoff-package-20260816T005648Z/biber-external-agent-handoff-package-live.json`.
+The Vast summary confirmed `ready_for_client_handoff=True`,
+`BIBER_OPENAI_BASE_URL=http://127.0.0.1:8000/v1`,
+`BIBER_MODEL=biber-dev-core-v1`, `bundle_chat_smoke` linked, and
+`api_key_included=False`; the Vast checkout remained clean. No API key was
+printed or resolved, no local model call, OpenAI mentor call, training,
+credential rotation, paid external API, or XRIQ/XRIS work was used for this
+checkpoint.
 
 2026-08-16 latest BIBER external-agent handoff package checkpoint:
 Complete: BIBER MVP now has a stdlib `external-agent-handoff-package` command
