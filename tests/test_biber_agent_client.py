@@ -2997,6 +2997,87 @@ def test_run_show_external_client_live_smoke_plan_does_not_use_api_key(
     assert "api_key_included: False" in output
 
 
+def test_run_show_latest_external_client_live_smoke_plan_selects_newest(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    older_path = tmp_path / "older-external-client-live-smoke-plan.json"
+    newer_path = tmp_path / "newer-external-client-live-smoke-plan.json"
+    readiness_bundle, env_template, quickstart_verification = (
+        _sample_external_client_integration_artifacts(tmp_path)
+    )
+    package = client.build_external_client_integration_package(
+        readiness_bundle=readiness_bundle,
+        readiness_bundle_path=str(tmp_path / "external-client-readiness.json"),
+        env_template=env_template,
+        env_template_path=str(tmp_path / "external-client-env-template.json"),
+        quickstart_verification=quickstart_verification,
+        quickstart_verification_path=str(
+            tmp_path / "external-client-quickstart-verification.json"
+        ),
+    )
+    plan = client.build_external_client_live_smoke_plan(
+        integration_package=package,
+        integration_package_path=str(tmp_path / "external-client-package.json"),
+    )
+    older = dict(plan)
+    older["required_client_env"] = dict(plan["required_client_env"])
+    older["required_client_env"]["BIBER_MODEL"] = "older-model"
+    newer = dict(plan)
+    newer["required_client_env"] = dict(plan["required_client_env"])
+    newer["required_client_env"]["BIBER_MODEL"] = "newer-model"
+    older_path.write_text(json.dumps(older), encoding="utf-8")
+    newer_path.write_text(json.dumps(newer), encoding="utf-8")
+    os.utime(older_path, (100, 100))
+    os.utime(newer_path, (200, 200))
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("user API key should not be resolved")
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        raise AssertionError("admin API key should not be resolved")
+
+    def fake_create_chat_completion(**kwargs):
+        raise AssertionError("live chat should not be called")
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+    monkeypatch.setattr(client, "create_chat_completion", fake_create_chat_completion)
+
+    latest = json.loads(
+        client.run(
+            client.parse_args(
+                [
+                    "--json",
+                    "show-latest-external-client-live-smoke-plan",
+                    str(tmp_path),
+                    "--pattern",
+                    "*external-client-live-smoke-plan*.json",
+                ]
+            )
+        )
+    )
+    latest_summary = client.run(
+        client.parse_args(
+            [
+                "show-latest-external-client-live-smoke-plan",
+                str(tmp_path),
+                "--pattern",
+                "*external-client-live-smoke-plan*.json",
+            ]
+        )
+    )
+
+    assert latest["source"] == "biber_external_client_live_smoke_plan"
+    assert latest["artifact_path"] == str(newer_path)
+    assert latest["artifact_list"]["matched"] == 2
+    assert latest["required_client_env"]["BIBER_MODEL"] == "newer-model"
+    assert "BIBER external-client live smoke plan" in latest_summary
+    assert f"artifact_path: {newer_path}" in latest_summary
+    assert "BIBER_MODEL: newer-model" in latest_summary
+    assert "api_key_included: False" in latest_summary
+
+
 def test_build_external_client_quickstart_verification_accepts_missing_admin_key(
     tmp_path: Path,
 ) -> None:

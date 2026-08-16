@@ -1909,6 +1909,90 @@ def build_external_client_live_smoke_plan(
     }
 
 
+def normalize_external_client_live_smoke_plan_artifact(
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if payload.get("source") != "biber_external_client_live_smoke_plan":
+        return None
+    return dict(payload)
+
+
+def find_latest_external_client_live_smoke_plan_artifact(
+    *,
+    directory: str,
+    pattern: str,
+) -> dict[str, Any]:
+    root = Path(directory)
+    if not root.exists():
+        raise BiberAgentClientError(
+            f"External-client live-smoke-plan artifact directory does not exist: {root}"
+        )
+    if not root.is_dir():
+        raise BiberAgentClientError(
+            f"External-client live-smoke-plan artifact path is not a directory: {root}"
+        )
+
+    scanned = 0
+    matches: list[dict[str, Any]] = []
+    for path in root.rglob(pattern):
+        if not path.is_file():
+            continue
+        scanned += 1
+        try:
+            raw_payload = load_json_artifact(
+                str(path),
+                label="external-client live-smoke-plan artifact",
+            )
+        except BiberAgentClientError:
+            continue
+        normalized = normalize_external_client_live_smoke_plan_artifact(raw_payload)
+        if normalized is None:
+            continue
+        matches.append(
+            {
+                "path": str(path),
+                "modified_epoch": path.stat().st_mtime,
+                "ok": normalized.get("ok"),
+                "ready_for_external_client_live_smoke_plan": normalized.get(
+                    "ready_for_external_client_live_smoke_plan"
+                ),
+            }
+        )
+
+    matches.sort(
+        key=lambda item: float(item.get("modified_epoch") or 0.0),
+        reverse=True,
+    )
+    latest = next(iter(matches), None)
+    if not isinstance(latest, dict):
+        raise BiberAgentClientError(
+            "No matching external-client live-smoke-plan artifact found."
+        )
+    raw_payload = load_json_artifact(
+        str(latest.get("path")),
+        label="external-client live-smoke-plan artifact",
+    )
+    normalized = normalize_external_client_live_smoke_plan_artifact(raw_payload)
+    if normalized is None:
+        raise BiberAgentClientError(
+            "latest external-client live-smoke-plan artifact must have source "
+            "biber_external_client_live_smoke_plan."
+        )
+    return {
+        **normalized,
+        "artifact_path": latest.get("path"),
+        "artifact_list": {
+            "source": "biber_external_client_live_smoke_plan_artifact_list",
+            "directory": str(root),
+            "pattern": pattern,
+            "scanned": scanned,
+            "matched": len(matches),
+            "latest_path": latest.get("path"),
+            "latest_modified_epoch": latest.get("modified_epoch"),
+        },
+    }
+
+
 def build_external_agent_smoke_result(
     *,
     readiness: Mapping[str, Any],
@@ -3354,6 +3438,7 @@ def format_external_client_live_smoke_plan_summary(payload: Mapping[str, Any]) -
         f"ok: {bool(payload.get('ok'))}",
         "ready_for_external_client_live_smoke_plan: "
         + str(bool(payload.get("ready_for_external_client_live_smoke_plan"))),
+        f"artifact_path: {payload.get('artifact_path', '-')}",
         f"integration_package_artifact: {payload.get('integration_package_artifact', '-')}",
         f"BIBER_OPENAI_BASE_URL: {required_env.get('BIBER_OPENAI_BASE_URL', '-')}",
         f"BIBER_MODEL: {required_env.get('BIBER_MODEL', '-')}",
@@ -23777,6 +23862,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     show_external_client_live_smoke_plan.add_argument("artifact")
 
+    show_latest_external_client_live_smoke_plan = subparsers.add_parser(
+        "show-latest-external-client-live-smoke-plan",
+        help=(
+            "Find and summarize the newest saved external-client "
+            "live-smoke-plan artifact."
+        ),
+    )
+    show_latest_external_client_live_smoke_plan.add_argument("directory")
+    show_latest_external_client_live_smoke_plan.add_argument(
+        "--pattern",
+        default="*external-client-live-smoke-plan*.json",
+    )
+
     external_client_quickstart_verify = subparsers.add_parser(
         "external-client-quickstart-verify",
         help=(
@@ -28814,6 +28912,17 @@ def run(args: argparse.Namespace) -> str:
                 "show-external-client-live-smoke-plan requires a "
                 "biber_external_client_live_smoke_plan artifact."
             )
+        return (
+            json.dumps(plan, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_client_live_smoke_plan_summary(plan)
+        )
+
+    if args.command == "show-latest-external-client-live-smoke-plan":
+        plan = find_latest_external_client_live_smoke_plan_artifact(
+            directory=args.directory,
+            pattern=args.pattern,
+        )
         return (
             json.dumps(plan, indent=2, sort_keys=True)
             if args.print_json

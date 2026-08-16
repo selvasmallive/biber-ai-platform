@@ -119,6 +119,9 @@ python scripts/biber_agent_client.py external-client-live-smoke-plan \
 python scripts/biber_agent_client.py show-external-client-live-smoke-plan \
   /workspace/outputs/biber-external-client-live-smoke-plan.json
 
+python scripts/biber_agent_client.py show-latest-external-client-live-smoke-plan \
+  /workspace/outputs
+
 python scripts/biber_agent_client.py capabilities \
   --output /workspace/outputs/biber-capabilities.json
 
@@ -182,6 +185,8 @@ commands to run later from the consuming client host after a user
 `BIBER_API_KEY` is configured.
 Run `show-external-client-live-smoke-plan` to inspect the saved live-smoke plan
 later without regenerating it, resolving keys, or calling BIBER.
+Run `show-latest-external-client-live-smoke-plan` to find the newest saved
+live-smoke plan under an outputs directory and print the same read-only summary.
 
 ## Minimal Client Examples
 

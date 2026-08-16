@@ -4,6 +4,22 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 latest BIBER external-client latest live smoke plan summary checkpoint:
+In progress: local edits add an offline
+`show-latest-external-client-live-smoke-plan <outputs-dir>` command that scans
+saved JSON artifacts for the newest `biber_external_client_live_smoke_plan` and
+prints the same concise read-only summary as
+`show-external-client-live-smoke-plan`. The command must not resolve
+user/admin API keys, call BIBER, create/rotate credentials, call OpenAI mentor,
+train models, use paid external APIs, or touch XRIQ/XRIS work. Validate locally
+with Python `py_compile` using a temp pycache, a focused direct no-pytest latest
+show-command test, `git diff --check`, and
+`scripts/biber_local_confidence_smoke.py`; then commit/push to
+`biber/mvp-resume-20260712`, fast-forward Vast with a temporary git bundle, run
+Vast `py_compile`, run the latest show command against `/workspace/outputs`,
+save a summary artifact, remove the temporary bundle, and confirm both local and
+Vast checkouts are clean.
+
 2026-08-16 latest BIBER external-client live smoke plan summary checkpoint:
 Complete: commit `19eae80` (`Add BIBER external client live smoke plan
 summary`) adds an offline `show-external-client-live-smoke-plan` command that

@@ -128,6 +128,8 @@ python scripts/biber_agent_client.py external-client-live-smoke-plan \
   --output /workspace/outputs/biber-external-client-live-smoke-plan.json
 python scripts/biber_agent_client.py show-external-client-live-smoke-plan \
   /workspace/outputs/biber-external-client-live-smoke-plan.json
+python scripts/biber_agent_client.py show-latest-external-client-live-smoke-plan \
+  /workspace/outputs
 python scripts/biber_agent_client.py external-agent-smoke \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-smoke.json
@@ -195,6 +197,8 @@ after a user API key is configured. The plan itself does not call BIBER or
 resolve keys.
 `show-external-client-live-smoke-plan` prints a saved live-smoke-plan summary
 without regenerating it, calling BIBER, or resolving keys.
+`show-latest-external-client-live-smoke-plan` finds the newest saved live-smoke
+plan under an outputs directory and prints the same read-only summary.
 `external-agent-smoke` runs readiness plus one short chat-completions request
 and saves a single non-secret end-to-end setup proof. It keeps OpenAI mentor
 off.
