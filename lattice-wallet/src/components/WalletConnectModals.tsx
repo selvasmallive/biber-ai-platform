@@ -171,6 +171,38 @@ export function WalletConnectModals() {
           </View>
         </View>
       </Modal>
+
+      {/* Add network (EIP-3085) */}
+      <Modal visible={!!wc.addChainRequest} transparent animationType="slide" onRequestClose={wc.rejectAddChain}>
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <Text style={styles.title}>Add network</Text>
+            {wc.addChainRequest && (
+              <>
+                <Text style={styles.body}>A dApp wants Lattice to add a new EVM network.</Text>
+                <View style={styles.reqBox}>
+                  <Text style={styles.reqLine} selectable>Name: {wc.addChainRequest.config.name}</Text>
+                  <Text style={styles.reqLine} selectable>Chain id: {wc.addChainRequest.config.evmChainId}</Text>
+                  <Text style={styles.reqLine} selectable>Symbol: {wc.addChainRequest.config.symbol}</Text>
+                  <Text style={styles.reqLine} selectable>RPC: {wc.addChainRequest.config.rpcUrl}</Text>
+                </View>
+                <View style={styles.warnBox}>
+                  <Text style={styles.warnText}>
+                    ⚠ Adding a network trusts its RPC endpoint with your balance and transaction
+                    queries. Lattice will verify the RPC reports this chain id before adding it.
+                    Only add networks you recognize.
+                  </Text>
+                </View>
+              </>
+            )}
+            {wc.error && <Text style={styles.err}>{wc.error}</Text>}
+            <View style={styles.actions}>
+              <Button title="Reject" variant="ghost" onPress={wc.rejectAddChain} style={styles.flex} />
+              <Button title="Add network" onPress={wc.approveAddChain} loading={wc.busy} style={styles.flex} />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
