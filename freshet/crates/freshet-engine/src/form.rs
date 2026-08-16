@@ -88,6 +88,26 @@ impl FormSet {
         Ok(set)
     }
 
+    /// Build a return from the federal form plus one province.
+    ///
+    /// The federal T1 is three quarters of the return and identical everywhere,
+    /// so it is stored once and composed with a provincial form at load time.
+    /// Keeping this in the engine rather than in the loader is deliberate: the
+    /// id index is an invariant of `FormSet`, and code that appends lines
+    /// without rebuilding it produces a set that silently cannot resolve them.
+    ///
+    /// Reindexing also enforces the rule that matters once there are thirteen
+    /// provincial files — a province that defines a line the federal form
+    /// already owns is rejected as a duplicate rather than quietly shadowing it.
+    pub fn compose(mut federal: FormSet, provincial: FormSet) -> Result<FormSet, EngineError> {
+        federal.lines.extend(provincial.lines);
+        federal.checks.extend(provincial.checks);
+        federal.province = provincial.province;
+        federal.reindex()?;
+
+        Ok(federal)
+    }
+
     fn reindex(&mut self) -> Result<(), EngineError> {
         self.index.clear();
         for (i, line) in self.lines.iter().enumerate() {

@@ -12,6 +12,14 @@ pub const ON_2025: &str = include_str!("../data/on-2025.json");
 pub const FED_2026: &str = include_str!("../data/fed-2026.json");
 pub const ON_2026: &str = include_str!("../data/on-2026.json");
 
+/// The federal T1, shared by every province.
+///
+/// Kept separate from the provincial forms because it is roughly three quarters
+/// of the return. Holding a copy per jurisdiction would mean a federal
+/// correction had to be made thirteen times identically — and the federal data
+/// in this repository has already needed four corrections.
+pub const T1_FEDERAL: &str = include_str!("../data/t1-federal.json");
+
 /// One form definition serves every year whose *structure* is unchanged; only
 /// the parameter pack differs. This is the payoff from keeping the tax rules as
 /// data — a new year is a pack, not a fork. It splits into per-year files the
@@ -66,14 +74,23 @@ pub fn packs(year: u16, province: &str) -> Result<PackSet, EngineError> {
     })
 }
 
-/// T1 form definitions for a return.
+/// T1 form definitions for a return: the federal form with one province
+/// composed into it.
+///
+/// The engine resolves lines as a DAG keyed by id, so composition is a
+/// concatenation — provincial lines reference `fed.*` ids and are resolved in
+/// dependency order regardless of which file they arrived in.
 pub fn t1_forms(year: u16, province: &str) -> Result<FormSet, EngineError> {
-    let src = match (year, province) {
+    let provincial = match (year, province) {
         (2025 | 2026, "on") => T1_ON,
         _ => return Err(unsupported(year, province)),
     };
 
-    let mut forms = FormSet::from_json(src)?;
+    let mut forms = FormSet::compose(
+        FormSet::from_json(T1_FEDERAL)?,
+        FormSet::from_json(provincial)?,
+    )?;
+
     forms.tax_year = year;
     Ok(forms)
 }
@@ -89,6 +106,47 @@ mod tests {
                 packs(year, prov).expect("pack parses");
                 t1_forms(year, prov).expect("forms parse");
             }
+        }
+    }
+
+    /// The federal return is stored once. If a future province were to be
+    /// pasted in whole rather than written as a provincial supplement, this is
+    /// what would catch it.
+    #[test]
+    fn the_federal_form_is_not_duplicated_per_province() {
+        let federal = FormSet::from_json(T1_FEDERAL).unwrap();
+        let ontario = FormSet::from_json(T1_ON).unwrap();
+
+        assert!(
+            ontario.lines.iter().all(|l| l.id.starts_with("on.")),
+            "a provincial form defined a non-provincial line"
+        );
+        assert!(
+            federal.lines.iter().any(|l| l.id.starts_with("fed.")),
+            "the federal form lost its federal lines"
+        );
+
+        // Composing them is what the loader does, and the result is the whole
+        // return.
+        let composed = t1_forms(2026, "on").unwrap();
+        assert_eq!(composed.lines.len(), federal.lines.len() + ontario.lines.len());
+    }
+
+    /// A province that redefines a federal line must be rejected, not silently
+    /// allowed to shadow it. With one province this is theoretical; with
+    /// thirteen it is the mistake someone will actually make.
+    #[test]
+    fn a_province_cannot_override_a_federal_line() {
+        let federal = FormSet::from_json(T1_FEDERAL).unwrap();
+        let mut rogue = FormSet::from_json(T1_ON).unwrap();
+
+        let stolen = federal.lines[0].clone();
+        let stolen_id = stolen.id.clone();
+        rogue.lines.push(stolen);
+
+        match FormSet::compose(federal, rogue) {
+            Err(EngineError::DuplicateLine(id)) => assert_eq!(id, stolen_id),
+            other => panic!("a province overrode {stolen_id}: {other:?}"),
         }
     }
 

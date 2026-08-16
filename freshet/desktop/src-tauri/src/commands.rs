@@ -1459,6 +1459,17 @@ mod tests {
         Decimal::from_str_exact(s).unwrap()
     }
 
+    fn input_for(tax_year: u16, facts: &[(&str, &str)]) -> ComputeInput {
+        ComputeInput {
+            tax_year,
+            province: "on".into(),
+            facts: facts
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+        }
+    }
+
     fn input(facts: &[(&str, &str)]) -> ComputeInput {
         ComputeInput {
             tax_year: 2025,
@@ -1690,7 +1701,9 @@ mod tests {
 
     #[test]
     fn every_lock_is_reported_separately_rather_than_a_flat_refusal() {
-        let a = assess(&input(&[("t4.employment_income", "60000")])).unwrap();
+        // 2026, whose Ontario amounts are still unverified, so all three of the
+        // non-return locks are shut at once.
+        let a = assess(&input_for(2026, &[("t4.employment_income", "60000")])).unwrap();
         let gate = evaluate_gate(&a, 2026, None, 0);
 
         assert!(!gate.can_file);
@@ -1700,6 +1713,23 @@ mod tests {
         assert!(!gate.year_certified);
         assert!(!gate.licensed);
         assert_eq!(gate.blocked_by.len(), 3);
+    }
+
+    /// The locks move independently. 2025's data is fully verified while 2026's
+    /// is not, and neither year is certified — so the data lock opens on its own
+    /// without dragging the others with it.
+    #[test]
+    fn the_data_lock_opens_for_a_verified_year_and_not_for_an_unverified_one() {
+        let facts = [("t4.employment_income", "60000")];
+
+        let verified = assess(&input_for(2025, &facts)).unwrap();
+        let unverified = assess(&input_for(2026, &facts)).unwrap();
+
+        assert!(evaluate_gate(&verified, 2025, None, 0).data_verified);
+        assert!(!evaluate_gate(&unverified, 2026, None, 0).data_verified);
+
+        // Verified data is still not permission to file.
+        assert!(!evaluate_gate(&verified, 2025, None, 0).can_file);
     }
 
     /// A person hitting a paywall should be told it is a paywall, not left
@@ -1724,7 +1754,7 @@ mod tests {
             .unwrap()
             .token;
 
-        let a = assess(&input(&[("t4.employment_income", "60000")])).unwrap();
+        let a = assess(&input_for(2026, &[("t4.employment_income", "60000")])).unwrap();
         let gate = evaluate_gate(&a, 2026, Some(&token), 0);
 
         assert!(gate.licensed, "the development licence did not verify");
