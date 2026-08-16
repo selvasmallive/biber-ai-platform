@@ -199,6 +199,8 @@ PowerShell:
 
 ```powershell
 $env:BIBER_ADMIN_API_KEY = "<admin-api-key>"
+python scripts/biber_agent_client.py admin-api-key-contract-smoke \
+  --output /workspace/outputs/biber-admin-api-key-contract-smoke.json
 python scripts/biber_agent_client.py list-api-keys
 python scripts/biber_agent_client.py issue-api-key --user-id user-1 --label "IDE agent"
 python scripts/biber_agent_client.py revoke-api-key <key_id>
@@ -208,10 +210,17 @@ Bash:
 
 ```bash
 export BIBER_ADMIN_API_KEY="<admin-api-key>"
+python scripts/biber_agent_client.py admin-api-key-contract-smoke \
+  --output /workspace/outputs/biber-admin-api-key-contract-smoke.json
 python scripts/biber_agent_client.py list-api-keys
 python scripts/biber_agent_client.py issue-api-key --user-id user-1 --label "IDE agent"
 python scripts/biber_agent_client.py revoke-api-key <key_id>
 ```
+
+Use `admin-api-key-contract-smoke` before giving a gateway or admin UI the
+full key-management flow. It calls only `GET /v1/admin/api-keys`, records counts
+and field names, and redacts key IDs, user IDs, labels, plaintext keys, and the
+admin key.
 
 The planned production portal should add:
 

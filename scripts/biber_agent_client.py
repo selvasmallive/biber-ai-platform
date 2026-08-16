@@ -1249,6 +1249,62 @@ def revoke_api_key(
     )
 
 
+def build_admin_api_key_contract_smoke_result(
+    *,
+    base_url: str,
+    list_payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    keys = [
+        item
+        for item in require_list(list_payload.get("keys"))
+        if isinstance(item, dict)
+    ]
+    active_count = sum(1 for item in keys if bool(item.get("active")))
+    revoked_count = sum(1 for item in keys if item.get("revoked_at"))
+    record_field_names = sorted(
+        {
+            str(field)
+            for item in keys
+            for field in item.keys()
+        }
+    )
+    checks = [
+        {
+            "name": "admin_list_endpoint",
+            "ok": isinstance(list_payload.get("keys"), list),
+            "endpoint": "GET /v1/admin/api-keys",
+        },
+        {
+            "name": "redacted_contract",
+            "ok": True,
+            "raw_key_records_included": False,
+            "issued_api_key_included": False,
+        },
+    ]
+    return {
+        "source": "biber_admin_api_key_contract_smoke",
+        "ok": all(bool(check.get("ok")) for check in checks),
+        "base_url": base_url.rstrip("/"),
+        "endpoint": "GET /v1/admin/api-keys",
+        "admin_key_env": "BIBER_ADMIN_API_KEY",
+        "user_key_env": "BIBER_API_KEY",
+        "key_count": len(keys),
+        "active_key_count": active_count,
+        "revoked_key_count": revoked_count,
+        "record_field_names": record_field_names,
+        "checks": checks,
+        "mutation_performed": False,
+        "api_key_included": False,
+        "admin_api_key_included": False,
+        "issued_api_key_included": False,
+        "raw_key_records_included": False,
+        "external_network_required": False,
+        "live_biber_required": True,
+        "mentor_used": False,
+        "training_allowed": False,
+    }
+
+
 def create_agent_session(
     *,
     base_url: str,
@@ -2297,6 +2353,47 @@ def format_api_key_revoke_summary(payload: Mapping[str, Any]) -> str:
             f"revoked_at: {record.get('revoked_at', '-')}",
         ]
     )
+
+
+def format_admin_api_key_contract_smoke_summary(payload: Mapping[str, Any]) -> str:
+    checks = [
+        item
+        for item in require_list(payload.get("checks"))
+        if isinstance(item, dict)
+    ]
+    field_names = ", ".join(
+        str(item) for item in require_list(payload.get("record_field_names"))
+    )
+    lines = [
+        "BIBER admin API-key contract smoke",
+        f"ok: {bool(payload.get('ok'))}",
+        f"base_url: {payload.get('base_url', '-')}",
+        f"endpoint: {payload.get('endpoint', '-')}",
+        f"admin_key_env: {payload.get('admin_key_env', '-')}",
+        f"user_key_env: {payload.get('user_key_env', '-')}",
+        f"key_count: {payload.get('key_count', 0)}",
+        f"active_key_count: {payload.get('active_key_count', 0)}",
+        f"revoked_key_count: {payload.get('revoked_key_count', 0)}",
+        "record_field_names: " + (field_names or "-"),
+        "checks:",
+    ]
+    lines.extend(
+        f"- {item.get('name', '-')} ok={bool(item.get('ok'))}"
+        for item in checks
+    )
+    lines.extend(
+        [
+            f"mutation_performed: {bool(payload.get('mutation_performed'))}",
+            f"api_key_included: {bool(payload.get('api_key_included'))}",
+            "admin_api_key_included: "
+            + str(bool(payload.get("admin_api_key_included"))),
+            "issued_api_key_included: "
+            + str(bool(payload.get("issued_api_key_included"))),
+            "raw_key_records_included: "
+            + str(bool(payload.get("raw_key_records_included"))),
+        ]
+    )
+    return "\n".join(lines)
 
 
 def format_chat_summary(payload: Mapping[str, Any]) -> str:
@@ -22404,6 +22501,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="List safe API-key metadata through the admin key-management API.",
     )
 
+    admin_api_key_contract_smoke = subparsers.add_parser(
+        "admin-api-key-contract-smoke",
+        help=(
+            "Run a redacted list-only smoke for the admin API-key management "
+            "contract."
+        ),
+    )
+    admin_api_key_contract_smoke.add_argument(
+        "--output",
+        help="Optional JSON artifact path.",
+    )
+
     issue_api_key_parser = subparsers.add_parser(
         "issue-api-key",
         help="Issue one user API key through the admin key-management API.",
@@ -26836,6 +26945,27 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_github_pull_request_dry_run_summary(result)
+        )
+
+    if args.command == "admin-api-key-contract-smoke":
+        admin_api_key = resolve_admin_api_key(args.admin_api_key)
+        base_url = args.base_url.rstrip("/")
+        list_payload = list_api_keys(
+            base_url=base_url,
+            admin_api_key=admin_api_key,
+            timeout_seconds=args.timeout_seconds,
+        )
+        result = build_admin_api_key_contract_smoke_result(
+            base_url=base_url,
+            list_payload=list_payload,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_admin_api_key_contract_smoke_summary(result)
         )
 
     if args.command in {"list-api-keys", "issue-api-key", "revoke-api-key"}:

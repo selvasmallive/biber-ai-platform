@@ -2511,6 +2511,50 @@ def test_format_api_key_summaries_avoid_plaintext_except_issue() -> None:
     assert "active: False" in revoked
 
 
+def test_admin_api_key_contract_smoke_redacts_key_records() -> None:
+    result = client.build_admin_api_key_contract_smoke_result(
+        base_url="http://biber.local",
+        list_payload={
+            "keys": [
+                {
+                    "key_id": "secret-key-id",
+                    "user_id": "user-1",
+                    "label": "IDE agent",
+                    "active": True,
+                },
+                {
+                    "key_id": "revoked-key-id",
+                    "user_id": "user-2",
+                    "label": "Old IDE agent",
+                    "active": False,
+                    "revoked_at": "2026-08-16T00:00:00+00:00",
+                },
+            ]
+        },
+    )
+    summary = client.format_admin_api_key_contract_smoke_summary(result)
+    encoded = json.dumps(result, sort_keys=True)
+
+    assert result["source"] == "biber_admin_api_key_contract_smoke"
+    assert result["ok"] is True
+    assert result["key_count"] == 2
+    assert result["active_key_count"] == 1
+    assert result["revoked_key_count"] == 1
+    assert result["mutation_performed"] is False
+    assert result["api_key_included"] is False
+    assert result["admin_api_key_included"] is False
+    assert result["issued_api_key_included"] is False
+    assert result["raw_key_records_included"] is False
+    assert "key_id" in result["record_field_names"]
+    assert "secret-key-id" not in encoded
+    assert "revoked-key-id" not in encoded
+    assert "user-1" not in encoded
+    assert "IDE agent" not in encoded
+    assert "BIBER admin API-key contract smoke" in summary
+    assert "key_count: 2" in summary
+    assert "secret-key-id" not in summary
+
+
 def test_run_api_key_management_commands_use_admin_key(monkeypatch) -> None:
     captured: dict[str, object] = {}
     admin_cli_values: list[str | None] = []
@@ -2588,6 +2632,69 @@ def test_run_api_key_management_commands_use_admin_key(monkeypatch) -> None:
     assert captured["issue"]["user_id"] == "user-1"
     assert captured["issue"]["label"] == "IDE agent"
     assert captured["revoke"]["key_id"] == "key-1"
+
+
+def test_run_admin_api_key_contract_smoke_uses_admin_key_and_redacts(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    output_path = tmp_path / "admin-api-key-contract-smoke.json"
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("normal API key should not be resolved")
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        captured["admin_cli"] = cli_admin_api_key
+        return "admin-secret"
+
+    def fake_list_api_keys(**kwargs):
+        captured["list"] = kwargs
+        return {
+            "keys": [
+                {
+                    "key_id": "secret-key-id",
+                    "user_id": "user-1",
+                    "label": "IDE agent",
+                    "active": True,
+                }
+            ]
+        }
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+    monkeypatch.setattr(client, "list_api_keys", fake_list_api_keys)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--base-url",
+                "http://biber.local",
+                "--admin-api-key",
+                "cli-admin",
+                "admin-api-key-contract-smoke",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+
+    artifact = json.loads(output_path.read_text(encoding="utf-8"))
+    encoded = json.dumps(artifact, sort_keys=True)
+    assert captured["admin_cli"] == "cli-admin"
+    assert captured["list"]["admin_api_key"] == "admin-secret"
+    assert artifact["artifact_path"] == str(output_path)
+    assert artifact["ok"] is True
+    assert artifact["key_count"] == 1
+    assert artifact["mutation_performed"] is False
+    assert artifact["raw_key_records_included"] is False
+    assert "BIBER admin API-key contract smoke" in output
+    assert "secret-key-id" not in output
+    assert "user-1" not in output
+    assert "admin-secret" not in output
+    assert "secret-key-id" not in encoded
+    assert "user-1" not in encoded
+    assert "admin-secret" not in encoded
 
 
 def test_build_chat_payload_includes_runtime_profiles() -> None:

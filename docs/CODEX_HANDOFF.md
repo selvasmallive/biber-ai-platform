@@ -4,6 +4,17 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 latest BIBER admin API-key contract smoke checkpoint:
+In progress: add a stdlib `admin-api-key-contract-smoke` command to
+`scripts/biber_agent_client.py`. It should use `BIBER_ADMIN_API_KEY` only,
+call only `GET /v1/admin/api-keys`, write a non-secret artifact with counts and
+record field names, redact key IDs/user IDs/labels/plaintext keys/admin key,
+and report `mutation_performed=False`, `api_key_included=False`,
+`admin_api_key_included=False`, `issued_api_key_included=False`, and
+`raw_key_records_included=False`. Do not issue, revoke, rotate, or print any
+credentials. Do not use OpenAI mentor, training, paid external APIs, or
+XRIQ/XRIS.
+
 2026-08-16 latest BIBER external-agent key-management handoff metadata checkpoint:
 Complete: commit `19f9b39` (`Add BIBER external agent key management metadata`)
 carries the existing external-agent API-key management contract
