@@ -5,18 +5,33 @@ Last updated: 2026-08-16
 ## Current Goal
 
 2026-08-16 latest BIBER external-client readiness bundle checkpoint:
-In progress: adding a stdlib `external-client-readiness-bundle` command to
-combine a saved non-secret `external-agent-handoff-package` artifact with a
-redacted `admin-api-key-contract-smoke` artifact. The intent is a single
-non-secret setup checklist for Copilot/Gemini/custom IDE agents, gateways, and
-conversational apps that use BIBER as an OpenAI-compatible model source. This
-step is offline only: it must not resolve user/admin API keys, call BIBER,
-create/rotate credentials, call OpenAI mentor, train models, use paid external
-APIs, or touch XRIQ/XRIS work. A blocked missing-admin-key artifact produced by
-`admin-api-key-contract-smoke --allow-missing-admin-key` is acceptable: the
-bundle may report `ready_for_external_client_configuration=true` while keeping
+Complete: commit `2c15b3c` (`Add BIBER external client readiness bundle`) adds
+a stdlib `external-client-readiness-bundle` command that combines a saved
+non-secret `external-agent-handoff-package` artifact with a redacted
+`admin-api-key-contract-smoke` artifact. This gives Copilot/Gemini/custom IDE
+agents, gateways, and conversational apps one non-secret setup checklist for
+using BIBER as an OpenAI-compatible model source. The command is offline only:
+it does not resolve user/admin API keys, call BIBER, create/rotate credentials,
+call OpenAI mentor, train models, use paid external APIs, or touch XRIQ/XRIS
+work. A blocked missing-admin-key artifact produced by
+`admin-api-key-contract-smoke --allow-missing-admin-key` is accepted; the bundle
+can report `ready_for_external_client_configuration=true` while keeping
 `admin_key_management_ready=false` and `blocked_items` explicit until
-`BIBER_ADMIN_API_KEY` is deliberately configured.
+`BIBER_ADMIN_API_KEY` is deliberately configured. Local validation passed Python
+`py_compile` with temp pycache, `git diff --check`, direct no-pytest
+external-client-readiness-bundle tests, and
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. The
+SSH-enabled Vast checkout fast-forwarded to `2c15b3c`, passed `py_compile`, and
+generated the offline readiness bundle at
+`/workspace/outputs/biber-external-client-readiness-bundle-20260816T174338Z/biber-external-client-readiness-bundle-live.json`.
+The Vast bundle reports `ok=True`,
+`ready_for_external_client_configuration=True`,
+`admin_key_management_ready=False`,
+`blocked_items=["admin_api_key_not_configured"]`,
+`mutation_performed=False`, `api_key_included=False`,
+`admin_api_key_included=False`, `issued_api_key_included=False`,
+`raw_key_records_included=False`, `mentor_used=False`, and
+`training_allowed=False`; the Vast checkout remained clean.
 
 2026-08-16 latest BIBER admin API-key missing-key artifact checkpoint:
 Complete: commit `d5101c8` (`Add BIBER admin smoke missing key artifact`) adds
