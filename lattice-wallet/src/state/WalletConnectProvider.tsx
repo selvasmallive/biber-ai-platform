@@ -15,8 +15,9 @@ import { EVM_CHAINS } from '../core/chains/registry';
 import { EvmAdapter, deriveEvmKey } from '../core/chains/evm';
 import { personalSign, signTypedDataV4, type TypedData } from '../core/chains/evmSign';
 import { resolveEvmConfig, parseAddChainParams } from '../core/chains/wcChains';
-import { loadCustomChains, addCustomChain } from '../core/customChains';
+import { fetchChainId } from '../core/chains/evmRpc';
 import { extractWcUri } from '../core/deeplink';
+import { useWallet } from './WalletProvider';
 import * as keystore from '../core/keystore';
 import type { ChainConfig } from '../core/chains/types';
 
@@ -88,17 +89,6 @@ async function handleAddChain(
   present({ event, config });
 }
 
-async function fetchRpcChainId(rpcUrl: string): Promise<number> {
-  const res = await fetch(rpcUrl, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] }),
-  });
-  const json: any = await res.json();
-  if (json?.error || !json?.result) throw new Error('RPC did not return a chain id');
-  return Number(BigInt(json.result));
-}
-
 const Ctx = createContext<WcState | null>(null);
 
 export function WalletConnectProvider({ children }: { children: React.ReactNode }) {
@@ -111,13 +101,11 @@ export function WalletConnectProvider({ children }: { children: React.ReactNode 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Custom EVM chains (added via wallet_addEthereumChain). Held in a ref so SDK event
-  // handlers always read the current list, plus state for anything that renders.
+  // Custom EVM chains are owned by WalletProvider (single source of truth). Mirror them into
+  // a ref so the SDK event handlers always read the current list synchronously.
+  const { customChains, addCustomNetwork } = useWallet();
   const customChainsRef = useRef<ChainConfig[]>([]);
-  const [, setCustomChains] = useState<ChainConfig[]>([]);
-  const setCustoms = useCallback((list: ChainConfig[]) => { customChainsRef.current = list; setCustomChains(list); }, []);
-
-  useEffect(() => { loadCustomChains().then(setCustoms).catch(() => {}); }, [setCustoms]);
+  useEffect(() => { customChainsRef.current = customChains; }, [customChains]);
 
   const refreshSessions = useCallback(() => {
     const kit = kitRef.current;
@@ -284,10 +272,10 @@ export function WalletConnectProvider({ children }: { children: React.ReactNode 
     try {
       // SECURITY: verify the supplied RPC actually reports the claimed chain id before we
       // trust it — a mismatched RPC is a red flag (spoofed network / wrong endpoint).
-      const actual = await fetchRpcChainId(req.config.rpcUrl);
+      const actual = await fetchChainId(req.config.rpcUrl);
       if (actual !== req.config.evmChainId)
         throw new Error(`RPC reports chain id ${actual}, but the request claimed ${req.config.evmChainId}. Rejected.`);
-      setCustoms(await addCustomChain(req.config));
+      await addCustomNetwork(req.config);
       await kit.respondSessionRequest({ topic: req.event.topic, response: { id: req.event.id, jsonrpc: '2.0', result: null } });
       setAddChainRequest(null);
     } catch (e) {
@@ -295,7 +283,7 @@ export function WalletConnectProvider({ children }: { children: React.ReactNode 
     } finally {
       setBusy(false);
     }
-  }, [addChainRequest, setCustoms]);
+  }, [addChainRequest, addCustomNetwork]);
 
   const rejectAddChain = useCallback(async () => {
     const kit = kitRef.current;

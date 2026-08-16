@@ -6,6 +6,7 @@ import { CHAINS, DEFAULT_CHAIN_ID, getChainConfig, makeAdapter } from '../core/c
 import { EvmAdapter } from '../core/chains/evm';
 import type { ChainAdapter, ChainConfig, TransferRequest } from '../core/chains/types';
 import { effectiveConfig, loadRpcOverrides, setRpcOverride as persistRpcOverride, type RpcOverrides } from '../core/rpcSettings';
+import { loadCustomChains, addCustomChain, removeCustomChain } from '../core/customChains';
 import { recordActivity } from '../core/activityLog';
 import { resolveEns, isEnsName } from '../core/ens';
 import { formatUnits } from '../core/format';
@@ -28,8 +29,11 @@ interface WalletState {
   pqEnabled: boolean;
   historyMode: HistoryMode;
   rpcOverrides: RpcOverrides;
+  customChains: ChainConfig[];
 
   createWallet: () => Promise<string>;
+  addCustomNetwork: (config: ChainConfig) => Promise<void>;
+  removeCustomNetwork: (evmChainId: number) => Promise<void>;
   importWallet: (mnemonic: string) => Promise<void>;
   refresh: () => Promise<void>;
   setActiveChain: (id: string) => Promise<void>;
@@ -71,10 +75,31 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [pqEnabled, setPqEnabledState] = useState(false);
   const [historyMode, setHistoryModeState] = useState<HistoryMode>('basic');
   const [rpcOverrides, setRpcOverrides] = useState<RpcOverrides>({});
+  const [customChains, setCustomChains] = useState<ChainConfig[]>([]);
 
-  const activeChain = useMemo(() => effectiveConfig(activeChainId, rpcOverrides), [activeChainId, rpcOverrides]);
+  // Built-in chains + user/dApp-added custom EVM chains, surfaced as first-class networks.
+  const allChains = useMemo(() => [...CHAINS, ...customChains], [customChains]);
+
+  const activeChain = useMemo(() => {
+    const base = allChains.find((c) => c.id === activeChainId) ?? getChainConfig(DEFAULT_CHAIN_ID);
+    const url = rpcOverrides[activeChainId];
+    return url ? { ...base, rpcUrl: url } : base;
+  }, [allChains, activeChainId, rpcOverrides]);
   const activeAdapter = useMemo(() => makeAdapter(activeChain), [activeChain]);
-  const address = addresses[activeChainId] ?? null;
+
+  // Custom EVM chains share the account's Ethereum address (same secp256k1 key), so we can
+  // display them without re-deriving.
+  const displayAddresses = useMemo(() => {
+    const merged: Record<string, string> = { ...addresses };
+    const eth = addresses.ethereum;
+    if (eth) for (const c of customChains) if (c.family === 'evm') merged[c.id] = eth;
+    return merged;
+  }, [addresses, customChains]);
+  const address = displayAddresses[activeChainId] ?? null;
+
+  useEffect(() => {
+    loadCustomChains().then(setCustomChains).catch(() => {});
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -255,6 +280,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setRpcOverrides(next);
   }, []);
 
+  const addCustomNetwork = useCallback(async (config: ChainConfig) => {
+    setCustomChains(await addCustomChain(config));
+  }, []);
+
+  const removeCustomNetwork = useCallback(async (evmChainId: number) => {
+    const next = await removeCustomChain(evmChainId);
+    setCustomChains(next);
+    if (activeChainId === `evm-${evmChainId}`) await setActiveChain(DEFAULT_CHAIN_ID);
+  }, [activeChainId, setActiveChain]);
+
   const wipe = useCallback(async () => {
     await keystore.wipeWallet();
     setAddresses({});
@@ -265,11 +300,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const value: WalletState = {
     status,
-    chains: CHAINS,
+    chains: allChains,
     activeChain,
     activeAdapter,
     address,
-    addresses,
+    addresses: displayAddresses,
     balance,
     history,
     online,
@@ -277,7 +312,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     pqEnabled,
     historyMode,
     rpcOverrides,
+    customChains,
     createWallet,
+    addCustomNetwork,
+    removeCustomNetwork,
     importWallet,
     refresh,
     setActiveChain,

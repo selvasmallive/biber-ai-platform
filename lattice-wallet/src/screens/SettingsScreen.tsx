@@ -54,14 +54,20 @@ export function SettingsScreen({ navigation }: any) {
         <Card style={{ gap: spacing(2) }}>
           {w.chains.map((c) => {
             const active = c.id === w.activeChain.id;
+            const custom = w.customChains.some((x) => x.id === c.id);
             return (
               <View key={c.id} style={styles.netRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.netName}>{c.name}{c.isTestnet ? ' · testnet' : ''}</Text>
+                  <Text style={styles.netName}>
+                    {c.name}{c.isTestnet ? ' · testnet' : ''}{custom ? ' · custom' : ''}
+                  </Text>
                   <Text style={styles.netSub}>
                     {w.addresses[c.id] ? shortAddr(w.addresses[c.id]) : c.symbol} · {c.rpcUrl}
                   </Text>
                 </View>
+                {custom && (
+                  <Button title="Remove" variant="ghost" onPress={() => c.evmChainId != null && w.removeCustomNetwork(c.evmChainId)} />
+                )}
                 <Button
                   title={active ? '✓ Active' : 'Use'}
                   variant={active ? 'secondary' : 'ghost'}
@@ -70,6 +76,7 @@ export function SettingsScreen({ navigation }: any) {
               </View>
             );
           })}
+          <Button title="+ Add EVM network" variant="ghost" onPress={() => navigation.navigate('AddNetwork')} />
         </Card>
 
         <Text style={styles.section}>Privacy</Text>
