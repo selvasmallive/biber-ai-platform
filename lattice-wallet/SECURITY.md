@@ -44,10 +44,13 @@ request; a malicious recipient or token contract; and physical access to the dev
 - **Key material is not zeroed after use.** JavaScript/Hermes cannot reliably wipe memory.
   Mitigated by hardware-backed storage (`expo-secure-store`), on-demand derivation, and never
   logging secrets.
-- **No full transaction simulation.** The wallet decodes common drain selectors but does not
-  simulate arbitrary contract calls. A transaction-simulation/preview provider is future work;
-  until then, unknown contract calls are surfaced with an explicit "only approve if you trust
-  this dApp" warning.
+- **Transaction simulation is Phase 1 only.** Before signing, Lattice statically decodes
+  common drain selectors (approve / setApprovalForAll / transfer, with unlimited-allowance
+  flagged) and **dry-runs the transaction via `eth_call` on your own RPC** to catch reverts and
+  show the revert reason (`src/core/simulate.ts`). It does **not** yet compute full asset-change
+  diffs (Phase 2, needs a trace-capable RPC) or use a third-party risk API (Phase 3, opt-in).
+  Unknown contract calls are still surfaced with an explicit "only approve if you trust this
+  dApp" warning. All of Phase 1 uses your own RPC — no third party.
 - **Live WalletConnect pairing is not covered by CI** — it requires a dev/EAS build and a real
   dApp. The signing paths it invokes are vector-verified; the handshake should be exercised
   manually before release.

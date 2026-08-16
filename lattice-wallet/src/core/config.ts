@@ -47,7 +47,7 @@ export const NATIVE_DECIMALS = 0;
 export const SECURITY_STATUS = {
   audited: false,
   legalReviewed: false,
-  banner: 'Testnet · unaudited — do not store real value',
+  banner: 'Mainnet · unaudited — verify every transaction',
 };
 
 // WalletConnect / Reown project id. This is NOT a secret — it ships in every wallet build

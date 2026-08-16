@@ -85,6 +85,10 @@ Everything here is designed so the wallet reveals as little as possible about yo
   clipboard/paste address-swap attacks.
 - **Custom RPC per chain** — point any chain at your own node so no third party sees your
   queries (Settings → Privacy).
+- **Transaction simulation (Phase 1)** — before you sign an EVM transaction (WalletConnect or
+  a token send), Lattice decodes the calldata (flagging unlimited approvals / blanket NFT
+  operators) and **dry-runs it via `eth_call` on your own RPC** to show whether it will succeed
+  or **revert** (with the reason) — no third-party simulation service. See `src/core/simulate.ts`.
 
 ## WalletConnect (dApp connections)
 

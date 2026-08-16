@@ -156,8 +156,8 @@ export function SettingsScreen({ navigation }: any) {
             </Text>
           </View>
           <Text style={styles.disclaimer}>
-            Until an independent security audit and legal review are complete, treat this wallet
-            and the XRIQ network as testnet software. Do not store real value.
+            Lattice has not had an independent security audit. It is non-custodial: you hold your
+            keys and are responsible for your funds. Verify every transaction before signing.
           </Text>
         </Card>
 

@@ -5,6 +5,8 @@ import { colors, font, radius, spacing } from '../theme/theme';
 import { useWallet } from '../state/WalletProvider';
 import { parseUnits, formatUnits } from '../core/format';
 import { isEnsName } from '../core/ens';
+import { dryRunEvm, type SimStatus } from '../core/simulate';
+import { encodeTransfer } from '../core/evmAbi';
 import type { Token } from '../core/tokens';
 
 export function TokenSendScreen({ route, navigation }: any) {
@@ -30,6 +32,21 @@ export function TokenSendScreen({ route, navigation }: any) {
   }, [nameInput, w]);
 
   const targetAddress = isEnsName(nameInput) ? resolvedName ?? '' : nameInput;
+
+  // Phase-1 simulation: dry-run the ERC-20 transfer on review to catch reverts early.
+  const [sim, setSim] = useState<{ status: SimStatus | 'loading'; reason?: string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setSim(null);
+    if (!review || !w.activeAdapter.validateAddress(targetAddress) || !amount) return;
+    let amountUnits: bigint;
+    try { amountUnits = parseUnits(amount, token.decimals); } catch { return; }
+    setSim({ status: 'loading' });
+    dryRunEvm(w.activeChain.rpcUrl, { from: w.address ?? undefined, to: token.address, data: encodeTransfer(targetAddress, amountUnits) })
+      .then((r) => alive && setSim({ status: r.status, reason: r.revertReason }))
+      .catch(() => alive && setSim({ status: 'unknown' }));
+    return () => { alive = false; };
+  }, [review, targetAddress, amount, token, w.activeChain.rpcUrl, w.address, w.activeAdapter]);
 
   const parsed = useMemo(() => {
     try {
@@ -108,6 +125,10 @@ export function TokenSendScreen({ route, navigation }: any) {
             <Text style={styles.previewBig}>{formatUnits((parsed as any).amountBaseUnits, token.decimals)} {token.symbol}</Text>
             <Text style={styles.previewTo}>to {shortAddr(targetAddress)}</Text>
             <Text style={styles.previewContract}>via contract {shortAddr(token.address)}</Text>
+            {sim?.status === 'loading' && <Text style={styles.simMuted}>Simulating…</Text>}
+            {sim?.status === 'ok' && <Text style={styles.simOk}>✓ Simulation: expected to succeed</Text>}
+            {sim?.status === 'unknown' && <Text style={styles.simMuted}>Could not simulate (RPC unavailable)</Text>}
+            {sim?.status === 'revert' && <Text style={styles.simBad}>✗ Expected to FAIL{sim.reason ? `: ${sim.reason}` : ''}</Text>}
             <Text style={styles.signNote}>Confirm with biometrics. Signed on this device; keys never leave it.</Text>
             <Button title="Confirm & sign" onPress={confirm} loading={busy} />
           </Card>
@@ -129,6 +150,9 @@ const styles = StyleSheet.create({
   previewBig: { color: colors.text, fontSize: 26, fontWeight: '800' },
   previewTo: { color: colors.text, fontSize: 14 },
   previewContract: { color: colors.textFaint, fontSize: 12 },
+  simMuted: { color: colors.textFaint, fontSize: 12 },
+  simOk: { color: colors.success, fontSize: 12, fontWeight: '600' },
+  simBad: { color: colors.danger, fontSize: 12, fontWeight: '700' },
   signNote: { color: colors.textFaint, fontSize: 12, lineHeight: 18 },
   kLabel: { color: colors.textDim, fontSize: 14 },
   hash: { color: colors.accent, fontSize: 13, marginTop: spacing(2) },

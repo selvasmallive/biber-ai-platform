@@ -1,73 +1,23 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, StyleSheet, Text, View } from 'react-native';
 import { Button, shortAddr } from './ui';
 import { colors, font, radius, spacing } from '../theme/theme';
 import { useWalletConnect } from '../state/WalletConnectProvider';
 import { formatUnits } from '../core/format';
 import { evmConfigByChainId } from '../core/chains/registry';
+import { decodeCalldata, dryRunEvm, type SimStatus } from '../core/simulate';
 
 function decodeMessage(raw: string): string {
   if (typeof raw !== 'string') return String(raw);
   if (/^0x[0-9a-fA-F]*$/.test(raw)) {
     try {
-      const hexPart = raw.slice(2);
-      const bytes = new Uint8Array((hexPart.match(/.{1,2}/g) ?? []).map((h) => parseInt(h, 16)));
+      const bytes = new Uint8Array((raw.slice(2).match(/.{1,2}/g) ?? []).map((h) => parseInt(h, 16)));
       const text = new TextDecoder().decode(bytes);
       if (/^[\x09\x0a\x0d\x20-\x7e]*$/.test(text) && text.length > 0) return text;
     } catch { /* fall through */ }
     return raw;
   }
   return raw;
-}
-
-// ---- eth_sendTransaction calldata decoding (known drain vectors) ----
-const SELECTORS: Record<string, string> = {
-  '0xa9059cbb': 'transfer',
-  '0x095ea7b3': 'approve',
-  '0x23b872dd': 'transferFrom',
-  '0xa22cb465': 'setApprovalForAll',
-  '0x39509351': 'increaseAllowance',
-};
-const UNLIMITED = 1n << 255n;
-
-function word(data: string, i: number): string {
-  return data.slice(10 + i * 64, 10 + (i + 1) * 64);
-}
-function addrFromWord(w: string): string {
-  return '0x' + w.slice(24);
-}
-
-function decodeCall(data: string): { lines: string[]; warnings: string[] } {
-  const lines: string[] = [];
-  const warnings: string[] = [];
-  try {
-    const sel = data.slice(0, 10).toLowerCase();
-    const name = SELECTORS[sel];
-    lines.push(`Selector: ${sel}`);
-    if (name === 'approve' || name === 'increaseAllowance') {
-      const spender = addrFromWord(word(data, 0));
-      const amount = BigInt('0x' + word(data, 1));
-      const unlimited = amount >= UNLIMITED;
-      lines.push(`Function: ${name}`, `Spender: ${shortAddr(spender)}`, `Amount: ${unlimited ? 'UNLIMITED' : amount.toString()}`);
-      warnings.push(unlimited
-        ? `Grants UNLIMITED token allowance to ${shortAddr(spender)}. A common drain pattern — only approve if you trust it.`
-        : `Grants a token spending allowance to ${shortAddr(spender)}.`);
-    } else if (name === 'setApprovalForAll') {
-      const operator = addrFromWord(word(data, 0));
-      const approved = BigInt('0x' + word(data, 1)) !== 0n;
-      lines.push('Function: setApprovalForAll', `Operator: ${shortAddr(operator)}`, `Approved: ${approved}`);
-      if (approved) warnings.push(`Grants control of ALL your NFTs in this collection to ${shortAddr(operator)}.`);
-    } else if (name === 'transfer') {
-      lines.push('Function: transfer', `To: ${shortAddr(addrFromWord(word(data, 0)))}`, `Amount: ${BigInt('0x' + word(data, 1)).toString()} (token units)`);
-    } else if (name) {
-      lines.push(`Function: ${name}`);
-    } else {
-      warnings.push("Unknown contract call — Lattice can't decode it. Only approve if you trust this dApp.");
-    }
-  } catch {
-    warnings.push('Malformed calldata — do not approve unless you trust this dApp.');
-  }
-  return { lines, warnings };
 }
 
 function flattenMessage(msg: any, prefix = ''): string[] {
@@ -79,7 +29,6 @@ function flattenMessage(msg: any, prefix = ''): string[] {
   return out.slice(0, 14);
 }
 
-// Human-readable summary of a session request — the "what am I signing" safety screen.
 function describe(request: any): { title: string; lines: string[]; warnings: string[] } {
   const method: string = request.params.request.method;
   const rp: any[] = request.params.request.params;
@@ -104,8 +53,7 @@ function describe(request: any): { title: string; lines: string[]; warnings: str
       lines.push('', ...flattenMessage(td.message));
       if (domChain != null && domChain !== chainId)
         warnings.push(`This is bound to chain ${domChain}, but you're connected as ${chainName} (${chainId}). Only sign if you expect that.`);
-      if (/permit/i.test(primary))
-        warnings.push('This authorizes token spending (Permit). Verify the spender and amount above.');
+      if (/permit/i.test(primary)) warnings.push('This authorizes token spending (Permit). Verify the spender and amount above.');
     } catch {
       warnings.push('Could not parse the typed data — do not sign unless you trust this dApp.');
     }
@@ -117,30 +65,48 @@ function describe(request: any): { title: string; lines: string[]; warnings: str
     let value = '0';
     try { value = tx.value ? formatUnits(BigInt(tx.value), 18) : '0'; } catch { /* keep 0 */ }
     const lines = [`Network: ${chainName}`, `To: ${tx.to ? shortAddr(tx.to) : '(contract creation)'}`, `Amount: ${value} (native)`];
-    const warnings: string[] = [];
-    if (tx.data && tx.data !== '0x') {
-      const d = decodeCall(tx.data);
-      lines.push('', ...d.lines);
-      warnings.push(...d.warnings);
-    }
+    const decoded = decodeCalldata(tx.data);
+    if (decoded.lines.length) lines.push('', ...decoded.lines);
     try {
       const maxFee = tx.maxFeePerGas ? BigInt(tx.maxFeePerGas) : tx.gasPrice ? BigInt(tx.gasPrice) : null;
       if (maxFee != null) lines.push(`Max fee/gas: ${formatUnits(maxFee, 9)} gwei`);
     } catch { /* ignore */ }
-    return { title: 'Send transaction', lines, warnings };
+    return { title: 'Send transaction', lines, warnings: decoded.warnings };
   }
 
   return { title: method, lines: ['Unsupported request type — reject unless you trust it.'], warnings: [] };
+}
+
+// Async dry-run simulation for eth_sendTransaction (Phase 1: your RPC, no third party).
+function useSimulation(request: any) {
+  const [status, setStatus] = useState<SimStatus | 'loading' | null>(null);
+  const [reason, setReason] = useState<string | undefined>();
+  useEffect(() => {
+    let alive = true;
+    setStatus(null);
+    setReason(undefined);
+    if (!request || request.params.request.method !== 'eth_sendTransaction') return;
+    const chainId = Number(String(request.params.chainId).split(':')[1]);
+    const cfg = evmConfigByChainId(chainId);
+    if (!cfg) return;
+    const tx = request.params.request.params[0] ?? {};
+    setStatus('loading');
+    dryRunEvm(cfg.rpcUrl, { from: tx.from, to: tx.to, value: tx.value, data: tx.data })
+      .then((r) => { if (alive) { setStatus(r.status); setReason(r.revertReason); } })
+      .catch(() => { if (alive) setStatus('unknown'); });
+    return () => { alive = false; };
+  }, [request]);
+  return { status, reason };
 }
 
 export function WalletConnectModals() {
   const wc = useWalletConnect();
   const proposal = wc.proposal;
   const request = wc.request;
+  const sim = useSimulation(request);
 
   return (
     <>
-      {/* Session proposal */}
       <Modal visible={!!proposal} transparent animationType="slide" onRequestClose={wc.rejectProposal}>
         <View style={styles.backdrop}>
           <View style={styles.sheet}>
@@ -164,7 +130,6 @@ export function WalletConnectModals() {
         </View>
       </Modal>
 
-      {/* Session request (sign / send) */}
       <Modal visible={!!request} transparent animationType="slide" onRequestClose={wc.rejectRequest}>
         <View style={styles.backdrop}>
           <View style={styles.sheet}>
@@ -178,6 +143,17 @@ export function WalletConnectModals() {
                       <Text key={i} style={styles.reqLine} selectable>{l}</Text>
                     ))}
                   </View>
+
+                  {/* Simulation result (eth_sendTransaction only) */}
+                  {sim.status === 'loading' && <Text style={styles.simMuted}>Simulating…</Text>}
+                  {sim.status === 'ok' && <Text style={styles.simOk}>✓ Simulation: transaction is expected to succeed.</Text>}
+                  {sim.status === 'unknown' && <Text style={styles.simMuted}>Could not simulate (RPC unavailable).</Text>}
+                  {sim.status === 'revert' && (
+                    <View style={styles.warnBox}>
+                      <Text style={styles.warnText}>✗ Simulation: this transaction is expected to FAIL{sim.reason ? ` — ${sim.reason}` : ''}.</Text>
+                    </View>
+                  )}
+
                   {d.warnings.map((wtext, i) => (
                     <View key={i} style={styles.warnBox}>
                       <Text style={styles.warnText}>⚠ {wtext}</Text>
@@ -208,6 +184,8 @@ const styles = StyleSheet.create({
   body: { color: colors.textDim, fontSize: 13, lineHeight: 19 },
   reqBox: { backgroundColor: colors.surfaceAlt, borderRadius: radius.md, padding: spacing(4), borderWidth: 1, borderColor: colors.border },
   reqLine: { color: colors.text, fontSize: 14, lineHeight: 21 },
+  simOk: { color: colors.success, fontSize: 13, fontWeight: '600' },
+  simMuted: { color: colors.textFaint, fontSize: 13 },
   warnBox: { backgroundColor: '#2A1A1A', borderRadius: radius.md, padding: spacing(3), borderWidth: 1, borderColor: colors.danger },
   warnText: { color: colors.danger, fontSize: 13, lineHeight: 19, fontWeight: '600' },
   err: { color: colors.danger, fontSize: 13 },
