@@ -5,19 +5,25 @@ Last updated: 2026-08-16
 ## Current Goal
 
 2026-08-16 latest BIBER external-client live smoke plan summary checkpoint:
-In progress: local edits add an offline
-`show-external-client-live-smoke-plan` command that prints a concise summary
-from a saved `biber_external_client_live_smoke_plan` artifact without
-regenerating it, resolving user/admin API keys, calling BIBER, creating/rotating
-credentials, calling OpenAI mentor, training models, using paid external APIs,
-or touching XRIQ/XRIS work. Validate locally with Python `py_compile` using a
-temp pycache, a focused direct no-pytest show-command test, `git diff --check`,
-and `scripts/biber_local_confidence_smoke.py`; then commit/push to
-`biber/mvp-resume-20260712`, fast-forward Vast with a temporary git bundle,
-run Vast `py_compile`, run the show command against
-`/workspace/outputs/biber-external-client-live-smoke-plan-20260816T191447Z/biber-external-client-live-smoke-plan-live.json`,
-save a summary artifact, remove the temporary bundle, and confirm both local and
-Vast checkouts are clean.
+Complete: commit `19eae80` (`Add BIBER external client live smoke plan
+summary`) adds an offline `show-external-client-live-smoke-plan` command that
+prints a concise summary from a saved
+`biber_external_client_live_smoke_plan` artifact without regenerating it,
+resolving user/admin API keys, calling BIBER, creating/rotating credentials,
+calling OpenAI mentor, training models, using paid external APIs, or touching
+XRIQ/XRIS work. Local validation passed Python `py_compile` with temp pycache, a
+focused direct no-pytest show-command test, `git diff --check`, and
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. The
+SSH-enabled Vast checkout was fast-forwarded to `19eae80` with a temporary git
+bundle because the Vast GitHub HTTPS remote is not credentialed; the temporary
+bundle was removed afterward. Vast passed `py_compile` and ran
+`show-external-client-live-smoke-plan` against
+`/workspace/outputs/biber-external-client-live-smoke-plan-20260816T191447Z/biber-external-client-live-smoke-plan-live.json`.
+The summary was saved at
+`/workspace/outputs/biber-external-client-live-smoke-plan-show-20260816T192215Z/biber-external-client-live-smoke-plan-show-summary.txt`
+and reports `ready_for_external_client_live_smoke_plan=True`,
+`planned_live_biber_required=True`, `api_key_included=False`, and
+`admin_api_key_included=False`; the Vast checkout remained clean.
 
 2026-08-16 latest BIBER external-client live smoke plan checkpoint:
 Complete: commit `256beef` (`Add BIBER external client live smoke plan`) adds
