@@ -1,0 +1,566 @@
+{
+  "tax_year": 2025,
+  "province": "ab",
+  "_comment": "Alberta only. The federal return is composed in from t1-federal.json. Alberta is 19 lines to Ontario's 30, because it has no surtax, health premium, low-income reduction, CARE credit or tuition credit -- which is the point of keeping the federal form separate.",
+  "summary": [
+    "fed.15000",
+    "fed.23600",
+    "fed.26000",
+    "fed.42000",
+    "prov.tax",
+    "summary.total_tax",
+    "summary.balance"
+  ],
+  "checks": [],
+  "lines": [
+    {
+      "id": "ab.58040",
+      "label": "Alberta basic personal amount",
+      "expr": {
+        "op": "param",
+        "key": "ab:bpa"
+      }
+    },
+    {
+      "id": "ab.58120",
+      "label": "Alberta spouse or common-law partner amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "partner.present"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "ab:spouse_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "partner.net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "ab:spouse_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "ab.58160",
+      "label": "Alberta amount for an eligible dependant",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "and",
+          "all": [
+            {
+              "cmp": "lt",
+              "left": {
+                "op": "fact",
+                "key": "partner.present"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "gte",
+              "left": {
+                "op": "fact",
+                "key": "dependants.eligible_dependant_claimed"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "ab:eligible_dependant_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.eligible_dependant_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "ab:eligible_dependant_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "ab.58185",
+      "label": "Alberta caregiver amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "dependants.infirm_adult_claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "ab:caregiver_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.infirm_adult_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "ab:caregiver_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "ab.58080",
+      "label": "Alberta age amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "taxpayer.age"
+          },
+          "right": {
+            "op": "const",
+            "value": "65"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "param",
+              "key": "ab:age_amount_max"
+            },
+            "minus": {
+              "op": "mul",
+              "of": {
+                "op": "floor_zero",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "line",
+                    "id": "fed.23600"
+                  },
+                  "minus": {
+                    "op": "param",
+                    "key": "ab:age_amount_threshold"
+                  }
+                }
+              },
+              "by": {
+                "op": "param",
+                "key": "ab:age_amount_clawback_rate"
+              }
+            }
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "ab.58360",
+      "label": "Alberta pension income amount",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "sum",
+                "of": [
+                  {
+                    "op": "line",
+                    "id": "fed.11500"
+                  },
+                  {
+                    "op": "mul",
+                    "of": {
+                      "op": "line",
+                      "id": "fed.11600"
+                    },
+                    "by": {
+                      "op": "fact",
+                      "key": "pension.split_received_eligible"
+                    }
+                  }
+                ]
+              },
+              "minus": {
+                "op": "line",
+                "id": "fed.21000"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "ab:pension_income_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ab.58440",
+      "label": "Alberta disability amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "disability.claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "param",
+          "key": "ab:disability_amount"
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "ab.58689",
+      "label": "Alberta allowable medical expenses",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "fed.33099"
+          },
+          "minus": {
+            "op": "min",
+            "of": [
+              {
+                "op": "mul",
+                "of": {
+                  "op": "line",
+                  "id": "fed.23600"
+                },
+                "by": {
+                  "op": "param",
+                  "key": "ab:medical_threshold_rate"
+                }
+              },
+              {
+                "op": "param",
+                "key": "ab:medical_threshold_cap"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "ab.own_amounts",
+      "label": "Your own Alberta credit amounts",
+      "note": "Alberta abolished the tuition and education amounts for 2020 and later, so no tuition reaches AB428. Mirroring Ontario line for line would have reintroduced a credit that does not exist.",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "ab.58040"
+          },
+          {
+            "op": "line",
+            "id": "ab.58080"
+          },
+          {
+            "op": "line",
+            "id": "ab.58120"
+          },
+          {
+            "op": "line",
+            "id": "ab.58160"
+          },
+          {
+            "op": "line",
+            "id": "ab.58185"
+          },
+          {
+            "op": "line",
+            "id": "fed.30800"
+          },
+          {
+            "op": "line",
+            "id": "fed.31000"
+          },
+          {
+            "op": "line",
+            "id": "fed.31200"
+          },
+          {
+            "op": "line",
+            "id": "ab.58360"
+          },
+          {
+            "op": "line",
+            "id": "ab.58440"
+          },
+          {
+            "op": "line",
+            "id": "ab.58689"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ab.58640",
+      "label": "Alberta amounts transferred from your spouse",
+      "expr": {
+        "op": "fact",
+        "key": "partner.ab_transfer_amount"
+      }
+    },
+    {
+      "id": "ab.58800",
+      "label": "Alberta total credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "ab.own_amounts"
+          },
+          {
+            "op": "line",
+            "id": "ab.58640"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ab.credits_at_base",
+      "label": "Alberta credits at the base rate",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "ab.58800"
+        },
+        "by": {
+          "op": "param",
+          "key": "ab:credit_rate"
+        }
+      }
+    },
+    {
+      "id": "ab.supplemental_credit",
+      "label": "Alberta supplemental tax credit",
+      "note": "Alberta's 2025 bracket cut values non-refundable credits at 8% while income above the first bracket is still taxed at 10%. The supplement returns the missing 2% on the portion of credit amounts above that threshold, so a large claim is not worth less than the tax it offsets.",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "line",
+              "id": "ab.58800"
+            },
+            "minus": {
+              "op": "param",
+              "key": "ab:supplemental_threshold"
+            }
+          }
+        },
+        "by": {
+          "op": "param",
+          "key": "ab:supplemental_rate"
+        }
+      }
+    },
+    {
+      "id": "ab.61500",
+      "label": "Alberta non-refundable tax credits",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "ab.credits_at_base"
+          },
+          {
+            "op": "line",
+            "id": "ab.supplemental_credit"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ab.donations",
+      "label": "Alberta donations and gifts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "mul",
+            "of": {
+              "op": "min",
+              "of": [
+                {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                {
+                  "op": "param",
+                  "key": "ab:donation_first_tier"
+                }
+              ]
+            },
+            "by": {
+              "op": "param",
+              "key": "ab:donation_rate_first"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "floor_zero",
+              "of": {
+                "op": "sub",
+                "from": {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "ab:donation_first_tier"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "ab:donation_rate_rest"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ab.42800",
+      "label": "Alberta tax",
+      "note": "Alberta levies no surtax, no health premium and no low-income reduction, so its tax is the bracket table less credits and nothing further. Ontario needs three more steps after this point.",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "sub",
+            "from": {
+              "op": "bracket",
+              "table": "ab:income_tax",
+              "base": {
+                "op": "line",
+                "id": "fed.26000"
+              }
+            },
+            "minus": {
+              "op": "line",
+              "id": "ab.61500"
+            }
+          },
+          "minus": {
+            "op": "line",
+            "id": "ab.donations"
+          }
+        }
+      }
+    },
+    {
+      "id": "prov.tax",
+      "label": "Alberta tax",
+      "expr": {
+        "op": "line",
+        "id": "ab.42800"
+      }
+    },
+    {
+      "id": "prov.refundable_credits",
+      "label": "Alberta refundable credits",
+      "note": "Alberta has no provincial refundable credit on the T1. The line exists because the federal return requires it, and it is nil.",
+      "expr": {
+        "op": "const",
+        "value": "0"
+      }
+    }
+  ]
+}

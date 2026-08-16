@@ -7,7 +7,7 @@
     "fed.23600",
     "fed.26000",
     "fed.42000",
-    "on.42800",
+    "prov.tax",
     "summary.total_tax",
     "summary.balance"
   ],
@@ -3427,7 +3427,7 @@
           },
           {
             "op": "line",
-            "id": "on.42800"
+            "id": "prov.tax"
           }
         ]
       }
@@ -3453,7 +3453,7 @@
           },
           {
             "op": "line",
-            "id": "on.47900"
+            "id": "prov.refundable_credits"
           }
         ]
       }

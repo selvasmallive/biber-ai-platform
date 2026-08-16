@@ -1170,6 +1170,23 @@
           "id": "on.care_rate"
         }
       }
+    },
+    {
+      "id": "prov.tax",
+      "label": "Ontario tax",
+      "note": "The contract every province supplies to the federal return. Federal lines reference this, never a province's own line id, so the federal form stays free of any one jurisdiction.",
+      "expr": {
+        "op": "line",
+        "id": "on.42800"
+      }
+    },
+    {
+      "id": "prov.refundable_credits",
+      "label": "Ontario refundable credits",
+      "expr": {
+        "op": "line",
+        "id": "on.47900"
+      }
     }
   ],
   "summary": [

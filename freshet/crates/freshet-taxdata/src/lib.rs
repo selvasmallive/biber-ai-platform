@@ -11,6 +11,8 @@ pub const FED_2025: &str = include_str!("../data/fed-2025.json");
 pub const ON_2025: &str = include_str!("../data/on-2025.json");
 pub const FED_2026: &str = include_str!("../data/fed-2026.json");
 pub const ON_2026: &str = include_str!("../data/on-2026.json");
+pub const AB_2025: &str = include_str!("../data/ab-2025.json");
+pub const AB_2026: &str = include_str!("../data/ab-2026.json");
 
 /// The federal T1, shared by every province.
 ///
@@ -25,6 +27,11 @@ pub const T1_FEDERAL: &str = include_str!("../data/t1-federal.json");
 /// data — a new year is a pack, not a fork. It splits into per-year files the
 /// first time a line is added or removed.
 pub const T1_ON: &str = include_str!("../data/t1-on.json");
+
+/// Alberta. Eighteen lines to Ontario's thirty: no surtax, no health premium,
+/// no low-income reduction, no CARE credit, and no tuition credit — Alberta
+/// abolished that one in 2020, as Ontario did in 2017.
+pub const T1_AB: &str = include_str!("../data/t1-ab.json");
 
 /// Tax years this build can compute. CRA certifies per tax year, so this list
 /// is also the list of years the product may claim support for.
@@ -52,7 +59,7 @@ pub fn is_certified(year: u16) -> bool {
 }
 
 /// Provinces implemented so far.
-pub const SUPPORTED_PROVINCES: &[&str] = &["on"];
+pub const SUPPORTED_PROVINCES: &[&str] = &["ab", "on"];
 
 fn unsupported(year: u16, province: &str) -> EngineError {
     EngineError::Unsupported(format!(
@@ -65,6 +72,8 @@ pub fn packs(year: u16, province: &str) -> Result<PackSet, EngineError> {
     let (fed, prov) = match (year, province) {
         (2025, "on") => (FED_2025, ON_2025),
         (2026, "on") => (FED_2026, ON_2026),
+        (2025, "ab") => (FED_2025, AB_2025),
+        (2026, "ab") => (FED_2026, AB_2026),
         _ => return Err(unsupported(year, province)),
     };
 
@@ -83,6 +92,7 @@ pub fn packs(year: u16, province: &str) -> Result<PackSet, EngineError> {
 pub fn t1_forms(year: u16, province: &str) -> Result<FormSet, EngineError> {
     let provincial = match (year, province) {
         (2025 | 2026, "on") => T1_ON,
+        (2025 | 2026, "ab") => T1_AB,
         _ => return Err(unsupported(year, province)),
     };
 
@@ -117,9 +127,14 @@ mod tests {
         let federal = FormSet::from_json(T1_FEDERAL).unwrap();
         let ontario = FormSet::from_json(T1_ON).unwrap();
 
+        // A provincial form owns its own namespace plus the two `prov.*` lines
+        // that are its contract with the federal return.
         assert!(
-            ontario.lines.iter().all(|l| l.id.starts_with("on.")),
-            "a provincial form defined a non-provincial line"
+            ontario
+                .lines
+                .iter()
+                .all(|l| l.id.starts_with("on.") || l.id.starts_with("prov.")),
+            "a provincial form defined a line outside its namespace"
         );
         assert!(
             federal.lines.iter().any(|l| l.id.starts_with("fed.")),

@@ -14,7 +14,7 @@
 /// `jurisdiction` selects which pack to inspect; the pair is always loaded as a
 /// province, because that is how a return is assembled.
 fn assert_residual(year: u16, jurisdiction: &str, expected: &[&str]) {
-    let packs = freshet_taxdata::packs(year, "on").unwrap();
+    let packs = freshet_taxdata::packs(year, if jurisdiction == "fed" { "on" } else { jurisdiction }).unwrap();
     let pack = if jurisdiction == "fed" {
         &packs.federal
     } else {
@@ -85,10 +85,80 @@ fn on_2026_residual_is_exactly_this() {
 /// and seeing the number move is the point of doing the pass incrementally.
 #[test]
 fn report_verification_progress() {
-    for (year, label) in [(2025u16, "2025"), (2026, "2026")] {
-        let packs = freshet_taxdata::packs(year, "on").unwrap();
-        let fed = packs.federal.unverified().len();
-        let on = packs.provincial.unverified().len();
-        println!("{label}: {fed} federal and {on} Ontario parameters still unverified");
+    for year in freshet_taxdata::SUPPORTED_YEARS {
+        for province in freshet_taxdata::SUPPORTED_PROVINCES {
+            let packs = freshet_taxdata::packs(*year, province).unwrap();
+            println!(
+                "{year} {province}: {} federal and {} provincial parameters still unverified",
+                packs.federal.unverified().len(),
+                packs.provincial.unverified().len(),
+            );
+        }
     }
+}
+
+/// Alberta is structure-first: the form is real, every number is a placeholder
+/// pending AB428. The whole pack is listed here so that verifying one value is
+/// a deliberate deletion from this list rather than something that happens by
+/// accident.
+#[test]
+fn ab_2025_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.supplemental_rate",
+        "scalars.supplemental_threshold",
+    ];
+
+    assert_residual(2025, "ab", &expected);
+}
+
+/// Alberta is structure-first: the form is real, every number is a placeholder
+/// pending AB428. The whole pack is listed here so that verifying one value is
+/// a deliberate deletion from this list rather than something that happens by
+/// accident.
+#[test]
+fn ab_2026_residual_is_exactly_this() {
+    let expected: Vec<&str> = vec![
+        "brackets.income_tax",
+        "scalars.age_amount_clawback_rate",
+        "scalars.age_amount_max",
+        "scalars.age_amount_threshold",
+        "scalars.bpa",
+        "scalars.caregiver_base",
+        "scalars.caregiver_max",
+        "scalars.credit_rate",
+        "scalars.disability_amount",
+        "scalars.donation_first_tier",
+        "scalars.donation_rate_first",
+        "scalars.donation_rate_rest",
+        "scalars.eligible_dependant_base",
+        "scalars.eligible_dependant_max",
+        "scalars.medical_threshold_cap",
+        "scalars.medical_threshold_rate",
+        "scalars.pension_income_max",
+        "scalars.spouse_base",
+        "scalars.spouse_max",
+        "scalars.supplemental_rate",
+        "scalars.supplemental_threshold",
+    ];
+
+    assert_residual(2026, "ab", &expected);
 }

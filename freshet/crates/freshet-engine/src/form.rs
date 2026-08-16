@@ -64,6 +64,14 @@ pub struct LineDef {
     pub note: Option<String>,
 }
 
+/// What the federal return requires of every province.
+///
+/// Two lines, and nothing else. A province computes its tax however its own
+/// legislation says — Ontario needs a surtax, a health premium and a low-income
+/// reduction; Alberta needs none of them — and presents the result through
+/// these. That is what keeps the federal form free of any one jurisdiction.
+pub const PROVINCIAL_CONTRACT: &[&str] = &["prov.tax", "prov.refundable_credits"];
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct FormSet {
     pub tax_year: u16,
@@ -104,6 +112,19 @@ impl FormSet {
         federal.checks.extend(provincial.checks);
         federal.province = provincial.province;
         federal.reindex()?;
+
+        // The federal return reaches into the province through exactly these
+        // two ids and no others, so a province that omits one produces a set
+        // that resolves nothing. Failing here names the missing line; failing
+        // later names some federal line that looks unrelated.
+        for required in PROVINCIAL_CONTRACT {
+            if !federal.index.contains_key(*required) {
+                return Err(EngineError::UnknownLine(format!(
+                    "{} does not define {required}, which every province must supply",
+                    federal.province
+                )));
+            }
+        }
 
         Ok(federal)
     }

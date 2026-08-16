@@ -1,0 +1,139 @@
+{
+  "jurisdiction": "ab",
+  "tax_year": 2025,
+  "_comment": "Alberta, built structure-first. Every value here is an unverified placeholder pending AB428 for the year. The shape is the deliverable; the numbers are not.",
+  "scalars": {
+    "bpa": {
+      "value": "22323",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "spouse_base": {
+      "value": "22323",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "spouse_max": {
+      "value": "22323",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "eligible_dependant_base": {
+      "value": "22323",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "eligible_dependant_max": {
+      "value": "22323",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "caregiver_base": {
+      "value": "12621",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "caregiver_max": {
+      "value": "12621",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "age_amount_max": {
+      "value": "6068",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "age_amount_threshold": {
+      "value": "45142",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "age_amount_clawback_rate": {
+      "value": "0.15",
+      "source": "Alberta mirrors the federal 15% clawback. STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "disability_amount": {
+      "value": "16580",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "pension_income_max": {
+      "value": "1683",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "medical_threshold_rate": {
+      "value": "0.03",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "medical_threshold_cap": {
+      "value": "2743",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "credit_rate": {
+      "value": "0.08",
+      "source": "Alberta's lowest bracket rate from 2025. STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "supplemental_threshold": {
+      "value": "60000",
+      "source": "Credit amounts above the first bracket earn the supplement. STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "supplemental_rate": {
+      "value": "0.02",
+      "source": "The gap between the 10% second bracket and the 8% credit rate. STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "donation_first_tier": {
+      "value": "200",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "donation_rate_first": {
+      "value": "0.08",
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    },
+    "donation_rate_rest": {
+      "value": "0.21",
+      "source": "Alberta's high donation rate. STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    }
+  },
+  "brackets": {
+    "income_tax": {
+      "bands": [
+        {
+          "upto": "60000",
+          "rate": "0.08"
+        },
+        {
+          "upto": "151234",
+          "rate": "0.10"
+        },
+        {
+          "upto": "181481",
+          "rate": "0.12"
+        },
+        {
+          "upto": "241974",
+          "rate": "0.13"
+        },
+        {
+          "upto": "362961",
+          "rate": "0.14"
+        },
+        {
+          "upto": null,
+          "rate": "0.15"
+        }
+      ],
+      "source": "STRUCTURE-FIRST PLACEHOLDER. Not checked against AB428. This value must not be trusted for a filed return; the verification gate keeps Alberta unfilable until it is sourced.",
+      "verified": false
+    }
+  }
+}
