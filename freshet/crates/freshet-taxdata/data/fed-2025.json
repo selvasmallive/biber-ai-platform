@@ -1,0 +1,341 @@
+{
+  "jurisdiction": "fed",
+  "tax_year": 2025,
+  "_comment": [
+    "Federal, tax year 2025.",
+    "",
+    "Verification pass of 2026-08-16: bracket table and the indexed non-refundable",
+    "credit amounts checked against CRA's published tables. THREE VALUES WERE",
+    "WRONG — the disability amount, the caregiver amount for children, and the",
+    "caregiver income threshold were all carrying the 2024 figures.",
+    "",
+    "What remains unverified is mostly statutory rather than indexed: CPP and EI",
+    "figures, CCA rates, and the fixed statutory thresholds. Each needs a primary",
+    "source of its own; the indexation table does not cover them."
+  ],
+  "brackets": {
+    "income_tax": {
+      "source": "VERIFIED 2026-08-16 against CRA, Last year tax rates and income brackets 2025 (canada.ca/en/revenue-agency/services/tax/individuals/tax-rates-brackets/last-year.html). Thresholds and rates both confirmed.",
+      "verified": true,
+      "bands": [
+        {
+          "up_to": "57375",
+          "rate": "0.145"
+        },
+        {
+          "up_to": "114750",
+          "rate": "0.205"
+        },
+        {
+          "up_to": "177882",
+          "rate": "0.26"
+        },
+        {
+          "up_to": "253414",
+          "rate": "0.29"
+        },
+        {
+          "up_to": null,
+          "rate": "0.33"
+        }
+      ]
+    }
+  },
+  "scalars": {
+    "credit_rate": {
+      "value": "0.145",
+      "source": "Non-refundable tax credits are valued at the lowest federal rate, which is the blended 14.5% for 2025. CONFIRM: CRA may direct 14% or 15% for specific credits in the 2025 transition year.",
+      "verified": false
+    },
+    "bpa_max": {
+      "value": "16129",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "bpa_min": {
+      "value": "14538",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "bpa_phaseout_start": {
+      "value": "177882",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "bpa_phaseout_end": {
+      "value": "253414",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "cwb_working_income_floor": {
+      "value": "3000",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "cwb_rate": {
+      "value": "0.27",
+      "source": "Rate at which the CWB accrues on working income above the floor.",
+      "verified": false
+    },
+    "cwb_reduction_rate": {
+      "value": "0.15",
+      "source": "The CWB is reduced by 15% of adjusted net income above the phase-out threshold. Derived and cross-checked: 1633/(37742-26855) and 2813/(49393-30639) both equal 0.15.",
+      "verified": false
+    },
+    "cwb_max_single": {
+      "value": "1633",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "cwb_max_family": {
+      "value": "2813",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "cwb_phaseout_single": {
+      "value": "26855",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "cwb_phaseout_family": {
+      "value": "30639",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "cwb_disability_max": {
+      "value": "843",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "cwb_disability_phaseout": {
+      "value": "37740",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "cwb_minimum_age": {
+      "value": "19",
+      "source": "CWB requires the claimant to be 19 or older at year end, unless they have a spouse or a dependant child.",
+      "verified": false
+    },
+    "caregiver_adult_amount": {
+      "value": "8601",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html). Previously an unconfirmed placeholder; the figure was right.",
+      "verified": true
+    },
+    "caregiver_adult_threshold": {
+      "value": "20197",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html). CORRECTED: was 19666, which is the 2024 amount.",
+      "verified": true
+    },
+    "childcare_limit_under_7": {
+      "value": "8000",
+      "source": "Annual child care expense limit per child under 7 at year end. Form T778.",
+      "verified": false
+    },
+    "childcare_limit_7_to_16": {
+      "value": "5000",
+      "source": "Annual child care expense limit per child aged 7 to 16 at year end. Form T778.",
+      "verified": false
+    },
+    "childcare_limit_disabled": {
+      "value": "11000",
+      "source": "Annual child care expense limit per child eligible for the disability tax credit, any age. Form T778.",
+      "verified": false
+    },
+    "childcare_earned_income_num": {
+      "value": "2",
+      "source": "Child care expenses are capped at two thirds of the claimant's earned income. Numerator, kept exact rather than as a rounded rate.",
+      "verified": false
+    },
+    "childcare_earned_income_den": {
+      "value": "3",
+      "source": "Denominator of the two-thirds earned income cap on child care expenses.",
+      "verified": false
+    },
+    "eligible_dependant_max": {
+      "value": "16129",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "eligible_dependant_min": {
+      "value": "14538",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "caregiver_child_amount": {
+      "value": "2687",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html). CORRECTED: was 2616, which is the 2024 amount.",
+      "verified": true
+    },
+    "age_amount_max": {
+      "value": "9028",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "age_amount_threshold": {
+      "value": "45522",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "age_amount_clawback_rate": {
+      "value": "0.15",
+      "source": "The age amount is reduced by 15% of net income above the threshold.",
+      "verified": false
+    },
+    "pension_income_max": {
+      "value": "2000",
+      "source": "Maximum pension income amount, T1 line 31400. Not indexed.",
+      "verified": false
+    },
+    "disability_amount": {
+      "value": "10138",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html). CORRECTED: was 9872, which is the 2024 amount.",
+      "verified": true
+    },
+    "tuition_transfer_max": {
+      "value": "5000",
+      "source": "Maximum current-year tuition transferable to a spouse or parent, federal.",
+      "verified": false
+    },
+    "pension_split_max_rate": {
+      "value": "0.50",
+      "source": "Up to 50% of eligible pension income may be allocated to a spouse under a joint election, form T1032.",
+      "verified": false
+    },
+    "spouse_amount_max": {
+      "value": "16129",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "spouse_amount_min": {
+      "value": "14538",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "medical_threshold_rate": {
+      "value": "0.03",
+      "source": "Medical expenses are reduced by the lesser of 3% of net income and a fixed cap. T1 line 33199.",
+      "verified": false
+    },
+    "medical_threshold_cap": {
+      "value": "2834",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "donation_first_tier": {
+      "value": "200",
+      "source": "Charitable donations are credited at the lowest rate on the first $200 and a higher rate above it. T1 line 34900.",
+      "verified": false
+    },
+    "donation_rate_first": {
+      "value": "0.145",
+      "source": "Federal credit rate on the first $200 of donations, 2025 (the blended lowest rate).",
+      "verified": false
+    },
+    "donation_rate_rest": {
+      "value": "0.29",
+      "source": "Federal credit rate on donations above $200. NOTE: a 33% rate applies to the extent the donor has income taxed at 33%; that refinement is not modelled yet and will understate the credit for top-bracket donors.",
+      "verified": false
+    },
+    "canada_employment_amount": {
+      "value": "1471",
+      "source": "VERIFIED 2026-08-16 against CRA, Indexation adjustment for personal income tax and benefit amounts (canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/adjustment-personal-income-tax-benefit-amounts.html).",
+      "verified": true
+    },
+    "cpp_rate_total": {
+      "value": "0.0595",
+      "source": "Employee CPP base contribution rate, 2025.",
+      "verified": false
+    },
+    "cpp_rate_enhanced": {
+      "value": "0.01",
+      "source": "Enhanced (first additional) portion of the employee CPP rate. Deductible at line 22215 rather than creditable.",
+      "verified": false
+    },
+    "cpp_rate_base": {
+      "value": "0.0495",
+      "source": "Base portion of the employee CPP rate. Creditable at line 30800.",
+      "verified": false
+    },
+    "cpp_ympe": {
+      "value": "71300",
+      "source": "Year's maximum pensionable earnings, 2025. Caps how much self-employment income is pensionable once employment earnings are counted.",
+      "verified": false
+    },
+    "cpp_self_employed_multiple": {
+      "value": "2",
+      "source": "A self-employed person pays both the employee and employer halves of CPP, so contributions are twice the employee rate. Schedule 8.",
+      "verified": false
+    },
+    "cpp_basic_exemption": {
+      "value": "3500",
+      "source": "CPP basic exemption, 2025. Earnings below this are not pensionable.",
+      "verified": false
+    },
+    "cpp_max_contribution": {
+      "value": "4034.10",
+      "source": "Maximum employee CPP contribution, 2025 (YMPE 71,300 less the 3,500 exemption, at 5.95%).",
+      "verified": false
+    },
+    "cpp2_max_contribution": {
+      "value": "396.00",
+      "source": "Maximum employee second CPP contribution, 2025 (YAMPE 81,200 less YMPE 71,300, at 4%).",
+      "verified": false
+    },
+    "ei_max_premium": {
+      "value": "1077.48",
+      "source": "Maximum employee EI premium, 2025 (MIE 65,700 at 1.64%).",
+      "verified": false
+    },
+    "ei_min_insurable": {
+      "value": "2000",
+      "source": "Approximate floor below which EI premiums are refunded. Used only as a review heuristic, never in a calculation.",
+      "verified": false
+    },
+    "rrsp_rate": {
+      "value": "0.18",
+      "source": "RRSP contribution room accrues at 18% of prior-year earned income. Used only as a review heuristic.",
+      "verified": false
+    },
+    "rrsp_annual_limit": {
+      "value": "32490",
+      "source": "RRSP dollar limit, 2025. Used only as a review heuristic.",
+      "verified": false
+    },
+    "cca_rate_class8": {
+      "value": "0.20",
+      "source": "CCA rate, class 8 — furniture, fixtures and general equipment. Declining balance. Statutory, not indexed.",
+      "verified": false
+    },
+    "cca_rate_class10": {
+      "value": "0.30",
+      "source": "CCA rate, class 10 — most motor vehicles. Declining balance. Class 10.1 passenger vehicles above the cost limit are NOT modelled and are treated differently.",
+      "verified": false
+    },
+    "cca_rate_class12": {
+      "value": "1.00",
+      "source": "CCA rate, class 12 — tools under the cost threshold, computer software. Written off in full, subject to the first-year rule.",
+      "verified": false
+    },
+    "cca_rate_class50": {
+      "value": "0.55",
+      "source": "CCA rate, class 50 — computer hardware and systems software. Declining balance.",
+      "verified": false
+    },
+    "cca_first_year_adjustment": {
+      "value": "-0.5",
+      "source": "The classic half-year rule: only half of net additions enter the base in the year of acquisition, so the adjustment is negative. CONFIRM whether the Accelerated Investment Incentive applies for this tax year — under AccII the sign flips to +0.5 (a 1.5x first-year base) for eligible property. Getting this wrong misstates every first-year claim.",
+      "verified": false
+    },
+    "vehicle_cost_limit": {
+      "value": "38000",
+      "source": "Passenger vehicle capital cost limit, class 10.1, 2025. UNVERIFIED — the limit moved to $37,000 for 2024 and is announced annually. Confirm before use.",
+      "verified": false
+    },
+    "cca_rate_class10_1": {
+      "value": "0.30",
+      "source": "CCA rate, class 10.1 — passenger vehicles above the cost limit. Same rate as class 10, but each vehicle is its own pool and neither recapture nor a terminal loss ever arises.",
+      "verified": false
+    }
+  }
+}

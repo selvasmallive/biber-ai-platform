@@ -1,0 +1,187 @@
+//! Versioned tax parameter packs.
+//!
+//! Rates, thresholds and dollar amounts are *data*, never Rust constants. Each
+//! tax year and jurisdiction ships as one pack, and every value in a pack must
+//! carry a `source` citation. A pack whose values are not all `verified` cannot
+//! be used to produce a filed return -- see [`ParamPack::unverified`].
+//!
+//! This exists because the failure mode that kills tax software is a single
+//! stale threshold silently surviving into a new tax year. Making provenance a
+//! required field means an unsourced number cannot be added by accident.
+
+use std::collections::BTreeMap;
+
+use rust_decimal::Decimal;
+use serde::Deserialize;
+
+use crate::decimal::{de_decimal, de_decimal_opt};
+use crate::EngineError;
+
+/// A single scalar parameter, e.g. the basic personal amount.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Param {
+    #[serde(deserialize_with = "de_decimal")]
+    pub value: Decimal,
+    /// Citation for the value: CRA form/line, guide section, or statute.
+    pub source: String,
+    /// Set true only after a human has checked the value against `source`.
+    #[serde(default)]
+    pub verified: bool,
+}
+
+/// One band of a progressive rate table.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Band {
+    /// Upper bound of the band. `None` means the band is open-ended (top bracket).
+    #[serde(default, deserialize_with = "de_decimal_opt")]
+    pub up_to: Option<Decimal>,
+    #[serde(deserialize_with = "de_decimal")]
+    pub rate: Decimal,
+}
+
+/// A progressive rate table, e.g. the federal income tax brackets.
+#[derive(Debug, Clone, Deserialize)]
+pub struct BracketTable {
+    pub bands: Vec<Band>,
+    pub source: String,
+    #[serde(default)]
+    pub verified: bool,
+}
+
+impl BracketTable {
+    /// Apply the table progressively to `base`, returning tax before credits.
+    ///
+    /// Bands are applied in order; each band taxes only the portion of `base`
+    /// that falls inside it. A negative `base` yields zero.
+    pub fn apply(&self, base: Decimal) -> Decimal {
+        if base <= Decimal::ZERO {
+            return Decimal::ZERO;
+        }
+
+        let mut tax = Decimal::ZERO;
+        let mut lower = Decimal::ZERO;
+
+        for band in &self.bands {
+            let upper = band.up_to.unwrap_or(base);
+            let ceiling = if base < upper { base } else { upper };
+            let in_band = ceiling - lower;
+
+            if in_band > Decimal::ZERO {
+                tax += in_band * band.rate;
+            }
+
+            lower = upper;
+            if base <= upper {
+                break;
+            }
+        }
+
+        tax
+    }
+}
+
+/// All parameters for one jurisdiction in one tax year.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ParamPack {
+    /// `"fed"`, `"on"`, `"bc"`, ...
+    pub jurisdiction: String,
+    pub tax_year: u16,
+    #[serde(default)]
+    pub scalars: BTreeMap<String, Param>,
+    #[serde(default)]
+    pub brackets: BTreeMap<String, BracketTable>,
+}
+
+impl ParamPack {
+    pub fn from_json(s: &str) -> Result<Self, EngineError> {
+        serde_json::from_str(s).map_err(|e| EngineError::BadPack(e.to_string()))
+    }
+
+    pub fn scalar(&self, key: &str) -> Result<Decimal, EngineError> {
+        self.scalars
+            .get(key)
+            .map(|p| p.value)
+            .ok_or_else(|| EngineError::UnknownParam {
+                jurisdiction: self.jurisdiction.clone(),
+                key: key.to_string(),
+            })
+    }
+
+    pub fn bracket(&self, key: &str) -> Result<&BracketTable, EngineError> {
+        self.brackets
+            .get(key)
+            .ok_or_else(|| EngineError::UnknownParam {
+                jurisdiction: self.jurisdiction.clone(),
+                key: key.to_string(),
+            })
+    }
+
+    /// Keys whose values have not been human-verified against their citation.
+    ///
+    /// Callers building a *filed* return must treat a non-empty result as fatal.
+    pub fn unverified(&self) -> Vec<String> {
+        let scalars = self
+            .scalars
+            .iter()
+            .filter(|(_, p)| !p.verified)
+            .map(|(k, _)| format!("scalars.{k}"));
+
+        let brackets = self
+            .brackets
+            .iter()
+            .filter(|(_, t)| !t.verified)
+            .map(|(k, _)| format!("brackets.{k}"));
+
+        scalars.chain(brackets).collect()
+    }
+}
+
+/// The set of packs in play for one return: federal plus one province.
+#[derive(Debug, Clone)]
+pub struct PackSet {
+    pub federal: ParamPack,
+    pub provincial: ParamPack,
+}
+
+impl PackSet {
+    /// Resolve a namespaced key such as `fed:bpa_max` or `on:bpa`.
+    pub fn scalar(&self, key: &str) -> Result<Decimal, EngineError> {
+        let (pack, rest) = self.split(key)?;
+        pack.scalar(rest)
+    }
+
+    pub fn bracket(&self, key: &str) -> Result<&BracketTable, EngineError> {
+        let (pack, rest) = self.split(key)?;
+        pack.bracket(rest)
+    }
+
+    /// The pack borrow and the key borrow are independent: the returned table
+    /// lives as long as `self`, not as long as the lookup string.
+    fn split<'s, 'k>(&'s self, key: &'k str) -> Result<(&'s ParamPack, &'k str), EngineError> {
+        let (ns, rest) = key
+            .split_once(':')
+            .ok_or_else(|| EngineError::UnnamespacedParam(key.to_string()))?;
+
+        match ns {
+            "fed" => Ok((&self.federal, rest)),
+            other if other == self.provincial.jurisdiction => Ok((&self.provincial, rest)),
+            other => Err(EngineError::UnknownJurisdiction(other.to_string())),
+        }
+    }
+
+    pub fn unverified(&self) -> Vec<String> {
+        let fed = self
+            .federal
+            .unverified()
+            .into_iter()
+            .map(|k| format!("fed:{k}"));
+
+        let prov = self
+            .provincial
+            .unverified()
+            .into_iter()
+            .map(|k| format!("{}:{k}", self.provincial.jurisdiction));
+
+        fed.chain(prov).collect()
+    }
+}

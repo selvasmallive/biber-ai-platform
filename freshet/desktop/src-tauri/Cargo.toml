@@ -1,0 +1,54 @@
+[workspace]
+
+[package]
+name = "freshet-desktop"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "UNLICENSED"
+description = "Freshet desktop app."
+
+[lib]
+name = "freshet_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+freshet-advisor = { path = "../../crates/freshet-advisor" }
+freshet-autofill = { path = "../../crates/freshet-autofill" }
+freshet-couple = { path = "../../crates/freshet-couple" }
+freshet-engine = { path = "../../crates/freshet-engine" }
+freshet-license = { path = "../../crates/freshet-license" }
+freshet-store = { path = "../../crates/freshet-store" }
+freshet-taxdata = { path = "../../crates/freshet-taxdata" }
+
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+# rustls rather than the platform TLS stack: one certificate story across
+# Windows and macOS, and no OpenSSL to vendor.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+
+[features]
+# Compiles the built-in development and CRA-certification licences in.
+# OFF by default so shipping one is a deliberate act, not a forgotten flag.
+# Use `npm run dev:app`, which passes it.
+dev-licences = ["freshet-license/dev-licences"]
+
+[profile.release]
+# A tax engine is arithmetic-bound and ships once a year; trade build time for
+# a smaller, faster binary.
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

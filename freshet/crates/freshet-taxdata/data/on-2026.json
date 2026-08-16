@@ -1,0 +1,304 @@
+{
+  "jurisdiction": "on",
+  "tax_year": 2026,
+  "_comment": [
+    "Ontario, tax year 2026.",
+    "",
+    "Brackets confirmed against CRA. Ontario has NOT published its 2026 package,",
+    "so every amount below is estimated from the 2025 figure — which is itself now",
+    "verified against ON428 — indexed at Ontario's own 1.9% factor, derived from",
+    "the confirmed brackets (53,891 / 52,886). The federal 2.0% does not apply.",
+    "",
+    "Replace these when Ontario publishes, around January 2027."
+  ],
+  "brackets": {
+    "income_tax": {
+      "source": "VERIFIED 2026-08-16 against CRA, Current year tax rates and income brackets 2026 (canada.ca/en/revenue-agency/services/tax/individuals/tax-rates-brackets/current-year.html). Thresholds and rates both confirmed.",
+      "verified": true,
+      "bands": [
+        {
+          "up_to": "53891",
+          "rate": "0.0505"
+        },
+        {
+          "up_to": "107785",
+          "rate": "0.0915"
+        },
+        {
+          "up_to": "150000",
+          "rate": "0.1116"
+        },
+        {
+          "up_to": "220000",
+          "rate": "0.1216"
+        },
+        {
+          "up_to": null,
+          "rate": "0.1316"
+        }
+      ]
+    }
+  },
+  "scalars": {
+    "credit_rate": {
+      "value": "0.0505",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D) for 2025; statutory rate, unchanged for 2026.",
+      "verified": true
+    },
+    "bpa": {
+      "value": "12989",
+      "source": "ESTIMATED: the 2025 figure of 12747, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "verified": false
+    },
+    "care_rate_base_tier1": {
+      "value": "0.75",
+      "source": "CARE rate (Schedule ON479-A) for adjusted family income of $20,000 or less. Refundable, and a step function. The CARE thresholds are statutory and unindexed. CONFIRM whether the income measured is net income before or after the child care deduction — Freshet uses line 23600, which is after.",
+      "verified": false
+    },
+    "care_tier1_ceiling": {
+      "value": "20000",
+      "source": "Top of the flat 75% CARE band. Statutory, unindexed.",
+      "verified": false
+    },
+    "care_rate_base_tier2": {
+      "value": "0.75",
+      "source": "CARE rate at $20,000, from which the second band steps down.",
+      "verified": false
+    },
+    "care_tier2_ceiling": {
+      "value": "40000",
+      "source": "Top of the second CARE band. Statutory, unindexed.",
+      "verified": false
+    },
+    "care_tier2_step": {
+      "value": "2500",
+      "source": "Between $20,000 and $40,000 the CARE rate falls 2 points per $2,500 or portion.",
+      "verified": false
+    },
+    "care_rate_base_tier3": {
+      "value": "0.59",
+      "source": "CARE rate at $40,000, from which the third band steps down.",
+      "verified": false
+    },
+    "care_tier3_ceiling": {
+      "value": "60000",
+      "source": "Top of the third CARE band. Statutory, unindexed.",
+      "verified": false
+    },
+    "care_tier3_step": {
+      "value": "5000",
+      "source": "Between $40,000 and $60,000 the CARE rate falls 2 points per $5,000 or portion.",
+      "verified": false
+    },
+    "care_rate_base_tier4": {
+      "value": "0.51",
+      "source": "CARE rate at $60,000, from which the fourth band steps down.",
+      "verified": false
+    },
+    "care_tier4_ceiling": {
+      "value": "150000",
+      "source": "CARE is fully phased out above $150,000 of adjusted family income. Statutory, unindexed.",
+      "verified": false
+    },
+    "care_tier4_step": {
+      "value": "3600",
+      "source": "Between $60,000 and $150,000 the CARE rate falls 2 points per $3,600 or portion.",
+      "verified": false
+    },
+    "care_step_reduction": {
+      "value": "0.02",
+      "source": "Each step reduces the CARE rate by two percentage points.",
+      "verified": false
+    },
+    "age_amount_max": {
+      "value": "6341",
+      "source": "ESTIMATED: the 2025 figure of 6223, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "verified": false
+    },
+    "age_amount_threshold": {
+      "value": "47210",
+      "source": "ESTIMATED: the 2025 figure of 46330, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "verified": false
+    },
+    "age_amount_clawback_rate": {
+      "value": "0.15",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D) for 2025; statutory rate, unchanged for 2026.",
+      "verified": true
+    },
+    "pension_income_max": {
+      "value": "1795",
+      "source": "ESTIMATED: the 2025 figure of 1762, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "verified": false
+    },
+    "disability_amount": {
+      "value": "10494",
+      "source": "ESTIMATED: the 2025 figure of 10298, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "verified": false
+    },
+    "tuition_transfer_max": {
+      "value": "6936",
+      "source": "ESTIMATED: 2025 cap of $6,800 indexed at 2.0%.",
+      "verified": false
+    },
+    "medical_threshold_rate": {
+      "value": "0.03",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D) for 2025; statutory rate, unchanged for 2026.",
+      "verified": true
+    },
+    "medical_threshold_cap": {
+      "value": "2940",
+      "source": "ESTIMATED: the 2025 figure of 2885, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "verified": false
+    },
+    "donation_first_tier": {
+      "value": "200",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D) for 2025; statutory rate, unchanged for 2026.",
+      "verified": true
+    },
+    "donation_rate_first": {
+      "value": "0.0505",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D) for 2025; statutory rate, unchanged for 2026.",
+      "verified": true
+    },
+    "donation_rate_rest": {
+      "value": "0.1116",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D) for 2025; statutory rate, unchanged for 2026.",
+      "verified": true
+    },
+    "surtax_threshold_1": {
+      "value": "5818",
+      "source": "ESTIMATED: the 2025 figure of 5710, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "verified": false
+    },
+    "surtax_rate_1": {
+      "value": "0.20",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D) for 2025; statutory rate, unchanged for 2026.",
+      "verified": true
+    },
+    "surtax_threshold_2": {
+      "value": "7446",
+      "source": "ESTIMATED: the 2025 figure of 7307, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "verified": false
+    },
+    "surtax_rate_2": {
+      "value": "0.36",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D) for 2025; statutory rate, unchanged for 2026.",
+      "verified": true
+    },
+    "spouse_base": {
+      "value": "12131",
+      "source": "ESTIMATED: the 2025 figure of 11905, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "verified": false
+    },
+    "spouse_max": {
+      "value": "11029",
+      "source": "ESTIMATED: the 2025 figure of 10823, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "verified": false
+    },
+    "eligible_dependant_base": {
+      "value": "12131",
+      "source": "ESTIMATED: the 2025 figure of 11905, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "verified": false
+    },
+    "eligible_dependant_max": {
+      "value": "11029",
+      "source": "ESTIMATED: the 2025 figure of 10823, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "verified": false
+    },
+    "caregiver_base": {
+      "value": "27067",
+      "source": "ESTIMATED: the 2025 figure of 26562, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "verified": false
+    },
+    "caregiver_max": {
+      "value": "6122",
+      "source": "ESTIMATED: the 2025 figure of 6008, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D), indexed at Ontario's own 1.9% factor (derived from the confirmed 2026 brackets: 53,891 / 52,886). Ontario has not published its 2026 package.",
+      "verified": false
+    },
+    "health_premium_ramp1_start": {
+      "value": "20000",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 1 begins at $20,000. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp1_width": {
+      "value": "5000",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 1 spans $5,000 before the next plateau. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp1_rate": {
+      "value": "0.06",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 1 accrues at 6%. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp2_start": {
+      "value": "36000",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 2 begins at $36,000. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp2_width": {
+      "value": "2500",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 2 spans $2,500 before the next plateau. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp2_rate": {
+      "value": "0.06",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 2 accrues at 6%. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp3_start": {
+      "value": "48000",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 3 begins at $48,000. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp3_width": {
+      "value": "600",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 3 spans $600 before the next plateau. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp3_rate": {
+      "value": "0.25",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 3 accrues at 25%. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp4_start": {
+      "value": "72000",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 4 begins at $72,000. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp4_width": {
+      "value": "600",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 4 spans $600 before the next plateau. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp4_rate": {
+      "value": "0.25",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 4 accrues at 25%. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp5_start": {
+      "value": "200000",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 5 begins at $200,000. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp5_width": {
+      "value": "600",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 5 spans $600 before the next plateau. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp5_rate": {
+      "value": "0.25",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 5 accrues at 25%. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "tax_reduction_basic": {
+      "value": "300",
+      "verified": false,
+      "source": "ESTIMATED: the 2025 figure of 294, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C), indexed at Ontario's own 1.9% factor. Ontario has not published its 2026 package."
+    },
+    "tax_reduction_per_dependant": {
+      "value": "554",
+      "verified": false,
+      "source": "ESTIMATED: the 2025 figure of 544, verified against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C), indexed at Ontario's own 1.9% factor. Ontario has not published its 2026 package."
+    }
+  }
+}

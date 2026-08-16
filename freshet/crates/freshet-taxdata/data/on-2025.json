@@ -1,0 +1,310 @@
+{
+  "jurisdiction": "on",
+  "tax_year": 2025,
+  "_comment": [
+    "Ontario, tax year 2025.",
+    "",
+    "Verification pass of 2026-08-16 against Form ON428 (5006-C) and Worksheet",
+    "ON428 (5006-D). Four values were wrong, and THREE CREDITS HAD THE WRONG",
+    "SHAPE: Ontario reduces a base amount by the dependant's income and then caps",
+    "the result. The previous model had no base/maximum distinction at all.",
+    "",
+    "Still unverified: the CARE credit parameters (Schedule ON479-A) and the",
+    "tuition transfer cap (Schedule ON(S11)).",
+    "",
+    "NOT MODELLED AT ALL, and found during this pass: the Ontario health premium",
+    "(ON428 line 89), which ADDS to Ontario tax, and the Ontario tax reduction",
+    "(lines 74-80), which subtracts from it. Ontario tax is wrong for most filers",
+    "until both exist."
+  ],
+  "brackets": {
+    "income_tax": {
+      "source": "VERIFIED 2026-08-16 against CRA, Last year tax rates and income brackets 2025 (canada.ca/en/revenue-agency/services/tax/individuals/tax-rates-brackets/last-year.html). Thresholds and rates both confirmed.",
+      "verified": true,
+      "bands": [
+        {
+          "up_to": "52886",
+          "rate": "0.0505"
+        },
+        {
+          "up_to": "105775",
+          "rate": "0.0915"
+        },
+        {
+          "up_to": "150000",
+          "rate": "0.1116"
+        },
+        {
+          "up_to": "220000",
+          "rate": "0.1216"
+        },
+        {
+          "up_to": null,
+          "rate": "0.1316"
+        }
+      ]
+    }
+  },
+  "scalars": {
+    "credit_rate": {
+      "value": "0.0505",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 45, Ontario non-refundable tax credit rate 5.05%.",
+      "verified": true
+    },
+    "bpa": {
+      "value": "12747",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 9 / 58040, claim $12,747.",
+      "verified": true
+    },
+    "care_rate_base_tier1": {
+      "value": "0.75",
+      "source": "CARE rate (Schedule ON479-A) for adjusted family income of $20,000 or less. The credit is refundable and the rate is a step function. CONFIRM whether the income measured is net income before or after the child care deduction itself — Freshet currently uses line 23600, which is after.",
+      "verified": false
+    },
+    "care_tier1_ceiling": {
+      "value": "20000",
+      "source": "Top of the flat 75% CARE band.",
+      "verified": false
+    },
+    "care_rate_base_tier2": {
+      "value": "0.75",
+      "source": "CARE rate at $20,000, from which the second band steps down.",
+      "verified": false
+    },
+    "care_tier2_ceiling": {
+      "value": "40000",
+      "source": "Top of the second CARE band.",
+      "verified": false
+    },
+    "care_tier2_step": {
+      "value": "2500",
+      "source": "Between $20,000 and $40,000 the CARE rate falls 2 points per $2,500 or portion.",
+      "verified": false
+    },
+    "care_rate_base_tier3": {
+      "value": "0.59",
+      "source": "CARE rate at $40,000, from which the third band steps down.",
+      "verified": false
+    },
+    "care_tier3_ceiling": {
+      "value": "60000",
+      "source": "Top of the third CARE band.",
+      "verified": false
+    },
+    "care_tier3_step": {
+      "value": "5000",
+      "source": "Between $40,000 and $60,000 the CARE rate falls 2 points per $5,000 or portion.",
+      "verified": false
+    },
+    "care_rate_base_tier4": {
+      "value": "0.51",
+      "source": "CARE rate at $60,000, from which the fourth band steps down.",
+      "verified": false
+    },
+    "care_tier4_ceiling": {
+      "value": "150000",
+      "source": "CARE is fully phased out above $150,000 of adjusted family income.",
+      "verified": false
+    },
+    "care_tier4_step": {
+      "value": "3600",
+      "source": "Between $60,000 and $150,000 the CARE rate falls 2 points per $3,600 or portion, reaching 1% in the top band.",
+      "verified": false
+    },
+    "care_step_reduction": {
+      "value": "0.02",
+      "source": "Each step reduces the CARE rate by two percentage points.",
+      "verified": false
+    },
+    "age_amount_max": {
+      "value": "6223",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Worksheet ON428 line 58080, maximum $6,223. CORRECTED: was 6150.",
+      "verified": true
+    },
+    "age_amount_threshold": {
+      "value": "46330",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Worksheet ON428 line 58080, income threshold $46,330. CORRECTED: was 45850.",
+      "verified": true
+    },
+    "age_amount_clawback_rate": {
+      "value": "0.15",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Worksheet ON428 line 58080, applicable rate 15%.",
+      "verified": true
+    },
+    "pension_income_max": {
+      "value": "1762",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 27 / 58360, maximum $1,762. CORRECTED: was 1720.",
+      "verified": true
+    },
+    "disability_amount": {
+      "value": "10298",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 29 / 58440, claim $10,298. CORRECTED: was 10300.",
+      "verified": true
+    },
+    "tuition_transfer_max": {
+      "value": "6800",
+      "source": "Maximum current-year tuition transferable to a spouse, Ontario.",
+      "verified": false
+    },
+    "medical_threshold_rate": {
+      "value": "0.03",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 38, applicable rate 3%.",
+      "verified": true
+    },
+    "medical_threshold_cap": {
+      "value": "2885",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 40, lesser of $2,885 or 3% of net income. CORRECTED: was 2894.",
+      "verified": true
+    },
+    "donation_first_tier": {
+      "value": "200",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Lines 47-48 mirror the federal Schedule 9 split at $200.",
+      "verified": true
+    },
+    "donation_rate_first": {
+      "value": "0.0505",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 47, first tier at 5.05%.",
+      "verified": true
+    },
+    "donation_rate_rest": {
+      "value": "0.1116",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 48, remainder at 11.16%.",
+      "verified": true
+    },
+    "surtax_threshold_1": {
+      "value": "5710",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 66, surtax on ON tax above $5,710.",
+      "verified": true
+    },
+    "surtax_rate_1": {
+      "value": "0.20",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 66, 20%.",
+      "verified": true
+    },
+    "surtax_threshold_2": {
+      "value": "7307",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 67, further surtax above $7,307.",
+      "verified": true
+    },
+    "surtax_rate_2": {
+      "value": "0.36",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 67, 36%.",
+      "verified": true
+    },
+    "spouse_base": {
+      "value": "11905",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 11, base amount $11,905. NEW: Ontario reduces a base by the partner's income and caps the result, which the previous model did not represent.",
+      "verified": true
+    },
+    "spouse_max": {
+      "value": "10823",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 13 / 58120, maximum $10,823.",
+      "verified": true
+    },
+    "eligible_dependant_base": {
+      "value": "11905",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 14, base amount $11,905.",
+      "verified": true
+    },
+    "eligible_dependant_max": {
+      "value": "10823",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Line 16 / 58160, maximum $10,823.",
+      "verified": true
+    },
+    "caregiver_base": {
+      "value": "26562",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Worksheet ON428 line 58185, base amount $26,562. CORRECTED: the previous model used a 19,522 threshold, which is not how this credit works.",
+      "verified": true
+    },
+    "caregiver_max": {
+      "value": "6008",
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C) and Worksheet ON428 (5006-D). Worksheet ON428 line 58185, maximum $6,008 per dependant. CORRECTED: was 5942.",
+      "verified": true
+    },
+    "health_premium_ramp1_start": {
+      "value": "20000",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 1 begins at $20,000. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp1_width": {
+      "value": "5000",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 1 spans $5,000 before the next plateau. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp1_rate": {
+      "value": "0.06",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 1 accrues at 6%. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp2_start": {
+      "value": "36000",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 2 begins at $36,000. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp2_width": {
+      "value": "2500",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 2 spans $2,500 before the next plateau. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp2_rate": {
+      "value": "0.06",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 2 accrues at 6%. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp3_start": {
+      "value": "48000",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 3 begins at $48,000. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp3_width": {
+      "value": "600",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 3 spans $600 before the next plateau. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp3_rate": {
+      "value": "0.25",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 3 accrues at 25%. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp4_start": {
+      "value": "72000",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 4 begins at $72,000. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp4_width": {
+      "value": "600",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 4 spans $600 before the next plateau. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp4_rate": {
+      "value": "0.25",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 4 accrues at 25%. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp5_start": {
+      "value": "200000",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 5 begins at $200,000. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp5_width": {
+      "value": "600",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 5 spans $600 before the next plateau. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "health_premium_ramp5_rate": {
+      "value": "0.25",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 89 chart, ramp 5 accrues at 25%. The health premium thresholds are statutory and unindexed, so they are identical for 2026."
+    },
+    "tax_reduction_basic": {
+      "value": "294",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Line 74, basic reduction $294."
+    },
+    "tax_reduction_per_dependant": {
+      "value": "544",
+      "verified": true,
+      "source": "VERIFIED 2026-08-16 against CRA/Ontario Ministry of Finance, Form ON428 2025 (5006-C). Lines 75 and 76, $544 per dependent child born in 2007 or later and per dependant with an impairment."
+    }
+  }
+}

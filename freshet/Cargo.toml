@@ -1,0 +1,26 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/freshet-advisor",
+    "crates/freshet-autofill",
+    "crates/freshet-couple",
+    "crates/freshet-engine",
+    "crates/freshet-license",
+    "crates/freshet-store",
+    "crates/freshet-taxdata",
+]
+# The desktop app is its own workspace. Keeping it out of this one means
+# `cargo test` on the engine stays a two-second loop instead of linking a webview.
+exclude = ["desktop/src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "UNLICENSED"
+
+[workspace.dependencies]
+rust_decimal = { version = "1", default-features = false, features = ["serde", "std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Freshet",
+  "version": "0.1.0",
+  "identifier": "ca.freshet.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Freshet",
+        "width": 1240,
+        "height": 860,
+        "minWidth": 940,
+        "minHeight": 640
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis", "dmg", "app"],
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "copyright": "Freshet",
+    "category": "Finance",
+    "shortDescription": "Canadian tax filing",
+    "longDescription": "Prepare and file Canadian T1 and T2 returns, with a tax advisor grounded on your actual return."
+  }
+}

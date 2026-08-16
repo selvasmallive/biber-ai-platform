@@ -1,0 +1,16 @@
+[package]
+name = "freshet-couple"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Coupled T1 returns with transfer and pooling optimization."
+
+[dependencies]
+freshet-engine = { path = "../freshet-engine" }
+rust_decimal.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+freshet-taxdata = { path = "../freshet-taxdata" }

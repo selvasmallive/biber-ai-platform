@@ -1,0 +1,4702 @@
+{
+  "tax_year": 2025,
+  "province": "on",
+  "summary": [
+    "fed.15000",
+    "fed.23600",
+    "fed.26000",
+    "fed.42000",
+    "on.42800",
+    "summary.total_tax",
+    "summary.balance"
+  ],
+  "_checks_comment": [
+    "Review rules, in the same expression language as the lines. `when` is the",
+    "condition under which something is WRONG. Errors block filing; warnings are",
+    "things that are possible but usually mistakes; info is worth knowing.",
+    "A rule that cannot distinguish a mistake from a legitimate case must be a",
+    "warning, never an error -- blocking a correct return is worse than nagging."
+  ],
+  "checks": [
+    {
+      "id": "cpp.exceeds_employment_income",
+      "severity": "error",
+      "message": "Your CPP contributions are larger than your employment income.",
+      "help": "One of the two boxes has been mistyped. CPP contributions come from box 16 of your T4; employment income is box 14.",
+      "when": {
+        "cmp": "and",
+        "all": [
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "fact",
+              "key": "t4.employment_income"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          },
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "fact",
+              "key": "t4.cpp_contributions"
+            },
+            "right": {
+              "op": "fact",
+              "key": "t4.employment_income"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rrsp.exceeds_total_income",
+      "severity": "error",
+      "message": "Your RRSP deduction is larger than your total income.",
+      "help": "An RRSP deduction cannot take your income below zero. Claim what you can this year; the rest carries forward and can be deducted in a later year.",
+      "when": {
+        "cmp": "and",
+        "all": [
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "line",
+              "id": "fed.15000"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          },
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "line",
+              "id": "fed.20800"
+            },
+            "right": {
+              "op": "line",
+              "id": "fed.15000"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "cpp.above_annual_maximum",
+      "severity": "warning",
+      "message": "Your CPP contributions are above the maximum for one employer in 2025.",
+      "help": "This is normal if you worked for more than one employer — enter the real total and the over-contribution comes back to you on this return. If you had one employer, re-check box 16.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "fact",
+          "key": "t4.cpp_contributions"
+        },
+        "right": {
+          "op": "param",
+          "key": "fed:cpp_max_contribution"
+        }
+      }
+    },
+    {
+      "id": "cpp2.above_annual_maximum",
+      "severity": "warning",
+      "message": "Your second CPP contributions are above the 2025 maximum.",
+      "help": "Check box 16A. As with box 16, more than one employer can legitimately push this over the maximum.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "fact",
+          "key": "t4.cpp2_contributions"
+        },
+        "right": {
+          "op": "param",
+          "key": "fed:cpp2_max_contribution"
+        }
+      }
+    },
+    {
+      "id": "ei.above_annual_maximum",
+      "severity": "warning",
+      "message": "Your EI premiums are above the maximum for one employer in 2025.",
+      "help": "Normal with more than one employer; the excess is refunded on this return. With a single employer, re-check box 18.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "fact",
+          "key": "t4.ei_premiums"
+        },
+        "right": {
+          "op": "param",
+          "key": "fed:ei_max_premium"
+        }
+      }
+    },
+    {
+      "id": "cpp.missing",
+      "severity": "warning",
+      "message": "You have employment income but no CPP contributions.",
+      "help": "Box 16 may have been missed. It is legitimately blank if you were under 18, over 70, or had elected to stop contributing.",
+      "when": {
+        "cmp": "and",
+        "all": [
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "fact",
+              "key": "t4.employment_income"
+            },
+            "right": {
+              "op": "param",
+              "key": "fed:cpp_basic_exemption"
+            }
+          },
+          {
+            "cmp": "eq",
+            "left": {
+              "op": "fact",
+              "key": "t4.cpp_contributions"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ei.missing",
+      "severity": "warning",
+      "message": "You have employment income but no EI premiums.",
+      "help": "Box 18 may have been missed. It is legitimately blank if your work was not insurable — for example if you control more than 40% of the company's voting shares.",
+      "when": {
+        "cmp": "and",
+        "all": [
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "fact",
+              "key": "t4.employment_income"
+            },
+            "right": {
+              "op": "param",
+              "key": "fed:ei_min_insurable"
+            }
+          },
+          {
+            "cmp": "eq",
+            "left": {
+              "op": "fact",
+              "key": "t4.ei_premiums"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "rrsp.above_room_this_income_creates",
+      "severity": "warning",
+      "message": "Your RRSP deduction is higher than this year's income alone would allow.",
+      "help": "That is fine if you are using room carried forward from earlier years. Confirm the figure against the RRSP deduction limit on your latest notice of assessment — over-contributing attracts a penalty.",
+      "when": {
+        "cmp": "and",
+        "all": [
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "fact",
+              "key": "t4.employment_income"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          },
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "line",
+              "id": "fed.20800"
+            },
+            "right": {
+              "op": "min",
+              "of": [
+                {
+                  "op": "mul",
+                  "of": {
+                    "op": "fact",
+                    "key": "t4.employment_income"
+                  },
+                  "by": {
+                    "op": "param",
+                    "key": "fed:rrsp_rate"
+                  }
+                },
+                {
+                  "op": "param",
+                  "key": "fed:rrsp_annual_limit"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "childcare.capped_by_earned_income",
+      "severity": "warning",
+      "message": "Your child care claim was capped at two thirds of your earned income.",
+      "help": "That is the rule, not an error. Earned income means employment plus net self-employment income. In a couple the lower earner must claim child care, which is exactly when this cap bites — the rest of what you paid cannot be deducted by either of you.",
+      "when": {
+        "cmp": "and",
+        "all": [
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "fact",
+              "key": "childcare.expenses_claimed"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          },
+          {
+            "cmp": "lt",
+            "left": {
+              "op": "line",
+              "id": "fed.childcare_income_limit"
+            },
+            "right": {
+              "op": "min",
+              "of": [
+                {
+                  "op": "fact",
+                  "key": "childcare.expenses_claimed"
+                },
+                {
+                  "op": "line",
+                  "id": "fed.childcare_child_limit"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "childcare.capped_by_child_limits",
+      "severity": "info",
+      "message": "Your child care claim was capped by the per-child annual limits.",
+      "help": "Each child carries their own cap — $8,000 under 7, $5,000 from 7 to 16, $11,000 if eligible for the disability tax credit. Anything above the total cannot be claimed.",
+      "when": {
+        "cmp": "and",
+        "all": [
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "fact",
+              "key": "childcare.expenses_claimed"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          },
+          {
+            "cmp": "lt",
+            "left": {
+              "op": "line",
+              "id": "fed.childcare_child_limit"
+            },
+            "right": {
+              "op": "fact",
+              "key": "childcare.expenses_claimed"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "childcare.no_dependants",
+      "severity": "error",
+      "message": "Child care expenses were entered but no children.",
+      "help": "The deduction is limited by each child's own annual cap, so with no dependants listed the claim is zero. Add the children on the Dependants step.",
+      "when": {
+        "cmp": "and",
+        "all": [
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "fact",
+              "key": "childcare.expenses_claimed"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          },
+          {
+            "cmp": "eq",
+            "left": {
+              "op": "line",
+              "id": "fed.childcare_child_limit"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "dependant.claim_ignored_with_spouse",
+      "severity": "info",
+      "message": "The amount for an eligible dependant does not apply when you have a spouse.",
+      "help": "You claim the spouse or common-law partner amount instead. Only one of the two is available.",
+      "when": {
+        "cmp": "and",
+        "all": [
+          {
+            "cmp": "gte",
+            "left": {
+              "op": "fact",
+              "key": "partner.present"
+            },
+            "right": {
+              "op": "const",
+              "value": "1"
+            }
+          },
+          {
+            "cmp": "gte",
+            "left": {
+              "op": "fact",
+              "key": "dependants.eligible_dependant_claimed"
+            },
+            "right": {
+              "op": "const",
+              "value": "1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "pension.split_over_maximum",
+      "severity": "error",
+      "message": "More than half of your eligible pension income has been split to your spouse.",
+      "help": "Form T1032 allows at most 50% of eligible pension income to be allocated.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "line",
+          "id": "fed.21000"
+        },
+        "right": {
+          "op": "mul",
+          "of": {
+            "op": "line",
+            "id": "fed.11500"
+          },
+          "by": {
+            "op": "param",
+            "key": "fed:pension_split_max_rate"
+          }
+        }
+      }
+    },
+    {
+      "id": "tuition.carried_forward",
+      "severity": "info",
+      "message": "Some tuition could not be used this year and carries forward.",
+      "help": "Write the carry-forward figure down. Freshet does not yet track amounts between tax years, so next year's return will need it entered by hand.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "line",
+          "id": "fed.tuition_carryforward"
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "withholding.none",
+      "severity": "info",
+      "message": "Nothing was withheld at source, so the full amount is payable when you file.",
+      "help": "If this happens again next year, CRA may ask you to pay by quarterly instalments.",
+      "when": {
+        "cmp": "and",
+        "all": [
+          {
+            "cmp": "eq",
+            "left": {
+              "op": "line",
+              "id": "fed.43700"
+            },
+            "right": {
+              "op": "const",
+              "value": "0"
+            }
+          },
+          {
+            "cmp": "gt",
+            "left": {
+              "op": "line",
+              "id": "summary.total_tax"
+            },
+            "right": {
+              "op": "const",
+              "value": "3000"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "return.empty",
+      "severity": "info",
+      "message": "No income has been entered yet.",
+      "help": "A return with no income can still be worth filing — it is what establishes benefit and credit entitlements such as the GST/HST credit.",
+      "when": {
+        "cmp": "eq",
+        "left": {
+          "op": "line",
+          "id": "fed.15000"
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "home_office.carried_forward",
+      "severity": "info",
+      "message": "Part of your home office expenses could not be deducted this year.",
+      "help": "The business-use-of-home deduction cannot create a loss. The excess carries forward against future business income — record the figure, because Freshet does not yet track amounts between tax years.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "line",
+          "id": "fed.home_office_carryforward"
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "cca.recapture",
+      "severity": "info",
+      "message": "Selling business assets has produced recaptured capital cost allowance.",
+      "help": "You sold for more than the pool's remaining tax value, so depreciation you deducted in earlier years is added back to this year's business income. It is expected, not a mistake.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "line",
+          "id": "fed.recapture_total"
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "cca.terminal_loss",
+      "severity": "info",
+      "message": "A terminal loss has been claimed on a class you have emptied.",
+      "help": "The value left in the pool when the last asset goes is deductible in full. Confirm the class really is empty — a terminal loss cannot be claimed while any asset remains in it.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "line",
+          "id": "fed.terminal_loss_total"
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "cca.claimed_below_maximum",
+      "severity": "info",
+      "message": "You are claiming less capital cost allowance than you could.",
+      "help": "That is a legitimate choice — the unclaimed amount stays in the pool and can be deducted in a later year, which is usually better when this year's income is already covered by your personal amounts. Check the planner on the return summary before deciding.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "fed.cca_maximum"
+          },
+          "minus": {
+            "op": "line",
+            "id": "fed.cca_total"
+          }
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "on.health_premium_charged",
+      "severity": "info",
+      "message": "The Ontario health premium has been added to your Ontario tax.",
+      "help": "It is charged on taxable income on a fixed scale above $20,000, and it is added after your credits rather than reduced by them — so it applies even when the rest of your Ontario tax is nil.",
+      "when": {
+        "cmp": "gt",
+        "left": {
+          "op": "line",
+          "id": "on.health_premium"
+        },
+        "right": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    }
+  ],
+  "lines": [
+    {
+      "id": "fed.10100",
+      "label": "Employment income",
+      "note": "Box 14 of every T4 slip.",
+      "expr": {
+        "op": "fact",
+        "key": "t4.employment_income"
+      }
+    },
+    {
+      "id": "fed.12100",
+      "label": "Interest and other investment income",
+      "expr": {
+        "op": "fact",
+        "key": "investment.interest"
+      }
+    },
+    {
+      "id": "fed.11500",
+      "label": "Other pensions and superannuation",
+      "note": "Registered pension plan payments, and — at 65 or older — RRIF and annuity income.",
+      "expr": {
+        "op": "fact",
+        "key": "pension.own_eligible"
+      }
+    },
+    {
+      "id": "fed.11600",
+      "label": "Elected split-pension amount",
+      "note": "Pension income your spouse elected to move to your return under form T1032.",
+      "expr": {
+        "op": "fact",
+        "key": "pension.split_received"
+      }
+    },
+    {
+      "id": "fed.cca_class8_raw",
+      "label": "Class 8 balance after additions and dispositions",
+      "note": "May go negative — that is recapture, not an error.",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "sum",
+          "of": [
+            {
+              "op": "fact",
+              "key": "cca.class8.opening_ucc"
+            },
+            {
+              "op": "fact",
+              "key": "cca.class8.additions"
+            }
+          ]
+        },
+        "minus": {
+          "op": "fact",
+          "key": "cca.class8.dispositions"
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class8_recapture",
+      "label": "Class 8 recapture",
+      "note": "Selling for more than the pool's remaining value claws back depreciation already deducted. It is income, not a smaller deduction.",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "mul",
+          "of": {
+            "op": "line",
+            "id": "fed.cca_class8_raw"
+          },
+          "by": {
+            "op": "const",
+            "value": "-1"
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class8_terminal",
+      "label": "Class 8 terminal loss",
+      "note": "When the last asset in a class goes and value remains in the pool, the remainder is deductible in full — but only once the class is empty.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "and",
+          "all": [
+            {
+              "cmp": "gte",
+              "left": {
+                "op": "fact",
+                "key": "cca.class8.all_disposed"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "gt",
+              "left": {
+                "op": "line",
+                "id": "fed.cca_class8_raw"
+              },
+              "right": {
+                "op": "const",
+                "value": "0"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "line",
+          "id": "fed.cca_class8_raw"
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class8_base",
+      "label": "Class 8 base for capital cost allowance",
+      "note": "A pool in recapture or wound up by a terminal loss has no balance left to depreciate.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "or",
+          "any": [
+            {
+              "cmp": "gt",
+              "left": {
+                "op": "line",
+                "id": "fed.cca_class8_recapture"
+              },
+              "right": {
+                "op": "const",
+                "value": "0"
+              }
+            },
+            {
+              "cmp": "gt",
+              "left": {
+                "op": "line",
+                "id": "fed.cca_class8_terminal"
+              },
+              "right": {
+                "op": "const",
+                "value": "0"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "const",
+          "value": "0"
+        },
+        "else": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sum",
+            "of": [
+              {
+                "op": "line",
+                "id": "fed.cca_class8_raw"
+              },
+              {
+                "op": "mul",
+                "of": {
+                  "op": "floor_zero",
+                  "of": {
+                    "op": "sub",
+                    "from": {
+                      "op": "fact",
+                      "key": "cca.class8.additions"
+                    },
+                    "minus": {
+                      "op": "fact",
+                      "key": "cca.class8.dispositions"
+                    }
+                  }
+                },
+                "by": {
+                  "op": "param",
+                  "key": "fed:cca_first_year_adjustment"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class8",
+      "label": "Capital cost allowance, class 8 — furniture, fixtures and general equipment",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "fed.cca_class8_base"
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:cca_rate_class8"
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class10_raw",
+      "label": "Class 10 balance after additions and dispositions",
+      "note": "May go negative — that is recapture, not an error.",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "sum",
+          "of": [
+            {
+              "op": "fact",
+              "key": "cca.class10.opening_ucc"
+            },
+            {
+              "op": "fact",
+              "key": "cca.class10.additions"
+            }
+          ]
+        },
+        "minus": {
+          "op": "fact",
+          "key": "cca.class10.dispositions"
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class10_recapture",
+      "label": "Class 10 recapture",
+      "note": "Selling for more than the pool's remaining value claws back depreciation already deducted. It is income, not a smaller deduction.",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "mul",
+          "of": {
+            "op": "line",
+            "id": "fed.cca_class10_raw"
+          },
+          "by": {
+            "op": "const",
+            "value": "-1"
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class10_terminal",
+      "label": "Class 10 terminal loss",
+      "note": "When the last asset in a class goes and value remains in the pool, the remainder is deductible in full — but only once the class is empty.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "and",
+          "all": [
+            {
+              "cmp": "gte",
+              "left": {
+                "op": "fact",
+                "key": "cca.class10.all_disposed"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "gt",
+              "left": {
+                "op": "line",
+                "id": "fed.cca_class10_raw"
+              },
+              "right": {
+                "op": "const",
+                "value": "0"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "line",
+          "id": "fed.cca_class10_raw"
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class10_base",
+      "label": "Class 10 base for capital cost allowance",
+      "note": "A pool in recapture or wound up by a terminal loss has no balance left to depreciate.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "or",
+          "any": [
+            {
+              "cmp": "gt",
+              "left": {
+                "op": "line",
+                "id": "fed.cca_class10_recapture"
+              },
+              "right": {
+                "op": "const",
+                "value": "0"
+              }
+            },
+            {
+              "cmp": "gt",
+              "left": {
+                "op": "line",
+                "id": "fed.cca_class10_terminal"
+              },
+              "right": {
+                "op": "const",
+                "value": "0"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "const",
+          "value": "0"
+        },
+        "else": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sum",
+            "of": [
+              {
+                "op": "line",
+                "id": "fed.cca_class10_raw"
+              },
+              {
+                "op": "mul",
+                "of": {
+                  "op": "floor_zero",
+                  "of": {
+                    "op": "sub",
+                    "from": {
+                      "op": "fact",
+                      "key": "cca.class10.additions"
+                    },
+                    "minus": {
+                      "op": "fact",
+                      "key": "cca.class10.dispositions"
+                    }
+                  }
+                },
+                "by": {
+                  "op": "param",
+                  "key": "fed:cca_first_year_adjustment"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class10",
+      "label": "Capital cost allowance, class 10 — most motor vehicles",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "fed.cca_class10_base"
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:cca_rate_class10"
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class12_raw",
+      "label": "Class 12 balance after additions and dispositions",
+      "note": "May go negative — that is recapture, not an error.",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "sum",
+          "of": [
+            {
+              "op": "fact",
+              "key": "cca.class12.opening_ucc"
+            },
+            {
+              "op": "fact",
+              "key": "cca.class12.additions"
+            }
+          ]
+        },
+        "minus": {
+          "op": "fact",
+          "key": "cca.class12.dispositions"
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class12_recapture",
+      "label": "Class 12 recapture",
+      "note": "Selling for more than the pool's remaining value claws back depreciation already deducted. It is income, not a smaller deduction.",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "mul",
+          "of": {
+            "op": "line",
+            "id": "fed.cca_class12_raw"
+          },
+          "by": {
+            "op": "const",
+            "value": "-1"
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class12_terminal",
+      "label": "Class 12 terminal loss",
+      "note": "When the last asset in a class goes and value remains in the pool, the remainder is deductible in full — but only once the class is empty.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "and",
+          "all": [
+            {
+              "cmp": "gte",
+              "left": {
+                "op": "fact",
+                "key": "cca.class12.all_disposed"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "gt",
+              "left": {
+                "op": "line",
+                "id": "fed.cca_class12_raw"
+              },
+              "right": {
+                "op": "const",
+                "value": "0"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "line",
+          "id": "fed.cca_class12_raw"
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class12_base",
+      "label": "Class 12 base for capital cost allowance",
+      "note": "A pool in recapture or wound up by a terminal loss has no balance left to depreciate.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "or",
+          "any": [
+            {
+              "cmp": "gt",
+              "left": {
+                "op": "line",
+                "id": "fed.cca_class12_recapture"
+              },
+              "right": {
+                "op": "const",
+                "value": "0"
+              }
+            },
+            {
+              "cmp": "gt",
+              "left": {
+                "op": "line",
+                "id": "fed.cca_class12_terminal"
+              },
+              "right": {
+                "op": "const",
+                "value": "0"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "const",
+          "value": "0"
+        },
+        "else": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sum",
+            "of": [
+              {
+                "op": "line",
+                "id": "fed.cca_class12_raw"
+              },
+              {
+                "op": "mul",
+                "of": {
+                  "op": "floor_zero",
+                  "of": {
+                    "op": "sub",
+                    "from": {
+                      "op": "fact",
+                      "key": "cca.class12.additions"
+                    },
+                    "minus": {
+                      "op": "fact",
+                      "key": "cca.class12.dispositions"
+                    }
+                  }
+                },
+                "by": {
+                  "op": "param",
+                  "key": "fed:cca_first_year_adjustment"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class12",
+      "label": "Capital cost allowance, class 12 — tools under the cost threshold, and software",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "fed.cca_class12_base"
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:cca_rate_class12"
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class50_raw",
+      "label": "Class 50 balance after additions and dispositions",
+      "note": "May go negative — that is recapture, not an error.",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "sum",
+          "of": [
+            {
+              "op": "fact",
+              "key": "cca.class50.opening_ucc"
+            },
+            {
+              "op": "fact",
+              "key": "cca.class50.additions"
+            }
+          ]
+        },
+        "minus": {
+          "op": "fact",
+          "key": "cca.class50.dispositions"
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class50_recapture",
+      "label": "Class 50 recapture",
+      "note": "Selling for more than the pool's remaining value claws back depreciation already deducted. It is income, not a smaller deduction.",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "mul",
+          "of": {
+            "op": "line",
+            "id": "fed.cca_class50_raw"
+          },
+          "by": {
+            "op": "const",
+            "value": "-1"
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class50_terminal",
+      "label": "Class 50 terminal loss",
+      "note": "When the last asset in a class goes and value remains in the pool, the remainder is deductible in full — but only once the class is empty.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "and",
+          "all": [
+            {
+              "cmp": "gte",
+              "left": {
+                "op": "fact",
+                "key": "cca.class50.all_disposed"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "gt",
+              "left": {
+                "op": "line",
+                "id": "fed.cca_class50_raw"
+              },
+              "right": {
+                "op": "const",
+                "value": "0"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "line",
+          "id": "fed.cca_class50_raw"
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class50_base",
+      "label": "Class 50 base for capital cost allowance",
+      "note": "A pool in recapture or wound up by a terminal loss has no balance left to depreciate.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "or",
+          "any": [
+            {
+              "cmp": "gt",
+              "left": {
+                "op": "line",
+                "id": "fed.cca_class50_recapture"
+              },
+              "right": {
+                "op": "const",
+                "value": "0"
+              }
+            },
+            {
+              "cmp": "gt",
+              "left": {
+                "op": "line",
+                "id": "fed.cca_class50_terminal"
+              },
+              "right": {
+                "op": "const",
+                "value": "0"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "const",
+          "value": "0"
+        },
+        "else": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sum",
+            "of": [
+              {
+                "op": "line",
+                "id": "fed.cca_class50_raw"
+              },
+              {
+                "op": "mul",
+                "of": {
+                  "op": "floor_zero",
+                  "of": {
+                    "op": "sub",
+                    "from": {
+                      "op": "fact",
+                      "key": "cca.class50.additions"
+                    },
+                    "minus": {
+                      "op": "fact",
+                      "key": "cca.class50.dispositions"
+                    }
+                  }
+                },
+                "by": {
+                  "op": "param",
+                  "key": "fed:cca_first_year_adjustment"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class50",
+      "label": "Capital cost allowance, class 50 — computer hardware and systems software",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "fed.cca_class50_base"
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:cca_rate_class50"
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class10_1_capped_cost",
+      "label": "Class 10.1 cost, capped at the passenger vehicle limit",
+      "note": "Anything paid above the limit is simply not depreciable.",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "fact",
+            "key": "cca.class10_1.additions"
+          },
+          {
+            "op": "param",
+            "key": "fed:vehicle_cost_limit"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.cca_class10_1_base",
+      "label": "Class 10.1 base for capital cost allowance",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sum",
+          "of": [
+            {
+              "op": "sub",
+              "from": {
+                "op": "sum",
+                "of": [
+                  {
+                    "op": "fact",
+                    "key": "cca.class10_1.opening_ucc"
+                  },
+                  {
+                    "op": "line",
+                    "id": "fed.cca_class10_1_capped_cost"
+                  }
+                ]
+              },
+              "minus": {
+                "op": "fact",
+                "key": "cca.class10_1.dispositions"
+              }
+            },
+            {
+              "op": "mul",
+              "of": {
+                "op": "floor_zero",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "line",
+                    "id": "fed.cca_class10_1_capped_cost"
+                  },
+                  "minus": {
+                    "op": "fact",
+                    "key": "cca.class10_1.dispositions"
+                  }
+                }
+              },
+              "by": {
+                "op": "param",
+                "key": "fed:cca_first_year_adjustment"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fed.cca_class10_1",
+      "label": "Capital cost allowance, class 10.1 — passenger vehicle above the cost limit",
+      "note": "Neither recapture nor a terminal loss ever arises on class 10.1, however the vehicle is sold.",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "fed.cca_class10_1_base"
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:cca_rate_class10_1"
+        }
+      }
+    },
+    {
+      "id": "fed.cca_maximum",
+      "label": "Maximum capital cost allowance available",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.cca_class8"
+          },
+          {
+            "op": "line",
+            "id": "fed.cca_class10"
+          },
+          {
+            "op": "line",
+            "id": "fed.cca_class12"
+          },
+          {
+            "op": "line",
+            "id": "fed.cca_class50"
+          },
+          {
+            "op": "line",
+            "id": "fed.cca_class10_1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.cca_total",
+      "label": "Capital cost allowance claimed",
+      "note": "CCA is discretionary: any amount from nil up to the maximum. Claiming less leaves the balance in the pool for a later year, which is worth doing when this year's income is already covered by personal amounts.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "cca.limit_claim"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "clamp",
+          "lo": {
+            "op": "const",
+            "value": "0"
+          },
+          "hi": {
+            "op": "line",
+            "id": "fed.cca_maximum"
+          },
+          "value": {
+            "op": "fact",
+            "key": "cca.claimed"
+          }
+        },
+        "else": {
+          "op": "line",
+          "id": "fed.cca_maximum"
+        }
+      }
+    },
+    {
+      "id": "fed.recapture_total",
+      "label": "Total recapture of capital cost allowance",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.cca_class8_recapture"
+          },
+          {
+            "op": "line",
+            "id": "fed.cca_class10_recapture"
+          },
+          {
+            "op": "line",
+            "id": "fed.cca_class12_recapture"
+          },
+          {
+            "op": "line",
+            "id": "fed.cca_class50_recapture"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.terminal_loss_total",
+      "label": "Total terminal losses",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.cca_class8_terminal"
+          },
+          {
+            "op": "line",
+            "id": "fed.cca_class10_terminal"
+          },
+          {
+            "op": "line",
+            "id": "fed.cca_class12_terminal"
+          },
+          {
+            "op": "line",
+            "id": "fed.cca_class50_terminal"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.se_before_home_office",
+      "label": "Self-employment income before business-use-of-home",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "sum",
+          "of": [
+            {
+              "op": "sub",
+              "from": {
+                "op": "fact",
+                "key": "self_employment.gross"
+              },
+              "minus": {
+                "op": "fact",
+                "key": "self_employment.expenses"
+              }
+            },
+            {
+              "op": "line",
+              "id": "fed.recapture_total"
+            }
+          ]
+        },
+        "minus": {
+          "op": "sum",
+          "of": [
+            {
+              "op": "line",
+              "id": "fed.cca_total"
+            },
+            {
+              "op": "line",
+              "id": "fed.terminal_loss_total"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fed.home_office_fraction",
+      "label": "Business-use portion of the home",
+      "rounding": "none",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gt",
+          "left": {
+            "op": "fact",
+            "key": "home_office.area_total"
+          },
+          "right": {
+            "op": "const",
+            "value": "0"
+          }
+        },
+        "then": {
+          "op": "clamp",
+          "lo": {
+            "op": "const",
+            "value": "0"
+          },
+          "hi": {
+            "op": "const",
+            "value": "1"
+          },
+          "value": {
+            "op": "div",
+            "of": {
+              "op": "fact",
+              "key": "home_office.area_business"
+            },
+            "by": {
+              "op": "fact",
+              "key": "home_office.area_total"
+            }
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "fed.home_office_eligible",
+      "label": "Business-use-of-home expenses available",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "fact",
+          "key": "home_office.expenses"
+        },
+        "by": {
+          "op": "line",
+          "id": "fed.home_office_fraction"
+        }
+      }
+    },
+    {
+      "id": "fed.home_office_claimed",
+      "label": "Business-use-of-home expenses claimed",
+      "note": "This deduction cannot create or increase a business loss, so it is capped at whatever income survives every other expense.",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.home_office_eligible"
+          },
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "line",
+              "id": "fed.se_before_home_office"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.home_office_carryforward",
+      "label": "Business-use-of-home expenses carried forward",
+      "note": "Not lost — it can be deducted against business income in a later year. Freshet does not yet carry amounts between years, so record it.",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "fed.home_office_eligible"
+          },
+          "minus": {
+            "op": "line",
+            "id": "fed.home_office_claimed"
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.13500",
+      "label": "Net self-employment income",
+      "note": "Gross income less expenses, capital cost allowance and the allowable business-use-of-home portion, from form T2125. A loss is legitimate and reduces other income, so this line is not floored at zero.",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "line",
+          "id": "fed.se_before_home_office"
+        },
+        "minus": {
+          "op": "line",
+          "id": "fed.home_office_claimed"
+        }
+      }
+    },
+    {
+      "id": "fed.13700",
+      "label": "Net professional income",
+      "note": "Fees from a professional practice, less expenses. Form T2125, professional part. Capital cost allowance and business-use-of-home attach to the business activity at line 13500; include any depreciation for this activity in its expenses.",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "fact",
+          "key": "professional.gross"
+        },
+        "minus": {
+          "op": "fact",
+          "key": "professional.expenses"
+        }
+      }
+    },
+    {
+      "id": "fed.14100",
+      "label": "Net farming income",
+      "note": "Form T2042. The optional inventory adjustment and the cash method are not modelled. Capital cost allowance and business-use-of-home attach to the business activity at line 13500; include any depreciation for this activity in its expenses.",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "fact",
+          "key": "farming.gross"
+        },
+        "minus": {
+          "op": "fact",
+          "key": "farming.expenses"
+        }
+      }
+    },
+    {
+      "id": "fed.14300",
+      "label": "Net fishing income",
+      "note": "Form T2121. Capital cost allowance and business-use-of-home attach to the business activity at line 13500; include any depreciation for this activity in its expenses.",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "fact",
+          "key": "fishing.gross"
+        },
+        "minus": {
+          "op": "fact",
+          "key": "fishing.expenses"
+        }
+      }
+    },
+    {
+      "id": "fed.total_self_employment",
+      "label": "Total net self-employment income",
+      "note": "Every activity together. This is what CPP is charged on, and what counts as working income for the Workers Benefit and as earned income for the child care cap.",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.13500"
+          },
+          {
+            "op": "line",
+            "id": "fed.13700"
+          },
+          {
+            "op": "line",
+            "id": "fed.14100"
+          },
+          {
+            "op": "line",
+            "id": "fed.14300"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.15000",
+      "label": "Total income",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.10100"
+          },
+          {
+            "op": "line",
+            "id": "fed.11500"
+          },
+          {
+            "op": "line",
+            "id": "fed.11600"
+          },
+          {
+            "op": "line",
+            "id": "fed.12100"
+          },
+          {
+            "op": "line",
+            "id": "fed.13500"
+          },
+          {
+            "op": "line",
+            "id": "fed.13700"
+          },
+          {
+            "op": "line",
+            "id": "fed.14100"
+          },
+          {
+            "op": "line",
+            "id": "fed.14300"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.cpp_employment_pensionable",
+      "label": "Pensionable earnings already covered by employment",
+      "note": "Reverse-engineered from the CPP withheld on the T4, so self-employment only contributes on what is left under the ceiling.",
+      "expr": {
+        "op": "div",
+        "of": {
+          "op": "fact",
+          "key": "t4.cpp_contributions"
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:cpp_rate_total"
+        }
+      }
+    },
+    {
+      "id": "fed.cpp_se_pensionable",
+      "label": "Self-employment earnings subject to CPP",
+      "note": "The basic exemption is treated as used up by employment when there is any, and applied here otherwise. Combined pensionable earnings cannot exceed the annual ceiling.",
+      "expr": {
+        "op": "clamp",
+        "lo": {
+          "op": "const",
+          "value": "0"
+        },
+        "hi": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "sub",
+              "from": {
+                "op": "param",
+                "key": "fed:cpp_ympe"
+              },
+              "minus": {
+                "op": "param",
+                "key": "fed:cpp_basic_exemption"
+              }
+            },
+            "minus": {
+              "op": "line",
+              "id": "fed.cpp_employment_pensionable"
+            }
+          }
+        },
+        "value": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "fed.total_self_employment"
+          },
+          "minus": {
+            "op": "if",
+            "cond": {
+              "cmp": "gt",
+              "left": {
+                "op": "line",
+                "id": "fed.cpp_employment_pensionable"
+              },
+              "right": {
+                "op": "const",
+                "value": "0"
+              }
+            },
+            "then": {
+              "op": "const",
+              "value": "0"
+            },
+            "else": {
+              "op": "param",
+              "key": "fed:cpp_basic_exemption"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.cpp_se_base",
+      "label": "Base CPP on self-employment, both halves",
+      "note": "A self-employed person is both employee and employer, so they pay twice the employee rate.",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "mul",
+          "of": {
+            "op": "line",
+            "id": "fed.cpp_se_pensionable"
+          },
+          "by": {
+            "op": "param",
+            "key": "fed:cpp_rate_base"
+          }
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:cpp_self_employed_multiple"
+        }
+      }
+    },
+    {
+      "id": "fed.cpp_se_enhanced",
+      "label": "Enhanced CPP on self-employment, both halves",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "mul",
+          "of": {
+            "op": "line",
+            "id": "fed.cpp_se_pensionable"
+          },
+          "by": {
+            "op": "param",
+            "key": "fed:cpp_rate_enhanced"
+          }
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:cpp_self_employed_multiple"
+        }
+      }
+    },
+    {
+      "id": "fed.22200",
+      "label": "Deduction for CPP on self-employment income",
+      "note": "The employer half is a deduction; the employee half is a credit at line 31000. Splitting them this way is what keeps a self-employed person even with an employee.",
+      "expr": {
+        "op": "div",
+        "of": {
+          "op": "line",
+          "id": "fed.cpp_se_base"
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:cpp_self_employed_multiple"
+        }
+      }
+    },
+    {
+      "id": "fed.31000",
+      "label": "Base CPP contributions on self-employment income",
+      "expr": {
+        "op": "div",
+        "of": {
+          "op": "line",
+          "id": "fed.cpp_se_base"
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:cpp_self_employed_multiple"
+        }
+      }
+    },
+    {
+      "id": "fed.20800",
+      "label": "RRSP deduction",
+      "note": "Contributions made in the year or in the first 60 days after year end.",
+      "expr": {
+        "op": "fact",
+        "key": "rrsp.deduction_claimed"
+      }
+    },
+    {
+      "id": "fed.22215",
+      "label": "Deduction for CPP enhanced contributions",
+      "note": "The enhanced portion of CPP is deducted from income; the base portion is a credit instead.",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "mul",
+            "of": {
+              "op": "fact",
+              "key": "t4.cpp_contributions"
+            },
+            "by": {
+              "op": "div",
+              "of": {
+                "op": "param",
+                "key": "fed:cpp_rate_enhanced"
+              },
+              "by": {
+                "op": "param",
+                "key": "fed:cpp_rate_total"
+              }
+            }
+          },
+          {
+            "op": "fact",
+            "key": "t4.cpp2_contributions"
+          },
+          {
+            "op": "line",
+            "id": "fed.cpp_se_enhanced"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.21000",
+      "label": "Deduction for elected split-pension amount",
+      "note": "The mirror of your spouse's line 11600: income you elected to move to their return.",
+      "expr": {
+        "op": "fact",
+        "key": "pension.split_given"
+      }
+    },
+    {
+      "id": "fed.childcare_child_limit",
+      "label": "Child care limit from the children themselves",
+      "note": "Each child carries their own annual cap, and the caps add together.",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "mul",
+            "of": {
+              "op": "fact",
+              "key": "dependants.count_under_7"
+            },
+            "by": {
+              "op": "param",
+              "key": "fed:childcare_limit_under_7"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "fact",
+              "key": "dependants.count_7_to_16"
+            },
+            "by": {
+              "op": "param",
+              "key": "fed:childcare_limit_7_to_16"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "fact",
+              "key": "dependants.count_disabled"
+            },
+            "by": {
+              "op": "param",
+              "key": "fed:childcare_limit_disabled"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.childcare_income_limit",
+      "label": "Child care limit from earned income",
+      "note": "Two thirds of earned income. Employment income is used as the proxy; self-employment is not modelled yet.",
+      "expr": {
+        "op": "div",
+        "of": {
+          "op": "mul",
+          "of": {
+            "op": "sum",
+            "of": [
+              {
+                "op": "line",
+                "id": "fed.10100"
+              },
+              {
+                "op": "floor_zero",
+                "of": {
+                  "op": "line",
+                  "id": "fed.total_self_employment"
+                }
+              }
+            ]
+          },
+          "by": {
+            "op": "param",
+            "key": "fed:childcare_earned_income_num"
+          }
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:childcare_earned_income_den"
+        }
+      }
+    },
+    {
+      "id": "fed.21400",
+      "label": "Child care expenses",
+      "note": "A deduction, not a credit — and one the lower-income spouse must claim, which is why Freshet does not treat it as a choice.",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "fact",
+            "key": "childcare.expenses_claimed"
+          },
+          {
+            "op": "line",
+            "id": "fed.childcare_child_limit"
+          },
+          {
+            "op": "line",
+            "id": "fed.childcare_income_limit"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.23300",
+      "label": "Total deductions",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.20800"
+          },
+          {
+            "op": "line",
+            "id": "fed.21000"
+          },
+          {
+            "op": "line",
+            "id": "fed.21400"
+          },
+          {
+            "op": "line",
+            "id": "fed.22200"
+          },
+          {
+            "op": "line",
+            "id": "fed.22215"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.23600",
+      "label": "Net income",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "fed.15000"
+          },
+          "minus": {
+            "op": "line",
+            "id": "fed.23300"
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.26000",
+      "label": "Taxable income",
+      "expr": {
+        "op": "line",
+        "id": "fed.23600"
+      }
+    },
+    {
+      "id": "fed.30000",
+      "label": "Basic personal amount",
+      "note": "Phased down for high incomes, on a straight line between the 29% and 33% bracket thresholds.",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "param",
+          "key": "fed:bpa_max"
+        },
+        "minus": {
+          "op": "mul",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "param",
+              "key": "fed:bpa_max"
+            },
+            "minus": {
+              "op": "param",
+              "key": "fed:bpa_min"
+            }
+          },
+          "by": {
+            "op": "clamp",
+            "lo": {
+              "op": "const",
+              "value": "0"
+            },
+            "hi": {
+              "op": "const",
+              "value": "1"
+            },
+            "value": {
+              "op": "div",
+              "of": {
+                "op": "sub",
+                "from": {
+                  "op": "line",
+                  "id": "fed.23600"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "fed:bpa_phaseout_start"
+                }
+              },
+              "by": {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "fed:bpa_phaseout_end"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "fed:bpa_phaseout_start"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.30800",
+      "label": "CPP contributions through employment (base portion)",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "fact",
+          "key": "t4.cpp_contributions"
+        },
+        "by": {
+          "op": "div",
+          "of": {
+            "op": "param",
+            "key": "fed:cpp_rate_base"
+          },
+          "by": {
+            "op": "param",
+            "key": "fed:cpp_rate_total"
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.31200",
+      "label": "EI premiums through employment",
+      "expr": {
+        "op": "fact",
+        "key": "t4.ei_premiums"
+      }
+    },
+    {
+      "id": "fed.31260",
+      "label": "Canada employment amount",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.10100"
+          },
+          {
+            "op": "param",
+            "key": "fed:canada_employment_amount"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.30300",
+      "label": "Spouse or common-law partner amount",
+      "note": "Whatever your partner's own income does not already use up. Phased down for high income the same way the basic personal amount is.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "partner.present"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "sub",
+              "from": {
+                "op": "param",
+                "key": "fed:spouse_amount_max"
+              },
+              "minus": {
+                "op": "mul",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "param",
+                    "key": "fed:spouse_amount_max"
+                  },
+                  "minus": {
+                    "op": "param",
+                    "key": "fed:spouse_amount_min"
+                  }
+                },
+                "by": {
+                  "op": "clamp",
+                  "lo": {
+                    "op": "const",
+                    "value": "0"
+                  },
+                  "hi": {
+                    "op": "const",
+                    "value": "1"
+                  },
+                  "value": {
+                    "op": "div",
+                    "of": {
+                      "op": "sub",
+                      "from": {
+                        "op": "line",
+                        "id": "fed.23600"
+                      },
+                      "minus": {
+                        "op": "param",
+                        "key": "fed:bpa_phaseout_start"
+                      }
+                    },
+                    "by": {
+                      "op": "sub",
+                      "from": {
+                        "op": "param",
+                        "key": "fed:bpa_phaseout_end"
+                      },
+                      "minus": {
+                        "op": "param",
+                        "key": "fed:bpa_phaseout_start"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "minus": {
+              "op": "fact",
+              "key": "partner.net_income"
+            }
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "fed.33099",
+      "label": "Medical expenses claimed",
+      "note": "A couple pools medical expenses on one return. Usually the lower-income partner, because the threshold that is subtracted is smaller.",
+      "expr": {
+        "op": "fact",
+        "key": "medical.expenses_claimed"
+      }
+    },
+    {
+      "id": "fed.33199",
+      "label": "Allowable medical expenses",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "fed.33099"
+          },
+          "minus": {
+            "op": "min",
+            "of": [
+              {
+                "op": "mul",
+                "of": {
+                  "op": "line",
+                  "id": "fed.23600"
+                },
+                "by": {
+                  "op": "param",
+                  "key": "fed:medical_threshold_rate"
+                }
+              },
+              {
+                "op": "param",
+                "key": "fed:medical_threshold_cap"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.30400",
+      "label": "Amount for an eligible dependant",
+      "note": "For someone supporting a dependant without a spouse — a single parent, typically. It cannot be combined with the spouse amount, so it is zero whenever a partner is present.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "and",
+          "all": [
+            {
+              "cmp": "lt",
+              "left": {
+                "op": "fact",
+                "key": "partner.present"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "gte",
+              "left": {
+                "op": "fact",
+                "key": "dependants.eligible_dependant_claimed"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "sub",
+              "from": {
+                "op": "param",
+                "key": "fed:eligible_dependant_max"
+              },
+              "minus": {
+                "op": "mul",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "param",
+                    "key": "fed:eligible_dependant_max"
+                  },
+                  "minus": {
+                    "op": "param",
+                    "key": "fed:eligible_dependant_min"
+                  }
+                },
+                "by": {
+                  "op": "clamp",
+                  "lo": {
+                    "op": "const",
+                    "value": "0"
+                  },
+                  "hi": {
+                    "op": "const",
+                    "value": "1"
+                  },
+                  "value": {
+                    "op": "div",
+                    "of": {
+                      "op": "sub",
+                      "from": {
+                        "op": "line",
+                        "id": "fed.23600"
+                      },
+                      "minus": {
+                        "op": "param",
+                        "key": "fed:bpa_phaseout_start"
+                      }
+                    },
+                    "by": {
+                      "op": "sub",
+                      "from": {
+                        "op": "param",
+                        "key": "fed:bpa_phaseout_end"
+                      },
+                      "minus": {
+                        "op": "param",
+                        "key": "fed:bpa_phaseout_start"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "minus": {
+              "op": "fact",
+              "key": "dependants.eligible_dependant_net_income"
+            }
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "fed.30500",
+      "label": "Canada caregiver amount for infirm children under 18",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "fact",
+          "key": "dependants.count_infirm_minor"
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:caregiver_child_amount"
+        }
+      }
+    },
+    {
+      "id": "fed.30450",
+      "label": "Canada caregiver amount for other infirm dependants 18 or older",
+      "note": "A different provision from the amount for infirm children under 18, and reduced by the dependant's own income. One dependant is supported; several are not.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "dependants.infirm_adult_claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "param",
+              "key": "fed:caregiver_adult_amount"
+            },
+            "minus": {
+              "op": "floor_zero",
+              "of": {
+                "op": "sub",
+                "from": {
+                  "op": "fact",
+                  "key": "dependants.infirm_adult_net_income"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "fed:caregiver_adult_threshold"
+                }
+              }
+            }
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "fed.30100",
+      "label": "Age amount",
+      "note": "For anyone 65 or older on December 31, reduced by 15% of net income above the threshold. Moving income to a spouse can restore part of it.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "taxpayer.age"
+          },
+          "right": {
+            "op": "const",
+            "value": "65"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "param",
+              "key": "fed:age_amount_max"
+            },
+            "minus": {
+              "op": "mul",
+              "of": {
+                "op": "floor_zero",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "line",
+                    "id": "fed.23600"
+                  },
+                  "minus": {
+                    "op": "param",
+                    "key": "fed:age_amount_threshold"
+                  }
+                }
+              },
+              "by": {
+                "op": "param",
+                "key": "fed:age_amount_clawback_rate"
+              }
+            }
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "fed.31400",
+      "label": "Pension income amount",
+      "note": "Up to $2,000 of eligible pension income. Split-pension income received counts only if the spouse who sent it was eligible, which is why a split can create a second one of these.",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "sum",
+                "of": [
+                  {
+                    "op": "line",
+                    "id": "fed.11500"
+                  },
+                  {
+                    "op": "mul",
+                    "of": {
+                      "op": "line",
+                      "id": "fed.11600"
+                    },
+                    "by": {
+                      "op": "fact",
+                      "key": "pension.split_received_eligible"
+                    }
+                  }
+                ]
+              },
+              "minus": {
+                "op": "line",
+                "id": "fed.21000"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "fed:pension_income_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.31600",
+      "label": "Disability amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "disability.claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "param",
+          "key": "fed:disability_amount"
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "fed.amounts_before_tuition",
+      "label": "Credit amounts before tuition",
+      "note": "Intermediate. Tuition is applied last because it is the amount that can be carried forward or transferred, so it should be the one left over.",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.30000"
+          },
+          {
+            "op": "line",
+            "id": "fed.30100"
+          },
+          {
+            "op": "line",
+            "id": "fed.30300"
+          },
+          {
+            "op": "line",
+            "id": "fed.30400"
+          },
+          {
+            "op": "line",
+            "id": "fed.30450"
+          },
+          {
+            "op": "line",
+            "id": "fed.30500"
+          },
+          {
+            "op": "line",
+            "id": "fed.30800"
+          },
+          {
+            "op": "line",
+            "id": "fed.31000"
+          },
+          {
+            "op": "line",
+            "id": "fed.31200"
+          },
+          {
+            "op": "line",
+            "id": "fed.31260"
+          },
+          {
+            "op": "line",
+            "id": "fed.31400"
+          },
+          {
+            "op": "line",
+            "id": "fed.31600"
+          },
+          {
+            "op": "line",
+            "id": "fed.33199"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.32300",
+      "label": "Tuition amount claimed by the student",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "fact",
+            "key": "tuition.fees"
+          },
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "line",
+                "id": "fed.26000"
+              },
+              "minus": {
+                "op": "line",
+                "id": "fed.amounts_before_tuition"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.tuition_transferable",
+      "label": "Tuition available to transfer",
+      "note": "Capped at $5,000 of the current year's fees, federally.",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "fact",
+                "key": "tuition.fees"
+              },
+              "minus": {
+                "op": "line",
+                "id": "fed.32300"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "fed:tuition_transfer_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.tuition_carryforward",
+      "label": "Tuition carried forward to a later year",
+      "note": "Not yet tracked between years. Record this figure — a later return will need it.",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "sub",
+            "from": {
+              "op": "fact",
+              "key": "tuition.fees"
+            },
+            "minus": {
+              "op": "line",
+              "id": "fed.32300"
+            }
+          },
+          "minus": {
+            "op": "line",
+            "id": "fed.tuition_transferable"
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.own_amounts",
+      "label": "Your own credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.amounts_before_tuition"
+          },
+          {
+            "op": "line",
+            "id": "fed.32300"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.unused_transferable",
+      "label": "Amounts available to transfer to your spouse",
+      "note": "Schedule 2. Age, pension and disability amounts you cannot use yourself, plus transferable tuition.",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "sum",
+                "of": [
+                  {
+                    "op": "line",
+                    "id": "fed.30100"
+                  },
+                  {
+                    "op": "line",
+                    "id": "fed.31400"
+                  },
+                  {
+                    "op": "line",
+                    "id": "fed.31600"
+                  }
+                ]
+              },
+              "minus": {
+                "op": "floor_zero",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "line",
+                    "id": "fed.26000"
+                  },
+                  "minus": {
+                    "op": "sub",
+                    "from": {
+                      "op": "line",
+                      "id": "fed.own_amounts"
+                    },
+                    "minus": {
+                      "op": "sum",
+                      "of": [
+                        {
+                          "op": "line",
+                          "id": "fed.30100"
+                        },
+                        {
+                          "op": "line",
+                          "id": "fed.31400"
+                        },
+                        {
+                          "op": "line",
+                          "id": "fed.31600"
+                        },
+                        {
+                          "op": "line",
+                          "id": "fed.32300"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "op": "line",
+            "id": "fed.tuition_transferable"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.32600",
+      "label": "Amounts transferred from your spouse",
+      "note": "Schedule 2. What your partner could not use themselves.",
+      "expr": {
+        "op": "fact",
+        "key": "partner.transfer_amount"
+      }
+    },
+    {
+      "id": "fed.33500",
+      "label": "Total non-refundable credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.own_amounts"
+          },
+          {
+            "op": "line",
+            "id": "fed.32600"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.33800",
+      "label": "Credit amounts at the lowest rate",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "fed.33500"
+        },
+        "by": {
+          "op": "param",
+          "key": "fed:credit_rate"
+        }
+      }
+    },
+    {
+      "id": "fed.34900",
+      "label": "Donations and gifts",
+      "note": "Credited at a higher rate above the first $200, which is why a couple should pool donations onto one return rather than splitting them.",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "mul",
+            "of": {
+              "op": "min",
+              "of": [
+                {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                {
+                  "op": "param",
+                  "key": "fed:donation_first_tier"
+                }
+              ]
+            },
+            "by": {
+              "op": "param",
+              "key": "fed:donation_rate_first"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "floor_zero",
+              "of": {
+                "op": "sub",
+                "from": {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "fed:donation_first_tier"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "fed:donation_rate_rest"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.35000",
+      "label": "Total federal non-refundable tax credits",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.33800"
+          },
+          {
+            "op": "line",
+            "id": "fed.34900"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.40400",
+      "label": "Federal tax on taxable income",
+      "expr": {
+        "op": "bracket",
+        "table": "fed:income_tax",
+        "base": {
+          "op": "line",
+          "id": "fed.26000"
+        }
+      }
+    },
+    {
+      "id": "fed.42000",
+      "label": "Net federal tax",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "fed.40400"
+          },
+          "minus": {
+            "op": "line",
+            "id": "fed.35000"
+          }
+        }
+      }
+    },
+    {
+      "id": "on.58040",
+      "label": "Ontario basic personal amount",
+      "expr": {
+        "op": "param",
+        "key": "on:bpa"
+      }
+    },
+    {
+      "id": "on.58120",
+      "label": "Ontario spouse or common-law partner amount",
+      "note": "Ontario reduces a base amount by the dependant's income and then caps the result, so the base exceeds the maximum. That gap is a band of the dependant's income that costs the claim nothing — a shape the federal equivalent does not share.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "partner.present"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "on:spouse_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "partner.net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "on:spouse_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "on.58689",
+      "label": "Ontario allowable medical expenses",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "fed.33099"
+          },
+          "minus": {
+            "op": "min",
+            "of": [
+              {
+                "op": "mul",
+                "of": {
+                  "op": "line",
+                  "id": "fed.23600"
+                },
+                "by": {
+                  "op": "param",
+                  "key": "on:medical_threshold_rate"
+                }
+              },
+              {
+                "op": "param",
+                "key": "on:medical_threshold_cap"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "on.58160",
+      "label": "Ontario amount for an eligible dependant",
+      "note": "Ontario reduces a base amount by the dependant's income and then caps the result, so the base exceeds the maximum. That gap is a band of the dependant's income that costs the claim nothing — a shape the federal equivalent does not share.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "and",
+          "all": [
+            {
+              "cmp": "lt",
+              "left": {
+                "op": "fact",
+                "key": "partner.present"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "gte",
+              "left": {
+                "op": "fact",
+                "key": "dependants.eligible_dependant_claimed"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "on:eligible_dependant_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.eligible_dependant_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "on:eligible_dependant_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "on.58185",
+      "label": "Ontario caregiver amount",
+      "note": "Worksheet ON428: a $26,562 base reduced by the dependant's income and capped at $6,008. The previous model treated it as an amount reduced above a threshold, which is a different curve entirely.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "dependants.infirm_adult_claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "min",
+            "of": [
+              {
+                "op": "sub",
+                "from": {
+                  "op": "param",
+                  "key": "on:caregiver_base"
+                },
+                "minus": {
+                  "op": "fact",
+                  "key": "dependants.infirm_adult_net_income"
+                }
+              },
+              {
+                "op": "param",
+                "key": "on:caregiver_max"
+              }
+            ]
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "on.58080",
+      "label": "Ontario age amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "taxpayer.age"
+          },
+          "right": {
+            "op": "const",
+            "value": "65"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "param",
+              "key": "on:age_amount_max"
+            },
+            "minus": {
+              "op": "mul",
+              "of": {
+                "op": "floor_zero",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "line",
+                    "id": "fed.23600"
+                  },
+                  "minus": {
+                    "op": "param",
+                    "key": "on:age_amount_threshold"
+                  }
+                }
+              },
+              "by": {
+                "op": "param",
+                "key": "on:age_amount_clawback_rate"
+              }
+            }
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "on.58360",
+      "label": "Ontario pension income amount",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "sum",
+                "of": [
+                  {
+                    "op": "line",
+                    "id": "fed.11500"
+                  },
+                  {
+                    "op": "mul",
+                    "of": {
+                      "op": "line",
+                      "id": "fed.11600"
+                    },
+                    "by": {
+                      "op": "fact",
+                      "key": "pension.split_received_eligible"
+                    }
+                  }
+                ]
+              },
+              "minus": {
+                "op": "line",
+                "id": "fed.21000"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "on:pension_income_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "on.58440",
+      "label": "Ontario disability amount",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "disability.claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "param",
+          "key": "on:disability_amount"
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "on.amounts_before_tuition",
+      "label": "Ontario credit amounts before tuition",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "on.58040"
+          },
+          {
+            "op": "line",
+            "id": "on.58080"
+          },
+          {
+            "op": "line",
+            "id": "on.58120"
+          },
+          {
+            "op": "line",
+            "id": "on.58160"
+          },
+          {
+            "op": "line",
+            "id": "on.58185"
+          },
+          {
+            "op": "line",
+            "id": "fed.30800"
+          },
+          {
+            "op": "line",
+            "id": "fed.31000"
+          },
+          {
+            "op": "line",
+            "id": "fed.31200"
+          },
+          {
+            "op": "line",
+            "id": "on.58360"
+          },
+          {
+            "op": "line",
+            "id": "on.58440"
+          },
+          {
+            "op": "line",
+            "id": "on.58689"
+          }
+        ]
+      }
+    },
+    {
+      "id": "on.58560",
+      "label": "Ontario tuition amount claimed by the student",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "fact",
+            "key": "tuition.fees"
+          },
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "line",
+                "id": "fed.26000"
+              },
+              "minus": {
+                "op": "line",
+                "id": "on.amounts_before_tuition"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "on.tuition_transferable",
+      "label": "Ontario tuition available to transfer",
+      "expr": {
+        "op": "min",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "fact",
+                "key": "tuition.fees"
+              },
+              "minus": {
+                "op": "line",
+                "id": "on.58560"
+              }
+            }
+          },
+          {
+            "op": "param",
+            "key": "on:tuition_transfer_max"
+          }
+        ]
+      }
+    },
+    {
+      "id": "on.own_amounts",
+      "label": "Your own Ontario credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "on.amounts_before_tuition"
+          },
+          {
+            "op": "line",
+            "id": "on.58560"
+          }
+        ]
+      }
+    },
+    {
+      "id": "on.unused_transferable",
+      "label": "Ontario amounts available to transfer to your spouse",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "sum",
+                "of": [
+                  {
+                    "op": "line",
+                    "id": "on.58080"
+                  },
+                  {
+                    "op": "line",
+                    "id": "on.58360"
+                  },
+                  {
+                    "op": "line",
+                    "id": "on.58440"
+                  }
+                ]
+              },
+              "minus": {
+                "op": "floor_zero",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "line",
+                    "id": "fed.26000"
+                  },
+                  "minus": {
+                    "op": "sub",
+                    "from": {
+                      "op": "line",
+                      "id": "on.own_amounts"
+                    },
+                    "minus": {
+                      "op": "sum",
+                      "of": [
+                        {
+                          "op": "line",
+                          "id": "on.58080"
+                        },
+                        {
+                          "op": "line",
+                          "id": "on.58360"
+                        },
+                        {
+                          "op": "line",
+                          "id": "on.58440"
+                        },
+                        {
+                          "op": "line",
+                          "id": "on.58560"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "op": "line",
+            "id": "on.tuition_transferable"
+          }
+        ]
+      }
+    },
+    {
+      "id": "on.58640",
+      "label": "Ontario amounts transferred from your spouse",
+      "expr": {
+        "op": "fact",
+        "key": "partner.on_transfer_amount"
+      }
+    },
+    {
+      "id": "on.58800",
+      "label": "Ontario total credit amounts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "on.own_amounts"
+          },
+          {
+            "op": "line",
+            "id": "on.58640"
+          }
+        ]
+      }
+    },
+    {
+      "id": "on.61500",
+      "label": "Ontario non-refundable tax credits",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "on.58800"
+        },
+        "by": {
+          "op": "param",
+          "key": "on:credit_rate"
+        }
+      }
+    },
+    {
+      "id": "on.donations",
+      "label": "Ontario donations and gifts",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "mul",
+            "of": {
+              "op": "min",
+              "of": [
+                {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                {
+                  "op": "param",
+                  "key": "on:donation_first_tier"
+                }
+              ]
+            },
+            "by": {
+              "op": "param",
+              "key": "on:donation_rate_first"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "floor_zero",
+              "of": {
+                "op": "sub",
+                "from": {
+                  "op": "fact",
+                  "key": "donations.claimed"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "on:donation_first_tier"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "on:donation_rate_rest"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "on.tax_before_surtax",
+      "label": "Ontario tax before surtax",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "sub",
+            "from": {
+              "op": "bracket",
+              "table": "on:income_tax",
+              "base": {
+                "op": "line",
+                "id": "fed.26000"
+              }
+            },
+            "minus": {
+              "op": "line",
+              "id": "on.61500"
+            }
+          },
+          "minus": {
+            "op": "line",
+            "id": "on.donations"
+          }
+        }
+      }
+    },
+    {
+      "id": "on.surtax",
+      "label": "Ontario surtax",
+      "note": "Ontario taxes its own tax: 20% of the amount above the first threshold, plus a further 36% above the second.",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "mul",
+            "of": {
+              "op": "floor_zero",
+              "of": {
+                "op": "sub",
+                "from": {
+                  "op": "line",
+                  "id": "on.tax_before_surtax"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "on:surtax_threshold_1"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "on:surtax_rate_1"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "floor_zero",
+              "of": {
+                "op": "sub",
+                "from": {
+                  "op": "line",
+                  "id": "on.tax_before_surtax"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "on:surtax_threshold_2"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "on:surtax_rate_2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "on.tax_after_surtax",
+      "label": "Ontario tax after surtax",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "on.tax_before_surtax"
+          },
+          {
+            "op": "line",
+            "id": "on.surtax"
+          }
+        ]
+      }
+    },
+    {
+      "id": "on.tax_reduction_amounts",
+      "label": "Ontario tax reduction amounts",
+      "note": "Basic reduction plus an amount for each dependent child and each dependant with an impairment. In a couple only the higher earner may claim the dependant amounts, which the coupled solver enforces.",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "param",
+            "key": "on:tax_reduction_basic"
+          },
+          {
+            "op": "if",
+            "cond": {
+              "cmp": "lt",
+              "left": {
+                "op": "fact",
+                "key": "on_reduction.dependants_suppressed"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            "then": {
+              "op": "mul",
+              "of": {
+                "op": "sum",
+                "of": [
+                  {
+                    "op": "fact",
+                    "key": "dependants.count_minor"
+                  },
+                  {
+                    "op": "fact",
+                    "key": "dependants.count_impaired"
+                  }
+                ]
+              },
+              "by": {
+                "op": "param",
+                "key": "on:tax_reduction_per_dependant"
+              }
+            },
+            "else": {
+              "op": "const",
+              "value": "0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "on.tax_reduction",
+      "label": "Ontario tax reduction",
+      "note": "Twice the reduction amounts less the tax itself. The effect is that tax is eliminated entirely below the reduction amount and tapers to nothing at twice it, rather than being a flat credit.",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "mul",
+            "of": {
+              "op": "line",
+              "id": "on.tax_reduction_amounts"
+            },
+            "by": {
+              "op": "const",
+              "value": "2"
+            }
+          },
+          "minus": {
+            "op": "line",
+            "id": "on.tax_after_surtax"
+          }
+        }
+      }
+    },
+    {
+      "id": "on.tax_after_reduction",
+      "label": "Ontario tax after the reduction",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "line",
+            "id": "on.tax_after_surtax"
+          },
+          "minus": {
+            "op": "line",
+            "id": "on.tax_reduction"
+          }
+        }
+      }
+    },
+    {
+      "id": "on.health_premium",
+      "label": "Ontario health premium",
+      "note": "Line 89. Added to Ontario tax rather than deducted, and charged on taxable income regardless of what credits reduced the tax to. Expressed as five clamped ramps; the chart's flat plateaus fall out of the arithmetic.",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "mul",
+            "of": {
+              "op": "clamp",
+              "lo": {
+                "op": "const",
+                "value": "0"
+              },
+              "hi": {
+                "op": "param",
+                "key": "on:health_premium_ramp1_width"
+              },
+              "value": {
+                "op": "sub",
+                "from": {
+                  "op": "line",
+                  "id": "fed.26000"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "on:health_premium_ramp1_start"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "on:health_premium_ramp1_rate"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "clamp",
+              "lo": {
+                "op": "const",
+                "value": "0"
+              },
+              "hi": {
+                "op": "param",
+                "key": "on:health_premium_ramp2_width"
+              },
+              "value": {
+                "op": "sub",
+                "from": {
+                  "op": "line",
+                  "id": "fed.26000"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "on:health_premium_ramp2_start"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "on:health_premium_ramp2_rate"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "clamp",
+              "lo": {
+                "op": "const",
+                "value": "0"
+              },
+              "hi": {
+                "op": "param",
+                "key": "on:health_premium_ramp3_width"
+              },
+              "value": {
+                "op": "sub",
+                "from": {
+                  "op": "line",
+                  "id": "fed.26000"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "on:health_premium_ramp3_start"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "on:health_premium_ramp3_rate"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "clamp",
+              "lo": {
+                "op": "const",
+                "value": "0"
+              },
+              "hi": {
+                "op": "param",
+                "key": "on:health_premium_ramp4_width"
+              },
+              "value": {
+                "op": "sub",
+                "from": {
+                  "op": "line",
+                  "id": "fed.26000"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "on:health_premium_ramp4_start"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "on:health_premium_ramp4_rate"
+            }
+          },
+          {
+            "op": "mul",
+            "of": {
+              "op": "clamp",
+              "lo": {
+                "op": "const",
+                "value": "0"
+              },
+              "hi": {
+                "op": "param",
+                "key": "on:health_premium_ramp5_width"
+              },
+              "value": {
+                "op": "sub",
+                "from": {
+                  "op": "line",
+                  "id": "fed.26000"
+                },
+                "minus": {
+                  "op": "param",
+                  "key": "on:health_premium_ramp5_start"
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "on:health_premium_ramp5_rate"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "on.42800",
+      "label": "Ontario tax",
+      "note": "Tax after the surtax and the reduction, plus the health premium, in that order.",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "on.tax_after_reduction"
+          },
+          {
+            "op": "line",
+            "id": "on.health_premium"
+          }
+        ]
+      }
+    },
+    {
+      "id": "summary.total_tax",
+      "label": "Total payable",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.42000"
+          },
+          {
+            "op": "line",
+            "id": "on.42800"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.43700",
+      "label": "Total income tax deducted at source",
+      "expr": {
+        "op": "fact",
+        "key": "t4.income_tax_deducted"
+      }
+    },
+    {
+      "id": "fed.44800",
+      "label": "CPP overpayment",
+      "note": "More than one employer each withhold up to their own maximum, so the excess is refunded here rather than being an error on the slips.",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "fact",
+                "key": "t4.cpp_contributions"
+              },
+              "minus": {
+                "op": "param",
+                "key": "fed:cpp_max_contribution"
+              }
+            }
+          },
+          {
+            "op": "floor_zero",
+            "of": {
+              "op": "sub",
+              "from": {
+                "op": "fact",
+                "key": "t4.cpp2_contributions"
+              },
+              "minus": {
+                "op": "param",
+                "key": "fed:cpp2_max_contribution"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.45000",
+      "label": "EI overpayment",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "fact",
+            "key": "t4.ei_premiums"
+          },
+          "minus": {
+            "op": "param",
+            "key": "fed:ei_max_premium"
+          }
+        }
+      }
+    },
+    {
+      "id": "on.care_income",
+      "label": "Adjusted family income for the CARE credit",
+      "note": "Both partners' net income. For a single filer the household figure is absent, so their own net income stands in.",
+      "expr": {
+        "op": "max",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.23600"
+          },
+          {
+            "op": "fact",
+            "key": "household.net_income"
+          }
+        ]
+      }
+    },
+    {
+      "id": "on.care_rate",
+      "label": "Ontario CARE credit rate",
+      "note": "A step function: the rate drops two points for each whole or partial band above each tier floor, which is why it is computed with a ceiling rather than interpolated.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "lte",
+          "left": {
+            "op": "line",
+            "id": "on.care_income"
+          },
+          "right": {
+            "op": "param",
+            "key": "on:care_tier1_ceiling"
+          }
+        },
+        "then": {
+          "op": "param",
+          "key": "on:care_rate_base_tier1"
+        },
+        "else": {
+          "op": "if",
+          "cond": {
+            "cmp": "lte",
+            "left": {
+              "op": "line",
+              "id": "on.care_income"
+            },
+            "right": {
+              "op": "param",
+              "key": "on:care_tier2_ceiling"
+            }
+          },
+          "then": {
+            "op": "sub",
+            "from": {
+              "op": "param",
+              "key": "on:care_rate_base_tier2"
+            },
+            "minus": {
+              "op": "mul",
+              "of": {
+                "op": "ceil",
+                "of": {
+                  "op": "div",
+                  "of": {
+                    "op": "sub",
+                    "from": {
+                      "op": "line",
+                      "id": "on.care_income"
+                    },
+                    "minus": {
+                      "op": "param",
+                      "key": "on:care_tier1_ceiling"
+                    }
+                  },
+                  "by": {
+                    "op": "param",
+                    "key": "on:care_tier2_step"
+                  }
+                }
+              },
+              "by": {
+                "op": "param",
+                "key": "on:care_step_reduction"
+              }
+            }
+          },
+          "else": {
+            "op": "if",
+            "cond": {
+              "cmp": "lte",
+              "left": {
+                "op": "line",
+                "id": "on.care_income"
+              },
+              "right": {
+                "op": "param",
+                "key": "on:care_tier3_ceiling"
+              }
+            },
+            "then": {
+              "op": "sub",
+              "from": {
+                "op": "param",
+                "key": "on:care_rate_base_tier3"
+              },
+              "minus": {
+                "op": "mul",
+                "of": {
+                  "op": "ceil",
+                  "of": {
+                    "op": "div",
+                    "of": {
+                      "op": "sub",
+                      "from": {
+                        "op": "line",
+                        "id": "on.care_income"
+                      },
+                      "minus": {
+                        "op": "param",
+                        "key": "on:care_tier2_ceiling"
+                      }
+                    },
+                    "by": {
+                      "op": "param",
+                      "key": "on:care_tier3_step"
+                    }
+                  }
+                },
+                "by": {
+                  "op": "param",
+                  "key": "on:care_step_reduction"
+                }
+              }
+            },
+            "else": {
+              "op": "if",
+              "cond": {
+                "cmp": "lte",
+                "left": {
+                  "op": "line",
+                  "id": "on.care_income"
+                },
+                "right": {
+                  "op": "param",
+                  "key": "on:care_tier4_ceiling"
+                }
+              },
+              "then": {
+                "op": "floor_zero",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "param",
+                    "key": "on:care_rate_base_tier4"
+                  },
+                  "minus": {
+                    "op": "mul",
+                    "of": {
+                      "op": "ceil",
+                      "of": {
+                        "op": "div",
+                        "of": {
+                          "op": "sub",
+                          "from": {
+                            "op": "line",
+                            "id": "on.care_income"
+                          },
+                          "minus": {
+                            "op": "param",
+                            "key": "on:care_tier3_ceiling"
+                          }
+                        },
+                        "by": {
+                          "op": "param",
+                          "key": "on:care_tier4_step"
+                        }
+                      }
+                    },
+                    "by": {
+                      "op": "param",
+                      "key": "on:care_step_reduction"
+                    }
+                  }
+                }
+              },
+              "else": {
+                "op": "const",
+                "value": "0"
+              }
+            }
+          }
+        }
+      },
+      "rounding": "none"
+    },
+    {
+      "id": "on.47900",
+      "label": "Ontario Childcare Access and Relief from Expenses (CARE) credit",
+      "note": "Refundable — it is paid even when no tax is owing. Claimed by whoever claims the child care deduction.",
+      "expr": {
+        "op": "mul",
+        "of": {
+          "op": "line",
+          "id": "fed.21400"
+        },
+        "by": {
+          "op": "line",
+          "id": "on.care_rate"
+        }
+      }
+    },
+    {
+      "id": "fed.cwb_family_basis",
+      "label": "Workers Benefit is on a family basis",
+      "note": "A spouse or a dependant child moves the benefit to the larger family amounts and the later phase-out.",
+      "rounding": "none",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "or",
+          "any": [
+            {
+              "cmp": "gte",
+              "left": {
+                "op": "fact",
+                "key": "partner.present"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "gte",
+              "left": {
+                "op": "fact",
+                "key": "dependants.count"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            }
+          ]
+        },
+        "then": {
+          "op": "const",
+          "value": "1"
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "fed.cwb_working_income",
+      "label": "Working income for the Workers Benefit",
+      "note": "Employment income. Self-employment is not modelled yet and would add to this.",
+      "expr": {
+        "op": "max",
+        "of": [
+          {
+            "op": "sum",
+            "of": [
+              {
+                "op": "line",
+                "id": "fed.10100"
+              },
+              {
+                "op": "floor_zero",
+                "of": {
+                  "op": "line",
+                  "id": "fed.total_self_employment"
+                }
+              }
+            ]
+          },
+          {
+            "op": "fact",
+            "key": "household.working_income"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.cwb_income",
+      "label": "Adjusted income for the Workers Benefit",
+      "expr": {
+        "op": "max",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.23600"
+          },
+          {
+            "op": "fact",
+            "key": "household.net_income"
+          }
+        ]
+      }
+    },
+    {
+      "id": "fed.cwb_basic",
+      "label": "Workers Benefit, basic amount",
+      "expr": {
+        "op": "floor_zero",
+        "of": {
+          "op": "sub",
+          "from": {
+            "op": "min",
+            "of": [
+              {
+                "op": "mul",
+                "of": {
+                  "op": "floor_zero",
+                  "of": {
+                    "op": "sub",
+                    "from": {
+                      "op": "line",
+                      "id": "fed.cwb_working_income"
+                    },
+                    "minus": {
+                      "op": "param",
+                      "key": "fed:cwb_working_income_floor"
+                    }
+                  }
+                },
+                "by": {
+                  "op": "param",
+                  "key": "fed:cwb_rate"
+                }
+              },
+              {
+                "op": "if",
+                "cond": {
+                  "cmp": "gte",
+                  "left": {
+                    "op": "line",
+                    "id": "fed.cwb_family_basis"
+                  },
+                  "right": {
+                    "op": "const",
+                    "value": "1"
+                  }
+                },
+                "then": {
+                  "op": "param",
+                  "key": "fed:cwb_max_family"
+                },
+                "else": {
+                  "op": "param",
+                  "key": "fed:cwb_max_single"
+                }
+              }
+            ]
+          },
+          "minus": {
+            "op": "mul",
+            "of": {
+              "op": "floor_zero",
+              "of": {
+                "op": "sub",
+                "from": {
+                  "op": "line",
+                  "id": "fed.cwb_income"
+                },
+                "minus": {
+                  "op": "if",
+                  "cond": {
+                    "cmp": "gte",
+                    "left": {
+                      "op": "line",
+                      "id": "fed.cwb_family_basis"
+                    },
+                    "right": {
+                      "op": "const",
+                      "value": "1"
+                    }
+                  },
+                  "then": {
+                    "op": "param",
+                    "key": "fed:cwb_phaseout_family"
+                  },
+                  "else": {
+                    "op": "param",
+                    "key": "fed:cwb_phaseout_single"
+                  }
+                }
+              }
+            },
+            "by": {
+              "op": "param",
+              "key": "fed:cwb_reduction_rate"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "fed.cwb_disability",
+      "label": "Workers Benefit, disability supplement",
+      "note": "Phases out later than the basic amount, so it survives a little further up the income scale.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "gte",
+          "left": {
+            "op": "fact",
+            "key": "disability.claimed"
+          },
+          "right": {
+            "op": "const",
+            "value": "1"
+          }
+        },
+        "then": {
+          "op": "floor_zero",
+          "of": {
+            "op": "sub",
+            "from": {
+              "op": "param",
+              "key": "fed:cwb_disability_max"
+            },
+            "minus": {
+              "op": "mul",
+              "of": {
+                "op": "floor_zero",
+                "of": {
+                  "op": "sub",
+                  "from": {
+                    "op": "line",
+                    "id": "fed.cwb_income"
+                  },
+                  "minus": {
+                    "op": "param",
+                    "key": "fed:cwb_disability_phaseout"
+                  }
+                }
+              },
+              "by": {
+                "op": "param",
+                "key": "fed:cwb_reduction_rate"
+              }
+            }
+          }
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "fed.45300",
+      "label": "Canada Workers Benefit",
+      "note": "Refundable, and aimed at low working income — it is paid on the strength of working, not on tax owed. Only one spouse claims it for a couple.",
+      "expr": {
+        "op": "if",
+        "cond": {
+          "cmp": "and",
+          "all": [
+            {
+              "cmp": "lt",
+              "left": {
+                "op": "fact",
+                "key": "cwb.suppressed"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "lt",
+              "left": {
+                "op": "fact",
+                "key": "cwb.ineligible"
+              },
+              "right": {
+                "op": "const",
+                "value": "1"
+              }
+            },
+            {
+              "cmp": "or",
+              "any": [
+                {
+                  "cmp": "gte",
+                  "left": {
+                    "op": "fact",
+                    "key": "taxpayer.age"
+                  },
+                  "right": {
+                    "op": "param",
+                    "key": "fed:cwb_minimum_age"
+                  }
+                },
+                {
+                  "cmp": "gte",
+                  "left": {
+                    "op": "line",
+                    "id": "fed.cwb_family_basis"
+                  },
+                  "right": {
+                    "op": "const",
+                    "value": "1"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "then": {
+          "op": "sum",
+          "of": [
+            {
+              "op": "line",
+              "id": "fed.cwb_basic"
+            },
+            {
+              "op": "line",
+              "id": "fed.cwb_disability"
+            }
+          ]
+        },
+        "else": {
+          "op": "const",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": "summary.refundable_credits",
+      "label": "Refundable credits",
+      "note": "Paid to you whether or not you owe tax, unlike the non-refundable credits above.",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.44800"
+          },
+          {
+            "op": "line",
+            "id": "fed.45000"
+          },
+          {
+            "op": "line",
+            "id": "fed.45300"
+          },
+          {
+            "op": "line",
+            "id": "on.47900"
+          }
+        ]
+      }
+    },
+    {
+      "id": "summary.total_credits",
+      "label": "Total credits and tax already paid",
+      "expr": {
+        "op": "sum",
+        "of": [
+          {
+            "op": "line",
+            "id": "fed.43700"
+          },
+          {
+            "op": "line",
+            "id": "summary.refundable_credits"
+          }
+        ]
+      }
+    },
+    {
+      "id": "summary.balance",
+      "label": "Balance owing (negative means refund)",
+      "expr": {
+        "op": "sub",
+        "from": {
+          "op": "line",
+          "id": "summary.total_tax"
+        },
+        "minus": {
+          "op": "line",
+          "id": "summary.total_credits"
+        }
+      }
+    }
+  ]
+}

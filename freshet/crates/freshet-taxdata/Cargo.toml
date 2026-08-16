@@ -1,0 +1,10 @@
+[package]
+name = "freshet-taxdata"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Versioned CRA tax-year parameter packs and form definitions for Freshet."
+
+[dependencies]
+freshet-engine = { path = "../freshet-engine" }
