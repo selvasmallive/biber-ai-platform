@@ -1305,6 +1305,55 @@ def build_admin_api_key_contract_smoke_result(
     }
 
 
+def build_admin_api_key_contract_smoke_blocked_result(
+    *,
+    base_url: str,
+    blocked_reason: str,
+) -> dict[str, Any]:
+    return {
+        "source": "biber_admin_api_key_contract_smoke",
+        "ok": False,
+        "blocked": True,
+        "blocked_reason": blocked_reason,
+        "base_url": base_url.rstrip("/"),
+        "endpoint": "GET /v1/admin/api-keys",
+        "admin_key_env": "BIBER_ADMIN_API_KEY",
+        "user_key_env": "BIBER_API_KEY",
+        "key_count": 0,
+        "active_key_count": 0,
+        "revoked_key_count": 0,
+        "record_field_names": [],
+        "checks": [
+            {
+                "name": "admin_key_configured",
+                "ok": False,
+                "env": "BIBER_ADMIN_API_KEY",
+            },
+            {
+                "name": "admin_list_endpoint",
+                "ok": False,
+                "endpoint": "GET /v1/admin/api-keys",
+                "skipped": True,
+            },
+            {
+                "name": "redacted_contract",
+                "ok": True,
+                "raw_key_records_included": False,
+                "issued_api_key_included": False,
+            },
+        ],
+        "mutation_performed": False,
+        "api_key_included": False,
+        "admin_api_key_included": False,
+        "issued_api_key_included": False,
+        "raw_key_records_included": False,
+        "external_network_required": False,
+        "live_biber_required": True,
+        "mentor_used": False,
+        "training_allowed": False,
+    }
+
+
 def create_agent_session(
     *,
     base_url: str,
@@ -2367,6 +2416,8 @@ def format_admin_api_key_contract_smoke_summary(payload: Mapping[str, Any]) -> s
     lines = [
         "BIBER admin API-key contract smoke",
         f"ok: {bool(payload.get('ok'))}",
+        f"blocked: {bool(payload.get('blocked'))}",
+        f"blocked_reason: {payload.get('blocked_reason', '-')}",
         f"base_url: {payload.get('base_url', '-')}",
         f"endpoint: {payload.get('endpoint', '-')}",
         f"admin_key_env: {payload.get('admin_key_env', '-')}",
@@ -22512,6 +22563,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output",
         help="Optional JSON artifact path.",
     )
+    admin_api_key_contract_smoke.add_argument(
+        "--allow-missing-admin-key",
+        action="store_true",
+        help=(
+            "Write a redacted blocked artifact instead of failing when "
+            "BIBER_ADMIN_API_KEY is not configured."
+        ),
+    )
 
     issue_api_key_parser = subparsers.add_parser(
         "issue-api-key",
@@ -26948,17 +27007,26 @@ def run(args: argparse.Namespace) -> str:
         )
 
     if args.command == "admin-api-key-contract-smoke":
-        admin_api_key = resolve_admin_api_key(args.admin_api_key)
         base_url = args.base_url.rstrip("/")
-        list_payload = list_api_keys(
-            base_url=base_url,
-            admin_api_key=admin_api_key,
-            timeout_seconds=args.timeout_seconds,
-        )
-        result = build_admin_api_key_contract_smoke_result(
-            base_url=base_url,
-            list_payload=list_payload,
-        )
+        try:
+            admin_api_key = resolve_admin_api_key(args.admin_api_key)
+        except BiberAgentClientError as exc:
+            if not args.allow_missing_admin_key:
+                raise
+            result = build_admin_api_key_contract_smoke_blocked_result(
+                base_url=base_url,
+                blocked_reason=str(exc),
+            )
+        else:
+            list_payload = list_api_keys(
+                base_url=base_url,
+                admin_api_key=admin_api_key,
+                timeout_seconds=args.timeout_seconds,
+            )
+            result = build_admin_api_key_contract_smoke_result(
+                base_url=base_url,
+                list_payload=list_payload,
+            )
         if args.output:
             result["artifact_path"] = str(Path(args.output))
             write_json_artifact(result, args.output)

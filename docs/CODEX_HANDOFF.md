@@ -4,6 +4,14 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 latest BIBER admin API-key missing-key artifact checkpoint:
+In progress: add `--allow-missing-admin-key` to
+`admin-api-key-contract-smoke`. Default behavior should remain strict, but this
+flag should write a redacted blocked artifact when `BIBER_ADMIN_API_KEY` is not
+configured, without calling the admin list endpoint, issuing/revoking/rotating
+keys, printing credentials, using OpenAI mentor, training, paid external APIs,
+or touching XRIQ/XRIS.
+
 2026-08-16 latest BIBER admin API-key contract smoke checkpoint:
 Complete: commit `7b23890` (`Add BIBER admin API key contract smoke`) adds a
 stdlib `admin-api-key-contract-smoke` command to `scripts/biber_agent_client.py`.

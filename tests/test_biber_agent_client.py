@@ -2555,6 +2555,29 @@ def test_admin_api_key_contract_smoke_redacts_key_records() -> None:
     assert "secret-key-id" not in summary
 
 
+def test_admin_api_key_contract_smoke_blocked_result_is_redacted() -> None:
+    result = client.build_admin_api_key_contract_smoke_blocked_result(
+        base_url="http://biber.local",
+        blocked_reason="BIBER_ADMIN_API_KEY not configured",
+    )
+    summary = client.format_admin_api_key_contract_smoke_summary(result)
+    encoded = json.dumps(result, sort_keys=True)
+
+    assert result["source"] == "biber_admin_api_key_contract_smoke"
+    assert result["ok"] is False
+    assert result["blocked"] is True
+    assert result["key_count"] == 0
+    assert result["mutation_performed"] is False
+    assert result["api_key_included"] is False
+    assert result["admin_api_key_included"] is False
+    assert result["issued_api_key_included"] is False
+    assert result["raw_key_records_included"] is False
+    assert "BIBER admin API-key contract smoke" in summary
+    assert "blocked: True" in summary
+    assert "BIBER_ADMIN_API_KEY not configured" in summary
+    assert "secret" not in encoded.lower()
+
+
 def test_run_api_key_management_commands_use_admin_key(monkeypatch) -> None:
     captured: dict[str, object] = {}
     admin_cli_values: list[str | None] = []
@@ -2695,6 +2718,50 @@ def test_run_admin_api_key_contract_smoke_uses_admin_key_and_redacts(
     assert "secret-key-id" not in encoded
     assert "user-1" not in encoded
     assert "admin-secret" not in encoded
+
+
+def test_run_admin_api_key_contract_smoke_can_write_missing_key_artifact(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    output_path = tmp_path / "admin-api-key-contract-smoke-missing-key.json"
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("normal API key should not be resolved")
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        raise client.BiberAgentClientError("BIBER_ADMIN_API_KEY not configured")
+
+    def fake_list_api_keys(**kwargs):
+        raise AssertionError("admin list endpoint should not be called")
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+    monkeypatch.setattr(client, "list_api_keys", fake_list_api_keys)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "--base-url",
+                "http://biber.local",
+                "admin-api-key-contract-smoke",
+                "--allow-missing-admin-key",
+                "--output",
+                str(output_path),
+            ]
+        )
+    )
+
+    artifact = json.loads(output_path.read_text(encoding="utf-8"))
+    assert artifact["artifact_path"] == str(output_path)
+    assert artifact["ok"] is False
+    assert artifact["blocked"] is True
+    assert artifact["blocked_reason"] == "BIBER_ADMIN_API_KEY not configured"
+    assert artifact["mutation_performed"] is False
+    assert artifact["admin_api_key_included"] is False
+    assert artifact["raw_key_records_included"] is False
+    assert "blocked: True" in output
+    assert "BIBER_ADMIN_API_KEY not configured" in output
 
 
 def test_build_chat_payload_includes_runtime_profiles() -> None:

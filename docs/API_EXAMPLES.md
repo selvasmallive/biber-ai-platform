@@ -208,6 +208,8 @@ python scripts/biber_agent_client.py revoke-api-key <key_id>
 Run `admin-api-key-contract-smoke` first when you only need a non-secret proof
 that the admin endpoint is reachable. It is list-only, does not issue/revoke
 keys, and redacts key IDs, user IDs, labels, plaintext keys, and the admin key.
+Use `--allow-missing-admin-key` when the admin key is not configured yet and you
+want a non-secret blocked artifact for CI or handoff evidence.
 
 Use `--json` with these commands when another tool or admin UI needs the raw
 response.

@@ -80,7 +80,9 @@ client after the server sets `BIBER_ADMIN_API_KEY`:
 `revoke-api-key <key_id>`. These commands use the admin key only; normal
 agent/chat commands continue to use `BIBER_API_KEY` or another user key. Prefer
 `admin-api-key-contract-smoke` before list/issue/revoke when you only need a
-non-secret proof that the admin endpoint is reachable.
+non-secret proof that the admin endpoint is reachable. Add
+`--allow-missing-admin-key` when the admin key is intentionally absent and you
+need a redacted blocked artifact rather than a failed process.
 Use `chat-completions --message <text> --model biber-dev-core-v1` to smoke-test
 the OpenAI-compatible `/v1/chat/completions` model-source endpoint from the same
 client; it sends `stream=false` and keeps OpenAI mentor off unless `--use-mentor`
@@ -508,7 +510,9 @@ and admin key-management portal. The backend key-management MVP is
 `GET/POST/DELETE /v1/admin/api-keys`, protected by `BIBER_ADMIN_API_KEY`, with
 issued user keys stored as hashes under `BIBER_API_KEY_STORE_PATH`. Use
 `admin-api-key-contract-smoke` for a list-only redacted endpoint proof before
-building an admin UI or gateway. See `docs/BIBER_EXTERNAL_AGENT_API.md`.
+building an admin UI or gateway; use `--allow-missing-admin-key` for non-secret
+blocked evidence before credentials are configured. See
+`docs/BIBER_EXTERNAL_AGENT_API.md`.
 Then run `review-local-repair-chain` on that combined artifact before asking
 for explicit apply approval. The review is deterministic, no-API, and reports
 blockers, warnings, plan hash, target root, and the next test id.

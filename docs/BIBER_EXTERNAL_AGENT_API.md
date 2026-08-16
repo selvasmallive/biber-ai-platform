@@ -220,7 +220,9 @@ python scripts/biber_agent_client.py revoke-api-key <key_id>
 Use `admin-api-key-contract-smoke` before giving a gateway or admin UI the
 full key-management flow. It calls only `GET /v1/admin/api-keys`, records counts
 and field names, and redacts key IDs, user IDs, labels, plaintext keys, and the
-admin key.
+admin key. Add `--allow-missing-admin-key` in CI or handoff runs when the admin
+key is intentionally absent; it writes a redacted blocked artifact instead of
+failing and still performs no mutation.
 
 The planned production portal should add:
 
