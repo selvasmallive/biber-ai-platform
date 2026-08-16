@@ -4,6 +4,20 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 latest BIBER external-client readiness bundle checkpoint:
+In progress: adding a stdlib `external-client-readiness-bundle` command to
+combine a saved non-secret `external-agent-handoff-package` artifact with a
+redacted `admin-api-key-contract-smoke` artifact. The intent is a single
+non-secret setup checklist for Copilot/Gemini/custom IDE agents, gateways, and
+conversational apps that use BIBER as an OpenAI-compatible model source. This
+step is offline only: it must not resolve user/admin API keys, call BIBER,
+create/rotate credentials, call OpenAI mentor, train models, use paid external
+APIs, or touch XRIQ/XRIS work. A blocked missing-admin-key artifact produced by
+`admin-api-key-contract-smoke --allow-missing-admin-key` is acceptable: the
+bundle may report `ready_for_external_client_configuration=true` while keeping
+`admin_key_management_ready=false` and `blocked_items` explicit until
+`BIBER_ADMIN_API_KEY` is deliberately configured.
+
 2026-08-16 latest BIBER admin API-key missing-key artifact checkpoint:
 Complete: commit `d5101c8` (`Add BIBER admin smoke missing key artifact`) adds
 `--allow-missing-admin-key` to `admin-api-key-contract-smoke`. Default behavior

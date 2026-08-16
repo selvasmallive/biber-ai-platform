@@ -121,6 +121,14 @@ contract report, optional chat-smoke proof, and API-key management metadata for
 another gateway/client.
 Use `show-external-agent-handoff-package <package.json>` to inspect the saved
 handoff summary without opening JSON and without resolving API keys.
+Use `external-client-readiness-bundle <package.json> --admin-smoke-artifact
+<admin-smoke.json>` to combine the model-source handoff package and redacted
+admin API-key smoke into one non-secret checklist for Copilot, Gemini Code
+Assist, custom IDE agents, gateways, or conversational apps. A blocked
+`admin-api-key-contract-smoke --allow-missing-admin-key` artifact is acceptable:
+the bundle can still report `ready_for_external_client_configuration=true` while
+keeping `admin_key_management_ready=false` until the server is deliberately
+configured with `BIBER_ADMIN_API_KEY`.
 Use `external-agent-smoke --output <artifact.json>` when you want readiness plus
 one short OpenAI-compatible chat-completions response in a single non-secret
 artifact. This is the preferred MVP proof before handing BIBER to an external

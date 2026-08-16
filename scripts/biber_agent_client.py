@@ -1044,6 +1044,197 @@ def build_external_agent_handoff_package(
     }
 
 
+def _is_redacted_admin_api_key_contract_smoke(
+    admin_smoke: Mapping[str, Any],
+) -> bool:
+    return (
+        bool(admin_smoke.get("api_key_included")) is False
+        and bool(admin_smoke.get("admin_api_key_included")) is False
+        and bool(admin_smoke.get("issued_api_key_included")) is False
+        and bool(admin_smoke.get("raw_key_records_included")) is False
+    )
+
+
+def build_external_client_readiness_bundle(
+    *,
+    handoff_package: Mapping[str, Any],
+    handoff_package_path: str,
+    admin_smoke: Mapping[str, Any],
+    admin_smoke_path: str,
+) -> dict[str, Any]:
+    required_env = require_mapping(handoff_package.get("required_client_env"))
+    endpoints = require_mapping(handoff_package.get("endpoints"))
+    api_key_management = require_mapping(handoff_package.get("api_key_management"))
+    readiness_status = require_mapping(handoff_package.get("readiness_status"))
+    admin_blocked = bool(admin_smoke.get("blocked"))
+    admin_smoke_ok = bool(admin_smoke.get("ok"))
+    admin_redacted = _is_redacted_admin_api_key_contract_smoke(admin_smoke)
+    client_env_ready = bool(
+        required_env.get("BIBER_OPENAI_BASE_URL")
+        and required_env.get("BIBER_MODEL")
+        and required_env.get("BIBER_API_KEY")
+    )
+    endpoint_ready = bool(
+        endpoints.get("models")
+        and endpoints.get("chat_completions")
+    )
+    handoff_ready = (
+        handoff_package.get("source") == "biber_external_agent_handoff_package"
+        and bool(handoff_package.get("ok"))
+        and bool(handoff_package.get("ready_for_client_handoff"))
+    )
+    admin_artifact_acceptable = (
+        admin_smoke.get("source") == "biber_admin_api_key_contract_smoke"
+        and (admin_smoke_ok or admin_blocked)
+    )
+    checks = [
+        {
+            "name": "handoff_package",
+            "ok": handoff_ready,
+            "source": handoff_package.get("source"),
+            "path": str(Path(handoff_package_path)),
+        },
+        {
+            "name": "client_env",
+            "ok": client_env_ready,
+            "required_env": sorted(required_env.keys()),
+        },
+        {
+            "name": "client_endpoints",
+            "ok": endpoint_ready,
+            "endpoints": sorted(endpoints.keys()),
+        },
+        {
+            "name": "admin_smoke_artifact",
+            "ok": admin_artifact_acceptable,
+            "source": admin_smoke.get("source"),
+            "blocked": admin_blocked,
+            "path": str(Path(admin_smoke_path)),
+        },
+        {
+            "name": "admin_smoke_redaction",
+            "ok": admin_redacted,
+            "api_key_included": bool(admin_smoke.get("api_key_included")),
+            "admin_api_key_included": bool(
+                admin_smoke.get("admin_api_key_included")
+            ),
+            "issued_api_key_included": bool(
+                admin_smoke.get("issued_api_key_included")
+            ),
+            "raw_key_records_included": bool(
+                admin_smoke.get("raw_key_records_included")
+            ),
+        },
+    ]
+    blocked_items: list[str] = []
+    if admin_blocked:
+        blocked_items.append("admin_api_key_not_configured")
+    if not admin_artifact_acceptable:
+        blocked_items.append("admin_smoke_artifact_not_acceptable")
+    if not admin_redacted:
+        blocked_items.append("admin_smoke_not_redacted")
+    return {
+        "source": "biber_external_client_readiness_bundle",
+        "ok": all(bool(check.get("ok")) for check in checks),
+        "ready_for_external_client_configuration": (
+            handoff_ready
+            and client_env_ready
+            and endpoint_ready
+            and admin_artifact_acceptable
+            and admin_redacted
+        ),
+        "admin_key_management_ready": admin_smoke_ok and not admin_blocked,
+        "blocked_items": blocked_items,
+        "artifact_index": [
+            {
+                "name": "external_agent_handoff_package",
+                "path": str(Path(handoff_package_path)),
+                "source": handoff_package.get("source"),
+                "ok": bool(handoff_package.get("ok")),
+            },
+            {
+                "name": "admin_api_key_contract_smoke",
+                "path": str(Path(admin_smoke_path)),
+                "source": admin_smoke.get("source"),
+                "ok": admin_smoke_ok,
+                "blocked": admin_blocked,
+            },
+        ],
+        "required_client_env": {
+            "BIBER_OPENAI_BASE_URL": str(
+                required_env.get("BIBER_OPENAI_BASE_URL") or ""
+            ),
+            "BIBER_MODEL": str(required_env.get("BIBER_MODEL") or ""),
+            "BIBER_API_KEY": str(
+                required_env.get("BIBER_API_KEY")
+                or "<set-user-api-key-in-secret-store>"
+            ),
+        },
+        "endpoints": {
+            "models": str(endpoints.get("models") or ""),
+            "chat_completions": str(endpoints.get("chat_completions") or ""),
+        },
+        "api_key_management": {
+            "admin_api": str(
+                api_key_management.get("admin_api") or "not_advertised"
+            ),
+            "admin_ui": str(api_key_management.get("admin_ui") or "not_advertised"),
+            "per_user_key_issuance": str(
+                api_key_management.get("per_user_key_issuance")
+                or "not_advertised"
+            ),
+            "admin_endpoint": str(
+                api_key_management.get("admin_endpoint")
+                or admin_smoke.get("endpoint")
+                or "GET/POST/DELETE /v1/admin/api-keys"
+            ),
+            "admin_key_env": str(
+                api_key_management.get("admin_key_env")
+                or admin_smoke.get("admin_key_env")
+                or "BIBER_ADMIN_API_KEY"
+            ),
+            "user_key_env": str(
+                api_key_management.get("user_key_env")
+                or admin_smoke.get("user_key_env")
+                or "BIBER_API_KEY"
+            ),
+            "api_key_included": False,
+        },
+        "admin_smoke_status": {
+            "included": True,
+            "ok": admin_smoke_ok,
+            "blocked": admin_blocked,
+            "blocked_reason": str(admin_smoke.get("blocked_reason") or ""),
+            "endpoint": str(admin_smoke.get("endpoint") or ""),
+            "key_count": int(admin_smoke.get("key_count") or 0),
+            "active_key_count": int(admin_smoke.get("active_key_count") or 0),
+            "revoked_key_count": int(admin_smoke.get("revoked_key_count") or 0),
+            "redacted": admin_redacted,
+        },
+        "readiness_status": {
+            "ready_for_client_handoff": bool(
+                handoff_package.get("ready_for_client_handoff")
+            ),
+            "bundle_health_ok": bool(readiness_status.get("bundle_health_ok")),
+            "contract_report_ok": bool(readiness_status.get("contract_report_ok")),
+            "chat_smoke_included": bool(
+                readiness_status.get("chat_smoke_included")
+            ),
+            "chat_smoke_ok": readiness_status.get("chat_smoke_ok"),
+        },
+        "checks": checks,
+        "mutation_performed": False,
+        "api_key_included": False,
+        "admin_api_key_included": False,
+        "issued_api_key_included": False,
+        "raw_key_records_included": False,
+        "external_network_required": False,
+        "live_biber_required": False,
+        "mentor_used": False,
+        "training_allowed": False,
+    }
+
+
 def build_external_agent_smoke_result(
     *,
     readiness: Mapping[str, Any],
@@ -2284,6 +2475,70 @@ def format_external_agent_handoff_package_summary(
         for item in artifact_index
     )
     lines.append(f"api_key_included: {bool(payload.get('api_key_included'))}")
+    return "\n".join(lines)
+
+
+def format_external_client_readiness_bundle_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    required_env = require_mapping(payload.get("required_client_env"))
+    endpoints = require_mapping(payload.get("endpoints"))
+    api_key_management = require_mapping(payload.get("api_key_management"))
+    admin_status = require_mapping(payload.get("admin_smoke_status"))
+    artifact_index = [
+        item
+        for item in require_list(payload.get("artifact_index"))
+        if isinstance(item, dict)
+    ]
+    blocked_items = [str(item) for item in require_list(payload.get("blocked_items"))]
+    lines = [
+        "BIBER external-client readiness bundle",
+        f"ok: {bool(payload.get('ok'))}",
+        "ready_for_external_client_configuration: "
+        + str(bool(payload.get("ready_for_external_client_configuration"))),
+        "admin_key_management_ready: "
+        + str(bool(payload.get("admin_key_management_ready"))),
+        f"BIBER_OPENAI_BASE_URL: {required_env.get('BIBER_OPENAI_BASE_URL', '-')}",
+        f"BIBER_MODEL: {required_env.get('BIBER_MODEL', '-')}",
+        f"BIBER_API_KEY: {required_env.get('BIBER_API_KEY', '-')}",
+        f"models_url: {endpoints.get('models', '-')}",
+        f"chat_completions_url: {endpoints.get('chat_completions', '-')}",
+        "api_key_management:",
+        f"- admin_api: {api_key_management.get('admin_api', '-')}",
+        f"- admin_ui: {api_key_management.get('admin_ui', '-')}",
+        f"- per_user_key_issuance: {api_key_management.get('per_user_key_issuance', '-')}",
+        f"- admin_endpoint: {api_key_management.get('admin_endpoint', '-')}",
+        f"- admin_key_env: {api_key_management.get('admin_key_env', '-')}",
+        f"- user_key_env: {api_key_management.get('user_key_env', '-')}",
+        "admin_smoke:",
+        f"- included: {bool(admin_status.get('included'))}",
+        f"- ok: {bool(admin_status.get('ok'))}",
+        f"- blocked: {bool(admin_status.get('blocked'))}",
+        f"- blocked_reason: {admin_status.get('blocked_reason') or '-'}",
+        f"- redacted: {bool(admin_status.get('redacted'))}",
+        "blocked_items: " + (", ".join(blocked_items) if blocked_items else "-"),
+        "artifact_index:",
+    ]
+    lines.extend(
+        (
+            f"- {item.get('name', '-')} ok={bool(item.get('ok'))} "
+            f"blocked={bool(item.get('blocked'))} "
+            f"path={item.get('path') or '-'}"
+        )
+        for item in artifact_index
+    )
+    lines.extend(
+        [
+            f"mutation_performed: {bool(payload.get('mutation_performed'))}",
+            f"api_key_included: {bool(payload.get('api_key_included'))}",
+            "admin_api_key_included: "
+            + str(bool(payload.get("admin_api_key_included"))),
+            "issued_api_key_included: "
+            + str(bool(payload.get("issued_api_key_included"))),
+            "raw_key_records_included: "
+            + str(bool(payload.get("raw_key_records_included"))),
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -22491,6 +22746,30 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     show_external_agent_handoff_package.add_argument("artifact")
 
+    external_client_readiness_bundle = subparsers.add_parser(
+        "external-client-readiness-bundle",
+        help=(
+            "Combine saved handoff and admin-smoke artifacts into one "
+            "non-secret external-client readiness checklist."
+        ),
+    )
+    external_client_readiness_bundle.add_argument(
+        "handoff_package_artifact",
+        help="Saved external-agent-handoff-package artifact.",
+    )
+    external_client_readiness_bundle.add_argument(
+        "--admin-smoke-artifact",
+        required=True,
+        help=(
+            "Saved admin-api-key-contract-smoke artifact; a redacted blocked "
+            "missing-admin-key artifact is accepted."
+        ),
+    )
+    external_client_readiness_bundle.add_argument(
+        "--output",
+        help="Optional JSON artifact path.",
+    )
+
     external_agent_smoke = subparsers.add_parser(
         "external-agent-smoke",
         help=(
@@ -27304,6 +27583,40 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(package, indent=2, sort_keys=True)
             if args.print_json
             else format_external_agent_handoff_package_summary(package)
+        )
+
+    if args.command == "external-client-readiness-bundle":
+        handoff_package = load_json_artifact(
+            args.handoff_package_artifact,
+            label="external-agent-handoff-package artifact",
+        )
+        if handoff_package.get("source") != "biber_external_agent_handoff_package":
+            raise BiberAgentClientError(
+                "external-client-readiness-bundle requires a "
+                "biber_external_agent_handoff_package artifact."
+            )
+        admin_smoke = load_json_artifact(
+            args.admin_smoke_artifact,
+            label="admin-api-key-contract-smoke artifact",
+        )
+        if admin_smoke.get("source") != "biber_admin_api_key_contract_smoke":
+            raise BiberAgentClientError(
+                "external-client-readiness-bundle requires a "
+                "biber_admin_api_key_contract_smoke artifact."
+            )
+        result = build_external_client_readiness_bundle(
+            handoff_package=handoff_package,
+            handoff_package_path=args.handoff_package_artifact,
+            admin_smoke=admin_smoke,
+            admin_smoke_path=args.admin_smoke_artifact,
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_client_readiness_bundle_summary(result)
         )
 
     if args.command == "external-agent-smoke":

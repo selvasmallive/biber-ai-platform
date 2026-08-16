@@ -75,6 +75,15 @@ python scripts/biber_agent_client.py external-agent-handoff-package \
 python scripts/biber_agent_client.py show-external-agent-handoff-package \
   /workspace/outputs/biber-external-agent-handoff-package.json
 
+python scripts/biber_agent_client.py admin-api-key-contract-smoke \
+  --allow-missing-admin-key \
+  --output /workspace/outputs/biber-admin-api-key-contract-smoke.json
+
+python scripts/biber_agent_client.py external-client-readiness-bundle \
+  /workspace/outputs/biber-external-agent-handoff-package.json \
+  --admin-smoke-artifact /workspace/outputs/biber-admin-api-key-contract-smoke.json \
+  --output /workspace/outputs/biber-external-client-readiness-bundle.json
+
 python scripts/biber_agent_client.py capabilities \
   --output /workspace/outputs/biber-capabilities.json
 
@@ -107,6 +116,13 @@ non-secret index artifact linking the bundle, health report, contract report,
 optional chat-smoke proof, and API-key management metadata.
 Run `show-external-agent-handoff-package` to inspect the saved package summary
 without opening JSON and without resolving API keys.
+Run `external-client-readiness-bundle` when a Copilot, Gemini Code Assist,
+custom IDE agent, gateway, or conversational app needs one non-secret checklist
+combining the model-source handoff package with the admin key-management smoke
+status. If the admin key is not configured yet, use the blocked
+`admin-api-key-contract-smoke --allow-missing-admin-key` artifact; the bundle can
+still be ready for client configuration while reporting
+`admin_key_management_ready=false`.
 
 ## Minimal Client Examples
 

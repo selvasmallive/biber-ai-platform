@@ -112,6 +112,13 @@ python scripts/biber_agent_client.py external-agent-handoff-package \
   --output /workspace/outputs/biber-external-agent-handoff-package.json
 python scripts/biber_agent_client.py show-external-agent-handoff-package \
   /workspace/outputs/biber-external-agent-handoff-package.json
+python scripts/biber_agent_client.py admin-api-key-contract-smoke \
+  --allow-missing-admin-key \
+  --output /workspace/outputs/biber-admin-api-key-contract-smoke.json
+python scripts/biber_agent_client.py external-client-readiness-bundle \
+  /workspace/outputs/biber-external-agent-handoff-package.json \
+  --admin-smoke-artifact /workspace/outputs/biber-admin-api-key-contract-smoke.json \
+  --output /workspace/outputs/biber-external-client-readiness-bundle.json
 python scripts/biber_agent_client.py external-agent-smoke \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-smoke.json
@@ -150,6 +157,12 @@ proof for another gateway/client. It includes admin/user key-management metadata
 without embedding any key value.
 Use `show-external-agent-handoff-package` to inspect the saved package summary
 without opening JSON and without resolving API keys.
+Use `external-client-readiness-bundle` to combine the handoff package with the
+admin API-key contract smoke into one non-secret setup checklist for Copilot,
+Gemini Code Assist, custom IDE agents, gateways, or conversational apps. A
+blocked missing-admin-key smoke artifact is accepted so the bundle can still
+confirm model-source client readiness while making the admin-key blocker
+explicit.
 Use `external-agent-smoke` when you want one combined non-secret proof that the
 readiness probes pass and `/v1/chat/completions` returns a short local model
 response with OpenAI mentor off.
