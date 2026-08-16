@@ -1235,6 +1235,205 @@ def build_external_client_readiness_bundle(
     }
 
 
+def build_external_client_quickstart_verification(
+    *,
+    readiness_bundle: Mapping[str, Any],
+    readiness_bundle_path: str,
+    repo_root: Path,
+) -> dict[str, Any]:
+    required_client_env = require_mapping(readiness_bundle.get("required_client_env"))
+    endpoints = require_mapping(readiness_bundle.get("endpoints"))
+    admin_status = require_mapping(readiness_bundle.get("admin_smoke_status"))
+    blocked_items = [
+        str(item) for item in require_list(readiness_bundle.get("blocked_items"))
+    ]
+    expected_docs = [
+        "docs/BIBER_EXTERNAL_AGENT_CLIENT_SETUP.md",
+        "docs/BIBER_EXTERNAL_AGENT_API.md",
+        "docs/API_EXAMPLES.md",
+        "docs/BIBER_ONLY_WORKSPACE.md",
+    ]
+    expected_examples = [
+        "examples/external_agent/README.md",
+        "examples/external_agent/python_minimal_client.py",
+        "examples/external_agent/javascript_fetch_client.mjs",
+        "examples/external_agent/connection.env.example",
+    ]
+    expected_terms = [
+        "external-client-readiness-bundle",
+        "show-external-client-readiness-bundle",
+        "admin-api-key-contract-smoke",
+        "BIBER_OPENAI_BASE_URL",
+        "BIBER_MODEL",
+        "BIBER_API_KEY",
+    ]
+    expected_example_terms = [
+        "BIBER_OPENAI_BASE_URL",
+        "BIBER_MODEL",
+        "BIBER_API_KEY",
+    ]
+    missing_docs = [path for path in expected_docs if not (repo_root / path).is_file()]
+    missing_examples = [
+        path for path in expected_examples if not (repo_root / path).is_file()
+    ]
+    docs_text_parts: list[str] = []
+    for path in expected_docs:
+        candidate = repo_root / path
+        if candidate.is_file():
+            docs_text_parts.append(candidate.read_text(encoding="utf-8", errors="ignore"))
+    docs_text = "\n".join(docs_text_parts)
+    example_text_parts: list[str] = []
+    for path in expected_examples:
+        candidate = repo_root / path
+        if candidate.is_file():
+            example_text_parts.append(
+                candidate.read_text(encoding="utf-8", errors="ignore")
+            )
+    examples_text = "\n".join(example_text_parts)
+    missing_doc_terms = [term for term in expected_terms if term not in docs_text]
+    missing_example_terms = [
+        term for term in expected_example_terms if term not in examples_text
+    ]
+    endpoint_ready = bool(
+        str(endpoints.get("models") or "").rstrip("/").endswith("/v1/models")
+        and str(endpoints.get("chat_completions") or "")
+        .rstrip("/")
+        .endswith("/v1/chat/completions")
+    )
+    env_ready = bool(
+        required_client_env.get("BIBER_OPENAI_BASE_URL")
+        and required_client_env.get("BIBER_MODEL")
+        and str(required_client_env.get("BIBER_API_KEY") or "").startswith("<")
+    )
+    redaction_ok = (
+        bool(readiness_bundle.get("api_key_included")) is False
+        and bool(readiness_bundle.get("admin_api_key_included")) is False
+        and bool(readiness_bundle.get("issued_api_key_included")) is False
+        and bool(readiness_bundle.get("raw_key_records_included")) is False
+    )
+    admin_status_ok = bool(readiness_bundle.get("admin_key_management_ready")) or (
+        "admin_api_key_not_configured" in blocked_items
+        and bool(admin_status.get("blocked"))
+        and bool(admin_status.get("redacted"))
+    )
+    checks = [
+        {
+            "name": "readiness_bundle_source",
+            "ok": (
+                readiness_bundle.get("source")
+                == "biber_external_client_readiness_bundle"
+            ),
+            "source": readiness_bundle.get("source"),
+        },
+        {
+            "name": "readiness_bundle_ok",
+            "ok": bool(readiness_bundle.get("ok")),
+        },
+        {
+            "name": "ready_for_external_client_configuration",
+            "ok": bool(
+                readiness_bundle.get("ready_for_external_client_configuration")
+            ),
+        },
+        {
+            "name": "client_env",
+            "ok": env_ready,
+            "required_env": sorted(required_client_env.keys()),
+        },
+        {
+            "name": "endpoints",
+            "ok": endpoint_ready,
+            "endpoints": sorted(endpoints.keys()),
+        },
+        {
+            "name": "api_key_redaction",
+            "ok": redaction_ok,
+            "api_key_included": bool(readiness_bundle.get("api_key_included")),
+            "admin_api_key_included": bool(
+                readiness_bundle.get("admin_api_key_included")
+            ),
+            "issued_api_key_included": bool(
+                readiness_bundle.get("issued_api_key_included")
+            ),
+            "raw_key_records_included": bool(
+                readiness_bundle.get("raw_key_records_included")
+            ),
+        },
+        {
+            "name": "admin_status_explicit",
+            "ok": admin_status_ok,
+            "admin_key_management_ready": bool(
+                readiness_bundle.get("admin_key_management_ready")
+            ),
+            "blocked_items": blocked_items,
+        },
+        {
+            "name": "docs_exist",
+            "ok": not missing_docs,
+            "expected": expected_docs,
+            "missing": missing_docs,
+        },
+        {
+            "name": "examples_exist",
+            "ok": not missing_examples,
+            "expected": expected_examples,
+            "missing": missing_examples,
+        },
+        {
+            "name": "docs_quickstart_terms",
+            "ok": not missing_doc_terms,
+            "expected": expected_terms,
+            "missing": missing_doc_terms,
+        },
+        {
+            "name": "examples_env_terms",
+            "ok": not missing_example_terms,
+            "expected": expected_example_terms,
+            "missing": missing_example_terms,
+        },
+    ]
+    return {
+        "source": "biber_external_client_quickstart_verification",
+        "ok": all(bool(check.get("ok")) for check in checks),
+        "ready_for_external_client_quickstart": all(
+            bool(check.get("ok")) for check in checks
+        ),
+        "readiness_bundle_artifact": str(Path(readiness_bundle_path)),
+        "repo_root": str(repo_root),
+        "required_client_env": {
+            "BIBER_OPENAI_BASE_URL": str(
+                required_client_env.get("BIBER_OPENAI_BASE_URL") or ""
+            ),
+            "BIBER_MODEL": str(required_client_env.get("BIBER_MODEL") or ""),
+            "BIBER_API_KEY": str(
+                required_client_env.get("BIBER_API_KEY")
+                or "<set-user-api-key-in-secret-store>"
+            ),
+        },
+        "endpoints": {
+            "models": str(endpoints.get("models") or ""),
+            "chat_completions": str(endpoints.get("chat_completions") or ""),
+        },
+        "blocked_items": blocked_items,
+        "expected_docs": expected_docs,
+        "expected_examples": expected_examples,
+        "missing_docs": missing_docs,
+        "missing_examples": missing_examples,
+        "missing_doc_terms": missing_doc_terms,
+        "missing_example_terms": missing_example_terms,
+        "checks": checks,
+        "mutation_performed": False,
+        "api_key_included": False,
+        "admin_api_key_included": False,
+        "issued_api_key_included": False,
+        "raw_key_records_included": False,
+        "external_network_required": False,
+        "live_biber_required": False,
+        "mentor_used": False,
+        "training_allowed": False,
+    }
+
+
 def build_external_agent_smoke_result(
     *,
     readiness: Mapping[str, Any],
@@ -2526,6 +2725,67 @@ def format_external_client_readiness_bundle_summary(
             f"path={item.get('path') or '-'}"
         )
         for item in artifact_index
+    )
+    lines.extend(
+        [
+            f"mutation_performed: {bool(payload.get('mutation_performed'))}",
+            f"api_key_included: {bool(payload.get('api_key_included'))}",
+            "admin_api_key_included: "
+            + str(bool(payload.get("admin_api_key_included"))),
+            "issued_api_key_included: "
+            + str(bool(payload.get("issued_api_key_included"))),
+            "raw_key_records_included: "
+            + str(bool(payload.get("raw_key_records_included"))),
+        ]
+    )
+    return "\n".join(lines)
+
+
+def format_external_client_quickstart_verification_summary(
+    payload: Mapping[str, Any],
+) -> str:
+    required_env = require_mapping(payload.get("required_client_env"))
+    endpoints = require_mapping(payload.get("endpoints"))
+    checks = [
+        item
+        for item in require_list(payload.get("checks"))
+        if isinstance(item, dict)
+    ]
+    blocked_items = [str(item) for item in require_list(payload.get("blocked_items"))]
+    missing_docs = [str(item) for item in require_list(payload.get("missing_docs"))]
+    missing_examples = [
+        str(item) for item in require_list(payload.get("missing_examples"))
+    ]
+    missing_doc_terms = [
+        str(item) for item in require_list(payload.get("missing_doc_terms"))
+    ]
+    missing_example_terms = [
+        str(item) for item in require_list(payload.get("missing_example_terms"))
+    ]
+    lines = [
+        "BIBER external-client quickstart verification",
+        f"ok: {bool(payload.get('ok'))}",
+        "ready_for_external_client_quickstart: "
+        + str(bool(payload.get("ready_for_external_client_quickstart"))),
+        f"readiness_bundle_artifact: {payload.get('readiness_bundle_artifact', '-')}",
+        f"repo_root: {payload.get('repo_root', '-')}",
+        f"BIBER_OPENAI_BASE_URL: {required_env.get('BIBER_OPENAI_BASE_URL', '-')}",
+        f"BIBER_MODEL: {required_env.get('BIBER_MODEL', '-')}",
+        f"BIBER_API_KEY: {required_env.get('BIBER_API_KEY', '-')}",
+        f"models_url: {endpoints.get('models', '-')}",
+        f"chat_completions_url: {endpoints.get('chat_completions', '-')}",
+        "blocked_items: " + (", ".join(blocked_items) if blocked_items else "-"),
+        "missing_docs: " + (", ".join(missing_docs) if missing_docs else "-"),
+        "missing_examples: "
+        + (", ".join(missing_examples) if missing_examples else "-"),
+        "missing_doc_terms: "
+        + (", ".join(missing_doc_terms) if missing_doc_terms else "-"),
+        "missing_example_terms: "
+        + (", ".join(missing_example_terms) if missing_example_terms else "-"),
+        "checks:",
+    ]
+    lines.extend(
+        f"- {item.get('name', '-')} ok={bool(item.get('ok'))}" for item in checks
     )
     lines.extend(
         [
@@ -22779,6 +23039,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     show_external_client_readiness_bundle.add_argument("artifact")
 
+    external_client_quickstart_verify = subparsers.add_parser(
+        "external-client-quickstart-verify",
+        help=(
+            "Verify a saved external-client readiness bundle against the "
+            "repo docs/examples quickstart contract without calling BIBER."
+        ),
+    )
+    external_client_quickstart_verify.add_argument(
+        "artifact",
+        help="Saved external-client-readiness-bundle artifact.",
+    )
+    external_client_quickstart_verify.add_argument(
+        "--repo-root",
+        default=".",
+        help="Repo root used to verify docs and example paths.",
+    )
+    external_client_quickstart_verify.add_argument(
+        "--output",
+        help="Optional JSON artifact path.",
+    )
+
     external_agent_smoke = subparsers.add_parser(
         "external-agent-smoke",
         help=(
@@ -27642,6 +27923,30 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(readiness_bundle, indent=2, sort_keys=True)
             if args.print_json
             else format_external_client_readiness_bundle_summary(readiness_bundle)
+        )
+
+    if args.command == "external-client-quickstart-verify":
+        readiness_bundle = load_json_artifact(
+            args.artifact,
+            label="external-client-readiness-bundle artifact",
+        )
+        if readiness_bundle.get("source") != "biber_external_client_readiness_bundle":
+            raise BiberAgentClientError(
+                "external-client-quickstart-verify requires a "
+                "biber_external_client_readiness_bundle artifact."
+            )
+        result = build_external_client_quickstart_verification(
+            readiness_bundle=readiness_bundle,
+            readiness_bundle_path=args.artifact,
+            repo_root=Path(args.repo_root),
+        )
+        if args.output:
+            result["artifact_path"] = str(Path(args.output))
+            write_json_artifact(result, args.output)
+        return (
+            json.dumps(result, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_client_quickstart_verification_summary(result)
         )
 
     if args.command == "external-agent-smoke":

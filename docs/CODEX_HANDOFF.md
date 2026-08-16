@@ -4,6 +4,14 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 latest BIBER external-client quickstart verification checkpoint:
+In progress: adding a stdlib `external-client-quickstart-verify` command to
+validate a saved `biber_external_client_readiness_bundle` against the repo
+docs/examples quickstart contract before handing BIBER to a gateway, IDE agent,
+or conversational app. This step is offline only: it must not resolve
+user/admin API keys, call BIBER, create/rotate credentials, call OpenAI mentor,
+train models, use paid external APIs, or touch XRIQ/XRIS work.
+
 2026-08-16 latest BIBER external-client readiness bundle summary checkpoint:
 Complete: commit `57d08da` (`Add BIBER external client readiness summary`) adds
 a stdlib `show-external-client-readiness-bundle` command that prints a concise

@@ -121,6 +121,10 @@ python scripts/biber_agent_client.py external-client-readiness-bundle \
   --output /workspace/outputs/biber-external-client-readiness-bundle.json
 python scripts/biber_agent_client.py show-external-client-readiness-bundle \
   /workspace/outputs/biber-external-client-readiness-bundle.json
+python scripts/biber_agent_client.py external-client-quickstart-verify \
+  /workspace/outputs/biber-external-client-readiness-bundle.json \
+  --repo-root /workspace/biber-ai-platform \
+  --output /workspace/outputs/biber-external-client-quickstart-verification.json
 python scripts/biber_agent_client.py external-agent-smoke \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-smoke.json
@@ -167,6 +171,9 @@ confirm model-source client readiness while making the admin-key blocker
 explicit.
 Use `show-external-client-readiness-bundle` to inspect the saved checklist later
 without rebuilding it or resolving API keys.
+Use `external-client-quickstart-verify` to confirm that the readiness bundle,
+docs, examples, and setup command mentions still match before handing BIBER to a
+gateway, IDE agent, or conversational app.
 Use `external-agent-smoke` when you want one combined non-secret proof that the
 readiness probes pass and `/v1/chat/completions` returns a short local model
 response with OpenAI mentor off.

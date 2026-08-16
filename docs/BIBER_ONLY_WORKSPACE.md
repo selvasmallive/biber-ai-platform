@@ -131,6 +131,10 @@ keeping `admin_key_management_ready=false` until the server is deliberately
 configured with `BIBER_ADMIN_API_KEY`.
 Use `show-external-client-readiness-bundle <bundle.json>` to inspect that saved
 checklist later without rebuilding it, resolving API keys, or opening JSON.
+Use `external-client-quickstart-verify <bundle.json> --repo-root <repo>` before
+handoff to confirm the saved readiness bundle, docs, examples, env names, and
+setup command mentions still line up. It is offline and does not resolve API
+keys or call BIBER.
 Use `external-agent-smoke --output <artifact.json>` when you want readiness plus
 one short OpenAI-compatible chat-completions response in a single non-secret
 artifact. This is the preferred MVP proof before handing BIBER to an external

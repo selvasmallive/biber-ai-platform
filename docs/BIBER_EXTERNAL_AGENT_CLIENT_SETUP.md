@@ -87,6 +87,11 @@ python scripts/biber_agent_client.py external-client-readiness-bundle \
 python scripts/biber_agent_client.py show-external-client-readiness-bundle \
   /workspace/outputs/biber-external-client-readiness-bundle.json
 
+python scripts/biber_agent_client.py external-client-quickstart-verify \
+  /workspace/outputs/biber-external-client-readiness-bundle.json \
+  --repo-root /workspace/biber-ai-platform \
+  --output /workspace/outputs/biber-external-client-quickstart-verification.json
+
 python scripts/biber_agent_client.py capabilities \
   --output /workspace/outputs/biber-capabilities.json
 
@@ -128,6 +133,9 @@ still be ready for client configuration while reporting
 `admin_key_management_ready=false`.
 Run `show-external-client-readiness-bundle` to inspect the saved checklist later
 without rebuilding it, resolving API keys, or opening JSON.
+Run `external-client-quickstart-verify` before handing the setup to another
+engineer or agent. It checks the saved readiness bundle against the repo
+docs/examples quickstart contract without calling BIBER or resolving API keys.
 
 ## Minimal Client Examples
 
