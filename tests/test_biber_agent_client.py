@@ -2787,6 +2787,51 @@ def test_run_external_client_integration_package_does_not_use_api_key(
     assert artifact["raw_key_records_included"] is False
 
 
+def test_run_show_external_client_integration_package_does_not_use_api_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    package_path = tmp_path / "external-client-integration-package.json"
+    readiness_bundle, env_template, quickstart_verification = (
+        _sample_external_client_integration_artifacts(tmp_path)
+    )
+    package = client.build_external_client_integration_package(
+        readiness_bundle=readiness_bundle,
+        readiness_bundle_path=str(tmp_path / "external-client-readiness.json"),
+        env_template=env_template,
+        env_template_path=str(tmp_path / "external-client-env-template.json"),
+        quickstart_verification=quickstart_verification,
+        quickstart_verification_path=str(
+            tmp_path / "external-client-quickstart-verification.json"
+        ),
+    )
+    package_path.write_text(json.dumps(package), encoding="utf-8")
+
+    def fake_resolve_api_key(cli_api_key: str | None = None) -> str:
+        raise AssertionError("user API key should not be resolved")
+
+    def fake_resolve_admin_api_key(cli_admin_api_key: str | None = None) -> str:
+        raise AssertionError("admin API key should not be resolved")
+
+    monkeypatch.setattr(client, "resolve_api_key", fake_resolve_api_key)
+    monkeypatch.setattr(client, "resolve_admin_api_key", fake_resolve_admin_api_key)
+
+    output = client.run(
+        client.parse_args(
+            [
+                "show-external-client-integration-package",
+                str(package_path),
+            ]
+        )
+    )
+
+    assert "BIBER external-client integration package" in output
+    assert "ready_for_external_client_integration: True" in output
+    assert "external_client_quickstart_verification" in output
+    assert "BIBER_API_KEY: <set-user-api-key-in-secret-store>" in output
+    assert "api_key_included: False" in output
+
+
 def test_build_external_client_quickstart_verification_accepts_missing_admin_key(
     tmp_path: Path,
 ) -> None:

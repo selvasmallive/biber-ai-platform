@@ -138,6 +138,8 @@ python scripts/biber_agent_client.py external-client-integration-package \
   --env-template-artifact /workspace/outputs/biber-external-client-env-template.json \
   --quickstart-verification-artifact /workspace/outputs/biber-external-client-quickstart-verification.json \
   --output /workspace/outputs/biber-external-client-integration-package.json
+python scripts/biber_agent_client.py show-external-client-integration-package \
+  /workspace/outputs/biber-external-client-integration-package.json
 python scripts/biber_agent_client.py external-agent-smoke \
   --client-base-url http://127.0.0.1:8000 \
   --output /workspace/outputs/biber-external-agent-smoke.json
@@ -198,6 +200,8 @@ keys.
 Use `external-client-integration-package` to create one non-secret artifact that
 links readiness, env-template, quickstart verification, and next client steps for
 an IDE agent, gateway, or conversational app.
+Use `show-external-client-integration-package` to inspect that saved package
+later without regenerating it or resolving API keys.
 Use `external-agent-smoke` when you want one combined non-secret proof that the
 readiness probes pass and `/v1/chat/completions` returns a short local model
 response with OpenAI mentor off.

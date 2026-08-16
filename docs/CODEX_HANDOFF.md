@@ -4,6 +4,14 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 in-progress BIBER external-client integration package summary checkpoint:
+In progress: adding an offline `show-external-client-integration-package`
+command that prints a concise summary from a saved
+`biber_external_client_integration_package` artifact without regenerating it,
+opening JSON, resolving user/admin API keys, calling BIBER, creating/rotating
+credentials, calling OpenAI mentor, training models, using paid external APIs,
+or touching XRIQ/XRIS work.
+
 2026-08-16 latest BIBER external-client integration package checkpoint:
 Complete: commit `4262d03` (`Add BIBER external client integration package`)
 adds an offline `external-client-integration-package` command that links a saved

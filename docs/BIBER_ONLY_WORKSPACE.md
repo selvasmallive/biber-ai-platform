@@ -150,6 +150,9 @@ Use `external-client-integration-package <bundle.json> --env-template-artifact
 create one non-secret package linking readiness, env-template, quickstart
 verification, and next client steps for an IDE agent, gateway, or conversational
 app.
+Use `show-external-client-integration-package <artifact.json>` to inspect that
+saved integration package later without regenerating it, resolving API keys, or
+opening JSON.
 Use `external-agent-smoke --output <artifact.json>` when you want readiness plus
 one short OpenAI-compatible chat-completions response in a single non-secret
 artifact. This is the preferred MVP proof before handing BIBER to an external

@@ -23527,6 +23527,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Optional JSON artifact path.",
     )
 
+    show_external_client_integration_package = subparsers.add_parser(
+        "show-external-client-integration-package",
+        help=(
+            "Show a concise terminal summary for a saved external-client "
+            "integration package artifact."
+        ),
+    )
+    show_external_client_integration_package.add_argument("artifact")
+
     external_client_quickstart_verify = subparsers.add_parser(
         "external-client-quickstart-verify",
         help=(
@@ -28513,6 +28522,22 @@ def run(args: argparse.Namespace) -> str:
             json.dumps(result, indent=2, sort_keys=True)
             if args.print_json
             else format_external_client_integration_package_summary(result)
+        )
+
+    if args.command == "show-external-client-integration-package":
+        package = load_json_artifact(
+            args.artifact,
+            label="external-client-integration-package artifact",
+        )
+        if package.get("source") != "biber_external_client_integration_package":
+            raise BiberAgentClientError(
+                "show-external-client-integration-package requires a "
+                "biber_external_client_integration_package artifact."
+            )
+        return (
+            json.dumps(package, indent=2, sort_keys=True)
+            if args.print_json
+            else format_external_client_integration_package_summary(package)
         )
 
     if args.command == "external-client-quickstart-verify":
