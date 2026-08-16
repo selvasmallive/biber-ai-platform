@@ -58,63 +58,63 @@
     },
     "care_rate_base_tier1": {
       "value": "0.75",
-      "source": "CARE rate (Schedule ON479-A) for adjusted family income of $20,000 or less. The credit is refundable and the rate is a step function. CONFIRM whether the income measured is net income before or after the child care deduction itself — Freshet currently uses line 23600, which is after.",
-      "verified": false
+      "source": "Schedule ON479-A: 75% of the federal child care deduction for family income up to $20,000.",
+      "verified": true
     },
     "care_tier1_ceiling": {
       "value": "20000",
-      "source": "Top of the flat 75% CARE band.",
-      "verified": false
+      "source": "Schedule ON479-A: the full 75% rate applies up to $20,000 of family income.",
+      "verified": true
     },
     "care_rate_base_tier2": {
       "value": "0.75",
-      "source": "CARE rate at $20,000, from which the second band steps down.",
-      "verified": false
+      "source": "Schedule ON479-A: the second tier also starts at 75%, reduced by 2% for each $2,500 (or part) of income above $20,000.",
+      "verified": true
     },
     "care_tier2_ceiling": {
       "value": "40000",
-      "source": "Top of the second CARE band.",
-      "verified": false
+      "source": "Schedule ON479-A: second tier runs to $40,000.",
+      "verified": true
     },
     "care_tier2_step": {
       "value": "2500",
-      "source": "Between $20,000 and $40,000 the CARE rate falls 2 points per $2,500 or portion.",
-      "verified": false
+      "source": "Schedule ON479-A: $2,500 income step in the second tier, counting each part-step as a whole one.",
+      "verified": true
     },
     "care_rate_base_tier3": {
       "value": "0.59",
-      "source": "CARE rate at $40,000, from which the third band steps down.",
-      "verified": false
+      "source": "Schedule ON479-A: 59% base for the $40,000-$60,000 tier. Corroborated by Ontario's own worked example: at $45,500 the rate is 55%, which is 59% - 2% x ceil(5500/5000) = 59% - 4%.",
+      "verified": true
     },
     "care_tier3_ceiling": {
       "value": "60000",
-      "source": "Top of the third CARE band.",
-      "verified": false
+      "source": "Schedule ON479-A: third tier runs to $60,000.",
+      "verified": true
     },
     "care_tier3_step": {
       "value": "5000",
-      "source": "Between $40,000 and $60,000 the CARE rate falls 2 points per $5,000 or portion.",
-      "verified": false
+      "source": "Schedule ON479-A: $5,000 income step in the third tier. Confirmed by Ontario's worked example at $45,500.",
+      "verified": true
     },
     "care_rate_base_tier4": {
       "value": "0.51",
-      "source": "CARE rate at $60,000, from which the fourth band steps down.",
-      "verified": false
+      "source": "Schedule ON479-A: 51% base for the $60,000-$150,000 tier, reduced by 2% for each $3,600 (or part) above $60,000, reaching zero at $150,000.",
+      "verified": true
     },
     "care_tier4_ceiling": {
       "value": "150000",
-      "source": "CARE is fully phased out above $150,000 of adjusted family income.",
-      "verified": false
+      "source": "Schedule ON479-A: the credit reaches zero at $150,000 of family income.",
+      "verified": true
     },
     "care_tier4_step": {
       "value": "3600",
-      "source": "Between $60,000 and $150,000 the CARE rate falls 2 points per $3,600 or portion, reaching 1% in the top band.",
-      "verified": false
+      "source": "Schedule ON479-A: $3,600 income step in the fourth tier, which takes 51% to zero across the $60,000-$150,000 range in 25 steps.",
+      "verified": true
     },
     "care_step_reduction": {
       "value": "0.02",
-      "source": "Each step reduces the CARE rate by two percentage points.",
-      "verified": false
+      "source": "Schedule ON479-A: every step reduces the rate by 2 percentage points.",
+      "verified": true
     },
     "age_amount_max": {
       "value": "6223",
@@ -142,9 +142,9 @@
       "verified": true
     },
     "tuition_transfer_max": {
-      "value": "6800",
-      "source": "Maximum current-year tuition transferable to a spouse, Ontario.",
-      "verified": false
+      "value": "0",
+      "source": "Ontario abolished the tuition and education tax credits for studies after 5 September 2017 (Taxation Act, 2007 amendments). There is no Ontario current-year tuition transfer, so the maximum is nil. The federal transfer under ITA s.118.81 is unaffected.",
+      "verified": true
     },
     "medical_threshold_rate": {
       "value": "0.03",

@@ -244,8 +244,8 @@
     },
     "cpp_rate_total": {
       "value": "0.0595",
-      "source": "Employee CPP base contribution rate, 2025.",
-      "verified": false
+      "source": "CRA 2025 announcement: employee contribution rate 5.95%, being the 4.95% base plus the 1.00% first additional rate.",
+      "verified": true
     },
     "cpp_rate_enhanced": {
       "value": "0.01",
@@ -259,8 +259,8 @@
     },
     "cpp_ympe": {
       "value": "71300",
-      "source": "Year's maximum pensionable earnings, 2025. Caps how much self-employment income is pensionable once employment earnings are counted.",
-      "verified": false
+      "source": "CRA, 'Canada Revenue Agency announces maximum pensionable earnings and contributions for 2025': YMPE $71,300.",
+      "verified": true
     },
     "cpp_self_employed_multiple": {
       "value": "2",
@@ -269,23 +269,23 @@
     },
     "cpp_basic_exemption": {
       "value": "3500",
-      "source": "CPP basic exemption, 2025. Earnings below this are not pensionable.",
-      "verified": false
+      "source": "CPP Act s.20: the basic exemption is fixed at $3,500 and is not indexed.",
+      "verified": true
     },
     "cpp_max_contribution": {
       "value": "4034.10",
-      "source": "Maximum employee CPP contribution, 2025 (YMPE 71,300 less the 3,500 exemption, at 5.95%).",
-      "verified": false
+      "source": "CRA 2025 announcement: $4,034.10. Self-checks: (71300 - 3500) x 0.0595 = 4034.10 exactly.",
+      "verified": true
     },
     "cpp2_max_contribution": {
       "value": "396.00",
-      "source": "Maximum employee second CPP contribution, 2025 (YAMPE 81,200 less YMPE 71,300, at 4%).",
-      "verified": false
+      "source": "CRA 2025 announcement: $396.00 on second additional earnings. Self-checks: (81200 - 71300) x 0.04 = 396.00 exactly.",
+      "verified": true
     },
     "ei_max_premium": {
       "value": "1077.48",
-      "source": "Maximum employee EI premium, 2025 (MIE 65,700 at 1.64%).",
-      "verified": false
+      "source": "CRA/ESDC 2025: maximum insurable earnings $65,700 at 1.64%. Self-checks: 65700 x 0.0164 = 1077.48 exactly.",
+      "verified": true
     },
     "ei_min_insurable": {
       "value": "2000",

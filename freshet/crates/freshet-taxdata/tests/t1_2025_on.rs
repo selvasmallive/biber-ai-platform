@@ -296,9 +296,20 @@ fn the_2026_bracket_thresholds_moved_with_indexation() {
 }
 
 #[test]
-fn both_supported_years_refuse_to_file_on_unverified_data() {
-    assert!(!assess(&[("t4.employment_income", "50000")]).is_filable());
-    assert!(!assess_2026(&[("t4.employment_income", "50000")]).is_filable());
+fn the_data_gate_tracks_the_verification_pass_year_by_year() {
+    // 2025 is fully verified: every federal and Ontario parameter behind it has
+    // been checked against a primary source, so the data gate opens.
+    assert!(
+        assess(&[("t4.employment_income", "50000")]).is_filable(),
+        "2025 is fully verified but the gate is still closed"
+    );
+
+    // 2026 is not. Ontario's indexed amounts are derived from the verified 2025
+    // figures rather than read off a published ON428, so they stay unverified
+    // and the gate stays shut — which is the gate working, not failing.
+    let y2026 = assess_2026(&[("t4.employment_income", "50000")]);
+    assert!(!y2026.is_filable());
+    assert!(y2026.warnings.iter().all(|w| w.contains("unverified")));
 }
 
 // -- refundable credits ---------------------------------------------------
@@ -345,6 +356,29 @@ fn the_care_credit_matches_ontarios_published_example() {
     assert_eq!(got.get("on.care_income").unwrap(), d("51000.00"));
     assert_eq!(got.get("on.care_rate").unwrap(), d("0.53"));
     assert_eq!(got.get("on.47900").unwrap(), d("4240.00"));
+}
+
+/// A second published example, at a different point in the table.
+///
+/// Ontario states that a family income of $45,500 attracts a 55% rate. That
+/// only comes out if the third-tier base rate, the $5,000 step, the 2% per
+/// step, *and* the round-up on a part-step are all correct at once:
+/// 59% − 2% × ceil(5,500 / 5,000) = 55%. Interpolating would give 56.8%.
+///
+/// It is the corroboration behind marking the CARE parameters verified, so it
+/// belongs in the suite rather than only in a citation.
+#[test]
+fn the_care_credit_matches_ontarios_second_published_example() {
+    let got = assess(&[
+        // The child care deduction drops net income by $8,000, so this lands
+        // family income on $45,500.
+        ("t4.employment_income", "53500"),
+        ("childcare.expenses_claimed", "8000"),
+        ("dependants.count_under_7", "1"),
+    ]);
+
+    assert_eq!(got.get("on.care_income").unwrap(), d("45500.00"));
+    assert_eq!(got.get("on.care_rate").unwrap(), d("0.55"));
 }
 
 #[test]
@@ -1028,22 +1062,27 @@ fn diagnostics_are_ordered_worst_first() {
     assert_eq!(severities, sorted, "diagnostics were not worst-first");
 }
 
-/// The shipped 2025 pack is seeded from secondary sources. Until every value is
-/// checked against its citation the engine must refuse to call a return
-/// filable. This test is expected to flip once the verification pass is done.
+/// The 2025 pack was seeded from secondary sources, and the engine refused to
+/// call it filable until every value had been checked against its citation.
+/// That pass is now complete, so this asserts the other direction: no
+/// unverified residual, and no warnings.
+///
+/// Being cleared on the *data* is not permission to transmit. `CERTIFIED_YEARS`
+/// is a separate gate and is still empty, which is the distinction this test
+/// exists to keep visible.
 #[test]
-fn shipped_2025_data_is_not_yet_cleared_for_filing() {
+fn shipped_2025_data_is_now_cleared_by_the_verification_gate() {
     let got = assess(&[("t4.employment_income", "60000")]);
 
+    assert!(got.is_filable(), "2025 lost its verified status");
     assert!(
-        !got.is_filable(),
-        "2025 data claims to be filable -- if the verification pass is genuinely \
-         complete, update this test; do not delete it"
+        got.warnings.is_empty(),
+        "a fully verified pack still warned: {:?}",
+        got.warnings
     );
     assert!(
-        got.warnings.iter().all(|w| w.contains("unverified")),
-        "unexpected warning kind: {:?}",
-        got.warnings
+        !freshet_taxdata::is_certified(2025),
+        "verified data must never be mistaken for CRA certification"
     );
 }
 
@@ -1138,5 +1177,45 @@ fn a_high_earner_gets_no_tax_reduction_at_all() {
     assert_eq!(
         got.get("on.tax_after_reduction").unwrap(),
         got.get("on.tax_after_surtax").unwrap()
+    );
+}
+
+/// Ontario stopped offering a tuition and education credit for studies after
+/// **5 September 2017**. A student paying tuition today accrues a federal
+/// amount and no Ontario one, so nothing here may reach ON428.
+///
+/// Getting this wrong inflates a refund, which is the worst direction to be
+/// wrong in: the taxpayer keeps money CRA will later reassess.
+#[test]
+fn ontario_grants_no_tuition_credit_because_it_abolished_one() {
+    let with_tuition = assess(&[
+        ("t4.employment_income", "45000"),
+        ("tuition.fees", "9000"),
+    ]);
+    let without = assess(&[("t4.employment_income", "45000")]);
+
+    assert_eq!(
+        with_tuition.get("on.58560").unwrap(),
+        d("0.00"),
+        "Ontario allowed a current-year tuition claim it abolished in 2017"
+    );
+    assert_eq!(
+        with_tuition.get("on.tuition_transferable").unwrap(),
+        d("0.00"),
+        "Ontario allowed tuition to be transferred to a parent"
+    );
+
+    // The federal credit is unaffected — that one is real.
+    assert_eq!(
+        with_tuition.get("fed.32300"),
+        Some(d("9000.00")),
+        "the federal tuition claim was collateral damage"
+    );
+
+    // And the bottom line: tuition must not move Ontario tax at all.
+    assert_eq!(
+        with_tuition.get("on.42800").unwrap(),
+        without.get("on.42800").unwrap(),
+        "tuition changed Ontario tax"
     );
 }

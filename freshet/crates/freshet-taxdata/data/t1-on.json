@@ -3428,55 +3428,19 @@
       "id": "on.58560",
       "label": "Ontario tuition amount claimed by the student",
       "expr": {
-        "op": "min",
-        "of": [
-          {
-            "op": "fact",
-            "key": "tuition.fees"
-          },
-          {
-            "op": "floor_zero",
-            "of": {
-              "op": "sub",
-              "from": {
-                "op": "line",
-                "id": "fed.26000"
-              },
-              "minus": {
-                "op": "line",
-                "id": "on.amounts_before_tuition"
-              }
-            }
-          }
-        ]
-      }
+        "op": "const",
+        "value": "0"
+      },
+      "note": "Ontario abolished the tuition and education amounts for studies after 5 September 2017, so current-year fees earn no Ontario credit and none can be transferred. Only pre-2017 carryforward survives, and this model does not track it — which understates rather than overstates, the only safe direction to be wrong in."
     },
     {
       "id": "on.tuition_transferable",
       "label": "Ontario tuition available to transfer",
       "expr": {
-        "op": "min",
-        "of": [
-          {
-            "op": "floor_zero",
-            "of": {
-              "op": "sub",
-              "from": {
-                "op": "fact",
-                "key": "tuition.fees"
-              },
-              "minus": {
-                "op": "line",
-                "id": "on.58560"
-              }
-            }
-          },
-          {
-            "op": "param",
-            "key": "on:tuition_transfer_max"
-          }
-        ]
-      }
+        "op": "const",
+        "value": "0"
+      },
+      "note": "Ontario abolished the tuition and education amounts for studies after 5 September 2017, so current-year fees earn no Ontario credit and none can be transferred. Only pre-2017 carryforward survives, and this model does not track it — which understates rather than overstates, the only safe direction to be wrong in."
     },
     {
       "id": "on.own_amounts",

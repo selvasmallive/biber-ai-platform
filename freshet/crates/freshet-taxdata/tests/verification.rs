@@ -41,44 +41,20 @@ fn assert_residual(year: u16, jurisdiction: &str, expected: &[&str]) {
 
 #[test]
 fn fed_2025_residual_is_exactly_this() {
-    let expected: Vec<&str> = vec![
-        "scalars.cpp2_max_contribution",
-        "scalars.cpp_basic_exemption",
-        "scalars.cpp_max_contribution",
-        "scalars.cpp_rate_total",
-        "scalars.cpp_ympe",
-        "scalars.ei_max_premium",
-    ];
-
-    assert_residual(2025, "fed", &expected);
+    // Nothing left: every parameter checked against a primary source.
+    assert_residual(2025, "fed", &[]);
 }
 
 #[test]
 fn fed_2026_residual_is_exactly_this() {
-    // Nothing left. Every federal parameter for the certification
-    // target year has been checked against a primary source.
+    // Nothing left: every parameter checked against a primary source.
     assert_residual(2026, "fed", &[]);
 }
 
 #[test]
 fn on_2025_residual_is_exactly_this() {
-    let expected: Vec<&str> = vec![
-        "scalars.care_rate_base_tier1",
-        "scalars.care_rate_base_tier2",
-        "scalars.care_rate_base_tier3",
-        "scalars.care_rate_base_tier4",
-        "scalars.care_step_reduction",
-        "scalars.care_tier1_ceiling",
-        "scalars.care_tier2_ceiling",
-        "scalars.care_tier2_step",
-        "scalars.care_tier3_ceiling",
-        "scalars.care_tier3_step",
-        "scalars.care_tier4_ceiling",
-        "scalars.care_tier4_step",
-        "scalars.tuition_transfer_max",
-    ];
-
-    assert_residual(2025, "on", &expected);
+    // Nothing left: every parameter checked against a primary source.
+    assert_residual(2025, "on", &[]);
 }
 
 #[test]
@@ -87,18 +63,6 @@ fn on_2026_residual_is_exactly_this() {
         "scalars.age_amount_max",
         "scalars.age_amount_threshold",
         "scalars.bpa",
-        "scalars.care_rate_base_tier1",
-        "scalars.care_rate_base_tier2",
-        "scalars.care_rate_base_tier3",
-        "scalars.care_rate_base_tier4",
-        "scalars.care_step_reduction",
-        "scalars.care_tier1_ceiling",
-        "scalars.care_tier2_ceiling",
-        "scalars.care_tier2_step",
-        "scalars.care_tier3_ceiling",
-        "scalars.care_tier3_step",
-        "scalars.care_tier4_ceiling",
-        "scalars.care_tier4_step",
         "scalars.caregiver_base",
         "scalars.caregiver_max",
         "scalars.disability_amount",
@@ -112,7 +76,6 @@ fn on_2026_residual_is_exactly_this() {
         "scalars.surtax_threshold_2",
         "scalars.tax_reduction_basic",
         "scalars.tax_reduction_per_dependant",
-        "scalars.tuition_transfer_max",
     ];
 
     assert_residual(2026, "on", &expected);
