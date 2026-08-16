@@ -4,13 +4,26 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
-2026-08-16 in-progress BIBER external-client integration package summary checkpoint:
-In progress: adding an offline `show-external-client-integration-package`
-command that prints a concise summary from a saved
+2026-08-16 latest BIBER external-client integration package summary checkpoint:
+Complete: commit `a2c93ac` (`Add BIBER external client integration package
+summary`) adds an offline `show-external-client-integration-package` command
+that prints a concise summary from a saved
 `biber_external_client_integration_package` artifact without regenerating it,
 opening JSON, resolving user/admin API keys, calling BIBER, creating/rotating
 credentials, calling OpenAI mentor, training models, using paid external APIs,
-or touching XRIQ/XRIS work.
+or touching XRIQ/XRIS work. Local validation passed Python `py_compile` with
+temp pycache, a focused direct no-pytest show-command test, `git diff --check`,
+and `scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. The
+SSH-enabled Vast checkout was fast-forwarded to `a2c93ac` with a temporary git
+bundle because the Vast GitHub HTTPS remote is not credentialed; the temporary
+bundle was removed afterward. Vast passed `py_compile` and ran
+`show-external-client-integration-package` against
+`/workspace/outputs/biber-external-client-integration-package-20260816T184011Z/biber-external-client-integration-package-live.json`.
+The summary was saved at
+`/workspace/outputs/biber-external-client-integration-package-20260816T184011Z/biber-external-client-integration-package-show-summary.txt`
+and reports `ready_for_external_client_integration=True`,
+`api_key_included=False`, `admin_api_key_included=False`, and all three linked
+artifacts included with `ok=True`; the Vast checkout remained clean.
 
 2026-08-16 latest BIBER external-client integration package checkpoint:
 Complete: commit `4262d03` (`Add BIBER external client integration package`)
