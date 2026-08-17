@@ -257,6 +257,20 @@ anyone else access, protect `/admin` and `/admin/*` with Cloudflare Access, a
 VPN, or an equivalent admin-only edge rule. Keep `/v1/chat/completions` public
 only behind user API-key auth.
 
+Run this no-secret readiness smoke after deployment or after DNS/tunnel changes:
+
+```bash
+python scripts/biber_admin_console_readiness.py \
+  --base-url https://api.beaverapi.com \
+  --output /workspace/outputs/biber-admin-console-readiness.json
+```
+
+The readiness artifact verifies the console pages, browser hardening headers,
+or confirms that the admin console is protected at the edge, and verifies
+anonymous admin API protection. It does not include admin keys, user API keys,
+or raw key records. For a direct Vast/local check that requires the actual HTML
+page to be served, add `--require-console-served`.
+
 After DNS/tunnel propagation:
 
 ```bash

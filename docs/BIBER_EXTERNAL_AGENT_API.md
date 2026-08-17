@@ -311,6 +311,34 @@ admin key is held only in browser memory for the current page session. The page
 does not store admin/user keys in git or generated artifacts, and the server
 still stores only key hashes plus safe metadata.
 
+Verify the console without secrets:
+
+```bash
+python scripts/biber_admin_console_readiness.py \
+  --base-url https://api.beaverapi.com \
+  --output /workspace/outputs/biber-admin-console-readiness.json
+```
+
+If the admin key is already configured and you want a redacted authenticated
+list proof, pass the key only through an environment variable:
+
+```bash
+read -rsp "Paste BIBER_ADMIN_API_KEY: " BIBER_ADMIN_API_KEY
+echo
+export BIBER_ADMIN_API_KEY
+python scripts/biber_admin_console_readiness.py \
+  --base-url https://api.beaverapi.com \
+  --admin-api-key-env BIBER_ADMIN_API_KEY \
+  --require-authenticated-admin-list \
+  --output /workspace/outputs/biber-admin-console-readiness-authenticated.json
+unset BIBER_ADMIN_API_KEY
+```
+
+The artifact reports counts and status only; it does not include admin keys,
+user API keys, or raw key records. Public checks allow `/admin` to be protected
+by Cloudflare Access or a similar edge rule; direct Vast/local checks can add
+`--require-console-served` to require the actual HTML console response.
+
 Example:
 
 ```bash

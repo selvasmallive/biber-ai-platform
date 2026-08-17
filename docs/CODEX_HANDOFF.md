@@ -4,6 +4,14 @@ Last updated: 2026-08-17
 
 ## Current Goal
 
+2026-08-17 latest BIBER admin console readiness checkpoint:
+In progress: add `scripts/biber_admin_console_readiness.py`, a no-secret
+readiness smoke for `/admin`, `/admin/api-keys`, security headers, and
+anonymous `/v1/admin/api-keys` protection. It should optionally accept
+`--admin-api-key-env` for an authenticated list check but must never write
+admin keys, user API keys, or raw key records to artifacts. Keep OpenAI mentor,
+training, credential rotation, paid APIs, and XRIQ/XRIS work out of this step.
+
 2026-08-17 latest BIBER admin console MVP checkpoint:
 Complete: commits `4153a23` and `2074351` add a minimal FastAPI-served browser
 console at `/admin` and `/admin/api-keys` for admin-managed user API keys. The
