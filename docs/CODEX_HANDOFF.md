@@ -5,14 +5,26 @@ Last updated: 2026-08-17
 ## Current Goal
 
 2026-08-17 latest BIBER admin console MVP checkpoint:
-In progress: add a minimal FastAPI-served browser console at `/admin` and
-`/admin/api-keys` for admin-managed user API keys. The console must use the
-existing protected `/v1/admin/api-keys` endpoints, keep `BIBER_ADMIN_API_KEY`
-in browser memory only for the current page session, display newly issued user
-keys once, list/revoke keys through the hashed key store, avoid rendering
-user-controlled labels as HTML, and add no-store/browser hardening headers.
-Do not add a separate database, full user account portal, billing, credential
-rotation, OpenAI mentor calls, training, or XRIQ/XRIS work for this MVP step.
+Complete: commits `4153a23` and `2074351` add a minimal FastAPI-served browser
+console at `/admin` and `/admin/api-keys` for admin-managed user API keys. The
+console uses the existing protected `/v1/admin/api-keys` endpoints, keeps
+`BIBER_ADMIN_API_KEY` in browser memory only for the current page session,
+displays newly issued user keys once, lists/revokes keys through the hashed key
+store, avoids rendering user-controlled labels as HTML, and adds no-store plus
+browser hardening headers. Local validation passed Python `py_compile`, `git
+diff --check`, and `scripts/biber_local_confidence_smoke.py` with `ok=True` and
+11 checks. Vast was fast-forwarded to `2074351` through a temporary git bundle
+and passed `/workspace/biber-venv` `py_compile` plus a no-pytest FastAPI
+`TestClient` validation for `/admin`, `/admin/api-keys`, capabilities metadata,
+issued-key hashing, list redaction, and revoke behavior. FastAPI only was
+restarted on Vast to activate the route; vLLM was not restarted. Local Vast
+`http://127.0.0.1:8000/admin` and public
+`https://api.beaverapi.com/admin` both returned HTTP 200 with the BIBER Admin
+console and security headers. This step did not add a separate database, full
+user account portal, billing, credential rotation, OpenAI mentor calls,
+training, or XRIQ/XRIS work. Before real users access admin routes, protect
+`/admin`, `/admin/*`, and `/v1/admin/*` with Cloudflare Access, VPN, or an
+equivalent admin-only edge rule.
 
 2026-08-17 latest BIBER public-client API-key management checkpoint:
 Complete: commit `056dfa3` adds guarded Vast admin API-key setup through
