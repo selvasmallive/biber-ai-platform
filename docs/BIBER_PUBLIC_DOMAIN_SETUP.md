@@ -62,6 +62,30 @@ Cloudflare:
 4. Change Nameservers to Custom DNS and enter the two Cloudflare nameservers.
 5. Wait until Cloudflare shows the zone as active.
 
+### Current Setup Status
+
+As of 2026-08-16, `beaverapi.com` has been added to Cloudflare on the Free
+website plan. Cloudflare assigned:
+
+```text
+darwin.ns.cloudflare.com
+jewel.ns.cloudflare.com
+```
+
+Namecheap was updated for `beaverapi.com` to Custom DNS with exactly those two
+nameservers, and Namecheap accepted the save. Cloudflare is currently waiting
+for registrar nameserver propagation. Cloudflare Zone ID:
+
+```text
+8f4368cb2812a7c668eaa645833cde08
+```
+
+Tunnel creation is blocked until the user completes Cloudflare Zero Trust Free
+activation. It is shown as `$0/month`, but it requires billing address,
+Terms/Privacy agreement, and explicit authorization for overage billing. Future
+Codex sessions must not complete that checkout or authorize overage billing for
+the user.
+
 Then create a Cloudflare Tunnel:
 
 1. In Cloudflare Zero Trust, go to Networks -> Tunnels.

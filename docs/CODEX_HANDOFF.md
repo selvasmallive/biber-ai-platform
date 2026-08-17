@@ -4,6 +4,30 @@ Last updated: 2026-08-16
 
 ## Current Goal
 
+2026-08-16 latest BIBER beaverapi.com live domain setup checkpoint:
+In progress: Cloudflare zone setup for `beaverapi.com` was started in the
+logged-in Cloudflare dashboard. Cloudflare assigned nameservers
+`darwin.ns.cloudflare.com` and `jewel.ns.cloudflare.com`. Namecheap was updated
+for `beaverapi.com` from Namecheap BasicDNS to Custom DNS with exactly those two
+Cloudflare nameservers; Namecheap accepted the change and displayed that DNS
+server updates may take up to 48 hours. Cloudflare now shows
+`beaverapi.com` waiting for registrar nameserver propagation, which Cloudflare
+says typically takes 1-2 hours and can take up to 24 hours depending on the
+registrar. Cloudflare Zone ID shown on the overview page:
+`8f4368cb2812a7c668eaa645833cde08`.
+
+Blocked before tunnel creation: Cloudflare Zero Trust is not activated yet for
+this account. Opening Zero Trust -> Networks -> Tunnels & Mesh redirected to
+Zero Trust Free checkout. It is a $0/month plan but requires billing address,
+agreement to Terms/Privacy, and explicit authorization that Cloudflare may
+charge the saved card for usage beyond free limits. Future Codex sessions must
+not complete that checkout or authorize overage billing on the user's behalf.
+Ask the user to complete/confirm it in Cloudflare, then resume tunnel creation:
+create `biber-vast-api`, public hostname `api.beaverapi.com`, service
+`http://localhost:8000`, copy the tunnel token as a secret, and run
+`scripts/vast_configure_cloudflare_tunnel.sh` on Vast as documented in
+`docs/BIBER_PUBLIC_DOMAIN_SETUP.md`.
+
 2026-08-16 latest BIBER beaverapi.com public-domain checkpoint:
 Complete: commit `858d13e` (`Add BIBER public domain setup for beaverapi`) adds
 `docs/BIBER_PUBLIC_DOMAIN_SETUP.md` and
