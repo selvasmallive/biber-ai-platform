@@ -135,6 +135,8 @@ def console_checks(
         and not admin_key_leaked
     )
     checks = {
+        "status_code": response.get("status_code"),
+        "request_error": response.get("error"),
         "status_ok": response.get("status_code") == 200,
         "served_ok": served_ok,
         "edge_protected": edge_protected,
@@ -157,6 +159,61 @@ def console_checks(
         "x_frame_options": x_frame_options,
     }
     return checks
+
+
+def console_route_state(checks: dict[str, Any]) -> str:
+    if checks.get("served_ok") is True:
+        return "served"
+    if checks.get("edge_protected") is True:
+        return "edge_protected"
+    if checks.get("status_code") is None or checks.get("request_error"):
+        return "unreachable"
+    return "needs_review"
+
+
+def summarize_public_admin_access(
+    *,
+    console_checks_payload: dict[str, Any],
+    alias_checks_payload: dict[str, Any],
+    admin_api_summary: dict[str, Any],
+    require_console_served: bool,
+) -> dict[str, Any]:
+    console_state = console_route_state(console_checks_payload)
+    alias_state = console_route_state(alias_checks_payload)
+    admin_api_protected = admin_api_summary.get("anonymous_protected") is True
+    both_console_routes_served = console_state == "served" and alias_state == "served"
+    both_console_routes_edge_protected = (
+        console_state == "edge_protected" and alias_state == "edge_protected"
+    )
+
+    if both_console_routes_served and admin_api_protected:
+        state = "admin_console_served_directly"
+        recommendation = "protect_admin_routes_with_cloudflare_access_or_vpn_before_real_users"
+    elif both_console_routes_edge_protected and admin_api_protected:
+        state = "admin_console_edge_protected"
+        recommendation = "verify_admin_email_access_in_browser_then_keep_chat_api_user_key_auth"
+    elif "unreachable" in {console_state, alias_state}:
+        state = "admin_console_unreachable"
+        recommendation = "check_dns_tunnel_or_cloudflare_route_before_using_admin_console"
+    else:
+        state = "admin_console_needs_review"
+        recommendation = "inspect_route_statuses_and_cloudflare_access_policy"
+
+    return {
+        "state": state,
+        "console_route_state": console_state,
+        "alias_route_state": alias_state,
+        "anonymous_admin_api_protected": admin_api_protected,
+        "require_console_served": require_console_served,
+        "cloudflare_access_candidate": both_console_routes_edge_protected,
+        "recommended_next_step": recommendation,
+        "recommended_edge_protected_paths": [
+            "/admin",
+            "/admin/*",
+            "/v1/admin/*",
+        ],
+        "public_chat_routes_should_remain_user_api_key_protected": True,
+    }
 
 
 def parse_json_body(response: dict[str, Any]) -> dict[str, Any] | None:
@@ -251,6 +308,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         authenticated_admin_response,
         require_authenticated_admin_list=args.require_authenticated_admin_list,
     )
+    public_admin_access = summarize_public_admin_access(
+        console_checks_payload=console["checks"],
+        alias_checks_payload=alias["checks"],
+        admin_api_summary=admin_api,
+        require_console_served=args.require_console_served,
+    )
 
     warnings: list[str] = []
     if args.admin_api_key_env and not admin_key_value:
@@ -273,6 +336,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "console": console,
         "alias": alias,
         "admin_api": admin_api,
+        "public_admin_access": public_admin_access,
         "warnings": warnings,
     }
     summary["ok"] = bool(console["checks"]["ok"] and alias["checks"]["ok"] and admin_api["ok"])

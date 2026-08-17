@@ -4,6 +4,26 @@ Last updated: 2026-08-17
 
 ## Current Goal
 
+2026-08-17 latest BIBER admin console edge-readiness checkpoint:
+Complete: `scripts/biber_admin_console_readiness.py` now reports
+`public_admin_access.state` so future sessions can quickly distinguish
+`admin_console_edge_protected`, `admin_console_served_directly`,
+`admin_console_unreachable`, and `admin_console_needs_review`. The public MVP
+target posture is `admin_console_edge_protected` for `/admin`, `/admin/*`, and
+`/v1/admin/*`; normal model-source routes such as `/v1/models` and
+`/v1/chat/completions` should remain protected by BIBER user API keys, not
+Cloudflare Access, unless a future client explicitly supports Cloudflare Access
+service tokens. Docs now include the Cloudflare Zero Trust -> Access ->
+Applications checklist for protecting only admin routes. Local validation
+passed Python `py_compile` with temp pycache, direct dependency-free tests for
+the new readiness states, `git diff --check`, and
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. Public
+workstation validation against `https://api.beaverapi.com` passed with
+`ok=True` and `public_admin_access.state=admin_console_edge_protected`;
+`/admin`, `/admin/api-keys`, and `/v1/admin/api-keys` returned anonymous HTTP
+403. No admin/user API keys, raw key records, Cloudflare tokens, OpenAI mentor
+calls, training, credential rotation, paid APIs, or XRIQ/XRIS work were used.
+
 2026-08-17 latest BIBER admin console readiness checkpoint:
 Complete: commit `8396732` adds `scripts/biber_admin_console_readiness.py`, a
 no-secret readiness smoke for `/admin`, `/admin/api-keys`, browser hardening

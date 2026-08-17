@@ -257,6 +257,37 @@ anyone else access, protect `/admin` and `/admin/*` with Cloudflare Access, a
 VPN, or an equivalent admin-only edge rule. Keep `/v1/chat/completions` public
 only behind user API-key auth.
 
+### Cloudflare Access For Admin Routes
+
+For the public MVP, prefer Cloudflare Access only for operator/admin paths.
+Do not put normal model-source routes such as `/v1/models` and
+`/v1/chat/completions` behind Cloudflare Access unless the client explicitly
+supports Cloudflare Access service tokens. Those normal routes should remain
+protected by BIBER user API keys.
+
+Cloudflare UI checklist:
+
+1. Open Cloudflare Zero Trust.
+2. Go to Access -> Applications.
+3. Add a self-hosted application named `BIBER Admin Console`.
+4. Add these application domains/paths:
+   - `api.beaverapi.com/admin`
+   - `api.beaverapi.com/admin/*`
+   - `api.beaverapi.com/v1/admin/*`
+5. Add an Allow policy for the admin email address or admin identity group.
+6. Keep the session duration short enough for operations, for example 8 hours.
+7. Do not enable paid add-ons or authorize overage billing from this runbook.
+
+The readiness smoke reports `public_admin_access.state` so future sessions can
+quickly identify the public posture:
+
+- `admin_console_edge_protected`: expected public posture after Cloudflare
+  Access, WAF, or equivalent edge protection is active for admin routes.
+- `admin_console_served_directly`: acceptable only for private/local testing;
+  add Cloudflare Access or equivalent protection before real users.
+- `admin_console_unreachable` or `admin_console_needs_review`: check DNS,
+  tunnel health, and Cloudflare route/policy settings before using the console.
+
 Run this no-secret readiness smoke after deployment or after DNS/tunnel changes:
 
 ```bash

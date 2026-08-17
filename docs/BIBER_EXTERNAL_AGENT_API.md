@@ -338,6 +338,10 @@ The artifact reports counts and status only; it does not include admin keys,
 user API keys, or raw key records. Public checks allow `/admin` to be protected
 by Cloudflare Access or a similar edge rule; direct Vast/local checks can add
 `--require-console-served` to require the actual HTML console response.
+The redacted readiness output includes `public_admin_access.state`; the desired
+public MVP state is usually `admin_console_edge_protected` for `/admin`,
+`/admin/*`, and `/v1/admin/*`, while `/v1/models` and `/v1/chat/completions`
+remain protected by normal BIBER user API keys.
 
 Example:
 
