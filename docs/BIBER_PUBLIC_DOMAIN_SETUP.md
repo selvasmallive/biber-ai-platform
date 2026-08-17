@@ -81,6 +81,23 @@ Current remaining step: run a public OpenAI-compatible smoke with a user BIBER
 API key. Do not paste the key into chat, docs, git, shell history, or
 browser-state files.
 
+Authenticated smoke was completed on 2026-08-17 through
+`https://api.beaverapi.com/v1`. `/v1/models` returned stable model
+`biber-dev-core-v1` and candidate model `biber-dev-core-v2-candidate`.
+`/v1/chat/completions` returned `Biber public domain smoke test confirmed.`
+with `mentor_used=false`. Non-secret artifacts are on Vast under:
+
+```text
+/workspace/outputs/biber-public-domain-smoke-20260817T042616Z/
+```
+
+Vast DNS note: Python/curl DNS inside the Vast container may fail for
+`api.beaverapi.com` even when public DNS works from the workstation. For the
+saved Vast smoke, `curl --resolve api.beaverapi.com:443:172.67.128.89` was used
+to force the Cloudflare IPv4 edge while still exercising HTTPS, Cloudflare
+Tunnel, the public hostname, and the BIBER API. External clients should use the
+normal URL without `--resolve`.
+
 As of 2026-08-16, `beaverapi.com` has been added to Cloudflare on the Free
 website plan. Cloudflare assigned:
 

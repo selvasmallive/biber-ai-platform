@@ -4,6 +4,27 @@ Last updated: 2026-08-17
 
 ## Current Goal
 
+2026-08-17 latest BIBER public-domain authenticated smoke checkpoint:
+Complete: authenticated public OpenAI-compatible smoke through Cloudflare Tunnel
+passed for `https://api.beaverapi.com/v1`. `/v1/models` returned stable model
+`biber-dev-core-v1`, candidate model `biber-dev-core-v2-candidate`, and default
+model `biber-dev-core-v1`. `/v1/chat/completions` with model
+`biber-dev-core-v1` returned `Biber public domain smoke test confirmed.` with
+`mentor_used=false`. Non-secret artifact saved on Vast:
+`/workspace/outputs/biber-public-domain-smoke-20260817T042616Z/summary.json`;
+linked artifacts:
+`/workspace/outputs/biber-public-domain-smoke-20260817T042616Z/models.json` and
+`/workspace/outputs/biber-public-domain-smoke-20260817T042616Z/chat.json`.
+The artifact does not include user/admin API keys.
+
+Vast DNS note: inside the Vast container, Python/curl DNS currently fails
+intermittently for `api.beaverapi.com` with `gaierror` / `Could not resolve
+host`, even though the workstation public DNS and public health route work and
+Vast `getent ahostsv4` has shown Cloudflare IPv4 records. For the saved Vast
+smoke, `curl --resolve api.beaverapi.com:443:172.67.128.89` was used to
+exercise the HTTPS Cloudflare Tunnel path. External clients outside the Vast
+container should use normal DNS: `https://api.beaverapi.com/v1`.
+
 2026-08-17 latest BIBER beaverapi.com live tunnel checkpoint:
 Complete: the Cloudflare Tunnel connector was installed on Vast and is running
 under supervisor as `biber_public_api_tunnel`. Vast local BIBER API health is
@@ -16,10 +37,11 @@ is the expected protected OpenAI-compatible API behavior. Do not expose direct
 vLLM `127.0.0.1:8001`; Cloudflare should route only to the BIBER API gateway on
 Vast `localhost:8000`.
 
-Next narrow step: run a public OpenAI-compatible smoke with a user BIBER API key
-through `https://api.beaverapi.com/v1`, then save the non-secret smoke result.
-Do not paste the API key into chat, docs, git, or logs. Keep OpenAI mentor
-disabled unless explicitly requested.
+Next narrow step: add safer documented key-management workflow for public
+clients: either keep using the current bootstrap `BIBER_API_KEYS` for private
+testing, or configure `BIBER_ADMIN_API_KEY` deliberately and issue per-user keys
+through `/v1/admin/api-keys`. Do not paste API keys into chat, docs, git, or
+logs. Keep OpenAI mentor disabled unless explicitly requested.
 
 2026-08-17 latest BIBER beaverapi.com tunnel checkpoint:
 Cloudflare Zero Trust Free activation is now complete for the account. A
