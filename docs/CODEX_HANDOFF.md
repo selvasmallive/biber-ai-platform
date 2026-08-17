@@ -4,6 +4,16 @@ Last updated: 2026-08-17
 
 ## Current Goal
 
+2026-08-17 latest BIBER admin console MVP checkpoint:
+In progress: add a minimal FastAPI-served browser console at `/admin` and
+`/admin/api-keys` for admin-managed user API keys. The console must use the
+existing protected `/v1/admin/api-keys` endpoints, keep `BIBER_ADMIN_API_KEY`
+in browser memory only for the current page session, display newly issued user
+keys once, list/revoke keys through the hashed key store, avoid rendering
+user-controlled labels as HTML, and add no-store/browser hardening headers.
+Do not add a separate database, full user account portal, billing, credential
+rotation, OpenAI mentor calls, training, or XRIQ/XRIS work for this MVP step.
+
 2026-08-17 latest BIBER public-client API-key management checkpoint:
 Complete: commit `056dfa3` adds guarded Vast admin API-key setup through
 `scripts/vast_configure_admin_api_key.sh` plus public-client key-management docs

@@ -243,6 +243,20 @@ unset BIBER_ADMIN_API_KEY
 
 Use the returned user key as `BIBER_API_KEY` in external clients.
 
+The same user-key workflow is available in the MVP admin console:
+
+```text
+https://api.beaverapi.com/admin
+https://api.beaverapi.com/admin/api-keys
+```
+
+The console accepts `BIBER_ADMIN_API_KEY`, calls the same
+`/v1/admin/api-keys` endpoints, displays a newly issued user API key once, and
+keeps the admin key only in browser memory for that page session. Before giving
+anyone else access, protect `/admin` and `/admin/*` with Cloudflare Access, a
+VPN, or an equivalent admin-only edge rule. Keep `/v1/chat/completions` public
+only behind user API-key auth.
+
 After DNS/tunnel propagation:
 
 ```bash
@@ -271,8 +285,8 @@ python scripts/biber_agent_client.py external-agent-smoke \
 - Keep `OPENAI_MENTOR_ENABLED=false` unless explicitly testing mentor review.
 - Keep `BIBER_ADMIN_API_KEY` separate from user API keys.
 - Do not expose direct vLLM port `8001`.
-- Prefer Cloudflare Access or WAF rules for `/v1/admin/*` before inviting other
-  users.
+- Prefer Cloudflare Access or WAF rules for `/admin`, `/admin/*`, and
+  `/v1/admin/*` before inviting other users.
 - Do not commit `.env`, tunnel tokens, API keys, or generated private artifacts.
 
 ## Resume Notes

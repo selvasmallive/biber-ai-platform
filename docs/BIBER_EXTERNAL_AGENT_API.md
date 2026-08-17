@@ -287,16 +287,29 @@ BIBER_MODEL=biber-dev-core-v1
 BIBER_API_KEY=<issued-user-api-key>
 ```
 
-## Planned Admin Portal
+## Admin Console MVP
 
-The website admin portal is still planned, but the backend MVP now has admin
-API-key management endpoints protected by `BIBER_ADMIN_API_KEY`:
+The admin console MVP is available at:
+
+```text
+GET /admin
+GET /admin/api-keys
+```
+
+It is a FastAPI-served browser console for the existing admin API-key
+management endpoints protected by `BIBER_ADMIN_API_KEY`:
 
 ```text
 GET    /v1/admin/api-keys
 POST   /v1/admin/api-keys
 DELETE /v1/admin/api-keys/{key_id}
 ```
+
+The console lets an admin sign in with the admin API key, list user keys, issue
+per-user keys, copy the one-time plaintext key, and revoke active keys. The
+admin key is held only in browser memory for the current page session. The page
+does not store admin/user keys in git or generated artifacts, and the server
+still stores only key hashes plus safe metadata.
 
 Example:
 
@@ -343,15 +356,17 @@ admin key. Add `--allow-missing-admin-key` in CI or handoff runs when the admin
 key is intentionally absent; it writes a redacted blocked artifact instead of
 failing and still performs no mutation.
 
-The planned production portal should add:
+Before exposing the console to other people, put `/admin` and `/admin/*` behind
+Cloudflare Access, a VPN, or equivalent admin-only edge protection. The admin
+console is an MVP operational tool, not the production account portal.
+
+The later production portal should add:
 
 - Admin login with secure password or SSO.
 - Registered users.
-- Browser UI for per-user API key issuance.
-- Browser UI for revoke/disable/rotate controls.
 - Usage audit events.
 - Rate limits and monthly quotas.
 - Optional passcode or policy-based GPU priority scheduling.
 
-Build this only after the model-source API is stable and useful from at least
-one real client.
+Build those production account features only after the model-source API is
+stable and useful from at least one real client.

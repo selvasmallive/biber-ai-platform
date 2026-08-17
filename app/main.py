@@ -97,6 +97,14 @@ def _read_xriq_dashboard_html() -> str:
     raise HTTPException(status_code=500, detail="XRIQ dashboard asset is missing.")
 
 
+def _read_admin_console_html() -> str:
+    for parent in Path(__file__).resolve().parents:
+        console = parent / "examples" / "biber_admin_api_keys.html"
+        if console.is_file():
+            return console.read_text(encoding="utf-8")
+    raise HTTPException(status_code=500, detail="BIBER admin console asset is missing.")
+
+
 @app.get(
     "/xriq/private-devnet/dashboard",
     response_class=HTMLResponse,
@@ -104,6 +112,29 @@ def _read_xriq_dashboard_html() -> str:
 )
 def xriq_private_devnet_dashboard() -> HTMLResponse:
     return HTMLResponse(_read_xriq_dashboard_html())
+
+
+@app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
+@app.get("/admin/api-keys", response_class=HTMLResponse, include_in_schema=False)
+def admin_api_keys_console() -> HTMLResponse:
+    return HTMLResponse(
+        _read_admin_console_html(),
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Security-Policy": (
+                "default-src 'self'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "script-src 'self' 'unsafe-inline'; "
+                "connect-src 'self'; "
+                "frame-ancestors 'none'; "
+                "base-uri 'none'; "
+                "form-action 'self'"
+            ),
+            "Referrer-Policy": "no-referrer",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+        },
+    )
 
 
 Role = Literal["system", "user", "assistant"]
@@ -554,7 +585,7 @@ def _agent_capabilities() -> dict[str, object]:
                     "current_key_source": "BIBER_API_KEYS",
                     "issued_key_store": "BIBER_API_KEY_STORE_PATH",
                     "admin_key_management_api": "mvp",
-                    "admin_key_management_ui": "planned",
+                    "admin_key_management_ui": "mvp",
                     "per_user_key_issuance": "mvp",
                 },
                 "endpoints": {
@@ -563,6 +594,7 @@ def _agent_capabilities() -> dict[str, object]:
                     "native_chat": "POST /v1/chat",
                     "agent_capabilities": "GET /v1/agent/capabilities",
                     "admin_api_keys": "GET/POST/DELETE /v1/admin/api-keys",
+                    "admin_api_keys_console": "GET /admin/api-keys",
                 },
                 "intended_clients": [
                     "custom_conversational_agent",

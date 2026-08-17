@@ -68,10 +68,11 @@ def test_agent_capabilities_describes_client_workflows(tmp_path: Path) -> None:
     assert "Authorization: Bearer <api-key>" in external_api["authentication"]["headers"]
     assert external_api["authentication"]["issued_key_store"] == "BIBER_API_KEY_STORE_PATH"
     assert external_api["authentication"]["admin_key_management_api"] == "mvp"
-    assert external_api["authentication"]["admin_key_management_ui"] == "planned"
+    assert external_api["authentication"]["admin_key_management_ui"] == "mvp"
     assert external_api["authentication"]["per_user_key_issuance"] == "mvp"
     assert external_api["endpoints"]["chat_completions"] == "POST /v1/chat/completions"
     assert external_api["endpoints"]["admin_api_keys"] == "GET/POST/DELETE /v1/admin/api-keys"
+    assert external_api["endpoints"]["admin_api_keys_console"] == "GET /admin/api-keys"
     assert external_api["provider_swappable"] is True
     assert external_api["local_gpu_model_source"] is True
     assert external_api["openai_mentor_optional"] is True

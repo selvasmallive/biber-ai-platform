@@ -551,12 +551,15 @@ BIBER API gateway endpoint `POST /v1/chat/completions` with
 OpenAI-compatible, uses the same swappable model registry, and keeps OpenAI
 mentor disabled by default. A `.com` domain is not needed for local/private MVP
 testing; public internet clients need a later HTTPS domain/reverse-proxy layer
-and admin key-management portal. The backend key-management MVP is
+and admin-only protection for the key-management console. The backend
+key-management MVP is
 `GET/POST/DELETE /v1/admin/api-keys`, protected by `BIBER_ADMIN_API_KEY`, with
-issued user keys stored as hashes under `BIBER_API_KEY_STORE_PATH`. Use
-`admin-api-key-contract-smoke` for a list-only redacted endpoint proof before
-building an admin UI or gateway; use `--allow-missing-admin-key` for non-secret
-blocked evidence before credentials are configured. See
+issued user keys stored as hashes under `BIBER_API_KEY_STORE_PATH`. The browser
+console MVP is `GET /admin` and `GET /admin/api-keys`; it calls the same admin
+endpoints and keeps the admin key in browser memory for the current page
+session. Use `admin-api-key-contract-smoke` for a list-only redacted endpoint
+proof before connecting a gateway; use `--allow-missing-admin-key` for
+non-secret blocked evidence before credentials are configured. See
 `docs/BIBER_EXTERNAL_AGENT_API.md`.
 Then run `review-local-repair-chain` on that combined artifact before asking
 for explicit apply approval. The review is deterministic, no-API, and reports

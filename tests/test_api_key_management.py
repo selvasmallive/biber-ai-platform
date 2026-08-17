@@ -87,6 +87,33 @@ def test_admin_can_issue_list_revoke_file_backed_api_key(tmp_path: Path) -> None
         main_module.app.dependency_overrides.clear()
 
 
+def test_admin_console_serves_key_management_ui_without_secret_values(tmp_path: Path) -> None:
+    settings = make_settings(tmp_path)
+    main_module.app.dependency_overrides[main_module.get_settings] = lambda: settings
+    try:
+        client = TestClient(main_module.app)
+        response = client.get("/admin/api-keys")
+        alias_response = client.get("/admin")
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert alias_response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    body = response.text
+    assert "BIBER Admin" in body
+    assert "/v1/admin/api-keys" in body
+    assert "Admin API key" in body
+    assert "Issue Key" in body
+    assert "Revoke" in body
+    assert "admin-key" not in body
+    assert "bootstrap-key" not in body
+
+
 def test_admin_key_management_requires_admin_key(tmp_path: Path) -> None:
     settings = make_settings(tmp_path)
     main_module.app.dependency_overrides[main_module.get_settings] = lambda: settings
