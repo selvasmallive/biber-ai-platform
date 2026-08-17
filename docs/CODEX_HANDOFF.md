@@ -5,12 +5,21 @@ Last updated: 2026-08-17
 ## Current Goal
 
 2026-08-17 latest BIBER admin console readiness checkpoint:
-In progress: add `scripts/biber_admin_console_readiness.py`, a no-secret
-readiness smoke for `/admin`, `/admin/api-keys`, security headers, and
-anonymous `/v1/admin/api-keys` protection. It should optionally accept
-`--admin-api-key-env` for an authenticated list check but must never write
-admin keys, user API keys, or raw key records to artifacts. Keep OpenAI mentor,
-training, credential rotation, paid APIs, and XRIQ/XRIS work out of this step.
+Complete: commit `8396732` adds `scripts/biber_admin_console_readiness.py`, a
+no-secret readiness smoke for `/admin`, `/admin/api-keys`, browser hardening
+headers, and anonymous `/v1/admin/api-keys` protection. It optionally accepts
+`--admin-api-key-env` for an authenticated list check but records only status
+and counts, never admin keys, user API keys, or raw key records. Public
+workstation validation against `https://api.beaverapi.com` passed with
+`ok=True`: `/admin`, `/admin/api-keys`, and `/v1/admin/api-keys` all returned
+HTTP 403 anonymously, which the script treats as a valid edge-protected admin
+posture. Local validation passed Python `py_compile`, `git diff --check`, and
+`scripts/biber_local_confidence_smoke.py` with `ok=True` and 11 checks. Vast
+was fast-forwarded to `8396732` through a temporary git bundle; Vast passed
+`/workspace/biber-venv` `py_compile` and direct local readiness with
+`--require-console-served`, saving the non-secret artifact
+`/workspace/outputs/biber-admin-console-readiness-local.json`. No OpenAI mentor,
+training, credential rotation, paid APIs, or XRIQ/XRIS work occurred.
 
 2026-08-17 latest BIBER admin console MVP checkpoint:
 Complete: commits `4153a23` and `2074351` add a minimal FastAPI-served browser
