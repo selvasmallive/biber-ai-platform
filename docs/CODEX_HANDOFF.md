@@ -4,6 +4,23 @@ Last updated: 2026-08-17
 
 ## Current Goal
 
+2026-08-17 latest BIBER beaverapi.com live tunnel checkpoint:
+Complete: the Cloudflare Tunnel connector was installed on Vast and is running
+under supervisor as `biber_public_api_tunnel`. Vast local BIBER API health is
+still OK at `http://127.0.0.1:8000/health`. Public HTTPS health check from the
+workstation succeeded:
+`https://api.beaverapi.com/health` returned HTTP 200 with
+`{"status":"ok","service":"biber-api","env":"gpu","local_model_name":"biber-dev-core"}`.
+Unauthenticated `https://api.beaverapi.com/v1/models` returned HTTP 401, which
+is the expected protected OpenAI-compatible API behavior. Do not expose direct
+vLLM `127.0.0.1:8001`; Cloudflare should route only to the BIBER API gateway on
+Vast `localhost:8000`.
+
+Next narrow step: run a public OpenAI-compatible smoke with a user BIBER API key
+through `https://api.beaverapi.com/v1`, then save the non-secret smoke result.
+Do not paste the API key into chat, docs, git, or logs. Keep OpenAI mentor
+disabled unless explicitly requested.
+
 2026-08-17 latest BIBER beaverapi.com tunnel checkpoint:
 Cloudflare Zero Trust Free activation is now complete for the account. A
 Cloudflare Tunnel named `biber-vast-api` was created in Zero Trust under

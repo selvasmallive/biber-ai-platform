@@ -68,13 +68,18 @@ As of 2026-08-17, Cloudflare Zero Trust Free activation is complete. The
 Cloudflare Tunnel named `biber-vast-api` has been created with tunnel ID
 `eb224344-06e9-4b30-ac79-9844ac83867f`. The public hostname route
 `api.beaverapi.com` has been created with service type `HTTP` and origin
-`localhost:8000`. Cloudflare reports the tunnel as `Inactive` until the Vast
-connector is installed with the tunnel token.
+`localhost:8000`. The Vast connector has been installed with the tunnel token
+and is running under supervisor as `biber_public_api_tunnel`.
 
-Current remaining step: copy the Cloudflare connector token or full connector
-command from the tunnel's Connectors / Add a connector screen, then paste it
-only into the Vast terminal secure prompt. Do not paste the token into chat,
-docs, git, shell history, or browser-state files.
+Public route verification passed from the workstation:
+`https://api.beaverapi.com/health` returned HTTP 200 with BIBER health JSON.
+Unauthenticated `https://api.beaverapi.com/v1/models` returned HTTP 401, which
+is expected because OpenAI-compatible routes require
+`Authorization: Bearer <user-biber-api-key>`.
+
+Current remaining step: run a public OpenAI-compatible smoke with a user BIBER
+API key. Do not paste the key into chat, docs, git, shell history, or
+browser-state files.
 
 As of 2026-08-16, `beaverapi.com` has been added to Cloudflare on the Free
 website plan. Cloudflare assigned:
@@ -106,9 +111,12 @@ Cloudflare tunnel setup checklist:
    - Service type: `HTTP`
    - Service URL: `localhost:8000`
 4. Copy the connector token from Connectors / Add a connector. Treat it as a
-   secret.
+   secret. Done on 2026-08-17; do not rotate it unless needed.
 
 ## Vast Setup
+
+The connector is already installed on the current Vast GPU. Re-run this section
+only if the connector is missing, unhealthy, or the Vast instance is replaced.
 
 After the Cloudflare tunnel token exists, run this on the Vast GPU from the repo.
 This command accepts either the raw token or the full copied connector command
